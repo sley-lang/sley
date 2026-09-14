@@ -6298,7 +6298,7 @@ mod tests {
         ::core::assert_eq!(plan.row_id, "COR-07");
         ::core::assert_eq!(plan.group_id, "origin_ancestry_binding");
         ::core::assert_eq!(plan.leaf_id, "host_ref_io");
-        ::core::assert_eq!(plan.target_role, "BRANCH_INVENTORY");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_INVENTORY");
         ::core::assert_eq!(plan.artifact_role, "host_read_fault");
         ::core::assert_eq!(plan.identity_recipe, "selected_branch_owner_root");
         ::core::assert_eq!(
@@ -6321,7 +6321,7 @@ mod tests {
             "branch_record_field_shape" => (
                 "origin_format",
                 "branch_record_field_shape",
-                "BRANCH_ORIGIN_RECORD",
+                "ROLE_BRANCH_ORIGIN_RECORD",
                 "origin_record",
                 "selected_branch_name",
                 "branch_origin_path",
@@ -6331,7 +6331,7 @@ mod tests {
             "ref_name_invalid" => (
                 "ref_format",
                 "ref_name_invalid",
-                "BRANCH_REF_RECORD",
+                "ROLE_BRANCH_REF_RECORD",
                 "ref_record",
                 "selected_branch_name",
                 "branch_ref_path",
@@ -6341,7 +6341,7 @@ mod tests {
             "ref_name_reserved" => (
                 "ref_format",
                 "ref_name_reserved",
-                "BRANCH_REF_RECORD",
+                "ROLE_BRANCH_REF_RECORD",
                 "ref_record",
                 "selected_branch_name",
                 "branch_ref_path",
@@ -6351,7 +6351,7 @@ mod tests {
             "ref_field_shape" => (
                 "ref_format",
                 "ref_field_shape",
-                "BRANCH_REF_RECORD",
+                "ROLE_BRANCH_REF_RECORD",
                 "ref_record",
                 "selected_branch_name",
                 "branch_ref_path",
@@ -6361,7 +6361,7 @@ mod tests {
             "ref_name_collision" => (
                 "ref_format",
                 "ref_name_collision",
-                "BRANCH_REF_RECORD",
+                "ROLE_BRANCH_REF_RECORD",
                 "ref_record",
                 "selected_branch_name",
                 "branch_ref_path",
@@ -6371,7 +6371,7 @@ mod tests {
             "ref_digest_mismatch" => (
                 "ref_digest",
                 "ref_digest_mismatch",
-                "BRANCH_REF_RECORD",
+                "ROLE_BRANCH_REF_RECORD",
                 "ref_record",
                 "selected_branch_name",
                 "branch_ref_path",
@@ -6381,7 +6381,7 @@ mod tests {
             "ref_branch_binding_mismatch" => (
                 "origin_ref_binding",
                 "ref_branch_binding_mismatch",
-                "BRANCH_RECORD_PAIR",
+                "ROLE_BRANCH_RECORD_PAIR",
                 "origin_ref_pair",
                 "selected_branch_name",
                 "branch_origin_and_ref_paths",
@@ -6391,7 +6391,7 @@ mod tests {
             "recovery_named_ref_incomplete" => (
                 "origin_ref_binding",
                 "recovery_named_ref_incomplete",
-                "BRANCH_RECORD_PAIR",
+                "ROLE_BRANCH_RECORD_PAIR",
                 "origin_ref_pair",
                 "selected_branch_name",
                 "branch_origin_and_ref_paths",
@@ -6401,7 +6401,7 @@ mod tests {
             "ref_target_mismatch" => (
                 "target_binding",
                 "ref_target_mismatch",
-                "BRANCH_HEAD_REVISION",
+                "ROLE_BRANCH_HEAD_REVISION",
                 "ref_record_and_head_revision",
                 "decoded_ref_head_transaction_id",
                 "branch_ref_and_head_receipt_paths",
@@ -6411,7 +6411,7 @@ mod tests {
             "branch_origin_mismatch" => (
                 "origin_ancestry_binding",
                 "branch_origin_mismatch",
-                "BRANCH_ORIGIN_RELATION",
+                "ROLE_BRANCH_ORIGIN_RELATION",
                 "origin_head_topology",
                 "decoded_origin_and_head_transaction_ids",
                 "origin_and_head_receipt_paths",
@@ -6421,7 +6421,7 @@ mod tests {
             "branch_ancestry_cycle" => (
                 "origin_ancestry_binding",
                 "branch_ancestry_cycle",
-                "BRANCH_ANCESTRY_GRAPH",
+                "ROLE_BRANCH_ANCESTRY_GRAPH",
                 "logical_ancestry_graph",
                 "selected_branch_request_head",
                 "closed_test_graph_plan",
@@ -6431,7 +6431,7 @@ mod tests {
             "branch_resource_limit" => (
                 "origin_ancestry_binding",
                 "branch_resource_limit",
-                "BRANCH_ANCESTRY_GRAPH",
+                "ROLE_BRANCH_ANCESTRY_GRAPH",
                 "valid_ancestry_chain",
                 "selected_branch_request_head",
                 "closed_test_graph_plan",
@@ -6441,7 +6441,7 @@ mod tests {
             "semantic_ref_io" => (
                 "origin_ancestry_binding",
                 "semantic_ref_io",
-                "BRANCH_INVENTORY",
+                "ROLE_BRANCH_INVENTORY",
                 "hostile_inventory_entry",
                 "selected_branch_owner_root",
                 "canonical_branch_inventory_fault_path",
@@ -6488,13 +6488,13 @@ mod tests {
             selector => ::core::panic!("unsupported receipt-envelope selector: {selector}"),
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_envelope");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_origin_receipt_envelope_plan(plan: &CorruptionFixturePlan) {
@@ -6520,13 +6520,13 @@ mod tests {
             selector => ::core::panic!("unsupported origin receipt-envelope selector: {selector}"),
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_envelope");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_target_receipt_nested_transaction_plan(plan: &CorruptionFixturePlan) {
@@ -6561,13 +6561,13 @@ mod tests {
             }
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_nested_transaction");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_origin_receipt_nested_transaction_plan(plan: &CorruptionFixturePlan) {
@@ -6602,13 +6602,13 @@ mod tests {
             }
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_nested_transaction");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_target_receipt_nested_candidate_plan(plan: &CorruptionFixturePlan) {
@@ -6656,13 +6656,13 @@ mod tests {
             selector => ::core::panic!("unsupported nested candidate selector: {selector}"),
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_nested_candidate");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_origin_receipt_nested_candidate_plan(plan: &CorruptionFixturePlan) {
@@ -6712,13 +6712,13 @@ mod tests {
             }
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_nested_candidate");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_target_receipt_nested_candidate_result_plan(plan: &CorruptionFixturePlan) {
@@ -6754,13 +6754,13 @@ mod tests {
             }
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_nested_candidate_result");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_origin_receipt_nested_candidate_result_plan(plan: &CorruptionFixturePlan) {
@@ -6796,13 +6796,13 @@ mod tests {
             }
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_nested_candidate_result");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_target_receipt_nested_state_root_plan(plan: &CorruptionFixturePlan) {
@@ -6821,13 +6821,13 @@ mod tests {
             selector => ::core::panic!("unsupported nested state-root selector: {selector}"),
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_nested_state_root");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_origin_receipt_nested_state_root_plan(plan: &CorruptionFixturePlan) {
@@ -6848,13 +6848,13 @@ mod tests {
             }
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_nested_state_root");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_target_receipt_nested_policy_root_plan(plan: &CorruptionFixturePlan) {
@@ -6884,13 +6884,13 @@ mod tests {
             selector => ::core::panic!("unsupported nested policy-root selector: {selector}"),
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_nested_policy_root");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_origin_receipt_nested_policy_root_plan(plan: &CorruptionFixturePlan) {
@@ -6922,13 +6922,13 @@ mod tests {
             }
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_nested_policy_root");
         ::core::assert_eq!(plan.probe_class, "import_transaction_receipt_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_target_receipt_semantic_manifest_plan(plan: &CorruptionFixturePlan) {
@@ -6938,7 +6938,7 @@ mod tests {
             plan.leaf_id,
             "target_repository_txn_object_inventory_mismatch",
         );
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
@@ -6948,7 +6948,7 @@ mod tests {
             plan.selector,
             "repository_txn_object_inventory_mismatch",
         );
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_target_receipt_absent_plan(plan: &CorruptionFixturePlan) {
@@ -6958,42 +6958,42 @@ mod tests {
             plan.leaf_id,
             "target_repository_recovery_receipt_incomplete",
         );
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_absent");
         ::core::assert_eq!(plan.probe_class, "verify_absent_revision_receipt");
         ::core::assert_eq!(plan.selector, "repository_recovery_receipt_incomplete");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_target_receipt_host_io_plan(plan: &CorruptionFixturePlan) {
         ::core::assert_eq!(plan.row_id, "COR-07");
         ::core::assert_eq!(plan.group_id, "target_transaction");
         ::core::assert_eq!(plan.leaf_id, "target_host_txn_io");
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_host_io");
         ::core::assert_eq!(plan.probe_class, "path_bound_receipt_read_injection");
         ::core::assert_eq!(plan.selector, "host_txn_io");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_target_object_host_io_plan(plan: &CorruptionFixturePlan) {
         ::core::assert_eq!(plan.row_id, "COR-07");
         ::core::assert_eq!(plan.group_id, "target_transaction");
         ::core::assert_eq!(plan.leaf_id, "target_object_store_io");
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_object");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_changed_object_path");
         ::core::assert_eq!(plan.corrupter_class, "object_host_io");
         ::core::assert_eq!(plan.probe_class, "path_bound_object_read_injection");
         ::core::assert_eq!(plan.selector, "object_store_io");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_target_object_bytes_plan(plan: &CorruptionFixturePlan) {
@@ -7007,27 +7007,27 @@ mod tests {
             selector => ::core::panic!("unsupported object-bytes selector: {selector}"),
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_object");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_changed_object_path");
         ::core::assert_eq!(plan.corrupter_class, "object_bytes");
         ::core::assert_eq!(plan.probe_class, "object_store_read_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_target_object_absent_plan(plan: &CorruptionFixturePlan) {
         ::core::assert_eq!(plan.row_id, "COR-07");
         ::core::assert_eq!(plan.group_id, "target_transaction");
         ::core::assert_eq!(plan.leaf_id, "target_object_store_object_not_found");
-        ::core::assert_eq!(plan.target_role, "BRANCH_HEAD_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_HEAD_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_object");
         ::core::assert_eq!(plan.identity_recipe, "decoded_ref_head_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_changed_object_path");
         ::core::assert_eq!(plan.corrupter_class, "object_absent");
         ::core::assert_eq!(plan.probe_class, "object_store_read_error");
         ::core::assert_eq!(plan.selector, "object_store_object_not_found");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_ORIGIN_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_ORIGIN_REVISION"]);
     }
 
     fn assert_origin_receipt_semantic_manifest_plan(plan: &CorruptionFixturePlan) {
@@ -7037,7 +7037,7 @@ mod tests {
             plan.leaf_id,
             "origin_repository_txn_object_inventory_mismatch",
         );
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
@@ -7047,7 +7047,7 @@ mod tests {
             plan.selector,
             "repository_txn_object_inventory_mismatch",
         );
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_origin_receipt_absent_plan(plan: &CorruptionFixturePlan) {
@@ -7057,42 +7057,42 @@ mod tests {
             plan.leaf_id,
             "origin_repository_recovery_receipt_incomplete",
         );
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_absent");
         ::core::assert_eq!(plan.probe_class, "verify_absent_revision_receipt");
         ::core::assert_eq!(plan.selector, "repository_recovery_receipt_incomplete");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_origin_receipt_host_io_plan(plan: &CorruptionFixturePlan) {
         ::core::assert_eq!(plan.row_id, "COR-07");
         ::core::assert_eq!(plan.group_id, "origin_ancestry_binding");
         ::core::assert_eq!(plan.leaf_id, "origin_host_txn_io");
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_receipt");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_receipt_path");
         ::core::assert_eq!(plan.corrupter_class, "receipt_host_io");
         ::core::assert_eq!(plan.probe_class, "path_bound_receipt_read_injection");
         ::core::assert_eq!(plan.selector, "host_txn_io");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_origin_object_host_io_plan(plan: &CorruptionFixturePlan) {
         ::core::assert_eq!(plan.row_id, "COR-07");
         ::core::assert_eq!(plan.group_id, "origin_ancestry_binding");
         ::core::assert_eq!(plan.leaf_id, "origin_object_store_io");
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_object");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_changed_object_path");
         ::core::assert_eq!(plan.corrupter_class, "object_host_io");
         ::core::assert_eq!(plan.probe_class, "path_bound_object_read_injection");
         ::core::assert_eq!(plan.selector, "object_store_io");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_origin_object_bytes_plan(plan: &CorruptionFixturePlan) {
@@ -7106,27 +7106,27 @@ mod tests {
             selector => ::core::panic!("unsupported origin object-bytes selector: {selector}"),
         };
         ::core::assert_eq!(plan.leaf_id, expected_leaf_id);
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_object");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_changed_object_path");
         ::core::assert_eq!(plan.corrupter_class, "object_bytes");
         ::core::assert_eq!(plan.probe_class, "object_store_read_error");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_origin_object_absent_plan(plan: &CorruptionFixturePlan) {
         ::core::assert_eq!(plan.row_id, "COR-07");
         ::core::assert_eq!(plan.group_id, "origin_ancestry_binding");
         ::core::assert_eq!(plan.leaf_id, "origin_object_store_object_not_found");
-        ::core::assert_eq!(plan.target_role, "BRANCH_ORIGIN_REVISION");
+        ::core::assert_eq!(plan.target_role, "ROLE_BRANCH_ORIGIN_REVISION");
         ::core::assert_eq!(plan.artifact_role, "revision_object");
         ::core::assert_eq!(plan.identity_recipe, "decoded_origin_transaction_id");
         ::core::assert_eq!(plan.path_recipe, "role_changed_object_path");
         ::core::assert_eq!(plan.corrupter_class, "object_absent");
         ::core::assert_eq!(plan.probe_class, "object_store_read_error");
         ::core::assert_eq!(plan.selector, "object_store_object_not_found");
-        ::core::assert_eq!(plan.distinct_from_roles, &["BRANCH_HEAD_REVISION"]);
+        ::core::assert_eq!(plan.distinct_from_roles, &["ROLE_BRANCH_HEAD_REVISION"]);
     }
 
     fn assert_target_visible_revision_plan(plan: &CorruptionFixturePlan) {
@@ -7234,13 +7234,13 @@ mod tests {
         let origin_transaction_id = commit_visible_revision_child(
             &source,
             fixture_plan,
-            "BRANCH_ORIGIN_REVISION",
+            "ROLE_BRANCH_ORIGIN_REVISION",
             0xc6,
         );
         let head_transaction_id = commit_visible_revision_child(
             &source,
             fixture_plan,
-            "BRANCH_HEAD_REVISION",
+            "ROLE_BRANCH_HEAD_REVISION",
             0xc7,
         );
         import_fixture_revisions(&source, fixture);
@@ -7268,22 +7268,22 @@ mod tests {
             fixture_plan.target_role,
             fixture_plan.artifact_role,
         ) {
-            ("BRANCH_HEAD_REVISION", "revision_receipt") => (
+            ("ROLE_BRANCH_HEAD_REVISION", "revision_receipt") => (
                 head_transaction_id,
                 head_receipt_path,
                 origin_receipt_path,
             ),
-            ("BRANCH_ORIGIN_REVISION", "revision_receipt") => (
+            ("ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt") => (
                 origin_transaction_id,
                 origin_receipt_path,
                 head_receipt_path,
             ),
-            ("BRANCH_HEAD_REVISION", "revision_object") => (
+            ("ROLE_BRANCH_HEAD_REVISION", "revision_object") => (
                 head_transaction_id,
                 head_object_path.clone(),
                 origin_object_path.clone(),
             ),
-            ("BRANCH_ORIGIN_REVISION", "revision_object") => (
+            ("ROLE_BRANCH_ORIGIN_REVISION", "revision_object") => (
                 origin_transaction_id,
                 origin_object_path.clone(),
                 head_object_path.clone(),
@@ -10902,7 +10902,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_magic_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_magic_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_magic_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_magic_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -10966,7 +10966,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_version_unsupported", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_version_unsupported", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_version_unsupported", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_version_unsupported", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11030,7 +11030,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_digest_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_digest_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_digest_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_digest_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11094,7 +11094,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_trailing_bytes", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_trailing_bytes", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_trailing_bytes", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_trailing_bytes", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11158,7 +11158,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_varint_non_minimal", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_varint_non_minimal", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_varint_non_minimal", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_varint_non_minimal", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11222,7 +11222,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_integer_overflow", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_integer_overflow", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_integer_overflow", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_integer_overflow", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11286,7 +11286,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_length_overflow", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_length_overflow", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_length_overflow", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_length_overflow", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11350,7 +11350,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_field_missing", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_missing", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_field_missing", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_missing", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11414,7 +11414,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_field_unknown", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_unknown", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_field_unknown", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_unknown", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11478,7 +11478,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_field_duplicate", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_duplicate", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_field_duplicate", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_duplicate", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11542,7 +11542,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_union_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_union_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_union_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_union_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11606,7 +11606,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_resource_limit", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_resource_limit", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_scb_resource_limit", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_resource_limit", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11670,7 +11670,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_format_version", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_format_version", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_format_version", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_format_version", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11734,7 +11734,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_field_shape", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_field_shape", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_field_shape", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_field_shape", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11798,7 +11798,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_receipt_binding_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_receipt_binding_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_receipt_binding_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_receipt_binding_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11863,7 +11863,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_object_inventory_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_object_inventory_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_object_inventory_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_object_inventory_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11928,7 +11928,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_kind_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_kind_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_kind_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_kind_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -11993,7 +11993,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_result_binding_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_result_binding_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_result_binding_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_result_binding_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12058,7 +12058,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_format_version", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_format_version", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_format_version", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_format_version", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12122,7 +12122,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_format_version", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_format_version", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_format_version", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_format_version", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12187,7 +12187,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_validation_profile", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_validation_profile", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_validation_profile", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_validation_profile", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12251,7 +12251,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_profile_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_profile_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_profile_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_profile_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12316,7 +12316,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_expiry_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_expiry_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_expiry_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_expiry_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12380,7 +12380,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_operation_ordinal", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_operation_ordinal", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_operation_ordinal", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_operation_ordinal", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12444,7 +12444,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_operation_precondition_ordinal", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_operation_precondition_ordinal", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_operation_precondition_ordinal", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_operation_precondition_ordinal", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12508,7 +12508,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_phase_shape", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_phase_shape", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_phase_shape", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_phase_shape", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12573,7 +12573,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_precondition_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_precondition_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_precondition_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_precondition_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12637,7 +12637,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_target_entity", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_target_entity", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_target_entity", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_target_entity", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12702,7 +12702,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_empty_operations", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_empty_operations", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_empty_operations", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_empty_operations", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12766,7 +12766,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_precondition_count", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_precondition_count", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_precondition_count", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_precondition_count", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12830,7 +12830,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_set_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_set_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_set_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_set_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12894,7 +12894,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_candidate_id_shape", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_candidate_id_shape", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_candidate_id_shape", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_candidate_id_shape", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -12958,7 +12958,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_root_shape", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_root_shape", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_root_shape", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_root_shape", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13023,7 +13023,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_decision_phase_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_decision_phase_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_decision_phase_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_decision_phase_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13087,7 +13087,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_diagnostic_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_diagnostic_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_result_candidate_result_diagnostic_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_diagnostic_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13152,7 +13152,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_effect_kind_unknown", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_effect_kind_unknown", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_effect_kind_unknown", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_effect_kind_unknown", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13216,7 +13216,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_mutation_class_unknown", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_mutation_class_unknown", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_mutation_class_unknown", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_mutation_class_unknown", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13280,7 +13280,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_resource_limit", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_resource_limit", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_resource_limit", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_resource_limit", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13344,7 +13344,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_transition_mode_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_transition_mode_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_transition_mode_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_transition_mode_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13408,7 +13408,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_flag_unknown", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_flag_unknown", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_flag_unknown", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_flag_unknown", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13473,7 +13473,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_state_root_entry_unbound", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_state_root_entry_unbound", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_state_root_entry_unbound", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_state_root_entry_unbound", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13537,7 +13537,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_state_root_flag_unknown", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_state_root_flag_unknown", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_state_root_flag_unknown", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_state_root_flag_unknown", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13602,7 +13602,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_parent_shape", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_parent_shape", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_parent_shape", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_parent_shape", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13667,7 +13667,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_changed_binding_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_changed_binding_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_changed_binding_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_changed_binding_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13732,7 +13732,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_tombstone_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_tombstone_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_tombstone_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_tombstone_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13797,7 +13797,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_result_not_valid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_result_not_valid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_result_not_valid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_result_not_valid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13862,7 +13862,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_test_evidence_unsupported", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_test_evidence_unsupported", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_test_evidence_unsupported", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_test_evidence_unsupported", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13927,7 +13927,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_genesis_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_genesis_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_receipt_txn_genesis_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_genesis_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -13992,7 +13992,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_codec_txn_resource_limit", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "codec_txn_resource_limit", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_codec_txn_resource_limit", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "codec_txn_resource_limit", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14057,7 +14057,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_repository_txn_object_inventory_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_semantic_manifest", "import_receipt_then_verify_revision", "repository_txn_object_inventory_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_repository_txn_object_inventory_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_semantic_manifest", "import_receipt_then_verify_revision", "repository_txn_object_inventory_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14122,7 +14122,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_repository_recovery_receipt_incomplete", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_absent", "verify_absent_revision_receipt", "repository_recovery_receipt_incomplete", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_repository_recovery_receipt_incomplete", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_absent", "verify_absent_revision_receipt", "repository_recovery_receipt_incomplete", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14187,7 +14187,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_object_store_io", "BRANCH_HEAD_REVISION", "revision_object", "decoded_ref_head_transaction_id", "role_changed_object_path", "object_host_io", "path_bound_object_read_injection", "object_store_io", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_object_store_io", "ROLE_BRANCH_HEAD_REVISION", "revision_object", "decoded_ref_head_transaction_id", "role_changed_object_path", "object_host_io", "path_bound_object_read_injection", "object_store_io", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14254,7 +14254,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_host_txn_io", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_host_io", "path_bound_receipt_read_injection", "host_txn_io", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_host_txn_io", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_host_io", "path_bound_receipt_read_injection", "host_txn_io", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14319,7 +14319,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_magic_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_magic_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_magic_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_magic_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14384,7 +14384,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_version_unsupported", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_version_unsupported", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_version_unsupported", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_version_unsupported", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14449,7 +14449,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_digest_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_digest_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_digest_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_digest_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14514,7 +14514,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_trailing_bytes", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_trailing_bytes", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_trailing_bytes", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_trailing_bytes", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14579,7 +14579,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_varint_non_minimal", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_varint_non_minimal", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_varint_non_minimal", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_varint_non_minimal", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14644,7 +14644,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_integer_overflow", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_integer_overflow", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_integer_overflow", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_integer_overflow", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14709,7 +14709,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_length_overflow", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_length_overflow", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_length_overflow", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_length_overflow", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14774,7 +14774,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_field_missing", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_missing", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_field_missing", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_missing", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14839,7 +14839,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_field_unknown", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_unknown", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_field_unknown", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_unknown", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14904,7 +14904,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_field_duplicate", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_duplicate", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_field_duplicate", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_field_duplicate", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -14969,7 +14969,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_union_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_union_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_union_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_union_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15034,7 +15034,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_resource_limit", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_resource_limit", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_scb_resource_limit", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_envelope", "import_transaction_receipt_error", "receipt_scb_resource_limit", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15099,7 +15099,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_format_version", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_format_version", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_format_version", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_format_version", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15163,7 +15163,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_kind_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_kind_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_kind_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_kind_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15227,7 +15227,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_parent_shape", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_parent_shape", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_parent_shape", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_parent_shape", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15291,7 +15291,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_field_shape", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_field_shape", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_field_shape", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_field_shape", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15355,7 +15355,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_changed_binding_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_changed_binding_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_changed_binding_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_changed_binding_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15420,7 +15420,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_tombstone_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_tombstone_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_tombstone_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_tombstone_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15484,7 +15484,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_result_not_valid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_result_not_valid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_result_not_valid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_result_not_valid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15548,7 +15548,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_result_binding_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_result_binding_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_result_binding_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_result_binding_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15612,7 +15612,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_test_evidence_unsupported", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_test_evidence_unsupported", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_test_evidence_unsupported", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_test_evidence_unsupported", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15676,7 +15676,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_object_inventory_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_object_inventory_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_object_inventory_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_object_inventory_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15740,7 +15740,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_receipt_binding_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_receipt_binding_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_receipt_binding_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_receipt_binding_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15804,7 +15804,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_genesis_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_genesis_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_receipt_txn_genesis_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "receipt_txn_genesis_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15868,7 +15868,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_codec_txn_resource_limit", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "codec_txn_resource_limit", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_codec_txn_resource_limit", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_transaction", "import_transaction_receipt_error", "codec_txn_resource_limit", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15932,7 +15932,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_format_version", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_format_version", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_format_version", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_format_version", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -15996,7 +15996,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_expiry_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_expiry_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_expiry_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_expiry_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16060,7 +16060,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_empty_operations", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_empty_operations", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_empty_operations", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_empty_operations", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16124,7 +16124,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_operation_ordinal", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_operation_ordinal", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_operation_ordinal", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_operation_ordinal", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16188,7 +16188,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_operation_precondition_ordinal", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_operation_precondition_ordinal", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_operation_precondition_ordinal", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_operation_precondition_ordinal", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16252,7 +16252,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_precondition_count", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_precondition_count", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_precondition_count", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_precondition_count", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16316,7 +16316,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_precondition_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_precondition_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_precondition_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_precondition_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16380,7 +16380,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_target_entity", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_target_entity", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_target_entity", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_target_entity", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16444,7 +16444,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_validation_profile", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_validation_profile", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_validation_profile", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_validation_profile", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16508,7 +16508,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_format_version", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_format_version", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_format_version", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_format_version", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16572,7 +16572,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_profile_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_profile_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_profile_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_profile_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16636,7 +16636,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_phase_shape", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_phase_shape", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_phase_shape", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_phase_shape", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16700,7 +16700,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_decision_phase_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_decision_phase_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_decision_phase_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_decision_phase_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16764,7 +16764,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_diagnostic_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_diagnostic_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_diagnostic_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_diagnostic_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16828,7 +16828,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_set_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_set_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_set_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_set_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16892,7 +16892,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_candidate_id_shape", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_candidate_id_shape", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_candidate_id_shape", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_candidate_id_shape", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -16956,7 +16956,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_root_shape", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_root_shape", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_result_candidate_result_root_shape", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate_result", "import_transaction_receipt_error", "candidate_result_candidate_result_root_shape", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17020,7 +17020,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_digest_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_digest_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_digest_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_digest_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17084,7 +17084,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_state_root_entry_unbound", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_state_root_entry_unbound", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_state_root_entry_unbound", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_state_root_entry_unbound", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17148,7 +17148,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_state_root_flag_unknown", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_state_root_flag_unknown", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_state_root_flag_unknown", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_state_root_flag_unknown", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17212,7 +17212,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_schema_epoch_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_schema_epoch_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_schema_epoch_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_schema_epoch_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17276,7 +17276,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_root_scb_digest_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_root_scb_digest_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_root_scb_digest_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_root_scb_digest_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17340,7 +17340,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_version_unsupported", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_version_unsupported", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_version_unsupported", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_version_unsupported", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17404,7 +17404,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_effect_kind_unknown", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_effect_kind_unknown", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_effect_kind_unknown", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_effect_kind_unknown", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17468,7 +17468,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_mutation_class_unknown", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_mutation_class_unknown", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_mutation_class_unknown", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_mutation_class_unknown", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17532,7 +17532,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_resource_limit", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_resource_limit", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_resource_limit", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_resource_limit", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17596,7 +17596,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_transition_mode_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_transition_mode_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_transition_mode_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_transition_mode_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17660,7 +17660,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_flag_unknown", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_flag_unknown", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_policy_root_flag_unknown", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_flag_unknown", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17724,7 +17724,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_schema_epoch_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_schema_epoch_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_policy_schema_epoch_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_schema_epoch_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17788,7 +17788,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_object_scb_digest_mismatch", "BRANCH_ORIGIN_REVISION", "revision_object", "decoded_origin_transaction_id", "role_changed_object_path", "object_bytes", "object_store_read_error", "object_scb_digest_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_object_scb_digest_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_object", "decoded_origin_transaction_id", "role_changed_object_path", "object_bytes", "object_store_read_error", "object_scb_digest_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17854,7 +17854,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_object_store_io", "BRANCH_ORIGIN_REVISION", "revision_object", "decoded_origin_transaction_id", "role_changed_object_path", "object_host_io", "path_bound_object_read_injection", "object_store_io", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_object_store_io", "ROLE_BRANCH_ORIGIN_REVISION", "revision_object", "decoded_origin_transaction_id", "role_changed_object_path", "object_host_io", "path_bound_object_read_injection", "object_store_io", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17920,7 +17920,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_object_store_object_substitution", "BRANCH_ORIGIN_REVISION", "revision_object", "decoded_origin_transaction_id", "role_changed_object_path", "object_bytes", "object_store_read_error", "object_store_object_substitution", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_object_store_object_substitution", "ROLE_BRANCH_ORIGIN_REVISION", "revision_object", "decoded_origin_transaction_id", "role_changed_object_path", "object_bytes", "object_store_read_error", "object_store_object_substitution", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -17986,7 +17986,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_repository_txn_object_inventory_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_semantic_manifest", "import_receipt_then_verify_revision", "repository_txn_object_inventory_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_repository_txn_object_inventory_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_semantic_manifest", "import_receipt_then_verify_revision", "repository_txn_object_inventory_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -18050,7 +18050,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_repository_recovery_receipt_incomplete", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_absent", "verify_absent_revision_receipt", "repository_recovery_receipt_incomplete", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_repository_recovery_receipt_incomplete", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_absent", "verify_absent_revision_receipt", "repository_recovery_receipt_incomplete", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -18114,7 +18114,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_host_txn_io", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_host_io", "path_bound_receipt_read_injection", "host_txn_io", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_host_txn_io", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_host_io", "path_bound_receipt_read_injection", "host_txn_io", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -18178,7 +18178,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "host_ref_io", "BRANCH_INVENTORY", "host_read_fault", "selected_branch_owner_root", "canonical_branch_inventory_fault_path", "path_bound_other_io_injection", "probe_host_ref_io", "host_ref_io", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "host_ref_io", "ROLE_BRANCH_INVENTORY", "host_read_fault", "selected_branch_owner_root", "canonical_branch_inventory_fault_path", "path_bound_other_io_injection", "probe_host_ref_io", "host_ref_io", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -18240,7 +18240,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_digest_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_digest_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_digest_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_digest_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -18304,7 +18304,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_root_scb_digest_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_root_scb_digest_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_root_scb_digest_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_root_scb_digest_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -18369,7 +18369,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_schema_epoch_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_schema_epoch_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_schema_epoch_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_schema_epoch_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -18433,7 +18433,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_version_unsupported", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_version_unsupported", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_policy_root_version_unsupported", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_policy_root_version_unsupported", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -18497,7 +18497,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_schema_epoch_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_schema_epoch_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_policy_schema_epoch_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_policy_root", "import_transaction_receipt_error", "policy_schema_epoch_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -18562,7 +18562,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_object_scb_digest_mismatch", "BRANCH_HEAD_REVISION", "revision_object", "decoded_ref_head_transaction_id", "role_changed_object_path", "object_bytes", "object_store_read_error", "object_scb_digest_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_object_scb_digest_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_object", "decoded_ref_head_transaction_id", "role_changed_object_path", "object_bytes", "object_store_read_error", "object_scb_digest_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -18628,7 +18628,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_object_store_object_substitution", "BRANCH_HEAD_REVISION", "revision_object", "decoded_ref_head_transaction_id", "role_changed_object_path", "object_bytes", "object_store_read_error", "object_store_object_substitution", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_object_store_object_substitution", "ROLE_BRANCH_HEAD_REVISION", "revision_object", "decoded_ref_head_transaction_id", "role_changed_object_path", "object_bytes", "object_store_read_error", "object_store_object_substitution", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -22411,7 +22411,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_contract_unknown", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_contract_unknown", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_contract_unknown", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_contract_unknown", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -22475,7 +22475,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_epoch_mismatch", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_epoch_mismatch", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_epoch_mismatch", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_epoch_mismatch", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -22539,7 +22539,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_scb_bool_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_bool_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_scb_bool_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_bool_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -22603,7 +22603,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_scb_utf8_invalid", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_utf8_invalid", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_scb_utf8_invalid", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_utf8_invalid", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -22667,7 +22667,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_scb_float_non_canonical", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_float_non_canonical", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_scb_float_non_canonical", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_float_non_canonical", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -22731,7 +22731,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_field_order", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_field_order", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_field_order", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_field_order", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -22795,7 +22795,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_map_order", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_map_order", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_map_order", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_map_order", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -22859,7 +22859,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_map_duplicate", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_map_duplicate", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_state_root_scb_map_duplicate", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_map_duplicate", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -22923,7 +22923,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_object_store_object_not_found", "BRANCH_HEAD_REVISION", "revision_object", "decoded_ref_head_transaction_id", "role_changed_object_path", "object_absent", "object_store_read_error", "object_store_object_not_found", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_object_store_object_not_found", "ROLE_BRANCH_HEAD_REVISION", "revision_object", "decoded_ref_head_transaction_id", "role_changed_object_path", "object_absent", "object_store_read_error", "object_store_object_not_found", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -22989,7 +22989,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_descriptor_unknown", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_descriptor_unknown", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_descriptor_unknown", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_descriptor_unknown", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23053,7 +23053,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_payload_kind", "BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_payload_kind", &["BRANCH_ORIGIN_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_transaction", "target_candidate_mutation_candidate_payload_kind", "ROLE_BRANCH_HEAD_REVISION", "revision_receipt", "decoded_ref_head_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_payload_kind", &["ROLE_BRANCH_ORIGIN_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23117,7 +23117,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_contract_unknown", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_contract_unknown", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_contract_unknown", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_contract_unknown", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23181,7 +23181,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_epoch_mismatch", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_epoch_mismatch", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_epoch_mismatch", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_epoch_mismatch", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23245,7 +23245,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_scb_bool_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_bool_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_scb_bool_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_bool_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23309,7 +23309,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_scb_utf8_invalid", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_utf8_invalid", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_scb_utf8_invalid", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_utf8_invalid", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23373,7 +23373,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_scb_float_non_canonical", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_float_non_canonical", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_scb_float_non_canonical", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_scb_float_non_canonical", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23437,7 +23437,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_field_order", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_field_order", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_field_order", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_field_order", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23501,7 +23501,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_map_order", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_map_order", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_map_order", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_map_order", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23565,7 +23565,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_map_duplicate", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_map_duplicate", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_state_root_scb_map_duplicate", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_state_root", "import_transaction_receipt_error", "state_root_scb_map_duplicate", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23629,7 +23629,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_object_store_object_not_found", "BRANCH_ORIGIN_REVISION", "revision_object", "decoded_origin_transaction_id", "role_changed_object_path", "object_absent", "object_store_read_error", "object_store_object_not_found", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_object_store_object_not_found", "ROLE_BRANCH_ORIGIN_REVISION", "revision_object", "decoded_origin_transaction_id", "role_changed_object_path", "object_absent", "object_store_read_error", "object_store_object_not_found", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23695,7 +23695,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_descriptor_unknown", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_descriptor_unknown", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_descriptor_unknown", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_descriptor_unknown", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23759,7 +23759,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_payload_kind", "BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_payload_kind", &["BRANCH_HEAD_REVISION"]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "origin_candidate_mutation_candidate_payload_kind", "ROLE_BRANCH_ORIGIN_REVISION", "revision_receipt", "decoded_origin_transaction_id", "role_receipt_path", "receipt_nested_candidate", "import_transaction_receipt_error", "candidate_mutation_candidate_payload_kind", &["ROLE_BRANCH_HEAD_REVISION"]);
         let fixture_observation = prepare_visible_revision_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23823,7 +23823,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_format", "branch_record_field_shape", "BRANCH_ORIGIN_RECORD", "origin_record", "selected_branch_name", "branch_origin_path", "origin_field_shape_rewrite", "import_branch_record_error", "branch_record_field_shape", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_format", "branch_record_field_shape", "ROLE_BRANCH_ORIGIN_RECORD", "origin_record", "selected_branch_name", "branch_origin_path", "origin_field_shape_rewrite", "import_branch_record_error", "branch_record_field_shape", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23883,7 +23883,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "ref_format", "ref_name_invalid", "BRANCH_REF_RECORD", "ref_record", "selected_branch_name", "branch_ref_path", "ref_name_invalid_rewrite", "import_branch_ref_error", "ref_name_invalid", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "ref_format", "ref_name_invalid", "ROLE_BRANCH_REF_RECORD", "ref_record", "selected_branch_name", "branch_ref_path", "ref_name_invalid_rewrite", "import_branch_ref_error", "ref_name_invalid", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -23943,7 +23943,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "ref_format", "ref_name_reserved", "BRANCH_REF_RECORD", "ref_record", "selected_branch_name", "branch_ref_path", "ref_name_reserved_rewrite", "import_branch_ref_error", "ref_name_reserved", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "ref_format", "ref_name_reserved", "ROLE_BRANCH_REF_RECORD", "ref_record", "selected_branch_name", "branch_ref_path", "ref_name_reserved_rewrite", "import_branch_ref_error", "ref_name_reserved", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -24003,7 +24003,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "ref_format", "ref_field_shape", "BRANCH_REF_RECORD", "ref_record", "selected_branch_name", "branch_ref_path", "ref_field_shape_rewrite", "import_branch_ref_error", "ref_field_shape", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "ref_format", "ref_field_shape", "ROLE_BRANCH_REF_RECORD", "ref_record", "selected_branch_name", "branch_ref_path", "ref_field_shape_rewrite", "import_branch_ref_error", "ref_field_shape", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -24063,7 +24063,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "ref_format", "ref_name_collision", "BRANCH_REF_RECORD", "ref_record", "selected_branch_name", "branch_ref_path", "valid_ref_at_wrong_name_path", "import_ref_then_compare_path_key", "ref_name_collision", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "ref_format", "ref_name_collision", "ROLE_BRANCH_REF_RECORD", "ref_record", "selected_branch_name", "branch_ref_path", "valid_ref_at_wrong_name_path", "import_ref_then_compare_path_key", "ref_name_collision", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -24251,7 +24251,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ref_binding", "ref_branch_binding_mismatch", "BRANCH_RECORD_PAIR", "origin_ref_pair", "selected_branch_name", "branch_origin_and_ref_paths", "origin_ref_binding_mismatch", "import_origin_and_ref_pair", "ref_branch_binding_mismatch", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ref_binding", "ref_branch_binding_mismatch", "ROLE_BRANCH_RECORD_PAIR", "origin_ref_pair", "selected_branch_name", "branch_origin_and_ref_paths", "origin_ref_binding_mismatch", "import_origin_and_ref_pair", "ref_branch_binding_mismatch", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -24314,7 +24314,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ref_binding", "recovery_named_ref_incomplete", "BRANCH_RECORD_PAIR", "origin_ref_pair", "selected_branch_name", "branch_origin_and_ref_paths", "selected_origin_absent", "probe_named_ref_completeness", "recovery_named_ref_incomplete", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ref_binding", "recovery_named_ref_incomplete", "ROLE_BRANCH_RECORD_PAIR", "origin_ref_pair", "selected_branch_name", "branch_origin_and_ref_paths", "selected_origin_absent", "probe_named_ref_completeness", "recovery_named_ref_incomplete", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -24377,7 +24377,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_binding", "ref_target_mismatch", "BRANCH_HEAD_REVISION", "ref_record_and_head_revision", "decoded_ref_head_transaction_id", "branch_ref_and_head_receipt_paths", "single_head_claim_mismatch", "probe_ref_target_binding", "ref_target_mismatch", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "target_binding", "ref_target_mismatch", "ROLE_BRANCH_HEAD_REVISION", "ref_record_and_head_revision", "decoded_ref_head_transaction_id", "branch_ref_and_head_receipt_paths", "single_head_claim_mismatch", "probe_ref_target_binding", "ref_target_mismatch", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -24440,7 +24440,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "branch_origin_mismatch", "BRANCH_ORIGIN_RELATION", "origin_head_topology", "decoded_origin_and_head_transaction_ids", "origin_and_head_receipt_paths", "valid_non_ancestor_origin", "probe_branch_origin_ancestry", "branch_origin_mismatch", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "branch_origin_mismatch", "ROLE_BRANCH_ORIGIN_RELATION", "origin_head_topology", "decoded_origin_and_head_transaction_ids", "origin_and_head_receipt_paths", "valid_non_ancestor_origin", "probe_branch_origin_ancestry", "branch_origin_mismatch", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -24513,7 +24513,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "semantic_ref_io", "BRANCH_INVENTORY", "hostile_inventory_entry", "selected_branch_owner_root", "canonical_branch_inventory_fault_path", "non_regular_inventory_entry", "probe_semantic_ref_io", "semantic_ref_io", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "semantic_ref_io", "ROLE_BRANCH_INVENTORY", "hostile_inventory_entry", "selected_branch_owner_root", "canonical_branch_inventory_fault_path", "non_regular_inventory_entry", "probe_semantic_ref_io", "semantic_ref_io", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -24573,7 +24573,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "branch_ancestry_cycle", "BRANCH_ANCESTRY_GRAPH", "logical_ancestry_graph", "selected_branch_request_head", "closed_test_graph_plan", "logical_cycle_l_r_l", "probe_production_ancestry_core", "branch_ancestry_cycle", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "branch_ancestry_cycle", "ROLE_BRANCH_ANCESTRY_GRAPH", "logical_ancestry_graph", "selected_branch_request_head", "closed_test_graph_plan", "logical_cycle_l_r_l", "probe_production_ancestry_core", "branch_ancestry_cycle", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
@@ -24635,7 +24635,7 @@ mod tests {
         ::core::assert_eq!(owner_root, fixture.path());
         let maintenance: super::RepositoryMaintenanceGuard = branch_repository.acquire_exclusive_maintenance().unwrap();
         let fresh_owner_tree_snapshot = crate::refs::tests::exact_tree_snapshot(owner_root);
-        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "branch_resource_limit", "BRANCH_ANCESTRY_GRAPH", "valid_ancestry_chain", "selected_branch_request_head", "closed_test_graph_plan", "valid_chain_limit_plus_one", "probe_private_reduced_limit", "branch_resource_limit", &[]);
+        let fixture_plan = CorruptionFixturePlan::new("COR-07", "origin_ancestry_binding", "branch_resource_limit", "ROLE_BRANCH_ANCESTRY_GRAPH", "valid_ancestry_chain", "selected_branch_request_head", "closed_test_graph_plan", "valid_chain_limit_plus_one", "probe_private_reduced_limit", "branch_resource_limit", &[]);
         let fixture_observation = prepare_ref_owner_corruption_fixture(&fixture, &fixture_plan);
         let fault_path = fixture_observation.fault_path.clone();
         let control_path = fixture_observation.control_path.clone();
