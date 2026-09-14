@@ -1,8 +1,9 @@
 # S20-420 SMP1 JSON Bridge Campaign (2026-09-03)
 
-Status: contract draft revision 1 written by the integrator with every
-Council lane unavailable; Ariadne contract review, Nabu architecture
-review, and Vulcan surface review queued.
+Status: contract draft revision 9 (2026-09-14: element ceiling, 4x
+derivation, duplicate-key/hello-rendering/envelope/fuzz precision);
+Council review pending (Ariadne contract review, Nabu architecture
+review, Vulcan surface review).
 
 ## Frontier at start
 

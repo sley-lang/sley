@@ -1,6 +1,6 @@
 # SMP1 JSON Bridge v1
 
-Status: S20-420 contract draft, revision 8 (2026-09-08); Council review
+Status: S20-420 contract draft, revision 9 (2026-09-14); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 names method tag zero (section 9) for the
@@ -17,6 +17,11 @@ the SMP1 status line); revision 8 re-pins the composed SMP1 revision 12
 and names the additive protocol version 2 method table (section 2). The
 version 1 table, bytes, and legacy entrypoints are unchanged; capable
 bridge runtime is phase 3, declared pending in section 10, not implemented.
+Revision 9 derives the text ceiling from the frame ceiling in code
+(`4 * MAX_FRAME_BYTES`, compiler-checked), adds the allocation-free
+element ceiling that bounds materialization before parsing, declares
+duplicate-key and hello-rendering rules the readers already follow, and
+states the envelope and fuzz-slice boundaries; no encoding changes.
 The revision 7 history is retained as history and does not review revision
 8; its new-delta review is pending. The implementation is
 `crates/sley-json-bridge`; implementation state is tracked in the machine
@@ -40,17 +45,23 @@ The authority rule (SMP1 section 8) is:
 
 ## 1. Declared encodings
 
-- **Bytes.** Every byte string (bodies, identities, digests, names) is a
+- **Bytes.** Every byte string (bodies, identities, digests) is a
   JSON string of lowercase hexadecimal digits with an even length and no
   prefix. Uppercase, odd length, or non-hex characters are
-  `JSON_BRIDGE_HEX_INVALID`.
+  `JSON_BRIDGE_HEX_INVALID`. Method, kind, retryability, and feature
+  fields are frozen-name strings, not byte strings: they name table
+  entries and are never hex-decoded.
 - **Integers.** An unsigned integer whose value is at most 2^53 - 1 is a
   JSON number; a larger value is a JSON string of decimal digits without
-  sign, leading zeros, or separators. A number with a fraction, exponent,
+  sign, leading zeros, or separators. The split is deliberate: generic
+  JSON readers lose precision above 2^53 - 1, so the bridge requires the
+  exact decimal-string form there, while the full SMP1 u64 range stays
+  reachable through it. A number with a fraction, exponent,
   sign, or a string that is not such a decimal is `JSON_BRIDGE_NUMBER_INVALID`,
   except that the texts `-0` and `-0.0` read as the integer zero (both parse
   as negative zero, which the reader normalizes; section 8). A reader accepts
-  both forms for any integer field.
+  both forms for any integer field whose value is at most 2^53 - 1; above
+  that only the string form reads.
   Integer fields are 64-bit except the declared 32-bit fields
   (`protocol_version` and every `protocol_versions` element, `max_depth`,
   `max_inflight`, `max_sessions`, `reached_depth`, `code`, `phase`, and
@@ -66,6 +77,11 @@ The authority rule (SMP1 section 8) is:
   Emission order is not precedence order: when several checks fail at once,
   section 5 runs them in the record's declared field order, which is the
   section 2 listing order pinned by the crate's `*_FIELDS` tables.
+- **Duplicate keys.** A reader that meets the same object key twice keeps
+  the last value on both readers (the Rust `serde_json` map and the
+  Python oracle's `dict` both collapse to last-wins before shape checks
+  run), so a duplicated key is never a second field and never an error
+  of its own; the surviving value is judged exactly as if written once.
 
 ## 2. Objects
 
@@ -145,8 +161,19 @@ chunk_to_json / chunk_from_json, selected_to_json
 `frame_from_json` re-encodes through `sley-protocol`, so a frame that
 would be invalid on the wire fails with its `PROTOCOL_*` code, never with a
 bridge code; the bridge adds shape and encoding failures only. A JSON text
-larger than 268,435,456 bytes, or nested deeper than 32 levels, is
-`JSON_BRIDGE_RESOURCE_LIMIT` before parsing.
+larger than 268,435,456 bytes, nested deeper than 32 levels, or holding
+more than 1,048,576 value positions is `JSON_BRIDGE_RESOURCE_LIMIT`
+before parsing. The byte ceiling is four times the absolute frame ceiling
+(`MAX_JSON_TEXT_BYTES = 4 * MAX_FRAME_BYTES`, derived in code so the
+relationship is compiler-checked): any frame that fits on the wire fits
+in text with room for its field names and envelope. The element ceiling
+counts every `{`, `[`, `,`, and `:` outside strings in the same
+allocation-free scan: each introduces exactly one value, so at most
+positions + 1 values materialize and the check bounds allocation before
+the parser runs. Open-list length stays the frozen codec's rule (hello
+lists capped at 4,096, judged with `PROTOCOL_*`): the bridge ceiling
+bounds total materialization, never list semantics, so the length rule
+keeps its single owner.
 
 ## 4. Unknown and omission states
 
@@ -183,7 +210,14 @@ emission order), then the frozen codec's `PROTOCOL_*` codes.
 - the number, hex, shape, and method failure matrix and the precedence
   over `PROTOCOL_*` codes;
 - 128 equal renderings producing identical text;
-- an S20-700 persistent target over `frame_from_json`;
+- element-ceiling boundary tests (positions at and over 1,048,576,
+  structural bytes inside strings counting for nothing, duplicate keys
+  reading last-wins) as native tests, beside the byte-ceiling and depth
+  tests: ceilings are covered deterministically, not through fuzz;
+- an S20-700 persistent target over `frame_from_json` with bounded inputs
+  (64 KiB lanes): the fuzz slice covers round-trip and rejection logic,
+  and every ceiling above its input bound is covered by the deterministic
+  tests above instead;
 - Tier 1 plus Tier 2 validation, and the Ariadne, Nabu, and Vulcan reviews
   with every report-grade finding closed.
 
@@ -221,6 +255,13 @@ benchmark, packaging, release, or GA.
   fraction, or exponent form is `JSON_BRIDGE_NUMBER_INVALID`.
 - `hello_to_json` and `failure_to_json` validate through the codec first,
   so a value the codec would not encode fails with its `PROTOCOL_*` code.
+- A decoded hello carries no frame header on the wire, so rendering one
+  synthesizes the fixed wrapper: the frozen protocol version, a null
+  session, a zero request id, the empty method, false flags, and all-zero
+  bounds around the encoded hello body. The wrapper fields are the
+  rendering's own construction, never decoded data; parsing the rendered
+  text back decodes the body through the codec exactly as a written hello
+  frame would.
 
 ## 9. Revision 3: method tag zero and the failure envelope
 
@@ -233,7 +274,10 @@ benchmark, packaging, release, or GA.
   when a text cannot be bridged: the bridge's or the codec's numeric code
   and symbol, phase zero, `never`, no incident, no details. The bridge
   still contains no semantic validation; the envelope only names the
-  bridge's own failure in the codec's record.
+  bridge's own failure in the codec's record. The retryability is `never`
+  even for `JSON_BRIDGE_RESOURCE_LIMIT`: the ceilings bind the text
+  representation, not a raisable query limit, so retrying under changed
+  limits cannot admit the same text.
 
 ## 10. Prospective version-aware surface (phase 3, declared pending)
 

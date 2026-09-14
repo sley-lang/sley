@@ -17,7 +17,7 @@ ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
 CRATE = ROOT / "crates/sley-json-bridge"
 TABLE = ROOT / "conformance/smp1-json-bridge/v1/methods.json"
 V2_TABLE = ROOT / "conformance/smp1-json-bridge/v2/methods.json"
-SPEC_REVISION = 8
+SPEC_REVISION = 9
 SMP1_REVISION = 12
 
 DRAFT_STATUS = "S20_420_CONTRACT_DRAFT_REVIEW_PENDING"

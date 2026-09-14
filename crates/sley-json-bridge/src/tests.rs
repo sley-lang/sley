@@ -597,6 +597,35 @@ fn the_rejection_matrix_reports_the_contract_codes_in_precedence() {
     // Brackets inside strings do not count toward depth.
     let quoted = format!("\"{}\"", "[".repeat(MAX_JSON_DEPTH * 2));
     assert_eq!(check_resources(&quoted), Ok(()));
+    // Value positions bound allocation before parsing: `[0,0,...]` with
+    // MAX_JSON_ELEMENTS - 1 zeros holds that many positions and passes,
+    // one more zero trips the ceiling, and the full reader fails with
+    // RESOURCE_LIMIT before parsing (never a shape code).
+    let wide_ok = format!("[{}]", vec!["0"; MAX_JSON_ELEMENTS - 1].join(","));
+    assert_eq!(check_resources(&wide_ok), Ok(()));
+    let wide_over = format!("[{}]", vec!["0"; MAX_JSON_ELEMENTS].join(","));
+    assert_eq!(
+        check_resources(&wide_over),
+        Err(bridge(JsonBridgeErrorCode::ResourceLimit))
+    );
+    assert_eq!(
+        frame_from_json(&wide_over),
+        Err(bridge(JsonBridgeErrorCode::ResourceLimit))
+    );
+    // Structural bytes inside strings count for nothing.
+    assert_eq!(check_resources(r#"{"a,b:c[d":0}"#), Ok(()));
+    // Duplicate object keys read last-wins (contract section 1): the
+    // injected first versions list loses to the rendered one, so the
+    // hello parses back to the fixture.
+    let (client, _) = fixture_hellos();
+    let hello_text = hello_to_json(&client).expect("renders");
+    let duped = hello_text.replacen(
+        "\"protocol_versions\":",
+        "\"protocol_versions\":[99],\"protocol_versions\":",
+        1,
+    );
+    assert_ne!(duped, hello_text);
+    assert_eq!(hello_from_json(&duped).expect("parses"), client);
     for code in JsonBridgeErrorCode::ALL {
         let position = JsonBridgeErrorCode::ALL
             .iter()

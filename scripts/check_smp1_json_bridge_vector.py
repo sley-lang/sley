@@ -28,8 +28,9 @@ REJECTED = ROOT / "conformance/smp1-json-bridge/v1/rejected.json"
 TABLE = ROOT / "conformance/smp1-json-bridge/v1/methods.json"
 SMP1_FIXTURE = ROOT / "conformance/smp1/v1/accepted.json"
 
-MAX_TEXT_BYTES = 268_435_456
+MAX_TEXT_BYTES = 268_435_456  # 4 * 67_108_864: any frame that fits on the wire fits in text
 MAX_DEPTH = 32
+MAX_ELEMENTS = 1_048_576  # 2**20 value positions; open-ended bridge lists are protocol-bounded in the dozens
 MAX_NUMBER = 2**53 - 1
 MAX_HELLO_LIST = 4_096
 KIND_NAMES = {1: "request", 2: "response", 3: "event", 4: "hello"}
@@ -202,7 +203,7 @@ def render(frame: dict, names: dict[int, str]) -> str:
 def check_resources(text: str) -> None:
     if len(text.encode("utf-8")) > MAX_TEXT_BYTES:
         raise Reject("JSON_BRIDGE_RESOURCE_LIMIT")
-    depth, in_string, escaped = 0, False, False
+    depth, positions, in_string, escaped = 0, 0, False, False
     for char in text:
         if in_string:
             if escaped:
@@ -217,6 +218,13 @@ def check_resources(text: str) -> None:
         elif char in "{[":
             depth += 1
             if depth > MAX_DEPTH:
+                raise Reject("JSON_BRIDGE_RESOURCE_LIMIT")
+            positions += 1
+            if positions >= MAX_ELEMENTS:
+                raise Reject("JSON_BRIDGE_RESOURCE_LIMIT")
+        elif char in ",:":
+            positions += 1
+            if positions >= MAX_ELEMENTS:
                 raise Reject("JSON_BRIDGE_RESOURCE_LIMIT")
         elif char in "}]":
             depth = max(depth - 1, 0)

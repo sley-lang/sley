@@ -23,10 +23,24 @@ use sley_protocol::{
     encode_hello_frame,
 };
 
-/// Largest JSON text the bridge parses (contract section 3).
-pub const MAX_JSON_TEXT_BYTES: usize = 268_435_456;
+/// Largest JSON text the bridge parses: four times the absolute frame
+/// ceiling, so any frame that fits on the wire fits in text with room for
+/// its field names and envelope (contract section 3).
+pub const MAX_JSON_TEXT_BYTES: usize = 4 * (MAX_FRAME_BYTES as usize);
 /// Deepest object or array nesting the bridge parses (contract section 3).
 pub const MAX_JSON_DEPTH: usize = 32;
+/// Largest number of JSON value positions the bridge materializes from one
+/// text: every object, array, string, number, boolean, and null counts.
+/// Open-ended lists in bridge subjects are protocol-bounded in the dozens
+/// (the frozen codec caps hello lists at 4,096), so 2^20 exceeds any
+/// legitimate text by orders of magnitude while bounding the materialized
+/// `Value` tree to tens of mebibytes under the text ceiling (contract
+/// section 3).
+pub const MAX_JSON_ELEMENTS: usize = 1_048_576;
+/// The element ceiling stays below the byte ceiling: every counted value
+/// position needs at least one text byte, so the count check can always
+/// fire before the byte ceiling is reached.
+const _: () = assert!(MAX_JSON_ELEMENTS <= MAX_JSON_TEXT_BYTES);
 /// Largest integer emitted as a JSON number; larger values travel as decimal
 /// strings (contract section 1).
 pub const MAX_JSON_NUMBER: u64 = (1 << 53) - 1;
@@ -59,7 +73,8 @@ pub enum JsonBridgeErrorCode {
     HexInvalid,
     /// `JSON_BRIDGE_METHOD_UNKNOWN`: a method name or tag outside the table.
     MethodUnknown,
-    /// `JSON_BRIDGE_RESOURCE_LIMIT`: text above the size or depth ceiling.
+    /// `JSON_BRIDGE_RESOURCE_LIMIT`: text above the size, depth, or
+    /// element ceiling.
     ResourceLimit,
 }
 
@@ -397,7 +412,12 @@ fn render(value: &Value) -> String {
     value.to_string()
 }
 
-/// Checks the text ceilings before parsing (contract section 3).
+/// Checks the text ceilings before parsing (contract section 3): byte
+/// length, nesting depth, and value-position count, all in one
+/// allocation-free scan. A value position is every `{`, `[`, `,`, and `:`
+/// outside strings: each introduces exactly one value, so the materialized
+/// tree holds at most positions + 1 values and the count check bounds
+/// allocation before `serde_json` runs.
 ///
 /// # Errors
 ///
@@ -407,6 +427,7 @@ pub fn check_resources(text: &str) -> Result<()> {
         return fail(JsonBridgeErrorCode::ResourceLimit);
     }
     let mut depth = 0usize;
+    let mut positions = 0usize;
     let mut in_string = false;
     let mut escaped = false;
     for byte in text.bytes() {
@@ -425,6 +446,16 @@ pub fn check_resources(text: &str) -> Result<()> {
             b'{' | b'[' => {
                 depth += 1;
                 if depth > MAX_JSON_DEPTH {
+                    return fail(JsonBridgeErrorCode::ResourceLimit);
+                }
+                positions += 1;
+                if positions >= MAX_JSON_ELEMENTS {
+                    return fail(JsonBridgeErrorCode::ResourceLimit);
+                }
+            }
+            b',' | b':' => {
+                positions += 1;
+                if positions >= MAX_JSON_ELEMENTS {
                     return fail(JsonBridgeErrorCode::ResourceLimit);
                 }
             }
