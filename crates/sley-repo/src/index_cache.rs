@@ -9,16 +9,17 @@
 
 use core::fmt;
 use std::fs::{self, File, OpenOptions};
-use std::io::Write as _;
+use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use sley_id::StateRoot;
 use sley_query::{
     CacheDiscardReason, IndexSnapshot, IndexSnapshotBuildError, IndexSnapshotError,
     IndexSnapshotErrorCode, SnapshotContext, build_complete_root_snapshot,
-    decode_complete_root_snapshot,
+    decode_complete_root_snapshot, discard_reason, MAX_SNAPSHOT_RECORD_BYTES,
 };
-use sley_txn::VerifiedRevision;
+use sley_txn::{RepositoryMaintenanceGuard, VerifiedRevision};
 
 use crate::CompleteRootRequest;
 use crate::complete_root::CompleteRootError;
@@ -26,7 +27,6 @@ use crate::complete_root::CompleteRootError;
 const INDEX_DIRECTORY: &str = "index";
 const INDEX_VERSION_DIRECTORY: &str = "v1";
 const INDEX_SUFFIX: &str = ".idx.scb1";
-const TEMPORARY_SUFFIX: &str = ".tmp";
 
 /// Cache failure with the exact wrapped code preserved.
 #[derive(Debug)]
@@ -125,7 +125,12 @@ fn accept_cached(
     Ok(snapshot)
 }
 
-fn fresh_snapshot(revision: &VerifiedRevision) -> Result<IndexSnapshot, IndexCacheError> {
+/// Builds a fresh snapshot from a verified revision without touching the
+/// cache. Exported evidence (capsules) builds from this path, never from
+/// a bare cache hit.
+pub(crate) fn fresh_snapshot(
+    revision: &VerifiedRevision,
+) -> Result<IndexSnapshot, IndexCacheError> {
     let request = CompleteRootRequest::extract(revision).map_err(IndexCacheError::Extraction)?;
     let borrowed = request.borrowed();
     build_complete_root_snapshot(
@@ -138,40 +143,38 @@ fn fresh_snapshot(revision: &VerifiedRevision) -> Result<IndexSnapshot, IndexCac
 }
 
 fn discard_reason_of(error: &IndexSnapshotError) -> CacheDiscardReason {
-    match error.code() {
-        IndexSnapshotErrorCode::ProfileUnsupported | IndexSnapshotErrorCode::VersionUnsupported => {
-            CacheDiscardReason::VersionUnsupported
-        }
-        IndexSnapshotErrorCode::ContextMismatch => CacheDiscardReason::ContextMismatch,
-        IndexSnapshotErrorCode::DigestMismatch => CacheDiscardReason::DigestMismatch,
-        IndexSnapshotErrorCode::CompletenessUnsupported => {
-            CacheDiscardReason::CompletenessUnsupported
-        }
-        IndexSnapshotErrorCode::ResourceLimit => CacheDiscardReason::ResourceLimit,
-        IndexSnapshotErrorCode::RootMismatch => CacheDiscardReason::RootMismatch,
-        IndexSnapshotErrorCode::FormatInvalid
-        | IndexSnapshotErrorCode::InternalInvariant
-        | IndexSnapshotErrorCode::RootIncomplete
-        | IndexSnapshotErrorCode::RootIo => CacheDiscardReason::FormatInvalid,
-    }
+    // The decoder never emits the judgment and I/O codes, so those arms
+    // are defensive: kept for exhaustiveness over the code enum, mapping
+    // to the format reason rather than panicking if the decoder ever
+    // grows a code.
+    discard_reason(error.code())
 }
+
+static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn write_record(path: &Path, record: &[u8]) -> Result<(), IndexCacheError> {
     let directory = path
         .parent()
         .ok_or_else(|| std::io::Error::other("index cache path has no parent"))?;
     fs::create_dir_all(directory)?;
+    // Unique temporary names with exclusive creation: a fixed `.tmp` name
+    // lets a planted symlink redirect the write through to another file,
+    // and lets concurrent writers tear each other. The process id plus a
+    // process counter makes the name unpredictable within the cache
+    // directory, and `create_new` refuses anything already there
+    // (including a planted symlink) instead of following it.
     let temporary = path.with_file_name(format!(
-        "{}{TEMPORARY_SUFFIX}",
+        "{}.tmp.{}.{}",
         path.file_name()
             .and_then(|name| name.to_str())
-            .ok_or_else(|| std::io::Error::other("index cache file name is not text"))?
+            .ok_or_else(|| std::io::Error::other("index cache file name is not text"))?,
+        std::process::id(),
+        TEMPORARY_COUNTER.fetch_add(1, Ordering::Relaxed),
     ));
     {
         let mut file = OpenOptions::new()
             .write(true)
-            .create(true)
-            .truncate(true)
+            .create_new(true)
             .open(&temporary)?;
         file.write_all(record)?;
         file.sync_all()?;
@@ -185,24 +188,35 @@ fn write_record(path: &Path, record: &[u8]) -> Result<(), IndexCacheError> {
 /// record when the four acceptance rules hold, otherwise a fresh build that
 /// is written back by temp-and-rename.
 ///
+/// The caller MUST hold shared repository maintenance over `repository`
+/// (the contract's "under shared repository maintenance"): the guard pins
+/// the lock boundary against a concurrent import purge or exclusive owner
+/// while the cache is read and written. Cache I/O trouble is fail-open —
+/// a fresh build is returned whenever one can be built — while a non-file
+/// at the cache path (tampering, never trouble) fails closed.
+///
 /// # Errors
 ///
-/// Returns the fresh build's failure, an extraction failure, or
-/// `INDEX_SNAPSHOT_IO` when neither a cached nor a fresh record can be
-/// returned.
+/// Returns the fresh build's failure, an extraction failure, a guard
+/// mismatch, or `INDEX_SNAPSHOT_IO` when neither a cached nor a fresh
+/// record can be returned.
 pub fn complete_root_snapshot(
     repository: &Path,
     revision: &VerifiedRevision,
+    guard: &RepositoryMaintenanceGuard,
 ) -> Result<(IndexSnapshot, CacheOutcome), IndexCacheError> {
+    if guard.repository_root() != repository {
+        return Err(IndexCacheError::Io(std::io::Error::other(
+            "index cache guard covers a different repository",
+        )));
+    }
     let path = index_cache_path(repository, revision.state_root().root);
-    let reason = match fs::symlink_metadata(&path) {
-        Ok(metadata) if metadata.is_file() => match accept_cached(revision, &fs::read(&path)?) {
+    let reason = match read_record(&path) {
+        Some(record) => match accept_cached(revision, &record) {
             Ok(snapshot) => return Ok((snapshot, CacheOutcome::Hit)),
             Err(error) => discard_reason_of(&error),
         },
-        Ok(_) => CacheDiscardReason::FormatInvalid,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => CacheDiscardReason::Missing,
-        Err(error) => return Err(error.into()),
+        None => CacheDiscardReason::Missing,
     };
     let fresh = fresh_snapshot(revision)?;
     if let Ok(metadata) = fs::symlink_metadata(&path)
@@ -213,13 +227,50 @@ pub fn complete_root_snapshot(
             "index cache path is not a regular file",
         )));
     }
-    write_record(&path, fresh.record())?;
+    // Best-effort write-back: the cache is derived and disposable, so a
+    // write failure still returns the fresh build instead of failing the
+    // snapshot (contract section 5 fail-open).
+    let _ = write_record(&path, fresh.record());
     Ok((fresh, CacheOutcome::Rebuilt(reason)))
 }
 
+/// Reads the cache file when it is a regular file: refused (not failed)
+/// for a non-file, absent for anything unreadable. The open handle pins
+/// the inode, so a swap between the metadata check and the read cannot
+/// redirect into a planted symlink; the byte cap bounds what one read can
+/// materialize.
+fn read_record(path: &Path) -> Option<Vec<u8>> {
+    let metadata = fs::symlink_metadata(path).ok()?;
+    if !metadata.is_file() {
+        return None;
+    }
+    let file = File::open(path).ok()?;
+    if !file.metadata().ok()?.is_file() {
+        return None;
+    }
+    let mut record = Vec::new();
+    file.take(MAX_SNAPSHOT_RECORD_BYTES + 1)
+        .read_to_end(&mut record)
+        .ok()?;
+    Some(record)
+}
+
+/// Outcome of a cache audit: absent and differing are distinct, because a
+/// missing cache is benign while a differing one signals tampering or a
+/// derivation drift worth investigating.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CacheVerify {
+    /// The cached record rebuilds byte for byte.
+    Match,
+    /// No cache file exists yet.
+    Missing,
+    /// A cache file exists but differs from the rebuild.
+    Mismatch,
+}
+
 /// Rebuilds the snapshot from the revision and compares it byte for byte
-/// with the cached record; `Ok(true)` when equal, `Ok(false)` when the cache
-/// is absent or differs.
+/// with the cached record, distinguishing a missing cache from a
+/// differing one for audits and Tier 2 evidence.
 ///
 /// # Errors
 ///
@@ -227,14 +278,28 @@ pub fn complete_root_snapshot(
 pub fn verify_cached_snapshot(
     repository: &Path,
     revision: &VerifiedRevision,
-) -> Result<bool, IndexCacheError> {
+    guard: &RepositoryMaintenanceGuard,
+) -> Result<CacheVerify, IndexCacheError> {
+    if guard.repository_root() != repository {
+        return Err(IndexCacheError::Io(std::io::Error::other(
+            "index cache guard covers a different repository",
+        )));
+    }
     let fresh = fresh_snapshot(revision)?;
     let path = index_cache_path(repository, revision.state_root().root);
-    match fs::symlink_metadata(&path) {
-        Ok(metadata) if metadata.is_file() => Ok(fs::read(&path)? == fresh.record()),
-        Ok(_) => Ok(false),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
-        Err(error) => Err(error.into()),
+    match read_record(&path) {
+        Some(record) => Ok(if record == fresh.record() {
+            CacheVerify::Match
+        } else {
+            CacheVerify::Mismatch
+        }),
+        None => Ok(if fs::symlink_metadata(&path).is_ok() {
+            // A present-but-unreadable non-file is tampering, not
+            // absence; the audit reports mismatch, never a clean miss.
+            CacheVerify::Mismatch
+        } else {
+            CacheVerify::Missing
+        }),
     }
 }
 
@@ -252,13 +317,22 @@ mod tests {
         StateRoot::from_bytes([byte; 32])
     }
 
+    /// Shared maintenance over a test repository, as production callers
+    /// must hold it before touching the cache.
+    fn hold(repository: &Path) -> RepositoryMaintenanceGuard {
+        fs::create_dir_all(repository).unwrap();
+        sley_txn::initialize_repository_maintenance(repository).unwrap();
+        sley_txn::acquire_shared_repository_maintenance(repository).unwrap()
+    }
+
     #[test]
     fn miss_then_hit_without_object_access_and_verification() {
         let (temp, transactions, genesis_id) =
             genesis("index-cache", complete_bodies(), &[root(9)]);
         let repository = temp.child("repo");
+        let guard = hold(&repository);
         let revision = transactions.verified_revision(genesis_id).unwrap();
-        let (first, outcome) = complete_root_snapshot(&repository, &revision).unwrap();
+        let (first, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
         assert_eq!(outcome, CacheOutcome::Rebuilt(CacheDiscardReason::Missing));
         assert_eq!(first.completeness(), IndexCompleteness::CompleteRoot);
         assert_eq!(
@@ -267,10 +341,10 @@ mod tests {
         );
         assert_eq!(first.inventory().len(), 7);
         assert!(index_cache_path(&repository, revision.state_root().root).is_file());
-        assert!(verify_cached_snapshot(&repository, &revision).unwrap());
+        assert_eq!(verify_cached_snapshot(&repository, &revision, &guard).unwrap(), CacheVerify::Match);
         // Remove the object store: a hit must not touch it.
         fs::remove_dir_all(repository.join("objects")).unwrap();
-        let (second, outcome) = complete_root_snapshot(&repository, &revision).unwrap();
+        let (second, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
         assert_eq!(outcome, CacheOutcome::Hit);
         assert_eq!(second, first);
     }
@@ -280,8 +354,9 @@ mod tests {
         let (temp, transactions, genesis_id) =
             genesis("index-forged", complete_bodies(), &[root(9)]);
         let repository = temp.child("repo");
+        let guard = hold(&repository);
         let revision = transactions.verified_revision(genesis_id).unwrap();
-        let (fresh, _) = complete_root_snapshot(&repository, &revision).unwrap();
+        let (fresh, _) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
         let path = index_cache_path(&repository, revision.state_root().root);
 
         // A digest-valid record over a different inventory: build it from a
@@ -327,7 +402,7 @@ mod tests {
         )
         .unwrap();
         fs::write(&path, forged.record()).unwrap();
-        let (rebuilt, outcome) = complete_root_snapshot(&repository, &revision).unwrap();
+        let (rebuilt, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
         assert_eq!(
             outcome,
             CacheOutcome::Rebuilt(CacheDiscardReason::RootMismatch)
@@ -339,7 +414,7 @@ mod tests {
         let last = corrupt.len() - 1;
         corrupt[last] ^= 1;
         fs::write(&path, &corrupt).unwrap();
-        let (_, outcome) = complete_root_snapshot(&repository, &revision).unwrap();
+        let (_, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
         assert_eq!(
             outcome,
             CacheOutcome::Rebuilt(CacheDiscardReason::DigestMismatch)
@@ -355,15 +430,15 @@ mod tests {
         )
         .unwrap();
         fs::write(&path, restricted.record()).unwrap();
-        let (_, outcome) = complete_root_snapshot(&repository, &revision).unwrap();
+        let (_, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
         assert_eq!(
             outcome,
             CacheOutcome::Rebuilt(CacheDiscardReason::CompletenessUnsupported)
         );
-        assert!(verify_cached_snapshot(&repository, &revision).unwrap());
+        assert_eq!(verify_cached_snapshot(&repository, &revision, &guard).unwrap(), CacheVerify::Match);
 
         fs::write(&path, b"garbage").unwrap();
-        let (_, outcome) = complete_root_snapshot(&repository, &revision).unwrap();
+        let (_, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
         assert_eq!(
             outcome,
             CacheOutcome::Rebuilt(CacheDiscardReason::FormatInvalid)
@@ -374,8 +449,9 @@ mod tests {
     fn a_second_root_caches_beside_the_first_and_paths_are_root_named() {
         let (temp, transactions, genesis_id) = genesis("index-two", complete_bodies(), &[root(9)]);
         let repository = temp.child("repo");
+        let guard = hold(&repository);
         let revision = transactions.verified_revision(genesis_id).unwrap();
-        complete_root_snapshot(&repository, &revision).unwrap();
+        complete_root_snapshot(&repository, &revision, &guard).unwrap();
         let other = index_cache_path(&repository, root(7));
         assert!(!other.exists());
         assert!(other.to_string_lossy().ends_with(".idx.scb1"));
@@ -386,5 +462,101 @@ mod tests {
                 .count(),
             1
         );
+    }
+
+    #[test]
+    fn verify_distinguishes_missing_match_and_mismatch() {
+        let (temp, transactions, genesis_id) =
+            genesis("index-verify", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        assert_eq!(
+            verify_cached_snapshot(&repository, &revision, &guard).unwrap(),
+            CacheVerify::Missing
+        );
+        let (fresh, _) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        assert_eq!(
+            verify_cached_snapshot(&repository, &revision, &guard).unwrap(),
+            CacheVerify::Match
+        );
+        let path = index_cache_path(&repository, revision.state_root().root);
+        let mut bytes = fs::read(&path).unwrap();
+        let last = bytes.len() - 1;
+        bytes[last] ^= 1;
+        fs::write(&path, &bytes).unwrap();
+        assert_eq!(
+            verify_cached_snapshot(&repository, &revision, &guard).unwrap(),
+            CacheVerify::Mismatch
+        );
+        // The audit still rebuilds the true record underneath.
+        let (rebuilt, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        assert_eq!(outcome, CacheOutcome::Rebuilt(CacheDiscardReason::DigestMismatch));
+        assert_eq!(rebuilt, fresh);
+    }
+
+    #[test]
+    fn guard_for_another_repository_is_refused() {
+        let (temp, transactions, genesis_id) =
+            genesis("index-guard", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let other = temp.child("elsewhere");
+        fs::create_dir_all(&other).unwrap();
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        let error =
+            complete_root_snapshot(&other, &revision, &guard).unwrap_err();
+        assert_eq!(error.code().as_str(), IndexSnapshotErrorCode::RootIo.as_str());
+        let error = verify_cached_snapshot(&other, &revision, &guard).unwrap_err();
+        assert_eq!(error.code().as_str(), IndexSnapshotErrorCode::RootIo.as_str());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn symlink_at_the_cache_path_fails_closed() {
+        use std::os::unix::fs::symlink;
+        let (temp, transactions, genesis_id) =
+            genesis("index-symlink", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        let path = index_cache_path(&repository, revision.state_root().root);
+        let target = temp.child("decoy");
+        fs::write(&target, b"decoy").unwrap();
+        fs::remove_file(&path).unwrap();
+        symlink(&target, &path).unwrap();
+        // Tampering is never fail-open: no fresh build is served and
+        // nothing is overwritten through the link.
+        assert!(complete_root_snapshot(&repository, &revision, &guard).is_err());
+        assert_eq!(fs::read(&target).unwrap(), b"decoy");
+        assert_eq!(
+            verify_cached_snapshot(&repository, &revision, &guard).unwrap(),
+            CacheVerify::Mismatch
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn unwritable_cache_still_returns_a_fresh_build() {
+        use std::os::unix::fs::PermissionsExt;
+        let (temp, transactions, genesis_id) =
+            genesis("index-readonly", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        let (fresh, _) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        let directory = repository.join("index").join("v1");
+        let path = index_cache_path(&repository, revision.state_root().root);
+        fs::remove_file(&path).unwrap();
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).unwrap();
+        // Fail-open: the fresh build is returned even though the
+        // write-back cannot land, and no error escapes.
+        let (rebuilt, outcome) =
+            complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        assert_eq!(outcome, CacheOutcome::Rebuilt(CacheDiscardReason::Missing));
+        assert_eq!(rebuilt, fresh);
+        assert!(!path.exists());
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o755)).unwrap();
     }
 }

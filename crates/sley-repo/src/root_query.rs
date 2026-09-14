@@ -13,14 +13,16 @@ use std::path::Path;
 
 use sley_id::{EntityId, SemanticFingerprint};
 use sley_query::{
-    ContextCapsule, ContextCapsuleError, Cursor, QueryLimits, RootQuery, RootQueryError,
-    RootQueryInput, RootQueryRequest, RootQueryResponse, build_context_capsule,
+    CacheDiscardReason, ContextCapsule, ContextCapsuleError, Cursor, QueryLimits, RootQuery,
+    RootQueryError, RootQueryInput, RootQueryRequest, RootQueryResponse, build_context_capsule,
     build_root_query_request, execute_root_query,
 };
-use sley_txn::VerifiedRevision;
+use sley_txn::{RepositoryMaintenanceGuard, VerifiedRevision};
 
 use crate::complete_root::{CompleteRootError, CompleteRootRequest};
-use crate::index_cache::{CacheOutcome, IndexCacheError, complete_root_snapshot};
+use crate::index_cache::{
+    CacheOutcome, IndexCacheError, complete_root_snapshot, fresh_snapshot,
+};
 
 /// Failure of the repository query surface with every wrapped code preserved.
 #[derive(Debug)]
@@ -93,6 +95,10 @@ pub struct RepositoryQueryOutcome {
 
 /// Answers one root-backed query over a verified revision.
 ///
+/// The snapshot comes from the repository cache (a hit supplies edges
+/// only) for transient reads; exported evidence must use
+/// [`run_root_query_fresh`] instead, never a bare hit.
+///
 /// # Errors
 ///
 /// Preserves extraction, cache, and query failure namespaces; returns no
@@ -100,13 +106,14 @@ pub struct RepositoryQueryOutcome {
 pub fn run_root_query(
     repository: &Path,
     revision: &VerifiedRevision,
+    guard: &RepositoryMaintenanceGuard,
     query: RootQuery,
     limits: QueryLimits,
     allow_continuation: bool,
     after: Option<Cursor>,
 ) -> Result<RepositoryQueryOutcome, RepositoryQueryError> {
     let extracted = CompleteRootRequest::extract(revision)?;
-    let (snapshot, cache) = complete_root_snapshot(repository, revision)?;
+    let (snapshot, cache) = complete_root_snapshot(repository, revision, guard)?;
     let entities = extracted.borrowed();
     let fingerprints = stored_fingerprints(revision);
     let record = &revision.state_root().record;
@@ -133,30 +140,70 @@ pub fn run_root_query(
     })
 }
 
-/// Answers one root-backed query and wraps it in the master context capsule
-/// (S20-320 full, contract section 8).
+/// Answers one root-backed query over a verified revision from a freshly
+/// built snapshot, never touching the cache.
+///
+/// Exported evidence must come from this path: a cache hit is accepted
+/// without re-deriving edges, so only a fresh build (or an admission
+/// against one) may underwrite anything that leaves the process.
 ///
 /// # Errors
 ///
-/// Preserves extraction, cache, query, and capsule failure namespaces.
-pub fn run_context_capsule(
-    repository: &Path,
+/// Preserves extraction, cache, and query failure namespaces; returns no
+/// partial response.
+pub fn run_root_query_fresh(
     revision: &VerifiedRevision,
     query: RootQuery,
     limits: QueryLimits,
     allow_continuation: bool,
     after: Option<Cursor>,
-) -> Result<(ContextCapsule, CacheOutcome), RepositoryQueryError> {
-    let outcome = run_root_query(
-        repository,
-        revision,
-        query,
-        limits,
-        allow_continuation,
-        after,
-    )?;
-    let capsule = build_context_capsule(&outcome.request, &outcome.response)?;
-    Ok((capsule, outcome.cache))
+) -> Result<RepositoryQueryOutcome, RepositoryQueryError> {
+    let extracted = CompleteRootRequest::extract(revision)?;
+    let snapshot = fresh_snapshot(revision).map_err(RepositoryQueryError::Cache)?;
+    let entities = extracted.borrowed();
+    let fingerprints = stored_fingerprints(revision);
+    let record = &revision.state_root().record;
+    let input = RootQueryInput {
+        snapshot: &snapshot,
+        entities: &entities,
+        facts: extracted.facts(),
+        bindings: extracted.bound_objects(),
+        fingerprints: &fingerprints,
+        root: extracted.root(),
+        workspace_id: extracted.workspace_id(),
+        schema_epoch: extracted.schema_epoch_id(),
+        contract_root: record.contract_root,
+        test_root: record.test_root,
+        policy_root: record.policy_root,
+        interpretation_flags: &record.interpretation_flags,
+    };
+    let request = build_root_query_request(&input, query, limits, allow_continuation, after)?;
+    let response = execute_root_query(&input, &request)?;
+    // The fresh path never consults the cache: `Missing` marks "no cache
+    // consulted", not a lookup result.
+    Ok(RepositoryQueryOutcome {
+        request,
+        response,
+        cache: CacheOutcome::Rebuilt(CacheDiscardReason::Missing),
+    })
+}
+
+/// Answers one root-backed query and wraps it in the master context capsule
+/// (S20-320 full, contract section 8), built from a fresh snapshot: an
+/// exported capsule never rests on a cache hit.
+///
+/// # Errors
+///
+/// Preserves extraction, cache, query, and capsule failure namespaces.
+pub fn run_context_capsule(
+    revision: &VerifiedRevision,
+    query: RootQuery,
+    limits: QueryLimits,
+    allow_continuation: bool,
+    after: Option<Cursor>,
+) -> Result<ContextCapsule, RepositoryQueryError> {
+    let outcome = run_root_query_fresh(revision, query, limits, allow_continuation, after)?;
+    build_context_capsule(&outcome.request, &outcome.response).map_err(RepositoryQueryError::Capsule)
 }
 
 /// Field-4 fingerprints carried by the verified objects, in binding order.
@@ -185,6 +232,14 @@ mod tests {
     use super::*;
     use crate::complete_root::tests::{complete_bodies, genesis};
 
+    /// Shared maintenance over a test repository, as production callers
+    /// must hold it before touching the cache.
+    fn hold(repository: &std::path::Path) -> RepositoryMaintenanceGuard {
+        std::fs::create_dir_all(repository).unwrap();
+        sley_txn::initialize_repository_maintenance(repository).unwrap();
+        sley_txn::acquire_shared_repository_maintenance(repository).unwrap()
+    }
+
     #[test]
     fn cache_hit_and_rebuild_answer_byte_identical_records_without_object_access() {
         let (temp, transactions, genesis_id) = genesis(
@@ -193,11 +248,13 @@ mod tests {
             &[StateRoot::from_bytes([9; 32])],
         );
         let repository = temp.child("repo");
+        let guard = hold(&repository);
         let revision = transactions.verified_revision(genesis_id).unwrap();
         let limits = QueryLimits::profile_maximum();
         let first = run_root_query(
             &repository,
             &revision,
+            &guard,
             RootQuery::GetRootSummary,
             limits,
             false,
@@ -208,6 +265,7 @@ mod tests {
         let second = run_root_query(
             &repository,
             &revision,
+            &guard,
             RootQuery::GetRootSummary,
             limits,
             false,
@@ -228,6 +286,7 @@ mod tests {
         let by_kind = run_root_query(
             &repository,
             &revision,
+            &guard,
             RootQuery::ListEntitiesByKind {
                 kind: ModeledEntityKind::TypeDef,
             },
@@ -243,6 +302,7 @@ mod tests {
         let entity = run_root_query(
             &repository,
             &revision,
+            &guard,
             RootQuery::GetEntity {
                 entity: functions[0],
             },
@@ -266,23 +326,25 @@ mod tests {
         );
         // The edges of a cached hit are served without the object store.
         fs::remove_dir_all(repository.join("objects")).unwrap();
-        let cached = complete_root_snapshot(&repository, &revision).unwrap();
+        let cached = complete_root_snapshot(&repository, &revision, &guard).unwrap();
         assert_eq!(cached.1, CacheOutcome::Hit);
         assert_eq!(cached.0.direct_edges().len(), summary.direct_edges as usize);
     }
 
     #[test]
-    fn capsules_from_a_rebuild_and_a_cache_hit_are_identical() {
+    fn capsules_build_fresh_and_never_rest_on_a_cache_hit() {
+        use crate::index_cache::complete_root_snapshot;
         let (temp, transactions, genesis_id) = genesis(
             "context-capsule",
             complete_bodies(),
             &[StateRoot::from_bytes([9; 32])],
         );
         let repository = temp.child("repo");
+        let guard = hold(&repository);
         let revision = transactions.verified_revision(genesis_id).unwrap();
         let limits = QueryLimits::profile_maximum();
-        let (first, outcome) = run_context_capsule(
-            &repository,
+        // With no cache at all, the capsule builds from a fresh snapshot.
+        let first = run_context_capsule(
             &revision,
             RootQuery::ListEntitiesByKind {
                 kind: ModeledEntityKind::TypeDef,
@@ -292,9 +354,10 @@ mod tests {
             None,
         )
         .unwrap();
-        assert!(matches!(outcome, CacheOutcome::Rebuilt(_)));
-        let (second, outcome) = run_context_capsule(
-            &repository,
+        // With a populated cache — and even with a corrupt one — the
+        // exported capsule is identical: it never reads the cache.
+        complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        let second = run_context_capsule(
             &revision,
             RootQuery::ListEntitiesByKind {
                 kind: ModeledEntityKind::TypeDef,
@@ -304,7 +367,6 @@ mod tests {
             None,
         )
         .unwrap();
-        assert_eq!(outcome, CacheOutcome::Hit);
         assert_eq!(second, first);
         assert_eq!(first.root(), revision.state_root().root);
         assert_eq!(

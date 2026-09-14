@@ -30,6 +30,14 @@ fn epoch(byte: u8) -> SchemaEpochId {
     SchemaEpochId::from_bytes([byte; 32])
 }
 
+/// Shared maintenance over a test repository, as production callers must
+/// hold it before touching the index cache.
+fn maintenance_guard(repository: &std::path::Path) -> sley_txn::RepositoryMaintenanceGuard {
+    std::fs::create_dir_all(repository).unwrap();
+    sley_txn::initialize_repository_maintenance(repository).unwrap();
+    sley_txn::acquire_shared_repository_maintenance(repository).unwrap()
+}
+
 fn hello(methods: Vec<u32>, inflight: u32) -> Hello {
     Hello {
         protocol_versions: vec![1],
@@ -506,6 +514,7 @@ fn query_family_transports_the_frozen_engine_records() {
     let outcome = run_root_query(
         &harness.repository,
         &revision,
+        &maintenance_guard(&harness.repository),
         RootQuery::GetRootSummary,
         limits,
         false,
@@ -524,6 +533,7 @@ fn query_family_transports_the_frozen_engine_records() {
     let first = run_root_query(
         &harness.repository,
         &revision,
+        &maintenance_guard(&harness.repository),
         RootQuery::ListEntitiesByKind {
             kind: ModeledEntityKind::Namespace,
         },
@@ -538,6 +548,7 @@ fn query_family_transports_the_frozen_engine_records() {
     let second = run_root_query(
         &harness.repository,
         &revision,
+        &maintenance_guard(&harness.repository),
         RootQuery::ListEntitiesByKind {
             kind: ModeledEntityKind::Namespace,
         },
@@ -1285,6 +1296,7 @@ fn sessions_bind_workspace_root_and_epoch_and_handles_name_their_root() {
     let outcome = run_root_query(
         &harness.repository,
         head.verified_revision(),
+        &maintenance_guard(&harness.repository),
         RootQuery::GetRootSummary,
         QueryLimits::profile_maximum(),
         false,
@@ -1488,6 +1500,7 @@ fn session_bound_capsules_are_minted_from_live_authority_state() {
     let outcome = run_root_query(
         &harness.repository,
         head.verified_revision(),
+        &maintenance_guard(&harness.repository),
         RootQuery::GetRootSummary,
         QueryLimits::profile_maximum(),
         false,
@@ -1526,6 +1539,7 @@ fn session_bound_capsules_are_minted_from_live_authority_state() {
     let foreign = run_root_query(
         &foreign_repo,
         foreign_head.verified_revision(),
+        &maintenance_guard(&foreign_repo),
         RootQuery::GetRootSummary,
         QueryLimits::profile_maximum(),
         false,
@@ -2199,6 +2213,7 @@ fn emit_release_demo_vectors_for_fixture_refresh() {
     let outcome = run_root_query(
         &repository,
         &revision,
+        &maintenance_guard(&repository),
         RootQuery::GetRootSummary,
         QueryLimits::profile_maximum(),
         false,

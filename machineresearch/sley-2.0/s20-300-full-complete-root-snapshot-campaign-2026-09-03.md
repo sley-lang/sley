@@ -1,6 +1,8 @@
 # Full S20-300 complete-root index snapshot: campaign record (opened 2026-09-03)
 
-Status: contract draft revision 1 committed; Council review pending.
+Status: contract draft revision 3 (2026-09-14: guard-held cache, exclusive
+temp files, fail-open I/O, fresh-only capsules, residual precision);
+Council reviews landed 2026-09-04 (all FAIL) and re-review is queued.
 
 ## Why now
 

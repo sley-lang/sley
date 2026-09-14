@@ -738,11 +738,13 @@ fn inspect_candidate_for_arm(
         });
     }
     cursor.finish()?;
-    if decoded_reverse != invert_edges(&direct)? {
-        return snapshot_fail(IndexSnapshotErrorCode::FormatInvalid);
-    }
+    // Digest before inversion, matching the contract's rule order: the
+    // trailer authenticates the bytes the structural rules then judge.
     if IndexSnapshotId::derive(preimage).as_bytes() != trailer {
         return snapshot_fail(IndexSnapshotErrorCode::DigestMismatch);
+    }
+    if decoded_reverse != invert_edges(&direct)? {
+        return snapshot_fail(IndexSnapshotErrorCode::FormatInvalid);
     }
     Ok(DecodedCandidate {
         inventory: entries,
@@ -794,7 +796,9 @@ fn impact_kind(tag: u32) -> Result<ImpactKind, IndexSnapshotError> {
     }
 }
 
-fn discard_reason(code: IndexSnapshotErrorCode) -> CacheDiscardReason {
+/// Maps a snapshot failure to its cache discard reason. Shared with the
+/// repository index cache so the mapping lives in exactly one place.
+pub fn discard_reason(code: IndexSnapshotErrorCode) -> CacheDiscardReason {
     match code {
         IndexSnapshotErrorCode::ProfileUnsupported | IndexSnapshotErrorCode::VersionUnsupported => {
             CacheDiscardReason::VersionUnsupported

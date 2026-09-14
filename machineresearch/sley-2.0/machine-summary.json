@@ -723,7 +723,7 @@
   "complete_root_index_snapshot": {
     "status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
-    "contract_revision": 2,
+    "contract_revision": 3,
     "adr": "docs/adr/ADR-0029-complete-root-index-snapshot-boundary.md",
     "checker": "scripts/check_complete_root_index_snapshot_profile.py",
     "completeness_arm": 2,

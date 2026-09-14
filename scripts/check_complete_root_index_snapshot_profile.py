@@ -17,8 +17,11 @@ SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
 SNAPSHOT = ROOT / "crates/sley-query/src/snapshot.rs"
 CACHE = ROOT / "crates/sley-repo/src/index_cache.rs"
+ROOT_QUERY = ROOT / "crates/sley-repo/src/root_query.rs"
 EXCHANGE = ROOT / "crates/sley-repo/src/exchange.rs"
 FIXTURE_DIR = ROOT / "conformance/complete-root-index-snapshot"
+
+SPEC_REVISION = 3
 
 DRAFT_STATUS = "S20_300_FULL_CONTRACT_DRAFT_REVIEW_PENDING"
 DRAFT_IN_PROGRESS_STATUS = "S20_300_FULL_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
@@ -75,6 +78,8 @@ CACHE_MARKERS = (
     "pub fn verify_cached_snapshot",
     'const INDEX_DIRECTORY: &str = "index";',
     ".idx.scb1",
+    "RepositoryMaintenanceGuard",
+    "create_new(true)",
 )
 
 
@@ -126,6 +131,7 @@ def main() -> int:
         "entity_kinds": 18,
         "new_stable_error_codes": len(CODES),
         "cache_consumers": "READ_ONLY_DERIVED_QUERY_SURFACES_ONLY",
+        "contract_revision": SPEC_REVISION,
         "implementation_complete": status == COMPLETE_STATUS,
     }
     for key, value in expected.items():
@@ -155,6 +161,21 @@ def main() -> int:
         for marker in CACHE_MARKERS:
             if marker not in cache:
                 problems.append(f"cache-marker:{marker}")
+        # The reuse path is allowlisted: only the designated transient-read
+        # surface may take cache hits, and exported capsules build fresh.
+        # A new caller fails this gate until it is deliberately listed.
+        allowed_callers = {"crates/sley-repo/src/root_query.rs"}
+        call_pattern = re.compile(r"(?<!build_)(?<!decode_)(?<!admit_)complete_root_snapshot\(")
+        for path in sorted((ROOT / "crates").rglob("*.rs")):
+            if "tests" in path.parts or path.name in ("index_cache.rs",):
+                continue
+            text = path.read_text(encoding="utf-8")
+            if call_pattern.search(text) and "fn complete_root_snapshot" not in text:
+                if str(path.relative_to(ROOT)) not in allowed_callers:
+                    problems.append(f"cache-caller:{path.relative_to(ROOT)}")
+        root_query = read(ROOT_QUERY) if ROOT_QUERY.exists() else ""
+        if "run_root_query_fresh(revision" not in root_query:
+            problems.append("capsule:not-fresh-only")
         # An incomplete clone may carry the cache directory, and the import
         # must remove it rather than adopt a record it cannot prove belongs to
         # the exchange (contract section 5). Presence of the allowlist entry is
@@ -176,11 +197,16 @@ def main() -> int:
                 if not str(section.get(key, "")).startswith("PASS"):
                     problems.append(f"completion-without-review:{key}")
 
-    revision = re.search(r"revision (\d+)", spec)
+    # The revision is anchored to the Status header (not the first prose
+    # occurrence) and pinned: a stale pin fails the moment the contract moves.
+    own = re.search(r"^Status: S20-300 full contract draft, revision (\d+)", spec, flags=re.M)
+    if own is None or int(own.group(1)) != SPEC_REVISION:
+        problems.append("spec-revision")
+    revision = own.group(1) if own else None
     result = {
         "contract": "s20-300-full-complete-root-index-snapshot-profile-v1",
         "status": status,
-        "revision": int(revision.group(1)) if revision else None,
+        "revision": int(revision) if revision else None,
         "implementation_present": present,
         "new_stable_error_codes": len(CODES),
         "problems": problems,

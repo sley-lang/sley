@@ -1,8 +1,8 @@
 # S20-300 Full Complete-Root Snapshot Closeout
 
-Status: **implemented under the draft Complete-Root Index Snapshot Profile v1 contract (revision 1); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft Complete-Root Index Snapshot Profile v1 contract (revision 3); the three Council review rounds landed 2026-09-04 (all FAIL) and revision 3 closes every report-grade finding below; the package awaits re-review, so it is not complete; the Sley 2 goal remains incomplete**
 
-Date: 2026-09-03
+Date: 2026-09-03; revised 2026-09-14 (revision 3)
 
 Validation tier: **Tier 1 plus query-and-repository-focused Tier 2 handoff**
 
@@ -97,22 +97,55 @@ comparison, merge, commit, exchange, GC, or recovery path reads the cache.
   acceptance rules, so a discarded file is always rewritten from the fresh
   build.
 
+## Findings closed in revision 3 (2026-09-14)
+
+- **Closed with code.** Unique exclusive temp files (`create_new` over
+  `<name>.tmp.<pid>.<counter>`); guard-held cache access (callers pass
+  shared maintenance over the same repository, mismatch refused; threaded
+  through S20-310 queries, the server, and all tests); fail-open cache I/O
+  (read/metadata trouble rebuilds, write-back is best-effort, tampering
+  still fails closed); handle-pinned bounded cache reads; fresh-only
+  exported capsules (`run_root_query_fresh` + fresh `run_context_capsule`,
+  server capsule path included); `verify_cached_snapshot` distinguishes
+  `Match`/`Missing`/`Mismatch`; shared `discard_reason` mapping (dup
+  removed); decoder checks the digest before the inversion, matching the
+  rule order; fuzz target asserts the decoder partition (30000-30007).
+- **Closed with text.** Forged-kind residual named (kinds, like edges, are
+  digest-bound but not cross-checked — same three bounds); context-check
+  precedence stated (rootless arm-2 under a rooted context is
+  `CONTEXT_MISMATCH`, matching code and fixture); Hit-export ban with the
+  narrowed transient-read grant; determinism invariant; no-eviction rule;
+  code-surfacing rule; strictly-ascending-unique inventory order; §9
+  consumer state.
+- **Verified absent (no change).** The fuzz `OPTION_NONE` arm IS exercised
+  (a missing option tag yields a rootless expected context); no code
+  needed, recorded here so it is not re-raised.
+- **Checker.** Revision anchored and pinned (`SPEC_REVISION = 3`) with the
+  summary cross-check; cache-caller allowlist (only the designated
+  transient-read surface); fresh-only capsule pin; guard and exclusivity
+  markers.
+
 ## Explicitly open and deferred
 
-- **Council reviews.** Ariadne, Nabu, and Vulcan reviews are queued behind
-  the S20-250, S20-510, and S20-520 reviews and land as contract revisions.
+- **Council reviews.** Ariadne, Nabu, and Vulcan reviews landed 2026-09-04
+  (all FAIL: 2 P0s with one shared root cause, 13 P1s); revision 3 below
+  closes every report-grade finding, and re-review is queued.
 - The residual cache risk named in the contract (a digest-valid forged
-  record with the correct inventory and wrong edges served to a read-only
-  query) is accepted as bounded, not eliminated; `verify_cached_snapshot`
-  exists for audits and no non-query surface reads the cache.
+  record with the correct inventory and wrong edges — or wrong inventory
+  kinds, which the alignment binds by identity only — served to a
+  read-only query) is accepted as bounded, not eliminated;
+  `verify_cached_snapshot` distinguishes missing from differing caches for
+  audits, and no non-query surface reads the cache. Exported capsules
+  never rest on bare hits (fresh-only capsule paths in `root_query` and
+  the server).
 - The repository builder is exercised over synthetic genesis repositories;
-  no multi-transaction repository with a cache across heads exists yet, and
-  no consumer of a cache hit exists until full S20-310 lands.
+  no multi-transaction repository with a cache across heads exists yet.
+  S20-310 root-backed queries consume cache hits for transient reads
+  today; the full S20-320 capsule builds fresh.
 - Strict pedantic clippy debt in older `sley-repo` exchange and GC test
   modules is pre-existing; the new paths lint clean under `--no-deps`.
 
 ## Validation record
-
 Tier 1 `make quick` passed at every commit of the slice. Tier 2 ran on
 2026-09-03 at `094a7bf`: `make core` (941 tests), `make conformance`
 (including the complete-root snapshot oracle line), `make adversarial`,

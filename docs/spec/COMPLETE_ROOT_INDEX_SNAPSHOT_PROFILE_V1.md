@@ -1,9 +1,12 @@
 # Complete-Root Index Snapshot Profile v1
 
-Status: S20-300 full contract draft, revision 2 (2026-09-04); implemented
+Status: S20-300 full contract draft, revision 3 (2026-09-14); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
-and the package is not complete. Implementation state is tracked in the
+and the package is not complete. Revision 3 closes the remaining
+report-grade findings with guard-held cache access, exclusive temp files,
+fail-open cache I/O, fresh-only exported capsules, and the residual
+precision notes. Implementation state is tracked in the
 machine summary.
 
 This profile completes S20-300. It adds the complete-root completeness arm
@@ -47,7 +50,11 @@ SnapshotContext {
 For arm `2` the context root is not a claim: the builder MUST have derived
 the inventory from exactly that root's `entity_bindings` (closure rule C1),
 so the field is the bound root. A record with arm `2` and `claimed_root_context = None`
-is `INDEX_SNAPSHOT_FORMAT_INVALID`. A record with arm `1` keeps the
+is `INDEX_SNAPSHOT_FORMAT_INVALID`. The context check runs first: under a
+rooted expected context a rootless arm-`2` record fails
+`INDEX_SNAPSHOT_CONTEXT_MISMATCH` (the rejected rootless-context vector
+pins this precedence); the `FORMAT_INVALID` arm covers decoding with a
+rootless expected context. A record with arm `1` keeps the
 restricted semantics unchanged. Unknown arms fail
 `INDEX_SNAPSHOT_COMPLETENESS_UNSUPPORTED`, and each consumer states which arm
 it accepts: the restricted S20-310 queries and the S20-320 capsule accept
@@ -58,8 +65,8 @@ profile accept arm `2` only.
 
 The record grammar is the restricted profile's section 4 with two changes
 for arm `2`: `u32be(completeness=2)` and inventory kinds over SSMC1 tags
-`1` through `18`. Inventory is the complete root's entity inventory in raw
-`EntityId` order; direct edges are the complete-root index's canonical edge
+`1` through `18`. Inventory is the complete root's entity inventory in strictly-ascending
+unique raw `EntityId` order; direct edges are the complete-root index's canonical edge
 set; reverse groups are its exact inversion. The identity is derived by the
 unchanged domain over the unchanged preimage grammar, so arm `1` and arm
 `2` records over the same entities always differ.
@@ -93,10 +100,13 @@ security evidence; it never skips the rebuild.
 
 `sley-repo` owns the only reuse path. The cache lives under
 `<repository>/index/v1/` as one file per root named by the lowercase hex of
-the `StateRoot`, suffix `.idx.scb1`, written by temp-and-rename
-(`<name>.tmp` then rename, directory synced) after a fresh build from a
-verified revision under shared repository maintenance. `index` joins the
-frozen repository layout entries that an incomplete S20-540 clone may carry,
+the `StateRoot`, suffix `.idx.scb1`, written by temp-and-rename (a unique
+`<name>.tmp.<pid>.<counter>` created exclusively, then rename, directory
+synced) after a fresh build from a verified revision under shared
+repository maintenance. Every cache-touching call takes the caller's
+maintenance guard over the same repository and refuses a guard for another
+root; unguarded access is a contract violation the code does not admit.
+`index` joins the frozen repository layout entries that an incomplete S20-540 clone may carry,
 and an S20-540 import **removes** that directory before it promotes anything.
 Every other entry such a clone holds is proved to belong to the exchange; a
 cache record cannot be, because it is keyed by a state root the import has not
@@ -130,19 +140,29 @@ returned. A cached inventory that differs from the record's bindings is
 
 Because rules 1 through 4 do not re-derive edges, a filesystem writer that
 can forge a digest-valid record with the right inventory could serve wrong
-edges to a query. That is the residual the restricted profile's rule names,
+edges — or wrong inventory kinds, which the alignment binds by identity
+only — to a query. That is the residual the restricted profile's rule names,
 and it is bounded three ways: the cache is under the same local filesystem
 authority as objects, receipts, and refs, which is why an exchange import
-removes an inherited one rather than adopting it; only read-only derived query
-surfaces (S20-310 and S20-320 and their successors) may consume a hit;
-validation, comparison, merge, commit, exchange, GC, and recovery never read
+removes an inherited one rather than adopting it; only transient
+in-process reads on the read-only derived query surfaces (S20-310
+root-backed queries) may consume a hit, and exported evidence MUST NOT
+rest on a bare hit — exported capsules build from a fresh snapshot, never
+from the cache; validation, comparison, merge, commit, exchange, GC, and recovery never read
 the cache. `verify_cached_snapshot(repository, revision)` rebuilds and
-compares the cached record byte for byte for audits and Tier 2 evidence.
+compares the cached record byte for byte for audits and Tier 2 evidence,
+reporting `Match`, `Missing`, or `Mismatch`: a missing cache is benign,
+a differing one (including a present-but-unreadable file) demands
+investigation. Concurrent readers and writers observe atomic renames over
+deterministic fresh builds, so last-writer-wins is harmless: every fresh
+build of one revision is byte-identical.
 
 Cache files are derived and disposable: they are outside the object store,
 outside every retention root, never packed or exchanged, and safe to delete
 at any time. Their names carry no branch, ref, transaction, path, or time
-fact.
+fact. There is no eviction policy and no size cap beyond one file per root:
+growth is bounded by the revision count, GC ignores `index/`, and operators
+may delete the directory whenever they like; the next request rebuilds it.
 
 ## 6. Limits
 
@@ -163,7 +183,10 @@ Codes 30000 through 30007 are unchanged. This profile appends:
 
 `IMPACT_*` codes are preserved inside `INDEX_SNAPSHOT_ROOT_INCOMPLETE`;
 `STORE_*`, `TXN_*`, and `SCB_*` codes from revision loading are preserved by
-the S20-390 loader and never remapped.
+the S20-390 loader and never remapped. Cache errors surface the outer
+`INDEX_SNAPSHOT_*` symbol with the wrapped code traveling inside the error
+value (`IndexCacheError::code()` names the outer symbol; the inner
+`IMPACT_*` stays inspectable, never stringified away).
 
 ## 8. Required evidence
 
@@ -191,10 +214,11 @@ Implementation acceptance requires at least:
 
 This contract does not claim:
 
-- root-backed S20-310 queries or the full S20-320 capsule, which are later
-  packages consuming this snapshot;
-- any consumer of a cache hit beyond read-only derived query evidence;
-- cross-repository, signed, or exchanged snapshots;
+- the full S20-320 capsule, which is a later package building on the
+  fresh-only rule above; S20-310 root-backed queries consume arm-`2`
+  snapshots today (built directly or through the repository cache, whose
+  hit path still has no readers beyond those queries), and cross-repository,
+  signed, or exchanged snapshots;
 - fingerprint catalogs inside the record;
 - SMP1, sessions, JSON bridge, CLI, runtime, benchmark, packaging, release,
   or GA.

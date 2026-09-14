@@ -39,7 +39,8 @@ use sley_repo::{
     RetentionSnapshot, RetentionTarget, acquire_exclusive_gc, build_merge_plan, commit_merge,
     compare_complete_roots, encode_verified_entity_read_response, export_repository_exchange,
     gc_collect, gc_dry_run, import_repository_exchange, judge_merge_verified,
-    prepare_verified_entity_read, read_execution_report, run_root_query, store_execution_report,
+    prepare_verified_entity_read, read_execution_report, run_root_query, run_root_query_fresh,
+    store_execution_report,
     transaction_ancestry,
 };
 use sley_scb1::{encode_bytes, encode_list, encode_record, encode_union, encode_uvar};
@@ -48,7 +49,10 @@ use sley_state_root::{
     AcceptedStateRoot, conformance_registry as state_registry, import_state_root,
 };
 use sley_store::ObjectStore;
-use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput, VerifiedRevision};
+use sley_txn::{
+    CommitInput, RepositoryMaintenanceGuard, TransactionRepository, TrustedGenesisInput,
+    VerifiedRevision, acquire_shared_repository_maintenance, initialize_repository_maintenance,
+};
 use sley_vm::{CacheProfile, ExecutionLimits, ExecutionRequest, LoweringInput, execute_function};
 
 use crate::session::{
@@ -1234,6 +1238,16 @@ impl Server {
         TransactionRepository::new(&self.repository)
     }
 
+    /// Shared maintenance over this server's repository, held for one
+    /// cache-touching call: the guard pins the lock boundary against a
+    /// concurrent import purge or exclusive owner while the index cache
+    /// is read and written.
+    fn maintenance(&self) -> core::result::Result<RepositoryMaintenanceGuard, ProtocolFailure> {
+        initialize_repository_maintenance(&self.repository)
+            .and_then(|()| acquire_shared_repository_maintenance(&self.repository))
+            .map_err(|_| owner("TXN_IO", 39_019))
+    }
+
     fn branches(&self) -> BranchRepository {
         BranchRepository::new(&self.repository)
     }
@@ -1469,9 +1483,11 @@ impl Server {
             return protocol_failure(ProtocolErrorCode::PayloadInvalid);
         }
         let revision = self.head()?;
+        let guard = self.maintenance()?;
         let outcome = run_root_query(
             &self.repository,
             &revision,
+            &guard,
             decoded.query,
             decoded.limits,
             decoded.allow_continuation,
@@ -1538,8 +1554,10 @@ impl Server {
     fn capsule(&self, body: &[u8], session: SessionId) -> Result<(Vec<u8>, BoundedContext)> {
         let decoded = decode_root_query(body)?;
         let revision = self.head()?;
-        let outcome = run_root_query(
-            &self.repository,
+        // Exported capsules build from a fresh snapshot, never a bare
+        // cache hit: a hit is accepted without re-deriving edges, so only
+        // a fresh build may underwrite evidence that leaves the process.
+        let outcome = run_root_query_fresh(
             &revision,
             decoded.query.clone(),
             decoded.limits,

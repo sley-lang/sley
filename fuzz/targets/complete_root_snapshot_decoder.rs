@@ -25,7 +25,7 @@ const OPTION_OFFSET: usize = 84;
 const ROOT_OFFSET: usize = 88;
 const OPTION_SOME: [u8; 4] = [0, 0, 0, 2];
 const MIN_NUMERIC_CODE: u32 = 30_000;
-const MAX_NUMERIC_CODE: u32 = 30_010;
+const MAX_NUMERIC_CODE: u32 = 30_007;
 
 #[unsafe(no_mangle)]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -66,6 +66,10 @@ fn fuzz_one(input: &[u8]) {
             assert_eq!(again, snapshot, "decoding a snapshot twice drifted");
         }
         Err(error) => {
+            // The decoder emits only the restricted partition: 30008
+            // (judgment), 30009 (cache alignment), and 30010 (cache I/O)
+            // never arise from bytes alone. A missing option tag yields a
+            // rootless expected context, so the None arm is exercised.
             let numeric = error.code().numeric();
             assert!(
                 (MIN_NUMERIC_CODE..=MAX_NUMERIC_CODE).contains(&numeric),
