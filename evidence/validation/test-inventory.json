@@ -134,7 +134,7 @@
     },
     {
       "family": "semantic-comparison",
-      "rejections": 5,
+      "rejections": 8,
       "vectors": 9,
       "version": "v1"
     },
@@ -175,10 +175,10 @@
       "version": "v1"
     }
   ],
-  "conformance_rejections": 272,
+  "conformance_rejections": 275,
   "conformance_vectors": 477,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "9e5be81021d9844ed1ada4711e6cec415a59af1c8222279623417cee6dc18be0",
+  "inventory_digest": "e9342fe7ae18994f04bc700bc0faf0d008ec7b936160a7907df2911c84413040",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -214,7 +214,7 @@
     {
       "directory": "bench/accounting/tests",
       "files": 1,
-      "tests": 8
+      "tests": 9
     },
     {
       "directory": "bench/invariant/tests",
@@ -239,7 +239,7 @@
     {
       "directory": "bench/review/tests",
       "files": 2,
-      "tests": 53
+      "tests": 61
     },
     {
       "directory": "bench/sley2/tests",
@@ -252,7 +252,7 @@
       "tests": 120
     }
   ],
-  "python_tests": 350,
+  "python_tests": 359,
   "rust_crates": [
     {
       "crate": "sley-adapter",
@@ -302,12 +302,12 @@
     {
       "crate": "sley-query",
       "ignored": 4,
-      "tests": 106
+      "tests": 107
     },
     {
       "crate": "sley-repo",
       "ignored": 4,
-      "tests": 391
+      "tests": 395
     },
     {
       "crate": "sley-scb1",
@@ -346,7 +346,7 @@
     }
   ],
   "rust_ignored_emitters": 16,
-  "rust_unit_tests": 1416,
+  "rust_unit_tests": 1421,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

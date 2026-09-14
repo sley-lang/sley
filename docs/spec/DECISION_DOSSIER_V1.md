@@ -1,6 +1,6 @@
 # Decision Dossier v1
 
-Status: S20-750 contract draft, revision 5 (2026-09-05); Council review
+Status: S20-750 contract draft, revision 6 (2026-09-14); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 adds the tracked test inventory as a source, which
 evidences the property-test counts item. Revisions 3 and 4 added the threat
@@ -8,7 +8,10 @@ coverage and GA acceptance reports as cited inputs without a header bump.
 Revision 5 names, in section 3, the entry each decision rule derives from;
 counts the property-test absence in the test inventory instead of
 substituting unit-test counts; and reads the SBOM and license entry from the
-license inventory. The mechanics are `scripts/build_decision_dossier.py`; implementation
+license inventory. Revision 6 wires the product gates to the fail-closed
+stub, orders the conditional rules so approvals are verifiable, gates
+`PASS` on the GA criteria, closes the null-fact and missing-key holes, and
+records the residual precision notes. The mechanics are `scripts/build_decision_dossier.py`; implementation
 state is tracked in the machine summary.
 
 ## Boundary
@@ -42,6 +45,10 @@ entry = {
 - `EVIDENCED` means every fact of the item is present in tracked evidence.
 - `GATED` means the item awaits an authority, an execution, or a decision that
   has not happened; the note names it. A gated item is never given a value.
+  An object whose fields are all null carries no facts: it reads `GATED`
+  with no value, the note naming the nulled fields. Every cited evidence
+  path must exist; a cited-but-absent file fails the build rather than
+  reading as a quiet note.
 - No item is ever marked evidenced from a narrative document alone: the
   resolver reads the machine summary, the tracked reports of S20-710 full,
   S20-720, S20-730, and S20-740, or a tracked conformance fixture.
@@ -50,7 +57,9 @@ entry = {
 
 The dossier covers exactly these thirty-four items, in this order, copied
 verbatim from master goal section 30. A dossier that omits, reorders, renames,
-or adds an item is `DOSSIER_SOURCE_INVALID`:
+or adds an item is `DOSSIER_SOURCE_INVALID`. The "exactly" binds this
+revision: the goal's "at minimum" is honored by amending this contract, never
+by ad-hoc items.
 
 1. final repository
 2. final branch
@@ -116,9 +125,19 @@ or adds an item is `DOSSIER_SOURCE_INVALID`:
   inventory names the manifests, lockfile, and sources it scanned for
   proptest, quickcheck, and hypothesis. The inventory runs no
   test: it describes the corpus, and a passing run stays separate evidence.
+- `conformance/state-root/v1/accepted.json`: the accepted state-root
+  vectors entry 7 cites as evidence.
 
 A missing or unreadable source is `DOSSIER_SOURCE_MISSING`; a source whose
-contract tag or shape is wrong is `DOSSIER_SOURCE_INVALID`.
+contract tag or shape is wrong is `DOSSIER_SOURCE_INVALID`. Structural keys
+the dossier cannot mean anything without (the summary's project, target
+version, and phase; the SBOM shapes) are required, never defaulted: a
+missing or renamed structural key fails loudly rather than regrading an
+item to `GATED` with a note that reads as resolved. A present key with a
+null value is pending data and reads `GATED` instead. The machine summary
+also records this dossier's own counters and the register's counters (the
+sync write-back); those mirror sections are non-inputs — the builder never
+reads them — so the derivation stays acyclic.
 
 ## 3. Decision state
 
@@ -127,16 +146,25 @@ The state is derived, in this precedence, from the entries and the sources:
 1. `BLOCKED` when a trustworthy decision cannot be reached because required
    authority, evidence, model access, or execution is unavailable: any open
    review obligation, any deferred review lane, an unapproved root license, no
-   executed succession trial, or a fail-closed product gate. The dossier lists
-   every reason.
-2. `FAIL` when a required gate fails, a release-blocking finding is open (any
-   declared P0, P1, or P2 open finding), or recorded evidence contradicts the
-   design.
+   executed succession trial, unevidenced GA acceptance criteria, or a
+   fail-closed product gate. The dossier lists every reason.
+2. `FAIL` when a required gate fails (evaluated and failed, as opposed to
+   unimplemented), a release-blocking finding is open (any open P0 or P1, or
+   any open P2 no approval covers), or recorded evidence contradicts the
+   design. Evidence-against-design is enforced by the checker (required-items
+   coverage, license cross-check, property-count cross-check), not the
+   builder.
 3. `ALPHA_COMPLETE` when implementation gates pass but the succession
    thresholds do not.
 4. `CONDITIONAL_PASS` when gates pass with an explicitly approved
-   non-correctness P2 item or a material evidence limitation.
-5. `PASS` when every criterion passes with no open P0, P1, or P2 finding.
+   non-correctness P2 item or a material evidence limitation. Approvals name
+   register `section:field` rows in the summary's `approved_conditional_items`
+   list; an open P2 row no approval names fails rule 2 instead. An
+   unverifiable approval (open P2 counts but no register to match them
+   against) fails closed as well.
+5. `PASS` when every criterion passes with no open P0, P1, or P2 finding:
+   the GA acceptance states all evidenced alongside the findings counts,
+   thresholds, and conditionals above.
 
 The derivation is total: exactly one state, with its reasons, and a
 `decision_authority` field that always reads
@@ -158,10 +186,13 @@ entries' backs:
 - release-blocking finding open: the "findings by severity and
   disposition" entry's declared P0, P1, and P2 counts.
 
-Three inputs have no section 30 item that carries them, so those rules read
-the tracked sources this section names: the release-check gate state from the
-machine summary, the succession thresholds from the machine summary, and the
-approved conditional items from the machine summary. A `GATED` decision-input
+Four inputs have no section 30 item that carries them, so those rules read
+the tracked sources this section names: the release-check and v2 gate states
+from the live `scripts/gate_status.py` runs, dual-sourced against the summary
+hand field (a hand edit clearing the field cannot clear a gate the stub still
+reports closed); the succession thresholds from the machine summary; the GA
+acceptance states from the GA report; and the approved conditional items from
+the machine summary. A `GATED` decision-input
 entry blocks with the unknown fact named, rather than treating the unknown
 as clear.
 
@@ -174,6 +205,7 @@ dossier = {
   "contract": "sley2.decision-dossier.v1",
   "work_package": "S20-750",
   "project": "Sley", "target_version": "2.0.0", "phase": from the summary,
+  "gates": {"release-check": gate state, "v2": gate state},
   "entries": [entry, ...] in section 30 order,
   "evidenced": integer, "gated": integer,
   "decision_state": one of section 3,
@@ -197,7 +229,10 @@ this dossier's own counters.
 S20-750 reserves 76000 through 76003: `DOSSIER_SOURCE_MISSING` (76000),
 `DOSSIER_SOURCE_INVALID` (76001), `DOSSIER_DECISION_INVALID` (76002),
 `DOSSIER_DRIFT` (76003). The script exits 1 and prints one JSON object naming
-the code on failure.
+the code on failure. `DOSSIER_SOURCE_MISSING` covers absent sources and
+absent cited-evidence files; `DOSSIER_SOURCE_INVALID` covers wrong contract
+tags and shapes, missing structural keys, and malformed gate, threshold, and
+conditional types.
 
 ## 6. Staging
 
@@ -206,7 +241,9 @@ the code on failure.
 `S20_750_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS`,
 `S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING`, and `S20_750_COMPLETE`, the last
 requiring the three Council reviews to read `PASS`, every entry to read
-`EVIDENCED`, and an operator decision record. In every implementation status
+`EVIDENCED`, and an operator decision record in the summary's
+`decision_dossier.operator_decision` (set by the operator at the release
+decision; item 33 stays value-less until then). In every implementation status
 the checker verifies the dossier exists with its contract tag, that it covers
 every section 30 item exactly once in order, that it does not drift, that it
 claims no publication, that its decision state is not `PASS` while a gate is
@@ -225,6 +262,13 @@ fail-closed, that the unit tests pass, and that `release-check` and `v2` stay
 ## 8. Clarifications
 
 Revision 1 carries none.
+
+Revision 6 records the fail-closed gate wiring (live stub runs dual-sourced
+against the summary hand field, with evaluated-FAILED mapping to `FAIL` and
+unimplemented to `BLOCKED`); the ordered conditional rules (open P2 rows
+matched against `section:field` approvals, unverifiable approvals failing
+closed); the GA gate on `PASS`; the null-fact and missing-key rules; and the
+`PASS`-behind-closed-gates guard as unreachable-by-construction defense.
 
 Revision 5 records why the property-test counts item stays `EVIDENCED` with a
 zero: the absence of a harness is a counted tracked fact, while substituting

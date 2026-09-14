@@ -271,5 +271,99 @@ class SourceSeparationTests(unittest.TestCase):
         self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_MISSING)
 
 
+class GateAndAcceptanceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.decision = DecisionTests()
+        self.decision.setUp() if hasattr(self.decision, "setUp") else None
+
+    def sources(self, **overrides):
+        return DecisionTests.sources(self.decision, **overrides)
+
+    def entries(self, **overrides):
+        return DecisionTests.entries(self.decision, **overrides)
+
+    def test_pending_ga_criteria_block_without_failing(self) -> None:
+        sources = self.sources()
+        sources["ga_acceptance"] = {"states": {"EVIDENCED": 50, "AWAITS_REVIEW": 2, "GATED": 0}}
+        state, reasons = dossier.derive_decision(sources, self.entries())
+        self.assertEqual(state, "BLOCKED")
+        self.assertTrue(any("GA acceptance" in line for line in reasons))
+
+    def test_evidenced_ga_criteria_do_not_block(self) -> None:
+        sources = self.sources()
+        sources["ga_acceptance"] = {"states": {"EVIDENCED": 52, "AWAITS_REVIEW": 0, "GATED": 0}}
+        state, _ = dossier.derive_decision(sources, self.entries())
+        self.assertEqual(state, "PASS")
+
+    def test_a_failed_gate_fails_while_an_unimplemented_gate_blocks(self) -> None:
+        sources = self.sources()
+        sources["gates"] = {"release-check": "FAILED", "v2": "OPEN"}
+        state, reasons = dossier.derive_decision(sources, self.entries())
+        self.assertEqual(state, "FAIL")
+        self.assertTrue(any("release-check" in line for line in reasons))
+        sources["gates"] = {"release-check": "NOT_IMPLEMENTED", "v2": "OPEN"}
+        state, reasons = dossier.derive_decision(sources, self.entries())
+        self.assertEqual(state, "BLOCKED")
+        self.assertTrue(any("fail-closed" in line for line in reasons))
+
+    def test_unapproved_p2_fails_and_approved_p2_conditions(self) -> None:
+        row = {
+            "section": "sley",
+            "field": "review",
+            "severities": ["P2"],
+            "state": "FAIL",
+            "declares_no_open_p0_p1_p2": False,
+        }
+        findings = {"declared_open_findings": {"p0": 0, "p1": 0, "p2": 1}}
+        sources = self.sources(register={"obligations": [row]})
+        state, reasons = dossier.derive_decision(
+            sources, self.entries(**{"findings by severity and disposition": findings})
+        )
+        self.assertEqual(state, "FAIL")
+        self.assertTrue(any("sley:review" in line for line in reasons))
+        sources = self.sources(
+            register={"obligations": [row]},
+            summary={"approved_conditional_items": ["sley:review"]},
+        )
+        state, reasons = dossier.derive_decision(
+            sources, self.entries(**{"findings by severity and disposition": findings})
+        )
+        self.assertEqual(state, "CONDITIONAL_PASS")
+
+    def test_unverifiable_p2_approval_fails_closed(self) -> None:
+        findings = {"declared_open_findings": {"p0": 0, "p1": 0, "p2": 1}}
+        state, reasons = dossier.derive_decision(
+            self.sources(), self.entries(**{"findings by severity and disposition": findings})
+        )
+        self.assertEqual(state, "FAIL")
+        self.assertTrue(any("unverifiable" in line for line in reasons))
+
+    def test_malformed_tracked_sources_raise_source_invalid(self) -> None:
+        with self.assertRaises(dossier.DossierError) as error:
+            dossier.required({}, "project", "machine-summary")
+        self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_INVALID)
+        sources = self.sources(summary={"succession": {"thresholds_pass": "yes"}})
+        with self.assertRaises(dossier.DossierError) as error:
+            dossier.derive_decision(sources, self.entries())
+        self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_INVALID)
+
+    def test_the_pass_guard_fires_only_behind_closed_gates(self) -> None:
+        with self.assertRaises(dossier.DossierError) as error:
+            dossier.enforce_pass_guard("PASS", True)
+        self.assertEqual(error.exception.code, dossier.DossierErrorCode.DECISION_INVALID)
+        dossier.enforce_pass_guard("PASS", False)
+        dossier.enforce_pass_guard("BLOCKED", True)
+
+    def test_an_all_null_object_reads_gated_and_absent_evidence_raises(self) -> None:
+        item = dossier.entry("probe", value={"a": None, "b": None}, note="probe")
+        self.assertEqual(item["state"], "GATED")
+        self.assertIsNone(item["value"])
+        item = dossier.entry("probe", value={"a": None, "b": 1}, note="probe")
+        self.assertEqual(item["state"], "EVIDENCED")
+        with self.assertRaises(dossier.DossierError) as error:
+            dossier.entry("probe", value=1, evidence=[Path("/nonexistent/x.json")], note="probe")
+        self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_MISSING)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -578,7 +578,8 @@ rather than freezes, these codes while its review is pending.
 S20-750 reserves numeric codes 76000 through 76003 for the exact failures of
 `DECISION_DOSSIER_V1.md`: a missing (`DOSSIER_SOURCE_MISSING`) or malformed
 (`DOSSIER_SOURCE_INVALID`) evidence source, including a dossier that does not
-cover the thirty-four required items in order; a derived decision that claims
+cover the thirty-four required items in order, missing structural keys, and
+malformed gate, threshold, conditional, and SBOM shapes; a derived decision that claims
 `PASS` while a product gate is fail-closed (`DOSSIER_DECISION_INVALID`); and a
 tracked dossier that differs from the derived one (`DOSSIER_DRIFT`). The
 dossier reports; the release decision remains the operator's. The contract is a

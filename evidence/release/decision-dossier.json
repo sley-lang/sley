@@ -2,12 +2,13 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
+    "18 GA acceptance criteria are not evidenced",
     "46 review obligations are open",
     "no succession trial has been executed",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "e6acc10fd1c99066feea9acc58eee6658f7bee47da23504575afc154fea67034",
+  "dossier_digest": "0681755d66ecd53b3f35c28bcb55a18949aec232b9724f7aa35b87494461422f",
   "entries": [
     {
       "evidence": [
@@ -133,7 +134,7 @@
       "note": "the property-test count is a counted zero: the inventory scanned the workspace and crate manifests, the lockfile, and every Rust and Python test source and found no proptest, quickcheck, or hypothesis harness. The unit-test, fuzz-target, and vector counts are adjacent corpus facts, not property tests. The inventory describes the corpus and runs nothing, so a passing run is separate evidence",
       "state": "EVIDENCED",
       "value": {
-        "conformance_rejections": 272,
+        "conformance_rejections": 275,
         "conformance_vectors": 477,
         "persistent_fuzz_targets": 21,
         "property_test_detail": {
@@ -143,9 +144,9 @@
           "scanned_manifests": 20
         },
         "property_tests": 0,
-        "python_tests": 350,
+        "python_tests": 359,
         "rust_ignored_emitters": 16,
-        "rust_unit_tests": 1416
+        "rust_unit_tests": 1421
       }
     },
     {
@@ -450,9 +451,13 @@
       }
     }
   ],
-  "entries_digest": "323ece952b19f6ec790e7e467ac1c5fa864f8a207595b571b46ca00b435bfebd",
+  "entries_digest": "602a8037bec6c29099f8c930d0188bccae8b02f52beef6232e965da04be58f8a",
   "evidenced": 24,
   "gated": 10,
+  "gates": {
+    "release-check": "NOT_IMPLEMENTED",
+    "v2": "NOT_IMPLEMENTED"
+  },
   "phase": "M2",
   "project": "Sley",
   "publication": {

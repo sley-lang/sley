@@ -66,3 +66,10 @@ Landed at `59d3acd`. Tier 1 `make quick` passed at the commit. Tier 2 ran on
 | `make release-candidate-smoke` | exit 0 | 32 s | ten `PASS` results, two builds REPRODUCIBLE, the whole evidence chain rebuilt and the dossier still `BLOCKED` |
 
 `make v1` was not run: this is a subsystem handoff, not a release boundary.
+
+## Revision 6 (2026-09-14)
+
+Dual-sourced gate wiring, ordered conditional rules with approval matching,
+GA-gated PASS, null-fact/missing-key holes closed, 76002 guard tested,
+checker PASS-ban conditioned and revision-pinned, dossier rebuilt BLOCKED
+(24/10) with gates key and GA reason, inventory rebuilt, tests 18/26.

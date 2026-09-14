@@ -1,4 +1,4 @@
-# S20-750 decision dossier closeout (2026-09-05)
+# S20-750 decision dossier closeout (2026-09-05; revised 2026-09-14, revision 6)
 
 ## Findings
 
@@ -42,6 +42,34 @@
 - `scripts/check_decision_dossier.py` cross-checks the tracked dossier's
   SBOM blocked count against T52 and its property-test count against the
   test inventory on every `make quick`.
+
+## Revision 6 fixes (2026-09-14)
+
+- Gate authority is dual-sourced: the builder runs `gate_status.py` for
+  `release-check` and `v2` and records both states on the dossier, while
+  the summary hand field still gates. A hand edit clearing the field can
+  no longer clear a gate the stub reports closed. Evaluated-`FAILED`
+  maps to `FAIL`; unimplemented maps to `BLOCKED`.
+- Conditional rules are ordered and verifiable: open P0/P1 always `FAIL`;
+  open P2 rows match `section:field` approvals from
+  `approved_conditional_items`, uncovered or unverifiable P2s `FAIL`, and
+  covered approvals with passing gates reach `CONDITIONAL_PASS`. `PASS`
+  additionally requires all GA acceptance criteria evidenced.
+- Null-fact and missing-key holes closed: all-null objects read `GATED`
+  with no value (the nulled fields named in the note); missing structural
+  keys and malformed gate/threshold/conditional/SBOM shapes raise
+  `DOSSIER_SOURCE_INVALID`; cited-but-absent evidence raises
+  `DOSSIER_SOURCE_MISSING`. The `PASS`-behind-closed-gates guard is
+  extracted, unit-tested, and documented as unreachable-by-construction
+  defense. The `relative()` alias is removed.
+- Contract precision: the "exactly 34" binds the revision; the state-root
+  fixture joins the sources; summary write-back mirrors are declared
+  non-inputs; the operator-decision source is named
+  (`decision_dossier.operator_decision`); the checker (not the builder)
+  enforces evidence-against-design; member-granularity stays excluded.
+- The dossier test suite grows from 18 to 26 tests covering every new
+  transition above. The checker conditions its `PASS` ban on fail-closed
+  gates, pins the revision, and binds the summary cross-check.
 
 ## Reconciliation
 

@@ -79,17 +79,44 @@ def load(path: Path, contract: str | None = None) -> dict:
     return value
 
 
-def relative(path: Path) -> str:
-    return display(path)
+def required(mapping: object, key: str, what: str) -> object:
+    """A structural key the dossier cannot mean anything without.
+
+    A missing or renamed key in a present source fails loudly with
+    `DOSSIER_SOURCE_INVALID` so a regrade from `EVIDENCED` to `GATED`
+    can never read as resolved.
+    """
+    if not isinstance(mapping, dict) or key not in mapping:
+        raise DossierError(
+            DossierErrorCode.SOURCE_INVALID, f"{what}: missing required key {key!r}"
+        )
+    return mapping[key]
 
 
 def entry(item: str, *, value=None, evidence: list[Path] | None = None, note: str) -> dict:
-    """One section 30 entry; a value makes it EVIDENCED, its absence GATED."""
+    """One section 30 entry; a value makes it EVIDENCED, its absence GATED.
+
+    `EVIDENCED` means every fact of the item is present: a null value, or
+    an object whose fields are all null, carries no facts. An all-null
+    object reads `GATED` with no value (a gated item is never given one);
+    the note records which fields were null. Every cited evidence path
+    must exist; a cited-but-absent file is `DOSSIER_SOURCE_MISSING`,
+    never a quiet note.
+    """
+    if isinstance(value, dict) and value and all(field is None for field in value.values()):
+        note = f"{note} (all {len(value)} fields null: {', '.join(sorted(value))})"
+        value = None
+    state = "EVIDENCED" if value is not None else "GATED"
+    for path in evidence or []:
+        if not path.exists():
+            raise DossierError(
+                DossierErrorCode.SOURCE_MISSING, f"{item}: cited evidence absent {display(path)}"
+            )
     return {
         "item": item,
-        "state": "GATED" if value is None else "EVIDENCED",
+        "state": state,
         "value": value,
-        "evidence": sorted(relative(path) for path in (evidence or [])),
+        "evidence": sorted(display(path) for path in (evidence or [])),
         "note": note,
     }
 
@@ -433,18 +460,98 @@ ARM_ENTRIES = (
 )
 
 
+GATE_NAMES = ("release-check", "v2")
+
+
+def gate_results(sources: dict) -> dict[str, str]:
+    """The product-gate states the builder may rely on.
+
+    Injected `sources["gates"]` (unit tests, production `build_dossier`)
+    is dual-sourced against the summary hand field by the caller; a sources
+    mapping with no `gates` key predates the wiring and falls back to the
+    summary field alone, documented here and never in production.
+    """
+    injected = sources.get("gates")
+    if injected is None:
+        return {}
+    if not isinstance(injected, dict):
+        raise DossierError(DossierErrorCode.SOURCE_INVALID, "decision sources: gates is not an object")
+    return {name: str(injected.get(name, "UNKNOWN")) for name in GATE_NAMES}
+
+
+def read_gate_status(name: str) -> str:
+    """One gate's state from the fail-closed stub; `OPEN` opens, anything else closes."""
+    import subprocess
+
+    try:
+        completed = subprocess.run(
+            [sys.executable, "scripts/gate_status.py", name],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        return str(json.loads(completed.stdout).get("result", "UNKNOWN"))
+    except (OSError, ValueError):
+        return "UNKNOWN"
+
+
+def open_p2_rows(register: object, approved: set[str]) -> list[str]:
+    """Open P2 obligation rows no approval covers, as `section:field` names.
+
+    The register carries review rows, not per-finding identities, so an
+    approval names the `section:field` row whose P2s it covers. A row is
+    open for P2 purposes while it mentions P2, is not a passing row, and
+    does not itself declare no open findings.
+    """
+    if not isinstance(register, dict):
+        return ["the finding register is unavailable, so P2 approval is unverifiable"]
+    rows = register.get("obligations")
+    if not isinstance(rows, list):
+        return ["the finding register has no obligation list, so P2 approval is unverifiable"]
+    uncovered = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if "P2" not in row.get("severities", []):
+            continue
+        if row.get("state") == "PASS" or row.get("declares_no_open_p0_p1_p2") is True:
+            continue
+        name = f"{row.get('section')}:{row.get('field')}"
+        if name not in approved:
+            uncovered.append(name)
+    return sorted(uncovered)
+
+
+def enforce_pass_guard(state: str, gates_closed: bool) -> None:
+    """A `PASS` may never stand while a product gate is fail-closed.
+
+    Unreachable by construction (a closed gate always blocks first), kept
+    so a future narrowing of the `BLOCKED` rules cannot silently admit
+    `PASS` behind closed gates. Raises `DOSSIER_DECISION_INVALID`.
+    """
+    if state == "PASS" and gates_closed:
+        raise DossierError(
+            DossierErrorCode.DECISION_INVALID,
+            "a PASS decision may not stand while a product gate is fail-closed",
+        )
+
+
 def derive_decision(sources: dict, entries: list[dict]) -> tuple[str, list[str]]:
     """The contract section 3 decision state and its exact reasons.
 
     Every BLOCKED and FAIL reason is read off the entries named in the
     contract's section 3 mapping, not re-derived from the sources behind the
     entries' backs: a missing decision-input entry fails closed, and a gated
-    entry contributes its gated fact. Two inputs have no section 30 item that
-    carries them (the release-check gate state, the succession thresholds, and
-    the approved conditional items), so those three rules read the tracked
-    sources the contract names; everything else comes from the entries.
+    entry contributes its gated fact. Four inputs have no section 30 item that
+    carries them (the release-check and v2 gate states, the succession
+    thresholds, the GA acceptance states, and the approved conditional
+    items), so those four rules read the tracked sources the contract names;
+    everything else comes from the entries.
     """
     summary = sources["summary"]
+    if not isinstance(summary, dict):
+        raise DossierError(DossierErrorCode.SOURCE_INVALID, "decision sources: summary is not an object")
     by_item = {item["item"]: item for item in entries}
     blocked: list[str] = []
 
@@ -489,7 +596,17 @@ def derive_decision(sources: dict, entries: list[dict]) -> tuple[str, list[str]]
     if arm_states and all(state == "GATED" for state in arm_states):
         blocked.append("no succession trial has been executed")
 
-    if summary.get("release_candidate_packaging", {}).get("release_check_gate") != "OPEN":
+    gates = gate_results(sources)
+    gate_failed = [name for name, result in gates.items() if result == "FAILED"]
+    gate_unimplemented = [name for name, result in gates.items() if result not in ("OPEN", "FAILED")]
+    gates_closed = bool(gate_unimplemented)
+    summary_gate = summary.get("release_candidate_packaging", {})
+    summary_gate_state = summary_gate.get("release_check_gate") if isinstance(summary_gate, dict) else None
+    if summary_gate_state is not None and not isinstance(summary_gate_state, str):
+        raise DossierError(DossierErrorCode.SOURCE_INVALID, "release_check_gate is not a string")
+    if summary_gate_state != "OPEN":
+        gates_closed = True
+    if gates_closed:
         blocked.append("the release-check and v2 product gates are fail-closed")
 
     repro_entry = evidenced_value("reproducibility result")
@@ -499,12 +616,37 @@ def derive_decision(sources: dict, entries: list[dict]) -> tuple[str, list[str]]
     elif "reproducibility result" in by_item:
         blocked.append("the reproducibility entry is gated, so attestation is unknown")
 
+    acceptance = sources.get("ga_acceptance")
+    if isinstance(acceptance, dict):
+        states = acceptance.get("states", {})
+        if isinstance(states, dict):
+            pending = sum(
+                states.get(name, 0) for name in ("AWAITS_REVIEW", "GATED")
+            )
+            if pending:
+                blocked.append(f"{pending} GA acceptance criteria are not evidenced")
+
     if blocked:
         return "BLOCKED", sorted(blocked)
     declared = (findings or {}).get("declared_open_findings", {})
-    if any(declared.get(severity, 0) for severity in ("p0", "p1", "p2")):
-        return "FAIL", ["an open P0, P1, or P2 finding is recorded"]
-    if not summary.get("succession", {}).get("thresholds_pass"):
+    if any(declared.get(severity, 0) for severity in ("p0", "p1")):
+        return "FAIL", ["an open P0 or P1 finding is recorded"]
+    if declared.get("p2", 0):
+        approved = summary.get("approved_conditional_items")
+        if approved is not None and not isinstance(approved, list):
+            raise DossierError(
+                DossierErrorCode.SOURCE_INVALID, "approved_conditional_items is not a list"
+            )
+        uncovered = open_p2_rows(sources.get("register"), set(approved or []))
+        if uncovered:
+            return "FAIL", [f"an unapproved P2 finding is recorded: {name}" for name in uncovered]
+    if gate_failed:
+        return "FAIL", [f"a required gate failed: {name}" for name in sorted(gate_failed)]
+    thresholds = summary.get("succession", {})
+    thresholds = thresholds.get("thresholds_pass") if isinstance(thresholds, dict) else None
+    if thresholds is not None and not isinstance(thresholds, bool):
+        raise DossierError(DossierErrorCode.SOURCE_INVALID, "thresholds_pass is not a boolean")
+    if not thresholds:
         return "ALPHA_COMPLETE", ["the succession thresholds do not pass"]
     if summary.get("approved_conditional_items"):
         return "CONDITIONAL_PASS", ["an approved non-correctness item remains"]
@@ -525,23 +667,38 @@ def build_dossier() -> dict:
         "threat_coverage": load(THREAT_COVERAGE, "sley2.threat-coverage-report.v1"),
         "ga_acceptance": load(GA_ACCEPTANCE, "sley2.ga-acceptance-report.v1"),
     }
+    # Structural keys the dossier cannot mean anything without: absence is
+    # malformation, never silent gating.
+    summary = sources["summary"]
+    project = required(summary, "project", "machine-summary")
+    target_version = required(summary, "target_version", "machine-summary")
+    phase = required(summary, "phase", "machine-summary")
+    # The SBOM documents carry no contract tag, so their shapes are checked
+    # here: a malformed SBOM is SOURCE_INVALID, not a silent zero.
+    bom = sources["cyclonedx"]
+    if bom.get("bomFormat") != "CycloneDX" or not isinstance(bom.get("components"), list):
+        raise DossierError(DossierErrorCode.SOURCE_INVALID, "cyclonedx: unexpected shape")
+    spdx = sources["spdx"]
+    if not isinstance(spdx.get("spdxVersion"), str) or not isinstance(spdx.get("packages"), list):
+        raise DossierError(DossierErrorCode.SOURCE_INVALID, "spdx: unexpected shape")
+    # Gate authority is dual-sourced: the live stub runs plus the summary
+    # hand field. A hand edit clearing the field cannot clear a gate the
+    # stub still reports closed.
+    sources["gates"] = {name: read_gate_status(name) for name in GATE_NAMES}
     entries = build_entries(sources)
     state, reasons = derive_decision(sources, entries)
-    gates_closed = (
-        sources["summary"].get("release_candidate_packaging", {}).get("release_check_gate")
-        != "OPEN"
-    )
-    if state == "PASS" and gates_closed:
-        raise DossierError(
-            DossierErrorCode.DECISION_INVALID,
-            "a PASS decision may not stand while a product gate is fail-closed",
-        )
+    gates_closed = any(result != "OPEN" for result in sources["gates"].values())
+    packaging = summary.get("release_candidate_packaging", {})
+    if not isinstance(packaging, dict) or packaging.get("release_check_gate") != "OPEN":
+        gates_closed = True
+    enforce_pass_guard(state, gates_closed)
     dossier = {
         "contract": CONTRACT,
         "work_package": "S20-750",
-        "project": sources["summary"].get("project"),
-        "target_version": sources["summary"].get("target_version"),
-        "phase": sources["summary"].get("phase"),
+        "project": project,
+        "target_version": target_version,
+        "phase": phase,
+        "gates": dict(sources["gates"]),
         "entries": entries,
         "evidenced": sum(1 for item in entries if item["state"] == "EVIDENCED"),
         "gated": sum(1 for item in entries if item["state"] == "GATED"),

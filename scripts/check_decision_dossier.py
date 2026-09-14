@@ -22,6 +22,8 @@ DOSSIER = ROOT / "evidence/release/decision-dossier.json"
 TEST_INVENTORY = ROOT / "evidence/validation/test-inventory.json"
 LICENSE_INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
 
+SPEC_REVISION = 6
+
 DRAFT_STATUS = "S20_750_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_750_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
 REVIEW_PENDING_STATUS = "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING"
@@ -37,7 +39,7 @@ CODES = (
 )
 SPEC_MARKERS = (
     "# Decision Dossier v1",
-    "Status: S20-750 contract draft",
+    "Status: S20-750",
     "## 1. Items",
     "## 1.1 The required items",
     "## 2. Sources",
@@ -63,6 +65,8 @@ SCRIPT_MARKERS = (
     '"sley2.decision-dossier.v1"',
     "def build_entries(",
     "def derive_decision(",
+    "def gate_results(",
+    "def enforce_pass_guard(",
     "OPERATOR_DECISION_NOT_DELEGATED",
 )
 FORBIDDEN_DOSSIER_MARKERS = ("/home/", "greyforge", "file://")
@@ -78,6 +82,21 @@ def required_items() -> list[str]:
     start = spec.index("## 1.1 The required items")
     end = spec.index("## 2. Sources", start)
     return [match.group(1).strip() for match in re.finditer(r"^\d+\. (.+)$", spec[start:end], re.M)]
+
+
+def gate_result(gate: str) -> str:
+    """One product gate's state; anything but `OPEN` keeps the gate closed."""
+    completed = subprocess.run(
+        [sys.executable, "scripts/gate_status.py", gate],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    try:
+        return str(json.loads(completed.stdout).get("result", "UNKNOWN"))
+    except json.JSONDecodeError:
+        return "UNKNOWN"
 
 
 def gate_stays_closed(gate: str) -> bool:
@@ -154,6 +173,7 @@ def main() -> int:
         ("adr", "docs/adr/ADR-0043-decision-dossier-derived-not-decided.md"),
         ("checker", "scripts/check_decision_dossier.py"),
         ("dossier", "evidence/release/decision-dossier.json"),
+        ("contract_revision", SPEC_REVISION),
         ("decision_authority", "OPERATOR_DECISION_NOT_DELEGATED"),
         ("required_items", 34),
         ("test_inventory", "evidence/validation/test-inventory.json"),
@@ -194,7 +214,9 @@ def main() -> int:
                 problems.append("decision-dossier:authority")
             if any(dossier.get("publication", {}).values()):
                 problems.append("decision-dossier:publication")
-            if dossier.get("decision_state") == "PASS":
+            if dossier.get("decision_state") == "PASS" and any(
+                gate_result(gate) != "OPEN" for gate in ("v2", "release-check")
+            ):
                 problems.append("decision-dossier:pass-while-gates-closed")
             for entry in dossier.get("entries", []):
                 if entry["state"] == "GATED" and entry["value"] is not None:
@@ -261,6 +283,12 @@ def main() -> int:
     for gate in ("v2", "release-check"):
         if not gate_stays_closed(gate):
             problems.append(f"gate-open:{gate}")
+
+    # The revision is anchored to the Status header (not the first prose
+    # occurrence) and pinned: a stale pin fails the moment the contract moves.
+    own = re.search(r"^Status: S20-750 contract draft, revision (\d+)", spec, flags=re.M)
+    if own is None or int(own.group(1)) != SPEC_REVISION:
+        problems.append("spec-revision")
 
     result = {
         "codes": [name for _, name in CODES],

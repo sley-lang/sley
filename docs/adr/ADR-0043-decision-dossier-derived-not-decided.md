@@ -1,8 +1,9 @@
 # ADR-0043: the decision dossier is derived, and the decision is not
 
-Status: proposed; the S20-750 contract is a draft at revision 1 with Council
-review pending; dossier mechanics implemented (2026-09-03) with the derived
-state `BLOCKED` and `release-check` and `v2` still fail-closed
+Status: proposed; the S20-750 contract is a draft at revision 6 with Council
+review pending; dossier mechanics implemented (2026-09-03, revised
+2026-09-14) with the derived state `BLOCKED` and `release-check` and `v2`
+still fail-closed
 
 Date: 2026-09-03
 
