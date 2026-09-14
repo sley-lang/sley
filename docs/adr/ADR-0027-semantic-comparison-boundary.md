@@ -38,7 +38,10 @@ submitted to Ariadne, Nabu, and Vulcan as soon as a lane returns.
    collateral is the restricted transitive impact over each root's own
    index. No new semantic judgment, matching heuristic, or edge kind exists.
 3. **Ownership.** `sley-repo` owns comparison over two verified revisions'
-   complete-root requests; `sley-query` and `sley-ssmc` are unchanged.
+   complete-root requests; `sley-query` is unchanged. `sley-ssmc` gains a
+   direct production dependency from `sley-repo` for the frozen
+   `fingerprint_function` and its failure codes (the fallback chain
+   through `sley-query` and `sley-check` is unchanged).
    `sley-id` gains the thirty-first domain inside the slice.
 4. **Fail closed.** Different workspaces or epochs, an incomplete root, or an
    incomplete function inventory fail before any delta with the wrapped

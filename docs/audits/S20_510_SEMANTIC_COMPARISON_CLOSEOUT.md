@@ -1,8 +1,8 @@
 # S20-510 Semantic Comparison Closeout
 
-Status: **implemented under the draft Semantic Comparison v1 contract (revision 2); the three Council review rounds landed 2026-09-04 with four freeze-blocking findings, all closed by revision 2; lower-severity findings remain open, so the package is not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft Semantic Comparison v1 contract (revision 3); the three Council review rounds landed 2026-09-04 with four freeze-blocking findings, all closed by revision 2; revision 3 closes every remaining report-grade finding below; the package awaits re-review, so it is not complete; the Sley 2 goal remains incomplete**
 
-Date: 2026-09-03
+Date: 2026-09-03; revised 2026-09-14 (revision 3)
 
 Validation tier: **Tier 1 plus repository-focused Tier 2 handoff**
 
@@ -99,6 +99,49 @@ change; the corpus bytes are unchanged (nine pairs, five mutations):
 Lower-severity findings — including the dependency-direction sentence, the
 per-kind field-tag domain, the precondition-4 reach, and the work-charging
 rule — remain open and are tracked in the finding register.
+
+## Findings closed in revision 3 (2026-09-14)
+
+- **Closed with code.** The closed section-2 field grammar is enforced by
+  the decoder (`valid_field_grammar`: per-kind rows, TypeDef-2/Function-2
+  flag bits, presence bit) with oracle parity and three new rejection
+  mutations (off-table field, bad flags, equal-roots-nonempty; matrix now
+  8); equal roots admit only the empty delta; field and root-set
+  added/removed pairs must be disjoint; the public encoder honors the
+  per-section counts; two dead markers removed; the fuzz target asserts
+  the decoder/comparer code partition instead of the closed-enum
+  tautology.
+- **Closed with verified restraint.** Precondition-4 presence over all four
+  linkage classes (function blocks/parameters, block parameters/operations)
+  was probed and is enforced by the frozen complete-root judgment before
+  any delta (`COMPARE_ROOT_INCOMPLETE` with exact `IMPACT_*` codes),
+  including `Added`/`Removed` functions as judged root members — a
+  compare-layer duplicate would be unreachable dead code, so none was
+  shipped; the contract now states the verified two-layer enforcement.
+  Post-judgment non-resource impact failures keep their
+  `COMPARE_ROOT_INCOMPLETE` wrap with exact source instead of
+  re-labeling: re-labeling as `INTERNAL_INVARIANT` would drop the source
+  the wrap preserves.
+- **Closed with text.** The sley-ssmc dependency sentence corrected
+  (contract, ADR-0027, checker marker); `from_parts` authority stated;
+  resource-tier collapse rule and outer-code naming rule stated;
+  well-formedness rules moved from decoder-only into the contract;
+  flat-8 charging stated as the per-kind-maximum bound; oracle
+  scope disclosed; CanonicalSet byte-order backstop stated; TypeDef bit
+  suppression, MemberId-as-EntityId, Retyped evidence, section-2
+  non-self-sufficiency, zero32, presence-bit, and optional-field rules
+  stated; `INTERNAL_INVARIANT` defense-only; field-5 enforcement noted;
+  edge-slice reliance named with its frozen owner; member-granularity
+  exclusion recorded (campaign question 2 answered: keep v1 granularity);
+  campaign questions 1 (MetadataOnly seeds: no, with reasons in contract
+  section 5) and 3 (roots only, ancestry out per the Repository Model)
+  recorded answered.
+- **Checker.** Revision anchored to the Status header and pinned
+  (`SPEC_REVISION = 3`) with the summary cross-check; completeness now
+  verifies the oracle, rejected matrix, and fuzz target exist.
+- **Overclaim corrected.** The decoder rejection matrix reaches the
+  decoder-emittable codes; judgment and precondition codes are covered by
+  native tests, and the closeout no longer claims otherwise.
 
 ## Explicitly open and deferred
 

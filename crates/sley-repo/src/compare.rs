@@ -50,7 +50,6 @@ const CONTRACT_TAG: u32 = 510;
 const DIGEST_DOMAIN_TAG: u32 = 20;
 const KIND_TAG: u32 = 510;
 const ID_LEN: usize = 32;
-const FIELD_COUNT: u64 = 14;
 const FIELD_SCHEMA_HASH: [u8; 32] = [
     0x5e, 0x58, 0xf9, 0x8e, 0xcf, 0x6d, 0x7a, 0x50, 0x1f, 0xc4, 0x90, 0x11, 0xaa, 0x58, 0x5e, 0x85,
     0xab, 0xef, 0x93, 0x96, 0xff, 0x38, 0x9b, 0x5b, 0x6b, 0xb7, 0xc7, 0x96, 0xf1, 0x18, 0x73, 0x9c,
@@ -542,7 +541,6 @@ pub fn compare_complete_roots(
     // Section 1: classification over the union of bound identities.
     let mut entities = Vec::new();
     let mut fields = Vec::new();
-    let mut changed_or_retyped = BTreeSet::new();
     let mut has_entity_delta = BTreeSet::new();
     let union: BTreeSet<EntityId> = base_side
         .entities
@@ -605,9 +603,6 @@ pub fn compare_complete_roots(
             }
             (None, None) => return fail(CompareErrorCode::InternalInvariant),
         };
-        if matches!(delta.change, ChangeClass::Changed | ChangeClass::Retyped) {
-            changed_or_retyped.insert(*id);
-        }
         has_entity_delta.insert(*id);
         entities.push(delta);
     }
@@ -713,7 +708,6 @@ pub fn compare_complete_roots(
         seeds_base.insert(*seed);
         seeds_target.insert(*seed);
     }
-    let _ = &changed_or_retyped;
     let mut reached = BTreeSet::new();
     for (side, seeds) in [(&base_side, &seeds_base), (&target_side, &seeds_target)] {
         if seeds.is_empty() {
@@ -1165,6 +1159,21 @@ fn object_bytes(object: Option<ObjectId>) -> Vec<u8> {
 /// Returns an encoding or resource failure.
 #[allow(clippy::too_many_lines)]
 pub fn encode_semantic_delta(delta: &SemanticDelta) -> Result<StoredSemanticDelta> {
+    // The public encoder honors the same per-section counts as the
+    // decoder, so it can never mint a delta the decoder rejects with
+    // `COMPARE_RESOURCE_LIMIT`.
+    if delta.entities.len() > MAX_ENTITY_DELTAS
+        || delta.fields.len() > MAX_FIELD_DELTAS
+        || delta.bodies.len() > MAX_BODY_DELTAS
+        || delta.relations.len() > MAX_RELATION_DELTAS
+        || delta.dependency_roots_added.len() > MAX_IDENTITY_SET
+        || delta.dependency_roots_removed.len() > MAX_IDENTITY_SET
+        || delta.entry_points_added.len() > MAX_IDENTITY_SET
+        || delta.entry_points_removed.len() > MAX_IDENTITY_SET
+        || delta.collateral.len() > MAX_IDENTITY_SET
+    {
+        return fail(CompareErrorCode::ResourceLimit);
+    }
     require_sorted(&delta.entities, |entry| entry.entity_id)?;
     require_sorted(&delta.fields, |entry| {
         (entry.entity_id, entry.kind, entry.field)
@@ -1291,6 +1300,20 @@ fn fixed32(input: &[u8]) -> Result<[u8; 32]> {
     exact_array(input).map_err(CompareError::from)
 }
 
+/// Two strictly-sorted identity lists share no member; a shared member
+/// means the delta claims one identity both added and removed.
+fn disjoint<T: Ord>(left: &[T], right: &[T]) -> bool {
+    let (mut i, mut j) = (0, 0);
+    while i < left.len() && j < right.len() {
+        match left[i].cmp(&right[j]) {
+            core::cmp::Ordering::Less => i += 1,
+            core::cmp::Ordering::Greater => j += 1,
+            core::cmp::Ordering::Equal => return false,
+        }
+    }
+    true
+}
+
 fn small_u32(input: &[u8]) -> Result<u32> {
     let value = read_single_uvar(input).map_err(CompareError::from)?;
     u32::try_from(value).map_err(|_| CompareError::Compare(CompareErrorCode::FormatInvalid))
@@ -1326,6 +1349,40 @@ fn kind_tag(value: u32, allow_zero: bool) -> Result<u32> {
         Ok(value)
     } else {
         fail(CompareErrorCode::FormatInvalid)
+    }
+}
+
+/// The closed field grammar of contract section 2: every `(kind, field)`
+/// pair the judgment emits, with the only flag bits beyond the presence
+/// bit the table allows (TypeDef field 2 bits 1-3, Function field 2 bit
+/// 1). The decoder rejects anything off-table, so forged evidence cannot
+/// smuggle arbitrary kind, field, or flag codes through a round-trip.
+fn valid_field_grammar(kind: u32, field: u32, flags: u32) -> bool {
+    if flags & 1 == 0 {
+        return false;
+    }
+    match (kind, field) {
+        (4, 2) => flags <= 15,
+        (5, 2) => flags <= 3,
+        (1, 1) | (1, 2) | (1, 3) | (1, 4) | (1, 5) => flags == 1,
+        (2, 1) | (2, 2) | (2, 3) | (2, 4) => flags == 1,
+        (3, 1) | (3, 2) => flags == 1,
+        (4, 1) | (4, 3) | (4, 4) => flags == 1,
+        (5, 1) | (5, 3) | (5, 4) | (5, 5) | (5, 6) | (5, 7) | (5, 8) => flags == 1,
+        (6, 1) | (6, 2) | (6, 3) | (6, 4) => flags == 1,
+        (7, 1) | (7, 2) | (7, 3) | (7, 4) | (7, 5) => flags == 1,
+        (8, 1) | (8, 2) | (8, 3) | (8, 4) | (8, 5) | (8, 6) => flags == 1,
+        (9, 1) => flags == 1,
+        (10, 1) | (10, 2) | (10, 3) => flags == 1,
+        (11, 1) | (11, 2) | (11, 3) | (11, 4) | (11, 5) | (11, 6) => flags == 1,
+        (12, 1) | (12, 2) | (12, 3) => flags == 1,
+        (13, 1) | (13, 2) | (13, 3) | (13, 4) | (13, 5) => flags == 1,
+        (14, 1) | (14, 2) | (14, 3) | (14, 4) | (14, 5) | (14, 6) => flags == 1,
+        (15, 1) | (15, 2) | (15, 3) | (15, 4) | (15, 5) | (15, 6) => flags == 1,
+        (16, 1) | (16, 2) => flags == 1,
+        (17, 1) | (17, 2) => flags == 1,
+        (18, 1) | (18, 2) | (18, 3) => flags == 1,
+        _ => false,
     }
 }
 
@@ -1455,7 +1512,10 @@ pub fn decode_semantic_delta(input: &[u8]) -> Result<StoredSemanticDelta> {
             MAX_IDENTITY_SET,
         )?;
         entry.finish().map_err(CompareError::from)?;
-        if field == 0 || field > 8 || flags & 1 == 0 || flags > 15 {
+        if !valid_field_grammar(kind, field, flags) {
+            return fail(CompareErrorCode::FormatInvalid);
+        }
+        if !disjoint(&added, &removed) {
             return fail(CompareErrorCode::FormatInvalid);
         }
         fields.push(FieldDelta {
@@ -1552,7 +1612,30 @@ pub fn decode_semantic_delta(input: &[u8]) -> Result<StoredSemanticDelta> {
         MAX_IDENTITY_SET,
     )?;
     record.finish().map_err(CompareError::from)?;
-    let _ = FIELD_COUNT;
+    // Added and removed root sets are disjoint by construction; a shared
+    // member is a forged delta.
+    if !disjoint(&dependency_roots_added, &dependency_roots_removed)
+        || !disjoint(&entry_points_added, &entry_points_removed)
+    {
+        return fail(CompareErrorCode::FormatInvalid);
+    }
+    // Equal roots with a non-empty delta contradict the derivation: two
+    // identical roots compare to the empty delta, so a named difference
+    // between a root and itself is forged or stale evidence, never a
+    // delta. Decode authenticates nothing else (no trust root is
+    // available here); authority comes only from re-derivation.
+    let non_empty = !entities.is_empty()
+        || !fields.is_empty()
+        || !bodies.is_empty()
+        || !relations.is_empty()
+        || !dependency_roots_added.is_empty()
+        || !dependency_roots_removed.is_empty()
+        || !entry_points_added.is_empty()
+        || !entry_points_removed.is_empty()
+        || !collateral.is_empty();
+    if base_root == target_root && non_empty {
+        return fail(CompareErrorCode::FormatInvalid);
+    }
 
     let delta = SemanticDelta {
         workspace_id,
@@ -2479,6 +2562,70 @@ pub(crate) mod tests {
         let mut malformed = stored.delta.clone();
         malformed.entities[0].base_kind = 0;
         let encoded = encode_semantic_delta(&malformed).unwrap();
+        assert_eq!(
+            decode_semantic_delta(&encoded.stored_bytes)
+                .unwrap_err()
+                .code(),
+            CompareErrorCode::FormatInvalid
+        );
+        // The closed section-2 grammar: a Constant carries only field 1,
+        // so field 8 with full flags is forged evidence, never a delta.
+        let mut off_table = stored.delta.clone();
+        off_table.fields = vec![FieldDelta {
+            entity_id: id(6),
+            kind: 9,
+            field: 8,
+            flags: 15,
+            added: Vec::new(),
+            removed: Vec::new(),
+        }];
+        let encoded = encode_semantic_delta(&off_table).unwrap();
+        assert_eq!(
+            decode_semantic_delta(&encoded.stored_bytes)
+                .unwrap_err()
+                .code(),
+            CompareErrorCode::FormatInvalid
+        );
+        // Flag bits beyond the presence bit read only on the rows the
+        // table names: TypeDef field 1 carries none.
+        let mut bad_flags = stored.delta.clone();
+        bad_flags.fields = vec![FieldDelta {
+            entity_id: id(6),
+            kind: 4,
+            field: 1,
+            flags: 3,
+            added: Vec::new(),
+            removed: Vec::new(),
+        }];
+        let encoded = encode_semantic_delta(&bad_flags).unwrap();
+        assert_eq!(
+            decode_semantic_delta(&encoded.stored_bytes)
+                .unwrap_err()
+                .code(),
+            CompareErrorCode::FormatInvalid
+        );
+        // Equal roots with a non-empty delta contradict the derivation:
+        // identical roots compare to the empty delta.
+        let mut same_roots = stored.delta.clone();
+        same_roots.target_root = same_roots.base_root;
+        let encoded = encode_semantic_delta(&same_roots).unwrap();
+        assert_eq!(
+            decode_semantic_delta(&encoded.stored_bytes)
+                .unwrap_err()
+                .code(),
+            CompareErrorCode::FormatInvalid
+        );
+        // An identity cannot both enter and leave one field.
+        let mut overlap = stored.delta.clone();
+        overlap.fields = vec![FieldDelta {
+            entity_id: id(1),
+            kind: 1,
+            field: 1,
+            flags: 1,
+            added: vec![id(255)],
+            removed: vec![id(255)],
+        }];
+        let encoded = encode_semantic_delta(&overlap).unwrap();
         assert_eq!(
             decode_semantic_delta(&encoded.stored_bytes)
                 .unwrap_err()

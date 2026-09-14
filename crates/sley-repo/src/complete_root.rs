@@ -124,6 +124,12 @@ impl CompleteRootRequest {
 
     /// Assembles a request from already projected definitions and record
     /// facts (for callers that hold a complete root outside a repository).
+    ///
+    /// The assembly verifies nothing itself: callers MUST pass judged
+    /// roots (production callers pass merge's verified extraction and
+    /// builder-verified synthesis), and comparison re-judges both sides
+    /// as its precondition 1 before deriving anything, so unverified
+    /// bindings never reach identity.
     #[must_use]
     pub fn from_parts(
         entities: CompleteEntities,

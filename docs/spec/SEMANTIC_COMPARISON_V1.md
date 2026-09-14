@@ -1,9 +1,12 @@
 # Semantic Comparison v1
 
-Status: S20-510 contract draft, revision 2 (2026-09-05); the three Council
+Status: S20-510 contract draft, revision 3 (2026-09-14); the three Council
 review rounds landed 2026-09-04 (Ariadne contract review, Nabu architecture
 review, Vulcan surface review) with four freeze-blocking findings, all closed
-by this revision; lower-severity findings remain open. The implementation
+by revision 2; revision 3 closes the remaining report-grade findings with a
+closed field grammar the decoder enforces, equal-roots and disjointness
+shape rules, encoder count caps, corrected error-tier and inventory-order
+statements, and the residual precision notes. The implementation
 landed against revision 1 at `6ecfe89` while every Council lane was
 unavailable (ADR-0026 context); state is tracked in the machine summary and
 `docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md`.
@@ -13,7 +16,9 @@ unavailable (ADR-0026 context); state is tracked in the machine summary and
 This document uses the SCB1 notation: `||` is byte concatenation, `uvar(x)`
 is the unsigned varint of `x`, `len(x)` is `uvar(byte_length(x))`, and
 `BLAKE3-256` is the 32-byte BLAKE3 digest. All byte comparisons are unsigned
-lexicographic comparisons. `zero32` is thirty-two zero bytes.
+lexicographic comparisons. `zero32` is thirty-two zero bytes: the
+absent-value sentinel for optional objects and identity-free entries,
+never the name of a real identity.
 
 ## Scope
 
@@ -32,12 +37,20 @@ derived.
 A semantic delta is derived evidence. It never replaces a `StateRoot`, an
 `ObjectId`, a receipt, a candidate, or repository authority, and it contains
 no labels, source text, paths, timestamps, ref names, ancestry, or Git facts.
+A stored delta authenticates nothing by itself: decode checks canonical
+bytes, digest, record shape, and self-consistency (including
+equal-roots-admit-only-empty), but `base_root`, `target_root`, and
+`workspace_id` carry no proof of the roots they name. Authority comes only
+from re-derivation — merge re-derives every delta it consumes — so a forged
+or stale delta that decodes is still never authority.
 Merge (S20-520) consumes deltas; this contract defines no merge, conflict,
 or composition rule.
 
-`sley-repo` owns comparison. The dependency direction
-`sley-repo -> sley-query -> sley-check -> sley-ssmc` is unchanged, and
-`sley-query` gains nothing.
+`sley-repo` owns comparison. Comparison reads the frozen S20-250
+fingerprint through a direct production dependency `sley-repo -> sley-ssmc`
+(added at `6ecfe89` for `fingerprint_function` and the fingerprint failure
+codes); the fallback chain `sley-repo -> sley-query -> sley-check ->
+sley-ssmc` is unchanged, and `sley-query` gains nothing.
 
 ## Inputs
 
@@ -53,8 +66,26 @@ adapter. Before any delta is derived:
 2. their `workspace_id` MUST be equal, else `COMPARE_WORKSPACE_MISMATCH`;
 3. their `schema_epoch_id` MUST be equal, else `COMPARE_EPOCH_MISMATCH`;
 4. every `Function` of either root MUST have a complete owned inventory
-   (its Parameter, Block, and Operation entities are in the same root), else
-   `COMPARE_INVENTORY_INVALID` with the exact `FINGERPRINT_*` code preserved.
+   in the same root (its `parameters` and `blocks`, and those blocks'
+   `parameters` and `operations`).
+
+Precondition 4 is enforced in two layers, both before any delta is
+emitted. Linkage — every forward-list reference resolving in-root — is
+enforced by the frozen complete-root judgment as precondition 1, which
+runs over every function of both roots, so `Added` and `Removed`
+functions are covered exactly like shared ones; a linkage gap fails
+`COMPARE_ROOT_INCOMPLETE` with the exact `IMPACT_*` code preserved.
+Exact closure validity — ownership, roles, ordinals, back-references,
+and the entry block — is enforced by the frozen fingerprint per compared
+function pair in section 3; a validity gap fails
+`COMPARE_INVENTORY_INVALID` with the exact `FINGERPRINT_*` code
+preserved. Comparison is all-or-nothing: any failure emits no delta.
+
+`CompleteRootRequest::from_parts` assembles a request from caller-held
+projections and verifies nothing itself: production callers pass judged
+roots (merge's verified extraction and builder-verified synthesis), and
+comparison re-judges both sides as precondition 1 before deriving
+anything, so unverified bindings never reach identity.
 
 The frozen derivation pins below are part of the contract text. They bind the
 normative derivation body, which is exactly the text from the
@@ -64,7 +95,7 @@ until the pins are deliberately re-recorded in this document, the checker,
 and the machine summary.
 
 ```text
-derivation_semantics_hash = a1077a1bdda3c084d49cb43ad7fdfe35e3d8f99e88301cc59d6eced7325cd540
+derivation_semantics_hash = 0717d420a7234b0faef04d5c23a3533578f068f155fbb570a762213f70ab9314
 delta_schema_epoch = 25b186d5ec4238f3f05e8af05454f62bac649143ebddf37c01c1786180b6dee4
 ```
 
@@ -104,6 +135,11 @@ entity_delta = (entity_id, change, base_kind, target_kind, base_object, target_o
 
 `base_kind`/`base_object` are `0`/`zero32` for `Added`; `target_kind`/
 `target_object` are `0`/`zero32` for `Removed`. Kinds are SSMC1 tags.
+`Changed` and `MetadataOnly` carry equal nonzero kinds with unequal
+objects; `Retyped` carries two unequal nonzero kinds; kind tags are 1
+through 18; body deltas carry unequal fingerprints. The decoder enforces
+every rule in this section (`COMPARE_FORMAT_INVALID`); the judgment emits
+only conforming deltas.
 
 ### 2. Fields
 
@@ -156,6 +192,30 @@ identity sets are defined per field:
 | PolicyBinding 1 `subject` | none | none |
 | PolicyBinding 2 `requirements` | none | identities |
 | DependencyBinding 1 `dependency_root`, 2 `external_package`, 3 `local_namespace` | none | none |
+
+The table above is closed: a field delta whose `(kind, field)` is not a
+row here, whose `flags` carry bits beyond bit 0 outside TypeDef field 2
+(bits 1, 2, and 3) and Function field 2 (bit 1), or with bit 0 unset, is
+`COMPARE_FORMAT_INVALID`. Flags bit 0 is a presence marker: always set,
+carrying no information beyond "this entry exists". On TypeDef field 2,
+bit 2 is suppressed when bit 1 is set and no shared member changed across
+the record/variant change, so the reachable combinations are a subset of
+the independent bits. TypeDef field 2 `added`/`removed` carry `MemberId`
+bytes in `EntityId` clothing: they name type members, never entities, and
+consumers (notably S20-520) MUST NOT resolve them as entities. The
+judgment emits only rows of this table; the decoder rejects everything
+else, so forged evidence cannot smuggle arbitrary kind, field, or flag
+codes through a round-trip.
+
+Retyped entities produce no field deltas and no body delta: the kinds
+differ, so no field row applies, and section 3 compares same-kind
+functions only. A retyped Function's body evidence is the two sides'
+kinds and objects in section 1. Section 2 is not self-sufficient for
+disjointness judgment: reference-bearing scalar fields (operands,
+immediates, predicates, environments) carry no identity sets, so
+consumers cannot infer disjointness from absence here. An optional field
+compares by its exact optional value: absent versus present is a
+difference like any other.
 
 A field delta exists exactly when the two canonical field values differ. For
 identity lists (`parameters`, `blocks`, `operations`) the value differs when
@@ -222,7 +282,10 @@ relation_delta = (dependent, dependency, kind, change)
 the symmetric difference of the two complete-root indexes' direct edge sets,
 so call deltas are the relation deltas of kind 5, effect deltas kind 6,
 capability deltas kind 7, contract deltas kind 8, test deltas kind 10, and
-so on; no relation is derived by any other rule.
+so on; no relation is derived by any other rule. The symmetric difference
+merge-joins the two direct-edge slices, which MUST be canonically ordered
+and duplicate-free as the frozen index provides them; slice order is the
+frozen index's own invariant, relied upon here, not re-checked.
 
 ### 5. Root sets and collateral
 
@@ -314,7 +377,7 @@ The payload is a closed SCB1 Record with all fields required:
 | 2 | `workspace_id` | `FixedBytes<32>`; the shared workspace |
 | 3 | `root_schema_epoch` | `FixedBytes<32>`; the shared schema epoch of both roots (not the delta envelope epoch) |
 | 4 | `base_root` | `FixedBytes<32>` |
-| 5 | `target_root` | `FixedBytes<32>`; MAY equal field 4 only for the empty delta |
+| 5 | `target_root` | `FixedBytes<32>`; equal to field 4 only for the empty delta, enforced by the decoder (`COMPARE_FORMAT_INVALID`) |
 | 6 | `entities` | `CanonicalSet` of entity deltas; order is raw `entity_id` order because every element begins with `entity_id fixed32` |
 | 7 | `fields` | `CanonicalSet` of field deltas; raw `entity_id`, then `kind`, then `field` order |
 | 8 | `bodies` | `CanonicalSet` of body deltas; raw `entity_id` order |
@@ -331,7 +394,12 @@ field is framed exactly once, as the frozen S20-540 realization states.
 Because every set element begins with a `fixed32` identity and continues
 with small `u32` tags, SCB1 canonical-set order coincides with the stated
 raw orders; a decoder never sorts input and fails `COMPARE_CANONICAL_ORDER`
-or `COMPARE_DUPLICATE_ENTRY` on any deviation.
+or `COMPARE_DUPLICATE_ENTRY` on any deviation. Non-canonical encoding
+reaches the decoder only through the same backstop: any bytes that do not
+re-encode identically fail `COMPARE_CANONICAL_ORDER`, which therefore
+covers both order deviations and non-canonical encodings. Added and
+removed identity sets are disjoint by construction on both the field
+level and the root-set level; a shared member is `COMPARE_FORMAT_INVALID`.
 
 ## Completeness invariants
 
@@ -361,10 +429,19 @@ An implementation MUST satisfy, and the fixture oracle MUST check:
 | top-down allocation budget | `134,217,728` bytes |
 | charged comparison work | `100,000,000` |
 
-Comparison charges one work unit per classified identity, per compared
-field, per fingerprint inventory entity, per edge of either index, and per
-transitive-impact step; exhaustion is `COMPARE_RESOURCE_LIMIT` with no
-partial delta. Decoding enforces the same counts before allocation.
+Comparison charges one work unit per classified identity, eight units per
+`Changed` entity for field comparison (the per-kind maximum field count, a
+conservative bound — no kind row carries more than eight fields), per
+fingerprint inventory entity plus two per compared function pair, per edge
+of either index, and per collateral seed and reached identity; exhaustion
+is `COMPARE_RESOURCE_LIMIT` with no partial delta. Decoding enforces the
+same counts before allocation, and the public encoder refuses to mint
+beyond them, so no delta the encoder produces fails the decoder's counts.
+Relation comparison walks the two judged indexes' edge slices and caps the
+emitted deltas at 8,000,000; comparison never holds more than the judged
+inputs plus the capped outputs. The 134,217,728-byte top-down budget is
+the shared SCB1 budget the limits preimage pins, enforced through the
+per-section pre-allocation counts.
 
 ## Stable failures
 
@@ -386,8 +463,19 @@ Numeric codes `51000` through `51010` are exact:
 
 `SCB_*`, `IMPACT_*`, and `FINGERPRINT_*` failures are preserved with their
 exact codes inside `COMPARE_FORMAT_INVALID`, `COMPARE_ROOT_INCOMPLETE`, and
-`COMPARE_INVENTORY_INVALID` respectively; they are never remapped.
-`COMPARE_INTERNAL_INVARIANT` is reserved.
+`COMPARE_INVENTORY_INVALID` respectively: every non-resource failure wraps
+with its exact source code preserved, never remapped. Resource exhaustion
+is the single exception: work-budget exhaustion at any layer, including
+`IMPACT_RESOURCE_LIMIT` from bounded reachability, surfaces as the
+comparing layer's own `COMPARE_RESOURCE_LIMIT` — the budget is one budget
+and the charging rule above owns exhaustion. The outer code names the
+layer that detected the failure, not the stage: a post-judgment impact
+failure still reads `COMPARE_ROOT_INCOMPLETE` with its exact source,
+because re-labeling it would drop the source it preserves.
+`COMPARE_INTERNAL_INVARIANT` is defense-only, never a reachable verdict on
+valid inputs: the union arm emits it on the unreachable both-absent case,
+and `delta_epoch_id` emits it if the shared epoch-1 constants drift from
+the pin.
 
 ## Required evidence
 
@@ -404,14 +492,23 @@ Implementation acceptance requires at least:
 - an independent Python reproduction of the classification, the field
   deltas, the relation deltas, the collateral set, the canonical bytes, and
   `SemanticDeltaId` over the corpus, plus a checker that recomputes both
-  frozen hashes from the preimage texts;
+  frozen hashes from the preimage texts. The oracle re-derives from the
+  corpus root pairs with its own reader and encoders, including the closed
+  field grammar and the strict-decode shape rules; body-delta fingerprints
+  and membership are cross-checked against the recorded values rather than
+  re-fingerprinted (the oracle projects inventories instead of calling
+  `fingerprint_function`), so fingerprint fidelity rests on the native
+  tests and the strict-decoder matrix, not on the oracle;
 - exact encode, decode, and re-encode round trips and a rejection matrix
   reaching every code in the table;
 - workspace-mismatch, epoch-mismatch, incomplete-root, and
   inventory-invalid tests preserving the wrapped codes;
 - a determinism test comparing the same pair 128 times and both directions
   (`base`/`target` swapped yields mirrored classes);
-- an S20-700 persistent libFuzzer target over delta decoding;
+- an S20-700 persistent libFuzzer target over delta decoding, asserting
+  the decoder/comparer code partition (decoding never emits the judgment
+  and precondition codes); comparison itself is covered by the corpus,
+  the determinism test, and the native precondition tests, not by fuzz;
 - Tier 1 plus repository-focused Tier 2 validation;
 - Ariadne contract review, Nabu architecture review, and Vulcan surface
   review with every report-grade finding closed.
@@ -424,6 +521,11 @@ This contract does not claim:
   (S20-520);
 - block-level or operation-level CFG alignment, renaming detection, or
   moved-entity detection;
+- member-level disjointness within TypeDef field 2 and Function field 2:
+  concurrent edits to different members are indistinguishable beyond the
+  flag bits (a deliberate v1 granularity choice, answering campaign
+  question 2), so consumers treat same-field multi-member touches as
+  conflicts;
 - comparison across workspaces or schema epochs;
 - label, source, or presentation differences beyond the `MetadataOnly`
   class;

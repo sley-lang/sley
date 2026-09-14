@@ -54,3 +54,13 @@ sentence on comparison and the frozen S20-250 inputs.
 
 Tier 2 at `6ecfe89` (2026-09-03): core 926 tests, conformance, adversarial,
 fuzz-smoke, semantic-delta smoke, all exit 0 in 32 s.
+
+## Revision 3 answers (2026-09-14)
+
+- Q1 (`MetadataOnly` seeds): no — kept, with reasons in contract section 5
+  (normative body equal implies equal edges and fingerprints).
+- Q2 (flag granularity): keep v1 granularity; member-level disjointness
+  recorded as an explicit exclusion, same-field multi-member touches are
+  conflicts for consumers.
+- Q3 (transaction identities): no — roots only, ancestry out per the
+  Repository Model (contract Scope).

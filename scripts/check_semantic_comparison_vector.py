@@ -91,6 +91,7 @@ FIELD_ROWS: dict[int, list[tuple[int, str, str]]] = {
     5: [(1, "type_parameters", "scalar"), (2, "parameters", "parameters"), (3, "result_type", "scalar"), (4, "effects", "set"), (5, "entry_block", "scalar"), (6, "blocks", "set"), (7, "contracts", "set"), (8, "visibility", "scalar")],
     6: [(1, "owner", "scalar"), (2, "role", "scalar"), (3, "ordinal", "scalar"), (4, "value_type", "scalar")],
     7: [(1, "function", "scalar"), (2, "parameters", "set"), (3, "operations", "set"), (4, "terminator", "terminator"), (5, "reachability", "scalar")],
+    8: [(1, "block", "scalar"), (2, "ordinal", "scalar"), (3, "opcode", "scalar"), (4, "operands", "scalar"), (5, "result_types", "scalar"), (6, "immediate", "scalar")],
     9: [(1, "value", "scalar")],
     10: [(1, "value_type", "scalar"), (2, "initializer", "scalar"), (3, "visibility", "scalar")],
     11: [(1, "effect_kind", "scalar"), (2, "types.0", "scalar"), (3, "types.1", "scalar"), (4, "types.2", "scalar"), (5, "types.3", "scalar"), (6, "visibility", "scalar")],
@@ -102,6 +103,23 @@ FIELD_ROWS: dict[int, list[tuple[int, str, str]]] = {
     17: [(1, "subject", "scalar"), (2, "requirements", "set")],
     18: [(1, "dependency_root", "scalar"), (2, "external_package", "scalar"), (3, "local_namespace", "scalar")],
 }
+
+
+# The closed section-2 grammar, derived from the emit table above: every
+# (kind, field) pair the judgment emits, with the only flag bits beyond
+# the presence bit the contract names (TypeDef field 2 bits 1-3, Function
+# field 2 bit 1). Mirrors the Rust decoder's valid_field_grammar exactly.
+FIELD_TAGS = {kind: {tag for tag, _, _ in rows} for kind, rows in FIELD_ROWS.items()}
+
+
+def valid_field_grammar(kind: int, field: int, flags: int) -> bool:
+    if flags & 1 == 0:
+        return False
+    if (kind, field) == (4, 2):
+        return flags <= 15
+    if (kind, field) == (5, 2):
+        return flags <= 3
+    return field in FIELD_TAGS.get(kind, set()) and flags == 1
 
 
 class Failure(Exception):
@@ -459,6 +477,14 @@ class Reader:
         return self.take(self.uvar())
 
 
+def read_id_list(data: bytes) -> list[bytes]:
+    reader = Reader(data)
+    items = [reader.sized() for _ in range(reader.uvar())]
+    if any(len(item) != 32 for item in items):
+        raise Failure("COMPARE_FORMAT_INVALID")
+    return items
+
+
 def strict_decode(stored: bytes, epoch: bytes) -> None:
     if len(stored) > MAX_DELTA_BYTES:
         raise Failure("COMPARE_RESOURCE_LIMIT")
@@ -507,6 +533,36 @@ def strict_decode(stored: bytes, epoch: bytes) -> None:
         }.get(change, False)
         if not ok:
             raise Failure("COMPARE_FORMAT_INVALID")
+    # Section 2: the closed field grammar (contract section 2) with
+    # disjoint added/removed sets, mirroring the Rust decoder.
+    field_reader = Reader(fields[7])
+    for _ in range(field_reader.uvar()):
+        entry = Reader(field_reader.sized())
+        entry.uvar()
+        fvalues: dict[int, bytes] = {}
+        for _ in range(6):
+            tag = entry.uvar()
+            fvalues[tag] = entry.sized()
+        kind = Reader(fvalues[2]).uvar()
+        field = Reader(fvalues[3]).uvar()
+        flags = Reader(fvalues[4]).uvar()
+        if not valid_field_grammar(kind, field, flags):
+            raise Failure("COMPARE_FORMAT_INVALID")
+        added = read_id_list(fvalues[5])
+        removed = read_id_list(fvalues[6])
+        if set(added) & set(removed):
+            raise Failure("COMPARE_FORMAT_INVALID")
+    # Payload field 5: equal roots admit only the empty delta. Decode
+    # authenticates nothing else; authority comes only from re-derivation.
+    if fields[4] == fields[5]:
+        for tag in (6, 7, 8, 9, 10, 11, 12, 13, 14):
+            if fields[tag] != b"\x00":
+                raise Failure("COMPARE_FORMAT_INVALID")
+    # Added and removed root sets are disjoint by construction.
+    if set(read_id_list(fields[10])) & set(read_id_list(fields[11])):
+        raise Failure("COMPARE_FORMAT_INVALID")
+    if set(read_id_list(fields[12])) & set(read_id_list(fields[13])):
+        raise Failure("COMPARE_FORMAT_INVALID")
 
 
 def main() -> int:

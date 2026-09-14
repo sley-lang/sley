@@ -60,9 +60,21 @@ fn fuzz_one(input: &[u8]) {
             assert_eq!(again, stored, "re-encoding a decoded delta drifted");
         }
         Err(error) => {
+            // The decoder emits only its own partition: the judgment and
+            // precondition codes (workspace, epoch, root, inventory) never
+            // arise from bytes alone.
             assert!(
-                CompareErrorCode::ALL.contains(&error.code()),
-                "unknown semantic-delta failure code"
+                matches!(
+                    error.code(),
+                    CompareErrorCode::VersionUnsupported
+                        | CompareErrorCode::DigestMismatch
+                        | CompareErrorCode::CanonicalOrder
+                        | CompareErrorCode::DuplicateEntry
+                        | CompareErrorCode::FormatInvalid
+                        | CompareErrorCode::ResourceLimit
+                        | CompareErrorCode::InternalInvariant
+                ),
+                "decoder emitted a judgment-only failure code"
             );
         }
     }

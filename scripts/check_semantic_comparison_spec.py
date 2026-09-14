@@ -26,11 +26,14 @@ IDENTIFIERS = ROOT / "docs/spec/IDENTIFIERS_V1.md"
 IDENTIFIER_SOURCE = ROOT / "crates/sley-id/src/lib.rs"
 SOURCE = ROOT / "crates/sley-repo/src/compare.rs"
 FIXTURE_DIR = ROOT / "conformance/semantic-comparison"
+ORACLE = ROOT / "scripts/check_semantic_comparison_vector.py"
+FUZZ_TARGET = ROOT / "fuzz/targets/semantic_delta_decoder.rs"
+SPEC_REVISION = 3
 IMPLEMENTATION_SURFACES = (SOURCE, FIXTURE_DIR)
 
 FIELD_SCHEMA_HASH = "5e58f98ecf6d7a501fc49011aa585e85abef9396ff389b5b6bb7c796f118739c"
 DECODER_LIMITS_HASH = "d25baa2eb5fcb394fb7fcfdca09326eb4373a1cc6e79139548d1d9d0fb37f370"
-DERIVATION_SEMANTICS_HASH = "a1077a1bdda3c084d49cb43ad7fdfe35e3d8f99e88301cc59d6eced7325cd540"
+DERIVATION_SEMANTICS_HASH = "0717d420a7234b0faef04d5c23a3533578f068f155fbb570a762213f70ab9314"
 DELTA_SCHEMA_EPOCH = "25b186d5ec4238f3f05e8af05454f62bac649143ebddf37c01c1786180b6dee4"
 DERIVATION_SPAN_START = "## Change classes"
 DERIVATION_SPAN_END = "## Required evidence"
@@ -82,7 +85,8 @@ SPEC_MARKERS = (
     "- I7:",
     "| stored delta bytes | `67,108,864` |",
     "| relation deltas | `8,000,000` |",
-    "`sley-repo -> sley-query -> sley-check -> sley-ssmc` is unchanged",
+    "`sley-repo -> sley-ssmc`",
+    "direct production dependency",
 )
 ADR_MARKERS = (
     "# ADR-0027: Semantic comparison delta boundary",
@@ -224,6 +228,7 @@ def main() -> int:
         "field_schema_hash": FIELD_SCHEMA_HASH,
         "decoder_limits_hash": DECODER_LIMITS_HASH,
         "derivation_semantics_hash": DERIVATION_SEMANTICS_HASH,
+        "contract_revision": SPEC_REVISION,
         "delta_schema_epoch": DELTA_SCHEMA_EPOCH,
         "sections": 5,
         "change_classes": 5,
@@ -255,16 +260,30 @@ def main() -> int:
         if status in (REVIEW_PENDING_STATUS, COMPLETE_STATUS):
             if not (FIXTURE_DIR / "v1/accepted.json").exists():
                 problems.append("fixture:missing")
+            # implementation_complete is a whole-package claim: the oracle,
+            # the rejected matrix, and the fuzz target must exist beside
+            # the corpus, never be asserted from this file alone.
+            if not ORACLE.exists():
+                problems.append("oracle:missing")
+            if not (FIXTURE_DIR / "v1/rejected.json").exists():
+                problems.append("rejected-matrix:missing")
+            if not FUZZ_TARGET.exists():
+                problems.append("fuzz-target:missing")
         if status == COMPLETE_STATUS:
             for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
                 if not str(section.get(key, "")).startswith("PASS"):
                     problems.append(f"completion-without-review:{key}")
 
-    revision = re.search(r"revision (\d+)", spec)
+    # The revision is anchored to the Status header (not the first prose
+    # occurrence) and pinned: a stale pin fails the moment the contract moves.
+    own = re.search(r"^Status: S20-510 contract draft, revision (\d+)", spec, flags=re.M)
+    if own is None or int(own.group(1)) != SPEC_REVISION:
+        problems.append("spec-revision")
+    revision = own.group(1) if own else None
     result = {
         "contract": "s20-510-semantic-comparison-v1",
         "status": status,
-        "revision": int(revision.group(1)) if revision else None,
+        "revision": int(revision) if revision else None,
         "implementation_present": present,
         "stable_error_codes": len(CODES),
         "problems": problems,
