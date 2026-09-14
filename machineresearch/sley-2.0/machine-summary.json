@@ -3650,9 +3650,9 @@
     "release_provenance": false,
     "release_candidate_history_reanchored": true,
     "final_argus_disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
-    "final_argus_disposition_note": "Prior PASS scoped to 21acb7f/c703bd5 + anchor db1bc62 (transcript evidence/review/verdicts/s20_710_pre_release_audit/final_argus_disposition-21acb7f.md); fresh Argus final for the licensed candidate pending (pre-mint review)",
+    "final_argus_disposition_note": "PASS via Argus pre-mint final on L2 bd5f3a3 (0 findings) and post-mint final on 74bb0ba (0 findings): license packaging, history coverage, SBOM/provenance drafts, finding dispositions; transcripts evidence/review/verdicts/s20_710_pre_release_audit/final_argus_disposition-bd5f3a3.md and final_argus_disposition-74bb0ba.md; S20-710-full not claimed",
     "final_vulcan_disposition": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
-    "final_vulcan_disposition_note": "Prior PASS scoped to 21acb7f/c703bd5 + anchor db1bc62 (transcripts evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_disposition-21acb7f.md and final_vulcan_confirmation-c703bd5.md); fresh Vulcan final for the licensed candidate pending (pre-mint review)",
+    "final_vulcan_disposition_note": "PASS via Vulcan pre-mint final on L2 bd5f3a3 (0 findings) and post-mint final on 74bb0ba (0 findings): artifact identity, dual-host integrity, packaging gates, secret surface, SBOM/provenance binding; transcripts evidence/review/verdicts/s20_710_pre_release_audit/final_vulcan_disposition-bd5f3a3.md and final_vulcan_disposition-74bb0ba.md; S20-710-full not claimed",
     "publication_authorized": false,
     "standards_sbom_draft_documents": [
       "evidence/release/sbom/cyclonedx-1.6.json",
