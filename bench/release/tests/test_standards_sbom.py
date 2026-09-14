@@ -654,6 +654,16 @@ class RecordsClosureTests(unittest.TestCase):
         if status.is_closure:
             sbom.build_documents()
             provenance.build_statement()
+        elif (
+            status.reason == "records-closure-not-advanced"
+            and candidate["commit"] == sbom.git_head()
+        ):
+            # Mint moment: HEAD is the attested commit, so both builders
+            # admit via the candidate==HEAD path (builder-contract
+            # condition (a)), not the closure path. Pin admission here;
+            # any other non-closure verdict must still refuse below.
+            sbom.build_documents()
+            provenance.build_statement()
         else:
             with self.assertRaises(sbom.SbomError) as sbom_error:
                 sbom.build_documents()
