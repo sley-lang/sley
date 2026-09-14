@@ -8,7 +8,7 @@
     ]
   },
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "urn:sley2:spdx:285c97b1e54a8d9513c7ebb0d3fca95ede83008a384971a46b76b7ee2a1fe334:705a311df924ccf84c051216dbc8e432f78cec727f6952f4d69e3786b6b77512",
+  "documentNamespace": "urn:sley2:spdx:285c97b1e54a8d9513c7ebb0d3fca95ede83008a384971a46b76b7ee2a1fe334:fba7b81fd3eb44fcfaa2b10df3ab4420eade71cd117350d8c8c745078e469613",
   "hasExtractedLicensingInfos": [
     {
       "extractedText": "The Sley 2 workspace packages declare Apache-2.0 under the operator-approved root license (S20-710 license decision 2026-09-14). The full text is installed as LICENSE at the repository root and shipped as the LICENSE artifact member; no license text beyond that installed file is asserted here, and no legal compatibility opinion is offered.",
@@ -23,7 +23,7 @@
       "checksums": [
         {
           "algorithm": "SHA256",
-          "checksumValue": "705a311df924ccf84c051216dbc8e432f78cec727f6952f4d69e3786b6b77512"
+          "checksumValue": "fba7b81fd3eb44fcfaa2b10df3ab4420eade71cd117350d8c8c745078e469613"
         }
       ],
       "comment": "the local Sley 2 release candidate; unsigned, unpublished, and not a GA claim (S20-720, S20-730)",

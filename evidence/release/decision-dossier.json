@@ -4,10 +4,11 @@
   "decision_reasons": [
     "46 review obligations are open",
     "no succession trial has been executed",
+    "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "be3e920cb54ce6a6e9897d5b59ae96803c489b1bca5e5156ea2b1a06376a0bb3",
+  "dossier_digest": "51107bbfbaffd69e8f9ab47a54a4be3342a8f4130e4411b8c196f10b38c204f4",
   "entries": [
     {
       "evidence": [
@@ -32,7 +33,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "74bb0ba43203790399d05ff2fe167d6e46a9c6f1"
+      "value": "baf9a4d3dff71cc1a0fb9d9c8f64b427a6ccee3f"
     },
     {
       "evidence": [
@@ -279,7 +280,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "705a311df924ccf84c051216dbc8e432f78cec727f6952f4d69e3786b6b77512"
+      "value": "fba7b81fd3eb44fcfaa2b10df3ab4420eade71cd117350d8c8c745078e469613"
     },
     {
       "evidence": [
@@ -295,12 +296,12 @@
         "evidence/release/reproducibility-report.json"
       ],
       "item": "reproducibility result",
-      "note": "multi-host reproducibility across distinct attested hosts",
+      "note": "single-host reproducibility; the second host is an operator-gated lane",
       "state": "EVIDENCED",
       "value": {
         "distinct_hosts": 2,
-        "result": "MULTI_HOST_REPRODUCIBLE",
-        "second_host": "ATTESTED"
+        "result": "SINGLE_HOST_REPRODUCIBLE",
+        "second_host": "GATED_OPERATOR_LANE"
       }
     },
     {
@@ -450,7 +451,7 @@
       }
     }
   ],
-  "entries_digest": "46d0b6fa62d899f081b946d462bff58c37535a00ec14a51a6a4eb699e113a0fe",
+  "entries_digest": "f99b63c1797435fa43fb5797d69f30f0ebf7060064af23b5866b66c62e91d0c5",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",
