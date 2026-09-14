@@ -4,10 +4,11 @@
   "decision_reasons": [
     "46 review obligations are open",
     "no succession trial has been executed",
+    "only one host has attested the candidate",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "44ba6cb50c5865dd3dc658c657e916491deac38c87a24d6e00a628173b70957e",
+  "dossier_digest": "a7c4e57be0dda9c62fcd9e8007345c5753da9d8b985411b3be94110553126cba",
   "entries": [
     {
       "evidence": [
@@ -32,7 +33,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "ae16df87f7b1990e8804f87001d5a63f87b41611"
+      "value": "74bb0ba43203790399d05ff2fe167d6e46a9c6f1"
     },
     {
       "evidence": [
@@ -279,7 +280,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "fbaddbf120bfaa59f47cfc7fcdf5d53b292270af263540f973a774abe972ac8d"
+      "value": "705a311df924ccf84c051216dbc8e432f78cec727f6952f4d69e3786b6b77512"
     },
     {
       "evidence": [
@@ -288,19 +289,19 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2184818
+      "value": 2187943
     },
     {
       "evidence": [
         "evidence/release/reproducibility-report.json"
       ],
       "item": "reproducibility result",
-      "note": "multi-host reproducibility across distinct attested hosts",
+      "note": "single-host reproducibility; the second host is an operator-gated lane",
       "state": "EVIDENCED",
       "value": {
         "distinct_hosts": 2,
-        "result": "MULTI_HOST_REPRODUCIBLE",
-        "second_host": "ATTESTED"
+        "result": "SINGLE_HOST_REPRODUCIBLE",
+        "second_host": "GATED_OPERATOR_LANE"
       }
     },
     {
@@ -450,7 +451,7 @@
       }
     }
   ],
-  "entries_digest": "946887450992c21fc6a2a38c0bd1d1f3f8a039bdf739b2cbdadf610436ceb617",
+  "entries_digest": "cc71fbe0c132567b795d3f160a71a6a87a88abfc61be175c1f2b7ec11cd15a30",
   "evidenced": 24,
   "gated": 10,
   "phase": "M2",

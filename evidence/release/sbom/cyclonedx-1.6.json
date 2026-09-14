@@ -918,7 +918,7 @@
       "bom-ref": "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-adapter",
@@ -929,7 +929,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -944,7 +944,7 @@
       "bom-ref": "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-check",
@@ -955,7 +955,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -970,7 +970,7 @@
       "bom-ref": "pkg:cargo/sley-cli@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-cli",
@@ -981,7 +981,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -996,7 +996,7 @@
       "bom-ref": "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-conformance",
@@ -1007,7 +1007,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1022,7 +1022,7 @@
       "bom-ref": "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-id",
@@ -1033,7 +1033,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1048,7 +1048,7 @@
       "bom-ref": "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-json-bridge",
@@ -1059,7 +1059,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1074,7 +1074,7 @@
       "bom-ref": "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-mutate",
@@ -1085,7 +1085,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1100,7 +1100,7 @@
       "bom-ref": "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-policy",
@@ -1111,7 +1111,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1126,7 +1126,7 @@
       "bom-ref": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-protocol",
@@ -1137,7 +1137,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1152,7 +1152,7 @@
       "bom-ref": "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-query",
@@ -1163,7 +1163,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1178,7 +1178,7 @@
       "bom-ref": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-repo",
@@ -1189,7 +1189,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1204,7 +1204,7 @@
       "bom-ref": "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-scb1",
@@ -1215,7 +1215,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1230,7 +1230,7 @@
       "bom-ref": "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-schema",
@@ -1241,7 +1241,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1256,7 +1256,7 @@
       "bom-ref": "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-ssmc",
@@ -1267,7 +1267,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1282,7 +1282,7 @@
       "bom-ref": "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-state-root",
@@ -1293,7 +1293,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1308,7 +1308,7 @@
       "bom-ref": "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-store",
@@ -1319,7 +1319,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1334,7 +1334,7 @@
       "bom-ref": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-txn",
@@ -1345,7 +1345,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1360,7 +1360,7 @@
       "bom-ref": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-vm",
@@ -1371,7 +1371,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -1650,7 +1650,7 @@
       "bom-ref": "pkg:pypi/sley2-scb1-oracle@0.1.0?workspace=true",
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley2-scb1-oracle",
@@ -1661,7 +1661,7 @@
         },
         {
           "name": "sley2:license-disposition",
-          "value": "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT"
+          "value": "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"
         },
         {
           "name": "sley2:locked-source",
@@ -2119,12 +2119,12 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "fbaddbf120bfaa59f47cfc7fcdf5d53b292270af263540f973a774abe972ac8d"
+          "content": "705a311df924ccf84c051216dbc8e432f78cec727f6952f4d69e3786b6b77512"
         }
       ],
       "licenses": [
         {
-          "expression": "LicenseRef-Proprietary"
+          "expression": "Apache-2.0"
         }
       ],
       "name": "sley-2.0.0-linux-x86_64.tar.gz",
@@ -2134,19 +2134,19 @@
     "properties": [
       {
         "name": "sley2:commit",
-        "value": "ae16df87f7b1990e8804f87001d5a63f87b41611"
+        "value": "74bb0ba43203790399d05ff2fe167d6e46a9c6f1"
       },
       {
         "name": "sley2:inventory-digest",
-        "value": "f869ed24f00122a8667920134e62c1ff5bb953f6e662a0a71c957ba5e7c14028"
+        "value": "285c97b1e54a8d9513c7ebb0d3fca95ede83008a384971a46b76b7ee2a1fe334"
       },
       {
         "name": "sley2:license-disposition-blocked",
-        "value": "19"
+        "value": "0"
       },
       {
         "name": "sley2:manifest-digest",
-        "value": "0b14da146f88d672986830c8251519af2ce4c7e094d3639a4c08b98a9b9fffb6"
+        "value": "e3943eed26edd51429179438d40bb24321d1205f7a65495fde06572a8acf3fc7"
       },
       {
         "name": "sley2:publication-authorized",
@@ -2167,7 +2167,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:6e817e54-699e-8427-8608-64503bad974b",
+  "serialNumber": "urn:uuid:10204935-ba04-89d3-82f1-7ebf339306e9",
   "specVersion": "1.6",
   "version": 1
 }
