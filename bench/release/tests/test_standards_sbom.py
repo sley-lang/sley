@@ -153,13 +153,13 @@ class StandardsSbomTests(unittest.TestCase):
         for component in multi:
             self.assertNotIn("hashes", component)
 
-    def test_spdx_is_2_3_with_a_fixed_instant_and_an_extracted_proprietary_reference(self) -> None:
+    def test_spdx_is_2_3_with_a_fixed_instant_and_an_extracted_apache_reference(self) -> None:
         self.assertEqual(self.spdx["spdxVersion"], "SPDX-2.3")
         self.assertEqual(self.spdx["dataLicense"], "CC0-1.0")
         self.assertEqual(self.spdx["creationInfo"]["created"], "1970-01-01T00:00:00Z")
         self.assertTrue(self.spdx["documentNamespace"].startswith("urn:sley2:spdx:"))
         extracted = self.spdx["hasExtractedLicensingInfos"]
-        self.assertEqual([entry["licenseId"] for entry in extracted], [sbom.PROPRIETARY])
+        self.assertEqual([entry["licenseId"] for entry in extracted], [sbom.ROOT_LICENSE])
         for package in self.spdx["packages"]:
             self.assertEqual(package["licenseConcluded"], "NOASSERTION")
             self.assertEqual(package["copyrightText"], "NOASSERTION")
@@ -210,9 +210,9 @@ class LicenseExpressionTests(unittest.TestCase):
     def test_slash_separator_normalizes_to_or(self) -> None:
         self.assertEqual(sbom.normalize_license("MIT/Apache-2.0"), "MIT OR Apache-2.0")
 
-    def test_plain_and_proprietary_declarations_pass_through(self) -> None:
+    def test_plain_and_approved_declarations_pass_through(self) -> None:
         self.assertEqual(sbom.normalize_license("MIT OR Apache-2.0"), "MIT OR Apache-2.0")
-        self.assertEqual(sbom.normalize_license(sbom.PROPRIETARY), sbom.PROPRIETARY)
+        self.assertEqual(sbom.normalize_license(sbom.ROOT_LICENSE), sbom.ROOT_LICENSE)
 
     def test_empty_slash_part_fails_closed(self) -> None:
         for bad in ("MIT/", "/MIT", "MIT//Apache-2.0"):
@@ -252,7 +252,7 @@ class LicenseExpressionTests(unittest.TestCase):
             "MIT OR Apache-2.0",
             "Apache-2.0 WITH LLVM-exception",
             "(MIT OR Apache-2.0) AND Unicode-3.0",
-            sbom.PROPRIETARY,
+            sbom.ROOT_LICENSE,
             "GPL-2.0+",
         ):
             self.assertTrue(sbom.valid_spdx_expression(good), good)
@@ -465,7 +465,9 @@ class ProvenanceTests(unittest.TestCase):
         self.assertIsNone(attestation["signature_algorithm"])
         self.assertIsNone(attestation["transparency_log"])
         self.assertFalse(attestation["publication_authorized"])
-        self.assertIn("root_license_text_operator_approval", attestation["blockers"])
+        self.assertIn("final_argus_and_vulcan_dispositions", attestation["blockers"])
+        self.assertIn("second_host_attestation_operator_lane", attestation["blockers"])
+        self.assertNotIn("root_license_text_operator_approval", attestation["blockers"])
         self.assertEqual(
             self.document["statement_digest"], provenance.digest_of(self.statement)
         )

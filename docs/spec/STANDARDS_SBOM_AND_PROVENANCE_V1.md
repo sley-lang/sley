@@ -75,8 +75,9 @@ grammar.
   nothing is signed and no publication is authorized);
 - `components` is one entry per inventory package, ascending by purl, with
   `bom-ref` the purl, `type` `library`, `name`, `version`, `purl`,
-  `licenses` as a single `expression` (a `LicenseRef-Proprietary` expression
-  is emitted verbatim), `externalReferences` for the locked source, and a
+  `licenses` as a single `expression` (a declared expression is emitted
+  verbatim after the normalization below), `externalReferences` for the
+  locked source, and a
   `hashes` entry only when the lock records exactly one artifact digest;
 - a declared license expression is normalized before emission: Cargo
   documents `/` as an OR-equivalent dual-license separator, but `/` is not
@@ -121,9 +122,9 @@ grammar.
   `licenseConcluded` `NOASSERTION` (no legal opinion), `copyrightText`
   `NOASSERTION`, `checksums` under the section 2 single-digest rule, and an
   `externalRefs` PACKAGE-MANAGER purl entry;
-- `hasExtractedLicensingInfos` defines `LicenseRef-Proprietary` with extracted
-  text naming the pending operator decision, because it is not an SPDX
-  license identifier;
+- `hasExtractedLicensingInfos` defines `Apache-2.0` with extracted
+  text naming the operator-approved root license, because the declared
+  workspace expression is a standard SPDX license identifier;
 - `relationships` carries `DESCRIBES` from the document to the candidate root
   and one `DEPENDS_ON` per inventory relationship, ascending.
 
@@ -307,8 +308,9 @@ digest and fails with `PROVENANCE_SUBJECT_MISMATCH`.
 - No signature, key, keyless flow, transparency log, or attestation service.
 - No registry, network, or vulnerability lookup; no VEX document.
 - No legal opinion: `licenseConcluded` stays `NOASSERTION` and the
-  proprietary reference stays blocked until the operator approves the root
-  license text.
+  approved workspace license rides as a declared `Apache-2.0` expression
+  with the approved disposition, pending Argus and Vulcan disposition of
+  the result at the release candidate.
 - No completion of the S20-710 audit, no GA claim, no release decision, no
   publication; `release-check` and `v2` stay fail-closed.
 - No second-host provenance: the builder id names the primary host label, and

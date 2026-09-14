@@ -29,7 +29,6 @@ HEX_64 = re.compile(r"^[0-9a-f]{64}$")
 HEX_40 = re.compile(r"^[0-9a-f]{40}$")
 BLOCKERS = [
     "second_host_attestation_operator_lane",
-    "root_license_text_operator_approval",
     "standards_sbom_and_provenance_s20_710_full",
     "succession_thresholds_s20_640",
     "council_reviews",

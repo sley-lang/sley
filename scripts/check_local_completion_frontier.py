@@ -126,7 +126,7 @@ def main() -> int:
             "protocol_boundary_available": True,
             "merge_boundary_available": True,
             "real_benchmark_run_authorized": False,
-            "root_license_text_approved": False,
+            "root_license_text_approved": True,
             "release_artifact_available": False,
             "required_specialist_review": "PASS_S20_500_NABU_ARIADNE_VULCAN",
             "focused_semantic_security_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4",

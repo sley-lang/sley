@@ -47,10 +47,8 @@ REMAPS = (
     "--remap-path-prefix <home>=/home-remapped",
 )
 BLOCKERS = (
-    "root_license_text_operator_approval",
     "signing_key_and_transparency_log_unauthorized",
     "final_argus_and_vulcan_dispositions",
-    "release_candidate_history_reanchor",
     "second_host_attestation_operator_lane",
     "council_reviews",
 )

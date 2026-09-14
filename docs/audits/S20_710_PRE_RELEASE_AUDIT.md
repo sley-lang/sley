@@ -90,3 +90,43 @@ and are signed by nobody. They do not lift this audit's blocker: the machine
 summary keeps `standards_sbom` and `release_provenance` false until the
 operator approves the root license text and Argus and Vulcan disposition the
 result at the release candidate.
+
+## License decision executed (2026-09-14)
+
+The operator approved: Apache License, Version 2.0 (SPDX `Apache-2.0`),
+copyright notice `Copyright 2026 Greyforge Labs`. This section records the
+execution; the pre-decision record above is preserved unchanged.
+
+- `LICENSE` at the repository root is the official text fetched from
+  `https://www.apache.org/licenses/LICENSE-2.0.txt`, installed byte-identical
+  (11358 bytes, LF-only), sha256
+  `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`.
+- `NOTICE` at the repository root identifies Sley 2.0, carries the approved
+  ownership line exactly, points at `LICENSE`, and states that third-party
+  dependency licenses are declared in the inventory rather than relicensed;
+  sha256 `e7151ea0ee545a9edec91ecf963acefec4d6c2cfd92aa6080b1afe517d5a5dfa`.
+- All 18 Cargo workspace crates resolve `Apache-2.0` through workspace
+  inheritance (`cargo metadata --offline --no-deps`: 18 packages, one license
+  value); `oracle/scb1/pyproject.toml` declares `Apache-2.0`. Together the
+  19 first-party packages carry the approved declaration; registry
+  dependencies keep their own declared expressions and are not relicensed.
+- Mechanics, mapped to the five steps above: (1) `LICENSE` (+ `NOTICE`)
+  landed; (2) `scripts/generate_supply_chain_evidence.py` re-reads the root
+  files, the nineteen components carry `APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE`,
+  and `license_text_files` is `["LICENSE", "NOTICE"]`; (3) `make
+  evidence-refresh` regenerates both SBOM documents with the approved
+  dispositions and re-derives provenance, register, and dossier;
+  (4) `root_license_text_approved` is `true` in the machine summary's
+  `s20_710_pre_release_audit` section and in the `check_supply_chain_audit.py`
+  and `check_local_completion_frontier.py` expectations, pinned to the exact
+  digests above rather than an unconditional true; (5) `make quick` then
+  `make release-candidate-smoke` from a clean tree, so the artifact carries
+  the real license members and no pending-license staging.
+- The installed text is enforced, not just recorded: the T52 inventory
+  carries `root_license_sha256`/`notice_sha256`, the generator returns
+  workspace dispositions to `BLOCKED` on any digest mismatch, and the checker
+  pins the exact approved bytes.
+- Still required after this execution: Argus license-and-secret re-review on
+  the new anchor, SBOM/provenance approval, history re-anchor at the release
+  candidate, and disposition of every finding before S20-710 can pass. No
+  legal compatibility opinion is offered here.

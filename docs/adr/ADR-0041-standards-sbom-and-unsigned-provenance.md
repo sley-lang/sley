@@ -42,9 +42,9 @@ soon as a lane returns.
    `documentNamespace` is a `urn:sley2:spdx:` URN; the SPDX `created` field is
    the Unix epoch. No random or clock state enters an artifact of record.
 4. **No legal opinion.** `licenseConcluded` is `NOASSERTION` and
-   `LicenseRef-Proprietary` is an extracted licensing info naming the pending
-   operator decision, so the missing root license stays visible instead of
-   being papered over by a format conversion.
+   `Apache-2.0` is an extracted licensing info naming the operator-approved
+   root license (S20-710 license decision 2026-09-14), so the license state
+   stays visible instead of being papered over by a format conversion.
 5. **The statement is signable later.** The provenance file wraps a pure
    in-toto statement next to a local `attestation` block that records
    `signed: false` and the open blockers, so a future signing step consumes

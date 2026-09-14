@@ -16,6 +16,16 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 HISTORY_ANCHOR = "db1bc623d01e838d49c153feb0be05a7502b8794"
+# Operator-approved root license material (S20-710 license decision
+# 2026-09-14: Apache License, Version 2.0, Copyright 2026 Greyforge Labs).
+# The digests pin the exact installed bytes: any added, removed, or
+# modified root license file moves every workspace license disposition
+# back to BLOCKED instead of passing open.
+APPROVED_WORKSPACE_LICENSE = "Apache-2.0"
+APPROVED_ROOT_LICENSE_FILES = {
+    "LICENSE": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "NOTICE": "e7151ea0ee545a9edec91ecf963acefec4d6c2cfd92aa6080b1afe517d5a5dfa",
+}
 MAX_SCANNED_BLOB_BYTES = 64 * 1024 * 1024
 REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
 
@@ -111,18 +121,24 @@ def package_ref(ecosystem: str, name: str, version: str, *, workspace: bool = Fa
     return f"pkg:{ecosystem}/{name}@{version}{suffix}"
 
 
-def license_disposition(expression: str | None, *, workspace: bool) -> tuple[str, str | None]:
+def license_disposition(
+    expression: str | None, *, workspace: bool, root_ok: bool = False
+) -> tuple[str, str | None]:
     if workspace:
-        if expression != "LicenseRef-Proprietary":
+        if expression != APPROVED_WORKSPACE_LICENSE:
             return "BLOCKED_LICENSE_METADATA_MISMATCH", expression
-        return "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT", expression
+        if not root_ok:
+            return "BLOCKED_MISSING_APPROVED_ROOT_LICENSE_TEXT", expression
+        return "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE", expression
     if expression in PERMISSIVE_CARGO_LICENSES:
         normalized = "MIT OR Apache-2.0" if expression == "MIT/Apache-2.0" else expression
         return "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW", normalized
     return "BLOCKED_UNREVIEWED_LICENSE_EXPRESSION", expression
 
 
-def cargo_inventory() -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str]]:
+def cargo_inventory(
+    *, root_ok: bool
+) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str]]:
     metadata = json.loads(
         run(["cargo", "metadata", "--offline", "--locked", "--format-version", "1"])
     )
@@ -146,7 +162,9 @@ def cargo_inventory() -> tuple[list[dict[str, Any]], list[dict[str, str]], list[
                 blockers.append(f"cargo-source:{package['name']}@{package['version']}")
             if not isinstance(checksum, str) or re.fullmatch(r"[0-9a-f]{64}", checksum) is None:
                 blockers.append(f"cargo-checksum:{package['name']}@{package['version']}")
-        disposition, normalized = license_disposition(package.get("license"), workspace=workspace)
+        disposition, normalized = license_disposition(
+            package.get("license"), workspace=workspace, root_ok=root_ok
+        )
         if disposition.startswith("BLOCKED_") and not workspace:
             blockers.append(f"cargo-license:{package['name']}@{package['version']}:{disposition}")
         packages.append(
@@ -173,7 +191,9 @@ def cargo_inventory() -> tuple[list[dict[str, Any]], list[dict[str, str]], list[
     return packages, [{"from": source, "to": target} for source, target in relationships], blockers
 
 
-def python_inventory() -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str]]:
+def python_inventory(
+    *, root_ok: bool
+) -> tuple[list[dict[str, Any]], list[dict[str, str]], list[str]]:
     run(
         [
             "uv",
@@ -198,7 +218,7 @@ def python_inventory() -> tuple[list[dict[str, Any]], list[dict[str, str]], list
         name_to_ref[name] = reference
         if workspace:
             declared = project["project"].get("license")
-            disposition, normalized = license_disposition(declared, workspace=True)
+            disposition, normalized = license_disposition(declared, workspace=True, root_ok=root_ok)
             license_evidence = "pyproject-declared-expression"
             hashes: list[str] = []
             source = "workspace:oracle/scb1"
@@ -255,6 +275,13 @@ def license_text_files() -> list[str]:
         if path.is_file() and re.match(r"(?i)^(license|copying|notice)(\..*)?$", path.name):
             names.append(path.name)
     return sorted(names)
+
+
+def root_license_digests() -> dict[str, str]:
+    """sha256 of every recognized root license file: the checker pins the
+    exact approved bytes, so an edited LICENSE or NOTICE breaks both the
+    disposition and the deterministic-regeneration check."""
+    return {name: sha256((ROOT / name).read_bytes()) for name in license_text_files()}
 
 
 def candidate_files() -> list[Path]:
@@ -407,12 +434,16 @@ def history_scan() -> tuple[list[dict[str, str]], list[str], int, int]:
 
 
 def build_outputs() -> dict[Path, bytes]:
-    cargo_packages, cargo_relationships, cargo_blockers = cargo_inventory()
-    python_packages, python_relationships, python_blockers = python_inventory()
     licenses = license_text_files()
+    root_digests = root_license_digests()
+    root_ok = root_digests == APPROVED_ROOT_LICENSE_FILES
+    cargo_packages, cargo_relationships, cargo_blockers = cargo_inventory(root_ok=root_ok)
+    python_packages, python_relationships, python_blockers = python_inventory(root_ok=root_ok)
     blockers = sorted(set(cargo_blockers + python_blockers))
     if not licenses:
         blockers.append("workspace-license-text:missing-operator-approved-root-license")
+    elif not root_ok:
+        blockers.append("workspace-license-text:unapproved-root-license-text-present")
     ignore_lines = {
         line.strip()
         for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
@@ -436,6 +467,8 @@ def build_outputs() -> dict[Path, bytes]:
         "full_release_sbom": False,
         "history_anchor_commit": HISTORY_ANCHOR,
         "license_text_files": licenses,
+        "root_license_sha256": root_digests.get("LICENSE"),
+        "notice_sha256": root_digests.get("NOTICE"),
         "packages": cargo_packages + python_packages,
         "relationships": sorted(
             cargo_relationships + python_relationships,

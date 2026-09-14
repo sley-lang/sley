@@ -14,8 +14,14 @@ ROOT = Path(__file__).resolve().parents[1]
 INVENTORY_PATH = ROOT / "evidence/security/T52/pre-release-inventory.json"
 SECRET_SCAN_PATH = ROOT / "evidence/security/T54/secret-scan.json"
 SUMMARY_PATH = ROOT / "machineresearch/sley-2.0/machine-summary.json"
-EXPECTED_BLOCKERS = ["workspace-license-text:missing-operator-approved-root-license"]
+EXPECTED_BLOCKERS: list = []
 EXPECTED_ANCHOR = "db1bc623d01e838d49c153feb0be05a7502b8794"
+# The exact installed root license bytes (S20-710 license decision
+# 2026-09-14): the inventory records these digests and the checker pins
+# them, so a modified LICENSE or NOTICE fails instead of passing open.
+EXPECTED_ROOT_LICENSE_SHA256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+EXPECTED_NOTICE_SHA256 = "e7151ea0ee545a9edec91ecf963acefec4d6c2cfd92aa6080b1afe517d5a5dfa"
+EXPECTED_LICENSE_FILES = ["LICENSE", "NOTICE"]
 EXPECTED_COUNTS = {
     ("cargo", False): 30,
     ("cargo", True): 18,
@@ -79,16 +85,20 @@ def check_inventory(inventory: dict[str, Any]) -> None:
         fail("unexpected inventory contract")
     if inventory.get("history_anchor_commit") != EXPECTED_ANCHOR:
         fail("unexpected inventory history anchor")
-    if inventory.get("result") != "BLOCKED" or inventory.get("blockers") != EXPECTED_BLOCKERS:
-        fail("inventory must be blocked only on the operator-approved root license text")
+    if inventory.get("result") != "PASS" or inventory.get("blockers") != EXPECTED_BLOCKERS:
+        fail("inventory must pass with no blockers once the root license is approved and installed")
     if inventory.get("full_release_sbom") is not False:
         fail("pre-release inventory must not claim to be a full release SBOM")
-    if inventory.get("standards_sbom_deferred") is not True:
-        fail("standards SBOM must remain deferred while the root license is blocked")
+    if inventory.get("standards_sbom_deferred") is not False:
+        fail("standards SBOM must no longer be deferred once the root license is approved")
     if inventory.get("python_lock_freshness") != "uv lock --check --offline --no-python-downloads:PASS":
         fail("Python lock freshness assertion is missing")
-    if inventory.get("license_text_files") != []:
-        fail("an unreviewed root license file appeared; operator disposition is required")
+    if inventory.get("license_text_files") != EXPECTED_LICENSE_FILES:
+        fail("unexpected root license file set; operator disposition is required")
+    if inventory.get("root_license_sha256") != EXPECTED_ROOT_LICENSE_SHA256:
+        fail("installed LICENSE does not match the approved Apache-2.0 bytes")
+    if inventory.get("notice_sha256") != EXPECTED_NOTICE_SHA256:
+        fail("installed NOTICE does not match the approved notice bytes")
 
     packages = inventory.get("packages")
     if not isinstance(packages, list):
@@ -103,7 +113,7 @@ def check_inventory(inventory: dict[str, Any]) -> None:
     for package in packages:
         workspace = package["workspace"]
         if workspace:
-            if package.get("license_declared") != "LicenseRef-Proprietary":
+            if package.get("license_declared") != "Apache-2.0":
                 fail(f"workspace license metadata mismatch: {package['bom_ref']}")
             expected_evidence = (
                 "cargo-metadata-declared-expression"
@@ -112,7 +122,7 @@ def check_inventory(inventory: dict[str, Any]) -> None:
             )
             if package.get("license_evidence") != expected_evidence:
                 fail(f"workspace license evidence mismatch: {package['bom_ref']}")
-            if package.get("license_disposition") != "BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT":
+            if package.get("license_disposition") != "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE":
                 fail(f"workspace license disposition mismatch: {package['bom_ref']}")
             continue
         if package.get("license_disposition") != "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW":
@@ -187,7 +197,7 @@ def check_secret_scan(scan: dict[str, Any]) -> None:
 def check_machine_summary(summary: dict[str, Any]) -> None:
     profile = summary.get("s20_710_pre_release_audit", {})
     expected = {
-        "status": "DEFERRED_ROOT_LICENSE_AND_RELEASE_BOUNDARY",
+        "status": "DEFERRED_SBOM_PROVENANCE_APPROVAL_AND_RELEASE_BOUNDARY",
         "full_s20_710_complete": False,
         "contract": "docs/audits/S20_710_PRE_RELEASE_AUDIT.md",
         "inventory_contract": "s20-710-pre-release-inventory-v1",
@@ -208,7 +218,10 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "secret_findings": 0,
         "matched_secret_values_emitted": False,
         "candidate_scan_recomputed_by_generator": True,
-        "root_license_text_approved": False,
+        "root_license_text_approved": True,
+        "root_license_spdx": "Apache-2.0",
+        "root_license_sha256": EXPECTED_ROOT_LICENSE_SHA256,
+        "notice_sha256": EXPECTED_NOTICE_SHA256,
         "standards_sbom": False,
         "release_provenance": False,
         "release_candidate_history_reanchored": True,
@@ -262,7 +275,7 @@ def main() -> int:
             {
                 "release_sbom": False,
                 "result": "DEFERRED",
-                "root_license_text_approved": False,
+                "root_license_text_approved": True,
                 "machine_summary_registered": True,
                 "t52_local_lock_inventory": "PASS",
                 "t54_high_confidence_scan": "PASS",

@@ -37,7 +37,8 @@ def stage_tree(root: Path, *, secret: bool = False, path_leak: bool = False, rem
     (stage / "bin/sley").write_bytes(content)
     (stage / "demo").mkdir()
     (stage / "demo/run_demo.py").write_text("print('demo')\n", encoding="utf-8")
-    (stage / "LICENSE-PENDING.txt").write_text("pending\n", encoding="utf-8")
+    (stage / "LICENSE").write_text("license\n", encoding="utf-8")
+    (stage / "NOTICE").write_text("notice\n", encoding="utf-8")
     return stage
 
 
@@ -62,7 +63,8 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(names, sorted(names))
         self.assertTrue(all(info.mtime == 0 and info.uid == 0 and info.gid == 0 for info in infos.values()))
         self.assertEqual(infos[f"{packaging.ARTIFACT_STEM}/bin/sley"].mode, 0o755)
-        self.assertEqual(infos[f"{packaging.ARTIFACT_STEM}/LICENSE-PENDING.txt"].mode, 0o644)
+        self.assertEqual(infos[f"{packaging.ARTIFACT_STEM}/LICENSE"].mode, 0o644)
+        self.assertEqual(infos[f"{packaging.ARTIFACT_STEM}/NOTICE"].mode, 0o644)
         self.assertEqual(first[:2], b"\x1f\x8b")
         self.assertEqual(first[4:8], b"\x00\x00\x00\x00", "gzip mtime is zero")
 
@@ -77,8 +79,8 @@ class PackagingTests(unittest.TestCase):
             blockers=["root_license_text_operator_approval"],
         )
         self.assertEqual(manifest["contract"], packaging.MANIFEST_CONTRACT)
-        self.assertEqual(manifest["member_count"], 3)
-        self.assertEqual([entry["path"] for entry in manifest["files"]], ["LICENSE-PENDING.txt", "bin/sley", "demo/run_demo.py"])
+        self.assertEqual(manifest["member_count"], 4)
+        self.assertEqual([entry["path"] for entry in manifest["files"]], ["LICENSE", "NOTICE", "bin/sley", "demo/run_demo.py"])
         again = packaging.build_manifest(
             stage,
             commit="a" * 40,

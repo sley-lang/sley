@@ -54,6 +54,8 @@ ARTIFACT_INPUT_PATHS = (
     "Cargo.toml",
     "Cargo.lock",
     "rust-toolchain.toml",
+    "LICENSE",
+    "NOTICE",
     "bench/release/run_demo.py",
     "evidence/security/T52/pre-release-inventory.json",
     "scripts/build_release_candidate.py",
@@ -61,12 +63,11 @@ ARTIFACT_INPUT_PATHS = (
 )
 EXECUTABLE_MEMBERS = {"bin/sley", "demo/run_demo.py"}
 SECRET_PATTERNS = (b"-----BEGIN ", b"AKIA", b"ghp_", b"xoxb-", b"xoxp-", b"sk-ant-", b"sk-proj-")
-LICENSE_PENDING_TEXT = (
-    "Sley 2.0 release candidate: the root license text awaits explicit operator\n"
-    "approval (S20-710). Declared third-party licenses are listed in LICENSES.json\n"
-    "and the dependency inventory in SBOM.json. This artifact is a local candidate;\n"
-    "it is not released, published, or GA.\n"
-)
+# The operator-approved root license set (S20-710 license decision
+# 2026-09-14): the staged artifact ships the installed files, never a
+# pending-license placeholder. The inventory must approve exactly this set
+# or staging refuses (INTERNAL_INVARIANT) instead of minting stale text.
+APPROVED_LICENSE_FILES = ("LICENSE", "NOTICE")
 
 
 class PackageErrorCode(IntEnum):
@@ -394,9 +395,43 @@ def stage_artifact(
     shutil.copyfile(ROOT / "bench/release/run_demo.py", stage / "demo/run_demo.py")
     inventory = json.loads(INVENTORY.read_text(encoding="utf-8"))
     (stage / "SBOM.json").write_bytes(canonical(inventory) + b"\n")
+    license_files = inventory.get("license_text_files")
+    if list(license_files or []) != list(APPROVED_LICENSE_FILES):
+        raise PackageError(
+            PackageErrorCode.INTERNAL_INVARIANT,
+            f"unapproved root license file set: {license_files!r}",
+        )
+    workspace_dispositions = {
+        package.get("license_disposition")
+        for package in inventory.get("packages", [])
+        if package.get("workspace")
+    }
+    if workspace_dispositions != {"APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE"} or inventory.get("blockers") != []:
+        raise PackageError(
+            PackageErrorCode.INTERNAL_INVARIANT,
+            f"workspace license not approved: {sorted(workspace_dispositions)!r}",
+        )
+    staged_digests = {}
+    for name in APPROVED_LICENSE_FILES:
+        data = (ROOT / name).read_bytes()
+        digest = sha256_bytes(data)
+        if digest != inventory.get("root_license_sha256" if name == "LICENSE" else "notice_sha256"):
+            raise PackageError(
+                PackageErrorCode.INTERNAL_INVARIANT,
+                f"staged {name} differs from the inventoried license digest",
+            )
+        (stage / name).write_bytes(data)
+        staged_digests[name] = digest
     licenses = {
         "contract": "sley2.release-candidate-licenses.v1",
-        "root_license": {"status": "PENDING_OPERATOR_APPROVAL", "blocker": "workspace-license-text:missing-operator-approved-root-license"},
+        "root_license": {
+            "status": "APPROVED_OPERATOR_APACHE_2_0",
+            "spdx": "Apache-2.0",
+            "files": [
+                {"name": name, "sha256": staged_digests[name]}
+                for name in APPROVED_LICENSE_FILES
+            ],
+        },
         "packages": [
             {
                 "name": package["name"],
@@ -410,7 +445,6 @@ def stage_artifact(
         ],
     }
     (stage / "LICENSES.json").write_bytes(canonical(licenses) + b"\n")
-    (stage / "LICENSE-PENDING.txt").write_text(LICENSE_PENDING_TEXT, encoding="utf-8")
     manifest = build_manifest(
         stage,
         commit=commit,
@@ -508,7 +542,6 @@ def build_candidate(*, timeout: int, require_clean: bool, keep: bool) -> dict:
         "publication_authorized": False,
         "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
         "blockers": [
-            "root_license_text_operator_approval",
             "standards_sbom_and_provenance_s20_710_full",
             "succession_thresholds_s20_640",
             "council_reviews",

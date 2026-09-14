@@ -330,7 +330,12 @@ def build_entries(sources: dict) -> list[dict]:
                 "second_host": repro.get("second_host", {}).get("status"),
             },
             evidence=[REPRO],
-            note="single-host reproducibility; the second host is an operator-gated lane",
+            # Derived from the live report, never asserted: a fresh
+            # candidate is single-host until a second attestation earns
+            # MULTI_HOST_REPRODUCIBLE.
+            note="multi-host reproducibility across distinct attested hosts"
+            if repro.get("result") == "MULTI_HOST_REPRODUCIBLE"
+            else "single-host reproducibility; the second host is an operator-gated lane",
         ),
         entry(
             "SBOM and license inventory",
@@ -346,7 +351,10 @@ def build_entries(sources: dict) -> list[dict]:
                 "root_license_text_approved": audit.get("root_license_text_approved"),
             },
             evidence=[CYCLONEDX, SPDX, INVENTORY],
-            note="both standards documents exist as drafts; the root license text is unapproved, "
+            note="both standards documents exist as drafts; the root license text is "
+            "operator-approved, which the documents state in band"
+            if audit.get("root_license_text_approved") is True
+            else "both standards documents exist as drafts; the root license text is unapproved, "
             "which the documents state in band",
         ),
         entry(

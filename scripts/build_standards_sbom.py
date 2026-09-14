@@ -35,11 +35,13 @@ INVENTORY_CONTRACT = "s20-710-pre-release-inventory-v1"
 TOOL_NAME = "sley2-standards-sbom"
 TOOL_VERSION = "1"
 CANDIDATE_VERSION = "2.0.0-alpha.0"
-PROPRIETARY = "LicenseRef-Proprietary"
-PROPRIETARY_TEXT = (
-    "The Sley 2 workspace packages declare a proprietary license reference. The "
-    "exact root license text, copyright holder, term, and notice language await "
-    "an operator decision (S20-710), so no license text is asserted here."
+ROOT_LICENSE = "Apache-2.0"
+ROOT_LICENSE_TEXT = (
+    "The Sley 2 workspace packages declare Apache-2.0 under the operator-approved "
+    "root license (S20-710 license decision 2026-09-14). The full text is installed "
+    "as LICENSE at the repository root and shipped as the LICENSE artifact member; "
+    "no license text beyond that installed file is asserted here, and no legal "
+    "compatibility opinion is offered."
 )
 SPDX_ID = re.compile(r"[^A-Za-z0-9.\-]")
 LICENSE_TOKEN = re.compile(r"[A-Za-z0-9:._+\-]+")
@@ -125,7 +127,7 @@ def normalize_license(expression: str) -> str:
     expression syntax, so emitting it verbatim produces documents that fail
     strict validation. A `/`-joined declaration normalizes to an `OR`
     chain with that exact meaning; anything else passes through unchanged
-    for the grammar check below, including `LicenseRef-Proprietary`.
+    for the grammar check below, including `LicenseRef-` identifiers.
     """
     if "/" not in expression:
         return " ".join(expression.split())
@@ -307,7 +309,7 @@ def cyclonedx(facts: list[dict], edges: dict[str, list[str]], candidate: dict, i
                 "name": candidate["artifact_name"],
                 "version": CANDIDATE_VERSION,
                 "hashes": [{"alg": "SHA-256", "content": candidate["artifact_sha256"]}],
-                "licenses": [{"expression": PROPRIETARY}],
+                "licenses": [{"expression": ROOT_LICENSE}],
             },
             "properties": sorted(
                 [
@@ -357,7 +359,7 @@ def spdx(facts: list[dict], relationships: list, candidate: dict, inventory_dige
             "downloadLocation": "NOASSERTION",
             "filesAnalyzed": False,
             "licenseConcluded": "NOASSERTION",
-            "licenseDeclared": PROPRIETARY,
+            "licenseDeclared": ROOT_LICENSE,
             "copyrightText": "NOASSERTION",
             "checksums": [{"algorithm": "SHA256", "checksumValue": candidate["artifact_sha256"]}],
             "comment": (
@@ -414,9 +416,9 @@ def spdx(facts: list[dict], relationships: list, candidate: dict, inventory_dige
         },
         "hasExtractedLicensingInfos": [
             {
-                "licenseId": PROPRIETARY,
-                "name": "Sley 2 proprietary license reference",
-                "extractedText": PROPRIETARY_TEXT,
+                "licenseId": ROOT_LICENSE,
+                "name": "Apache License 2.0",
+                "extractedText": ROOT_LICENSE_TEXT,
             }
         ],
         "packages": packages,

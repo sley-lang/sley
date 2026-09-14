@@ -1,13 +1,14 @@
 # Release Candidate Packaging v1
 
-Status: S20-720 contract draft, revision 3 (2026-09-05), with round-7
+Status: S20-720 contract draft, revision 4 (2026-09-14), with round-7
 clarifications (2026-09-11, section 13); Council review pending (Ariadne
 contract review, Nabu architecture review, Vulcan surface review). Revision
 2 records the clarifications found while implementing
 revision 1 (section 11). Revision 3 orders the remaps most-general-first,
 describes the manifest's non-release status, requires a clean tree for
 tracked evidence, and enumerates the demo's 20.12 verbs honestly
-(section 12). The mechanics are `scripts/build_release_candidate.py`
+(section 12). Revision 4 ships the operator-approved root license
+(section 14). The mechanics are `scripts/build_release_candidate.py`
 and `bench/release/run_demo.py`; implementation state is tracked in the
 machine summary.
 
@@ -59,8 +60,9 @@ sley-2.0.0-linux-x86_64/
   bin/sley                          the S20-430 endpoint binary
   MANIFEST.json                     contract, commit, toolchain, files with sha256 and size
   SBOM.json                         the S20-710 pre-release inventory, verbatim
-  LICENSES.json                     declared licenses per package and the root-license blocker
-  LICENSE-PENDING.txt               the operator-approval blocker statement
+  LICENSES.json                     declared licenses per package and the approved root license
+  LICENSE                         the operator-approved root license text, installed verbatim
+  NOTICE                            the approved ownership and license notice
   conformance/smp1/v1/              the S20-410 fixture
   conformance/smp1-json-bridge/v1/  the S20-420 fixture and method table
   conformance/release-demo/v1/      the demo fixture (section 4)
@@ -267,3 +269,19 @@ provenance, and root license (S20-710 full); independent conformance
   attached, the invocation is recorded on every path with accepted flags
   only, both builds' toolchains are recorded, and the version check names
   the CLI and protocol versions.
+
+## 14. Licensed-candidate revision (2026-09-14; gate semantics unchanged)
+
+- Under the S20-710 license decision (Apache License, Version 2.0), the
+  staged artifact ships the installed `LICENSE` and `NOTICE` as members
+  (section 2) and no `LICENSE-PENDING.txt` placeholder is staged; the
+  revision 3 sentence naming the placeholder as the human-readable
+  statement is superseded for candidates minted after the decision.
+- Staging derives the member set from the T52 inventory and refuses
+  (`PACKAGE_INTERNAL_INVARIANT`) unless the inventory names exactly
+  `LICENSE` and `NOTICE`, every workspace package carries the approved
+  disposition, and the staged bytes match the inventoried digests.
+- `LICENSES.json` records the approved root-license status with the
+  SPDX identifier and member digests instead of the pending blocker.
+- The mint blockers drop `root_license_text_operator_approval`; the
+  remaining blockers still ride inside the manifest digest.
