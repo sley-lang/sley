@@ -259,3 +259,33 @@ A new mint is required only if: license bytes, packaged inputs, builder code, or
 ## 8. Closing statements
 
 Licensing remains implemented (Apache-2.0, digests §1). The existing candidate remains bound to its existing multi-host evidence (`74bb0ba` → `705a311d…`, primary + secondary). Full S20-710 acceptance and release readiness remain blocked (§3 clauses C–G, §5 packages). Nothing pushed, no tags, no mint, `ga_claimed=false`.
+
+## 9. P-C wave record (2026-09-14, operator-authorized harness finals)
+
+Repair commits (local, unpushed): 1edb5e7 (§2.3 rev-4), 9806747 (§2.7 rev-5),
+b9d70e8 (§2.14 rev-4), 4bbfa50 (smalls), 7718391 (§2.6 rev-9), fc98a89
+(§2.12 rev-3), 209c661 (§2.2 rev-3), c6afddc (§2.11 proofs), 23bd4cf
+(§§2.5/2.8 rev-3), 3001447 (§2.4 rev-6), d384f0f + 9efe984 (finals fallout).
+Council lane down throughout; finals are harness finals in recorded lane
+roles, transcripts under evidence/review/verdicts/<section>/
+(<lane>-final-review-d384f0f.md, 44 files), summary `<lane>_final_review`
+fields set to PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4.
+
+Register rebuilt: 335 obligations; 43 of 44 P-C rows HISTORICAL. Remain open:
+s20_700_remaining_surface_audit vulcan_review (unmarked FAIL, unfoldable by
+register mechanics — needs a real council-lane Vulcan re-review); 6
+current_delta_review PENDING (json_bridge rev-9 + required_contract_index
+rev-3 new-delta reviews, forward-looking, not P-C FAILs);
+root_backed_query_profile contract_text_review P1 (wording packet, held
+boundary); threat_coverage independent_security_review REVISE (P2/P3,
+independent review held).
+
+Validation: make quick 73 PASS / 1 FAIL — the sole FAIL is the S20-730
+staleness tripwire (12 surface files moved past attested baf9a4d), working
+as designed. No re-mint, no host repro, no push, no tags. Conformance
+report regenerated (complete). Dossier rebuilt BLOCKED (24/10) with gates
+key. VM/merge/semantic-delta/snapshot smokes re-run PASS at 209c661.
+
+HEAD awaits re-qualification: the next qualification wave re-mints and
+re-attests over the P-C tree. This document remains records-only; rows
+stay canonically PENDING where the register says so.

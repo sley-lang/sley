@@ -23,7 +23,7 @@ EXPECTED_CASES = [
     "root-sets",
     "collateral",
 ]
-EXPECTED_REJECTIONS = ["version", "flip-trailer", "contract-tag", "trailing-byte", "added-shape"]
+EXPECTED_REJECTIONS = ["version", "flip-trailer", "contract-tag", "trailing-byte", "added-shape", "off-table-field", "bad-flags", "equal-roots-nonempty", "overlapping-sets"]
 
 
 def main() -> int:

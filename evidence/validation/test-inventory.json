@@ -134,7 +134,7 @@
     },
     {
       "family": "semantic-comparison",
-      "rejections": 8,
+      "rejections": 9,
       "vectors": 9,
       "version": "v1"
     },
@@ -175,10 +175,10 @@
       "version": "v1"
     }
   ],
-  "conformance_rejections": 275,
+  "conformance_rejections": 276,
   "conformance_vectors": 477,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "e9342fe7ae18994f04bc700bc0faf0d008ec7b936160a7907df2911c84413040",
+  "inventory_digest": "f79a92b9605793ff5c644a08a653ffba1a763a0fe15b62178d4e8d0b19a9ee48",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",

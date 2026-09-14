@@ -4075,7 +4075,7 @@
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
     "obligations": 335,
-    "open_reviews": 9,
+    "open_reviews": 12,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4125,8 +4125,8 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
+      "12 review obligations are open",
       "18 GA acceptance criteria are not evidenced",
-      "9 review obligations are open",
       "no succession trial has been executed",
       "the release-check and v2 product gates are fail-closed"
     ],

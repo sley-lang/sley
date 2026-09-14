@@ -2,13 +2,13 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
+    "12 review obligations are open",
     "18 GA acceptance criteria are not evidenced",
-    "46 review obligations are open",
     "no succession trial has been executed",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "0681755d66ecd53b3f35c28bcb55a18949aec232b9724f7aa35b87494461422f",
+  "dossier_digest": "ba54c595d226673f61ed32004bce09f9ae8d87b7578c1c19d909d1027cdd0537",
   "entries": [
     {
       "evidence": [
@@ -134,7 +134,7 @@
       "note": "the property-test count is a counted zero: the inventory scanned the workspace and crate manifests, the lockfile, and every Rust and Python test source and found no proptest, quickcheck, or hypothesis harness. The unit-test, fuzz-target, and vector counts are adjacent corpus facts, not property tests. The inventory describes the corpus and runs nothing, so a passing run is separate evidence",
       "state": "EVIDENCED",
       "value": {
-        "conformance_rejections": 275,
+        "conformance_rejections": 276,
         "conformance_vectors": 477,
         "persistent_fuzz_targets": 21,
         "property_test_detail": {
@@ -337,21 +337,21 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 291,
-        "open_reviews": 46,
+        "obligations": 335,
+        "open_reviews": 12,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
-          "P0": 54,
-          "P1": 97,
-          "P2": 108,
-          "P3": 125,
+          "P0": 98,
+          "P1": 141,
+          "P2": 152,
+          "P3": 169,
           "P4": 20
         },
         "states": {
-          "HISTORICAL_ROUND": 53,
+          "HISTORICAL_ROUND": 96,
           "OTHER": 3,
-          "PASS": 189,
-          "PENDING": 46
+          "PASS": 224,
+          "PENDING": 12
         }
       }
     },
@@ -451,7 +451,7 @@
       }
     }
   ],
-  "entries_digest": "602a8037bec6c29099f8c930d0188bccae8b02f52beef6232e965da04be58f8a",
+  "entries_digest": "77ed1cef04ec5934312cf0dd5e61216ef532d3e286081a3defd6e7a192158f08",
   "evidenced": 24,
   "gated": 10,
   "gates": {

@@ -104,9 +104,9 @@ rule — remain open and are tracked in the finding register.
 
 - **Closed with code.** The closed section-2 field grammar is enforced by
   the decoder (`valid_field_grammar`: per-kind rows, TypeDef-2/Function-2
-  flag bits, presence bit) with oracle parity and three new rejection
-  mutations (off-table field, bad flags, equal-roots-nonempty; matrix now
-  8); equal roots admit only the empty delta; field and root-set
+  flag bits, presence bit) with oracle parity and four new rejection
+  mutations (off-table field, bad flags, equal-roots-nonempty,
+  overlapping-sets; matrix now 9, emitted by the corpus emitter); equal roots admit only the empty delta; field and root-set
   added/removed pairs must be disjoint; the public encoder honors the
   per-section counts; two dead markers removed; the fuzz target asserts
   the decoder/comparer code partition instead of the closed-enum
