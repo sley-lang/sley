@@ -19,13 +19,13 @@
     },
     {
       "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "artifact_sha256": "705a311df924ccf84c051216dbc8e432f78cec727f6952f4d69e3786b6b77512",
+      "artifact_sha256": "fba7b81fd3eb44fcfaa2b10df3ab4420eade71cd117350d8c8c745078e469613",
       "artifact_size_bytes": 2187943,
-      "commit": "74bb0ba43203790399d05ff2fe167d6e46a9c6f1",
+      "commit": "baf9a4d3dff71cc1a0fb9d9c8f64b427a6ccee3f",
       "contract": "sley2.reproducibility-attestation.v1",
       "differing_members": [],
       "host_label": "secondary",
-      "manifest_digest": "e3943eed26edd51429179438d40bb24321d1205f7a65495fde06572a8acf3fc7",
+      "manifest_digest": "428474380074fb16de3876f7f75676ebe19a7a0b2d8c90a2e222830034f789b4",
       "member_count": 15,
       "reproducibility": "REPRODUCIBLE",
       "toolchain": {
@@ -36,22 +36,16 @@
     }
   ],
   "blockers": [
-    "second_host_attestation_operator_lane",
     "standards_sbom_and_provenance_s20_710_full",
     "succession_thresholds_s20_640",
     "council_reviews"
   ],
   "commits": {
-    "74bb0ba43203790399d05ff2fe167d6e46a9c6f1": {
-      "artifact_sha256": "705a311df924ccf84c051216dbc8e432f78cec727f6952f4d69e3786b6b77512",
-      "hosts": [
-        "secondary"
-      ]
-    },
     "baf9a4d3dff71cc1a0fb9d9c8f64b427a6ccee3f": {
       "artifact_sha256": "fba7b81fd3eb44fcfaa2b10df3ab4420eade71cd117350d8c8c745078e469613",
       "hosts": [
-        "primary"
+        "primary",
+        "secondary"
       ]
     }
   },
@@ -59,12 +53,12 @@
   "distinct_hosts": 2,
   "ga_claimed": false,
   "publication_authorized": false,
-  "report_digest": "63d7a2279d064b715c3d441ae70eff6cfc98d9a5275b8737f32f0f1306223b31",
+  "report_digest": "bec9249f32ecc4fdb928fdf975e589d32e66c55978cd79d6b1a15a1792f3db5a",
   "required_hosts": 2,
-  "result": "SINGLE_HOST_REPRODUCIBLE",
+  "result": "MULTI_HOST_REPRODUCIBLE",
   "second_host": {
-    "note": "the second host build is an operator-gated lane; only the primary host attested",
-    "status": "GATED_OPERATOR_LANE"
+    "note": "at least two hosts attested the same commit and artifact digest",
+    "status": "ATTESTED"
   },
   "work_package": "S20-730"
 }
