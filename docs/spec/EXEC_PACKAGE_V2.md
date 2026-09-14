@@ -110,6 +110,31 @@ assignment, and RW-075/RW-080 semantics are unchanged by this table.
   `PACKAGE_BINDING_MISMATCH`. Reserved for a header-bound section
   comparison, mirroring the decoder-reserved framing codes above.
 
+## Authority failure vocabulary (owner adoption)
+
+The `AuthorityError` symbols below are assigned by this contract (owner
+adoption, governance wave). Each names a refusal the staged authority
+(`sley_vm::admission_authority::admit_v2_package`) produces today; code
+spelling, precedence, numeric assignment (none: the authority carries no
+numerics at this revision), and RW-075/RW-080 semantics are unchanged by
+this table. No receipt is minted on any of these paths.
+
+- `AUTHORITY_UNKNOWN_ENTRY` — LIVE. The entry id matches no function in
+  the closure bundle.
+- `AUTHORITY_GATE_REFUSED` — LIVE. The successor-profile gate judgment
+  refused the closure; no report exists.
+- `AUTHORITY_REFERENCE_MISMATCH` — LIVE. Native reference re-lowering
+  failed, or its bytes differ from the candidate image.
+- `AUTHORITY_CLAIMS_MISMATCH` — LIVE. Package bytes, tables, or bindings
+  diverge from the judged closure (gate counts/fingerprints, entry/epoch/
+  root binding, carried tables, admitted image digest).
+- `AUTHORITY_DIGESTS` — LIVE. `package_digests_v2` failed (bounds or
+  encoding); wraps the underlying `PackageError`.
+- `AUTHORITY_APPROVAL_MISMATCH` — LIVE. The minted receipt failed the
+  approval cross-check; no receipt is released.
+- `AUTHORITY_SLEY_EVIDENCE_UNAVAILABLE` — LIVE. The reserved Sley-produced
+  admission ingress was called before C1 exists; it always refuses.
+
 ## Package observation preimage (`SLEYPOBS1`)
 
 The package-bound observation identity is

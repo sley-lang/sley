@@ -163,6 +163,16 @@ After that common admission, the owner performs the following ordered steps:
 7. Encode the complete response and existing bounded frame. Emit nothing
    until all body and frame limits pass.
 
+Owner Display aliases (owner adoption, governance wave): the owner names
+its refusals with the symbols below; the wire keeps the owning
+`PROTOCOL_*`/`QUERY_*` code shown, so no new error numbers are allocated:
+
+| Owner symbol | Wire code |
+|---|---|
+| `ENTITY_READ_NOT_CANONICAL` | `PROTOCOL_PAYLOAD_INVALID` (40008): malformed request/response record |
+| `ENTITY_READ_BUDGET_EXCEEDED` | `PROTOCOL_LIMIT_EXCEEDED` (40009): ceiling, work, or checked-arithmetic refusal |
+| `ENTITY_READ_UNKNOWN` | symbol-only (`0`): unreachable Display fallback, never emitted on the wire (falls back to `QUERY_INTERNAL_INVARIANT`, 31007) |
+
 Errors from the query owner keep their stable owner numeric codes in the
 existing failure envelope. All new-method budget exhaustion and checked
 arithmetic overflow return `PROTOCOL_LIMIT_EXCEEDED`. No new error numbers

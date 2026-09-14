@@ -98,6 +98,20 @@ identity is
 - Decode followed by encode must reproduce identical bytes; construction may
   canonicalize unordered host input only before the candidate exists.
 
+## Failure symbols (owner adoption, governance wave)
+
+Value admission refuses closed with the symbols below. They are
+symbol-only at this revision (numeric `0`, per the SMP1 section 8
+symbol-only convention for S20-350 candidate failures); code spelling,
+precedence, and S20-340/S20-350 semantics are unchanged by this table.
+The owner freezes numerics by amendment.
+
+| Numeric | Symbolic | Meaning |
+|---:|---|---|
+| 0 | `MUTATION_VALUE_DESCRIPTOR_UNKNOWN` | no immutable S20-340 descriptor has the supplied exact key |
+| 0 | `MUTATION_VALUE_KIND_MISMATCH` | proposal value has a different closed body or field kind than the descriptor binding |
+| 0 | `MUTATION_VALUE_SET_DUPLICATE` | `EntityIdSet` input contained one identity more than once |
+
 ## Completeness gate
 
 Generation emits a manifest-derived inventory proving 18 entity bodies, 75

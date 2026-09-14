@@ -40,6 +40,22 @@ Exactly algorithm variant 1 admits. Unknown variants refuse with
 `UnknownVariant` without hashing (default deny; no fallback, no
 negotiation). Adding an algorithm needs a new owner amendment plus review.
 
+## Failure codes
+
+The `RawHashError` symbols below are assigned by this contract (owner
+adoption, governance wave). Code spelling, precedence, and RW-075/RW-080
+semantics are unchanged by this table. Numeric codes are unassigned at
+this revision; the owner freezes them by amendment.
+
+| Numeric | Symbolic |
+|---|---|
+| unassigned | `RAW_HASH_RESOURCE_LIMIT` |
+| unassigned | `RAW_HASH_UNKNOWN_VARIANT` |
+
+`RAW_HASH_RESOURCE_LIMIT` refuses a preimage longer than 1,048,576 bytes
+without hashing. `RAW_HASH_UNKNOWN_VARIANT` refuses an algorithm tag other
+than 1 without hashing (default deny).
+
 ## What this is not
 
 Not `fingerprint(program)`, `object_id(program)`,

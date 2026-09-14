@@ -442,6 +442,37 @@ is `INTERNAL_ERROR`.
 | `VM_LOWER_CACHE_KEY_UNSUPPORTED` | 26005 | `INTERNAL_ERROR` |
 | `VM_LOWER_RESOURCE_LIMIT` | 26006 | `RESOURCE_LIMIT` |
 
+### 8.3 Forwarded apply-failure source symbols at phase 5
+
+Phase 5 forwards the pure S20-360 candidate-application refusals
+(`crates/sley-mutate/src/apply.rs`, whose module header declares S20-360)
+as `INVALID_GRAPH` diagnostics with `source_numeric None` and `Permanent`
+retryability (`candidate_apply_failure` in
+`crates/sley-policy/src/candidate_validation.rs`); the validator never
+renames them. The set is closed — it is exactly the `CandidateApplyError`
+enumeration minus the two variants with dedicated mappings
+(`Candidate`/`Object` wrappers, which keep their owning codes, and
+`ExactPreimageMismatch`, which section 8.1 tables at phase 3). No new
+error numbers are allocated: these symbols ride the phase-5
+`INVALID_GRAPH` decision.
+
+| Phase | Decision | Source symbol | Meaning |
+|---:|---|---|---|
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_SNAPSHOT_DUPLICATE_ENTITY` | base inventory contains the same logical identity twice |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_SNAPSHOT_EPOCH_MISMATCH` | candidate or base object belongs to a different schema epoch |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_SNAPSHOT_DUPLICATE_ENTRY_POINT` | base root list contains a duplicate identity |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_SNAPSHOT_ENTRY_POINT_UNBOUND` | root list names an identity with no live base binding |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_IDENTITY_ALREADY_LIVE` | creation identity already live in the exact base snapshot |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_TARGET_MISSING` | operation requires a live proposed entity that is absent |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_TARGET_ALREADY_EXISTS` | create binds an identity already present in proposed state (defense-only) |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_TARGET_KIND_MISMATCH` | declared kind differs from the live proposed entity body |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_FIELD_MISMATCH` | field payload does not match the live body field (defense-only) |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_ORDERED_INDEX_INVALID` | ordered-list index outside the deterministic boundary |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_ORDERED_EXPECTED_CHILD_MISMATCH` | ordered remove/move found a different child at the bound index |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_ENTRY_POINT_ALREADY_PRESENT` | add-entry-point targets an identity already in the root list |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_ENTRY_POINT_MISSING` | remove-entry-point targets an identity absent from the root list |
+| 5 | `INVALID_GRAPH` | `CANDIDATE_APPLY_ENTRY_POINT_STILL_BOUND` | delete-entity targets an identity still in the root entry-point list |
+
 ## 9. Acceptance and explicit gaps
 
 Acceptance requires exact result round trips and fixed vectors; all sixteen

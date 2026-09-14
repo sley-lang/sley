@@ -34,9 +34,17 @@ and ambiguity are failures, never success.
 - `SSMC_*`: semantic-entity structure, closed tags, signatures, and limits.
 - `GRAPH_*`, `TYPE_*`, `CFG_*`, `EFFECT_*`, `CONTRACT_*`: kernel judgment.
 - `STALE_*`, `TXN_*`, `REF_*`, `RECOVERY_*`: transaction and durability.
+- `BRANCH_*`: native branch and named-ref metadata (owning contract
+  `NATIVE_REFS_BRANCHES_V1.md`, S20-500; codes 50011 through 50017).
 - `POLICY_*`, `CAP_*`, `ADAPTER_*`: authority boundary.
+- `AUTHORITY_*`: staged admission-authority refusals (owning contract
+  `EXEC_PACKAGE_V2.md` authority vocabulary; numeric codes unassigned at
+  this revision).
 - `QUERY_*`: typed request identity, snapshot binding, bounded traversal, and
   required-fact completeness.
+- `ENTITY_READ_*`: entity-read owner Display aliases; the wire keeps the
+  owning `PROTOCOL_*`/`QUERY_*` code (owning contract
+  `ENTITY_READ_PROFILE_V2.md` section 4; no new error numbers allocated).
 - `SESSION_*`, `PROTOCOL_*`: bounded interface and negotiation.
 - `FINGERPRINT_*`, `VALUE_HASH_*`, `IMPACT_*`: semantic projection and
   derived relationships.
@@ -44,11 +52,23 @@ and ambiguity are failures, never success.
   bounded candidate inspection.
 - `RESTRICTED_CAPSULE_*`: derived complete-query evidence projection and
   resource/invariant checks.
+- `CONTEXT_CAPSULE_*`: master context-capsule construction (owning contract
+  `CONTEXT_CAPSULE_PROFILE_V1.md`, S20-320 full; codes 32008 through 32011).
 - `VM_LOWER_*`: validated deterministic derived-bytecode lowering.
 - `TEST_PLAN_*`: canonical test-entity validation and provisional selection.
 - `VM_*`, `TEST_*`: execution, cancellation, determinism, and oracle.
+- `IMAGE_*`: derived executable-image structural refusals (owning contract
+  `HOST_ABI_V1.md`, RW-070; numberless typed vocabulary at this revision,
+  numbers to be frozen or explicitly disclaimed by the owner).
+- `RAW_HASH_*`: raw-hash primitive refusals (owning contract `RAW_HASH_V1.md`;
+  numeric codes unassigned at this revision).
 - `PACK_*`, `GC_*`, `MERGE_*`: repository operations.
+- `EXCHANGE_*`: repository exchange and pack-clone import (owning contract
+  `REPOSITORY_EXCHANGE_V1.md`, S20-540; codes 54000 through 54021).
 - `MUTATION_CANDIDATE_*`: proposal-record structure and descriptor binding.
+- `MUTATION_VALUE_*`: descriptor-selected value admission refusals,
+  symbol-only (owning contract `MUTATION_VALUE_CODEC_V1.md`; numeric `0`
+  per the SMP1 section 8 symbol-only convention).
 - `CANDIDATE_BASE_*`, `CANDIDATE_GRAPH_*`, `CANDIDATE_TEST_*`:
   S20-360 validator-originated phase and context diagnostics (phase-3
   base/binding comparison, phase-12 graph/test resource accounting).
@@ -59,6 +79,30 @@ and ambiguity are failures, never success.
   emission site and needs that family's owner concurrence, or the
   validator mints its own namespaced symbol.
 - `CANDIDATE_VALIDATION_*`: S20-360 terminal judgment and result integrity.
+- `CANDIDATE_RESULT_*`: candidate result-integrity shape (owning contract
+  `CANDIDATE_RESULT_V1.md`, S20-360; codes 36100 through 36107).
+- `CANDIDATE_CONTEXT_*`: S20-360 phase-2 bound-context diagnostics (owning
+  contract `CANDIDATE_RESULT_V1.md` section 8.1).
+- `CANDIDATE_APPLY_*`: S20-360 phase-3 exact-preimage and phase-5 forwarded
+  apply diagnostics (owning contract `CANDIDATE_RESULT_V1.md` sections 8.1
+  and 8.3; the emitting module declares S20-360 and no S20-350 document
+  names these symbols, so the assignment lives with the validator;
+  `MUTATION_CANDIDATE_*` stays the S20-350 proposal-construction family).
+- `CANDIDATE_EXPIRY_*`: S20-360 phase-3 candidate-expiry diagnostics (owning
+  contract `CANDIDATE_RESULT_V1.md` section 8.1).
+- `CANDIDATE_IDENTITY_*`: S20-360 phase-4 identity-collision diagnostics
+  (owning contract `CANDIDATE_RESULT_V1.md` section 8.1).
+- `CANDIDATE_DEPENDENCY_*`: S20-360 phase-5 dependency-root diagnostics
+  (owning contract `CANDIDATE_RESULT_V1.md` section 8.1).
+- `CANDIDATE_OPERATION_ANALYSIS_*`: S20-360 phase-12 operation-analysis
+  diagnostics (owning contract `CANDIDATE_RESULT_V1.md` section 8.1).
+- `CANDIDATE_SELECTED_TEST_*`: S20-360 phase-12 selected-test diagnostics
+  (owning contract `CANDIDATE_RESULT_V1.md` section 8.1).
+- `CANDIDATE_ROOT_REBUILD_*`: S20-360 phase-13 root-rebuild diagnostics
+  (owning contract `CANDIDATE_RESULT_V1.md` section 8.1).
+- `CANDIDATE_WORKSPACE_*`, `CANDIDATE_SCHEMA_EPOCH_*`,
+  `CANDIDATE_POLICY_ROOT_*`: S20-360 phase-3 stale-base binding diagnostics
+  (owning contract `CANDIDATE_RESULT_V1.md` section 8.1).
 
 S20-170 freezes these repository-pack codes:
 
