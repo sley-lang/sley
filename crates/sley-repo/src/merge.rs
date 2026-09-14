@@ -855,13 +855,19 @@ pub fn judge_merge(
         let in_b = view_b.entities.get(id).copied();
         let ours_object = a.objects.get(id).map(|object| object.object_id());
         let theirs_object = b.objects.get(id).map(|object| object.object_id());
-        let kind = base
-            .kinds
-            .get(id)
-            .or_else(|| a.kinds.get(id))
-            .or_else(|| b.kinds.get(id))
-            .copied()
-            .unwrap_or(0);
+        let kind = base.kinds.get(id).copied().unwrap_or_else(|| {
+            // No base kind (both sides added): the canonical tiebreak over
+            // the present side kinds, so the entry is byte-identical under
+            // an ours/theirs swap (S20-520 revision 5). The lesser tag names
+            // neither side; it is the deterministic representative.
+            a.kinds
+                .get(id)
+                .copied()
+                .into_iter()
+                .chain(b.kinds.get(id).copied())
+                .min()
+                .unwrap_or(0)
+        });
         let conflict = |reason: ConflictReason, field: u32| ConflictEntry {
             entity_id: *id,
             reason,
@@ -2565,6 +2571,43 @@ pub(crate) mod tests {
             ),
             vec![(30, ConflictReason::AddAdd, 0)]
         );
+
+        // Kind-divergent AddAdd: both add id 31, ours as a constant (kind
+        // 9), theirs as a namespace (kind 3). The entry kind is the
+        // canonical tiebreak (the lesser tag), so the conflict set is
+        // identical under an ours/theirs swap (S20-520 revision 5).
+        let mut divergent_ours = with(&base, 4, namespace(None, &[6, 16, 18, 19, 31]));
+        divergent_ours.push((31, constant(true)));
+        let mut divergent_theirs = with(&base, 4, namespace(None, &[6, 16, 18, 19, 31]));
+        divergent_theirs.push((31, namespace(Some(4), &[])));
+        fn add_add_shape(outcome: &MergeOutcome) -> (ConflictReason, u32) {
+            match outcome {
+                MergeOutcome::Conflict(conflict) => {
+                    assert_eq!(conflict.conflict.conflicts.len(), 1);
+                    let entry = &conflict.conflict.conflicts[0];
+                    assert_eq!(entry.entity_id, id(31));
+                    (entry.reason, entry.kind)
+                }
+                MergeOutcome::Merged(_) => panic!("expected an AddAdd conflict"),
+            }
+        }
+        let forward_outcome = judge_merge(
+            &o,
+            &synthetic(51, &divergent_ours, &[]),
+            &synthetic(52, &divergent_theirs, &[]),
+        )
+        .unwrap();
+        let forward = add_add_shape(&forward_outcome);
+        assert_eq!(forward, (ConflictReason::AddAdd, 3));
+        let backward = add_add_shape(
+            &judge_merge(
+                &o,
+                &synthetic(51, &divergent_theirs, &[]),
+                &synthetic(52, &divergent_ours, &[]),
+            )
+            .unwrap(),
+        );
+        assert_eq!(backward, forward);
 
         // DeleteEdit: ours deletes the policy binding, theirs edits it.
         let ours = with(&without(&base, 16), 4, namespace(None, &[6, 18, 19]));

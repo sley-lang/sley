@@ -1,11 +1,13 @@
 # Merge v1
 
-Status: S20-520 contract draft, revision 4 (2026-09-05); implementation
+Status: S20-520 contract draft, revision 5 (2026-09-14); implementation
 revised against the three Council reviews (Ariadne contract review, Nabu
 architecture review, Vulcan surface review, all 2026-09-04, all FAIL with
 seven P0s between them). Every P0 and every P1 is closed below; the P2/P3
-notes are closed or explicitly bounded. State is tracked in the machine
-summary and `docs/audits/S20_520_MERGE_CLOSEOUT.md`.
+notes are closed or explicitly bounded. Revision 5 adds the canonical kind
+tiebreak for kind-divergent `AddAdd` entries and names the conflict-decoder
+allocation row in the resource table; no rule changes. State is tracked in
+the machine summary and `docs/audits/S20_520_MERGE_CLOSEOUT.md`.
 
 ## Notation
 
@@ -312,7 +314,13 @@ reasons `Closure`, `RootAnchor`, and `PolicyRoot`, whose entity field is
 `zero32`), the field tag for `FieldEdit` (`0` otherwise), `A`'s and `B`'s
 objects (`zero32` when absent), and `detail`: the nonzero `IMPACT_*`
 numeric code for `Closure`, the moved anchor class for `RootAnchor`
-(`1` contract root, `2` test root, `3` both), and `0` otherwise. Reason tags:
+(`1` contract root, `2` test root, `3` both), and `0` otherwise. A
+kind-divergent `AddAdd` (both sides added different objects of different
+kinds, so no single side names the entry's kind) carries the lesser of the
+two added objects' kind tags. The conflict set is unordered and must be
+byte-identical under an ours/theirs swap, so the kind cannot favor either
+side; the lesser tag is the deterministic representative that names
+neither. Reason tags:
 
 | Tag | Reason |
 |---:|---|
@@ -345,7 +353,9 @@ Merging the same `(O, A, B)` twice yields the same judged merged root, the
 same plan (identity map, operations, and merged root), or the same conflict
 bytes. Merging `(O, B, A)` yields the same judged merged entity set and the
 same composed bodies (composition is commutative) and the same conflict set
-with `ours` and `theirs` swapped. Composed-object metadata follows each
+with `ours` and `theirs` swapped (entry kinds included: the J4 canonical
+tiebreak over the lesser kind tag is symmetric, so a kind-divergent
+`AddAdd` encodes byte-identically in both directions). Composed-object metadata follows each
 merge's own ours side (`A`'s label and fingerprint one way around, `B`'s
 the other) and is always reported in `metadata_overridden`, so the two
 plans differ exactly by the identity remap plus the reported ours-side
@@ -362,9 +372,14 @@ entities and the reported labels.
 | conflict entries | `131,070` |
 | plan operations | `131,070` |
 | stored conflict bytes | `67,108,864` |
+| conflict decoder allocation bytes | `134,217,728` |
 | charged merge work | `100,000,000` |
 
-Merge charges one work unit per ancestry entry visited, per delta entry
+The allocation row is the shared SCB1 per-standalone-value decoder budget
+that the pinned decoder-limits preimage names (`allocation=134217728`):
+the conflict decoder reads through the bounded SCB1 path (byte and entry
+counts gated before allocation), so no conflict input can reserve beyond
+it. Merge charges one work unit per ancestry entry visited, per delta entry
 read, per composed field, per collateral check, per reverse edge walked in
 the collateral closure, and per plan operation; exhaustion is
 `MERGE_RESOURCE_LIMIT` with no partial result. Ancestry slices longer than

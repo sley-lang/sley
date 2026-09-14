@@ -1,8 +1,9 @@
 # S20-520 merge: campaign record (opened 2026-09-03)
 
-Status: contract draft revision 4 committed; all three Council reviews
+Status: contract draft revision 5 committed; all three Council reviews
 received (2026-09-04, all FAIL) with every P0 and P1 closed in revision 4;
-re-review pending.
+revision 5 adds the kind-divergent `AddAdd` canonical tiebreak and the
+conflict-decoder allocation row; re-review pending.
 
 ## Why now
 
@@ -68,3 +69,16 @@ first. The S20-510 and S20-520 review requests follow when a lane returns.
   bound with recovery, strict decoder, commit guards with preserved
   numerics, 19-vector corpus with anchors, judgment fuzz lane); the
   revision 4 commit on `main` (see `git log --oneline`).
+
+## Answers recorded in contract revision 5 (2026-09-14)
+
+- Kind-divergent `AddAdd` carries the lesser of the two added objects' kind
+  tags (canonical tiebreak, naming neither side), so the unordered conflict
+  set stays byte-identical under an ours/theirs swap. The defect was real:
+  the implementation preferred ours' kind, which broke swap-symmetry of the
+  conflict bytes; fixed with swap-equality regression coverage in the
+  set-valued-fields merge test.
+- The resource table now names the conflict-decoder allocation row
+  (`134,217,728` bytes, the shared SCB1 per-standalone-value budget already
+  pinned in the decoder-limits preimage); no enforcement change, the
+  conflict decoder already reads through the bounded SCB1 path.

@@ -1,11 +1,13 @@
 # S20-520 Merge Closeout
 
-Status: **implemented under the draft Merge v1 contract (revision 4); all
+Status: **implemented under the draft Merge v1 contract (revision 5); all
 three Council reviews received (2026-09-04, all FAIL) and every P0 and P1
-closed in revision 4; the package awaits re-review, so it is not complete;
-the Sley 2 goal remains incomplete**
+closed in revision 4; revision 5 documents the kind-divergent `AddAdd`
+canonical tiebreak (implementation fix with swap-equality regression
+coverage) and names the conflict-decoder allocation row; the package awaits
+re-review, so it is not complete; the Sley 2 goal remains incomplete**
 
-Date: 2026-09-03; revised 2026-09-05
+Date: 2026-09-03; revised 2026-09-05; revised 2026-09-14 (revision 5)
 
 Validation tier: **Tier 1 plus repository-focused Tier 2 handoff**
 
@@ -57,7 +59,11 @@ object, receipt, or ref itself.
   created-identity remap the frozen S20-345 identity rule requires;
   revision 4 closes every P0 and P1 from the three Council reviews (see
   below). Implementation, corpus, oracle, and fuzz slices in the revision
-  4 commit.
+  4 commit. Revision 5 (2026-09-14) adds the kind-divergent `AddAdd`
+  canonical tiebreak (lesser kind tag; implementation fix with
+  swap-equality regression coverage in the set-valued-fields merge test)
+  and names the conflict-decoder allocation row (`134,217,728` bytes, the
+  shared SCB1 budget pinned in the decoder-limits preimage).
 - Conformance corpus: `conformance/merge/v1/accepted.json` (nineteen
   three-way cases: the original thirteen plus the theirs-direction
   collateral, the swapped disjoint pair, the both-removed convergence,

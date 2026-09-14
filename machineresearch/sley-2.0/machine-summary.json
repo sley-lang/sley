@@ -1539,7 +1539,7 @@
   "merge": {
     "status": "S20_520_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/MERGE_V1.md",
-    "contract_revision": 4,
+    "contract_revision": 5,
     "adr": "docs/adr/ADR-0028-merge-composition-boundary.md",
     "checker": "scripts/check_merge_spec.py",
     "contract_tag": 520,
