@@ -613,7 +613,9 @@
       "Re-review PASS (p3): Vulcan P3-1: campaign record states revision 7 and E7 excluded while E7a landed; add the E7a row and Tier 2 gates",
       "Re-review PASS (p3): Vulcan P3-2: E1 float-exclusion rationale cites S20-210 hashability instead of the operative NaN==NaN reason"
     ],
-    "e8_epoch_determination": "profile section E8: PROFILE, no epoch required (no new opcodes; 161 already in the frozen epoch-1 table; no new failure kinds; RW-030 section-18 admission as amended by owner amendment A1, S20-230 section 1.5 pure deterministic primitives)"
+    "e8_epoch_determination": "profile section E8: PROFILE, no epoch required (no new opcodes; 161 already in the frozen epoch-1 table; no new failure kinds; RW-030 section-18 admission as amended by owner amendment A1, S20-230 section 1.5 pure deterministic primitives)",
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "reference_adapter_profile": {
     "status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
@@ -751,7 +753,10 @@
     "p0_closed": [
       "exchange import allowlisted a pre-existing index/v1 cache into the target, so a clone adopted a cache it never wrote; import now removes the directory before promoting anything, pinned by an_incomplete_clone_resumes_without_adopting_the_index_cache_it_carried"
     ],
-    "p0_open_count": 0
+    "p0_open_count": 0,
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "restricted_query_profile": {
     "status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
@@ -919,7 +924,10 @@
       "the stage checker required both the old fixed-None rule and the new arm and reported PASS while ADR-0031, the campaign record, and the closeout still stated the old rule; raised by nabu. The checker binds the authority markers and cross-checks the contract, ADR, and closeout revisions, and fails closed with revision-drift on a stale boundary record (verified live by drift injection in the disposition session)",
       "the kept Negotiated arm had no conformance vector, no oracle path, and no fuzz coverage; raised by nabu. The corpus carries the bound class-01 vector under a fixed fixture session (24 vectors), the oracle reproduces the arm bytes and session identity and refuses a corpus with no negotiated vector, and the persistent fuzz target covers the arm encoding",
       "build_context_capsule_bound was a public constructor with entirely caller-declared session binding, so any SessionId was mintable into the master capsule identity; raised by vulcan. The constructor is deleted (zero references in tree) and the encoding primitive takes no provenance; minting runs only through the session authority, pinned by session_bound_capsules_are_minted_from_live_authority_state"
-    ]
+    ],
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "session_handle_profile": {
     "status": "S20_330_IMPLEMENTED_REVIEW_PENDING",
@@ -1042,7 +1050,10 @@
       "machineresearch/sley-2.0/reviews/s20-330-nabu-rereview-2-2026-09-05.log",
       "machineresearch/sley-2.0/reviews/s20-330-vulcan-rereview-2026-09-05.log",
       "machineresearch/sley-2.0/reviews/s20-330-vulcan-rereview-2-2026-09-05.log"
-    ]
+    ],
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "json_bridge": {
     "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
@@ -1096,17 +1107,20 @@
       "precedence 'field encodings in field order' was undefined because section 1 defined field order as lexicographic while the crate, the oracle, and the vectors all ran declaration order, so a contract-conformant reader failed the matrix; raised by vulcan. Precedence order is now the record's declared field order, disambiguated in section 1 from the lexicographic emission order both sides produce (emission untouched, round-trip fixture byte-identical)",
       "integer field widths were undeclared: section 2 typed every field 'integer' while readers demote six fields to u32 with NUMBER_INVALID above 2^32-1, making the u32-overflow vector unreproducible from the contract; raised by vulcan. Widths are declared per field (the six named fields plus max_sessions and method tags), and the matrix gains max_sessions overflow plus failure code/phase unit pins"
     ],
-    "method_table_v2": "conformance/smp1-json-bridge/v2/methods.json"
+    "method_table_v2": "conformance/smp1-json-bridge/v2/methods.json",
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "cli": {
     "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY_CLI_V1.md",
-    "contract_revision": 6,
+    "contract_revision": 7,
     "current_delta_review": {
-      "contract_revision": 6,
-      "ariadne": "PASS",
-      "nabu": "PASS",
-      "vulcan": "PASS"
+      "contract_revision": 7,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
     },
     "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
     "checker": "scripts/check_cli_contract.py",
@@ -1520,7 +1534,7 @@
     "implementation": "crates/sley-repo/src/compare.rs",
     "conformance_corpus": "conformance/semantic-comparison/v1",
     "corpus_pairs": 9,
-    "corpus_rejections": 8,
+    "corpus_rejections": 9,
     "independent_python_oracle": "scripts/check_semantic_comparison_vector.py",
     "sley_repo_compare_tests": 15,
     "persistent_fuzz_target": "fuzz/targets/semantic_delta_decoder.rs",
@@ -1534,7 +1548,10 @@
       "collateral seed rule excluded unchanged-with-body-delta functions that the implementation and the oracle both seed; raised by nabu (P0-1) and as ariadne P1-5 and vulcan P1-1. The contract now seeds every entity carrying a body delta into both seed sets and defines collateral as closure members bound by both roots carrying no entity delta, matching the implementation, the oracle, and the frozen body-only vector (contract revision 2).",
       "no frozen digest bound the derivation semantics (change classes, field table, relation rule, collateral formula, ordering rules, code table); raised by nabu (P0-2). The contract now pins derivation_semantics_hash over the normative derivation body, recomputed and asserted by the stage checker and recorded here (contract revision 2).",
       "DeltaSchemaEpochId was unpinned and inherited foreign epoch-1 authority while the oracle read it from the artifact under test; raised by nabu (P0-3). The contract now pins delta_schema_epoch as a frozen literal, the stage checker asserts it, the oracle compares stored bytes against it, and a native test pins delta_epoch_id() to it (contract revision 2)."
-    ]
+    ],
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "merge": {
     "status": "S20_520_IMPLEMENTED_REVIEW_PENDING",
@@ -1571,7 +1588,10 @@
     "p0_open_count": 0,
     "ancestor_enforcement": "verify_merge_ancestor over server-walked ancestries; judge_merge_verified production entry for both protocol handlers",
     "composed_metadata": "ours-side label and fingerprint with theirs-side divergence in metadata_overridden",
-    "collateral_rule": "survivor-scoped, dependent Added/Changed/Retyped, side-correct objects, pinned anchor entries, strict decoder"
+    "collateral_rule": "survivor-scoped, dependent Added/Changed/Retyped, side-correct objects, pinned anchor entries, strict decoder",
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
@@ -3169,7 +3189,10 @@
     ],
     "validator_undocumented_symbols": [],
     "validator_symbol_coverage_review": "PASS_0_P0_0_P1_0_P2_0_P3",
-    "validator_symbol_coverage_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943: S81 amendment 5d0f00c expanded CANDIDATE_RESULT_V1 section 8.1 26->37 rows covering all 11 formerly undocumented symbols (verified present at HEAD); live recomputation emitted 37 documented 37 diff empty; no emitter change needed; prior PENDING string superseded, list refreshed to []"
+    "validator_symbol_coverage_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943: S81 amendment 5d0f00c expanded CANDIDATE_RESULT_V1 section 8.1 26->37 rows covering all 11 formerly undocumented symbols (verified present at HEAD); live recomputation emitted 37 documented 37 diff empty; no emitter change needed; prior PENDING string superseded, list refreshed to []",
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "s20_390_atomic_commit": {
     "status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
@@ -3221,7 +3244,10 @@
       "profile 1 restated as 'no operation analysis ran', false for ordinary operation-free commits where phase 7 runs and judges zero operations; raised by ariadne (P0-2). Value 1 now states the transaction judged no semantic operation, with the joint-reading rule, the whole-state derivation, and the profile-2 binding invariant spelled out (contract revision 3, ADR-0045 corrected).",
       "decoder accepted a trusted genesis asserting semantic profile 2 on both implementations, so the genesis-always-1 rule was a writer convention, not a wire rule; raised by nabu (P0-2) and ariadne (P1-3). Both decoders now condition the triple on kind (genesis only [1,1,1]) and fail anything else as TXN_FIELD_SHAPE, pinned by a new genesis-extended-profile rejection vector and a Rust unit test proving build and import refuse it.",
       "decoder rule kind-agnostic in the oracle identically (it decoded kind 1 with profile 2); raised by nabu (P0-2). The oracle mirrors the kind-conditioned rule and routes the new provided-genesis-profile corpus vector through decode, with cross-implementation agreement at 3 accepted and 10 rejected vectors."
-    ]
+    ],
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "s20_500_native_refs_branches": {
     "status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
@@ -3448,7 +3474,10 @@
       "contract section 5 one-lane-per-family was unfalsifiable and the 128 executions unbound; raised by nabu with ariadne's lane-versus-vector duty split. Contract revision 11 binds the 128 to the vectors, states the per-family reachability obligation the checker verifies, records the uninterpreted ContractSource, and splits lane duty (reachability) from vector duty (per-opcode)"
     ],
     "ariadne_contract_review": "FAIL_1_P0_4_P1_6_P2_2_P3",
-    "nabu_architecture_review": "FAIL_2_P0_4_P1_5_P2_4_P3"
+    "nabu_architecture_review": "FAIL_2_P0_4_P1_5_P2_4_P3",
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
@@ -3614,7 +3643,10 @@
     "p1_open_count": 0,
     "smoke_report_digest": "614212d22568a68c178da81b6bb70df15ba07cb3a9f19d27bea443b5ca9b6b67",
     "smoke_scope": "REPORT_OVER_THE_S20_620_SCRIPTED_SMOKE_RUN_PARTIAL_2_SCRIPTED_ATTEMPTS",
-    "revision_3_closes": "ariadne 2 P0 + 8 P1, nabu 4 P0 + 7 P1, vulcan 1 P0 + 5 P1; re-review pending"
+    "revision_3_closes": "ariadne 2 P0 + 8 P1, nabu 4 P0 + 7 P1, vulcan 1 P0 + 5 P1; re-review pending",
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "s20_650_external_comparison": {
     "status": "EXPLICIT_UNAVAILABLE",
@@ -4042,8 +4074,8 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 291,
-    "open_reviews": 46,
+    "obligations": 335,
+    "open_reviews": 9,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4094,7 +4126,7 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "18 GA acceptance criteria are not evidenced",
-      "46 review obligations are open",
+      "9 review obligations are open",
       "no succession trial has been executed",
       "the release-check and v2 product gates are fail-closed"
     ],
@@ -4121,7 +4153,10 @@
     "closeout": "docs/audits/S20_750_DECISION_DOSSIER_CLOSEOUT.md",
     "decision_derivation": "entries-first per contract section 3 mapping; release-check gate, succession thresholds, and approved conditional items read tracked sources (no section 30 item carries them)",
     "property_tests": "counted zero with harness scan in evidence/validation/test-inventory.json",
-    "license_disposition_blocked": 19
+    "license_disposition_blocked": 19,
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "remaining_gates": {
     "council_model_access": "OPEN since 2026-09-04T02:29Z. The blocker was never a credential: the stock Anthropic plugin was installed but blocked by the plugins allowlist, so its provider, CLI backend, and model catalog never loaded and requests fell through to a generic HTTP path with an empty key. Adding anthropic to plugins.allow and enabling it opened the claude-cli lane, which uses the local Claude Code CLI session rather than a gateway key. The dispatcher is running 69 staged reviews; checkpoint in machineresearch/sley-2.0/COUNCIL_REVIEW_CHECKPOINT_2026-09-04.md",
@@ -4172,7 +4207,10 @@
         "adapter_invoke against an existing import (profile shaped, but the request-side binding is a design S20-280 full owes)"
       ],
       "unblocked_today": "contract_assert execution needs no epoch, no schema change, and no new owner"
-    }
+    },
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "required_contract_index": {
     "status": "S20_770_CONTRACT_DRAFT_REVIEW_PENDING",
@@ -4207,7 +4245,10 @@
       "sley2.protocol-frame.v1",
       "sley2.root-query.v1",
       "sley2.session.v1"
-    ]
+    ],
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "clean_room_disposition_register": {
     "status": "S20_780_REGISTER_ACCEPTED",
@@ -4294,7 +4335,10 @@
       "Re-review PASS (p3): vulcan P3 heading-rename ValueError: revision 3 emits a structured problem for a missing section-2 heading",
       "Re-review PASS (p3): vulcan P3 SLEY_DISABLE_SOURCE_CACHE=0: verified hermetic, cache dir is per-run scratch removed with the stage; no change, answer recorded",
       "Re-review PASS (p3): vulcan P3 audit limitation buried in prose: revision 3 hoists the gap into the Status block"
-    ]
+    ],
+    "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
   },
   "threat_coverage": {
     "report": "evidence/security/threat-coverage-report.json",

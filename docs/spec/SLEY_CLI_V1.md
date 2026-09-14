@@ -1,6 +1,6 @@
 # Thin Machine-Oriented CLI v1
 
-Status: S20-430 contract draft, revision 6 (2026-09-09); Council review
+Status: S20-430 contract draft, revision 7 (2026-09-14); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 removes the transport feature from the
@@ -23,7 +23,7 @@ S20-420 JSON form, and it writes a machine-readable invocation report. It
 owns no semantics: every judgment about a frame comes from the server
 (`docs/spec/SMP1.md` revision 12, S20-440 batch admission, S20-330
 sessions) and every representation from the frozen codec or the bridge
-(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8). The master goal requires a thin
+(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 9). The master goal requires a thin
 machine-oriented wrapper that contains no private validation rules and that
 the semantic kernel never imports (master goal sections 14.2, 14.3, 22.6).
 
@@ -321,6 +321,15 @@ release, or GA.
   normative protocol or bridge change was needed, so SMP1 keeps revision
   12 with a composition-only CLI pin move, and the bridge keeps revision
   8 (the version 2 table artifact it already specifies).
+
+### Revision 7 (2026-09-14)
+
+- Re-pins bridge revision 9 (no behavior change;
+  `scripts/check_cli_contract.py` asserts both pins against the composed
+  status lines): the bridge's revision-9 ceilings and precision notes
+  change nothing the CLI renders or parses, so this revision moves only
+  the composition pin.
+- The revision pins are SMP1 revision 12 and bridge revision 9.
 
 ## 9. Version-aware surface (phase 3, implemented in revision 6)
 

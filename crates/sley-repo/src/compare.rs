@@ -3162,6 +3162,65 @@ pub(crate) mod tests {
                     "COMPARE_FORMAT_INVALID",
                     encoded.stored_bytes,
                 ));
+                // The closed section-2 grammar: a Constant carries only
+                // field 1, so field 8 with full flags is forged evidence.
+                let mut off_table = stored.delta.clone();
+                off_table.fields = vec![FieldDelta {
+                    entity_id: id(6),
+                    kind: 9,
+                    field: 8,
+                    flags: 15,
+                    added: Vec::new(),
+                    removed: Vec::new(),
+                }];
+                let encoded = encode_semantic_delta(&off_table).unwrap();
+                rejections.push((
+                    "off-table-field",
+                    "COMPARE_FORMAT_INVALID",
+                    encoded.stored_bytes,
+                ));
+                // Flag bits beyond the presence bit read only on the rows
+                // the table names: TypeDef field 1 carries none.
+                let mut bad_flags = stored.delta.clone();
+                bad_flags.fields = vec![FieldDelta {
+                    entity_id: id(6),
+                    kind: 4,
+                    field: 1,
+                    flags: 3,
+                    added: Vec::new(),
+                    removed: Vec::new(),
+                }];
+                let encoded = encode_semantic_delta(&bad_flags).unwrap();
+                rejections.push((
+                    "bad-flags",
+                    "COMPARE_FORMAT_INVALID",
+                    encoded.stored_bytes,
+                ));
+                // Equal roots admit only the empty delta.
+                let mut same_roots = stored.delta.clone();
+                same_roots.target_root = same_roots.base_root;
+                let encoded = encode_semantic_delta(&same_roots).unwrap();
+                rejections.push((
+                    "equal-roots-nonempty",
+                    "COMPARE_FORMAT_INVALID",
+                    encoded.stored_bytes,
+                ));
+                // One identity cannot both enter and leave a field.
+                let mut overlap = stored.delta.clone();
+                overlap.fields = vec![FieldDelta {
+                    entity_id: id(1),
+                    kind: 1,
+                    field: 1,
+                    flags: 1,
+                    added: vec![id(255)],
+                    removed: vec![id(255)],
+                }];
+                let encoded = encode_semantic_delta(&overlap).unwrap();
+                rejections.push((
+                    "overlapping-sets",
+                    "COMPARE_FORMAT_INVALID",
+                    encoded.stored_bytes,
+                ));
             }
         }
         for (name, code, input) in rejections {

@@ -220,7 +220,7 @@ def build(context: dict, vector: dict) -> tuple[bytes, dict]:
     # The fixture schema carries no truncation flag: truncated is derived
     # from `next_after`, which is sound because the builder enforces
     # `truncated == next_after.is_some()` on every pair (contract section
-    # 6; `validate_source` in `crates/sley-query/src/context_capsule.rs`).
+    # 6, `validate_source` rule).
     truncated = vector["next_after"] is not None
     completeness = COMPLETE if not truncated and vector["after"] is None else PAGE
     omitted = total - returned
