@@ -230,7 +230,7 @@
     ],
     "transcripts": "evidence/review/verdicts/zjx_transport_readiness/",
     "scope_sha": "161a2f3480dfca3df22019a9df4e3e3e4a38674f",
-    "result": "REVIEW_OPEN",
+    "result": "ALL_LANES_PASS",
     "round_1": {
       "ariadne_contract_review": {
         "verdict": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
@@ -264,6 +264,19 @@
         "findings": [],
         "transcript": "evidence/review/verdicts/zjx_transport_readiness/vulcan_surface_review-75b5491.md"
       }
+    },
+    "round_3_scope_sha": "08f577d460bb605f095e32aac902bdba68c8e27b",
+    "round_3": {
+      "ariadne_contract_review": {
+        "verdict": "PASS",
+        "findings": [],
+        "transcript": "evidence/review/verdicts/zjx_transport_readiness/ariadne_contract_review-08f577d.md"
+      }
+    },
+    "final_lane_verdicts": {
+      "ariadne_contract_review": "PASS",
+      "nabu_architecture_review": "PASS",
+      "vulcan_surface_review": "PASS"
     }
   },
   "witness_commit": "161a2f3480dfca3df22019a9df4e3e3e4a38674f",
