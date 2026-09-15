@@ -2,7 +2,7 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "13 review obligations are open",
+    "12 review obligations are open",
     "18 GA acceptance criteria are not evidenced",
     "3 review dispositions are unclassified",
     "no succession trial has been executed",
@@ -10,7 +10,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "672a97738d34e79ef80b495b8f67bc626a86c6f94b099015bc12b652b0771102",
+  "dossier_digest": "fa1d37fa6b6e9309d9130e2f871b6a0b7f17665e2f728bc41b2ae558aa24fac5",
   "entries": [
     {
       "evidence": [
@@ -342,20 +342,20 @@
         },
         "deferred_reviews": 0,
         "obligations": 402,
-        "open_reviews": 13,
+        "open_reviews": 12,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 126,
           "P1": 171,
           "P2": 183,
-          "P3": 210,
-          "P4": 37
+          "P3": 217,
+          "P4": 47
         },
         "states": {
           "HISTORICAL_ROUND": 109,
           "OTHER": 3,
-          "PASS": 277,
-          "PENDING": 13
+          "PASS": 278,
+          "PENDING": 12
         },
         "unclaimed_carried_findings": 41,
         "unclassified": 3
@@ -457,7 +457,7 @@
       }
     }
   ],
-  "entries_digest": "b1e6d7d1722757af1718818bbfaa29cb347b81f92e28ef9caa6adc86a1a0a73e",
+  "entries_digest": "66d98ab393abf943e9334b0d47cac134846351f7cc2627f91dd11c63003fc32f",
   "evidenced": 24,
   "gated": 10,
   "gates": {
