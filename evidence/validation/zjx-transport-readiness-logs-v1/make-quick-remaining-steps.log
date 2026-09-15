@@ -1,0 +1,2088 @@
+### python3 scripts/check_standards_sbom_and_provenance.py
+{
+  "codes": [
+    "SBOM_INVENTORY_MISSING",
+    "SBOM_INVENTORY_INVALID",
+    "SBOM_COMPONENT_INCOMPLETE",
+    "SBOM_DOCUMENT_DRIFT",
+    "PROVENANCE_EVIDENCE_MISSING",
+    "PROVENANCE_EVIDENCE_INVALID",
+    "PROVENANCE_SUBJECT_MISMATCH",
+    "PROVENANCE_DOCUMENT_DRIFT"
+  ],
+  "contract": "s20-710-full-standards-sbom-and-provenance-v1",
+  "implementation_complete": false,
+  "problems": [
+    "closure:ineligible"
+  ],
+  "records_closure": {
+    "advanced": true,
+    "attested_source_commit": "7a94a4a31272a6dc7588aff902dcde81f7d10a4e",
+    "reason": "records-closure-ineligible: bench/release/tests/test_standards_sbom.py, crates/sley-query/src/root_query.rs, docs/WORK_PACKAGES.md, docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md, docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md, docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md, docs/status/HANDOFF-2026-09-15-QUALIFICATION.md, scripts/build_decision_dossier.py, scripts/build_ga_acceptance_report.py, scripts/check_standards_sbom_and_provenance.py",
+    "records_closure_head": "4168332f34ba4ff4567fd60df8f2adc42083b1e1"
+  },
+  "result": "FAIL",
+  "s20_710_audit_complete": false,
+  "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING"
+}
+### exit=1
+### python3 scripts/check_finding_register.py
+{
+  "codes": [
+    "REGISTER_SUMMARY_MISSING",
+    "REGISTER_SUMMARY_INVALID",
+    "REGISTER_COMPLETION_VIOLATION",
+    "REGISTER_DRIFT"
+  ],
+  "contract": "s20-740-finding-register-v1",
+  "implementation_complete": false,
+  "problems": [],
+  "result": "PASS",
+  "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING"
+}
+### exit=0
+### python3 scripts/check_decision_dossier.py
+{
+  "codes": [
+    "DOSSIER_SOURCE_MISSING",
+    "DOSSIER_SOURCE_INVALID",
+    "DOSSIER_DECISION_INVALID",
+    "DOSSIER_DRIFT"
+  ],
+  "contract": "s20-750-decision-dossier-v1",
+  "implementation_complete": false,
+  "problems": [],
+  "required_items": 34,
+  "result": "PASS",
+  "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING"
+}
+### exit=0
+### python3 scripts/check_epoch_migration_policy.py
+{
+  "active_epochs": 1,
+  "contract": "s20-760-epoch-migration-policy-v1",
+  "determinations": {
+    "epoch_required": [
+      "contract-kinds",
+      "test-observe",
+      "adapter-replay"
+    ],
+    "profile": [
+      "fingerprint-requirement",
+      "contract-assert",
+      "effect-and-capability"
+    ]
+  },
+  "epoch_created": false,
+  "problems": [],
+  "result": "PASS",
+  "status": "S20_760_POLICY_ACCEPTED"
+}
+### exit=0
+### python3 scripts/check_required_contract_index.py
+{
+  "checkers_named": 19,
+  "contract": "s20-770-required-contract-index-v1",
+  "derived_identifier_domains": 50,
+  "documents_named": 21,
+  "domains_named": 14,
+  "problems": [],
+  "required_contracts": 12,
+  "result": "PASS",
+  "status": "S20_770_INDEX_ACCEPTED"
+}
+### exit=0
+### python3 scripts/check_domain_tags_and_strings.py
+{
+  "problems": [],
+  "registered_domains": 50,
+  "result": "PASS",
+  "tag_rows": 8,
+  "unregistered_script_labels": 44
+}
+### exit=0
+### python3 scripts/check_clean_room_boundary.py
+{
+  "contract": "s20-780-clean-room-disposition-register-v1",
+  "problems": [
+    "clean-room-violation:legacy-reference:docs/status/HANDOFF-2026-09-15-QUALIFICATION.md"
+  ],
+  "register_entries": 7,
+  "result": "FAIL",
+  "status": "S20_780_REGISTER_ACCEPTED"
+}
+### exit=1
+### python3 scripts/check_error_symbol_registration.py --check
+{
+  "ambiguous_codes": [],
+  "contract": "sley2.error-symbol-registration.v1",
+  "declared_namespaces": 72,
+  "emitted_symbols": 495,
+  "numeric_codes": 315,
+  "registered_without_declared_namespace": [],
+  "result": "PASS",
+  "scope": "REGISTRATION ONLY; MEANING, NUMBER, AND FREEZE STAY WITH THE OWNING CONTRACT",
+  "unexercised": [],
+  "unregistered": []
+}
+### exit=0
+### python3 scripts/check_declared_limits.py --check
+{
+  "declared_limits": 156,
+  "mode": "check",
+  "result": "PASS",
+  "undocumented_limits": 0,
+  "weak_limits": 152
+}
+### exit=0
+### python3 scripts/test_cli_contract.py
+.......
+----------------------------------------------------------------------
+Ran 7 tests in 0.000s
+
+OK
+### exit=0
+### python3 scripts/test_cli_rules.py
+..........
+----------------------------------------------------------------------
+Ran 10 tests in 0.108s
+
+OK
+### exit=0
+### python3 scripts/test_current_contract_review.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.043s
+
+OK
+### exit=0
+### python3 scripts/test_required_contract_index.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.077s
+
+OK
+### exit=0
+### python3 scripts/test_session_handle_profile.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 0.029s
+
+OK
+### exit=0
+### python3 scripts/test_smp1_contract.py
+..............
+----------------------------------------------------------------------
+Ran 14 tests in 0.052s
+
+OK
+### exit=0
+### python3 scripts/test_smp1_json_bridge_table.py
+{"case": "default-v1-exact", "result": "PASS"}
+{"case": "explicit-v2-counts", "result": "PASS"}
+{"case": "missing-v1-section", "result": "PASS"}
+{"case": "missing-v2-section", "result": "PASS"}
+{"case": "duplicate-v2-section", "result": "PASS"}
+{"case": "out-of-section-row", "result": "PASS"}
+{"case": "duplicate-name", "result": "PASS"}
+{"case": "wrong-v2-tag", "result": "PASS"}
+{"case": "missing-v1-row", "result": "PASS"}
+{"cases": 9, "result": "PASS"}
+### exit=0
+### python3 -m unittest discover -s bench/invariant/tests -t .
+.........
+----------------------------------------------------------------------
+Ran 9 tests in 0.000s
+
+OK
+### exit=0
+### python3 scripts/check_external_comparison_availability.py
+{
+  "arm_id": "zerolang",
+  "availability": "EXPLICIT_UNAVAILABLE",
+  "comparison_trials_executed": 0,
+  "contract": "s20-650-external-comparison-availability-v1",
+  "full_s20_650_complete": true,
+  "global_project_availability_claimed": false,
+  "missing_prerequisites": 6,
+  "network_or_acquisition_performed": false,
+  "problems": [],
+  "public_claim_authorized": false,
+  "result": "PASS",
+  "scope": "REPOSITORY_REGISTERED_EVIDENCE_ONLY"
+}
+### exit=0
+### python3 scripts/check_supply_chain_audit.py
+{"reason": "generated audit evidence drifted: {\"drift\": [\"evidence/security/T54/secret-scan.json\"], \"result\": \"FAIL\"}", "result": "FAIL"}
+### exit=1
+### python3 scripts/check_schema_fuzz_slice.py
+{
+  "adversarial_exact_selection_test": true,
+  "bounded_inputs": 512,
+  "contract": "s20-700-bounded-schema-fuzz-slice-v1",
+  "full_s20_700_complete": false,
+  "max_input_bytes": 2048,
+  "persistent_fuzz_harness": false,
+  "problems": [],
+  "result": "PASS",
+  "surface": "SLEYEP01 bootstrap import and exact registry decoder selection"
+}
+### exit=0
+### python3 scripts/check_s20_700_frontier.py
+{
+  "contract": "s20-700-persistent-fuzz-frontier-v1",
+  "full_s20_700_complete": false,
+  "remaining_required_surfaces": [],
+  "result": "PASS"
+}
+### exit=0
+### python3 scripts/check_local_completion_frontier.py
+{
+  "blocked_lanes": 6,
+  "full_gate_run": false,
+  "goal_complete": false,
+  "next_authority_safe_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local implementation continues where a determination unblocks it",
+  "result": "PASS"
+}
+### exit=0
+### python3 scripts/check_candidate_contract_freeze.py
+{
+  "candidate_construction": false,
+  "candidate_fields": 13,
+  "contract": "s20-345-candidate-contract-freeze-v1",
+  "entity_kinds_bound_to_typed_codecs": 18,
+  "executable_mutation": false,
+  "files": 7,
+  "nabu_review": "PASS_NO_OPEN_P0_P1_P2",
+  "problems": [],
+  "result": "PASS",
+  "s20_350_unblocked": true,
+  "vulcan_review": "PASS_NO_OPEN_P0_P1_P2"
+}
+### exit=0
+### python3 scripts/check_candidate_result_contract.py
+{
+  "candidate_authority": false,
+  "candidate_result_codec_implemented": true,
+  "candidate_result_implemented": true,
+  "candidate_validation_implemented": true,
+  "contract": "s20-360-restricted-candidate-validation-v1",
+  "decisions": 16,
+  "durable_commit": false,
+  "operation_success_subset": "restricted plus E1 through E6 analyzed operations (E7 refused at phase 12)",
+  "phase_tags": 14,
+  "problems": [],
+  "result": "PASS",
+  "validator_source_symbols": 37
+}
+### exit=0
+### python3 scripts/generate_candidate_result_fixtures.py --check
+{"drift": [], "mode": "check", "result": "PASS", "vectors": 16}
+### exit=0
+### python3 scripts/check_candidate_result_persistent_fuzz_slice.py
+{
+  "candidate_authority": false,
+  "commit_authority": false,
+  "contract": "s20-360-candidate-result-persistent-libfuzzer-v1",
+  "result": "PASS",
+  "runtime_mutation": false,
+  "scope": "RESULT_IMPORT_AND_MONOTONIC_SHAPE_NO_AUTHORITY"
+}
+### exit=0
+### python3 scripts/generate_transaction_receipt_fixtures.py --check
+{"drift": [], "mode": "check", "result": "PASS", "vectors": 3}
+### exit=0
+### python3 scripts/check_transaction_contract.py
+{
+  "claim": "restricted-executable-program-test-free-s20-390-conformance-with-extended-operation-profile",
+  "complete_receipt_codec": true,
+  "contract": "s20-390-restricted-atomic-commit-v1",
+  "fixed_accepted_head": true,
+  "full_crash_recovery_complete": false,
+  "named_refs_complete": false,
+  "problems": [],
+  "result": "PASS",
+  "runtime_authority": false
+}
+### exit=0
+### python3 scripts/check_transaction_receipt_persistent_fuzz_slice.py
+{
+  "commit_authority": false,
+  "contract": "s20-390-transaction-receipt-persistent-libfuzzer-v1",
+  "problems": [],
+  "result": "PASS",
+  "runtime_mutation": false,
+  "scope": "TRANSACTION_RECEIPT_IMPORT_AND_CROSS_BINDING_NO_COMMIT"
+}
+### exit=0
+### python3 scripts/check_ref_branch_contract.py
+{
+  "ariadne_review": "PASS_PRIOR_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+  "contract": "s20-500-native-refs-branches-v1",
+  "contract_frozen": true,
+  "error_codes": 21,
+  "implementation_ariadne_review": "PASS_FINAL_DIRECTORY_DURABILITY_NO_OPEN_P0_P1_P2_P3_P4",
+  "implementation_complete": true,
+  "implementation_nabu_review": "PASS_FINAL_ARCHITECTURE_FRONTIER_NO_OPEN_P0_P1_P2_P3_P4",
+  "implementation_vulcan_review": "PASS_DIRECTORY_DURABILITY_FINDING_CLOSED_NO_OPEN_P0_P1_P2_P3_P4",
+  "nabu_review": "PASS_ONE_WAY_BOUNDARY_AND_DRAFT_REQUIREMENTS",
+  "problems": [],
+  "result": "PASS",
+  "vulcan_review": "PASS_PRIOR_P1_P1_P2_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+}
+### exit=0
+### python3 scripts/generate_repository_exchange_fixtures.py --check
+{"drift": [], "mode": "check", "result": "PASS", "vectors": 1}
+### exit=0
+### python3 scripts/check_s20_530_acceptance_anchor.py
+S20-530 acceptance anchor: PASS (validated 8f7c763, accepted 034cc75, confirmed cc0f92f; 10 frozen authority paths, 28 logs)
+### exit=0
+### git diff --check
+### exit=0
+### cargo check --workspace --locked
+    Checking sley-query v2.0.0-alpha.0 (<repo>/crates/sley-query)
+    Checking sley-repo v2.0.0-alpha.0 (<repo>/crates/sley-repo)
+    Checking sley-protocol v2.0.0-alpha.0 (<repo>/crates/sley-protocol)
+    Checking sley-json-bridge v2.0.0-alpha.0 (<repo>/crates/sley-json-bridge)
+    Checking sley-cli v2.0.0-alpha.0 (<repo>/crates/sley-cli)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.73s
+### exit=0
+### cargo test --workspace --locked
+   Compiling sley-query v2.0.0-alpha.0 (<repo>/crates/sley-query)
+   Compiling sley-repo v2.0.0-alpha.0 (<repo>/crates/sley-repo)
+   Compiling sley-protocol v2.0.0-alpha.0 (<repo>/crates/sley-protocol)
+   Compiling sley-json-bridge v2.0.0-alpha.0 (<repo>/crates/sley-json-bridge)
+   Compiling sley-cli v2.0.0-alpha.0 (<repo>/crates/sley-cli)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.98s
+     Running unittests src/lib.rs (target/debug/deps/sley_adapter-222d2b7e727a36f6)
+
+running 20 tests
+test tests::adversarial_paths_fail ... ok
+test tests::authorized_adapter_failure_after_charge_consumes_ledger_without_fixture_mutation ... ok
+test tests::fixed_reference_ids_cover_all_kinds ... ok
+test tests::prior_type_failure_is_preserved_before_adapter_preflight ... ok
+test tests::fixed_state_and_transcript_vectors ... ok
+test tests::identity_abi_and_effect_swaps_fail_without_mutation ... ok
+test tests::authorized_adapter_failure_before_charge_mutates_neither_ledger_nor_fixture ... ok
+test tests::smaller_output_limit_rejects_preexisting_state_atomically ... ok
+test tests::authorized_adapter_success_charges_once_then_mutates_fixture ... ok
+test tests::replay_outcomes_bind_state_id_to_schema_epoch ... ok
+test tests::failures_do_not_mutate_state ... ok
+test tests::generic_replay_matches_and_exhausts ... ok
+test tests::capability_budget_reserves_the_maximum_canonical_path ... ok
+test tests::replay_mismatch_and_response_injection_are_atomic ... ok
+test tests::stdout_stderr_clock_random_environment_and_files_work ... ok
+test tests::random_counter_overflow_is_atomic ... ok
+test tests::authorized_adapter_request_binding_confusion_fails_before_charge ... ok
+test tests::authorized_adapter_resource_dimensions_fail_closed_before_charge ... ok
+test tests::stable_error_codes_are_exact ... ok
+test tests::repeated_equal_invocations_are_deterministic ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_check-2ae7ef12fade7a86)
+
+running 86 tests
+test cfg::tests::earlier_type_failure_is_preserved ... ok
+test cfg::tests::entry_and_target_must_be_listed_same_function_blocks ... ok
+test cfg::tests::duplicate_entity_and_extra_inventory_fail ... ok
+test cfg::tests::conditional_and_legal_backedge_loop_terminate ... ok
+test cfg::tests::non_entry_reachability_marker_mismatch_uses_reachability_code ... ok
+test cfg::tests::explicitly_unreachable_local_block_is_valid ... ok
+test cfg::tests::nonpersistable_or_unproven_trap_payload_fails ... ok
+test cfg::tests::branch_arguments_and_inventory_input_order_are_deterministic ... ok
+test cfg::tests::owner_ordinal_and_unresolved_inventory_fail_exactly ... ok
+test cfg::tests::option_switch_payload_and_cases_validate ... ok
+test cfg::tests::stable_cfg_codes_are_frozen ... ok
+test cfg::tests::operation_use_failures_precede_all_terminator_failures ... ok
+test cfg::tests::payload_free_switch_case_rejects_case_payload ... ok
+test cfg::tests::straight_line_and_operation_result_validate ... ok
+test cfg::tests::reachability_marker_and_unreachable_cross_block_value_fail ... ok
+test cfg::tests::diamond_cross_block_result_must_dominate_use ... ok
+test cfg::tests::switch_type_case_domain_order_and_exhaustiveness_fail ... ok
+test contracts::tests::precondition_assert_value_test_and_selection_validate ... ok
+test cfg::tests::seeded_unresolved_reference_fuzz_smoke_never_accepts ... ok
+test cfg::tests::unresolved_result_index_and_use_before_definition_fail ... ok
+test contracts::tests::invariant_kind_target_predicate_and_binding_fail_exactly ... ok
+test cfg::tests::function_reference_immediate_does_not_affect_cfg_judgment ... ok
+test cfg::tests::named_variant_switch_uses_member_domain ... ok
+test contracts::tests::attachment_and_assertion_fail_exactly ... ok
+test contracts::tests::required_tests_are_selected_but_remain_policy_incomplete ... ok
+test contracts::tests::global_result_and_error_bindings_validate ... ok
+test cfg::tests::edge_arguments_return_and_condition_are_exactly_typed ... ok
+test contracts::tests::stable_contract_test_codes_are_frozen ... ok
+test contracts::tests::resource_contract_replay_and_test_observe_are_explicitly_unsupported ... ok
+test contracts::tests::test_target_input_environment_expected_failure_and_observation_fail_exactly ... ok
+test effects::pure_declaration_adversarial::duplicate_adapter_identities_fail_at_index_build ... ok
+test contracts::tests::unresolved_wrong_kind_and_noncanonical_inputs_fail_exactly ... ok
+test effects::pure_declaration_adversarial::effect_carrying_row_never_serves_pure_invocation ... ok
+test effects::tests::capability_shape_scope_type_order_and_contract_boundary_fail_exactly ... ok
+test effects::tests::adapter_cardinality_kind_and_invoke_type_fail_exactly ... ok
+test cfg::tests::count_and_edge_limits_fail_before_traversal ... ok
+test effects::tests::effect_carrying_row_never_takes_pure_treatment ... ok
+test effects::tests::call_and_request_shapes_fail_exactly ... ok
+test effects::tests::inventory_order_is_independent_but_semantic_sets_are_canonical ... ok
+test effects::tests::adapter_and_capability_narrow_validate_without_runtime_authority ... ok
+test effects::tests::limits_and_earlier_type_and_cfg_errors_are_preserved ... ok
+test effects::tests::empty_request_and_direct_effect_request_validate ... ok
+test effects::tests::generic_direct_call_instantiates_in_caller_scope ... ok
+test effects::pure_declaration_adversarial::declaration_mutants_fail_identically_used_and_unused ... ok
+test effects::tests::noncanonical_function_effect_set_preserves_cfg_inventory_failure ... ok
+test effects::tests::missing_or_extra_declarations_fail_exactly ... ok
+test effects::tests::pure_candidate_with_open_schema_fails_before_shape ... ok
+test effects::tests::pure_invoke_mixes_with_effectful_closure ... ok
+test effects::tests::pure_bridge_shapes_validate_without_closure_contribution ... ok
+test effects::tests::recursive_cycle_cannot_self_justify_unused_effect ... ok
+test effects::tests::structural_scope_order_covers_tags_and_nested_payloads ... ok
+test effects::tests::stable_effect_codes_are_frozen ... ok
+test effects::tests::unregistered_shape_conforming_form_passes_static_judgment_only ... ok
+test effects::tests::pure_shape_violations_fail_adapter_invoke_type ... ok
+test tests::builtin_failure_codes_are_closed ... ok
+test effects::tests::unused_zero_effect_rows_face_declaration_shape_judgment ... ok
+test effects::tests::transitive_call_and_mutual_recursion_compute_least_closure ... ok
+test tests::direct_and_indirect_definition_cycles_fail ... ok
+test contracts::tests::selection_resource_and_earlier_errors_fail_or_preserve_exactly ... ok
+test tests::collection_and_sum_constants_match_exactly ... ok
+test tests::duplicate_definitions_and_members_fail ... ok
+test tests::exact_named_arity_and_unknown_definition_fail ... ok
+test tests::explicit_substitution_is_invariant_and_input_immutable ... ok
+test tests::floats_accept_only_canonical_nan_and_positive_zero ... ok
+test effects::tests::unresolved_and_wrong_kind_immediates_fail_exactly ... ok
+test tests::empty_environment_accepts_every_closed_primitive ... ok
+test tests::effect_and_invariant_sets_must_be_strictly_sorted ... ok
+test tests::function_reference_constant_has_no_host_identity ... ok
+test tests::generic_map_key_without_trait_bounds_fails_closed ... ok
+test tests::definition_insertion_order_does_not_change_traits ... ok
+test tests::integer_constants_enforce_width_without_coercion ... ok
+test tests::map_constants_reject_duplicate_semantic_keys ... ok
+test tests::invalid_width_and_free_parameter_fail_exactly ... ok
+test tests::index_failure_code_2_is_capacity_refusal ... ok
+test tests::map_keys_require_all_closed_traits ... ok
+test tests::nonpersistable_constant_fails_before_shape ... ok
+test tests::nonpersistable_traits_are_explicit ... ok
+test tests::record_and_variant_constants_bind_exact_members ... ok
+test tests::stable_codes_and_numeric_range_are_frozen ... ok
+test tests::structural_depth_is_closed ... ok
+test tests::tuple_constant_rejects_implicit_element_coercion ... ok
+test tests::traits_resolve_instantiated_named_members ... ok
+test tests::named_definition_expansion_depth_is_closed ... ok
+test tests::argument_and_collection_limits_fail_before_deeper_judgment ... ok
+test effects::tests::seeded_unresolved_call_smoke_never_accepts_or_panics ... ok
+test contracts::tests::seeded_unresolved_selection_smoke_never_accepts_or_panics ... ok
+
+test result: ok. 86 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_cli-9f9c2515810a5670)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/debug/deps/sley-71826b586098a018)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cli.rs (target/debug/deps/cli-7e41f8fd1f07525e)
+
+running 29 tests
+test frame_command_detached_flag_pairs_name_their_cause ... ok
+test a_prefix_above_the_ceiling_is_answered_without_reading_the_body ... ok
+test frame_decode_keeps_partial_stdout_before_failure ... ok
+test frame_decode_and_encode_reproduce_the_bridge_fixture ... ok
+test capable_post_handshake_rejection_stamped_at_v2_selection ... ok
+test a_failed_negotiation_is_answered_once_and_ends_the_input ... ok
+test cli_failures_name_their_stable_symbols ... ok
+test profile_flag_misuse_is_a_usage_failure ... ok
+test capable_code_counts_sum_to_failed_answers_under_selection_1 ... ok
+test capable_post_handshake_rejection_stamped_at_v1_selection ... ok
+test methods_hello_and_version_expose_the_offer_without_judgment ... ok
+test profile_hello_offers_both_versions_with_the_v2_methods ... ok
+test profile_methods_prints_the_v2_table_verbatim ... ok
+test profile_frame_commands_report_version_mismatch_for_non_hello_frames ... ok
+test profile_version_reports_the_capable_contract ... ok
+test failed_negotiation_rejection_stays_version_one ... ok
+test profile_frame_commands_enforce_the_expected_version ... ok
+test cli_failures_carry_their_exit_status_and_one_stderr_object ... ok
+test legacy_post_handshake_rejection_renders_legacy ... ok
+test batch_mode_answers_one_batch_per_server ... ok
+test profile_serve_reports_the_actual_selected_version ... ok
+test capable_code_counts_sum_to_failed_answers_under_selection_2 ... ok
+test profile_serve_reports_legacy_selection_and_method_refusal ... ok
+test profile_serve_json_converts_post_hello_lines_under_the_selection ... ok
+test handshake_identity_does_not_depend_on_the_transport_flag ... ok
+test the_binary_delivers_byte_frames_across_the_process_boundary ... ok
+test serve_in_byte_mode_answers_exactly_as_a_direct_server ... ok
+test serve_in_json_mode_answers_the_same_bytes_and_rejects_bad_lines_in_place ... ok
+test a_json_line_at_the_element_ceiling_is_refused_and_ends_the_input ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_conformance-8c1d582aea3c4128)
+
+running 14 tests
+test tests::bounded_encoder_rejects_overflow ... ok
+test tests::failure_projection_preserves_all_phases_and_graph_codes ... ok
+test tests::a_rejection_under_two_profiles_derives_two_identities ... ok
+test tests::rejected_vector_and_unavailable_input_are_exact ... ok
+test tests::malformed_observed_input_preserves_exact_type_failure ... ok
+test tests::stable_report_codes_are_frozen ... ok
+test tests::observed_context_cache_and_observation_tampering_fail_exactly ... ok
+test tests::observed_execution_vector_is_exact ... ok
+test tests::execution_report_id_tampering_is_rejected_by_test_aggregation ... ok
+test tests::plan_order_and_execution_binding_fail_closed ... ok
+test tests::trap_code_comparison_matrix_is_exact ... ok
+test tests::test_match_vector_is_exact_and_nonfinal ... ok
+test tests::value_mismatch_and_execution_rejection_are_distinct ... ok
+test tests::repeated_equivalent_reports_are_byte_identical ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_id-2c9900d6e8b52217)
+
+running 7 tests
+test tests::derivation_is_deterministic ... ok
+test tests::debug_output_is_non_canonical_short_form ... ok
+test tests::identifier_types_are_exactly_32_bytes ... ok
+test tests::frozen_domain_registry_is_exact ... ok
+test tests::perturbing_inputs_changes_derived_ids ... ok
+test tests::fixed_vectors_cover_all_domains ... ok
+test tests::workspace_and_entity_vectors_are_fixed ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_json_bridge-b0674920d4732875)
+
+running 12 tests
+test tests::emit_smp1_json_bridge_vectors_for_fixture_refresh ... ignored, fixture refresh emitter
+test tests::failure_chunk_and_bounds_round_trip ... ok
+test tests::declared_u32_fields_reject_above_2_pow_32 ... ok
+test tests::the_embedded_method_table_equals_the_frozen_method_table ... ok
+test tests::hello_selected_failure_and_chunk_round_trip ... ok
+test tests::negative_zero_reads_as_the_integer_zero ... ok
+test tests::hello_header_violations_carry_the_codec_code ... ok
+test tests::integers_follow_the_declared_encoding_on_both_sides ... ok
+test tests::every_smp1_fixture_frame_round_trips_through_json_to_identical_bytes ... ok
+test tests::equal_values_render_identical_lexicographic_text ... ok
+test tests::unknown_methods_and_flags_are_named_never_invented ... ok
+test tests::the_rejection_matrix_reports_the_contract_codes_in_precedence ... ok
+
+test result: ok. 11 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 2.67s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_mutate-4d75c4fa5eca439c)
+
+running 70 tests
+test apply::tests::creation_collision_variant_is_stable ... ok
+test apply::tests::duplicate_snapshot_entities_are_refused ... ok
+test apply::tests::duplicate_entry_point_adds_are_refused ... ok
+test apply::tests::creation_checks_base_absence_and_builds_an_unlabelled_object ... ok
+test apply::tests::entry_points_must_be_live_and_explicitly_removed_before_delete ... ok
+test apply::tests::field_mismatch_variant_is_stable ... ok
+test apply::tests::sequential_field_edits_bind_once_to_the_exact_base_object ... ok
+test apply::tests::operations_on_absent_entities_are_refused ... ok
+test apply::tests::removals_of_unlisted_entry_points_are_refused ... ok
+test candidate::tests::candidate_error_registry_is_exact_and_scb_stays_separate ... ok
+test apply::tests::unexpected_ordered_child_moves_are_refused ... ok
+test apply::tests::ordered_operations_use_final_index_and_expected_child ... ok
+test apply::tests::kind_mismatched_replacement_is_refused ... ok
+test apply::tests::out_of_range_ordered_writes_are_refused ... ok
+test apply::tests::epoch_drifted_records_and_objects_are_refused ... ok
+test apply::tests::stale_preimage_and_entry_point_duplicates_fail_without_input_mutation ... ok
+test codec::adversarial_tests::mutation_value_codec_adversarial ... ok
+test codec::tests::all_direct_body_enum_tags_round_trip_and_reject_unknown_tags ... ok
+test codec::fixture_tests::independent_partial_rejected_fixtures_return_exact_private_codes ... ok
+test codec::tests::all_eighteen_entity_body_union_tags_are_descriptor_selected ... ok
+test codec::tests::all_seventy_five_field_values_round_trip_without_self_tags ... ok
+test codec::tests::cfg_immediate_all_seven_tags_round_trip_exactly ... ok
+test codec::tests::cfg_member_id_and_reference_records_round_trip_exactly ... ok
+test codec::tests::cfg_records_fail_closed_for_missing_unknown_duplicate_order_and_inner_trailing ... ok
+test codec::tests::cfg_cases_edges_traps_and_non_option_terminators_round_trip ... ok
+test codec::tests::cfg_variant_switch_preserves_noncanonical_duplicate_case_list_order ... ok
+test codec::tests::effect_and_adapter_bodies_use_exact_manifest_fields ... ok
+test codec::tests::entity_id_set_uses_canonical_encoding_and_rejects_duplicate_or_unordered_bytes ... ok
+test codec::tests::dependency_closed_body_records_reject_nested_trailing_bytes ... ok
+test codec::tests::entry_policy_and_dependency_bodies_use_exact_manifest_fields ... ok
+test codec::tests::exact_decoders_reject_outer_trailing_bytes_and_resource_failures ... ok
+test codec::tests::independent_manifest_helpers_reject_payload_and_record_failures ... ok
+test codec::tests::function_type_effects_reject_unordered_and_duplicate_on_encode_and_decode ... ok
+test codec::tests::function_parameter_and_global_bodies_use_exact_manifest_fields ... ok
+test codec::tests::independent_manifest_helpers_round_trip_exact_records_and_unions ... ok
+test codec::tests::operation_body_round_trips_the_exact_six_field_record ... ok
+test codec::tests::option_and_list_nesting_preserve_order_and_reject_inner_trailing_bytes ... ok
+test codec::tests::cfg_unions_reject_unknown_nonempty_payload_free_and_inner_trailing ... ok
+test codec::tests::operation_body_rejects_record_shape_and_nested_trailing_failures ... ok
+test codec::tests::primitives_round_trip_extremes_exactly ... ok
+test codec::tests::const_value_family_covers_all_sixteen_data_tags_and_ordered_maps ... ok
+test codec::tests::type_expr_records_fail_closed_for_missing_unknown_order_and_inner_trailing ... ok
+test codec::tests::type_expr_all_twenty_tags_round_trip_exactly ... ok
+test codec::tests::type_expr_recursive_round_trip_and_depth_boundary_are_exact ... ok
+test codec::tests::type_expr_preserves_raw_invalid_integer_width_payload ... ok
+test object::tests::entity_object_build_import_and_digest_are_exact ... ok
+test codec::tests::type_expr_rejects_unknown_tags_and_non_empty_direct_payloads ... ok
+test codec::tests::validation_profile_full_v1_is_exact_and_digest_bound ... ok
+test codec::tests::workspace_and_package_bodies_use_exact_manifest_fields ... ok
+test codec::tests::candidate_record_build_import_digest_and_stale_preimage_are_bound ... ok
+test object::tests::entity_object_metadata_is_bounded_and_nfc ... ok
+test tests::all_eighteen_entity_kinds_are_closed_and_ordered ... ok
+test object::tests::entity_object_rejects_epoch_digest_and_trailing_substitution ... ok
+test tests::creation_requires_absence_and_every_other_class_requires_exact_preimage ... ok
+test tests::every_entity_field_has_exactly_one_typed_replacement ... ok
+test tests::all_sixteen_mutation_classes_are_present_and_tagged ... ok
+test tests::special_entity_classes_are_narrowly_targeted ... ok
+test tests::operation_keys_are_unique ... ok
+test value::tests::descriptor_admission_rejects_unknown_keys_and_typed_confusion ... ok
+test value::tests::generated_host_inventory_is_exact_and_digest_bound ... ok
+test value::tests::optional_record_field_preserves_absence_as_a_typed_value ... ok
+test tests::generated_schema_reproduces_the_frozen_manifest_digest ... ok
+test value::tests::entity_id_set_canonicalizes_before_proposal_construction ... ok
+test value::tests::generated_typed_bindings_cover_every_immutable_descriptor_once ... ok
+test value::tests::generated_values_carry_closed_schema_keys_without_runtime_names ... ok
+test codec::fixture_tests::independent_partial_accepted_fixtures_match_exact_private_codec_bytes ... ok
+test tests::field_affordances_follow_generated_type_shapes ... ok
+test codec::adversarial_tests::bounded_mutation_value_codec_fuzz_smoke ... ok
+test codec::fixture_tests::independent_s20_350_supplement_closes_values_and_candidate_bytes ... ok
+test codec::fixture_tests::independent_s20_350_supplement_rejects_exact_codes ... ok
+
+test result: ok. 70 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_policy-dbe42b8ba8240173)
+
+running 59 tests
+test candidate_result::tests::emit_candidate_result_vectors_for_fixture_refresh ... ignored, explicit conformance fixture refresh helper
+test candidate_program::tests::projection_distinguishes_unresolved_wrong_kind_and_unknown_opcode ... ok
+test candidate_result::tests::evidence_derivations_bind_full_bytes_and_lengths ... ok
+test candidate_program::tests::dependency_projection_tracks_external_roots_without_resolving_external_package ... ok
+test candidate_program::tests::projection_validates_all_local_references_and_builds_closure ... ok
+test candidate_result::tests::envelope_rejects_digest_trailing_and_unknown_nested_tags ... ok
+test candidate_result::tests::result_integrity_codes_are_exact_and_scb_stays_separate ... ok
+test candidate_result::tests::valid_result_round_trip_is_byte_identical_and_digest_bound ... ok
+test candidate_result::tests::monotonicity_identity_root_diagnostic_and_sets_fail_closed ... ok
+test candidate_validation::tests::phase_seven_evidence_distinguishes_skipped_judgment_from_empty_judgment ... ok
+test candidate_validation::tests::phase_seven_overflow_guard_names_the_lowering_symbol ... ok
+test candidate_validation::tests::context_digest_binds_effective_not_requested_ceilings ... ok
+test candidate_validation::tests::exhausted_graph_work_is_refused ... ok
+test candidate_validation::tests::canonical_frame_and_context_inventory_fail_monotonically ... ok
+test candidate_validation::tests::over_ceiling_test_resources_are_refused ... ok
+test candidate_validation::tests::stale_semantic_fingerprint_claim_is_recomputed_and_rejected ... ok
+test candidate_validation::tests::stale_root_and_exact_entity_preimage_are_distinct ... ok
+test candidate_validation::tests::authenticated_capabilities_are_verified_without_ledger_mutation ... ok
+test candidate_result::tests::every_terminal_decision_has_the_exact_first_failed_phase ... ok
+test candidate_validation::tests::stale_phase_three_bindings_are_refused_with_their_owned_symbols ... ok
+test candidate_validation::tests::t07_live_bound_target_identity_collides_on_the_live_binding_branch ... ok
+test capability_summary::tests::empty_summary_is_canonical_and_deterministic ... ok
+test capability_summary::tests::empty_summary_fixed_vector ... ok
+test capability_summary::tests::outer_bindings_are_checked_without_claiming_authentication ... ok
+test candidate_validation::tests::tombstones_graph_errors_and_missing_references_are_distinct ... ok
+test capability_summary::tests::grant_order_is_canonical_and_duplicate_digests_fail ... ok
+test tests::accepted_vector_is_frozen_and_round_trips ... ok
+test candidate_validation::tests::analyzable_operations_validate_and_signature_mismatches_fail_at_phase_seven ... ok
+test tests::builder_rejects_duplicate_principals_sets_and_grant_tags ... ok
+test tests::closed_effect_and_mutation_tag_sets_are_exact ... ok
+test candidate_validation::tests::expiry_summary_grants_isolation_and_mandatory_policy_are_enforced ... ok
+test candidate_validation::tests::valid_candidate_runs_all_phases_deterministically_without_mutating_base ... ok
+test candidate_validation::tests::type_cfg_and_effect_checkers_preserve_exact_source_codes ... ok
+test candidate_validation::tests::well_formed_contract_assert_reaches_the_phase_twelve_guard ... ok
+test candidate_validation::tests::policy_contract_and_test_plan_fail_at_their_owned_phases ... ok
+test tests::descriptor_and_decoder_mismatch_fail_closed ... ok
+test tests::capability_issuance_requires_policy_grant_and_bounded_budget ... ok
+test tests::capability_issue_import_verify_and_canonical_bytes ... ok
+test tests::descriptor_hash_preimages_are_frozen ... ok
+test tests::descriptor_and_registered_epoch_are_exact ... ok
+test tests::manual_hex_decode_helper_round_trips ... ok
+test tests::finalization_rejects_forged_or_omitted_contract_test_inputs ... ok
+test tests::grant_denial_and_empty_grants_do_not_imply_authority ... ok
+test tests::mandatory_test_contract_finalization_requires_policy_incomplete_report ... ok
+test tests::stable_policy_codes_are_frozen ... ok
+test tests::invalid_transition_tag_preserves_the_frozen_policy_error ... ok
+test tests::synthetic_zero_epoch_hashes_but_authorization_rejects ... ok
+test tests::strict_import_rejects_nonminimal_envelope_and_payload_epoch_mismatch ... ok
+test tests::t22_capability_forgery_fails_closed ... ok
+test tests::t23_capability_replay_expiry_and_budget_fail_closed ... ok
+test tests::t24_capability_scope_workspace_effect_and_adapter_confusion_fail_closed ... ok
+test tests::every_policy_field_perturbation_changes_root ... ok
+test tests::stable_capability_error_codes_are_exact ... ok
+test tests::strict_import_rejects_unknown_duplicate_and_ordered_fields ... ok
+test tests::policy_self_oracle_and_protected_entity_isolation_is_pure ... ok
+test candidate_validation::tests::resource_and_unsupported_operation_analysis_fail_closed ... ok
+test candidate_validation::tests::well_formed_effect_operations_pass_the_phase_eight_owner ... ok
+test tests::strict_import_rejects_corrupt_order_duplicate_resource_and_unknown_semantics ... ok
+test tests::unordered_inputs_have_identical_root_for_128_repeats ... ok
+
+test result: ok. 58 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_protocol-63648015c63a38f9)
+
+running 89 tests
+test server_tests::emit_release_demo_vectors_for_fixture_refresh ... ignored, fixture refresh emitter
+test server_tests::bounded_context_counts_above_negotiated_maximums_fail ... ok
+test server_tests::entity_read_session_lifecycle_binds_one_snapshot ... ok
+test server_tests::collection_retains_a_non_head_session_bound_root ... ok
+test server_tests::batch_cancel_precedes_execution_in_one_batch ... ok
+test server_tests::entity_read_tiny_streaming_frame_refuses_without_events ... ok
+test server_tests::entity_signature_returns_declaration_order ... ok
+test server_tests::binding_failures_precede_budget_exhaustion ... ok
+test server_tests::entity_request_id_reuse_refuses_second_use ... ok
+test server_tests::entity_read_exact_and_one_below_limits ... ok
+test server_tests::entity_read_budget_debit_table_is_exact ... ok
+test server_tests::cancellation_streaming_and_budgets_are_bounded_at_the_server ... ok
+test server_tests::entity_read_failure_precedence_is_exact ... ok
+test server_tests::entity_version_returns_exact_bytes_and_bounded_context ... ok
+test server_tests::failed_dispatch_costs_one_budget_unit ... ok
+test server_tests::extended_profile_requires_the_negotiated_feature_bit ... ok
+test server_tests::corpus_request_shape_wires_refuse_with_recorded_codes ... ok
+test server_tests::execute_selects_the_cache_profile_from_limits_field_six ... ok
+test server_tests::frame_codec_pins_protocol_version_one ... ok
+test server_tests::exchange_export_transports_the_pack_of_a_dependency_free_root ... ok
+test server_tests::entity_read_head_advance_fails_before_body_decode ... ok
+test server_tests::execute_under_the_extended_profile_derives_its_own_report_identity ... ok
+test server_tests::execute_runs_a_bound_root_function_and_report_answers_the_stored_record ... ok
+test server_tests::owner_retryability_is_explicit_and_word_order_independent ... ok
+test server_tests::legacy_server_with_v2_selection_keeps_v1_framing ... ok
+test server_tests::legacy_server_refuses_v2_tags_but_keeps_opaque_intersection ... ok
+test server_tests::repair_authenticated_hello2_decode_rejects_wire_violation ... ok
+test server_tests::hello_listing_a_reserved_tag_is_a_payload_failure ... ok
+test server_tests::identity_session_and_frame_rules_hold_at_the_server ... ok
+test server_tests::entity_renew_then_read_with_live_root_succeeds ... ok
+test server_tests::oversize_response_fails_before_any_partial_body ... ok
+test server_tests::entity_exhausted_budget_with_stale_root_answers_binding_first ... ok
+test server_tests::repair_explicit_negotiation_supports_only_one_and_two ... ok
+test server_tests::gc_dry_run_and_collect_derive_the_snapshot_from_the_repository ... ok
+test server_tests::live_sessions_are_capped_and_restarts_forget ... ok
+test server_tests::repair_frame_metadata_body_ceiling_exact_and_one_over ... ok
+test server_tests::repair_exact_and_one_below_object_count ... ok
+test server_tests::repair_entity_read_uses_single_admitted_head_load ... ok
+test server_tests::repair_hello_wire_version_is_always_one ... ok
+test server_tests::repair_exact_and_one_below_session_budget ... ok
+test server_tests::query_family_transports_the_frozen_engine_records ... ok
+test server_tests::repair_exhausted_budget_precedes_unoffered_method ... ok
+test server_tests::repair_foreign_workspace_swap_refuses_entity_read ... ok
+test server_tests::repair_one_below_session_budget_refuses_before_reserve ... ok
+test server_tests::repair_response_body_ceiling_tracks_work_feedback ... ok
+test server_tests::repair_frame_body_bytes_ceiling_edges ... ok
+test server_tests::repair_wire_length_matches_encoding_across_varint_widths ... ok
+test server_tests::selection_without_session_open_is_no_common_profile ... ok
+test server_tests::request_id_zero_never_enters_a_session ... ok
+test server_tests::request_carrying_bounds_is_malformed ... ok
+test server_tests::reserved_detail_names_the_seam_and_is_retryable_after_capability ... ok
+test server_tests::repair_unnegotiated_refusal_releases_its_slot ... ok
+test server_tests::repair_session_budget_method_order_and_debit ... ok
+test server_tests::repair_debit_phases_observe_budget_and_followup ... ok
+test server_tests::repair_wrong_epoch_refuses_entity_read_without_debit ... ok
+test server_tests::versioned_hello_travels_at_frame_one_and_selects_two ... ok
+test server_tests::session_less_frame_with_nonzero_identifier_is_malformed ... ok
+test session::tests::checks_follow_contract_order ... ok
+test session::tests::handles_name_their_expected_root ... ok
+test session::tests::issuance_binds_head_and_nonce_separates_instances ... ok
+test session::tests::live_sessions_are_capped_by_max_sessions ... ok
+test server_tests::session_bound_capsules_are_minted_from_live_authority_state ... ok
+test session::tests::retention_pins_exactly_the_live_sessions_roots ... ok
+test server_tests::mutation_side_methods_dispatch_with_owner_codes_preserved ... ok
+test tests::emit_smp1_v2_vectors_for_fixture_refresh ... ignored, fixture refresh emitter; run through the generator script
+test tests::emit_smp1_vectors_for_fixture_refresh ... ignored, fixture refresh emitter; run through the generator script
+test tests::envelope_format_version_mismatch_is_unsupported ... ok
+test server_tests::tampered_hello_is_rejected_at_session_open ... ok
+test tests::decode_splits_unknown_versions_below_and_above ... ok
+test tests::fixture_hellos_negotiate_ok ... ok
+test tests::method_table_and_failure_envelope_are_frozen ... ok
+test tests::request_identity_is_session_scoped_and_strictly_increasing ... ok
+test tests::negotiation_is_derived_digested_and_downgrade_is_detected ... ok
+test tests::streamed_failure_keeps_the_failed_bit_on_every_frame ... ok
+test server_tests::version_one_selection_refuses_version_two_methods_at_tag_validity ... ok
+test tests::versioned_frame_codec_gates_claims_and_matches_legacy_bytes ... ok
+test server_tests::versioned_session_open_binds_and_claims_split ... ok
+test server_tests::repair_stale_refusal_then_renew_and_read_at_inflight_one ... ok
+test tests::version_two_table_and_legacy_decoder_are_exact ... ok
+test tests::versioned_negotiation_filters_only_known_v2_tags_on_v1 ... ok
+test tests::versioned_frame_codec_gates_undefined_selections_fail_closed ... ok
+test tests::frames_round_trip_and_are_verified_before_any_field_is_read ... ok
+test server_tests::repair_full_wire_ceiling_exact_and_one_below ... ok
+test server_tests::sessions_bind_workspace_root_and_epoch_and_handles_name_their_root ... ok
+test server_tests::the_offered_hello_names_exactly_the_dispatched_methods ... ok
+test tests::streaming_splits_reassembles_and_fails_closed_without_the_feature ... ok
+test session::tests::renewal_limit_is_exact ... ok
+test server_tests::session_repository_and_transaction_methods_answer_deterministically ... ok
+test server_tests::repair_aggregate_signature_above_bytes_ceiling_refuses_before_reserve ... ok
+
+test result: ok. 86 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 14.25s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_query-d7fab610c3b7488a)
+
+running 108 tests
+test capsule::tests::codes_status_tags_and_limits_are_frozen ... ok
+test capsule::tests::failed_or_omitted_queries_produce_no_capsule_input ... ok
+test capsule::tests::dictionary_duplicates_and_missing_relationship_endpoints_fail ... ok
+test capsule::tests::resource_limits_fail_without_partial_capsule ... ok
+test capsule::tests::all_four_query_capsule_vectors_are_fixed ... ok
+test complete_root::tests::c1_inventory_mismatch_is_the_first_closure_failure ... ok
+test capsule::tests::completeness_is_fixed_without_truncation_or_continuation ... ok
+test capsule::tests::dictionary_and_relationship_projection_are_exact ... ok
+test complete_root::tests::c4_package_membership ... ok
+test complete_root::tests::c3_workspace_count ... ok
+test complete_root::tests::c11_dependency_binding_ownership ... ok
+test complete_root::tests::c10_dependency_roots ... ok
+test complete_root::tests::c2_unresolved_and_wrong_kind_edges_fail_before_closure ... ok
+test complete_root::tests::emit_complete_entity_impact_vector_for_fixture_refresh ... ignored, fixture refresh emitter; run through the generator script
+test complete_root::tests::c8_export_scope ... ok
+test complete_root::tests::c9_entry_points ... ok
+test complete_root::tests::non_canonical_facts_and_sets_fail_closed ... ok
+test complete_root::tests::c6_namespace_tree ... ok
+test complete_root::tests::complete_root_judgment_passes_and_covers_every_bound_entity ... ok
+test complete_root::tests::six_kind_tags_and_codes_are_exact ... ok
+test complete_root::tests::c5_namespace_roots ... ok
+test complete_root::tests::restricted_snapshot_fails_closed_on_each_complete_model_kind ... ok
+test complete_root::tests::zero_package_root_is_valid ... ok
+test context_capsule::tests::emit_context_capsule_vectors_for_fixture_refresh ... ignored, fixture refresh emitter; run through the generator script
+test complete_root::tests::recursive_type_and_constant_bodies_carry_their_own_edges ... ok
+test complete_root::tests::c7_member_ownership ... ok
+test capsule::tests::repeated_equal_capsules_are_byte_identical ... ok
+test entity_read::tests::admit_orders_zero_ceiling_before_over_selected_ceiling ... ok
+test entity_read::tests::binding_and_epoch_disagreement_is_internal_invariant ... ok
+test entity_read::tests::duplicate_parameter_identity_refuses_on_ordinal ... ok
+test entity_read::tests::ceiling_violations_are_budget_exceeded ... ok
+test entity_read::tests::malformed_requests_are_not_canonical ... ok
+test entity_read::tests::checked_overflow_is_budget_exceeded ... ok
+test entity_read::tests::exact_and_one_below_response_and_work_limits ... ok
+test context_capsule::tests::a_session_bound_capsule_carries_the_negotiated_arm ... ok
+test entity_read::tests::non_selected_bodies_are_never_semantically_extracted ... ok
+test entity_read::tests::parameter_binding_and_epoch_defects_rejected_in_preparation ... ok
+test context_capsule::tests::foreign_and_drifted_sources_and_the_code_table_are_exact ... ok
+test entity_read::tests::owner_codes_are_stable_and_budget_errors_stay_transport_neutral ... ok
+test context_capsule::tests::page_capsules_state_omission_and_cover_the_walk ... ok
+test entity_read::tests::parameter_owner_ordinal_and_role_defects_are_internal_invariant ... ok
+test entity_read::tests::inner_length_defects_are_not_canonical ... ok
+test entity_read::tests::plan_captures_immutable_inputs ... ok
+test entity_read::tests::request_bytes_roundtrip_canonically ... ok
+test entity_read::tests::selection_borrows_selected_bytes_and_captures_only_at_capture ... ok
+test entity_read::tests::signature_on_non_function_is_class_not_applicable ... ok
+test entity_read::tests::signature_preserves_nonmonotonic_declaration_order ... ok
+test entity_read::tests::signature_relationship_defects_are_internal_invariant ... ok
+test entity_read::tests::signature_returns_function_then_declaration_ordered_parameters ... ok
+test entity_read::tests::signature_with_zero_parameters_returns_function_only ... ok
+test entity_read::tests::tombstoned_parameter_refuses_as_invariant ... ok
+test entity_read::tests::unknown_and_tombstoned_entities_are_unresolved ... ok
+test entity_read::tests::version_one_response_body_is_not_canonical ... ok
+test context_capsule::tests::complete_means_whole_result_and_remainder_pages_stay_pages ... ok
+test entity_read::tests::response_body_has_exact_final_capacity_and_length ... ok
+test entity_read::tests::response_bytes_match_independent_canonical_assembly ... ok
+test entity_read::tests::version_returns_exact_stored_object_for_all_eighteen_kinds ... ok
+test entity_read::tests::wrong_expected_root_is_root_mismatch ... ok
+test entity_read::tests::zero_ceilings_are_not_canonical_before_root_checks ... ok
+test query::tests::claimed_root_and_applied_limits_change_query_identity ... ok
+test query::tests::codes_tags_and_limits_are_frozen ... ok
+test query::tests::applied_edge_entity_depth_and_byte_limits_omit_no_facts ... ok
+test entity_read::tests::oversized_non_function_reports_applicability_before_resources ... ok
+test query::tests::filters_and_seeds_must_be_nonempty_canonical_sets ... ok
+test query::tests::fresh_impact_failure_precedes_query_failure ... ok
+test query::tests::all_four_query_id_and_response_vectors_are_exact ... ok
+test query::tests::profile_and_work_limits_fail_as_resources_without_partial_payload ... ok
+test query::tests::direct_dependency_dependent_and_closure_results_are_exact ... ok
+test query::tests::request_identity_and_snapshot_binding_fail_closed ... ok
+test query::tests::unresolved_entities_fail_before_empty_success ... ok
+test query::tests::fanout_cycle_and_work_precedence_are_bounded ... ok
+test root_query::tests::caller_declared_facts_are_bound_to_the_committed_root ... ok
+test query::tests::discarded_candidate_can_only_yield_the_same_fresh_query_surface ... ok
+test root_query::tests::applicability_resolution_shape_and_binding_failures_are_exact ... ok
+test root_query::tests::emit_root_query_vectors_for_fixture_refresh ... ignored, fixture refresh emitter; run through the generator script
+test root_query::tests::continuation_pages_union_to_the_complete_result_with_exact_counts ... ok
+test root_query::tests::charged_work_follows_the_section_4_schedule ... ok
+test root_query::tests::single_item_classes_walk_two_items_at_limit_one ... ok
+test query::tests::repeated_equal_queries_are_byte_identical ... ok
+test snapshot::tests::codes_completeness_and_limits_are_frozen ... ok
+test root_query::tests::unsorted_root_committed_fact_sets_are_root_mismatch ... ok
+test snapshot::tests::complete_root_build_preserves_impact_failures_and_restricted_queries_reject_the_arm ... ok
+test snapshot::tests::count_trailing_order_and_endpoint_perturbations_are_discarded ... ok
+test snapshot::tests::emit_complete_root_snapshot_vector_for_fixture_refresh ... ignored, fixture refresh emitter; run through the generator script
+test snapshot::tests::empty_and_nonempty_records_have_fixed_vectors ... ok
+test snapshot::tests::format_version_context_completeness_and_digest_fail_closed ... ok
+test entity_read::tests::accepted_corpus_vectors_match_owner_and_encoder ... ok
+test snapshot::tests::fresh_impact_failures_are_preserved_before_candidate_inspection ... ok
+test snapshot::tests::missing_and_exact_candidates_return_only_fresh_snapshots ... ok
+test entity_read::tests::rejected_owner_cases_refuse_with_stable_codes ... ok
+test snapshot::tests::reverse_disagreement_and_valid_unequal_content_are_discarded ... ok
+test tests::all_impact_codes_and_tags_are_stable ... ok
+test snapshot::tests::truncated_records_and_overlimit_records_are_bounded ... ok
+test tests::binding_mismatch_variant_is_stable ... ok
+test entity_read::tests::rejected_relation_bounds_refuse_or_serve ... ok
+test tests::empty_workspaces_fail_closed_with_the_closure_symbol ... ok
+test tests::input_must_be_raw_id_sorted ... ok
+test tests::value_hash_preserves_type_judgment ... ok
+test entity_read::tests::rejected_relation_work_recomputes ... ok
+test tests::direct_reverse_and_transitive_edges_are_exact ... ok
+test snapshot::tests::graph_projection_and_128_rebuilds_are_identical ... ok
+test snapshot::tests::complete_root_admission_discards_every_candidate_defect ... ok
+test complete_root::tests::repeated_judgments_are_identical ... ok
+test entity_read::tests::oversized_stored_object_refused_before_copy ... ok
+test root_query::tests::class_kind_applicability_table_is_executed ... ok
+test snapshot::tests::complete_root_arm_has_a_fixed_vector_and_differs_from_the_restricted_arm ... ok
+test root_query::tests::every_class_answers_exact_facts_over_the_fixture ... ok
+test context_capsule::tests::every_class_yields_a_complete_capsule_with_exact_facts ... ok
+
+test result: ok. 104 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_repo-adb4ced8c3f66fb6)
+
+running 381 tests
+test compare::tests::emit_semantic_comparison_corpus_for_fixture_refresh ... ignored, fixture refresh emitter; run through the generator script
+test compare::tests::delta_schema_epoch_is_pinned ... ok
+test compare::tests::stray_back_reference_block_is_not_inventoried ... ok
+test compare::tests::owned_entity_change_produces_a_body_delta_for_an_unchanged_function ... ok
+test compare::tests::emptied_forward_list_fails_closed_preserving_the_wrapped_code ... ok
+test compare::tests::collateral_names_the_dependents_a_naive_entity_comparison_misses ... ok
+test compare::tests::signature_change_yields_field_and_body_deltas_together ... ok
+test compare::tests::every_change_class_is_classified_exactly_once ... ok
+test compare::tests::relation_deltas_cover_call_effect_capability_contract_and_test_kinds ... ok
+test compare::tests::decoder_rejection_matrix_reaches_every_frozen_code ... ok
+test compare::tests::preconditions_fail_closed_with_wrapped_codes ... ok
+test compare::tests::entry_point_and_dependency_root_sets_are_reported ... ok
+test compare::tests::swapped_direction_mirrors_the_delta ... ok
+test compare::tests::type_delta_reports_members_added_removed_changed_and_reordered ... ok
+test entity_read::tests::projection_exposes_function_parameter_and_opaque_views ... ok
+test entity_read::tests::projection_covers_every_body_variant_without_interpretation ... ok
+test complete_root::tests::revision_without_a_workspace_fails_closed_with_the_closure_code ... ok
+test exchange::tests::branch_entries_follow_canonical_set_order_over_the_encoded_element ... ok
+test complete_root::tests::complete_root_of_a_verified_revision_is_judged_and_indexed ... ok
+test complete_root::tests::revision_whose_dependency_roots_disagree_with_bindings_fails_closed ... ok
+test exchange::tests::emit_i4b_demo_exchange_for_fixture_refresh ... ignored, explicit AT-MW-02 I4b demonstration fixture emitter
+test exchange::tests::emit_repository_exchange_vector_for_fixture_refresh ... ignored, explicit S20-540 conformance fixture refresh helper
+test complete_root::tests::validator_reference_graph_and_impact_index_agree_edge_for_edge ... ok
+test entity_read::tests::adapter_epoch_comes_from_the_verified_revision ... ok
+test entity_read::tests::adapter_reports_owner_failures_against_verified_state ... ok
+test exchange::tests::exchange_codes_are_closed_and_contiguous ... ok
+test entity_read::tests::adapter_reads_exact_version_bytes_over_a_verified_revision ... ok
+test entity_read::tests::adapter_signature_returns_ordered_parameters ... ok
+test entity_read::tests::projection_reproduces_every_corpus_stored_object ... ok
+test compare::tests::repository_backed_roots_compare_through_the_extraction_adapter ... ok
+test exchange::tests::fixed_head_bytes_match_the_transaction_model ... ok
+test exchange::tests::cyclic_ancestry_is_refused ... ok
+test exchange::tests::frozen_write_paths_fail_closed_on_a_marked_root ... ok
+test gc::tests::collect_deletes_only_unreachable_and_is_idempotent ... ok
+test gc::tests::cor08_oversize_witness_preserves_witness ... ok
+test gc::tests::cor08_relative_symlink_preserves_witness ... ok
+test exchange::tests::envelope_payload_and_nesting_rejections_precede_any_write ... ok
+test gc::tests::cor08_unix_socket_preserves_witness ... ok
+test gc::tests::corrupt_unreachable_object_is_not_silently_deleted ... ok
+test gc::tests::cor08_wrong_magic_preserves_witness ... ok
+test gc::tests::dependency_roots_are_retained_transitively ... ok
+test gc::tests::duplicate_and_empty_anchors_fail_closed ... ok
+test gc::tests::empty_retention_snapshot_marks_all_verified_objects_as_candidates ... ok
+test exchange::tests::owned_re_classification_aborts_a_target_changed_after_the_advisory_pass ... ok
+test gc::tests::dry_run_marks_root_and_transitive_object_references ... ok
+test gc::tests::gcw01_empty_witness_recovers_incomplete ... ok
+test gc::tests::gcw02_half_prefix_recovers_incomplete ... ok
+test gc::tests::gcw03_exact_unsynced_witness_recovers_exact ... ok
+test gc::tests::gcw04_file_synced_witness_recovers_exact ... ok
+test gc::tests::every_anchor_kind_retains_the_same_root_closure ... ok
+test gc::tests::gcw05_removed_witness_retry_reports_absent ... ok
+test gc::tests::guard05_same_root_shared_preserves_witness ... ok
+test gc::tests::gcw06_recovery_waits_for_live_collection ... ok
+test gc::tests::guard06_wrong_root_exclusive_preserves_both_roots ... ok
+test gc::tests::malformed_inventory_path_fails_closed ... ok
+test gc::tests::injected_delete_failure_retry_is_idempotent ... ok
+test gc::tests::injected_sync_failure_retry_redurabilizes_absent_object ... ok
+test gc::tests::malformed_reference_shape_fails_before_deletion ... ok
+test gc::tests::missing_transitive_object_fails_closed ... ok
+test gc::tests::missing_dependency_fails_closed ... ok
+test gc::tests::stable_gc_error_symbols_are_frozen ... ok
+test gc::tests::symlink_inventory_object_fails_closed ... ok
+test gc::tests::t40_seed_reachable_candidate_assertion_is_effective ... ok
+test gc::tests::unresolved_direct_object_anchor_fails_closed ... ok
+test gc::tests::t40_reachable_candidate_in_a_corrupted_plan_trips_the_guard_before_any_delete ... ok
+test gc::tests::unordered_snapshot_produces_identical_report ... ok
+test exchange::tests::an_incomplete_clone_resumes_without_adopting_the_index_cache_it_carried ... ok
+test index_cache::tests::a_second_root_caches_beside_the_first_and_paths_are_root_named ... ok
+test index_cache::tests::forged_inventory_corrupt_bytes_and_wrong_arm_are_discarded_and_rewritten ... ok
+test index_cache::tests::guard_for_another_repository_is_refused ... ok
+test exchange::tests::every_reachable_exchange_code_has_an_asserting_rejection ... ok
+test compare::tests::identical_roots_yield_an_empty_valid_delta_with_a_stable_identity ... ok
+test merge::tests::added_entry_point_plan_is_unsupported ... ok
+test index_cache::tests::symlink_at_the_cache_path_fails_closed ... ok
+test index_cache::tests::unwritable_cache_still_returns_a_fresh_build ... ok
+test index_cache::tests::miss_then_hit_without_object_access_and_verification ... ok
+test merge::tests::common_ancestor_is_the_first_shared_entry ... ok
+test merge::tests::collateral_entries_keep_their_sides_under_swap ... ok
+test merge::tests::anchor_conflicts_pin_the_moved_class ... ok
+test index_cache::tests::verify_distinguishes_missing_match_and_mismatch ... ok
+test merge::tests::conflicted_identities_gain_no_collateral ... ok
+test merge::tests::composed_object_keeps_a_side_metadata_and_reports_divergence ... ok
+test merge::tests::conflict_codec_rejection_matrix_reaches_every_frozen_code ... ok
+test merge::tests::emit_merge_corpus_for_fixture_refresh ... ignored, fixture refresh emitter; run through the generator script
+test exchange::tests::export_import_is_clone_equivalent_and_re_export_is_byte_identical ... ok
+test merge::tests::forged_conflict_detail_and_kind_fail_strict_decode ... ok
+test merge::tests::empty_and_fast_forward_merges_and_preconditions ... ok
+test merge::tests::metadata_only_changes_are_overridden_or_conflict ... ok
+test merge::tests::empty_plan_with_a_foreign_root_fails ... ok
+test merge::tests::removal_on_both_sides_converges ... ok
+test merge::tests::oversized_ancestries_fail_before_search ... ok
+test exchange::tests::target_rules_fail_closed_before_any_write ... ok
+test merge::tests::set_valued_fields_compose_and_conflicts_are_classified ... ok
+test merge::tests::commit_merge_rejects_a_stale_branch_before_committing ... ok
+test exchange::tests::interrupted_clones_converge_on_retry_with_identical_bytes ... ok
+test gc::tests::concurrent_guard_blocks_and_wrong_store_guard_fails_closed ... ok
+test merge::tests::a_conflict_commits_nothing ... ok
+test refs::tests::advance_preserves_present_stale_and_non_fast_forward_distinctions ... ok
+test exchange::tests::decode_limits_bind_before_allocation_and_a_maximal_shape_decodes ... ok
+test merge::tests::two_created_entities_derive_in_operation_order_and_commit ... ok
+test refs::tests::anc06_ref_nested_codec_before_claim_mismatch ... ok
+test refs::tests::anc06_partial_ref_nested_codec_deep_ancestor_fails_closed ... ok
+test refs::tests::branch_and_ref_codecs_round_trip_and_reject_rehashed_shape_changes ... ok
+test refs::tests::branch_name_grammar_is_exact_and_non_normalizing ... ok
+test merge::tests::verified_judgment_rejects_a_non_ancestor_o ... ok
+test refs::tests::anc06_ref_nested_store_before_cycle ... ok
+test refs::tests::anc06_partial_ref_nested_store_deep_ancestor_fails_closed ... ok
+test refs::tests::anc02_shared_and_distinct_branch_ancestry_union_is_idempotent ... ok
+test merge::tests::merge_after_binding_the_entry_point_on_ours_commits ... ok
+test refs::tests::branch_resolution_preserves_receipt_root_policy_object_and_manifest_failures ... ok
+test refs::tests::anc08_branch_ancestry_cycle_fails_closed ... ok
+test refs::tests::cor04_fanout_case_shape_fails_closed ... ok
+test refs::tests::cor04_final_name_fanout_binding_fails_closed ... ok
+test refs::tests::branch_resolution_preserves_object_and_manifest_failures ... ok
+test refs::tests::cor04_owned_stage_removed_and_synced ... ok
+test refs::tests::cor04_non_regular_fails_closed ... ok
+test refs::tests::cor04_pid_decimal_grammar_preserved ... ok
+test refs::tests::anc05_deep_missing_branch_ancestor_fails_closed ... ok
+test merge::tests::merge_plan_commits_through_the_frozen_path_and_matches_the_merged_root ... ok
+test refs::tests::cor04_prefix_suffix_lookalikes_preserved ... ok
+test refs::tests::cor04_unknown_ascii_regular_preserved ... ok
+test refs::tests::cor04_token_case_width_preserved ... ok
+test refs::tests::cor04_unknown_non_utf8_regular_preserved ... ok
+test refs::tests::concurrent_create_and_advance_have_one_mutating_winner ... ok
+test refs::tests::cor05_fanout_case_shape_fails_closed ... ok
+test refs::tests::cor05_final_name_fanout_binding_fails_closed ... ok
+test refs::tests::cor05_pid_decimal_grammar_preserved ... ok
+test refs::tests::cor04_symlink_fails_closed ... ok
+test refs::tests::cor05_owned_stage_removed_and_synced ... ok
+test refs::tests::cor05_non_regular_fails_closed ... ok
+test refs::tests::ancestry_is_head_first_bounded_convergent_and_cycle_checked ... ok
+test refs::tests::cor05_symlink_fails_closed ... ok
+test refs::tests::cor05_token_case_width_preserved ... ok
+test refs::tests::cor05_unknown_non_utf8_regular_preserved ... ok
+test refs::tests::cor05_prefix_suffix_lookalikes_preserved ... ok
+test refs::tests::cor05_unknown_ascii_regular_preserved ... ok
+test refs::tests::competing_distinct_create_and_advance_targets_have_one_cas_winner ... ok
+test refs::tests::cor07_origin_ancestry_binding_host_ref_io ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_empty_operations ... ok
+test refs::tests::cor07_origin_ancestry_binding_branch_origin_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_descriptor_unknown ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_expiry_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_format_version ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_operation_ordinal ... ok
+test refs::tests::cor07_origin_ancestry_binding_branch_resource_limit ... ok
+test refs::tests::cor07_origin_ancestry_binding_branch_ancestry_cycle ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_operation_precondition_ordinal ... ok
+test merge::tests::disjoint_and_composed_changes_merge_deterministically ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_payload_kind ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_precondition_count ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_precondition_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_target_entity ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_result_candidate_result_decision_phase_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_result_candidate_result_candidate_id_shape ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_mutation_candidate_validation_profile ... ok
+test exchange::tests::interruption_rows_x01_to_x07_converge_on_retry ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_result_candidate_result_phase_shape ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_result_candidate_result_format_version ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_result_candidate_result_profile_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_result_candidate_result_set_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_result_candidate_result_root_shape ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_result_candidate_result_diagnostic_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_scb_float_non_canonical ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_codec_txn_resource_limit ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_host_txn_io ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_scb_bool_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_object_scb_digest_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_object_store_object_not_found ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_candidate_scb_utf8_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_object_store_io ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_object_store_object_substitution ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_policy_policy_root_resource_limit ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_policy_policy_root_mutation_class_unknown ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_policy_policy_root_effect_kind_unknown ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_policy_policy_root_flag_unknown ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_policy_policy_root_version_unsupported ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_policy_root_scb_digest_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_field_duplicate ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_policy_policy_root_transition_mode_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_policy_schema_epoch_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_digest_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_field_missing ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_field_unknown ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_length_overflow ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_resource_limit ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_magic_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_trailing_bytes ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_union_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_varint_non_minimal ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_integer_overflow ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_format_version ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_scb_version_unsupported ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_genesis_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_field_shape ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_kind_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_changed_binding_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_object_inventory_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_parent_shape ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_receipt_binding_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_result_binding_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_result_not_valid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_test_evidence_unsupported ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_receipt_txn_tombstone_invalid ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_repository_recovery_receipt_incomplete ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_state_root_scb_digest_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_state_root_scb_epoch_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_state_root_scb_field_order ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_state_root_scb_map_duplicate ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_state_root_scb_map_order ... ok
+test refs::tests::cor07_origin_ancestry_binding_semantic_ref_io ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_state_schema_epoch_mismatch ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_state_state_root_entry_unbound ... ok
+test refs::tests::cor07_origin_format_branch_record_field_shape ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_state_state_root_flag_unknown ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_state_root_scb_contract_unknown ... ok
+test refs::tests::cor07_origin_ancestry_binding_origin_repository_txn_object_inventory_mismatch ... ok
+test refs::tests::cor07_origin_ref_binding_recovery_named_ref_incomplete ... ok
+test refs::tests::cor07_origin_ref_binding_ref_branch_binding_mismatch ... ok
+test refs::tests::cor07_ref_format_ref_field_shape ... ok
+test refs::tests::cor07_origin_digest_branch_record_digest_mismatch ... ok
+test refs::tests::cor07_ref_format_ref_name_collision ... ok
+test refs::tests::cor07_origin_format_branch_record_format_version ... ok
+test refs::tests::cor07_target_binding_ref_target_mismatch ... ok
+test refs::tests::cor07_ref_format_ref_name_invalid ... ok
+test refs::tests::cor07_ref_format_ref_format_version ... ok
+test refs::tests::cor07_ref_format_ref_name_reserved ... ok
+test refs::tests::cor07_ref_digest_ref_digest_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_expiry_invalid ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_empty_operations ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_descriptor_unknown ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_format_version ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_operation_ordinal ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_payload_kind ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_precondition_count ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_target_entity ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_operation_precondition_ordinal ... ok
+test refs::tests::cor07_target_transaction_target_candidate_result_candidate_result_candidate_id_shape ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_precondition_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_candidate_mutation_candidate_validation_profile ... ok
+test refs::tests::cor07_target_transaction_target_candidate_result_candidate_result_decision_phase_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_candidate_result_candidate_result_format_version ... ok
+test refs::tests::cor07_target_transaction_target_candidate_result_candidate_result_diagnostic_invalid ... ok
+test refs::tests::cor07_target_transaction_target_candidate_result_candidate_result_phase_shape ... ok
+test refs::tests::cor07_target_transaction_target_candidate_result_candidate_result_root_shape ... ok
+test refs::tests::cor07_target_transaction_target_candidate_scb_bool_invalid ... ok
+test refs::tests::cor07_target_transaction_target_candidate_result_candidate_result_profile_invalid ... ok
+test refs::tests::cor07_target_transaction_target_codec_txn_resource_limit ... ok
+test refs::tests::cor07_target_transaction_target_candidate_scb_utf8_invalid ... ok
+test refs::tests::cor07_target_transaction_target_host_txn_io ... ok
+test refs::tests::cor07_target_transaction_target_object_scb_digest_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_candidate_scb_float_non_canonical ... ok
+test refs::tests::cor07_target_transaction_target_object_store_io ... ok
+test refs::tests::cor07_target_transaction_target_candidate_result_candidate_result_set_invalid ... ok
+test refs::tests::cor07_target_transaction_target_object_store_object_not_found ... ok
+test refs::tests::cor07_target_transaction_target_policy_policy_root_flag_unknown ... ok
+test refs::tests::cor07_target_transaction_target_object_store_object_substitution ... ok
+test refs::tests::cor07_target_transaction_target_policy_policy_root_mutation_class_unknown ... ok
+test refs::tests::cor07_target_transaction_target_policy_policy_root_effect_kind_unknown ... ok
+test refs::tests::cor07_target_transaction_target_policy_policy_root_resource_limit ... ok
+test refs::tests::cor07_target_transaction_target_policy_policy_root_transition_mode_invalid ... ok
+test refs::tests::cor07_target_transaction_target_policy_policy_root_version_unsupported ... ok
+test refs::tests::cor07_target_transaction_target_policy_root_scb_digest_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_field_duplicate ... ok
+test refs::tests::cor07_target_transaction_target_policy_schema_epoch_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_digest_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_field_missing ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_field_unknown ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_length_overflow ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_integer_overflow ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_union_invalid ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_magic_invalid ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_varint_non_minimal ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_resource_limit ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_version_unsupported ... ok
+test refs::tests::cor07_target_transaction_target_receipt_scb_trailing_bytes ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_changed_binding_invalid ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_field_shape ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_format_version ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_genesis_invalid ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_kind_invalid ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_object_inventory_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_result_binding_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_result_not_valid ... ok
+test refs::tests::cor07_target_transaction_target_repository_recovery_receipt_incomplete ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_receipt_binding_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_parent_shape ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_test_evidence_unsupported ... ok
+test refs::tests::cor07_target_transaction_target_state_root_scb_contract_unknown ... ok
+test refs::tests::cor07_target_transaction_target_repository_txn_object_inventory_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_state_root_scb_epoch_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_state_root_scb_digest_mismatch ... ok
+test refs::tests::cor07_target_transaction_target_state_root_scb_field_order ... ok
+test refs::tests::cor07_target_transaction_target_receipt_txn_tombstone_invalid ... ok
+test refs::tests::cor07_target_transaction_target_state_root_scb_map_duplicate ... ok
+test refs::tests::create_conflicts_and_interrupted_origin_precedence_are_exact ... ok
+test refs::tests::cor07_target_transaction_target_state_state_root_entry_unbound ... ok
+test refs::tests::cor07_target_transaction_target_state_root_scb_map_order ... ok
+test refs::tests::cor07_target_transaction_target_state_schema_epoch_mismatch ... ok
+test refs::tests::error_codes_and_update_statuses_are_closed_and_contiguous ... ok
+test refs::tests::every_branch_and_ref_semantic_field_perturbation_changes_its_digest ... ok
+test refs::tests::create_resolve_list_and_exact_retry_are_durable ... ok
+test refs::tests::cor07_target_transaction_target_state_state_root_flag_unknown ... ok
+test refs::tests::create_combined_conflicts_follow_the_frozen_precedence_table ... ok
+test refs::tests::cross_workspace_advance_and_existing_current_ref_report_origin_mismatch ... ok
+test refs::tests::directory_creation_retry_redurabilizes_layout_and_fanout_before_branch_success ... ok
+test refs::tests::create_binding_advanced_and_path_conflicts_have_exact_precedence ... ok
+test refs::tests::cross03_new_accepted_old_branch_recoveries_are_idempotent ... ok
+test refs::tests::cross02_old_accepted_new_branch_recoveries_are_idempotent ... ok
+test refs::tests::cross01_old_accepted_old_branch_recoveries_are_idempotent ... ok
+test refs::tests::limit03_origin_fanout_directories_exact_and_plus_one ... ok
+test refs::tests::exclusive_recovery_ownership_blocks_shared_operations ... ok
+test refs::tests::limit03_origin_leaf_entries_exact_and_plus_one ... ok
+test refs::tests::interrupted_install_retries_redurabilize_visible_records ... ok
+test refs::tests::limit03_origin_stages_exact_and_plus_one ... ok
+test refs::tests::limit03_ref_fanout_directories_exact_and_plus_one ... ok
+test refs::tests::guard03_ref_recovery_same_root_shared_fails_closed ... ok
+test refs::tests::interrupted_stage_writes_leave_only_removable_stages ... ok
+test refs::tests::limit03_ref_leaf_entries_exact_and_plus_one ... ok
+test refs::tests::cross04_new_accepted_new_branch_recoveries_are_idempotent ... ok
+test refs::tests::native_ref_durability_cut_selection_installs_and_clears ... ok
+test refs::tests::limit03_ref_stages_exact_and_plus_one ... ok
+test refs::tests::interrupted_advance_retry_redurabilizes_the_renamed_ref ... ok
+test refs::tests::guard04_ref_recovery_wrong_root_exclusive_fails_closed ... ok
+test refs::tests::forged_origin_and_every_current_fact_fail_against_durable_evidence ... ok
+test refs::tests::origin_capacity_boundary_rejects_before_origin_or_ref_write ... ok
+test refs::tests::limit03_orphan_origins_exact_and_plus_one ... ok
+test refs::tests::orphan_retry_ignores_exact_owned_ref_stage_during_capacity_scan ... ok
+test refs::tests::recovery_removes_only_exact_owned_stages_and_reports_orphans ... ok
+test refs::tests::ref01_during_origin_stage_write_removes_stage ... ok
+test refs::tests::limit03_origin_record_bytes_exact_and_plus_one ... ok
+test refs::tests::ref02_verified_origin_stage_before_link_removes_stage ... ok
+test refs::tests::recovery_retry_syncs_leaf_even_after_prior_delete_sync_failure ... ok
+test refs::tests::ref03_origin_link_before_first_sync_create_retry_redurabilizes ... ok
+test refs::tests::ref04_first_origin_sync_before_unlink_reports_orphan ... ok
+test refs::tests::ref05_origin_stage_unlink_before_second_sync_reports_orphan ... ok
+test refs::tests::ref07_verified_initial_ref_stage_before_link_reports_orphan ... ok
+test refs::tests::ref06_during_initial_ref_stage_write_reports_orphan ... ok
+test refs::tests::ref08_initial_ref_link_before_first_sync_create_retry_is_present ... ok
+test refs::tests::ref09_first_initial_ref_sync_before_unlink_verifies_branch ... ok
+test refs::tests::ref10_initial_ref_stage_unlink_before_second_sync_verifies_branch ... ok
+test refs::tests::limit03_visible_ref_record_bytes_exact_and_plus_one ... ok
+test refs::tests::limit03_visible_branches_exact_and_plus_one ... ok
+test refs::tests::limit03_final_origins_exact_and_plus_one ... ok
+test refs::tests::ref_no_argument_recovery_holds_exclusive_maintenance ... ok
+test refs::tests::rlay01_branches_v1_create_retry_reaches_sync_hook ... ok
+test refs::tests::stage_name_ownership_requires_the_complete_generated_shape ... ok
+test refs::tests::recovery_verifies_shared_and_advanced_branch_ancestries ... ok
+test refs::tests::ref15_origin_recovery_stage_unlink_retry_syncs_leaf ... ok
+test refs::tests::ref16_visible_ref_recovery_stage_unlink_retry_syncs_leaf ... ok
+test reports::tests::reports_are_stored_once_read_back_and_verified ... ok
+test refs::tests::ref11_during_advance_ref_stage_write_keeps_old_branch ... ok
+test refs::tests::rlay02_first_origin_fanout_retry_reaches_sync_hook ... ok
+test refs::tests::rlay03_second_origin_fanout_retry_reaches_sync_hook ... ok
+test refs::tests::ref12_verified_advance_ref_stage_before_rename_keeps_old_branch ... ok
+test tests::altered_tree_with_valid_outer_id_is_rejected ... ok
+test tests::dependency_requires_included_root ... ok
+test tests::duplicate_root_is_rejected ... ok
+test tests::clean_import_reconstructs_exact_root_and_is_idempotent ... ok
+test tests::export_root_order_is_canonical ... ok
+test tests::later_profiles_fail_closed ... ok
+test refs::tests::ref13_advance_ref_rename_before_sync_advance_retry_is_present ... ok
+test refs::tests::symlinked_roots_locks_and_records_fail_closed ... ok
+test refs::tests::target_mismatch_cross_path_substitution_and_unknown_files_fail_closed ... ok
+test tests::pack_epoch_descriptor_is_frozen ... ok
+test tests::missing_object_fails_before_promotion ... ok
+test tests::stable_reserved_error_symbol_exists ... ok
+test tests::outer_digest_tamper_fails_before_promotion ... ok
+test tests::object_verifier_failure_precedes_all_promotions ... ok
+test tests::outer_trailing_byte_fails_before_promotion ... ok
+test tests::nonminimal_outer_varint_is_rejected ... ok
+test tests::reordered_inventory_fails_before_promotion ... ok
+test refs::tests::ref14_advance_ref_sync_before_response_keeps_new_branch ... ok
+test root_query::tests::cache_hit_and_rebuild_answer_byte_identical_records_without_object_access ... ok
+test tests::tree_changes_when_content_changes ... ok
+test tests::wrong_version_and_epoch_set_fail_with_their_owned_symbols ... ok
+test tests::substituted_object_fails_before_promotion ... ok
+test root_query::tests::capsules_build_fresh_and_never_rest_on_a_cache_hit ... ok
+test tests::surplus_object_fails_before_promotion ... ok
+test tests::bounded_pack_import_fuzz_smoke_rejects_rehashed_mutations ... ok
+test refs::tests::dependency_codec_uses_the_scb1_collection_ceiling_not_ancestry_limit ... ok
+test refs::tests::exclusive_gc_ownership_serializes_transaction_and_ref_mutation ... ok
+
+test result: ok. 377 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.81s
+
+     Running tests/rw060_source_free_lifecycle.rs (target/debug/deps/rw060_source_free_lifecycle-d623cadd27802ddb)
+
+running 15 tests
+test dependency_scan_covers_pairs_renames_and_named_tables ... ok
+test dependency_scan_fails_closed_on_unrecognized_lines - should panic ... ok
+test lockfile_scan_catches_inline_array_two_hop ... ok
+test lockfile_scan_decodes_quoted_keys ... ok
+test lockfile_scan_catches_two_hop_evasion ... ok
+test lockfile_scan_decodes_string_encodings ... ok
+test lockfile_scan_fails_closed_on_bad_escapes - should panic ... ok
+test lockfile_scan_fails_closed_on_array_shapes - should panic ... ok
+test lockfile_scan_lists_decoded_edges ... ok
+test lockfile_scan_survives_reordered_package_fields ... ok
+test lifecycle_uses_no_source_parser_text_path_or_normalization ... ok
+test commit_parametrized_callee_validates_and_executes ... ok
+test reject_invalid_candidate_keeps_accepted_state_identical ... ok
+test repair_commit_execute_binds_profile_epoch_limits_observation ... ok
+test pack_export_import_reconstructs_exact_root_in_clean_store ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/zjx_readiness_witness.rs (target/debug/deps/zjx_readiness_witness-c84ae9e3b3baf205)
+
+running 10 tests
+test test_frame_reader_bounds_output_and_fails_closed_on_every_outer_defect ... ok
+test outer_annotations_change_the_frame_but_not_the_inner_identity ... ok
+test late_outer_failure_after_a_complete_inner_pack_payload_persists_nothing ... ok
+test production_pack_exporter_bytes_survive_reconstruction_and_reimport_exactly ... ok
+test pinned_pack_rejections_keep_their_owning_symbol_after_reconstruction ... ok
+test pinned_pack_direct_and_reconstructed_inputs_converge_through_the_production_importer ... ok
+test late_outer_failure_after_a_complete_inner_exchange_payload_persists_nothing ... ok
+test pinned_exchange_rejections_keep_their_owning_code_after_reconstruction ... ok
+test production_exchange_exporter_bytes_survive_reconstruction_and_reimport_exactly ... ok
+test pinned_exchange_direct_and_reconstructed_inputs_converge_through_the_production_importer ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_scb1-69c4d2393a6092f1)
+
+running 6 tests
+test tests::sint128_round_trips_extrema_and_signs ... ok
+test tests::uvar128_rejects_invalid_widths_and_overflows ... ok
+test tests::uvar128_round_trips_canonical_boundaries ... ok
+test tests::uvar128_rejects_nonminimal_trailing_and_exhausted_input ... ok
+test tests::value_cursor_returns_stable_low_level_failure_codes ... ok
+test tests::value_cursor_decodes_low_level_round_trip_primitives ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/conformance.rs (target/debug/deps/conformance-99957fab8f21b749)
+
+running 4 tests
+test epoch_invariants_and_encoder_canonicalization_hold ... ok
+test accepted_vectors_match_frozen_hex ... ok
+test rejected_vectors_return_frozen_codes ... ok
+test bounded_scb1_decoder_fuzz_smoke_rejects_seeded_noise ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_schema-1ad1b9ebbc9b6b4e)
+
+running 18 tests
+test tests::bootstrap_vector_is_fixed_and_import_round_trips ... ok
+test tests::descriptor_validation_rejects_unsorted_sets_and_duplicate_contract_tags ... ok
+test tests::import_rejects_non_minimal_length_and_trailing_data ... ok
+test tests::malformed_counts_fail_before_capacity_allocation ... ok
+test tests::limit_constants_match_epoch_record ... ok
+test tests::lookup_is_exact_no_fallback_and_downgrade_fails_closed ... ok
+test tests::record_changes_alter_schema_epoch_id ... ok
+test tests::migration_rejects_non_increasing_epoch_numbers ... ok
+test tests::scb_failure_codes_remain_distinct_from_schema_codes ... ok
+test tests::stable_schema_error_strings_are_frozen ... ok
+test tests::ssmc1_descriptor_inputs_do_not_drift ... ok
+test tests::migration_rejects_unapproved_plan_or_equivalence_evidence ... ok
+test tests::registry_rejects_unsorted_duplicate_mismatched_and_decoder_mismatch ... ok
+test tests::registry_decode_never_falls_back_across_epoch_or_contract ... ok
+test tests::migration_validation_accepts_exact_evidence_only_draft ... ok
+test tests::preserved_decoders_are_selected_by_exact_id ... ok
+test tests::migration_validation_rejects_negative_cases ... ok
+test tests::bounded_schema_bootstrap_import_fuzz_smoke ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_ssmc-221d7109215efaf6)
+
+running 10 tests
+test fingerprint::tests::all_fingerprint_codes_are_stable ... ok
+test fingerprint::tests::type_definition_ignores_own_identity_but_not_semantics ... ok
+test fingerprint::tests::function_child_id_and_slice_order_do_not_change_fingerprint ... ok
+test fingerprint::tests::value_hash_is_domain_separated_and_deterministic ... ok
+test tests::built_in_failure_tags_are_frozen ... ok
+test tests::cfg_enum_tags_do_not_depend_on_rust_layout ... ok
+test tests::all_type_tags_are_exact_and_unique ... ok
+test tests::all_opcode_tags_are_exact_and_unique ... ok
+test tests::raw_integer_width_preserves_invalid_candidates_for_checker ... ok
+test tests::supporting_enum_tags_do_not_depend_on_rust_layout ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_state_root-d29e5a81da77ad39)
+
+running 13 tests
+test tests::builder_collection_limit_fails_closed_before_sorting ... ok
+test tests::accepted_vector_is_frozen_and_round_trips ... ok
+test tests::descriptor_and_registered_epoch_are_exact ... ok
+test tests::builder_rejects_duplicates_unbound_entry_and_unknown_flags ... ok
+test tests::excluded_fact_variant_is_stable ... ok
+test tests::synthetic_flag_changes_digest_but_remains_unauthorized ... ok
+test tests::synthetic_zero_epoch_vector_hashes_but_authorization_rejects ... ok
+test tests::strict_import_rejects_nonminimal_envelope_and_payload_epoch_mismatch ... ok
+test tests::epoch_descriptor_and_decoder_mismatch_fail_closed ... ok
+test tests::strict_import_rejects_unknown_duplicate_and_ordered_fields ... ok
+test tests::unordered_inputs_have_identical_root ... ok
+test tests::strict_import_rejects_order_duplicates_mismatch_trailer_and_limits ... ok
+test tests::every_field_perturbation_changes_root ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_store-8c2367dc53e40f8c)
+
+running 48 tests
+test tests::bounded_read_rejects_over_limit_by_metadata ... ok
+test tests::atomic_no_overwrite_promotion_handles_racing_existing_object ... ok
+test tests::bounded_read_rejects_symlink_object_paths ... ok
+test tests::canonical_verifier_boundary_preserves_exact_scb_code ... ok
+test tests::cor01_fanout_case_shape_fails_closed ... ok
+test tests::cor01_object_id_case_width_preserved ... ok
+test tests::cor01_object_id_fanout_mismatch_preserved ... ok
+test tests::cor01_counter_case_width_preserved ... ok
+test tests::cor01_prefix_suffix_lookalikes_preserved ... ok
+test tests::cor01_owned_stage_removed_and_synced ... ok
+test tests::cor01_unknown_ascii_regular_preserved ... ok
+test tests::cor01_non_regular_fails_closed ... ok
+test tests::different_valid_object_at_target_path_is_substitution ... ok
+test tests::cor01_final_name_fanout_binding_fails_closed ... ok
+test tests::cor01_unknown_non_utf8_regular_preserved ... ok
+test tests::declared_id_substitution_is_detected_before_staging ... ok
+test tests::cor01_symlink_fails_closed ... ok
+test tests::concurrent_same_object_writers_all_resolve_without_store_io ... ok
+test tests::exclusive_staging_collision_retries_without_overwrite ... ok
+test tests::interruption_after_promotion_before_cleanup_preserves_final_and_reports_stage ... ok
+test tests::cor01_pid_zero_case_width_preserved ... ok
+test tests::interruption_before_promotion_leaves_only_stage_and_no_final_object ... ok
+test tests::limit01_object_fanout_directories_exact_and_plus_one ... ok
+test tests::limit01_final_objects_exact_and_plus_one ... ok
+test tests::obj01_before_object_stage_write_recovers_clean ... ok
+test tests::obj02_during_object_stage_write_removes_stage ... ok
+test tests::limit01_object_leaf_entries_exact_and_plus_one ... ok
+test tests::obj03_verified_stage_before_promotion_removes_stage ... ok
+test tests::limit01_object_stages_exact_and_plus_one ... ok
+test tests::obj04_final_link_before_first_leaf_sync_keeps_final ... ok
+test tests::obj06_stage_unlink_before_second_leaf_sync_ordinary_retry ... ok
+test tests::obj05_first_leaf_sync_before_stage_unlink_keeps_final ... ok
+test tests::payload_and_trailer_corruption_return_digest_mismatch ... ok
+test tests::olay01_scb1_component_create_retry_reaches_sync_hook ... ok
+test tests::obj07_recovery_stage_unlink_before_leaf_sync_retry_sync ... ok
+test tests::olay02_first_fanout_create_retry_reaches_sync_hook ... ok
+test tests::read_missing_object_uses_not_found_code ... ok
+test tests::olay03_second_fanout_create_retry_reaches_sync_hook ... ok
+test tests::t03_seed_hash_mismatch_assertion_is_effective ... ok
+test tests::t04_seed_wrong_preimage_assertion_is_effective ... ok
+test tests::recovery_events_are_sorted_by_relative_path ... ok
+test tests::store_root_and_fanout_symlinks_fail_closed ... ok
+test tests::t37_seed_recovery_event_assertion_is_effective ... ok
+test tests::write_read_round_trip_and_exact_path_derivation ... ok
+test tests::same_object_idempotence_does_not_replace_existing_bytes ... ok
+test tests::randomized_invalid_records_never_promote ... ok
+test tests::recovery_removes_only_store_owned_stage_files ... ok
+test tests::exact_maximum_size_is_allowed_until_digest_verification ... ok
+
+test result: ok. 48 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_txn-bd2c456f7791ce43)
+
+running 204 tests
+test codec::tests::transaction_error_codes_are_closed_and_contiguous ... ok
+test maintenance::tests::interrupted_maintenance_lock_creation_is_redurabilized_on_retry ... ok
+test recovery_path_read_test_hook::tests::exact_path_and_kind_fail_twice_then_clear ... ok
+test recovery_ancestry_test_hook::tests::failed_take_consumes_identity_and_clears_its_matching_plan ... ok
+test recovery_ancestry_test_hook::tests::ref_owner_cannot_activate_before_branch_verifier_join ... ok
+test recovery_ancestry_test_hook::tests::ref_owner_cannot_substitute_after_branch_verifier_join_drops ... ok
+test recovery_ancestry_test_hook::tests::stale_guard_cannot_clear_a_replacement_generation ... ok
+test recovery_ancestry_test_hook::tests::unwind_and_completed_take_both_allow_fresh_install ... ok
+test repository::clone_tests::marker_predicate_reads_exchange_directory_without_following_symlinks ... ok
+test codec::tests::transaction_shape_rejects_self_equal_binding_and_test_claims ... ok
+test codec::tests::transaction_import_rejects_digest_and_trailing_corruption ... ok
+test recovery_ancestry_test_hook::tests::one_epoch_plan_preserves_pre_ancestry_first_operation ... ok
+test recovery_ancestry_test_hook::tests::two_epoch_plan_records_owner_and_joined_operations ... ok
+test codec::tests::transaction_round_trip_is_non_cyclic_and_parent_bound ... ok
+test codec::tests::genesis_with_extended_profile_fails_closed_as_field_shape ... ok
+test repository::clone_tests::genesis_commit_and_recovery_fail_closed_on_a_marked_root ... ok
+test repository::clone_tests::clone_phases_are_unavailable_on_an_unmarked_root ... ok
+test repository::clone_tests::missing_parent_preserves_the_exact_transaction_failure_and_writes_no_head ... ok
+test repository::tests::accepted_ancestry_limits_enforce_exact_and_plus_one ... ok
+test repository::tests::branch_verifier_empty_input_succeeds_with_zero_reports ... ok
+test repository::tests::accepted_head_rejects_manifest_length_mismatch ... ok
+test repository::clone_tests::foreign_head_and_shared_guard_are_rejected ... ok
+test repository::tests::branch_verifier_rejects_origin_outside_head_ancestry ... ok
+test repository::tests::branch_verifier_reports_per_head_and_union_work ... ok
+test repository::clone_tests::two_phase_clone_reproduces_the_source_head_and_is_re_entrant ... ok
+test repository::tests::branch_verifier_returns_indexed_claim_mismatch ... ok
+test repository::tests::cor02_final_name_fanout_binding ... ok
+test repository::tests::cor02_fanout_case_shape ... ok
+test repository::tests::anc04_accepted_nested_codec_before_cycle ... ok
+test repository::tests::cor02_owned_stage ... ok
+test repository::tests::anc04_verifier_nested_codec_before_claim_mismatch ... ok
+test repository::tests::anc03_deep_missing_accepted_ancestor_fails_closed ... ok
+test repository::tests::cor02_pid_decimal_grammar ... ok
+test repository::tests::anc04_verifier_nested_store_before_cycle ... ok
+test repository::tests::cor02_non_regular ... ok
+test repository::tests::cor02_prefix_suffix_lookalikes ... ok
+test repository::tests::cor02_token_case_width ... ok
+test repository::tests::cor02_unknown_ascii_regular ... ok
+test repository::tests::anc07_fixed_head_ancestry_repeated_node_fails_closed ... ok
+test repository::tests::cor02_unknown_non_utf8_regular ... ok
+test repository::tests::cor03_non_regular ... ok
+test repository::tests::cor03_owned_stage ... ok
+test repository::tests::cor03_pid_decimal_grammar ... ok
+test repository::tests::anc01_fixed_head_multi_revision_ancestry_verifies_every_ancestor ... ok
+test repository::tests::cor02_symlink ... ok
+test repository::tests::cor03_prefix_suffix_lookalikes ... ok
+test repository::tests::cor03_symlink ... ok
+test repository::tests::cor03_token_case_width ... ok
+test repository::tests::cor03_unknown_non_utf8_regular ... ok
+test repository::tests::cor03_unknown_ascii_regular ... ok
+test repository::tests::cor06_head_checksum__head_checksum_before_receipt_corrupt ... ok
+test repository::tests::cor06_head_checksum__head_shape_before_receipt_missing ... ok
+test repository::tests::commit_names_the_semantic_profile_that_validated_the_program ... ok
+test repository::tests::cor06_object_digest__object_store_io ... ok
+test repository::tests::cor06_object_digest__object_scb_digest_mismatch ... ok
+test repository::tests::cor06_object_digest__object_store_object_substitution ... ok
+test repository::tests::cor06_manifest_length__repository_txn_object_inventory_mismatch ... ok
+test repository::tests::cor06_policy__policy_policy_root_effect_kind_unknown ... ok
+test repository::tests::cor06_object_missing__object_store_object_not_found ... ok
+test repository::tests::cor06_policy__policy_policy_root_flag_unknown ... ok
+test repository::tests::cor06_policy__policy_policy_root_mutation_class_unknown ... ok
+test repository::tests::cor06_policy__policy_policy_root_resource_limit ... ok
+test repository::tests::cor06_policy__policy_policy_root_transition_mode_invalid ... ok
+test repository::tests::cor06_policy__policy_root_scb_digest_mismatch ... ok
+test repository::tests::cor06_policy__policy_policy_root_version_unsupported ... ok
+test repository::tests::cor06_policy__policy_schema_epoch_mismatch ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_empty_operations ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_descriptor_unknown ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_expiry_invalid ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_operation_ordinal ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_precondition_count ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_payload_kind ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_format_version ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_operation_precondition_ordinal ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_target_entity ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_precondition_mismatch ... ok
+test repository::tests::cor06_receipt_digest__candidate_mutation_candidate_validation_profile ... ok
+test repository::tests::cor06_receipt_digest__candidate_result_candidate_result_phase_shape ... ok
+test repository::tests::cor06_receipt_digest__candidate_result_candidate_result_diagnostic_invalid ... ok
+test repository::tests::cor06_receipt_digest__candidate_result_candidate_result_profile_invalid ... ok
+test repository::tests::cor06_receipt_digest__candidate_result_candidate_result_candidate_id_shape ... ok
+test repository::tests::cor06_receipt_digest__candidate_result_candidate_result_decision_phase_mismatch ... ok
+test repository::tests::cor06_receipt_digest__candidate_result_candidate_result_format_version ... ok
+test repository::tests::cor06_receipt_digest__candidate_result_candidate_result_set_invalid ... ok
+test repository::tests::cor06_receipt_digest__candidate_scb_bool_invalid ... ok
+test repository::tests::cor06_receipt_digest__candidate_result_candidate_result_root_shape ... ok
+test repository::tests::cor06_receipt_digest__candidate_scb_float_non_canonical ... ok
+test repository::tests::cor06_receipt_digest__candidate_scb_utf8_invalid ... ok
+test repository::tests::cor06_receipt_digest__host_txn_io ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_field_duplicate ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_digest_mismatch ... ok
+test repository::tests::cor06_receipt_digest__codec_txn_resource_limit ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_integer_overflow ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_field_unknown ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_length_overflow ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_field_missing ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_magic_invalid ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_trailing_bytes ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_resource_limit ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_union_invalid ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_varint_non_minimal ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_changed_binding_invalid ... ok
+test repository::tests::cor06_receipt_digest__receipt_scb_version_unsupported ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_field_shape ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_format_version ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_genesis_invalid ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_kind_invalid ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_parent_shape ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_object_inventory_mismatch ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_receipt_binding_mismatch ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_test_evidence_unsupported ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_result_binding_mismatch ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_result_not_valid ... ok
+test repository::tests::cor06_receipt_digest__receipt_txn_tombstone_invalid ... ok
+test repository::tests::cor06_receipt_missing__repository_recovery_receipt_incomplete ... ok
+test repository::tests::emit_transaction_receipt_vectors_for_fixture_refresh ... ignored, explicit S20-390 conformance fixture refresh helper
+test repository::tests::gen01_before_first_genesis_object_put_stays_uninitialized ... ok
+test repository::tests::cross05_transaction_no_arg_wrapper_holds_exclusive_maintenance ... ok
+test repository::tests::corrupted_head_and_symlinked_owned_directory_fail_closed ... ok
+test repository::tests::cor06_root__state_root_scb_epoch_mismatch ... ok
+test repository::tests::gen03_after_all_genesis_objects_stays_uninitialized ... ok
+test repository::tests::gen02_after_first_genesis_object_durable_stays_uninitialized ... ok
+test repository::tests::cor06_root__state_root_scb_field_order ... ok
+test repository::tests::cor06_root__state_root_scb_map_duplicate ... ok
+test repository::tests::cor06_root__state_root_scb_contract_unknown ... ok
+test repository::tests::gen04_during_genesis_receipt_stage_write_removes_stage ... ok
+test repository::tests::gen05_verified_genesis_receipt_stage_removes_stage ... ok
+test repository::tests::cor06_root__state_root_scb_digest_mismatch ... ok
+test repository::tests::gen08_genesis_stage_unlink_resyncs_leaf ... ok
+test repository::tests::gen06_final_genesis_receipt_link_removes_stage ... ok
+test repository::tests::gen07_first_genesis_leaf_sync_removes_stage ... ok
+test repository::tests::gen11_during_genesis_head_stage_write_removes_stage ... ok
+test repository::tests::gen12_verified_genesis_head_stage_removes_stage ... ok
+test repository::tests::cor06_root__state_root_scb_map_order ... ok
+test repository::tests::cor06_root__state_schema_epoch_mismatch ... ok
+test repository::tests::gen10_before_genesis_head_stage_create_stays_uninitialized ... ok
+test repository::tests::gen09_second_genesis_leaf_sync_stays_uninitialized ... ok
+test repository::tests::gen13_genesis_head_rename_before_head_sync_verifies_genesis ... ok
+test repository::tests::gen14_genesis_head_sync_before_response_verifies_genesis ... ok
+test repository::tests::cor06_root__state_state_root_entry_unbound ... ok
+test repository::tests::head_codec_detects_corruption ... ok
+test repository::tests::cor06_root__state_state_root_flag_unknown ... ok
+test repository::tests::head03_verified_head_stage_before_rename_removes_stage ... ok
+test repository::tests::interrupted_accepted_lock_creation_is_redurabilized_on_retry ... ok
+test repository::tests::head02_during_accepted_head_stage_write_removes_stage ... ok
+test repository::tests::head04_head_rename_before_head_sync_keeps_new_head ... ok
+test repository::tests::guard01_transaction_recovery_same_root_shared_fails_closed ... ok
+test repository::tests::head01_before_accepted_head_stage_create_keeps_old_head ... ok
+test repository::tests::head05_head_sync_before_response_keeps_new_head ... ok
+test repository::tests::guard01_ancestry_verifier_same_root_shared_fails_closed ... ok
+test repository::tests::guard02_ancestry_verifier_wrong_root_exclusive_fails_closed ... ok
+test repository::tests::invalid_candidate_returns_monotonic_result_without_state_change ... ok
+test repository::tests::limit02_head_entries_exact_and_plus_one ... ok
+test repository::tests::limit02_head_stages_exact_and_plus_one ... ok
+test repository::tests::guard02_transaction_recovery_wrong_root_exclusive_fails_closed ... ok
+test repository::tests::limit02_receipt_fanout_directories_exact_and_plus_one ... ok
+test repository::tests::limit02_receipt_leaf_entries_exact_and_plus_one ... ok
+test repository::tests::limit02_receipt_stages_exact_and_plus_one ... ok
+test repository::tests::independent_threads_serialize_and_one_observes_stale_head ... ok
+test repository::tests::limit02_final_receipts_exact_and_plus_one ... ok
+test repository::tests::injected_ancestry_cycle_maps_to_cycle_for_branch_verifier ... ok
+test repository::tests::injected_ancestry_cycle_maps_to_parent_shape_for_accepted_recovery ... ok
+test repository::tests::limit02_accepted_ancestry_exact_and_plus_one ... ok
+test repository::tests::limit02_accepted_binding_visits_exact_and_plus_one ... ok
+test repository::tests::limit02_accepted_object_bytes_exact_and_plus_one ... ok
+test repository::tests::limit02_accepted_receipt_bytes_exact_and_plus_one ... ok
+test repository::tests::limit02_accepted_object_verifications_exact_and_plus_one ... ok
+test repository::tests::rcv01_transactions_v1_create_retry_reaches_sync_hook ... ok
+test repository::tests::limit03_branch_requests_exact_and_plus_one ... ok
+test repository::tests::limit03_branch_ancestry_union_exact_and_plus_one ... ok
+test repository::tests::limit03_branch_object_bytes_union_exact_and_plus_one ... ok
+test repository::tests::limit03_branch_object_bytes_per_pointer_exact_and_plus_one ... ok
+test repository::tests::rcv04_receipt_recovery_stage_unlink_retry_resyncs_leaf ... ok
+test repository::tests::limit03_branch_ancestry_per_pointer_exact_and_plus_one ... ok
+test repository::tests::limit03_branch_binding_visits_union_exact_and_plus_one ... ok
+test repository::tests::rcv02_first_receipt_fanout_create_retry_reaches_sync_hook ... ok
+test repository::tests::rcv03_second_receipt_fanout_create_retry_reaches_sync_hook ... ok
+test repository::tests::limit03_branch_binding_visits_per_pointer_exact_and_plus_one ... ok
+test repository::tests::transaction_durability_cut_selection_installs_and_clears ... ok
+test repository::tests::rcv05_head_recovery_stage_unlink_retry_resyncs_head ... ok
+test repository::tests::recovery_preserves_lookalikes_and_removes_exact_owned_stages ... ok
+test repository::tests::tobj01_before_first_changed_object_put_keeps_old_head ... ok
+test repository::tests::tobj02_after_first_changed_object_durable_keeps_old_head ... ok
+test repository::tests::stale_concurrent_commit_never_last_write_wins ... ok
+test repository::tests::recovery_fails_closed_on_symlinked_or_non_regular_receipt_entries ... ok
+test repository::tests::tobj03_after_all_changed_objects_keeps_old_head ... ok
+test repository::tests::limit03_branch_object_verifications_per_pointer_exact_and_plus_one ... ok
+test repository::tests::txn01_during_receipt_stage_write_removes_one_stage ... ok
+test repository::tests::txn02_verified_receipt_stage_before_final_link_removes_stage ... ok
+test repository::tests::txn04_first_leaf_sync_before_stage_unlink_removes_stage ... ok
+test repository::tests::txn05_stage_unlink_before_second_leaf_sync_resyncs ... ok
+test repository::tests::txn06_second_leaf_sync_before_head_work_keeps_old_head ... ok
+test repository::tests::verified_revision_rejects_symlinked_receipt_fanout ... ok
+test repository::tests::limit03_branch_receipt_bytes_union_exact_and_plus_one ... ok
+test repository::tests::txn03_final_receipt_link_before_first_leaf_sync_retries ... ok
+test repository::tests::verified_revision_does_not_consult_corrupt_accepted_head ... ok
+test repository::tests::verified_revision_loads_non_head_transaction_without_acceptance_claim ... ok
+test repository::tests::limit03_branch_object_verifications_union_exact_and_plus_one ... ok
+test repository::tests::verified_revision_missing_parent_creates_no_fanout_or_lock_state ... ok
+test repository::tests::verified_revision_rejects_manifest_length_mismatch ... ok
+test repository::tests::valid_commit_advances_only_to_a_complete_verified_receipt ... ok
+test repository::tests::limit03_branch_receipt_bytes_per_pointer_exact_and_plus_one ... ok
+test repository::tests::v5_candidate_scb_carriers_reach_recovery_import ... ok
+test repository::tests::v5_state_root_scb_carriers_reach_recovery_import ... ok
+
+test result: ok. 203 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running unittests src/lib.rs (target/debug/deps/sley_vm-9b79ec6cbfc96398)
+
+running 89 tests
+test admission_authority::tests::authority_error_codes_are_stable ... ok
+test admission_authority::tests::sley_evidence_ingress_has_no_minting_path ... ok
+test bootstrap::tests::bootstrap_gate_checks_bridge_row_and_result_types ... ok
+test bootstrap::tests::bootstrap_gate_checks_cell_element_types ... ok
+test bootstrap::tests::bootstrap_gate_admits_only_registered_bridge_rows ... ok
+test bootstrap::tests::bootstrap_gate_admits_every_permitted_family ... ok
+test bootstrap::tests::bootstrap_gate_permits_exactly_the_frozen_opcode_table ... ok
+test bootstrap::tests::bootstrap_gate_inspects_named_definitions ... ok
+test bootstrap::tests::bootstrap_gate_refuses_duplicated_import_identities ... ok
+test bootstrap::tests::bootstrap_gate_checks_constant_value_types ... ok
+test bootstrap::tests::bootstrap_gate_refuses_mutual_recursion ... ok
+test bootstrap::tests::bootstrap_gate_refuses_unreached_inventory ... ok
+test bootstrap_closure::emit_bootstrap_profile_vectors_for_freeze ... ignored, emits the frozen closure vectors; run via scripts/generate_bootstrap_profile_fixtures.py
+test bootstrap::tests::bootstrap_gate_requires_pure_closed_functions_and_acyclic_calls ... ok
+test bootstrap::tests::bootstrap_gate_refuses_excluded_type_forms ... ok
+test bootstrap::tests::bootstrap_gate_refuses_unreferenced_import_rows ... ok
+test exec_package::tests::empty_package_sections_have_stable_digests ... ok
+test exec_package::tests::nesting_past_the_depth_bound_refuses ... ok
+test exec_package::tests::section_digest_mismatch_variant_is_stable ... ok
+test bootstrap_closure::trap_on_violation_traps_exactly ... ok
+test exec_package::tests::imports_digest_covers_exact_rows_not_just_ids ... ok
+test exec_package::tests::named_and_function_types_encode ... ok
+test exec_package::tests::hydration_refuses_duplicates_structurally ... ok
+test exec_package::tests::section_digests_are_deterministic_and_tamper_sensitive ... ok
+test exec_package::tests::type_expression_codec_is_structural_only ... ok
+test bridge_adversarial::bridge_empty_inputs_cross_as_empty ... ok
+test execute::tests::execution_codes_are_stable ... ok
+test execute::tests::branch_conditional_trap_resource_and_cancel_terminate_deterministically ... ok
+test execute::tests::lowering_failures_are_preserved_and_runtime_faults_are_internal ... ok
+test execute::tests::input_failures_precede_runtime ... ok
+test execute::tests::observation_preimage_and_id_are_exact ... ok
+test execute::tests::observation_changes_with_semantic_inputs_and_limits ... ok
+test execute::tests::option_switch_binds_payload_and_no_payload_edges_with_exact_fuel ... ok
+test execute::tests::resource_and_cancellation_precedence_is_exact ... ok
+test execute::tests::result_and_named_variant_switch_payloads_are_reference_views ... ok
+test extended_tests::e1_rejection_matrix_names_the_frozen_lowering_codes ... ok
+test extended_tests::e1_constants_and_comparisons_follow_the_contract ... ok
+test bootstrap_closure::closure_workloads_are_gate_admitted ... ok
+test extended_tests::e1_tuples_vectors_options_and_results_construct_and_project ... ok
+test extended_tests::e2_left_shift_is_exact_at_every_width_boundary ... ok
+test extended_tests::e2_checked_integers_overflow_divide_and_shift_exactly ... ok
+test extended_tests::e4_map_order_is_the_encoding_order_not_numeric_key_order ... ok
+test extended_tests::e5_each_cell_charges_its_contents_so_the_budget_bounds_the_table ... ok
+test extended_tests::e4_records_variants_and_maps_construct_project_and_keep_canonical_order ... ok
+test extended_tests::e5_cells_hashes_globals_and_references_follow_the_contract ... ok
+test extended_tests::e4_maps_differing_only_in_entry_order_never_reach_equality_or_hashing ... ok
+test extended_tests::e6_direct_calls_open_frames_share_budgets_and_stop_at_the_depth_ceiling ... ok
+test extended_tests::e8_bridge_accumulates_across_executions ... ok
+test extended_tests::e7a_rejection_matrix_names_the_frozen_lowering_codes ... ok
+test extended_tests::e8_bridge_charges_fuel_per_element ... ok
+test bootstrap_closure::closure_workloads_execute_to_exact_terminations ... ok
+test extended_tests::e8_bridge_program_bytes_cross_as_vectors_only ... ok
+test extended_tests::e8_bridge_public_execution_cannot_bypass_registration ... ok
+test extended_tests::e8_bridge_row_binding_and_registry_closure_hold_at_lowering ... ok
+test extended_tests::e8_bridge_refuses_unapproved_adapters_and_mistyped_operands ... ok
+test extended_tests::emit_vm_extended_vectors_for_fixture_refresh ... ignored, fixture refresh emitter
+test extended_tests::judgment_acceptance_matches_lowering_acceptance ... ok
+test bootstrap_closure::closure_workloads_replay_through_v2_with_attribution ... ok
+test extended_tests::judgment_rejects_non_canonical_referenced_constant ... ok
+test host_abi::tests::bridge_identity_construction_is_exact ... ok
+test extended_tests::e1_bytecode_carries_immediates_and_executions_repeat_exactly ... ok
+test host_abi::tests::host_abi_constants_bind_the_landed_bridge_values ... ok
+test host_abi::tests::image_prefix_check_is_structural_only ... ok
+test lower::tests::all_lowering_codes_are_stable ... ok
+test lower::tests::branch_conditional_and_trap_terminators_lower ... ok
+test lower::tests::immediate_precedes_signature ... ok
+test lower::tests::all_supported_boolean_opcodes_lower ... ok
+test extended_tests::e3_floats_round_to_nearest_canonicalize_nan_and_compare_by_ieee ... ok
+test lower::tests::prior_cfg_and_cache_profile_failures_precede_lower_profile ... ok
+test lower::tests::local_id_and_inventory_slice_perturbation_preserve_output ... ok
+test lower::tests::unsupported_opcode_precedes_immediate_and_signature ... ok
+test lower::tests::variant_switch_case_payload_is_preserved ... ok
+test raw_hash::tests::raw_hash_adds_no_domain ... ok
+test raw_hash::tests::raw_hash_fuel_schedule_is_exact ... ok
+test raw_hash::tests::raw_hash_standard_vectors_match_blake3 ... ok
+test lower::tests::resource_preflight_rejects_oversized_instruction_before_lowering_allocation ... ok
+test raw_hash::tests::raw_hash_boundary_vectors ... ok
+test tests::cache_key_is_exact_and_profile_bound ... ok
+test lower::tests::boolean_o0_lowering_has_exact_registers_and_bytes ... ok
+test raw_hash::tests::raw_hash_unknown_variants_deny_without_hashing ... ok
+test raw_hash::tests::raw_hash_tamper_changes_digest ... ok
+test tests::lowering_resource_ceiling_fails_with_the_stable_symbol ... ok
+test extended_tests::e8_bridge_converts_bytes_vectors_and_pushes ... ok
+test extended_tests::e7a_contract_assertions_call_the_predicate_and_carry_its_verdict ... ok
+test execute::tests::executes_all_boolean_opcodes_and_repeats_deterministically ... ok
+test bridge_adversarial::bridge_adversarial_lane_is_deterministic_and_fail_closed ... ok
+test extended_tests::e6_call_depth_ceiling_is_256_live_frames_with_the_entry_included ... ok
+test extended_tests::e8_bridge_capacity_refusal_is_a_typed_index_value ... ok
+test bridge_adversarial::bridge_capacity_boundary_is_exact_at_two_to_twenty ... ok
+
+test result: ok. 87 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+     Running tests/rw070_host_abi_freeze.rs (target/debug/deps/rw070_host_abi_freeze-a6c3508d696bf6c9)
+
+running 37 tests
+test rw070_cache_identity_is_stable_and_bound ... ok
+test rw070_bridge_under_restricted_profile_refuses ... ok
+test rw070_cancellation_is_deterministic_not_silent ... ok
+test rw070_direct_helper_injection_refuses ... ok
+test rw070_gate_denies_unknown_imports_like_lowering ... ok
+test rw070_development_abi_version_zero_refuses_as_production ... ok
+test rw070_b2v1_exact_invocation_succeeds ... ok
+test rw070_effectful_bridge_row_refuses ... ok
+test rw070_gate_refuses_second_push_row ... ok
+test rw070_gate_refuses_unreferenced_import_rows ... ok
+test rw070_image_corruption_is_detected_by_identity_mismatch ... ok
+test rw070_image_trailing_data_changes_identity ... ok
+test rw070_image_wrong_magic_and_version_refuse ... ok
+test rw070_image_truncation_refuses ... ok
+test rw070_foreign_adapter_identity_refuses ... ok
+test rw070_combined_push_types_share_one_closure ... ok
+test rw070_composed_bridge_round_trip_with_growth ... ok
+test rw070_nonzero_abi_flags_refuse_cache_key ... ok
+test rw070_loader_rejects_malformed_tags ... ok
+test rw070_loader_rejects_tamper_through_itself ... ok
+test rw070_oversized_image_refuses ... ok
+test rw070_loaded_execution_verifies_manifest_identity ... ok
+test rw070_loaded_image_round_trips_lowered_model ... ok
+test rw070_loaded_execution_binds_epoch_and_inputs ... ok
+test rw070_loaded_execution_matches_lowering_path ... ok
+test rw070_unknown_primitive_identity_refuses ... ok
+test rw070_v2b1_rejects_non_u8_width ... ok
+test rw070_wrong_abi_version_refuses ... ok
+test rw070_wrong_vm_version_refuses_cache_key ... ok
+test rw070_wrong_request_schema_refuses ... ok
+test rw070_push_u8_exact_invocation_succeeds ... ok
+test rw070_wrong_result_schema_refuses ... ok
+test rw070_v2b1_exact_invocation_succeeds ... ok
+test rw070_valid_image_loads_and_executes_deterministically ... ok
+test rw070_push_rows_select_per_use_at_lowering ... ok
+test rw070_native_compiler_services_are_not_admitted ... ok
+test rw070_bridge_capacity_refusal_is_typed_index_code_2 ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/rw075_exec_closure.rs (target/debug/deps/rw075_exec_closure-29a4c26ef12f482e)
+
+running 30 tests
+test adversarial_copied_evidence_against_genuine_report_refuses ... ok
+test cache_key_with_mismatched_closure_refuses ... ok
+test cross_closure_gate_report_refuses ... ok
+test correct_image_wrong_profile_refuses ... ok
+test broader_profile_operation_cannot_ride_a_bootstrap_receipt ... ok
+test authority_refuses_tampered_image_before_any_receipt ... ok
+test equal_count_replay_with_different_closure_refuses ... ok
+test correct_image_wrong_import_row_refuses ... ok
+test correct_image_wrong_constants_refuses ... ok
+test malformed_structural_metadata_cannot_execute ... ok
+test correct_image_wrong_layouts_refuses ... ok
+test forged_layout_cannot_execute ... ok
+test mismatched_constants_cannot_execute ... ok
+test missing_layout_cannot_execute ... ok
+test oversized_image_refuses ... ok
+test forged_root_identity_refuses ... ok
+test mismatched_root_inventory_cannot_execute ... ok
+test same_entry_imports_different_counts_refuses ... ok
+test same_opcode_rewired_image_against_genuine_report_refuses ... ok
+test package_path_executes_without_type_environment_new ... ok
+test receipt_for_another_package_refuses ... ok
+test same_package_out_of_bootstrap_approval_refuses ... ok
+test observations_bind_the_complete_package_identity ... ok
+test stale_package_refuses ... ok
+test wrong_limits_refuse ... ok
+test wrong_dependency_closure_cannot_execute ... ok
+test wrong_field_layout_cannot_execute ... ok
+test dependency_byte_ceiling_enforced_incrementally ... ok
+test dependency_count_ceiling_enforced ... ok
+test total_envelope_ceiling_enforced ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.75s
+
+     Running tests/rw075_hydration_workloads.rs (target/debug/deps/rw075_hydration_workloads-5d361420d97644ea)
+
+running 8 tests
+test host_cannot_produce_semantic_hashability_judgment ... ok
+test host_cannot_synthesize_type_environment_from_definitions ... ok
+test raw_primitive_is_not_a_semantic_digest_service ... ok
+test host_cannot_supply_checker_lowering_or_candidate_answers ... ok
+test real_image_emission_with_control_flow ... ok
+test branching_work_queue_with_fan_out_and_cycle ... ok
+test mixed_compiler_like_workload_within_bounds ... ok
+test host_package_path_calls_no_semantic_digest_service ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/rw075_raw_callable.rs (target/debug/deps/rw075_raw_callable-abd0c230d608963d)
+
+running 19 tests
+test raw_fuel_schedule_is_exact_and_precharged ... ok
+test raw_callable_exact_invocation_succeeds ... ok
+test raw_authority_refuses_graph_a_gate_with_graph_b_image ... ok
+test raw_v1_gate_refuses_successor_row ... ok
+test raw_standard_vectors_match_reference ... ok
+test raw_v1_approval_refuses_successor_report ... ok
+test raw_tamper_changes_digest_and_same_preimage_deterministic ... ok
+test raw_unknown_and_tampered_rows_deny ... ok
+test raw_staged_authority_binds_graphs_to_image ... ok
+test raw_sley_built_preimage_end_to_end ... ok
+test raw_v2_approval_refuses_v1_report ... ok
+test raw_authority_refuses_substituted_tables ... ok
+test raw_successor_package_binds_and_mismatches_refuse ... ok
+test v2_package_section_digests_and_observation_are_frozen ... ok
+test raw_preimage_ownership_across_compiler_domains ... ok
+test raw_v2_gate_bounds_carried_preimages ... ok
+test sleybc02_image_construction_is_not_a_native_service ... ok
+test raw_boundaries_admit_and_over_bound_refuses_typed ... ok
+test raw_over_bound_refuses_without_composition ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/rw080_codec_envelope.rs (target/debug/deps/rw080_codec_envelope-14dd4f8df42a1d6e)
+
+running 9 tests
+test envelope_valid_distinct_payloads ... ok
+test envelope_trailing_and_digest_corruption ... ok
+test envelope_nonminimal_overflow_lengths ... ok
+test envelope_frozen_vectors_match_reference ... ok
+test envelope_multi_fault_precedence ... ok
+test envelope_invalid_magic_version_contract_epoch ... ok
+test envelope_truncations_report_length_overflow ... ok
+test envelope_resource_observations_stay_within_codec_budgets ... ok
+test envelope_runtime_mutations_agree_with_reference ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.37s
+
+     Running tests/rw080_codec_program_outer.rs (target/debug/deps/rw080_codec_program_outer-91d6b85ec90b8435)
+
+running 29 tests
+test entrypoint_encode_rejections ... ok
+test fixture_empty_resources_stay_far_inside_codec_budgets ... ok
+test fixture_empty_valid_and_encode_bytes ... ok
+test fixture_empty_rejections_match_reference ... ok
+test entrypoint_probe_decode ... ok
+test entrypoint_encode_probe_roundtrip ... ok
+test outer_encode_probe_roundtrip ... ok
+test outer_probe_ns_empty ... ok
+test entrypoint_rejections_match_reference ... ok
+test namespace_encode_rejections ... ok
+test program_build_probe_matches_native_stored ... ok
+test outer_entrypoint_resources_stay_inside_codec_budgets ... ok
+test outer_rejections_match_reference_order ... ok
+test outer_valid_reencode_matches_canonical ... ok
+test fixture_empty_runtime_mutations_agree_with_reference ... ok
+test program_encode_composed_matches_canonical_stored ... ok
+test program_envelope_native_reference_with_entrypoint ... ok
+test namespace_probe_valid_and_encode_bytes ... ok
+test namespace_rejections_match_native ... ok
+test program_validate_probe_matches_native_payload ... ok
+test program_decode_composed_returns_structured_triple ... ok
+test outer_runtime_mutations_agree_with_native_payload_layer ... ok
+test program_composed_resources_stay_inside_codec_budgets ... ok
+test program_validate_rejections_match_reference ... ok
+test program_composed_rejections_preserve_precedence_and_scope ... ok
+test program_ns_value_units_bind_first ... ok
+test program_ns_composed_resources_stay_inside_codec_budgets ... ok
+test program_ns_composed_rejections_preserve_precedence_and_scope ... ok
+test program_ns_composed_valid ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.55s
+
+     Running tests/rw080_codec_scaffold.rs (target/debug/deps/rw080_codec_scaffold-396e83bcd3a42bd4)
+
+running 2 tests
+test codec_scaffold_unknown_operation_returns_version_error ... ok
+test codec_scaffold_dispatch_traps_per_leg ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/rw080_codec_uvar.rs (target/debug/deps/rw080_codec_uvar-a7e3060fe985fe8a)
+
+running 9 tests
+test uvar_exact_wrapper_checks_trailing_and_passthrough ... ok
+test uvar_frozen_rejected_codes_match ... ok
+test uvar_frozen_accepted_decode_and_encode ... ok
+test uvar_encode_width_rules_and_canonical_bytes ... ok
+test uvar_truncation_width_and_boundary_edges ... ok
+test uvar_resource_observations_stay_within_codec_budgets ... ok
+test uvar_fresh_vectors_decode_and_encode ... ok
+test uvar_runtime_random_mutations_agree_code_for_code ... ok
+test uvar_runtime_random_roundtrip_matches_reference ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.28s
+
+   Doc-tests sley_adapter
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_check
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_cli
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_conformance
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_id
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_json_bridge
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_mutate
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_policy
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_protocol
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_query
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_repo
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_scb1
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_schema
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_ssmc
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_state_root
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_store
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_txn
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_vm
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+### exit=0
+### 
+### exit=0

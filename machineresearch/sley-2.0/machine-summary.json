@@ -4156,8 +4156,8 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 376,
-    "open_reviews": 1,
+    "obligations": 379,
+    "open_reviews": 4,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 38,
@@ -4209,8 +4209,8 @@
     "gated_items": 9,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "1 review obligations are open",
       "4 GA acceptance criteria are not evidenced",
+      "4 review obligations are open",
       "no succession trial has been executed",
       "the release-check and v2 product gates are fail-closed"
     ],
@@ -4308,6 +4308,58 @@
     "vulcan_surface_review_initial": "FAIL_0_P0_3_P1_3_P2_2_P3",
     "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/) [verdict form PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4 normalized 2026-09-15 to the bare PASS token the acceptance checker binds; zero findings at every level]",
     "status_note": "accepted 2026-09-15 by the owner after the three lanes' final PASS (zero findings at every level) under the operator authorization of 2026-09-15; previous status S20_760_CONTRACT_DRAFT_REVIEW_PENDING"
+  },
+  "zjx_transport_readiness": {
+    "status": "S20_ZJX_READINESS_READY_EXISTING_REVIEW_PENDING",
+    "amendment": "docs/audits/S20_ZJX_TRANSPORT_READINESS_AMENDMENT.md",
+    "amendment_document_id": "S20-ZJX-READINESS",
+    "amendment_revision": 2,
+    "amendment_source_sha256": "dde3ec640bb7eec76409d44e6aea2ed362135d797126b24c57641aee03178af0",
+    "closeout": "docs/audits/S20_ZJX_TRANSPORT_READINESS_CLOSEOUT.md",
+    "evidence": "evidence/validation/zjx-transport-readiness-v1.json",
+    "witness": "crates/sley-repo/tests/zjx_readiness_witness.rs",
+    "witness_tests": 10,
+    "activation_baseline_commit": "4168332f34ba4ff4567fd60df8f2adc42083b1e1",
+    "audit_commit_named_by_amendment": "70283ce1932d4182f206f0d09e6129af3976a4c2",
+    "witness_commit": "PENDING_COMMIT",
+    "amendment_result": "READY_EXISTING",
+    "amendment_result_note": "READY_EXISTING is the amendment's section-18 local report term (its own word is 'disposition'); the field is named amendment_result so the register does not read a report term as a review disposition.",
+    "closeout_kind": "DOCUMENTATION_AND_TEST_ONLY",
+    "production_code_changed": false,
+    "production_repair_proposed": false,
+    "contracts_reused": [
+      "S20-170 REPOSITORY_PACK_V1",
+      "S20-540 REPOSITORY_EXCHANGE_V1"
+    ],
+    "insertion_points": [
+      "sley_repo::import_conformance_pack(store, &[u8], verifier)",
+      "sley_repo::preflight_repository_exchange(&[u8], verifier)",
+      "sley_repo::import_repository_exchange(target, &[u8], verifier)"
+    ],
+    "byte_sources": [
+      "sley_repo::export_conformance_pack",
+      "sley_repo::export_repository_exchange"
+    ],
+    "compression_profiles_accepted": [
+      0
+    ],
+    "zjx_release_selected": false,
+    "zjx_edition_selected": false,
+    "zjx_backend_selected": false,
+    "zjx_profile_selected": false,
+    "zjx_support_shipped": false,
+    "publication_authority_inferred": false,
+    "ga_claimed": false,
+    "release_disposition_changed": false,
+    "matrix_rows": 14,
+    "matrix_rows_passed": 14,
+    "matrix_rows_inapplicable": 0,
+    "stop_conditions_reached": 0,
+    "ariadne_contract_review": "PENDING",
+    "nabu_architecture_review": "PENDING",
+    "vulcan_surface_review": "PENDING",
+    "implementation_complete": true,
+    "note": "Amendment-local report terms (READY_EXISTING, REVIEW_PENDING) are not SMP1 or canonical status values. The section moves to a terminal status only when all three lanes carry the bare PASS token; the witness_commit field is pinned by the records-only follow-up after the witness commit exists."
   },
   "required_contract_index": {
     "status": "S20_770_INDEX_ACCEPTED",

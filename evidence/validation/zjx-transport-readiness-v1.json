@@ -1,0 +1,232 @@
+{
+  "contract": "sley2.zjx-transport-readiness.v1",
+  "amendment_document_id": "S20-ZJX-READINESS",
+  "amendment_revision": 2,
+  "amendment_tracked_copy": "docs/audits/S20_ZJX_TRANSPORT_READINESS_AMENDMENT.md",
+  "amendment_source_sha256": "dde3ec640bb7eec76409d44e6aea2ed362135d797126b24c57641aee03178af0",
+  "closeout": "docs/audits/S20_ZJX_TRANSPORT_READINESS_CLOSEOUT.md",
+  "date": "2026-09-15",
+  "readiness_disposition": "READY_EXISTING",
+  "closeout_kind": "DOCUMENTATION_AND_TEST_ONLY",
+  "release_disposition": "UNCHANGED_BLOCKED_OPERATOR_HELD",
+  "baseline": {
+    "checkout": "live main checkout (RESUME.md)",
+    "head_at_activation": "4168332f34ba4ff4567fd60df8f2adc42083b1e1",
+    "origin_main_at_activation": "4168332f34ba4ff4567fd60df8f2adc42083b1e1",
+    "audit_commit_named_by_amendment": "70283ce1932d4182f206f0d09e6129af3976a4c2",
+    "working_tree_at_activation": "clean except one untracked in-flight review transcript owned by a concurrent read-only lane",
+    "concurrent_worktrees": [
+      "sley2-campaign at 70283ce on campaign/s20-640 (empty)"
+    ],
+    "toolchain": {
+      "channel": "1.93.0",
+      "rustc": "rustc 1.93.0 (254b59607 2026-01-19)",
+      "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)"
+    },
+    "cargo_lock_sha256": "4b6af7f0f01b23db0bb44f23385ab82e1ed979c80bd57873243dd3e391d4eacc",
+    "declared_features": {
+      "sley-repo": [
+        "test-support"
+      ],
+      "sley-txn": [
+        "s20-530-test-hooks"
+      ],
+      "default_features_anywhere": false
+    },
+    "attested_candidate": {
+      "commit": "7a94a4a31272a6dc7588aff902dcde81f7d10a4e",
+      "artifact_sha256": "6d970bf4d5da78b034a837109348e3d1e373c6566cfae67a4fd84b447160e159",
+      "stale_versus_head_before_this_closeout": true
+    },
+    "qualification_at_activation": {
+      "finding_register_obligations": 375,
+      "finding_register_pending": 1,
+      "decision_dossier": "BLOCKED",
+      "ga_report": "48 EVIDENCED / 2 AWAITS_REVIEW / 2 GATED"
+    }
+  },
+  "contract_digests_sha256": {
+    "docs/spec/REPOSITORY_PACK_V1.md": "1e249e61c28c7e4e321e45f767ec697c6d97a4b1dd117edec98bf8fcfd1da594",
+    "docs/spec/REPOSITORY_EXCHANGE_V1.md": "42f312464731dcf7f37321cda667ea287aefdb80b22719cefe205a9245b5f359",
+    "docs/spec/SCB1.md": "a1422d63461dec9f2aa0432e0570efe860443675d2bd0c5b178ccd3bd700c86f",
+    "docs/spec/ERROR_CODES_V1.md": "0a5bff84c946ec574075add021e8a2b2e32749ef7d5c25a01837b3b93a537dd9"
+  },
+  "fixture_digests_sha256": {
+    "conformance/repository-pack/v1/accepted.json": "35685f782e160e64d2fe10cda38010f3451ae809fa2a573bb9e8f8a6e60b6963",
+    "conformance/repository-pack/v1/rejected.json": "9a08dc598ee383c93844d849bcda1c0c779ab861409137e9417cff9347978b60",
+    "conformance/repository-exchange/v1/accepted.json": "a0674fb84078c1a8147b04bab106f79b60c4ac78918f5692b487c4871561e31a",
+    "conformance/repository-exchange/v1/rejected.json": "bbf8129763592aea926384f7c94276da9327e57ee087bb3ac5891d48c02ddbe0"
+  },
+  "supported_profiles": [
+    {
+      "contract": "S20-170 Repository Pack v1",
+      "status": "S20_170_COMPLETE",
+      "compression_profile": 0,
+      "insertion_point": "sley_repo::import_conformance_pack(store, &[u8], verifier)",
+      "byte_source": "sley_repo::export_conformance_pack",
+      "preflight_persistence_split": "preflight_conformance_pack (steps 1-5) then promote_pack_objects (step 6)"
+    },
+    {
+      "contract": "S20-540 Repository Exchange v1",
+      "status": "S20_540_COMPLETE",
+      "compression_profile": 0,
+      "insertion_point": "sley_repo::import_repository_exchange(target, &[u8], verifier); preflight-only sley_repo::preflight_repository_exchange(&[u8], verifier)",
+      "byte_source": "sley_repo::export_repository_exchange",
+      "preflight_persistence_split": "preflight (steps 1-6) then persistence 8.1-8.7 under exclusive maintenance ownership, head last"
+    }
+  ],
+  "witness": {
+    "file": "crates/sley-repo/tests/zjx_readiness_witness.rs",
+    "file_sha256": "912f52edee6529d84c18ad0f6f48443acf32f07a5848a4ca0d4c88ba7e5902c2",
+    "tests": 10,
+    "command": "cargo test -p sley-repo --locked --test zjx_readiness_witness -- --nocapture",
+    "result": "ok. 10 passed; 0 failed; 0 ignored",
+    "log": "evidence/validation/zjx-transport-readiness-logs-v1/witness-run.log",
+    "test_only_framing": "ZR12-TEST-FRAME/NOT-FMT! leader; big-endian fixed-width lengths; BLAKE3 finalizer; outer-only annotation; local failure enum; not SCB1, not a Sley contract, not ZJX, no sley2. domain, no contract tag, no MIME, no public error symbol, compiled into no library or binary",
+    "pack_rejection_symbols_observed": {
+      "magic": "SCB_MAGIC_INVALID",
+      "contract-tag": "SCB_CONTRACT_UNKNOWN",
+      "truncated": "SCB_LENGTH_OVERFLOW",
+      "trailing-byte": "SCB_TRAILING_BYTES",
+      "flip-trailer": "PACK_DIGEST_MISMATCH",
+      "flip-epoch": "PACK_DIGEST_MISMATCH",
+      "flip-payload": "PACK_DIGEST_MISMATCH",
+      "resealed-payload-bit": "PACK_SCHEMA_UNSUPPORTED",
+      "resealed-late-bit": "PACK_DIGEST_TREE_MISMATCH",
+      "resealed-epoch": "SCHEMA_EPOCH_MISMATCH"
+    },
+    "exchange_rejection_codes": "equal to conformance/repository-exchange/v1/rejected.json expected_code for all 6 rows, direct and reconstructed"
+  },
+  "existing_tests_reused": {
+    "cargo test -p sley-repo --locked": {
+      "result": "377 unit + 15 rw060 + 10 witness passed; 4 ignored (fixture-refresh emitters)",
+      "log": "evidence/validation/zjx-transport-readiness-logs-v1/cargo-test-sley-repo.log"
+    },
+    "cargo test -p sley-scb1 --locked": {
+      "result": "passed",
+      "log": "evidence/validation/zjx-transport-readiness-logs-v1/cargo-test-sley-scb1.log"
+    },
+    "cargo clippy -p sley-repo --all-targets --locked -- -D warnings": {
+      "result": "clean",
+      "log": "evidence/validation/zjx-transport-readiness-logs-v1/clippy-sley-repo.log"
+    }
+  },
+  "zt13_vectors": {
+    "commands": [
+      "sha256sum -c SHA256SUMS (pack, exchange)",
+      "uv run --project oracle/scb1 --frozen python scripts/check_repository_pack_vector.py",
+      "uv run --project oracle/scb1 --frozen python scripts/check_repository_exchange_vector.py",
+      "uv run --project oracle/scb1 --frozen python scripts/generate_repository_pack_rejections.py --check",
+      "python3 scripts/generate_repository_exchange_fixtures.py --check"
+    ],
+    "result": "all PASS, drift []",
+    "golden_data_regenerated": false,
+    "log": "evidence/validation/zjx-transport-readiness-logs-v1/zt13-vectors.log"
+  },
+  "zt11_dependencies": {
+    "command": "cargo metadata --locked --format-version 1 (closure over workspace members)",
+    "normal_closure_external_crates": 27,
+    "all_kinds_external_crates": 30,
+    "suspicious_matches": [],
+    "pattern": "zjx|zstd|flate|lz4|brotli|snap|xz|lzma|reqwest|hyper|tokio|libloading|dlopen|openssl|rustls|curl|ureq|wasm|ffi",
+    "log": "evidence/validation/zjx-transport-readiness-logs-v1/dependency-closure.json"
+  },
+  "non_effect": {
+    "production_sources_changed": false,
+    "manifests_changed": false,
+    "lock_changed": false,
+    "git_diff_stat": "empty for crates/*/src, Cargo.toml, Cargo.lock, crates/*/Cargo.toml",
+    "sley_cli_debug_binary_sha256_before": "18b2aad4f7643075c78c0f2c27134df7b2bcc166464f7d3201af05b1983fbb0b",
+    "sley_cli_debug_binary_sha256_after": "18b2aad4f7643075c78c0f2c27134df7b2bcc166464f7d3201af05b1983fbb0b",
+    "log": "evidence/validation/zjx-transport-readiness-logs-v1/baseline.txt",
+    "binary_identical": true
+  },
+  "release_impact": {
+    "records_only_exemption_claimed": false,
+    "attestation_bound_paths_added": [
+      "crates/sley-repo/tests/zjx_readiness_witness.rs",
+      "docs/audits/S20_ZJX_TRANSPORT_READINESS_AMENDMENT.md",
+      "docs/audits/S20_ZJX_TRANSPORT_READINESS_CLOSEOUT.md",
+      "RESUME.md",
+      "docs/status/HANDOFF-2026-09-15-QUALIFICATION.md (one clause reworded to satisfy the clean-room sentinel rule)"
+    ],
+    "candidate_preserved": true,
+    "candidate_overwritten": false,
+    "re_mint_required": "already required before this closeout; unchanged",
+    "prior_verdicts_invalidated": []
+  },
+  "not_selected": [
+    "ZJX release",
+    "ZJX edition",
+    "ZJX profile",
+    "ZJX ABI",
+    "ZJX packaging",
+    "backend",
+    "wire format",
+    "dictionary scheme",
+    "codec",
+    "FFI boundary",
+    "subprocess backend",
+    "license tier",
+    "outer envelope",
+    "content recognition",
+    "trust or signature policy"
+  ],
+  "not_shipped": [
+    "ZJX support",
+    ".sley.zjx format",
+    "ZJX magic or MIME",
+    "sley.zjx.envelope.v1",
+    "protocol operation",
+    "user-facing command",
+    "package registry",
+    "context-bundle system",
+    "compiler-cache format",
+    "default compression",
+    "plugin framework",
+    "dynamic provider loading"
+  ],
+  "authority_inferred": [],
+  "matrix": {
+    "rows": 14,
+    "passed": 14,
+    "inapplicable": 0,
+    "skipped": 0,
+    "stop_conditions_reached": 0
+  },
+  "gates": {
+    "make lint": {
+      "result": "PASS (fmt clean, clippy clean, workspace, all targets, -D warnings)",
+      "log": "evidence/validation/zjx-transport-readiness-logs-v1/make-lint.log",
+      "report": "evidence/build/lint-report.json"
+    },
+    "make quick": {
+      "result": "stops at the pre-existing candidate-staleness tripwire (check_reproducibility_and_independent_conformance: reproducibility-report:stale:7a94a4a, expected until the queued re-mint); every step before it PASS",
+      "log": "evidence/validation/zjx-transport-readiness-logs-v1/make-quick.log",
+      "remaining_steps": {
+        "how": "the 34 recipe steps after the tripwire run individually with per-step exit codes",
+        "log": "evidence/validation/zjx-transport-readiness-logs-v1/make-quick-remaining-steps.log",
+        "passed": 31,
+        "failed_pre_existing_expected": [
+          "check_standards_sbom_and_provenance: closure:ineligible (pre-existing, expected until re-mint)"
+        ],
+        "failed_pre_existing_repaired_in_this_closeout": [
+          "check_clean_room_boundary: legacy-reference in docs/status/HANDOFF-2026-09-15-QUALIFICATION.md (the 4168332 handoff note spelled the renamed origin; one clause reworded, no other change)",
+          "check_supply_chain_audit: T54 secret-scan drift (evidence/security/T54/secret-scan.json regenerated with scripts/generate_supply_chain_evidence.py; scan PASS)"
+        ],
+        "cargo_test_workspace": "295 passed, 0 failed across 10 suites (plus the crate suites already logged)"
+      }
+    }
+  },
+  "independent_review": {
+    "lanes": [
+      "ariadne_contract_review",
+      "nabu_architecture_review",
+      "vulcan_surface_review"
+    ],
+    "transcripts": "evidence/review/verdicts/zjx_transport_readiness/",
+    "scope_sha": "PENDING_COMMIT",
+    "result": "PENDING"
+  },
+  "witness_commit": "PENDING_COMMIT"
+}

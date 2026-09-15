@@ -37,6 +37,22 @@ council-lane reviews, and re-mint.
   smoke, emit the attestation with `--host-label secondary`, copy the JSON
   back, merge with `--attest`.
 
+## ZJX transport readiness amendment (2026-09-15)
+
+The operator's S20-ZJX-READINESS amendment (tracked copy
+`docs/audits/S20_ZJX_TRANSPORT_READINESS_AMENDMENT.md`) closed as
+`READY_EXISTING`, documentation-and-test-only: the byte-oriented import seam
+already exists (`import_conformance_pack`, `preflight_repository_exchange`,
+`import_repository_exchange`), proven by the integration witness
+`crates/sley-repo/tests/zjx_readiness_witness.rs` and recorded in
+`docs/audits/S20_ZJX_TRANSPORT_READINESS_CLOSEOUT.md` plus
+`evidence/validation/zjx-transport-readiness-v1.json`. Machine-summary
+section `zjx_transport_readiness`; three council lanes review it under
+`evidence/review/verdicts/zjx_transport_readiness/`. No ZJX version, backend,
+or profile was selected, nothing ZJX ships, and the release disposition is
+unchanged. The witness file is attestation-bound, so it rides the already
+queued re-mint.
+
 ## Open items (machine-doable)
 
 1. **Delta reviews at the new revisions.** CLI revision 8 and bridge

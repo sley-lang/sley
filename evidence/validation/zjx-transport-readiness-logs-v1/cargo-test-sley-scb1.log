@@ -1,0 +1,34 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.02s
+     Running unittests src/lib.rs (target/debug/deps/sley_scb1-69c4d2393a6092f1)
+
+running 6 tests
+test tests::sint128_round_trips_extrema_and_signs ... ok
+test tests::uvar128_rejects_invalid_widths_and_overflows ... ok
+test tests::uvar128_rejects_nonminimal_trailing_and_exhausted_input ... ok
+test tests::uvar128_round_trips_canonical_boundaries ... ok
+test tests::value_cursor_returns_stable_low_level_failure_codes ... ok
+test tests::value_cursor_decodes_low_level_round_trip_primitives ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/conformance.rs (target/debug/deps/conformance-99957fab8f21b749)
+
+running 4 tests
+test epoch_invariants_and_encoder_canonicalization_hold ... ok
+test accepted_vectors_match_frozen_hex ... ok
+test rejected_vectors_return_frozen_codes ... ok
+test bounded_scb1_decoder_fuzz_smoke_rejects_seeded_noise ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_scb1
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+real	0m0.092s
+user	0m0.046s
+sys	0m0.042s
+sley-scb1 exit=0

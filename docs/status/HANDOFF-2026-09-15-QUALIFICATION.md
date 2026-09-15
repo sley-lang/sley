@@ -7,7 +7,7 @@ verified on disk; nothing is predicted.
 
 | Thing | State |
 |---|---|
-| Live checkout | `/home/gfarch/Work/workspaces/sley2`, branch `main`, HEAD `70283ce`, clean, pushed (`origin/main == HEAD`; the remote reports the repository moved to `GreyforgeLabs/sley.git`, the push to `sley2.git` still fast-forwards) |
+| Live checkout | `/home/gfarch/Work/workspaces/sley2`, branch `main`, HEAD `70283ce`, clean, pushed (`origin/main == HEAD`; the remote reports the repository was renamed to `sley.git` under the same owner, the push to `sley2.git` still fast-forwards) |
 | Campaign worktree | `/home/gfarch/Work/workspaces/sley2-campaign`, branch `campaign/s20-640` at `70283ce`, clean, no work committed yet |
 | Attested candidate | `7a94a4a` -> artifact `6d970bf4…e159` (2,190,465 bytes, 15 members), MULTI_HOST_REPRODUCIBLE (primary + lab `greyforgelab`), toolchain 1.93.0 both |
 | Candidate staleness | HEAD carries attestation-bound changes after `7a94a4a` (`docs/spec`, `scripts/`, `crates/sley-query`), so `check_reproducibility_and_independent_conformance` and the standards checker's closure branch report stale/ineligible until the next mint. Expected; re-mint after the review cycle lands. |

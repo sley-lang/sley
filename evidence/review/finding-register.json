@@ -102,7 +102,7 @@
       "status": "IMPLEMENTED_SCOPED_S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY"
     }
   ],
-  "obligation_count": 376,
+  "obligation_count": 379,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -5542,9 +5542,45 @@
       "severities": [],
       "state": "PASS",
       "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "ariadne_contract_review",
+      "package_status": "S20_ZJX_READINESS_READY_EXISTING_REVIEW_PENDING",
+      "reviewer": "ariadne",
+      "section": "zjx_transport_readiness",
+      "severities": [],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "nabu_architecture_review",
+      "package_status": "S20_ZJX_READINESS_READY_EXISTING_REVIEW_PENDING",
+      "reviewer": "nabu",
+      "section": "zjx_transport_readiness",
+      "severities": [],
+      "state": "PENDING",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PENDING",
+      "field": "vulcan_surface_review",
+      "package_status": "S20_ZJX_READINESS_READY_EXISTING_REVIEW_PENDING",
+      "reviewer": "vulcan",
+      "section": "zjx_transport_readiness",
+      "severities": [],
+      "state": "PENDING",
+      "superseded_by": null
     }
   ],
-  "obligations_digest": "84b92a6ce5ef876b0f663d2c2cec70ebd9b51d853c7f3707b91bad7edd80ad50",
+  "obligations_digest": "f5e9555e6c7e67070f45bc28e9327e6da2c831b75dd5cc7fd55f2daba771e517",
   "open_reviews": [
     {
       "disposition": "PENDING_S20_310_WORDING_DECISION_PACKET_ROUND7_P1_4_IMPLEMENTED",
@@ -5553,6 +5589,24 @@
       "severities": [
         "P1"
       ]
+    },
+    {
+      "disposition": "PENDING",
+      "field": "ariadne_contract_review",
+      "section": "zjx_transport_readiness",
+      "severities": []
+    },
+    {
+      "disposition": "PENDING",
+      "field": "nabu_architecture_review",
+      "section": "zjx_transport_readiness",
+      "severities": []
+    },
+    {
+      "disposition": "PENDING",
+      "field": "vulcan_surface_review",
+      "section": "zjx_transport_readiness",
+      "severities": []
     }
   ],
   "package_open_claims": {
@@ -5621,7 +5675,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "bf85a6170151f1c9a8b64864576b5c6922bb17b1fc94d22e32ee45ff2dbdc17c",
+  "register_digest": "450261139058cf90b5c3e42ac509fb6ab091d59711beffb4c6ce96d499341c2f",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
@@ -5635,7 +5689,7 @@
     "HISTORICAL_ROUND": 99,
     "OTHER": 3,
     "PASS": 273,
-    "PENDING": 1
+    "PENDING": 4
   },
   "superseded_rounds": [
     {
