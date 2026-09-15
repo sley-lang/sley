@@ -47,7 +47,9 @@ these documents are draft, local, and unapproved.
   recorded invocation, and working-tree cleanliness of the local
   candidate. A missing file is `PROVENANCE_EVIDENCE_MISSING`; a
   record that is not a reproducible `PASS` is `PROVENANCE_EVIDENCE_INVALID`.
-- `Cargo.lock` and `oracle/scb1/uv.lock` digests, read from the inventory.
+- `Cargo.lock` and `oracle/scb1/uv.lock` digests, hashed from the tracked
+  lockfiles by the provenance builder (the T52 inventory records the same
+  digests, and the inventory itself is a resolved dependency).
 - `evidence/release/reproducibility-report.json` (S20-730): the
   subject-authority input for the attestation binding (also recorded as
   a provenance byproduct).
@@ -61,13 +63,15 @@ grammar.
 
 `evidence/release/sbom/cyclonedx-1.6.json` is a CycloneDX 1.6 JSON BOM:
 
-- `bomFormat` `CycloneDX`, `specVersion` `1.6`, `version` 1;
+- `$schema` `http://cyclonedx.org/schema/bom-1.6.schema.json`, `bomFormat`
+  `CycloneDX`, `specVersion` `1.6`, `version` 1;
 - `serialNumber` is `urn:uuid:` followed by a UUID derived from the SHA-256 of
   the canonical BOM without that field, with the version nibble set to 8 and
   the variant nibble to 8, so the document is deterministic and carries no
   random state;
 - `metadata.component` is the candidate: `type` `application`, the artifact
-  name, version `2.0.0-alpha.0`, and the artifact SHA-256;
+  name, version `2.0.0-alpha.0`, the artifact SHA-256, and `licenses` as the
+  single expression of the operator-approved root license;
 - `metadata.tools.components` names `sley2-standards-sbom` version 1;
 - `metadata.properties` records `sley2:commit`, `sley2:inventory-digest`,
   `sley2:license-disposition-blocked`, `sley2:manifest-digest`,
@@ -76,8 +80,10 @@ grammar.
 - `components` is one entry per inventory package, ascending by purl, with
   `bom-ref` the purl, `type` `library`, `name`, `version`, `purl`,
   `licenses` as a single `expression` (a declared expression is emitted
-  verbatim after the normalization below), `externalReferences` for the
-  locked source, and a
+  verbatim after the normalization below), `properties` `sley2:ecosystem`,
+  `sley2:license-disposition`, and `sley2:locked-source` (ascending by name),
+  `externalReferences` for the locked source of a registry package only (a
+  workspace package has none), and a
   `hashes` entry only when the lock records exactly one artifact digest;
 - a declared license expression is normalized before emission: Cargo
   documents `/` as an OR-equivalent dual-license separator, but `/` is not
@@ -94,8 +100,10 @@ grammar.
   `sley2:locked-artifact-digests` with their count, because no single digest
   identifies the component; the digests stay in the T52 inventory, which the
   BOM references by digest;
-- `dependencies` is one entry per component, ascending, with `dependsOn` the
-  ascending purls of its inventory relationships;
+- `dependencies` is one leading entry for the candidate root whose
+  `dependsOn` lists the ascending workspace purls, then one entry per
+  component, ascending, with `dependsOn` the ascending purls of its
+  inventory relationships;
 - no timestamp, host name, user name, or absolute path appears anywhere.
 
 ## 3. SPDX 2.3
@@ -122,9 +130,10 @@ grammar.
   `licenseConcluded` `NOASSERTION` (no legal opinion), `copyrightText`
   `NOASSERTION`, `checksums` under the section 2 single-digest rule, and an
   `externalRefs` PACKAGE-MANAGER purl entry;
-- `hasExtractedLicensingInfos` defines `Apache-2.0` with extracted
-  text naming the operator-approved root license, because the declared
-  workspace expression is a standard SPDX license identifier;
+- no `hasExtractedLicensingInfos` section: SPDX 2.3 clause 10.1 reserves
+  extracted licensing information for licenses absent from the SPDX license
+  list, identified by `LicenseRef-` ids, and the declared workspace
+  expression `Apache-2.0` is a listed identifier referenced by id alone;
 - `relationships` carries `DESCRIBES` from the document to the candidate root
   and one `DEPENDS_ON` per inventory relationship, ascending.
 
@@ -260,8 +269,9 @@ provably records-only, decided by `scripts/records_closure.py`:
   documents that may be re-derived are checked.
 
 The SBOM and provenance documents stay bound to the original attested
-source candidate, the closure HEAD is recorded separately (checker output
-and machine summary, never inside the documents), and no artifact is
+source candidate, the closure HEAD is recorded separately (the checker's
+`records_closure` output block; never inside the documents or the machine
+summary, whose candidate pins name only the attested commit), and no artifact is
 rebuilt or re-minted solely for a permitted records-only advancement.
 This is not a general commit-skew tolerance: any attestation-bound change,
 any bound-artifact change, or any unverifiable diff refuses closed with

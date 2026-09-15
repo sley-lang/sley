@@ -36,13 +36,6 @@ TOOL_NAME = "sley2-standards-sbom"
 TOOL_VERSION = "1"
 CANDIDATE_VERSION = "2.0.0-alpha.0"
 ROOT_LICENSE = "Apache-2.0"
-ROOT_LICENSE_TEXT = (
-    "The Sley 2 workspace packages declare Apache-2.0 under the operator-approved "
-    "root license (S20-710 license decision 2026-09-14). The full text is installed "
-    "as LICENSE at the repository root and shipped as the LICENSE artifact member; "
-    "no license text beyond that installed file is asserted here, and no legal "
-    "compatibility opinion is offered."
-)
 SPDX_ID = re.compile(r"[^A-Za-z0-9.\-]")
 LICENSE_TOKEN = re.compile(r"[A-Za-z0-9:._+\-]+")
 LICENSE_OPERATORS = ("AND", "OR", "WITH")
@@ -414,13 +407,10 @@ def spdx(facts: list[dict], relationships: list, candidate: dict, inventory_dige
                 "the document is a local draft with no license conclusion and no publication"
             ),
         },
-        "hasExtractedLicensingInfos": [
-            {
-                "licenseId": ROOT_LICENSE,
-                "name": "Apache License 2.0",
-                "extractedText": ROOT_LICENSE_TEXT,
-            }
-        ],
+        # No `hasExtractedLicensingInfos`: SPDX 2.3 clause 10.1 reserves that
+        # section for licenses absent from the SPDX license list, identified
+        # by `LicenseRef-` ids. `Apache-2.0` is a listed identifier, so it is
+        # referenced by id only (Ariadne P3, 2026-09-15 at a809906).
         "packages": packages,
         "relationships": [
             {

@@ -153,13 +153,18 @@ class StandardsSbomTests(unittest.TestCase):
         for component in multi:
             self.assertNotIn("hashes", component)
 
-    def test_spdx_is_2_3_with_a_fixed_instant_and_an_extracted_apache_reference(self) -> None:
+    def test_spdx_is_2_3_with_a_fixed_instant_and_no_extracted_listed_license(self) -> None:
         self.assertEqual(self.spdx["spdxVersion"], "SPDX-2.3")
         self.assertEqual(self.spdx["dataLicense"], "CC0-1.0")
         self.assertEqual(self.spdx["creationInfo"]["created"], "1970-01-01T00:00:00Z")
         self.assertTrue(self.spdx["documentNamespace"].startswith("urn:sley2:spdx:"))
-        extracted = self.spdx["hasExtractedLicensingInfos"]
-        self.assertEqual([entry["licenseId"] for entry in extracted], [sbom.ROOT_LICENSE])
+        # SPDX 2.3 clause 10.1: extracted licensing info is for unlisted
+        # licenses under `LicenseRef-` ids; the listed `Apache-2.0` is
+        # referenced by id only (Ariadne P3, 2026-09-15).
+        self.assertNotIn("hasExtractedLicensingInfos", self.spdx)
+        for package in self.spdx["packages"]:
+            if package["SPDXID"] != "SPDXRef-DOCUMENT" and "sley" in package["name"]:
+                self.assertIn(sbom.ROOT_LICENSE, package["licenseDeclared"])
         for package in self.spdx["packages"]:
             self.assertEqual(package["licenseConcluded"], "NOASSERTION")
             self.assertEqual(package["copyrightText"], "NOASSERTION")
