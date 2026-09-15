@@ -19,11 +19,21 @@ import build_reproducibility_report as reproducibility
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "evidence/release/candidate-content-checks.json"
 REPRO = ROOT / "evidence/release/reproducibility-report.json"
+CANDIDATE = ROOT / "evidence/runtime/s20-720-release-candidate/evidence.json"
 CONTRACT = "sley2.candidate-content-checks.v1"
 
 
 def canonical(value: object) -> str:
     return json.dumps(value, indent=2, sort_keys=True) + "\n"
+
+
+def build_for_candidate(artifact: Path, candidate: dict, repro: dict) -> dict:
+    if candidate.get("contract") != "s20-720-release-candidate-v1" or candidate.get("result") != "PASS":
+        raise ValueError("candidate build evidence is absent or failed")
+    attestation = reproducibility.select_attestation(repro, candidate=candidate)
+    if attestation is None:
+        raise ValueError("no admissible attestation binds the built candidate")
+    return build_report(artifact, attestation)
 
 
 def build_report(artifact: Path, attestation: dict) -> dict:
@@ -85,10 +95,8 @@ def main() -> int:
     arguments = parser.parse_args()
     try:
         repro = json.loads(REPRO.read_text(encoding="utf-8"))
-        attestation = reproducibility.select_attestation(repro)
-        if attestation is None:
-            raise ValueError("no unique admissible candidate attestation")
-        report = build_report(ROOT / "dist" / packaging.ARTIFACT_NAME, attestation)
+        candidate = json.loads(CANDIDATE.read_text(encoding="utf-8"))
+        report = build_for_candidate(ROOT / "dist" / packaging.ARTIFACT_NAME, candidate, repro)
         text = canonical(report)
         if arguments.check:
             if not REPORT.exists() or REPORT.read_text(encoding="utf-8") != text:

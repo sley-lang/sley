@@ -65,6 +65,18 @@ class ContentTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "member set"):
                 content.build_report(artifact, attestation)
 
+    def test_new_primary_selects_build_despite_carried_old_secondary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            artifact, attestation = self.fixture(Path(directory))
+            current = dict(attestation, host_label="primary")
+            older = dict(attestation, host_label="secondary", commit="0" * 40)
+            repro = content.reproducibility.build_report([current, older])
+            self.assertIsNone(content.reproducibility.select_attestation(repro))
+            candidate = dict(current, contract="s20-720-release-candidate-v1", result="PASS")
+            self.assertEqual(content.build_for_candidate(artifact, candidate, repro)["result"], "PASS")
+            with self.assertRaisesRegex(ValueError, "absent or failed"):
+                content.build_for_candidate(artifact, dict(candidate, result="FAIL"), repro)
+
 
 if __name__ == "__main__":
     unittest.main()
