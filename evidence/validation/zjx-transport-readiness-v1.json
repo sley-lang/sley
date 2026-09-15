@@ -230,7 +230,7 @@
     ],
     "transcripts": "evidence/review/verdicts/zjx_transport_readiness/",
     "scope_sha": "161a2f3480dfca3df22019a9df4e3e3e4a38674f",
-    "result": "ROUND_1_REVISE_RECORDS_ONLY_DELTA_PENDING",
+    "result": "REVIEW_OPEN",
     "round_1": {
       "ariadne_contract_review": {
         "verdict": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
@@ -244,7 +244,28 @@
         "verdict": "REVISE_0_P0_0_P1_1_P2_1_P3_1_P4",
         "transcript": "evidence/review/verdicts/zjx_transport_readiness/vulcan_surface_review-161a2f3.md"
       }
+    },
+    "round_2_scope_sha": "75b5491d567faf46df96aecff2e841424fb99e3d",
+    "round_2": {
+      "ariadne_contract_review": {
+        "verdict": "REVISE_0_P0_0_P1_0_P2_1_P3",
+        "findings": [
+          "[P3] [register hygiene] machineresearch/sley-2.0/machine-summary.json:4364 - the revision's four new fields ariadne_contract_review_transcript, nabu_architecture_review_transcript, vulcan_surface_review_transcript and review_scope_sha contain \"review\" and are collected by scripts/build_finding_register.py as obligations that classify OTHER (register unclassified 3 -> 7); any OTHER obligation blocks FINDING_REGISTER_CLEAR and a COMPLETE section status with an OTHER obligation is REGISTER_COMPLETION_VIOLATION, so the section cannot terminate after the lanes PASS; rename the fields outside the review/disposition collection pattern (e.g. transcript_<lane>, scope_sha) and rebuild the register and dossier"
+        ],
+        "transcript": "evidence/review/verdicts/zjx_transport_readiness/ariadne_contract_review-75b5491.md"
+      },
+      "nabu_architecture_review": {
+        "verdict": "PASS",
+        "findings": [],
+        "transcript": "evidence/review/verdicts/zjx_transport_readiness/nabu_architecture_review-75b5491.md"
+      },
+      "vulcan_surface_review": {
+        "verdict": "PASS",
+        "findings": [],
+        "transcript": "evidence/review/verdicts/zjx_transport_readiness/vulcan_surface_review-75b5491.md"
+      }
     }
   },
-  "witness_commit": "161a2f3480dfca3df22019a9df4e3e3e4a38674f"
+  "witness_commit": "161a2f3480dfca3df22019a9df4e3e3e4a38674f",
+  "revision_commit": "75b5491d567faf46df96aecff2e841424fb99e3d"
 }
