@@ -334,3 +334,27 @@ commit, reviewed scope), `1023a31` = `e0ec341` (wave commit), `c0f4ff6` =
 candidate attestations bind commit ids, so the candidate was re-minted at
 the rewritten head; the machine summary's `candidate_*` fields name it.
 
+
+### 10.2 Closure of the wave (2026-09-15)
+
+- Delta reviews at CLI revision 8 and bridge revision 10: PASS in all six
+  lanes (scope `1023a31` = `e0ec341`; transcripts
+  `evidence/review/verdicts/{cli,json_bridge}/delta_review_*-1023a31.md`).
+  Follow-ups recorded there: oracle hello-header ordering versus the
+  version split (P3), revision-agnostic ADR/WORK_PACKAGES markers in the
+  bridge checker (P3), and P4 wording items.
+- Register: 337 obligations, 236 PASS, 1 PENDING (the operator-held
+  S20-310 wording packet), 97 historical rounds, 3 other.
+- Terminal statuses moved by the owner after every lane passed:
+  `cli` -> `S20_430_COMPLETE`, `json_bridge` -> `S20_420_COMPLETE`,
+  `sley2_trial_runner` -> `S20_620_COMPLETE` (each checker PASS at the new
+  status). The WORK_PACKAGES rows and closeouts still say "reviews
+  pending" until the next attestation-bound commit refreshes them.
+- Candidate re-minted at `7a94a4a` (root-disk detached worktree) and
+  reproduced on the lab host: artifact `6d970bf4…e159`, 2,190,465 bytes,
+  15 members, MULTI_HOST_REPRODUCIBLE, toolchain 1.93.0 on both hosts;
+  all five release checkers PASS on the merged report.
+- Still held (not machine-doable): S20-310 wording packet, succession
+  trials (spend), signing/transparency, history re-anchor at the release
+  candidate, release/publication/GA decision, Council standards PASS x3
+  on a fixed final candidate (P-H).

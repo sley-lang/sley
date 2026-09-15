@@ -301,7 +301,7 @@
     "full_profile": "complete_entity_impact_profile"
   },
   "complete_entity_impact_profile": {
-    "status": "S20_250_FULL_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_250_FULL_COMPLETE",
     "contract": "docs/spec/COMPLETE_ENTITY_IMPACT_PROFILE_V1.md",
     "contract_revision": 2,
     "adr": "docs/adr/ADR-0026-complete-entity-model-boundary.md",
@@ -326,7 +326,7 @@
     "nabu_architecture_review_note": "PASS via forge-council nabu/claude-code 2026-09-11 on 0bcc9c6: dependency direction direct and transitive, selection lifetime bound to revision, capture consumes held views; 5 P4 lineage/hygiene notes; transcript to be filed under evidence/review/verdicts/complete_entity_impact_profile/nabu_architecture_review-0bcc9c6.md",
     "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_surface_review_note": "PASS via forge-council vulcan/claude-code 2026-09-11 on 0bcc9c6: error set and precedence unchanged, two-phase adversarially sound, test strength adequate; 1 P3 record note (capture doc misattributes identity re-pin) plus 3 P4 hardening notes; transcript to be filed under evidence/review/verdicts/complete_entity_impact_profile/vulcan_surface_review-0bcc9c6.md",
-    "implementation_complete": false,
+    "implementation_complete": true,
     "implementation_started": "2026-09-03",
     "contract_frozen": false,
     "implementation_commit": "e78a1ab",
@@ -344,7 +344,8 @@
     "tier2": "PASS_2026-09-03_core_conformance_adversarial_fuzz_smoke_complete_root_smoke",
     "accepted_vectors": 2,
     "recursive_vector": "recursive-type-and-constant-bodies: 20 entities, 52 direct edges, every section 7.2 nested rule that can name an entity",
-    "independent_oracle_scope": "top-level rows, the section 7.2 type-expression and constant recursion, and closure rules C1 through C11"
+    "independent_oracle_scope": "top-level rows, the section 7.2 type-expression and constant recursion, and closure rules C1 through C11",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_250_FULL_IMPLEMENTED_REVIEW_PENDING)"
   },
   "vm_lowering_profile": {
     "status": "S20_260_RESTRICTED_EPOCH1_COMPLETE",
@@ -421,7 +422,7 @@
     "max_cells": 1048576
   },
   "vm_extended_opcode_profile": {
-    "status": "S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_260_270_EXTENDED_COMPLETE",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
     "contract_revision": 14,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
@@ -553,10 +554,10 @@
       }
     },
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_2_P0_6_P1_5_P2_5_P3",
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_architecture_review": "PASS_0_P0_7_P1_6_P2_5_P3",
-    "vulcan_surface_review": "FAIL_1_P0_2_P1_3_P2_2_P3",
-    "implementation_complete": false,
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "implementation_complete": true,
     "implementation": [
       "crates/sley-vm/src/extended.rs",
       "crates/sley-vm/src/lower.rs",
@@ -615,7 +616,12 @@
     ],
     "e8_epoch_determination": "profile section E8: PROFILE, no epoch required (no new opcodes; 161 already in the frozen epoch-1 table; no new failure kinds; RW-030 section-18 admission as amended by owner amendment A1, S20-230 section 1.5 pure deterministic primitives)",
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "ariadne_contract_review_initial": "FAIL_2_P0_6_P1_5_P2_5_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_1_P0_2_P1_3_P2_2_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_260_270_EXTENDED_IMPLEMENTED_REVIEW_PENDING)"
   },
   "reference_adapter_profile": {
     "status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
@@ -723,7 +729,7 @@
     "full_profile_status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING"
   },
   "complete_root_index_snapshot": {
-    "status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_300_FULL_COMPLETE",
     "contract": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
     "contract_revision": 3,
     "adr": "docs/adr/ADR-0029-complete-root-index-snapshot-boundary.md",
@@ -735,10 +741,10 @@
     "cache_path": "index/v1/<root hex>.idx.scb1",
     "cache_consumers": "READ_ONLY_DERIVED_QUERY_SURFACES_ONLY",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_1_P0_4_P1_3_P2_3_P3",
-    "nabu_architecture_review": "FAIL_1_P0_4_P1_3_P2_2_P3",
-    "vulcan_surface_review": "FAIL_0_P0_5_P1_4_P2_4_P3",
-    "implementation_complete": false,
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "implementation_complete": true,
     "implementation": [
       "crates/sley-query/src/snapshot.rs",
       "crates/sley-repo/src/index_cache.rs"
@@ -756,7 +762,14 @@
     "p0_open_count": 0,
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "ariadne_contract_review_initial": "FAIL_1_P0_4_P1_3_P2_3_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_1_P0_4_P1_3_P2_2_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_0_P0_5_P1_4_P2_4_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_300_FULL_IMPLEMENTED_REVIEW_PENDING)"
   },
   "restricted_query_profile": {
     "status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
@@ -894,7 +907,7 @@
     "full_profile_status": "S20_320_FULL_IMPLEMENTED_REVIEW_PENDING"
   },
   "context_capsule_profile": {
-    "status": "S20_320_FULL_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_320_FULL_COMPLETE",
     "contract": "docs/spec/CONTEXT_CAPSULE_PROFILE_V1.md",
     "contract_revision": 4,
     "adr": "docs/adr/ADR-0031-context-capsule-boundary.md",
@@ -906,10 +919,10 @@
     "new_stable_error_codes": 4,
     "new_error_code_range": "32008 through 32011",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_2_P0_3_P1_3_P2_2_P3",
-    "nabu_architecture_review": "FAIL_3_P0_4_P1_6_P2_3_P3",
-    "vulcan_surface_review": "FAIL_2_P0_4_P1_4_P2_2_P3",
-    "implementation_complete": false,
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "implementation_complete": true,
     "implementation": [
       "crates/sley-query/src/context_capsule.rs",
       "crates/sley-repo/src/root_query.rs"
@@ -929,10 +942,17 @@
     ],
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "ariadne_contract_review_initial": "FAIL_2_P0_3_P1_3_P2_2_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_3_P0_4_P1_6_P2_3_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_2_P0_4_P1_4_P2_2_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_320_FULL_IMPLEMENTED_REVIEW_PENDING)"
   },
   "session_handle_profile": {
-    "status": "S20_330_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_330_COMPLETE",
     "contract": "docs/spec/SESSION_HANDLE_PROFILE_V1.md",
     "contract_revision": 4,
     "current_delta_review": {
@@ -966,10 +986,10 @@
     "identity_binding": "PER_INSTANCE_SERVER_NONCE",
     "session_cap": "NEGOTIATED_MAX_SESSIONS",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "nabu_architecture_review": "FAIL_1_P0_7_P1_5_P2_4_P3",
-    "ariadne_contract_review": "FAIL_3_P0_7_P1_5_P2_4_P3",
-    "vulcan_surface_review": "FAIL_2_P0_4_P1_3_P2_3_P3",
-    "implementation_complete": false,
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "implementation_complete": true,
     "unblocked_by_restricted_s20_320": false,
     "implementation_started": true,
     "implementation": [
@@ -1055,17 +1075,24 @@
     ],
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "ariadne_contract_review_initial": "FAIL_3_P0_7_P1_5_P2_4_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_1_P0_7_P1_5_P2_4_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_2_P0_4_P1_3_P2_3_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_330_IMPLEMENTED_REVIEW_PENDING)"
   },
   "json_bridge": {
-    "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_420_COMPLETE",
     "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
     "contract_revision": 10,
     "current_delta_review": {
       "contract_revision": 10,
-      "ariadne": "PENDING",
-      "nabu": "PENDING",
-      "vulcan": "PENDING"
+      "ariadne": "PASS",
+      "nabu": "PASS",
+      "vulcan": "PASS"
     },
     "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
     "checker": "scripts/check_smp1_json_bridge_contract.py",
@@ -1087,10 +1114,10 @@
       "derived_omission_states"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_1_P0_8_P1_5_P2_4_P3",
-    "nabu_architecture_review": "FAIL_1_P0_6_P1_8_P2_5_P3",
-    "vulcan_surface_review": "FAIL_2_P0_4_P1_5_P2_5_P3",
-    "implementation_complete": false,
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "implementation_complete": true,
     "implementation_started": true,
     "implementation": [
       "crates/sley-json-bridge/src/lib.rs",
@@ -1113,17 +1140,24 @@
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "current_delta_review_note": "revision-9 delta round 2026-09-14 on 43f2f5b: ariadne REVISE_0_P0_0_P1_1_P2_2_P3, nabu REVISE_0_P0_0_P1_1_P2_3_P3, vulcan REVISE_0_P0_0_P1_1_P2_3_P3; the P2s (hello protocol-version rule named the wrong code; declared-limits census not refiled after the derived initializer) and P3s (boundary wording, stale section 10 staging text, stale ADR/WORK_PACKAGES records, ceiling literals uncoupled from the crate) are closed by revision 10 and the refiled census; transcripts evidence/review/verdicts/json_bridge/delta_review_{ariadne,nabu,vulcan}-43f2f5b.md; the revision-10 delta review is pending"
+    "current_delta_review_note": "revision-10 delta round 2026-09-14 on 1023a31 (scope 1023a31 = e0ec341 after the operator-approved attribution strip (identical tree)): ariadne PASS (1 P3: oracle judges the hello header before the version split, no non-1 hello-version vector; 2 P4), nabu PASS (1 P3: ADR/WP markers revision-agnostic; 1 P4), vulcan PASS (3 P4); transcripts evidence/review/verdicts/json_bridge/delta_review_{ariadne,nabu,vulcan}-1023a31.md. Prior revision-9 round on 43f2f5b (= 7c7da9c): REVISE x3 (1 P2 each), closed by revision 10 and the refiled limits census",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed: three-lane contract/architecture/surface reviews PASS and, where the checker binds one, the current-delta review PASS at the current contract revision; the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them",
+    "ariadne_contract_review_initial": "FAIL_1_P0_8_P1_5_P2_4_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_1_P0_6_P1_8_P2_5_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_2_P0_4_P1_5_P2_5_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)"
   },
   "cli": {
-    "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_430_COMPLETE",
     "contract": "docs/spec/SLEY_CLI_V1.md",
     "contract_revision": 8,
     "current_delta_review": {
       "contract_revision": 8,
-      "ariadne": "PENDING",
-      "nabu": "PENDING",
-      "vulcan": "PENDING"
+      "ariadne": "PASS",
+      "nabu": "PASS",
+      "vulcan": "PASS"
     },
     "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
     "checker": "scripts/check_cli_contract.py",
@@ -1151,7 +1185,7 @@
     "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_2_P3",
-    "implementation_complete": false,
+    "implementation_complete": true,
     "implementation_started": true,
     "implementation": [
       "crates/sley-cli/src/lib.rs",
@@ -1169,7 +1203,8 @@
       "byte-mode stdout was never flushed and main exits via process::exit, with all tests driving run() over Vec<u8>, so the sley binary and the process boundary had zero evidence; raised by nabu. Every answer now flushes before the next frame is read with a final flush at exit (flush failure is CLI_IO_FAILURE, section 2 obligation), and a subprocess test drives the real binary over pipes proving unfragmented byte delivery and exit-status propagation. Exit-time truncation did not reproduce on this toolchain (572-byte newline-free and 63KB payloads cross intact); the flush stands as the liveness guarantee and defense in depth",
       "the endpoint mutated Server::offered_hello with FEATURE_JSON_BRIDGE under --json, folding a transport flag into SelectedProfile, handshake_id, and SessionAuthority; raised by vulcan with direction offer-always. Closed by offering-never instead: the negotiated hello is always the server's unedited offer (the endpoint edits no hello anywhere), and always-offer was rejected as a false JSON capability claim in byte mode per nabu; pinned by the same mode-independence test and audit ban"
     ],
-    "current_delta_review_note": "revision-7 delta round 2026-09-14 on 43f2f5b: ariadne REVISE_0_P0_0_P1_1_P2_4_P3, nabu REVISE_0_P0_0_P1_1_P2_1_P3, vulcan PASS (2 P3); the P2s (gate tests hard-coded to revision 6, unwired) and P3s (overstated no-behavior note, stale ADR/WORK_PACKAGES records) are closed by revision 8; transcripts evidence/review/verdicts/cli/delta_review_{ariadne,nabu,vulcan}-43f2f5b.md; the revision-8 delta review is pending"
+    "current_delta_review_note": "revision-8 delta round 2026-09-14 on 1023a31 (scope 1023a31 = e0ec341 after the operator-approved attribution strip (identical tree)): ariadne PASS (3 P4), nabu PASS (1 P4), vulcan PASS (1 P4); transcripts evidence/review/verdicts/cli/delta_review_{ariadne,nabu,vulcan}-1023a31.md. Prior revision-7 round on 43f2f5b (= 7c7da9c): ariadne REVISE_0_P0_0_P1_1_P2_4_P3, nabu REVISE_0_P0_0_P1_1_P2_1_P3, vulcan PASS, closed by revision 8",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed: three-lane contract/architecture/surface reviews PASS and, where the checker binds one, the current-delta review PASS at the current contract revision; the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them"
   },
   "mutation_schema": {
     "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
@@ -1513,7 +1548,7 @@
     "vulcan_implementation_review_session": "forge-vulcan-s20-540-implementation-20260903T032106-9c15e773"
   },
   "semantic_comparison": {
-    "status": "S20_510_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_510_COMPLETE",
     "contract": "docs/spec/SEMANTIC_COMPARISON_V1.md",
     "contract_revision": 3,
     "adr": "docs/adr/ADR-0027-semantic-comparison-boundary.md",
@@ -1528,10 +1563,10 @@
     "stable_error_codes": 11,
     "owner_crate": "sley-repo",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_1_P0_6_P1_9_P2_6_P3",
-    "nabu_architecture_review": "FAIL_3_P0_5_P1_8_P2_5_P3",
-    "vulcan_surface_review": "FAIL_0_P0_4_P1_6_P2_3_P3",
-    "implementation_complete": false,
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "implementation_complete": true,
     "implementation_started": "2026-09-03",
     "implementation_commit": "6ecfe89",
     "closeout": "docs/audits/S20_510_SEMANTIC_COMPARISON_CLOSEOUT.md",
@@ -1555,10 +1590,17 @@
     ],
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "ariadne_contract_review_initial": "FAIL_1_P0_6_P1_9_P2_6_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_3_P0_5_P1_8_P2_5_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_0_P0_4_P1_6_P2_3_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_510_IMPLEMENTED_REVIEW_PENDING)"
   },
   "merge": {
-    "status": "S20_520_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_520_COMPLETE",
     "contract": "docs/spec/MERGE_V1.md",
     "contract_revision": 5,
     "adr": "docs/adr/ADR-0028-merge-composition-boundary.md",
@@ -1573,10 +1615,10 @@
     "stable_error_codes": 14,
     "owner_crate": "sley-repo",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_3_P0_5_P1_9_P2_6_P3",
-    "nabu_architecture_review": "FAIL_3_P0_5_P1_8_P2_4_P3",
-    "vulcan_surface_review": "FAIL_1_P0_5_P1_7_P2_3_P3",
-    "implementation_complete": false,
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "implementation_complete": true,
     "implementation_started": "2026-09-03",
     "closeout": "docs/audits/S20_520_MERGE_CLOSEOUT.md",
     "implementation": "crates/sley-repo/src/merge.rs",
@@ -1595,7 +1637,14 @@
     "collateral_rule": "survivor-scoped, dependent Added/Changed/Retyped, side-correct objects, pinned anchor entries, strict decoder",
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "ariadne_contract_review_initial": "FAIL_3_P0_5_P1_9_P2_6_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_3_P0_5_P1_8_P2_4_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_1_P0_5_P1_7_P2_3_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_520_IMPLEMENTED_REVIEW_PENDING)"
   },
   "garbage_collection": {
     "status": "S20_180_COMPLETE",
@@ -1641,7 +1690,7 @@
     "v2_required": false
   },
   "protocol": {
-    "status": "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_400_COMPLETE",
     "contract": "docs/spec/SMP1.md",
     "contract_revision": 12,
     "current_delta_review": {
@@ -1667,7 +1716,7 @@
     "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3",
-    "contract_complete": false,
+    "contract_complete": true,
     "implementation_package": "S20-410",
     "implementation": "crates/sley-protocol",
     "hello_frame_kind": 4,
@@ -1885,7 +1934,8 @@
         601,
         602
       ]
-    }
+    },
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING)"
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",
@@ -3477,13 +3527,17 @@
       "cross-profile refusal assertion was a bare is_err satisfiable by any input error; raised by nabu and vulcan (ariadne answered the pin question yes). The refusal pins VM_LOWER_OPCODE_UNSUPPORTED for the six single-graph families. Fixing the lane exposed that multi-function E6/E7a programs never reach the opcode check: narrowing to owned inventory is an extended-profile step, so restricted fails the single-graph rule first; documented per family, still a lowering-profile refusal, with the completion assertion keeping malformed fixtures from hiding behind it",
       "contract section 5 one-lane-per-family was unfalsifiable and the 128 executions unbound; raised by nabu with ariadne's lane-versus-vector duty split. Contract revision 11 binds the 128 to the vectors, states the per-family reachability obligation the checker verifies, records the uninterpreted ContractSource, and splits lane duty (reachability) from vector duty (per-opcode)"
     ],
-    "ariadne_contract_review": "FAIL_1_P0_4_P1_6_P2_2_P3",
-    "nabu_architecture_review": "FAIL_2_P0_4_P1_5_P2_4_P3",
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "vulcan_review_initial": "FAIL_1_P0_2_P1_6_P2_3_P3",
-    "vulcan_review_note": "PASS via forge-council vulcan/claude-code 2026-09-14 on 43f2f5b: the 2026-09-04 FAIL (1 P0, 2 P1, 6 P2, 3 P3) re-derived closed at HEAD with code/checker/live-smoke citations (vm and merge persistent smokes re-run at HEAD, no new crashes); 3 P3 follow-ups (proof-record validation only in the VM checker, three retained crashers without finding IDs, advisory negative-E7 lane) and 4 P4 editorial; transcript evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review-43f2f5b.md; the initial FAIL round is retained as vulcan_review_initial"
+    "vulcan_review_note": "PASS via forge-council vulcan/claude-code 2026-09-14 on 43f2f5b: the 2026-09-04 FAIL (1 P0, 2 P1, 6 P2, 3 P3) re-derived closed at HEAD with code/checker/live-smoke citations (vm and merge persistent smokes re-run at HEAD, no new crashes); 3 P3 follow-ups (proof-record validation only in the VM checker, three retained crashers without finding IDs, advisory negative-E7 lane) and 4 P4 editorial; transcript evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review-43f2f5b.md; the initial FAIL round is retained as vulcan_review_initial",
+    "ariadne_contract_review_initial": "FAIL_1_P0_4_P1_6_P2_2_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_2_P0_4_P1_5_P2_4_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)"
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
@@ -3567,7 +3621,7 @@
     "nabu_review_note": "PASS via harness nabu TO_OFFLINE review 2026-09-13 on a4b60294e4dd75133fa08f92bf16022fb05bb807 (transcript evidence/review/verdicts/s20_610_offline_raw_runner/nabu_review-a4b6029.md): offline + append-only verified live, checker PASS, 0 findings"
   },
   "sley2_trial_runner": {
-    "status": "S20_620_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_620_COMPLETE",
     "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
     "contract_revision": 4,
     "adr": "docs/adr/ADR-0036-sley2-trial-runner-boundary.md",
@@ -3587,7 +3641,7 @@
     "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3",
-    "implementation_complete": false,
+    "implementation_complete": true,
     "implementation_started": true,
     "implementation": [
       "bench/sley2/runner.py",
@@ -3609,10 +3663,11 @@
       "invalid_candidates and repair_loops derived from SMP1's failed flag, which marks a ProtocolFailure envelope rather than an S20-360 candidate verdict, so the arm read zero invalid candidates in its own favour; both are oracle-owned now and the flag is counted as protocol_failures, which is what it measures",
       "S20-620 narrowed S20-610's shared run-level execution_mode and external_command_policy by its own prose while starting endpoint processes; both controls are now defined once in S20-610, which states that an arm's measured artifact is not an external command and attaches the conditions an arm running its artifact must satisfy, and S20-620 cites that definition instead of restating it"
     ],
-    "p0_open": []
+    "p0_open": [],
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed: three-lane contract/architecture/surface reviews PASS and, where the checker binds one, the current-delta review PASS at the current contract revision; the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them"
   },
   "succession_accounting": {
-    "status": "S20_630_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_630_COMPLETE",
     "contract": "docs/spec/SUCCESSION_ACCOUNTING_V1.md",
     "contract_revision": 4,
     "adr": "docs/adr/ADR-0037-succession-accounting-boundary.md",
@@ -3631,10 +3686,10 @@
     "new_error_code_range": "63000 through 63007",
     "trials_accounted": 0,
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_2_P0_8_P1_9_P2_8_P3",
-    "nabu_architecture_review": "FAIL_4_P0_7_P1_8_P2_4_P3",
-    "vulcan_surface_review": "FAIL_1_P0_5_P1_7_P2_2_P3",
-    "implementation_complete": false,
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "implementation_complete": true,
     "implementation_started": true,
     "implementation": [
       "bench/accounting/report.py",
@@ -3652,7 +3707,14 @@
     "revision_3_closes": "ariadne 2 P0 + 8 P1, nabu 4 P0 + 7 P1, vulcan 1 P0 + 5 P1; re-review pending",
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "ariadne_contract_review_initial": "FAIL_2_P0_8_P1_9_P2_8_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_4_P0_7_P1_8_P2_4_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_1_P0_5_P1_7_P2_2_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_630_IMPLEMENTED_REVIEW_PENDING)"
   },
   "s20_650_external_comparison": {
     "status": "EXPLICIT_UNAVAILABLE",
@@ -3718,7 +3780,7 @@
     "notice_sha256": "e7151ea0ee545a9edec91ecf963acefec4d6c2cfd92aa6080b1afe517d5a5dfa"
   },
   "release_candidate_packaging": {
-    "status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
+    "status": "S20_720_COMPLETE",
     "contract": "docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md",
     "contract_revision": 3,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
@@ -3738,10 +3800,10 @@
       "council_reviews"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_2_P0_8_P1_8_P2_5_P3",
-    "nabu_architecture_review": "FAIL_1_P0_6_P1_5_P2_3_P3",
-    "vulcan_surface_review": "FAIL_2_P0_5_P1_6_P2_5_P3",
-    "implementation_complete": false,
+    "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "implementation_complete": true,
     "implementation_started": true,
     "implementation": [
       "scripts/build_release_candidate.py",
@@ -3751,8 +3813,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "fba7b81fd3eb44fcfaa2b10df3ab4420eade71cd117350d8c8c745078e469613",
-    "candidate_artifact_size_bytes": 2187943,
+    "candidate_artifact_sha256": "6d970bf4d5da78b034a837109348e3d1e373c6566cfae67a4fd84b447160e159",
+    "candidate_artifact_size_bytes": 2190465,
     "candidate_member_count": 15,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -3760,14 +3822,14 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "428474380074fb16de3876f7f75676ebe19a7a0b2d8c90a2e222830034f789b4",
-    "candidate_commit": "baf9a4d3dff71cc1a0fb9d9c8f64b427a6ccee3f",
+    "candidate_manifest_digest": "aea8182d7d20258ee98e2ab7df26fa8845ec577f72d2d78d51610a5435b0fa3b",
+    "candidate_commit": "7a94a4a31272a6dc7588aff902dcde81f7d10a4e",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "ae16df87f7b1990e8804f87001d5a63f87b41611",
+    "candidate_evidence_commit": "7a94a4a31272a6dc7588aff902dcde81f7d10a4e",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
@@ -3788,7 +3850,14 @@
     "nabu_final_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943 (candidate 36f0e1f): architecture perspective, checker PASS 0 problems; binding match; 0 P0/P1/P2, 3xP3 residuals; fail-closed gates intact",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_final_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943 (candidate 36f0e1f): surface perspective, checker PASS 0 problems; binding match; 0 P0/P1/P2, 2xP3 residuals; offline tests 12/12 in-process",
-    "mint_note_2026_09_13": "authorized private reproducible mint 2026-09-13 at true freeze ae16df8: candidate PASS REPRODUCIBLE (14 members, demo PASS, conformance-subset PASS), attestation SINGLE_HOST_REPRODUCIBLE (second host GATED_OPERATOR_LANE), SBOM 51 components/138 relationships, provenance unsigned statement ac6aa4f9; prior 36f0e1f attestation stands in history; blockers recorded (license, second host, s20-710-full, succession, council)"
+    "mint_note_2026_09_13": "authorized private reproducible mint 2026-09-13 at true freeze ae16df8: candidate PASS REPRODUCIBLE (14 members, demo PASS, conformance-subset PASS), attestation SINGLE_HOST_REPRODUCIBLE (second host GATED_OPERATOR_LANE), SBOM 51 components/138 relationships, provenance unsigned statement ac6aa4f9; prior 36f0e1f attestation stands in history; blockers recorded (license, second host, s20-710-full, succession, council)",
+    "ariadne_contract_review_initial": "FAIL_2_P0_8_P1_8_P2_5_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_1_P0_6_P1_5_P2_3_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_2_P0_5_P1_6_P2_5_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING)"
   },
   "local_completion_frontier": {
     "status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
@@ -3947,7 +4016,7 @@
     "reproducibility_result": "SINGLE_HOST_REPRODUCIBLE",
     "second_host_status": "GATED_OPERATOR_LANE",
     "required_hosts": 2,
-    "attested_hosts": 1,
+    "attested_hosts": 2,
     "fixture_directories": 25,
     "tracked_corpus_directories": 29,
     "independently_checked_families": 25,
@@ -4005,14 +4074,14 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since; attested toolchain must match",
-    "attested_commit": "9df9f9ee323040778963c46039a05e92175ec367",
+    "attested_commit": "7a94a4a31272a6dc7588aff902dcde81f7d10a4e",
     "p1_open_count": 0,
     "p1_open": [],
     "vulcan_surface_review_revision_4": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_surface_review_revision_5": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_final_review_note": "PASS via opencode/muse-spark final verification 2026-09-13 on a810943: check_reproducibility_and_independent_conformance PASS, independent-conformance COMPLETE; SINGLE_HOST_REPRODUCIBLE with second-host GATED_OPERATOR_LANE per contract; 36f0e1f ancestor of HEAD with zero artifact-surface diff; r1-r3 REVISE items repaired (sibling manifest, re-mint chain, rev6 text); residuals P4 record notes only",
-    "attestation_supersedes": "cd3864a/c1dec862 (round-7n re-mint for the protocol self-check test; prior identities preserved in history)"
+    "attestation_supersedes": "1023a31/7291656c and 43f2f5b/a8da8b48 (re-minted after the 2026-09-14 attribution strip rewrote commit ids; prior identities preserved in history)"
   },
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
@@ -4080,11 +4149,11 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 337,
-    "open_reviews": 7,
+    "obligations": 374,
+    "open_reviews": 1,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
-    "complete_packages": 25,
+    "complete_packages": 38,
     "register_result": "FINDING_REGISTER_OPEN",
     "independent_review": "PENDING",
     "new_stable_error_codes": 4,
@@ -4131,8 +4200,8 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
+      "1 review obligations are open",
       "18 GA acceptance criteria are not evidenced",
-      "7 review obligations are open",
       "no succession trial has been executed",
       "the release-check and v2 product gates are fail-closed"
     ],
@@ -4143,9 +4212,9 @@
     "ga_claimed": false,
     "publication_authorized": false,
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_2_P0_5_P1_7_P2_3_P3",
-    "nabu_architecture_review": "FAIL_2_P0_7_P1_5_P2_3_P3",
-    "vulcan_surface_review": "FAIL_1_P0_3_P1_3_P2_3_P3",
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
@@ -4162,7 +4231,13 @@
     "license_disposition_blocked": 19,
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "ariadne_contract_review_initial": "FAIL_2_P0_5_P1_7_P2_3_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_2_P0_7_P1_5_P2_3_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_1_P0_3_P1_3_P2_3_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)"
   },
   "remaining_gates": {
     "council_model_access": "OPEN since 2026-09-04T02:29Z. The blocker was never a credential: the stock Anthropic plugin was installed but blocked by the plugins allowlist, so its provider, CLI backend, and model catalog never loaded and requests fell through to a generic HTTP path with an empty key. Adding anthropic to plugins.allow and enabling it opened the claude-cli lane, which uses the local Claude Code CLI session rather than a gateway key. The dispatcher is running 69 staged reviews; checkpoint in machineresearch/sley-2.0/COUNCIL_REVIEW_CHECKPOINT_2026-09-04.md",
@@ -4196,9 +4271,9 @@
     "active_epochs": 1,
     "ga_claimed": false,
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_0_P0_3_P1_4_P2_5_P3",
-    "nabu_architecture_review": "FAIL_0_P0_5_P1_4_P2_4_P3",
-    "vulcan_surface_review": "FAIL_0_P0_3_P1_3_P2_2_P3",
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "implementation_complete": false,
     "determinations": {
       "epoch_required": [
@@ -4216,7 +4291,13 @@
     },
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "ariadne_contract_review_initial": "FAIL_0_P0_3_P1_4_P2_5_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_0_P0_5_P1_4_P2_4_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_0_P0_3_P1_3_P2_2_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)"
   },
   "required_contract_index": {
     "status": "S20_770_CONTRACT_DRAFT_REVIEW_PENDING",
@@ -4241,9 +4322,9 @@
       "sley-test-report-v1"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
-    "ariadne_contract_review": "FAIL_0_P0_3_P1_6_P2_2_P3",
-    "nabu_architecture_review": "FAIL_0_P0_4_P1_3_P2_3_P3",
-    "vulcan_surface_review": "FAIL_0_P0_1_P1_4_P2_3_P3",
+    "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "implementation_complete": false,
     "identifier_registry_drift_check": true,
     "domains_added_to_registry": [
@@ -4255,7 +4336,13 @@
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "current_delta_review_note": "revision-3 delta round 2026-09-14 on 43f2f5b: ariadne PASS (2 P4 editorial), nabu PASS (1 P3 carried ownership fork N-P1-4, 2 P4), vulcan PASS (1 P4); transcripts evidence/review/verdicts/required_contract_index/delta_review_{ariadne,nabu,vulcan}-43f2f5b.md"
+    "current_delta_review_note": "revision-3 delta round 2026-09-14 on 43f2f5b: ariadne PASS (2 P4 editorial), nabu PASS (1 P3 carried ownership fork N-P1-4, 2 P4), vulcan PASS (1 P4); transcripts evidence/review/verdicts/required_contract_index/delta_review_{ariadne,nabu,vulcan}-43f2f5b.md",
+    "ariadne_contract_review_initial": "FAIL_0_P0_3_P1_6_P2_2_P3",
+    "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "nabu_architecture_review_initial": "FAIL_0_P0_4_P1_3_P2_3_P3",
+    "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "vulcan_surface_review_initial": "FAIL_0_P0_1_P1_4_P2_3_P3",
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)"
   },
   "clean_room_disposition_register": {
     "status": "S20_780_REGISTER_ACCEPTED",

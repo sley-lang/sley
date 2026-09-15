@@ -2,13 +2,13 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
+    "1 review obligations are open",
     "18 GA acceptance criteria are not evidenced",
-    "7 review obligations are open",
     "no succession trial has been executed",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "783ee062f0609b6b43d386b5df1913f70c3b89f448bf32a6647107dd2ac29ed6",
+  "dossier_digest": "16e3b35c587864fdc4ef70e2ea3dd584a2141517efa2c468b1befb4a549eeee8",
   "entries": [
     {
       "evidence": [
@@ -33,7 +33,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "baf9a4d3dff71cc1a0fb9d9c8f64b427a6ccee3f"
+      "value": "7a94a4a31272a6dc7588aff902dcde81f7d10a4e"
     },
     {
       "evidence": [
@@ -280,7 +280,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "fba7b81fd3eb44fcfaa2b10df3ab4420eade71cd117350d8c8c745078e469613"
+      "value": "6d970bf4d5da78b034a837109348e3d1e373c6566cfae67a4fd84b447160e159"
     },
     {
       "evidence": [
@@ -289,7 +289,7 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2187943
+      "value": 2190465
     },
     {
       "evidence": [
@@ -337,21 +337,21 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 337,
-        "open_reviews": 7,
+        "obligations": 374,
+        "open_reviews": 1,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
-          "P0": 98,
-          "P1": 141,
-          "P2": 151,
-          "P3": 171,
+          "P0": 132,
+          "P1": 175,
+          "P2": 185,
+          "P3": 205,
           "P4": 23
         },
         "states": {
           "HISTORICAL_ROUND": 97,
           "OTHER": 3,
-          "PASS": 230,
-          "PENDING": 7
+          "PASS": 273,
+          "PENDING": 1
         }
       }
     },
@@ -451,7 +451,7 @@
       }
     }
   ],
-  "entries_digest": "6f9ddccd953f95cfcb942c4868d6ab65677a108e0ab90643d0946fc14d83993a",
+  "entries_digest": "8a76ef2fa35101a881c96b1452eeb543a77adc1a0dcdd7e86648d34a638b5c58",
   "evidenced": 24,
   "gated": 10,
   "gates": {

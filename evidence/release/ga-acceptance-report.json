@@ -135,19 +135,19 @@
     },
     {
       "criterion": "query capsules are bounded",
-      "evidence": "machine summary context_capsule_profile status S20_320_FULL_IMPLEMENTED_REVIEW_PENDING",
+      "evidence": "machine summary context_capsule_profile status S20_320_FULL_COMPLETE",
       "group": "26.4 agent loop",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "session handles are stale-safe",
-      "evidence": "machine summary session_handle_profile status S20_330_IMPLEMENTED_REVIEW_PENDING",
+      "evidence": "machine summary session_handle_profile status S20_330_COMPLETE",
       "group": "26.4 agent loop",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "typed affordances and mutations are available",
-      "evidence": "machine summary protocol status S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
+      "evidence": "machine summary protocol status S20_400_COMPLETE",
       "group": "26.4 agent loop",
       "state": "AWAITS_REVIEW"
     },
@@ -189,7 +189,7 @@
     },
     {
       "criterion": "disjoint merge is deterministic",
-      "evidence": "machine summary merge status S20_520_IMPLEMENTED_REVIEW_PENDING",
+      "evidence": "machine summary merge status S20_520_COMPLETE",
       "group": "26.5 repository",
       "state": "AWAITS_REVIEW"
     },
@@ -243,7 +243,7 @@
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 0 open P0/P1/P2 findings across 337 obligations",
+      "evidence": "finding register declares 0 open P0/P1/P2 findings across 374 obligations",
       "group": "26.6 policy and security",
       "state": "EVIDENCED"
     },
@@ -321,7 +321,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 7 open obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 1 open obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -339,7 +339,7 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "report_digest": "79bb224aeee6dd2cab46092d190aaf7d075de1fbafa48c1d7ee1212fe3cfac32",
+  "report_digest": "1baee29f9b48ddf12a7f3b3522a8c9a1eef7b6775b3f4d6bf7c849bc54734a37",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 16,
