@@ -222,7 +222,12 @@ evidence-refresh:
 	python3 scripts/build_decision_dossier.py
 	python3 scripts/generate_supply_chain_evidence.py
 
-release-candidate-smoke:
+.PHONY: release-candidate-build release-candidate-verify
+release-candidate-smoke: release-candidate-build
+	$(MAKE) --no-print-directory release-candidate-verify
+
+# Build on each host before merging its attestation and verifying the records.
+release-candidate-build:
 	python3 scripts/build_release_candidate.py --timeout-seconds 900 --require-clean
 	python3 scripts/build_reproducibility_report.py
 	python3 scripts/build_candidate_content_report.py
@@ -238,6 +243,8 @@ release-candidate-smoke:
 	# The T54 scan covers the evidence documents the builders above rewrote,
 	# so it runs last and the tree is consistent when the smoke returns.
 	python3 scripts/generate_supply_chain_evidence.py
+
+release-candidate-verify:
 	python3 scripts/check_release_candidate_packaging.py
 	python3 scripts/build_candidate_content_report.py --check
 	python3 scripts/check_reproducibility_and_independent_conformance.py

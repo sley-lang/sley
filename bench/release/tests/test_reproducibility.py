@@ -252,14 +252,42 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertEqual(repro.select_attestation(tie, commit="d" * 40)["host_label"], "archive")
         self.assertIsNone(repro.select_attestation({"attestations": []}))
 
-    def test_the_tracked_report_selects_the_recorded_candidate(self) -> None:
+    def test_each_recorded_candidate_is_selectable_with_its_binding(self) -> None:
         report = json.loads(repro.REPORT.read_text(encoding="utf-8"))
-        selected = repro.select_attestation(report)
-        self.assertIsNotNone(selected)
-        self.assertIn(selected["commit"], report["commits"])
+        for candidate in repro.admissible_attestations(report):
+            selected = repro.select_attestation(report, candidate=candidate)
+            self.assertIsNotNone(selected)
+            self.assertTrue(repro.binds_candidate(selected, candidate))
+            self.assertIn(selected["commit"], report["commits"])
         self.assertEqual(
             len(repro.admissible_attestations(report)), report["distinct_hosts"]
         )
+
+    def test_summary_mirrors_follow_single_and_two_host_reports(self) -> None:
+        sync = load("sync_evidence_counters")
+        sync.SUMMARY = self.root / "summary.json"
+        sync.REPRO = self.root / "repro.json"
+        sync.SUMMARY.write_text(json.dumps({"reproducibility_and_independent_conformance": {}}))
+        primary = repro.local_attestation("primary", self.write_evidence())
+        secondary = dict(primary, host_label="secondary")
+        for attestations in ([primary], [primary, secondary]):
+            report = repro.build_report(attestations)
+            sync.REPRO.write_text(repro.canonical(report))
+            self.assertEqual(sync.main(), 0)
+            actual = json.loads(sync.SUMMARY.read_text())["reproducibility_and_independent_conformance"]
+            self.assertEqual(actual, {
+                "reproducibility_result": report["result"],
+                "second_host_status": report["second_host"]["status"],
+                "attested_hosts": len(attestations),
+                "required_hosts": report["required_hosts"],
+                "attested_commit": primary["commit"],
+                "blockers": report["blockers"],
+            })
+        before = sync.SUMMARY.read_bytes()
+        sync.REPRO.write_text(repro.canonical(dict(report, report_digest="0" * 64)))
+        with self.assertRaises(ValueError):
+            sync.main()
+        self.assertEqual(sync.SUMMARY.read_bytes(), before)
 
     def test_a_hand_edited_report_fails_verification(self) -> None:
         report = repro.build_report([repro.local_attestation("primary", self.write_evidence())])

@@ -15,17 +15,40 @@ import json
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import build_reproducibility_report as reproducibility
 
 ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 DOSSIER = ROOT / "evidence/release/decision-dossier.json"
 GA_ACCEPTANCE = ROOT / "evidence/release/ga-acceptance-report.json"
+REPRO = ROOT / "evidence/release/reproducibility-report.json"
 
 
 def main() -> int:
     summary = json.loads(SUMMARY.read_text(encoding="utf-8"))
     changed: list[str] = []
+
+    section = summary.get("reproducibility_and_independent_conformance")
+    if REPRO.exists() and isinstance(section, dict):
+        report = json.loads(REPRO.read_text(encoding="utf-8"))
+        problems = reproducibility.verify_report(report)
+        if problems:
+            raise ValueError(f"invalid reproducibility report: {problems}")
+        selected = reproducibility.select_attestation(report)
+        updates = {
+            "reproducibility_result": report["result"],
+            "second_host_status": report["second_host"]["status"],
+            "attested_hosts": report["distinct_hosts"],
+            "required_hosts": report["required_hosts"],
+            "attested_commit": selected["commit"] if selected else None,
+            "blockers": report["blockers"],
+        }
+        for key, value in updates.items():
+            if section.get(key) != value:
+                section[key] = value
+                changed.append(f"reproducibility_and_independent_conformance.{key}")
 
     if REGISTER.exists() and isinstance(summary.get("finding_register"), dict):
         register = json.loads(REGISTER.read_text(encoding="utf-8"))
