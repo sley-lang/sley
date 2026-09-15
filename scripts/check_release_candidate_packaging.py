@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import re
 import subprocess
@@ -95,6 +96,17 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def load_repro():
+    """The S20-730 builder: the owner of the attestation admissibility rule."""
+    spec = importlib.util.spec_from_file_location(
+        "build_reproducibility_report", ROOT / "scripts/build_reproducibility_report.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def gate_stays_closed(gate: str) -> bool:
     completed = subprocess.run(
         [sys.executable, "scripts/gate_status.py", gate],
@@ -168,9 +180,10 @@ def main() -> int:
         problems.append("machine-summary:artifact-not-null")
     # The register's candidate identity must name the tracked
     # reproducibility attestation: without this cross-check the section can
-    # name any candidate while the checker stays green. The attestation
-    # must be clean and REPRODUCIBLE (mirroring the S20-710 pin), and the
-    # quality fields the register hand-maintains must agree with it.
+    # name any candidate while the checker stays green. Admissibility is
+    # the S20-730 builder's predicate (clean, REPRODUCIBLE, non-empty
+    # toolchain strings, contract shape), imported rather than restated, and
+    # the quality fields the register hand-maintains must agree with it.
     repro_path = ROOT / "evidence/release/reproducibility-report.json"
     if status in IMPLEMENTATION_STATUSES:
         if not repro_path.exists():
@@ -189,17 +202,7 @@ def main() -> int:
                     (attestation.get("toolchain") or {}).get("cargo"),
                     (attestation.get("toolchain") or {}).get("rustc"),
                 )
-                for attestation in repro.get("attestations", [])
-                if isinstance(attestation, dict)
-                and attestation.get("working_tree_clean") is True
-                and attestation.get("reproducibility") == "REPRODUCIBLE"
-                # A null toolchain must not compare equal: both ends of
-                # the pin require non-empty cargo/rustc strings, so a
-                # toolchain-less attestation never binds.
-                and isinstance((attestation.get("toolchain") or {}).get("cargo"), str)
-                and (attestation.get("toolchain") or {}).get("cargo") != ""
-                and isinstance((attestation.get("toolchain") or {}).get("rustc"), str)
-                and (attestation.get("toolchain") or {}).get("rustc") != ""
+                for attestation in load_repro().admissible_attestations(repro)
             }
             candidate_toolchain = section.get("candidate_toolchain") or {}
             if (

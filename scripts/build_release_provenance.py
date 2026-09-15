@@ -18,9 +18,11 @@ from enum import IntEnum
 from pathlib import Path
 
 try:
+    import build_reproducibility_report as repro
     import records_closure
 except ImportError:  # loaded by path (unit lane) without scripts/ on sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import build_reproducibility_report as repro
     import records_closure
 
 
@@ -166,15 +168,14 @@ def git_head() -> str:
 def is_admittable(attestation: object) -> bool:
     """Whether one attestation may serve as subject authority.
 
-    Extracted so the unit lane tests the filter directly: clean
-    REPRODUCIBLE attestations admit; dirty, non-REPRODUCIBLE, malformed,
-    or non-dict entries do not.
+    The predicate is owned by the S20-730 builder
+    (`build_reproducibility_report.admissible_attestation`, contract
+    revision 7): an attestation admits exactly when it passes the
+    attestation contract shape (clean, REPRODUCIBLE, no differing members,
+    non-empty toolchain). Kept as a name so the unit lane tests the filter
+    at this call site; the rule itself is not restated here.
     """
-    return (
-        isinstance(attestation, dict)
-        and attestation.get("reproducibility") == "REPRODUCIBLE"
-        and attestation.get("working_tree_clean") is True
-    )
+    return repro.admissible_attestation(attestation)
 
 
 def attested_candidates() -> list[dict]:
@@ -193,11 +194,7 @@ def attested_candidates() -> list[dict]:
     attestations = report.get("attestations")
     if not isinstance(attestations, list):
         raise ProvenanceError(ProvenanceErrorCode.EVIDENCE_INVALID, "report has no attestation list")
-    return [
-        attestation
-        for attestation in attestations
-        if is_admittable(attestation)
-    ]
+    return [attestation for attestation in attestations if is_admittable(attestation)]
 
 
 def build_statement() -> dict:
@@ -225,11 +222,7 @@ def build_statement() -> dict:
     # binding is the full 4-tuple (contract section 5), mirroring the SBOM
     # side: commit, artifact digest, manifest digest, and size.
     if not any(
-        attestation.get("commit") == candidate["commit"]
-        and attestation.get("artifact_sha256") == candidate["artifact_sha256"]
-        and attestation.get("manifest_digest") == candidate["manifest_digest"]
-        and attestation.get("artifact_size_bytes") == candidate["artifact_size_bytes"]
-        for attestation in attested_candidates()
+        repro.binds_candidate(attestation, candidate) for attestation in attested_candidates()
     ):
         raise ProvenanceError(
             ProvenanceErrorCode.SUBJECT_MISMATCH,

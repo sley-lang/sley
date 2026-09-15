@@ -27,6 +27,14 @@ REPORT_CONTRACT = "sley2.reproducibility-report.v1"
 REQUIRED_HOSTS = 2
 HEX_64 = re.compile(r"^[0-9a-f]{64}$")
 HEX_40 = re.compile(r"^[0-9a-f]{40}$")
+# The wave-time blocker list (contract section 2, revision 7). It is a
+# constant on purpose: the report is digest-bound and re-minted only by the
+# two-host release smoke, so deriving it from live package statuses would
+# make a records-only status change read as report drift. The list records
+# which packages were open when the candidate was minted; it is not a live
+# gate, and the live gates (`release-check`, `v2`, the package checkers)
+# stay authoritative. Only `second_host_attestation_operator_lane` is
+# derived, dropping exactly when the merge reaches `required_hosts`.
 BLOCKERS = [
     "second_host_attestation_operator_lane",
     "standards_sbom_and_provenance_s20_710_full",
@@ -169,6 +177,90 @@ def validate_attestation(value: object) -> dict:
     if value["differing_members"] != []:
         raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "differing members contradict REPRODUCIBLE")
     return dict(value)
+
+
+def admissible_attestation(attestation: object) -> bool:
+    """Whether one tracked attestation may serve as candidate authority.
+
+    The single owner of the admissibility predicate every consumer of the
+    tracked report imports (contract section 1, revision 7): an attestation
+    is admissible exactly when it passes the section 1 shape, which already
+    requires a REPRODUCIBLE build from a whole-tree clean checkout with no
+    differing members and non-empty toolchain strings. Anything else
+    (dirty, unreproduced, malformed, a null toolchain, not an object) is
+    inadmissible; consumers must not restate a weaker subset by hand.
+    """
+    try:
+        validate_attestation(attestation)
+    except ReproError:
+        return False
+    return True
+
+
+def admissible_attestations(report: object, commit: str | None = None) -> list[dict]:
+    """The admissible attestations of a report, optionally for one commit.
+
+    Returns attestations in report order (sorted by host label). A report
+    that is not an object or carries no attestation list yields nothing:
+    callers that must refuse on a malformed report check the shape first
+    (the checker runs `verify_report`), and an empty result never admits.
+    """
+    if not isinstance(report, dict):
+        return []
+    attestations = report.get("attestations")
+    if not isinstance(attestations, list):
+        return []
+    return [
+        dict(attestation)
+        for attestation in attestations
+        if admissible_attestation(attestation)
+        and (commit is None or attestation["commit"] == commit)
+    ]
+
+
+def binds_candidate(attestation: dict, candidate: dict) -> bool:
+    """Whether an attestation names one candidate evidence record exactly.
+
+    The binding is the full 4-tuple the SBOM, provenance, and packaging
+    consumers agree on: commit, artifact digest, manifest digest, and
+    artifact size. Missing candidate keys never bind.
+    """
+    return all(
+        key in candidate and attestation.get(key) == candidate[key]
+        for key in ("commit", "artifact_sha256", "manifest_digest", "artifact_size_bytes")
+    )
+
+
+def select_attestation(
+    report: object, candidate: dict | None = None, commit: str | None = None
+) -> dict | None:
+    """The one attestation that names the current candidate, or None.
+
+    The single owner of candidate selection: consumers must not pick
+    `attestations[0]` (the alphabetically first host label) by hand. Only
+    admissible attestations are considered. With a candidate evidence
+    record, the attestation must bind its 4-tuple. Without one, the current
+    candidate is the attested commit carrying the most agreeing hosts; when
+    two commits tie, no single current candidate exists and the selection
+    fails closed with None. Among one commit's attestations the first host
+    label in sorted order is returned, matching the report's own order.
+    """
+    pool = admissible_attestations(report, commit)
+    if candidate is not None:
+        pool = [attestation for attestation in pool if binds_candidate(attestation, candidate)]
+    if not pool:
+        return None
+    hosts: dict[str, int] = {}
+    for attestation in pool:
+        hosts[attestation["commit"]] = hosts.get(attestation["commit"], 0) + 1
+    most = max(hosts.values())
+    leading = [commit_id for commit_id, count in hosts.items() if count == most]
+    if len(leading) != 1:
+        return None
+    return min(
+        (attestation for attestation in pool if attestation["commit"] == leading[0]),
+        key=lambda attestation: attestation["host_label"],
+    )
 
 
 def build_report(attestations: list[dict]) -> dict:
