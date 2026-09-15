@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Copies the derived register and dossier counters into the machine summary.
+"""Copies the derived register, GA report, and dossier counters into the summary.
 
-The summary records how many review obligations are open and how many dossier
-items are evidenced, and the staged checkers cross-check those numbers against
-the derived documents. Both derivations are stable under counter updates (they
-digest their derived entries, not the summary bytes), so this sync converges in
-one pass.
+The summary records how many review obligations are open, how the GA
+acceptance criteria stand, and how many dossier items are evidenced, and the
+staged checkers cross-check those numbers against the derived documents. The
+derivations are stable under counter updates (they digest their derived
+entries, not the summary bytes, and none reads its own mirror), so this sync
+converges in one pass.
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 DOSSIER = ROOT / "evidence/release/decision-dossier.json"
+GA_ACCEPTANCE = ROOT / "evidence/release/ga-acceptance-report.json"
 
 
 def main() -> int:
@@ -48,10 +50,29 @@ def main() -> int:
             "decision_state": dossier["decision_state"],
             "decision_reasons": dossier["decision_reasons"],
         }
+        sbom = next(
+            (entry for entry in dossier.get("entries", []) if entry.get("item") == "SBOM and license inventory"),
+            {},
+        )
+        if isinstance(sbom.get("value"), dict) and "license_disposition_blocked" in sbom["value"]:
+            updates["license_disposition_blocked"] = sbom["value"]["license_disposition_blocked"]
         for key, value in updates.items():
             if summary["decision_dossier"].get(key) != value:
                 summary["decision_dossier"][key] = value
                 changed.append(f"decision_dossier.{key}")
+
+    if GA_ACCEPTANCE.exists() and isinstance(summary.get("ga_acceptance"), dict):
+        acceptance = json.loads(GA_ACCEPTANCE.read_text(encoding="utf-8"))
+        updates = {
+            "criterion_count": acceptance["criterion_count"],
+            "states": acceptance["states"],
+            "gated": acceptance["gated"],
+            "awaiting_review": acceptance["awaiting_review"],
+        }
+        for key, value in updates.items():
+            if summary["ga_acceptance"].get(key) != value:
+                summary["ga_acceptance"][key] = value
+                changed.append(f"ga_acceptance.{key}")
 
     if changed:
         SUMMARY.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

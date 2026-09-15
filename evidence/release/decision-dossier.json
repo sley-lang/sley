@@ -3,12 +3,14 @@
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
     "1 review obligations are open",
-    "4 GA acceptance criteria are not evidenced",
+    "18 GA acceptance criteria are not evidenced",
+    "3 review dispositions are unclassified",
     "no succession trial has been executed",
+    "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "17700715fa9af760cb7e825e0f6279c10b4327d76c433494595c604971ca7534",
+  "dossier_digest": "67737cce9137e1be1ec57c54404c8adbcba9b586e947c4d8ff68fead0ec45ecd",
   "entries": [
     {
       "evidence": [
@@ -188,13 +190,12 @@
     },
     {
       "evidence": [
-        "evidence/security/threat-coverage-report.json",
-        "machineresearch/sley-2.0/machine-summary.json"
+        "evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md"
       ],
       "item": "security review result",
-      "note": "the independent security review is Vulcan's; the machine summary records it as PASS_0_P0_0_P1_0_P2_3_P3_5_P4 (transcripts under evidence/review/verdicts/threat_coverage/). Its input is measured: of the 56 registered threats, 44 have a located control whose symbol a test region, test file, corpus, fuzz target, or oracle names, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
-      "state": "EVIDENCED",
-      "value": "PASS_0_P0_0_P1_0_P2_3_P3_5_P4"
+      "note": "the independent security review is Vulcan's; the machine summary records it as PASS_0_P0_0_P1_0_P2_3_P3_5_P4 and the finding register classifies it: threat_coverage.independent_security_review reads PASS_0_P0_0_P1_0_P2_3_P3_5_P4, a PASS naming unclaimed findings (P3, P4). The item is evidenced only by a complete PASS (the bare PASS token or an all-zero enumerated count form the register classifies PASS, with no unclaimed finding); the transcript the summary note names (evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md) is cited as evidence and must exist. Its input is measured: of the 56 registered threats, 44 have a located control whose symbol a test region, test file, corpus, fuzz target, or oracle names, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
+      "state": "GATED",
+      "value": null
     },
     {
       "evidence": [
@@ -329,7 +330,7 @@
         "evidence/review/finding-register.json"
       ],
       "item": "findings by severity and disposition",
-      "note": "the S20-740 register of every recorded review obligation",
+      "note": "the S20-740 register of every recorded review obligation: pending, deferred, unclassified (OTHER), and unclaimed-carried rows are counted, and the register's own result is carried so the decision rule reads it",
       "state": "EVIDENCED",
       "value": {
         "declared_open_findings": {
@@ -355,7 +356,9 @@
           "OTHER": 3,
           "PASS": 276,
           "PENDING": 1
-        }
+        },
+        "unclaimed_carried_findings": 43,
+        "unclassified": 3
       }
     },
     {
@@ -405,6 +408,7 @@
           "invalid committed states",
           "release decision state",
           "repair loops by arm",
+          "security review result",
           "stale candidates incorrectly accepted",
           "strict correctness by arm"
         ],
@@ -422,14 +426,14 @@
     {
       "evidence": [],
       "item": "independent review result",
-      "note": "S20-740 records the independent review as PENDING; the item is evidenced only by a recorded complete PASS from the independent reviewer over a CLEAR register",
+      "note": "S20-740 records the independent review as PENDING over a register whose result is FINDING_REGISTER_OPEN; the item is evidenced only by a recorded complete PASS (the bare PASS token or an all-zero enumerated count form the register's classifier reads PASS) from the independent reviewer while the register result is FINDING_REGISTER_CLEAR, the definition GA criterion 26.9.3 shares",
       "state": "GATED",
       "value": null
     },
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 48 evidenced, 2 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 34 evidenced, 16 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -453,9 +457,9 @@
       }
     }
   ],
-  "entries_digest": "8c2db6762a7989c73246fb2f1d8f0901ee345e5df195e225efabbd8e4f75cdd8",
-  "evidenced": 25,
-  "gated": 9,
+  "entries_digest": "4128d4fbf4793e992fa6838f9afab260681d32cbc5d2dd5901cb3d359534fe1a",
+  "evidenced": 24,
+  "gated": 10,
   "gates": {
     "release-check": "NOT_IMPLEMENTED",
     "v2": "NOT_IMPLEMENTED"

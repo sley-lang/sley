@@ -86,9 +86,11 @@ class DecisionTests(unittest.TestCase):
     def sources(self, **overrides) -> dict:
         base = {
             "summary": {
-                "succession": {"thresholds_pass": True},
                 "release_candidate_packaging": {"release_check_gate": "OPEN"},
             },
+            # The one section 22 threshold verdict (the GA builder's derivation
+            # from the tracked accounting report), injected as the builder does.
+            "thresholds": {"pass": True, "note": "every threshold row PASS"},
         }
         for key, value in overrides.items():
             if isinstance(value, dict) and isinstance(base.get(key), dict):
@@ -106,6 +108,9 @@ class DecisionTests(unittest.TestCase):
                 {
                     "open_reviews": 0,
                     "deferred_reviews": 0,
+                    "unclassified": 0,
+                    "unclaimed_carried_findings": 0,
+                    "result": "FINDING_REGISTER_CLEAR",
                     "declared_open_findings": {"p0": 0, "p1": 0, "p2": 0},
                 },
             ),
@@ -140,6 +145,8 @@ class DecisionTests(unittest.TestCase):
         for sources, entries, reason in (
             (self.sources(), self.entries(**{"findings by severity and disposition": {"open_reviews": 1}}), "review obligations are open"),
             (self.sources(), self.entries(**{"findings by severity and disposition": {"deferred_reviews": 2}}), "deferred"),
+            (self.sources(), self.entries(**{"findings by severity and disposition": {"unclassified": 3}}), "unclassified"),
+            (self.sources(), self.entries(**{"findings by severity and disposition": {"result": "FINDING_REGISTER_OPEN"}}), "not FINDING_REGISTER_CLEAR"),
             (self.sources(), self.entries(**{"SBOM and license inventory": {"root_license_text_approved": False}}), "root license"),
             (self.sources(), self.entries(**{item: "GATED" for item in ARM_ITEMS}), "succession trial"),
             (self.sources(**gate_closed), self.entries(), "fail-closed"),
@@ -155,10 +162,16 @@ class DecisionTests(unittest.TestCase):
             self.entries(**{"findings by severity and disposition": {"declared_open_findings": {"p1": 1}}}),
         )
         self.assertEqual(state, "FAIL")
-        state, _ = dossier.derive_decision(
-            self.sources(summary={"succession": {"thresholds_pass": False}}),
+        state, reasons = dossier.derive_decision(
+            self.sources(thresholds={"pass": False, "note": "no tracked S20-630 accounting report"}),
             self.entries(),
         )
+        self.assertEqual(state, "ALPHA_COMPLETE")
+        self.assertTrue(any("no tracked S20-630 accounting report" in line for line in reasons))
+        # An absent verdict is a non-passing one, never a pass.
+        sources = self.sources()
+        del sources["thresholds"]
+        state, _ = dossier.derive_decision(sources, self.entries())
         self.assertEqual(state, "ALPHA_COMPLETE")
         state, _ = dossier.derive_decision(
             self.sources(summary={"approved_conditional_items": ["an approved P2"]}),
@@ -169,13 +182,15 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual((state, reasons), ("PASS", []))
 
     def test_the_arm_entries_drive_the_trial_rule_not_the_sources(self) -> None:
-        # Sources claiming zero trials do not block while the arm entries are evidenced.
+        # Summary hand keys are not read: zero trials in the summary do not
+        # block while the arm entries are evidenced ...
         state, reasons = dossier.derive_decision(
             self.sources(summary={"succession": {"trials_executed": 0, "thresholds_pass": True}}),
             self.entries(),
         )
         self.assertEqual(state, "PASS")
-        # Sources claiming trials do not unblock while the arm entries are gated.
+        # ... and claimed trials plus a hand thresholds_pass do not unblock
+        # while the arm entries are gated.
         state, reasons = dossier.derive_decision(
             self.sources(summary={"succession": {"trials_executed": 9, "thresholds_pass": True}}),
             self.entries(**{item: "GATED" for item in ARM_ITEMS}),
@@ -342,7 +357,12 @@ class GateAndAcceptanceTests(unittest.TestCase):
         with self.assertRaises(dossier.DossierError) as error:
             dossier.required({}, "project", "machine-summary")
         self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_INVALID)
-        sources = self.sources(summary={"succession": {"thresholds_pass": "yes"}})
+        sources = self.sources(thresholds={"pass": "yes"})
+        with self.assertRaises(dossier.DossierError) as error:
+            dossier.derive_decision(sources, self.entries())
+        self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_INVALID)
+        sources = self.sources()
+        sources["thresholds"] = "PASS"
         with self.assertRaises(dossier.DossierError) as error:
             dossier.derive_decision(sources, self.entries())
         self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_INVALID)
@@ -363,6 +383,126 @@ class GateAndAcceptanceTests(unittest.TestCase):
         with self.assertRaises(dossier.DossierError) as error:
             dossier.entry("probe", value=1, evidence=[Path("/nonexistent/x.json")], note="probe")
         self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_MISSING)
+
+
+class RegisterBoundEntryTests(unittest.TestCase):
+    """Items 15 and 32, rule 1's register facts, and the GA report binding."""
+
+    def live_sources(self) -> dict:
+        return SourceSeparationTests.live_sources(SourceSeparationTests())
+
+    def entry(self, entries: list[dict], item: str) -> dict:
+        return next(entry for entry in entries if entry["item"] == item)
+
+    def security_row(self, register: dict) -> dict:
+        return next(
+            row
+            for row in register["obligations"]
+            if row["section"] == "threat_coverage" and row["field"] == "independent_security_review"
+        )
+
+    def test_item_15_evidences_only_a_complete_pass_the_register_classifies(self) -> None:
+        sources = self.live_sources()
+        register = sources["register"]
+        row = self.security_row(register)
+        register["unclaimed_carried_findings"] = [
+            entry
+            for entry in register["unclaimed_carried_findings"]
+            if not (entry["section"] == "threat_coverage" and entry["field"] == "independent_security_review")
+        ]
+        for form in ("PASS_PENDING_CONFIRMATION_2_P0_OPEN", "PASSED_TO_NEXT_ROUND", "PASS_2_P1", "PASS_WITH_OPEN_P1"):
+            sources["summary"]["threat_coverage"]["independent_security_review"] = form
+            row["disposition"] = form
+            row["state"] = "PASS"
+            item = self.entry(dossier.build_entries(sources), "security review result")
+            self.assertEqual(item["state"], "GATED", form)
+            self.assertIsNone(item["value"], form)
+        sources["summary"]["threat_coverage"]["independent_security_review"] = "PASS"
+        row["disposition"] = "PASS"
+        row["state"] = "PASS"
+        row["severities"] = []
+        item = self.entry(dossier.build_entries(sources), "security review result")
+        self.assertEqual(item["state"], "EVIDENCED")
+        self.assertEqual(item["value"], "PASS")
+        self.assertIn("evidence/review/finding-register.json", item["evidence"])
+        self.assertIn(
+            "evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md", item["evidence"]
+        )
+
+    def test_the_live_item_15_is_gated_by_its_unclaimed_follow_ups(self) -> None:
+        item = self.entry(dossier.build_dossier()["entries"], "security review result")
+        self.assertEqual(item["state"], "GATED")
+        self.assertIn("unclaimed findings", item["note"])
+        self.assertIn(
+            "evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md", item["evidence"]
+        )
+
+    def test_a_missing_named_transcript_fails_the_build(self) -> None:
+        sources = self.live_sources()
+        sources["summary"]["threat_coverage"]["independent_security_review_note"] = (
+            "PASS; transcript evidence/review/verdicts/threat_coverage/independent_security_review-0000000.md"
+        )
+        with self.assertRaises(dossier.DossierError) as error:
+            dossier.build_entries(sources)
+        self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_MISSING)
+
+    def test_item_32_requires_a_complete_pass_over_a_clear_register(self) -> None:
+        sources = self.live_sources()
+        sources["summary"]["finding_register"]["independent_review"] = "PASS"
+        sources["register"]["result"] = "FINDING_REGISTER_OPEN"
+        item = self.entry(dossier.build_entries(sources), "independent review result")
+        self.assertEqual(item["state"], "GATED")
+        self.assertEqual(item["evidence"], [])
+        sources["register"]["result"] = "FINDING_REGISTER_CLEAR"
+        item = self.entry(dossier.build_entries(sources), "independent review result")
+        self.assertEqual(item["state"], "EVIDENCED")
+        self.assertEqual(item["value"], "PASS")
+        self.assertIn("evidence/review/finding-register.json", item["evidence"])
+        sources["summary"]["finding_register"]["independent_review"] = "PASS_WITH_OPEN_P1"
+        item = self.entry(dossier.build_entries(sources), "independent review result")
+        self.assertEqual(item["state"], "GATED")
+
+    def test_the_findings_entry_carries_the_register_result_and_other_rows(self) -> None:
+        item = self.entry(dossier.build_dossier()["entries"], "findings by severity and disposition")
+        register = json.loads((ROOT / "evidence/review/finding-register.json").read_text(encoding="utf-8"))
+        self.assertEqual(item["value"]["result"], register["result"])
+        self.assertEqual(item["value"]["unclassified"], len(register["unclassified"]))
+        self.assertEqual(
+            item["value"]["unclaimed_carried_findings"], len(register["unclaimed_carried_findings"])
+        )
+
+    def test_historical_rounds_are_not_open_p2_rows(self) -> None:
+        rows = [
+            {"section": "s", "field": "old", "severities": ["P2"], "state": "HISTORICAL_ROUND"},
+            {"section": "s", "field": "live", "severities": ["P2"], "state": "PENDING"},
+            {"section": "s", "field": "done", "severities": ["P2"], "state": "PASS"},
+        ]
+        self.assertEqual(dossier.open_p2_rows({"obligations": rows}, set()), ["s:live"])
+
+    def test_a_tampered_or_rebound_ga_report_fails_closed(self) -> None:
+        import tempfile
+
+        original = dossier.GA_ACCEPTANCE
+        self.addCleanup(setattr, dossier, "GA_ACCEPTANCE", original)
+        report = json.loads(original.read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "ga.json"
+            tampered = dict(report)
+            tampered["states"] = {"EVIDENCED": 52}
+            path.write_text(dossier.canonical(tampered), encoding="utf-8")
+            dossier.GA_ACCEPTANCE = path
+            with self.assertRaises(dossier.DossierError) as error:
+                dossier.build_dossier()
+            self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_INVALID)
+            self.assertIn("report_digest", error.exception.detail)
+            rebound = {key: value for key, value in report.items() if key != "report_digest"}
+            rebound["register_digest"] = "0" * 64
+            rebound["report_digest"] = dossier.digest_of(rebound)
+            path.write_text(dossier.canonical(rebound), encoding="utf-8")
+            with self.assertRaises(dossier.DossierError) as error:
+                dossier.build_dossier()
+            self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_INVALID)
+            self.assertIn("register_digest", error.exception.detail)
 
 
 if __name__ == "__main__":

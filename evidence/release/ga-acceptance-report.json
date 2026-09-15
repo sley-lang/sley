@@ -1,5 +1,19 @@
 {
   "awaiting_review": [
+    "No undefined behavior exists in the program model",
+    "No ambient authority exists",
+    "agents can create and maintain programs without source",
+    "typed affordances and mutations are available",
+    "invalid candidates cannot commit",
+    "exact stale conflicts are rejected",
+    "refs update atomically",
+    "branches preserve ancestry",
+    "policy is protected from the judged candidate",
+    "capability tokens cannot be forged or replayed across scope",
+    "all P0/P1 threats have passing tests",
+    "opacity is not used as a security argument",
+    "Ariadne approves SSMC1 and semantic correctness",
+    "Nabu approves architectural and cross-product boundaries",
     "Vulcan or current independent reviewer issues a complete PASS",
     "all reviewer findings are resolved or dispositioned below P3"
   ],
@@ -7,13 +21,13 @@
   "criteria": [
     {
       "criterion": "Sley 1.2.0 is preserved and checksum-verified",
-      "evidence": "machine summary legacy_freeze records the artifact and source digests; make legacy-runner-smoke verifies them",
+      "evidence": "machine summary legacy_freeze records version 1.2.0, commit 397fa28ded15, artifact digest b24f19c6a348 and source snapshot digest 1c866d360305; make legacy-runner-smoke verifies them",
       "group": "26.1 lineage",
       "state": "EVIDENCED"
     },
     {
       "criterion": "No Sley 1.2.1 implementation was required",
-      "evidence": "docs/adr/ADR-0002-clean-room-legacy-boundary.md",
+      "evidence": "docs/adr/ADR-0002-clean-room-legacy-boundary.md present; clean-room register legacy_source_in_tree False; anti-goal 'Sley 1.x compatibility' HOLDS",
       "group": "26.1 lineage",
       "state": "EVIDENCED"
     },
@@ -25,13 +39,13 @@
     },
     {
       "criterion": "No legacy source tree was copied wholesale",
-      "evidence": "scripts/check_clean_room_boundary.py verifies no legacy source, dependency, or in-process touchpoint",
+      "evidence": "scripts/check_clean_room_boundary.py verifies no legacy source, dependency, or in-process touchpoint; register legacy_source_in_tree False",
       "group": "26.1 lineage",
       "state": "EVIDENCED"
     },
     {
       "criterion": "Every reused concept has a disposition and evidence",
-      "evidence": "docs/spec/CLEAN_ROOM_DISPOSITION_REGISTER_V1.md, two dispositioned entries",
+      "evidence": "docs/spec/CLEAN_ROOM_DISPOSITION_REGISTER_V1.md, 3 dispositioned entries (3 named)",
       "group": "26.1 lineage",
       "state": "EVIDENCED"
     },
@@ -43,19 +57,19 @@
     },
     {
       "criterion": "Rust and independent oracle produce byte-identical output",
-      "evidence": "machine summary conformance cross_implementation_agreement PASS",
+      "evidence": "machine summary conformance cross_implementation_agreement PASS, status S20_130_COMPLETE",
       "group": "26.2 canonical format",
       "state": "EVIDENCED"
     },
     {
       "criterion": "Every non-canonical fixture is rejected",
-      "evidence": "25 of 25 fixture families independently checked, rejection corpora included",
+      "evidence": "independent conformance report INDEPENDENT_CONFORMANCE_COMPLETE: 25 of 25 fixture families independently checked, 0 native-only, rejection corpora included",
       "group": "26.2 canonical format",
       "state": "EVIDENCED"
     },
     {
       "criterion": "Hashes are domain separated",
-      "evidence": "docs/spec/IDENTIFIERS_V1.md registry with the drift check of scripts/check_required_contract_index.py",
+      "evidence": "docs/spec/IDENTIFIERS_V1.md registry with the drift check of scripts/check_required_contract_index.py; identifiers status S20_110_COMPLETE, 35 registry domains, 50 frozen",
       "group": "26.2 canonical format",
       "state": "EVIDENCED"
     },
@@ -85,39 +99,39 @@
     },
     {
       "criterion": "No source parser exists in the GA dependency graph",
-      "evidence": "anti-goal conformance report, parser crates absent from Cargo.lock",
+      "evidence": "anti-goal conformance report 'Sley source syntax or parser' HOLDS, parser crates absent from Cargo.lock",
       "group": "26.3 semantics",
       "state": "EVIDENCED"
     },
     {
       "criterion": "Type, CFG, effect, contract, and identity checks are deterministic",
-      "evidence": "machine summary type_system, cfg_validation, effect_system, identifiers",
+      "evidence": "machine summary type_system, cfg_validation, effect_system, identifiers: all at terminal status",
       "group": "26.3 semantics",
       "state": "EVIDENCED"
     },
     {
       "criterion": "VM semantics agree with conformance fixtures",
-      "evidence": "conformance/vm-extended/v1 with the independent oracle; vm_extended_opcode_profile status S20_260_270_EXTENDED_COMPLETE",
+      "evidence": "conformance/vm-extended/v1 with the independent oracle; VM profiles: all at terminal status",
       "group": "26.3 semantics",
       "state": "EVIDENCED"
     },
     {
       "criterion": "No undefined behavior exists in the program model",
-      "evidence": "the exhaustive judgment and execution contracts (type, CFG, effect, VM extended, S20-360 operation analysis, S20-390 extended profile) at terminal status with every Ariadne lane obligation PASS or historical in the finding register",
+      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 78 PASS, 0 PENDING, 0 OTHER, 39 historical, 10 unclaimed or unclassified; lane open)",
       "group": "26.3 semantics",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "No ambient authority exists",
-      "evidence": "protected policy root, capability tokens, and reference adapters at terminal status; independent security review PASS_0_P0_0_P1_0_P2_3_P3_5_P4; anti-goal 'arbitrary shell' HOLDS",
+      "evidence": "protected policy root, capability tokens, and reference adapters at terminal status (protected_policy_root S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; capability_token_profile S20_380_COMPLETE_NARROW_LOCAL_PROFILE); independent security review: threat_coverage.independent_security_review reads PASS_0_P0_0_P1_0_P2_3_P3_5_P4, a PASS naming unclaimed findings (P3, P4); anti-goal 'arbitrary shell' HOLDS",
       "group": "26.3 semantics",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "agents can create and maintain programs without source",
-      "evidence": "SMP1 endpoint status S20_400_COMPLETE, bridge S20_420_COMPLETE, CLI S20_430_COMPLETE; candidate validation and atomic commit at their boundaries; no source parser in the GA graph",
+      "evidence": "SMP1 endpoint, bridge, CLI, candidate validation, and atomic commit at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE); anti-goal 'Sley source syntax or parser' HOLDS",
       "group": "26.4 agent loop",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "query capsules are bounded",
@@ -133,25 +147,25 @@
     },
     {
       "criterion": "typed affordances and mutations are available",
-      "evidence": "machine summary protocol status S20_400_COMPLETE; mutation schema S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY; candidate construction S20_350_COMPLETE_PROPOSAL_ONLY",
+      "evidence": "protocol, mutation schema, and candidate construction at terminal status (mutation_schema S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY; candidate_construction_profile S20_350_COMPLETE_PROPOSAL_ONLY)",
       "group": "26.4 agent loop",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "invalid candidates cannot commit",
-      "evidence": "machine summary s20_360_candidate_validation status COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY with the S20-390 commit boundary",
+      "evidence": "S20-360 candidate validation and the S20-390 commit boundary at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE)",
       "group": "26.4 agent loop",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "exact stale conflicts are rejected",
-      "evidence": "the S20-360 stale root and stale entity decisions with their result vectors",
+      "evidence": "the S20-360 stale root and stale entity decisions with their result vectors; status COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "group": "26.4 agent loop",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "machine outputs use stable codes and contracts",
-      "evidence": "docs/spec/ERROR_CODES_V1.md with the per-package checkers that pin every reserved range",
+      "evidence": "docs/spec/ERROR_CODES_V1.md with the per-package checkers that pin every reserved range; error-symbol registration PASS: 495 symbols, 0 unregistered, 0 ambiguous codes",
       "group": "26.4 agent loop",
       "state": "EVIDENCED"
     },
@@ -165,13 +179,13 @@
       "criterion": "refs update atomically",
       "evidence": "machine summary s20_500_native_refs_branches status COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
       "group": "26.5 repository",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "branches preserve ancestry",
-      "evidence": "the S20-500 immutable branch origin and bounded ancestry rules",
+      "evidence": "the S20-500 immutable branch origin and bounded ancestry rules; status COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
       "group": "26.5 repository",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "disjoint merge is deterministic",
@@ -193,21 +207,21 @@
     },
     {
       "criterion": "crash recovery produces only old or complete new state",
-      "evidence": "the S20-530 hundred-row crash matrix, status CONTRACT_FROZEN_IMPLEMENTATION_COMPLETE",
+      "evidence": "the S20-530 crash matrix of 100 rows, status CONTRACT_FROZEN_IMPLEMENTATION_COMPLETE",
       "group": "26.5 repository",
       "state": "EVIDENCED"
     },
     {
       "criterion": "policy is protected from the judged candidate",
-      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT",
+      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 72 PASS, 0 PENDING, 0 OTHER, 28 historical, 7 unclaimed or unclassified; lane open",
       "group": "26.6 policy and security",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "capability tokens cannot be forged or replayed across scope",
-      "evidence": "machine summary capability_token_profile status S20_380_COMPLETE_NARROW_LOCAL_PROFILE",
+      "evidence": "machine summary capability_token_profile status S20_380_COMPLETE_NARROW_LOCAL_PROFILE; independent security review: threat_coverage.independent_security_review reads PASS_0_P0_0_P1_0_P2_3_P3_5_P4, a PASS naming unclaimed findings (P3, P4)",
       "group": "26.6 policy and security",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "adapters are bounded",
@@ -217,67 +231,67 @@
     },
     {
       "criterion": "no arbitrary shell exists",
-      "evidence": "anti-goal conformance report, no kernel source invokes a process",
+      "evidence": "anti-goal conformance report 'arbitrary shell' HOLDS, no kernel source invokes a process",
       "group": "26.6 policy and security",
       "state": "EVIDENCED"
     },
     {
       "criterion": "all P0/P1 threats have passing tests",
-      "evidence": "threat coverage report: 44 exercised, 0 P0/P1 without a located symbol; 495 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol. Whether a located, exercised control mitigates its threat stays the review's judgment",
+      "evidence": "threat coverage report: 44 exercised, 0 P0/P1 without a located symbol; 495 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol; independent security review: threat_coverage.independent_security_review reads PASS_0_P0_0_P1_0_P2_3_P3_5_P4, a PASS naming unclaimed findings (P3, P4). Whether a located, exercised control mitigates its threat stays the review's judgment",
       "group": "26.6 policy and security",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 0 open P0/P1/P2 findings across 383 obligations",
+      "evidence": "finding register declares 0 open P0/P1/P2 findings across 384 obligations",
       "group": "26.6 policy and security",
       "state": "EVIDENCED"
     },
     {
       "criterion": "opacity is not used as a security argument",
-      "evidence": "every contract is public in docs/spec and the independent oracle checks nineteen fixture families",
+      "evidence": "anti-goal conformance report 'opacity as security' REVIEW_ONLY; every contract is public in docs/spec and the independent oracle checks 25 fixture families, which is the review's input",
       "group": "26.6 policy and security",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "every section 22 threshold passes",
-      "evidence": "succession trials_executed 0; the harness passes its smokes and the campaign has not recorded a threshold table",
+      "evidence": "no tracked S20-630 accounting report at evidence/release/succession-accounting-report.json; no trial campaign has recorded a threshold table",
       "group": "26.7 succession",
       "state": "GATED"
     },
     {
       "criterion": "artifact name sley-2.0.0-linux-x86_64.tar.gz",
-      "evidence": "reproducibility report attests sley-2.0.0-linux-x86_64.tar.gz",
+      "evidence": "reproducibility report attests sley-2.0.0-linux-x86_64.tar.gz; packaging records sley-2.0.0-linux-x86_64.tar.gz",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit 7a94a4a31272a6dc7588aff902dcde81f7d10a4e; the final commit is fixed by a recorded release decision (machine summary release_decision), state None",
+      "evidence": "attested commit 7a94a4a31272a6dc7588aff902dcde81f7d10a4e; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
       "group": "26.8 packaging",
       "state": "GATED"
     },
     {
       "criterion": "artifact runs with no source-tree access",
-      "evidence": "the S20-720 unpacked demo runs the packaged binary outside the tree",
+      "evidence": "the S20-720 unpacked demo runs the packaged binary outside the tree: candidate_demo PASS_12_STEPS, packaging status S20_720_COMPLETE",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
     {
       "criterion": "artifact contains no secrets, local paths, caches, or debug files",
-      "evidence": "the S20-720 forbidden content scan reports zero findings",
+      "evidence": "the S20-720 forbidden content scan (evidence/security/T54/secret-scan.json) reports PASS_NO_HIGH_CONFIDENCE_FINDINGS with 0 findings",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "the manifest and both SBOM documents with the unsigned provenance statement",
+      "evidence": "attested manifest digest aea8182d7d20, artifact digest 6d970bf4d5da, 2190465 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
     {
       "criterion": "second clean build establishes reproducibility",
-      "evidence": "reproducibility report result MULTI_HOST_REPRODUCIBLE",
+      "evidence": "reproducibility report result MULTI_HOST_REPRODUCIBLE across 2 of 2 required hosts, 2 attestations",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
@@ -289,31 +303,31 @@
     },
     {
       "criterion": "Ariadne approves SSMC1 and semantic correctness",
-      "evidence": "finding register Ariadne lane: 78 PASS, 0 PENDING",
+      "evidence": "finding register ariadne lane: 78 PASS, 0 PENDING, 0 OTHER, 39 historical, 10 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
       "group": "26.9 review",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "Nabu approves architectural and cross-product boundaries",
-      "evidence": "finding register Nabu lane: 72 PASS, 0 PENDING",
+      "evidence": "finding register nabu lane: 72 PASS, 0 PENDING, 0 OTHER, 28 historical, 7 unclaimed or unclassified; lane open",
       "group": "26.9 review",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "Vulcan or current independent reviewer issues a complete PASS",
-      "evidence": "S20-740 independent review PENDING; Vulcan lane clear",
+      "evidence": "S20-740 independent review PENDING (not a complete PASS form); finding register result FINDING_REGISTER_OPEN; a complete PASS is the bare PASS token or an all-zero enumerated count form over a CLEAR register",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 1 open obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 1 open, 3 unclassified, and 43 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "publication remains unauthorized unless separately granted",
-      "evidence": "machine summary publication_authorized False; anti-goal 'unauthorized publication/deploy/spend' HOLDS",
+      "evidence": "machine summary publication_authorized False; reproducibility report publication_authorized False; anti-goal 'unauthorized publication/deploy/spend' HOLDS",
       "group": "26.9 review",
       "state": "EVIDENCED"
     }
@@ -325,11 +339,14 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "report_digest": "5342ecac08a59a8745d82492f907b40b60ebaa384db78430ae54f6880fbc90a6",
+  "obligations_digest": "006a7ae80efb7ae124b4e56f723a3a0ef3dadf4f5e10963173e532bf8d4617fc",
+  "register_digest": "d3a8546ca8a65ef201a49f96bb0a8dc89b58932de3599e439995a721feabb1e1",
+  "report_digest": "ee7dee69db0d23214b300c21672fbc35a1a8f6b91477a40a2ca0c0d5ffe65036",
   "source": "master goal section 26",
   "states": {
-    "AWAITS_REVIEW": 2,
-    "EVIDENCED": 48,
+    "AWAITS_REVIEW": 16,
+    "EVIDENCED": 34,
     "GATED": 2
-  }
+  },
+  "thresholds_source": "evidence/release/succession-accounting-report.json"
 }

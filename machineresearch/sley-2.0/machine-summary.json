@@ -4203,18 +4203,20 @@
   "decision_dossier": {
     "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/DECISION_DOSSIER_V1.md",
-    "contract_revision": 6,
+    "contract_revision": 7,
     "adr": "docs/adr/ADR-0043-decision-dossier-derived-not-decided.md",
     "checker": "scripts/check_decision_dossier.py",
     "dossier": "evidence/release/decision-dossier.json",
     "required_items": 34,
-    "evidenced_items": 25,
-    "gated_items": 9,
+    "evidenced_items": 24,
+    "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "1 review obligations are open",
-      "4 GA acceptance criteria are not evidenced",
+      "18 GA acceptance criteria are not evidenced",
+      "3 review dispositions are unclassified",
       "no succession trial has been executed",
+      "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
       "the release-check and v2 product gates are fail-closed"
     ],
     "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
@@ -4238,9 +4240,9 @@
     "p0_open_count": 0,
     "p0_closed": 5,
     "closeout": "docs/audits/S20_750_DECISION_DOSSIER_CLOSEOUT.md",
-    "decision_derivation": "entries-first per contract section 3 mapping; release-check gate, succession thresholds, and approved conditional items read tracked sources (no section 30 item carries them)",
+    "decision_derivation": "entries-first per contract section 3 mapping (rule 1 reads pending, unclassified, and the register result off the findings entry); release-check gate, succession thresholds (one derivation from the tracked S20-630 accounting report, shared with GA 26.7), GA acceptance states (report_digest verified, register_digest bound to the register read), and approved conditional items read tracked sources (no section 30 item carries them)",
     "property_tests": "counted zero with harness scan in evidence/validation/test-inventory.json",
-    "license_disposition_blocked": 19,
+    "license_disposition_blocked": 0,
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
@@ -4249,7 +4251,13 @@
     "nabu_architecture_review_initial": "FAIL_2_P0_7_P1_5_P2_3_P3",
     "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
     "vulcan_surface_review_initial": "FAIL_1_P0_3_P1_3_P2_3_P3",
-    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)"
+    "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
+    "ga_acceptance_report": "evidence/release/ga-acceptance-report.json",
+    "ga_acceptance_tests": "bench/review/tests/test_ga_acceptance_report.py",
+    "ariadne_contract_review_initial_note": "no transcript of the 2026-09-04 Council FAIL round (FAIL_2_P0_5_P1_7_P2_3_P3) is tracked under evidence/review/verdicts/decision_dossier/; the verdict is recorded in evidence/review/S20_710_ACCEPTANCE_MAP.md section 2.4 and its P0 items are recited secondhand by the ariadne d384f0f final transcript (evidence/review/verdicts/decision_dossier/ariadne-final-review-d384f0f.md); no initial-round record beyond those is tracked",
+    "nabu_architecture_review_initial_note": "no transcript of the 2026-09-04 Council FAIL round (FAIL_2_P0_7_P1_5_P2_3_P3) is tracked under evidence/review/verdicts/decision_dossier/; the verdict is recorded in evidence/review/S20_710_ACCEPTANCE_MAP.md section 2.4 and its P0 items are recited secondhand by the nabu d384f0f final transcript (evidence/review/verdicts/decision_dossier/nabu-final-review-d384f0f.md); no initial-round record beyond those is tracked",
+    "vulcan_surface_review_initial_note": "no transcript of the 2026-09-04 Council FAIL round (FAIL_1_P0_3_P1_3_P2_3_P3) is tracked under evidence/review/verdicts/decision_dossier/; the verdict is recorded in evidence/review/S20_710_ACCEPTANCE_MAP.md section 2.4 and its P0 items are recited secondhand by the vulcan d384f0f final transcript (evidence/review/verdicts/decision_dossier/vulcan-final-review-d384f0f.md); no initial-round record beyond those is tracked",
+    "round_a809906": "Council round at a809906 (2026-09-15) read REVISE in all three lanes (Ariadne 4 P2/3 P3/2 P4, Nabu 2 P2/5 P3/1 P4, Vulcan 4 P2/4 P3/2 P4; transcripts evidence/review/verdicts/decision_dossier/{ariadne_contract_review,nabu_architecture_review,vulcan_surface_review}-a809906.md); contract revision 7 closes every actionable item (GA derivation from register predicates, digest binding, RELEASE_APPROVED crash, one threshold key, rule 1 OTHER rows and register result, HISTORICAL_ROUND P2 rows, pipeline order, GA drift and mirror checks, GA unit tests); re-review pending"
   },
   "remaining_gates": {
     "council_model_access": "OPEN since 2026-09-04T02:29Z. The blocker was never a credential: the stock Anthropic plugin was installed but blocked by the plugins allowlist, so its provider, CLI backend, and model catalog never loaded and requests fell through to a generic HTTP path with an empty key. Adding anthropic to plugins.allow and enabling it opened the claude-cli lane, which uses the local Claude Code CLI session rather than a gateway key. The dispatcher is running 69 staged reviews; checkpoint in machineresearch/sley-2.0/COUNCIL_REVIEW_CHECKPOINT_2026-09-04.md",
@@ -4562,7 +4570,29 @@
       "artifact is built from the final candidate commit"
     ],
     "ga_claimed": false,
-    "interpretation": "neither AWAITS_REVIEW nor GATED is a pass, and no combination of states is a GA claim"
+    "interpretation": "neither AWAITS_REVIEW nor GATED is a pass, and no combination of states is a GA claim; every state is derived from the fact its evidence names, package completion and lane clearance are the finding register's predicates, and the report is digest-bound to the register",
+    "awaiting_review": [
+      "No undefined behavior exists in the program model",
+      "No ambient authority exists",
+      "agents can create and maintain programs without source",
+      "typed affordances and mutations are available",
+      "invalid candidates cannot commit",
+      "exact stale conflicts are rejected",
+      "refs update atomically",
+      "branches preserve ancestry",
+      "policy is protected from the judged candidate",
+      "capability tokens cannot be forged or replayed across scope",
+      "all P0/P1 threats have passing tests",
+      "opacity is not used as a security argument",
+      "Ariadne approves SSMC1 and semantic correctness",
+      "Nabu approves architectural and cross-product boundaries",
+      "Vulcan or current independent reviewer issues a complete PASS",
+      "all reviewer findings are resolved or dispositioned below P3"
+    ],
+    "contract": "docs/spec/DECISION_DOSSIER_V1.md section 2.1",
+    "builder": "scripts/build_ga_acceptance_report.py",
+    "tests": "bench/review/tests/test_ga_acceptance_report.py",
+    "register_bound": true
   },
   "lint_gate": {
     "target": "make lint",

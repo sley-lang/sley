@@ -1,8 +1,9 @@
 # Decision Dossier v1
 
-Status: S20-750 contract draft, revision 6 (2026-09-14); Council review
+Status: S20-750 contract draft, revision 7 (2026-09-15); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
-review). Revision 2 adds the tracked test inventory as a source, which
+review; the a809906 round read REVISE in all three lanes and revision 7
+closes it). Revision 2 adds the tracked test inventory as a source, which
 evidences the property-test counts item. Revisions 3 and 4 added the threat
 coverage and GA acceptance reports as cited inputs without a header bump.
 Revision 5 names, in section 3, the entry each decision rule derives from;
@@ -11,8 +12,16 @@ substituting unit-test counts; and reads the SBOM and license entry from the
 license inventory. Revision 6 wires the product gates to the fail-closed
 stub, orders the conditional rules so approvals are verifiable, gates
 `PASS` on the GA criteria, closes the null-fact and missing-key holes, and
-records the residual precision notes. The mechanics are `scripts/build_decision_dossier.py`; implementation
-state is tracked in the machine summary.
+records the residual precision notes. Revision 7 adds the GA acceptance
+report contract (section 2.1): every section 26 state is derived from the
+fact it cites, the register's own predicates are consumed rather than
+re-implemented, the report is digest-bound to the register and verified by
+the dossier, and the pipeline order is fixed; it also carries the register
+result and unclassified count into rule 1, reads the section 22 thresholds
+from the tracked accounting report through one shared derivation, and names
+the single-attesting-host cause. The mechanics are
+`scripts/build_decision_dossier.py` and `scripts/build_ga_acceptance_report.py`;
+implementation state is tracked in the machine summary.
 
 ## Boundary
 
@@ -112,7 +121,15 @@ by ad-hoc items.
 - `evidence/release/ga-acceptance-report.json`
   (`sley2.ga-acceptance-report.v1`): every master-goal section 26 acceptance
   criterion with its evidence and derived state, which the release decision
-  item cites;
+  item cites. The builder verifies the report's `report_digest` and refuses
+  a report whose `register_digest` is not that of the finding register it
+  reads (section 2.1);
+- `evidence/release/succession-accounting-report.json`
+  (`sley2.succession-accounting-report.v1`): the S20-630 accounting report of
+  a tracked trial campaign, the single source of the section 22 threshold
+  verdict. It is absent until a campaign tracks one; absence is a
+  non-passing verdict, never an error. The smoke report under
+  `evidence/runtime/` is untracked and is never read;
 - `evidence/security/threat-coverage-report.json`
   (`sley2.threat-coverage-report.v1`): how far the M0 threat register's planned
   controls are realized, which the security review item cites as its measured
@@ -139,15 +156,72 @@ also records this dossier's own counters and the register's counters (the
 sync write-back); those mirror sections are non-inputs — the builder never
 reads them — so the derivation stays acyclic.
 
+## 2.1 GA acceptance report
+
+`scripts/build_ga_acceptance_report.py` derives
+`evidence/release/ga-acceptance-report.json` from the machine summary, the
+finding register, the independent conformance, threat coverage,
+error-symbol, anti-goal, reproducibility, secret-scan, SBOM, license
+inventory, and provenance records, and the tracked accounting report. The
+report is a decision input of this contract (rule 1's unevidenced count and
+rule 5's gate), so it is bound by the same rules as the dossier:
+
+- **Every state is derived from the fact its evidence names.** No criterion
+  is a constant. A criterion whose fact is absent or contrary reads
+  `AWAITS_REVIEW` (a human judgment is outstanding) or `GATED` (an authority
+  or execution this repository does not hold is outstanding), never
+  `EVIDENCED`. Neither is a pass and no combination of states is a GA claim.
+- **The register's predicates are consumed, not re-implemented.** Package
+  completion is the register's `complete_packages` (a status ending
+  `COMPLETE`; a mid-string `COMPLETE` names a restricted boundary and is not
+  a completion claim, FINDING_REGISTER_V1 section 7). A reviewer lane is
+  clear only when the lane has rows, every row reads `PASS` or
+  `HISTORICAL_ROUND`, and no row of the lane appears in
+  `unclaimed_carried_findings` or `unclassified`. Register clearance is the
+  register's own `result`.
+- **A recorded verdict evidences only as a complete PASS.** The register's
+  token classifier (`build_finding_register.classify_token`, loaded as a
+  module) must read the disposition `PASS`, the form must be the bare `PASS`
+  token or an enumerated count form whose every count is zero, and the
+  register row must be neither unclaimed nor unclassified.
+  `PASS_PENDING_CONFIRMATION_2_P0_OPEN`, `PASSED_TO_NEXT_ROUND`, `PASS_2_P1`,
+  `PASS_WITH_OPEN_P1`, and a `PASS` naming follow-ups evidence nothing.
+  Dossier items 15 and 32 and criteria 26.9.3 and 26.9.4 share this one
+  definition; item 32 and 26.9.3 additionally require the register result
+  `FINDING_REGISTER_CLEAR`.
+- **One threshold key.** Criterion 26.7 and rule 3 read the same derivation
+  (`succession_thresholds`): the tracked accounting report must carry the
+  contract tag, status `COMPLETE`, evidence status
+  `DERIVED_FROM_VERIFIED_CLAIMS` (the S20-630 vocabulary), and every
+  threshold row `PASS`. The S20-630 verifier checks the report digest and
+  re-derives its evidence status from the recorded claim statuses. Threshold
+  names must cover exactly the benchmark plan and S20-630 owner-held
+  conditions; missing rows and `NOT_EVALUATED` conditions keep this gated. No machine-summary hand key is read.
+- **Digest binding.** The report records `register_digest` and
+  `obligations_digest` of the register it was derived from and its own
+  `report_digest`. The dossier verifies `report_digest` against the report
+  body and `register_digest` against the register it loads; a mismatch is
+  `DOSSIER_SOURCE_INVALID`. A hand-edited or stale report cannot remove a
+  `BLOCKED` reason.
+- **Pipeline order.** Register, then GA report, then dossier, both before
+  and after the counter sync (`make evidence-refresh` and
+  `make release-candidate-smoke`). `scripts/check_decision_dossier.py` runs
+  `build_ga_acceptance_report.py --check` and cross-checks the summary's
+  `ga_acceptance` mirror, so `make quick` fails on a drifted report or a
+  stale mirror. Unit tests live in
+  `bench/review/tests/test_ga_acceptance_report.py`.
+
 ## 3. Decision state
 
 The state is derived, in this precedence, from the entries and the sources:
 
 1. `BLOCKED` when a trustworthy decision cannot be reached because required
    authority, evidence, model access, or execution is unavailable: any open
-   review obligation, any deferred review lane, an unapproved root license, no
-   executed succession trial, unevidenced GA acceptance criteria, or a
-   fail-closed product gate. The dossier lists every reason.
+   review obligation (a pending row, an unclassified row, or a register whose
+   result is not `FINDING_REGISTER_CLEAR`), any deferred review lane, an
+   unapproved root license, no executed succession trial, a single attesting
+   host, unevidenced GA acceptance criteria, or a fail-closed product gate.
+   The dossier lists every reason.
 2. `FAIL` when a required gate fails (evaluated and failed, as opposed to
    unimplemented), a release-blocking finding is open (any open P0 or P1, or
    any open P2 no approval covers), or recorded evidence contradicts the
@@ -176,7 +250,8 @@ entry fails closed rather than falling back to the sources behind the
 entries' backs:
 
 - open review obligations and deferred lanes: the "findings by severity and
-  disposition" entry, which carries the open and deferred review counts;
+  disposition" entry, which carries the pending, deferred, unclassified, and
+  unclaimed-carried counts and the register's own result;
 - unapproved root license: the "SBOM and license inventory" entry, which
   carries the approval flag read from the license inventory;
 - no executed succession trial: the six per-arm entries (items 17 through
@@ -190,9 +265,10 @@ Four inputs have no section 30 item that carries them, so those rules read
 the tracked sources this section names: the release-check and v2 gate states
 from the live `scripts/gate_status.py` runs, dual-sourced against the summary
 hand field (a hand edit clearing the field cannot clear a gate the stub still
-reports closed); the succession thresholds from the machine summary; the GA
-acceptance states from the GA report; and the approved conditional items from
-the machine summary. A `GATED` decision-input
+reports closed); the succession thresholds from the tracked S20-630
+accounting report through the GA builder's shared derivation (section 2.1);
+the GA acceptance states from the digest-verified GA report; and the approved
+conditional items from the machine summary. A `GATED` decision-input
 entry blocks with the unknown fact named, rather than treating the unknown
 as clear.
 
@@ -247,8 +323,10 @@ decision; item 33 stays value-less until then). In every implementation status
 the checker verifies the dossier exists with its contract tag, that it covers
 every section 30 item exactly once in order, that it does not drift, that it
 claims no publication, that its decision state is not `PASS` while a gate is
-fail-closed, that the unit tests pass, and that `release-check` and `v2` stay
-`NOT_IMPLEMENTED`.
+fail-closed, that the unit tests pass, that the test inventory and the GA
+acceptance report do not drift, that the summary's `decision_dossier` and
+`ga_acceptance` mirrors match the derived records, and that `release-check`
+and `v2` stay `NOT_IMPLEMENTED`.
 
 ## 7. Explicit exclusions
 
@@ -262,6 +340,25 @@ fail-closed, that the unit tests pass, and that `release-check` and `v2` stay
 ## 8. Clarifications
 
 Revision 1 carries none.
+
+Revision 7 (2026-09-15) records two changes the contract text had not. First,
+f7df74f (2026-09-15) made items 15 and 32 evidence-derived from the recorded
+verdict fields (`threat_coverage.independent_security_review`,
+`finding_register.independent_review`) instead of reading `GATED` by
+construction, and made the GA report's section 26 states evidence-derived
+for thirty-four of fifty-two criteria while leaving eighteen as constants.
+Second, the a809906 Council round (Ariadne REVISE 4 P2 / 3 P3 / 2 P4, Nabu
+REVISE 2 P2 / 5 P3 / 1 P4, Vulcan REVISE 4 P2 / 4 P3 / 2 P4; transcripts
+under `evidence/review/verdicts/decision_dossier/*-a809906.md`) found the
+eighteen constants, the `startswith("PASS")` classification that admitted
+self-contradicting verdicts, lane clearance that ignored unclaimed rows, the
+`RELEASE_APPROVED` crash, the unguarded and drifted GA report, the two
+threshold hand keys, item 32's unread register, rule 1's unread OTHER rows,
+and the stale mirrors. Revision 7 closes them with section 2.1, the rule 1
+wording above, the shared threshold derivation, and the checker's GA drift
+and mirror checks. Item 15 now reads `GATED` while the recorded verdict
+names unclaimed P3/P4 follow-ups: a PASS that still names findings is not a
+complete PASS, exactly as the register lists the row unclaimed.
 
 Revision 6 records the fail-closed gate wiring (live stub runs dual-sourced
 against the summary hand field, with evaluated-FAILED mapping to `FAIL` and
