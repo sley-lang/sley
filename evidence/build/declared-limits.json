@@ -1,7 +1,7 @@
 {
   "contract": "sley2.declared-limits.v1",
-  "declared_limits": 155,
-  "documented_limits": 2,
+  "declared_limits": 156,
+  "documented_limits": 4,
   "result": "PASS",
   "scope": "PUBLIC CONSTANTS ONLY; OWNERSHIP STAYS WITH THE OWNING PACKAGE'S CHECKER",
   "undocumented": [],
@@ -227,11 +227,6 @@
       "constant": "MAX_REPORT_TEST_ENTRIES",
       "source": "crates/sley-conformance/src/lib.rs",
       "value": 65535
-    },
-    {
-      "constant": "MAX_JSON_TEXT_BYTES",
-      "source": "crates/sley-json-bridge/src/lib.rs",
-      "value": 268435456
     },
     {
       "constant": "MAX_JSON_DEPTH",
@@ -774,5 +769,5 @@
       "value": 67108864
     }
   ],
-  "weak_limits": 153
+  "weak_limits": 152
 }

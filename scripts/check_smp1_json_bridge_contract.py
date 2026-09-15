@@ -17,7 +17,7 @@ ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
 CRATE = ROOT / "crates/sley-json-bridge"
 TABLE = ROOT / "conformance/smp1-json-bridge/v1/methods.json"
 V2_TABLE = ROOT / "conformance/smp1-json-bridge/v2/methods.json"
-SPEC_REVISION = 9
+SPEC_REVISION = 10
 SMP1_REVISION = 12
 
 DRAFT_STATUS = "S20_420_CONTRACT_DRAFT_REVIEW_PENDING"
@@ -67,6 +67,29 @@ ADR_MARKERS = (
     "6. **Staging.**",
 )
 WORK_PACKAGE_MARKERS = ("`docs/spec/SMP1_JSON_BRIDGE_V1.md`", "ADR-0034")
+# The ceilings the contract states as literals (section 3) are coupled to
+# the crate and the oracle here, so a moved constant fails the moment the
+# contract, the crate, or the oracle disagrees (revision-9 delta round,
+# Vulcan P3: the derived text ceiling was numerically pinned by nothing).
+CEILINGS = (
+    # (crate declaration, contract literal, oracle literal)
+    (
+        "pub const MAX_JSON_TEXT_BYTES: usize = 4 * (MAX_FRAME_BYTES as usize);",
+        "larger than 268,435,456 bytes",
+        "MAX_TEXT_BYTES = 268_435_456",
+    ),
+    (
+        "pub const MAX_JSON_DEPTH: usize = 32;",
+        "nested deeper than 32 levels",
+        "MAX_DEPTH = 32",
+    ),
+    (
+        "pub const MAX_JSON_ELEMENTS: usize = 1_048_576;",
+        "1,048,576 or more value positions",
+        "MAX_ELEMENTS = 1_048_576",
+    ),
+)
+FRAME_CEILING = "pub const MAX_FRAME_BYTES: u64 = 67_108_864;"
 CRATE_MARKERS = (
     "pub fn frame_to_json",
     "pub fn frame_from_json",
@@ -206,6 +229,18 @@ def main() -> int:
     if status in IMPLEMENTATION_STATUSES:
         lib = CRATE / "src/lib.rs"
         source = read(lib) if lib.exists() else ""
+        oracle_text = read(ROOT / "scripts/check_smp1_json_bridge_vector.py")
+        protocol_text = read(ROOT / "crates/sley-protocol/src/lib.rs")
+        if FRAME_CEILING not in protocol_text:
+            problems.append("ceiling:frame:crate")
+        for crate_line, contract_literal, oracle_literal in CEILINGS:
+            name = crate_line.split()[2].rstrip(":")
+            if crate_line not in source:
+                problems.append(f"ceiling:{name}:crate")
+            if contract_literal not in spec:
+                problems.append(f"ceiling:{name}:contract")
+            if oracle_literal not in oracle_text:
+                problems.append(f"ceiling:{name}:oracle")
         for marker in CRATE_MARKERS:
             if marker not in source:
                 problems.append(f"crate-marker:{marker}")

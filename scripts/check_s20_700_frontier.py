@@ -109,7 +109,7 @@ if (ROOT / "crates/sley-repo/src/merge.rs").exists() and merge_status not in (
     problems.append("merge-production-boundary-now-present:reaudit-required")
 work_packages = WORK_PACKAGES.read_text(encoding="utf-8")
 for marker in [
-    "twenty persistent libFuzzer targets",
+    "twenty-one persistent libFuzzer binaries (twenty slices; the semantic-checkers slice carries two)",
     "nineteen scoped persistent Make smoke gates",
     "merge production boundary is implemented",
 ]:

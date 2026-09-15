@@ -289,3 +289,37 @@ key. VM/merge/semantic-delta/snapshot smokes re-run PASS at 209c661.
 HEAD awaits re-qualification: the next qualification wave re-mints and
 re-attests over the P-C tree. This document remains records-only; rows
 stay canonically PENDING where the register says so.
+
+## 10. Qualification wave record (2026-09-14, council-lane reviews via forge-council roles)
+
+Repair commit `43f2f5b` (lint green after P-C, T07/T40 fault-seeded tests,
+threat-coverage exercise rule, host-ABI clock marker). Candidate minted at
+`43f2f5b` in a detached worktree and reproduced on the lab host: artifact
+`a8da8b48…f755`, 2,190,236 bytes, 15 members, MULTI_HOST_REPRODUCIBLE
+(primary + secondary, toolchain 1.93.0 both).
+
+Reviews at scope `43f2f5b` (twelve transcripts under
+`evidence/review/verdicts/<section>/*-43f2f5b.md`; independent reviewer
+agents in the Ariadne, Nabu, and Vulcan roles, each lane a separate agent):
+
+| Section / field | Verdict |
+|---|---|
+| root_backed_query_profile / vulcan_surface_review (revision-2 round) | PASS, 2 P3 + 1 P4 |
+| s20_700_remaining_surface_audit / vulcan_review | PASS, 3 P3 + 4 P4 (initial FAIL round retained as `vulcan_review_initial`) |
+| threat_coverage / independent_security_review | PASS, 3 P3 + 5 P4 (prior REVISE retained in `independent_security_review_prior_round_note`) |
+| required_contract_index / current_delta_review (rev 3) | PASS ×3 |
+| cli / current_delta_review (rev 7) | ariadne REVISE (1 P2), nabu REVISE (1 P2), vulcan PASS |
+| json_bridge / current_delta_review (rev 9) | REVISE ×3 (1 P2 each) |
+
+The cli and json_bridge P2s (gate tests hard-coded to a stale revision and
+unwired; hello protocol-version rule naming the wrong code; declared-limits
+census not refiled) and their P3s are closed by CLI revision 8 and bridge
+revision 10 in the follow-up commit, which also wires every
+`scripts/test_*.py` suite into `make quick`, couples the bridge ceilings
+across crate/contract/oracle in the bridge checker, teaches the limits
+census to evaluate derived limits, and lands the security review's P3/P4
+record and scanner repairs. Those revisions open a fresh three-lane delta
+review each; the register therefore reads 6 delta rows PENDING plus the
+operator-held S20-310 wording packet.
+
+Nothing here is a release decision, a GA claim, or a publication.

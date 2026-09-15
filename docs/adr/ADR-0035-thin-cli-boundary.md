@@ -1,6 +1,6 @@
 # ADR-0035: the CLI as a transport endpoint with no semantics
 
-Status: proposed; the S20-430 contract is a draft at revision 6 with
+Status: proposed; the S20-430 contract is a draft at revision 8 with
 Council review pending; implemented at `crates/sley-cli` (2026-09-03)
 with endpoint tests over a trusted genesis repository and the mechanical
 rule audit in `make quick`. Revision 5 record (2026-09-08): command
@@ -13,8 +13,13 @@ implemented (profile flag, expected-version frame rule, capable
 metadata/report, version-aware serve through `Server::new_versioned`)
 with legacy defaults, v1 shapes, and legacy behavior unchanged;
 the capable CLI runtime is implemented in revision 6 under the phase-3 slice.
+Revision 7 record (2026-09-14): composition pin move to bridge revision 9.
+Revision 8 record (2026-09-14): composition pin move to bridge revision 10;
+section 8 states the end-of-input rule for every bridge ceiling; the
+cited gate tests derive their revision from the checker and run under
+`make quick`.
 
-Date: 2026-09-03; revision 5 record 2026-09-08; revision 6 record 2026-09-09
+Date: 2026-09-03; revision 5 record 2026-09-08; revision 6 record 2026-09-09; revision 7 and 8 records 2026-09-14
 
 ## Context
 

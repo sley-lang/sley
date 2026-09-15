@@ -76,7 +76,7 @@ The fix, all in the harness plus contract text, no production-code change:
   profile, never an input error, and the completion assertion above keeps a
   malformed fixture from hiding behind either refusal.
 - Lane decisions moved to fixed header offsets consumed before any
-  variable-length construction; all 144 family seeds select the family they
+  variable-length construction; all 162 family seeds (9 fixtures x 9 families x 2 profiles) select the family they
   name for every outer fixture (verified by enumeration).
 - The E6 fixture threads a Bool argument through a nested callee pair,
   exercising argument copy and the multi-entry callee table.

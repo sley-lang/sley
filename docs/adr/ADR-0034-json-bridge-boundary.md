@@ -1,14 +1,21 @@
 # ADR-0034: JSON bridge as a generated, non-canonical representation
 
-Status: proposed; the S20-420 contract is a draft at revision 8 with
+Status: proposed; the S20-420 contract is a draft at revision 10 with
 Council review pending; implemented at `crates/sley-json-bridge`
 (2026-09-03) with a round-trip fixture, an independent oracle, and a
 persistent fuzz slice. Revision 8 record (2026-09-08): the version 1
 table, bytes, and legacy entrypoints are unchanged; the additive version
 2 metadata table is generated explicitly; capable bridge runtime is phase
 3, declared pending, not implemented.
+Revision 9 record (2026-09-14): the text ceiling is derived from the
+frame ceiling in code, the allocation-free element ceiling bounds
+materialization before parsing, duplicate-key and hello-rendering rules
+are declared. Revision 10 record (2026-09-14): the hello protocol-version
+wording follows the codec's downgrade/unsupported split, the element
+ceiling is stated inclusive, and the additive versioned exports are
+declared (section 10).
 
-Date: 2026-09-03; revision 8 record 2026-09-08
+Date: 2026-09-03; revision 8 record 2026-09-08; revision 9 and 10 records 2026-09-14
 
 ## Context
 

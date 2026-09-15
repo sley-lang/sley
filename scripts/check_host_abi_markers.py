@@ -180,6 +180,9 @@ CLOSURE = [
     ROOT / "crates/sley-id/src",
     ROOT / "crates/sley-mutate/src",
 ]
+TESTS_MODULE = re.compile(
+    r"#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\(crate\))?\s+)?mod\s+\w+\s*\{"
+)
 FORBIDDEN = [
     'extern "C"',
     "dlopen",
@@ -196,7 +199,11 @@ FORBIDDEN = [
 for crate_dir in CLOSURE:
     for path in sorted(crate_dir.rglob("*.rs")):
         text = path.read_text(encoding="utf-8")
-        production = text.split("#[cfg(test)]")[0]
+        # Production text ends where the in-file tests module begins; an
+        # earlier `#[cfg(test)]` on a single item (a test-only helper or a
+        # `mod x;` declaration) must not hide the production code after it
+        # (independent security review 2026-09-14, P3).
+        production = text[: TESTS_MODULE.search(text).start()] if TESTS_MODULE.search(text) else text
         for token in FORBIDDEN:
             if token in production:
                 problems.append(f"hygiene:{path.relative_to(ROOT)}:{token}")

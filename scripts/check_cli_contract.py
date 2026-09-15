@@ -28,9 +28,9 @@ IMPLEMENTATION_STATUSES = (
     REVIEW_PENDING_STATUS,
     COMPLETE_STATUS,
 )
-SPEC_REVISION = 7
+SPEC_REVISION = 8
 SMP1_REVISION = 12
-BRIDGE_REVISION = 9
+BRIDGE_REVISION = 10
 
 CODES = (
     (43000, "CLI_USAGE_INVALID", 2),
@@ -72,11 +72,12 @@ ADR_MARKERS = (
     "7. **Staging.**",
     "Revision 6 record (2026-09-09)",
     "the capable CLI runtime is implemented in revision 6 under the phase-3 slice",
+    "Revision 8 record (2026-09-14)",
 )
 WORK_PACKAGE_MARKERS = (
     "`docs/spec/SLEY_CLI_V1.md`",
     "ADR-0035",
-    "(revision 6, 2026-09-09, ADR-0035, new-delta review PASS",
+    "(revision 8, 2026-09-14, ADR-0035; revision-6 new-delta review PASS",
     "capable CLI runtime implemented under the phase-3 slice",
 )
 CRATE_MARKERS = (

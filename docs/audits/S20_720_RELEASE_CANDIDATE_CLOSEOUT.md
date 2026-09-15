@@ -164,8 +164,11 @@ and `make quick` is fully green with it.
 The smoke record above describes the `e20b9ad` candidate and is retained
 as history. It is superseded by the clean-worktree re-mints filed since:
 `56bac4b`/`ac4ce59a`, `9115bd0`/`ce87e6cc`, `6a33523`/`912d2881`,
-`cd3864a`/`c1dec862`, and `9df9f9e`/`483124c5` (current attestation;
-canonical detached linked worktree procedure,
+`cd3864a`/`c1dec862`, `9df9f9e`/`483124c5`, the licensed-candidate
+mints `74bb0ba`/`705a311d` and `baf9a4d`/`fba7b81f` (dual-host), and the
+2026-09-14 qualification-wave mints (dual-host; the machine summary's
+`candidate_*` fields name the current one; canonical detached linked
+worktree procedure,
 `docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md` section 7). The register's
 `candidate_*` fields are the live pointer; this note follows them. The
 register's `mint_worktree`/`mint_method` fields point at

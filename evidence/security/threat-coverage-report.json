@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "b276f8e95f27f833c5ce1d0d6f3b71d9ec0d2212ffa3e036d4487fac3e4f3405",
+  "report_digest": "2c9e336c49548174288dfc66be9a5580dade90913d69e9341ff621a8b81c17bd",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -554,11 +554,9 @@
     },
     {
       "exercised_in": [
-        "crates/sley-protocol/src/server.rs#tests",
-        "crates/sley-protocol/src/session.rs#tests",
         "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
       ],
-      "exercised_source_count": 3,
+      "exercised_source_count": 1,
       "expected_failure_code": "SESSION_STALE_HANDLE",
       "id": "T15",
       "located_file_count": 6,
@@ -769,7 +767,8 @@
       "planned_evidence_present": false,
       "realized_code_recorded": true,
       "recorded_exercise": [
-        "the candidate validation isolation tests"
+        "policy_self_oracle_and_protected_entity_isolation_is_pure",
+        "crates/sley-policy/src/lib.rs"
       ],
       "related_family_symbols": [],
       "required_test": "epoch-isolation E2E",
@@ -1165,11 +1164,9 @@
     },
     {
       "exercised_in": [
-        "crates/sley-repo/tests/rw060_source_free_lifecycle.rs",
-        "crates/sley-vm/src/extended.rs#tests",
-        "crates/sley-vm/src/lib.rs#tests"
+        "crates/sley-repo/tests/rw060_source_free_lifecycle.rs"
       ],
-      "exercised_source_count": 3,
+      "exercised_source_count": 1,
       "expected_failure_code": "VM_NONDETERMINISM_DETECTED",
       "id": "T33",
       "located_file_count": 5,
@@ -1246,10 +1243,8 @@
       "threat": "floating host divergence"
     },
     {
-      "exercised_in": [
-        "crates/sley-vm/src/lib.rs#tests"
-      ],
-      "exercised_source_count": 1,
+      "exercised_in": [],
+      "exercised_source_count": 0,
       "expected_failure_code": "CACHE_BINDING_MISMATCH",
       "id": "T35",
       "located_file_count": 2,
@@ -1266,6 +1261,7 @@
       "planned_evidence_present": false,
       "realized_code_recorded": true,
       "recorded_exercise": [
+        "the snapshot admission unit tests",
         "the extended vectors, whose cache keys the independent oracle re-derives"
       ],
       "related_family_symbols": [],
@@ -1452,16 +1448,25 @@
     },
     {
       "exercised_in": [
-        "crates/sley-repo/src/exchange.rs#tests",
-        "conformance/repository-exchange/v1/rejected.json"
+        "crates/sley-repo/src/lib.rs#tests",
+        "fuzz/targets/repository_pack_importer.rs"
       ],
       "exercised_source_count": 2,
       "expected_failure_code": "PACK_INVALID",
       "id": "T41",
-      "located_file_count": 1,
+      "located_file_count": 6,
       "located_in": {
+        "checkers": [
+          "scripts/check_pack_persistent_fuzz_slice.py",
+          "scripts/check_repository_pack_spec.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/repository_pack_importer.rs"
+        ],
         "implementation": [
-          "crates/sley-repo/src/exchange.rs"
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs",
+          "crates/sley-repo/src/lib.rs"
         ]
       },
       "owner": "sley-repo",
@@ -1469,12 +1474,24 @@
       "planned_evidence_present": false,
       "realized_code_recorded": true,
       "recorded_exercise": [
-        "repository_pack_importer"
+        "repository_pack_importer",
+        "conformance/repository-pack/v1/rejected.json"
       ],
       "related_family_symbols": [],
       "required_test": "importer fuzz/corruption",
       "searched_codes": [
-        "EXCHANGE_PACK_INVALID"
+        "PACK_CANONICAL_ORDER",
+        "PACK_DIGEST_MISMATCH",
+        "PACK_DIGEST_TREE_MISMATCH",
+        "PACK_DUPLICATE_ENTRY",
+        "PACK_OBJECT_CORRUPT",
+        "PACK_OBJECT_MISSING",
+        "PACK_OBJECT_UNEXPECTED",
+        "PACK_PROFILE_UNSUPPORTED",
+        "PACK_RESOURCE_LIMIT",
+        "PACK_ROOT_INVALID",
+        "PACK_SCHEMA_UNSUPPORTED",
+        "PACK_VERSION_UNSUPPORTED"
       ],
       "severity": "P0",
       "state": "SYMBOL_REALIZED_WITH_EXERCISE",
@@ -1574,14 +1591,14 @@
     },
     {
       "exercised_in": [
-        "crates/sley-protocol/src/lib.rs#tests",
-        "crates/sley-protocol/src/server.rs#tests",
         "conformance/entity-read/v2/accepted.json",
         "conformance/entity-read/v2/inputs.json",
         "conformance/entity-read/v2/rejected.json",
-        "conformance/smp1-json-bridge/v1/rejected.json"
+        "conformance/smp1-json-bridge/v1/rejected.json",
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py",
+        "oracle/scb1/tests/test_entity_read.py"
       ],
-      "exercised_source_count": 8,
+      "exercised_source_count": 6,
       "expected_failure_code": "PROTOCOL_DOWNGRADE",
       "id": "T45",
       "located_file_count": 8,
@@ -1617,12 +1634,11 @@
     },
     {
       "exercised_in": [
-        "crates/sley-protocol/src/lib.rs#tests",
         "conformance/entity-read/v2/inputs.json",
         "conformance/entity-read/v2/rejected.json",
         "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
       ],
-      "exercised_source_count": 4,
+      "exercised_source_count": 3,
       "expected_failure_code": "PROTOCOL_REQUEST_ID_CONFLICT",
       "id": "T46",
       "located_file_count": 4,
@@ -1689,34 +1705,35 @@
     },
     {
       "exercised_in": [
-        "conformance/candidate-result/v1/accepted.json",
-        "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests"
       ],
       "exercised_source_count": 2,
       "expected_failure_code": "CAPABILITY_DENIED",
       "id": "T48",
-      "located_file_count": 4,
+      "located_file_count": 2,
       "located_in": {
-        "checkers": [
-          "scripts/check_candidate_result_contract.py",
-          "scripts/check_candidate_result_persistent_fuzz_slice.py"
-        ],
         "implementation": [
-          "crates/sley-policy/src/candidate_result.rs"
-        ],
-        "oracle": [
-          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-policy/src/lib.rs"
         ]
       },
       "owner": "sley-policy",
       "planned_evidence_path": "evidence/security/T48/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
-      "recorded_exercise": [],
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "capability_issuance_requires_policy_grant_and_bounded_budget",
+        "t22_capability_forgery_fails_closed",
+        "t23_capability_replay_expiry_and_budget_fail_closed",
+        "t24_capability_scope_workspace_effect_and_adapter_confusion_fail_closed",
+        "grant_denial_and_empty_grants_do_not_imply_authority"
+      ],
       "related_family_symbols": [],
       "required_test": "hostile label/prompt metadata",
       "searched_codes": [
-        "CAPABILITY_DENIED"
+        "POLICY_GRANT_DENIED",
+        "CAPABILITY_SUMMARY_MISMATCH"
       ],
       "severity": "P0",
       "state": "SYMBOL_REALIZED_WITH_EXERCISE",
@@ -1933,13 +1950,11 @@
     {
       "exercised_in": [
         "crates/sley-cli/tests/cli.rs",
-        "crates/sley-protocol/src/lib.rs#tests",
-        "crates/sley-protocol/src/server.rs#tests",
         "conformance/entity-read/v2/inputs.json",
         "conformance/entity-read/v2/rejected.json",
         "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
       ],
-      "exercised_source_count": 6,
+      "exercised_source_count": 4,
       "expected_failure_code": "SESSION_UNKNOWN",
       "id": "T56",
       "located_file_count": 8,

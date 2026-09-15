@@ -1063,11 +1063,13 @@ fn collect_inner<V: GcObjectVerifier>(
     delete_planned_candidates(store, verifier, report)
 }
 
-/// Deletes the plan's candidates in order. The reachability guard runs
-/// before every read and unlink: a candidate the plan also lists as
-/// reachable is `GC_REACHABILITY_VIOLATION`, and nothing is deleted for
-/// that run. `plan_gc` never produces such a plan, so the guard is the
-/// invariant's last line, exercised by the injected-plan test.
+/// Deletes the plan's candidates in order. The reachability guard judges
+/// the whole plan before the first unlink and again before every read and
+/// unlink: a candidate the plan also lists as reachable is
+/// `GC_REACHABILITY_VIOLATION`, and nothing is deleted for that run
+/// wherever the corrupted entry sits. `plan_gc` never produces such a
+/// plan, so the guard is the invariant's last line, exercised by the
+/// injected-plan test.
 fn delete_planned_candidates<V: GcObjectVerifier>(
     store: &ObjectStore,
     verifier: &V,
@@ -1078,6 +1080,13 @@ fn delete_planned_candidates<V: GcObjectVerifier>(
         .iter()
         .copied()
         .collect::<BTreeSet<_>>();
+    if report
+        .deletion_candidates
+        .iter()
+        .any(|object_id| reachable.contains(object_id))
+    {
+        return Err(GcError::gc(GcErrorCode::ReachabilityViolation));
+    }
     for object_id in report.deletion_candidates.clone() {
         if reachable.contains(&object_id) {
             return Err(GcError::gc(GcErrorCode::ReachabilityViolation));
@@ -1123,7 +1132,9 @@ fn gc_collect_with_injected_reachable_candidate<V: GcObjectVerifier>(
         .reachable_objects
         .first()
         .ok_or_else(|| GcError::gc(GcErrorCode::InternalInvariant))?;
-    report.deletion_candidates.insert(0, reachable);
+    // Seeded last, after the honest candidates, so only the whole-plan
+    // check (not the per-entry guard's position) keeps the run delete-free.
+    report.deletion_candidates.push(reachable);
     delete_planned_candidates(store, verifier, report)
 }
 
@@ -2680,8 +2691,9 @@ mod tests {
         .unwrap_err();
         assert_eq!(error.symbol(), "GC_REACHABILITY_VIOLATION");
         assert!(error.partial_report().is_none());
-        // The guard fired before the first unlink: every object, reachable
-        // or not, is still on disk.
+        // The corrupted entry sits after the honest candidate, and the
+        // guard still fired before the first unlink: every object,
+        // reachable or not, is still on disk.
         assert!(fixture.store.object_path(fixture.child_id).exists());
         assert!(fixture.store.object_path(fixture.unreachable_id).exists());
         // An honest plan over the untouched store still collects exactly the

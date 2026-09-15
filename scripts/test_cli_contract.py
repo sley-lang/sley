@@ -38,7 +38,7 @@ def review_problems(review, status: str) -> list:
     return [item for item in problems if item.startswith("review:")]
 
 
-def passing_review(revision: int = 6) -> dict:
+def passing_review(revision: int = CHECKER.SPEC_REVISION) -> dict:
     return {
         "contract_revision": revision,
         "ariadne": "PASS",

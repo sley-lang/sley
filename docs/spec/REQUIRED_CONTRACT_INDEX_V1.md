@@ -112,6 +112,16 @@ reference.
   existing mappings. No thirteenth identity is added and no required name
   is renamed: the versioned method metadata is additive coverage of the
   same `sley-protocol-handshake-v1` name.
+- Revision 3 (2026-09-14): curative-notes amendment against the three
+  2026-09-04 Council reviews (all FAIL, no P0). Row 17.1 names
+  `SSMC1_EPOCH1_SCHEMA.txt` as the entity-body-kinds definer; row 17.12
+  cites `SMP1.md` sections 1 and 2 and lists the bridge checker; rows
+  17.9/17.10 cite numbered envelope sections; section 2 states the
+  `docs/spec/` scope, the non-empty corpus rule, and the presence-vs-
+  derivation split; section 3 states the machine-readable non-acceptance;
+  section 5 documents the full checker; section 7 curative notes added.
+  Twelve rows and all digest domains unchanged.
+
 
 ## 7. Curative notes (revision 3, 2026-09-14)
 
@@ -195,7 +205,7 @@ authority.
   transcription was verified correct at review time.
 - N-P1-3 (drift check discriminates by file location, not semantic role):
   OPEN, FINAL checker work with S20-110. The `sley2.` namespace is
-  overloaded with non-hash contract labels (20 in `scripts/`/`oracle/`
+  overloaded with non-hash contract labels (22 in `scripts/`/`oracle/`
   today); the check is correct only by file-extension coincidence. FINAL
   must derive hash domains from the domain constant declaration site in
   `sley-id` / the hashing crates instead of a namespace regex over all
@@ -256,12 +266,3 @@ authority.
   rename-resistant guard with the S20-290 owner.
 - V-P3-c (Makefile substring, no target association): DONE IN REV 3 (see
   N-P1-1).
-- Revision 3 (2026-09-14): curative-notes amendment against the three
-  2026-09-04 Council reviews (all FAIL, no P0). Row 17.1 names
-  `SSMC1_EPOCH1_SCHEMA.txt` as the entity-body-kinds definer; row 17.12
-  cites `SMP1.md` sections 1 and 2 and lists the bridge checker; rows
-  17.9/17.10 cite numbered envelope sections; section 2 states the
-  `docs/spec/` scope, the non-empty corpus rule, and the presence-vs-
-  derivation split; section 3 states the machine-readable non-acceptance;
-  section 5 documents the full checker; section 7 curative notes added.
-  Twelve rows and all digest domains unchanged.

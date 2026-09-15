@@ -1,6 +1,6 @@
 # Thin Machine-Oriented CLI v1
 
-Status: S20-430 contract draft, revision 7 (2026-09-14); Council review
+Status: S20-430 contract draft, revision 8 (2026-09-14); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 removes the transport feature from the
@@ -10,10 +10,12 @@ against the composed status lines); revision 5 re-pins SMP1 revision 12
 and bridge revision 8 and declares the prospective version-aware surface
 (section 9); revision 6 implements the section 9 surface (profile flag,
 expected-version frame rule, capable metadata/report, version-aware serve)
-and synchronizes the CLI revision pins. Command defaults, version/report
-v1 shapes, and legacy behavior are unchanged. The revision 5 history is
-retained as history and does not review revision 6; its new-delta review
-is pending. The implementation is
+and synchronizes the CLI revision pins; revision 7 re-pins bridge
+revision 9; revision 8 re-pins bridge revision 10, states the end-of-input
+rule for every bridge ceiling (section 8), and derives the test fixtures'
+revision from the checker. Command defaults, version/report v1 shapes, and
+legacy behavior are unchanged. The revision 7 history is retained as
+history and does not review revision 8; its new-delta review is pending. The implementation is
 `crates/sley-cli`; implementation state is tracked in the machine summary.
 
 The CLI is a transport endpoint and nothing else. It moves SMP1 frames
@@ -23,7 +25,7 @@ S20-420 JSON form, and it writes a machine-readable invocation report. It
 owns no semantics: every judgment about a frame comes from the server
 (`docs/spec/SMP1.md` revision 12, S20-440 batch admission, S20-330
 sessions) and every representation from the frozen codec or the bridge
-(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 9). The master goal requires a thin
+(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 10). The master goal requires a thin
 machine-oriented wrapper that contains no private validation rules and that
 the semantic kernel never imports (master goal sections 14.2, 14.3, 22.6).
 
@@ -267,8 +269,11 @@ release, or GA.
 - A prefix above the ceiling is handed to the server as it stands, so the
   answer carries the codec's `PROTOCOL_FRAME_TOO_LARGE`; because the body
   was not read the stream cannot be resynchronised, and the invocation
-  treats it as end of input. A JSON line above the text ceiling is
-  answered with `JSON_BRIDGE_RESOURCE_LIMIT` and likewise ends the input.
+  treats it as end of input. A JSON line the bridge refuses with
+  `JSON_BRIDGE_RESOURCE_LIMIT` for any of its ceilings (text bytes, nesting
+  depth, or value positions; bridge contract section 3) is answered with
+  that code and likewise ends the input: the line was read in full, but a
+  producer that exceeds a ceiling is not resynchronised.
 - `answers` and `failed_answers` count every response frame written,
   including the endpoint's own failure responses (negotiation failure and
   bridge rejections), and `codes` counts their codes; `frames_read` counts
@@ -324,12 +329,31 @@ release, or GA.
 
 ### Revision 7 (2026-09-14)
 
-- Re-pins bridge revision 9 (no behavior change;
-  `scripts/check_cli_contract.py` asserts both pins against the composed
-  status lines): the bridge's revision-9 ceilings and precision notes
-  change nothing the CLI renders or parses, so this revision moves only
-  the composition pin.
-- The revision pins are SMP1 revision 12 and bridge revision 9.
+- Re-pins bridge revision 9 (`scripts/check_cli_contract.py` asserts both
+  pins against the composed status lines). The CLI code is unchanged, but
+  the bridge's revision-9 element ceiling reaches the CLI through
+  `frame_from_json`: a fully read JSON line with 1,048,576 or more value
+  positions is answered `JSON_BRIDGE_RESOURCE_LIMIT` and ends the input,
+  exactly as the text ceiling already did. The revision-7 note that this
+  "changes nothing the CLI parses" was an overstatement; revision 8
+  corrects it.
+
+### Revision 8 (2026-09-14)
+
+- Re-pins bridge revision 10 (no behavior change; the bridge revision
+  corrects its own hello-version wording and boundary statement).
+- Section 8 states the end-of-input rule for every bridge ceiling, not
+  only the text ceiling, and `crates/sley-cli/tests/cli.rs` drives the
+  element-ceiling stream end in JSON mode.
+- `scripts/test_cli_contract.py` and
+  `scripts/test_current_contract_review.py` derive the record revision
+  from the checker instead of a literal, and every `scripts/test_*.py`
+  suite runs under `make quick`, so a revision move can no longer leave
+  the cited gate tests red unobserved (current-delta review round on
+  revision 7, Ariadne P2 and Nabu P2).
+- ADR-0035 and `docs/WORK_PACKAGES.md` carry the revision-7 and
+  revision-8 records.
+- The revision pins are SMP1 revision 12 and bridge revision 10.
 
 ## 9. Version-aware surface (phase 3, implemented in revision 6)
 

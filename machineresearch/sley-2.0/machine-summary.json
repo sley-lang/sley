@@ -819,7 +819,7 @@
     "nabu_architecture_review": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_0_P1_2_P2_3_P3",
     "nabu_architecture_review_revision_1_note": "REVISE via forge-council nabu/claude-code 2026-09-11 on 0bcc9c6 (REQ-04 entity-read scope): layering correct on every axis; fails on ownership record binding (S20-310 surfaces omit the entity-read owner/adapter/corpus, AT-MW-02 misassigned) with P2 record/contract items and P3/P4 notes; scoped to entity-read, does not supersede the root-query FAIL; transcript evidence/review/verdicts/root_backed_query_profile/nabu_architecture_review-0bcc9c6.md",
-    "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
+    "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_2_P3_1_P4",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_1_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1_note": "REVISE via forge-council vulcan/claude-code 2026-09-11 on 0bcc9c6 (REQ-04 entity-read scope): read path adversarially sound; refuses REQ-04 scope over the root-query FAIL (four open P1s out of scope); new P2 items (seq_root_advanced vector code, Rust-vs-vector gap) plus P3/P4 record notes; scoped to entity-read, does not supersede the root-query FAIL; transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-0bcc9c6.md",
     "ariadne_entity_read_review": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
@@ -853,7 +853,9 @@
     "contract_text_review": "PENDING_S20_310_WORDING_DECISION_PACKET_ROUND7_P1_4_IMPLEMENTED",
     "ariadne_contract_review_note": "PASS via harness ariadne final 2026-09-13 on a4b60294e4dd75133fa08f92bf16022fb05bb807 (transcript evidence/review/verdicts/root_backed_query_profile/ariadne_contract_review-a4b6029.md): rev-5 text+corpus items closed; 3 P3 record + 3 P4 editorial follow-ups, no P0/P1/P2",
     "nabu_architecture_review_note": "PASS via harness nabu final 2026-09-13 on a4b60294e4dd75133fa08f92bf16022fb05bb807 (transcript evidence/review/verdicts/root_backed_query_profile/nabu_architecture_review-a4b6029.md): rev-5 items closed; S20-310 wording held-gated; P3/P4 notes",
-    "vulcan_surface_review_note": "REVISE via harness vulcan final 2026-09-13 on a4b60294e4dd75133fa08f92bf16022fb05bb807 (transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-a4b6029.md): 4 carried P1s verified closed at engine; 1 P2 (vector-gate tamper coverage) + 1 P4 open"
+    "vulcan_surface_review_note": "PASS via forge-council vulcan/claude-code 2026-09-14 on 43f2f5b (revision-2 round of this lane): the prior P2 (oracle could not refuse binding-substituted-fact/arm-1-snapshot-profile) is closed with the why re-derived, the prior P4 superseded; carried root-query P1s show no regression across the P-C wave; 2 P3 evidence-depth follow-ups (descriptor-driven arm adjudication, degenerate class-10/11 walks) and 1 P4; transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-43f2f5b.md",
+    "vulcan_surface_review_revision_2": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
+    "vulcan_surface_review_revision_2_note": "REVISE via harness vulcan final 2026-09-13 on a4b60294e4dd75133fa08f92bf16022fb05bb807 (transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-a4b6029.md): 4 carried P1s verified closed at engine; 1 P2 (vector-gate tamper coverage) + 1 P4 open"
   },
   "restricted_query_capsule_profile": {
     "status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
@@ -1058,9 +1060,9 @@
   "json_bridge": {
     "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
-    "contract_revision": 9,
+    "contract_revision": 10,
     "current_delta_review": {
-      "contract_revision": 9,
+      "contract_revision": 10,
       "ariadne": "PENDING",
       "nabu": "PENDING",
       "vulcan": "PENDING"
@@ -1110,14 +1112,15 @@
     "method_table_v2": "conformance/smp1-json-bridge/v2/methods.json",
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "current_delta_review_note": "revision-9 delta round 2026-09-14 on 43f2f5b: ariadne REVISE_0_P0_0_P1_1_P2_2_P3, nabu REVISE_0_P0_0_P1_1_P2_3_P3, vulcan REVISE_0_P0_0_P1_1_P2_3_P3; the P2s (hello protocol-version rule named the wrong code; declared-limits census not refiled after the derived initializer) and P3s (boundary wording, stale section 10 staging text, stale ADR/WORK_PACKAGES records, ceiling literals uncoupled from the crate) are closed by revision 10 and the refiled census; transcripts evidence/review/verdicts/json_bridge/delta_review_{ariadne,nabu,vulcan}-43f2f5b.md; the revision-10 delta review is pending"
   },
   "cli": {
     "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY_CLI_V1.md",
-    "contract_revision": 7,
+    "contract_revision": 8,
     "current_delta_review": {
-      "contract_revision": 7,
+      "contract_revision": 8,
       "ariadne": "PENDING",
       "nabu": "PENDING",
       "vulcan": "PENDING"
@@ -1165,7 +1168,8 @@
       "section 6 required byte-identical JSON-mode answers but the test compared only method, request id, bounds, and body length; raised by ariadne. The old comparison's digest rationale described the bit-carrying behavior correctly (the server-hello bit entered the transcript-bound handshake, and the two modes transplanted different sessions), and is now obsolete: the JSON test runs the same session in both modes and asserts byte-identical answers, with only the freshly minted open identities differing",
       "byte-mode stdout was never flushed and main exits via process::exit, with all tests driving run() over Vec<u8>, so the sley binary and the process boundary had zero evidence; raised by nabu. Every answer now flushes before the next frame is read with a final flush at exit (flush failure is CLI_IO_FAILURE, section 2 obligation), and a subprocess test drives the real binary over pipes proving unfragmented byte delivery and exit-status propagation. Exit-time truncation did not reproduce on this toolchain (572-byte newline-free and 63KB payloads cross intact); the flush stands as the liveness guarantee and defense in depth",
       "the endpoint mutated Server::offered_hello with FEATURE_JSON_BRIDGE under --json, folding a transport flag into SelectedProfile, handshake_id, and SessionAuthority; raised by vulcan with direction offer-always. Closed by offering-never instead: the negotiated hello is always the server's unedited offer (the endpoint edits no hello anywhere), and always-offer was rejected as a false JSON capability claim in byte mode per nabu; pinned by the same mode-independence test and audit ban"
-    ]
+    ],
+    "current_delta_review_note": "revision-7 delta round 2026-09-14 on 43f2f5b: ariadne REVISE_0_P0_0_P1_1_P2_4_P3, nabu REVISE_0_P0_0_P1_1_P2_1_P3, vulcan PASS (2 P3); the P2s (gate tests hard-coded to revision 6, unwired) and P3s (overstated no-behavior note, stale ADR/WORK_PACKAGES records) are closed by revision 8; transcripts evidence/review/verdicts/cli/delta_review_{ariadne,nabu,vulcan}-43f2f5b.md; the revision-8 delta review is pending"
   },
   "mutation_schema": {
     "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
@@ -3454,7 +3458,7 @@
     "protocol_production_boundary": true,
     "no_parallel_harness_created": true,
     "full_s20_700_complete": false,
-    "vulcan_review": "FAIL_1_P0_2_P1_6_P2_3_P3",
+    "vulcan_review": "PASS_0_P0_0_P1_0_P2_3_P3_4_P4",
     "next_dependency_complete_package": "S20-740-INDEPENDENT-REVIEW (Council-gated); local hardening continues discretionarily",
     "local_frontier_contract": "docs/audits/S20_LOCAL_COMPLETION_FRONTIER.md",
     "repository_exchange_persistent_fuzz_target": true,
@@ -3477,7 +3481,9 @@
     "nabu_architecture_review": "FAIL_2_P0_4_P1_5_P2_4_P3",
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "vulcan_review_initial": "FAIL_1_P0_2_P1_6_P2_3_P3",
+    "vulcan_review_note": "PASS via forge-council vulcan/claude-code 2026-09-14 on 43f2f5b: the 2026-09-04 FAIL (1 P0, 2 P1, 6 P2, 3 P3) re-derived closed at HEAD with code/checker/live-smoke citations (vm and merge persistent smokes re-run at HEAD, no new crashes); 3 P3 follow-ups (proof-record validation only in the VM checker, three retained crashers without finding IDs, advisory negative-E7 lane) and 4 P4 editorial; transcript evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review-43f2f5b.md; the initial FAIL round is retained as vulcan_review_initial"
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
@@ -4074,8 +4080,8 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 335,
-    "open_reviews": 12,
+    "obligations": 337,
+    "open_reviews": 7,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 25,
@@ -4125,8 +4131,8 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "12 review obligations are open",
       "18 GA acceptance criteria are not evidenced",
+      "7 review obligations are open",
       "no succession trial has been executed",
       "the release-check and v2 product gates are fail-closed"
     ],
@@ -4218,9 +4224,9 @@
     "contract_revision": 3,
     "current_delta_review": {
       "contract_revision": 3,
-      "ariadne": "PENDING",
-      "nabu": "PENDING",
-      "vulcan": "PENDING"
+      "ariadne": "PASS",
+      "nabu": "PASS",
+      "vulcan": "PASS"
     },
     "adr": "docs/adr/ADR-0047-required-contract-index.md",
     "checker": "scripts/check_required_contract_index.py",
@@ -4248,7 +4254,8 @@
     ],
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4"
+    "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
+    "current_delta_review_note": "revision-3 delta round 2026-09-14 on 43f2f5b: ariadne PASS (2 P4 editorial), nabu PASS (1 P3 carried ownership fork N-P1-4, 2 P4), vulcan PASS (1 P4); transcripts evidence/review/verdicts/required_contract_index/delta_review_{ariadne,nabu,vulcan}-43f2f5b.md"
   },
   "clean_room_disposition_register": {
     "status": "S20_780_REGISTER_ACCEPTED",
@@ -4352,10 +4359,11 @@
     "p0_p1_without_located_symbol": 0,
     "unlocated_with_realized_family": 0,
     "unlocated_with_no_family_symbol": 0,
-    "independent_security_review": "REVISE_0_P0_0_P1_5_P2_5_P3",
-    "independent_security_review_note": "REVISE via forge-council vulcan/claude-code 2026-09-11 on cb841a6 (drain retry; first hermes dispatch void without verdict): summary numbers plus T07/T20/T42/T41/T35/T56 addendum accuracy repaired in the round-5 repairs; classify() exercise definition, GC guard reachability, and sequence-row precision queued; transcript evidence/review/verdicts/threat_coverage/independent_security_review-cb841a6.md",
+    "independent_security_review": "PASS_0_P0_0_P1_0_P2_3_P3_5_P4",
+    "independent_security_review_note": "PASS via forge-council vulcan/claude-code 2026-09-14 on 43f2f5b: across all 56 threats every P0/P1 threat has a realized control reached by a fault-seeding test, corpus, fuzz target, or oracle (24 of 44 exercised rows read directly); 3 P3 follow-ups (host-ABI hygiene scanner and coverage builder cut at the first cfg(test) token; T48 credited by substring) and 5 P4 record notes; transcript evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md",
     "interpretation": "a located symbol is not a mitigation claim. Every one of the fifty-six threats is now classified: forty-four have a located control that a test or corpus exercises, three are structural controls with no symbol to find (T28 symlink confinement, T29 host isolation, T50 Git independence), and nine rest on the register's own planned evidence path. Nothing is unlocated. Whether each located control actually mitigates its threat is the independent security review's judgment, which has not run.",
-    "realized_codes_recorded": 25
+    "realized_codes_recorded": 25,
+    "independent_security_review_prior_round_note": "REVISE_0_P0_0_P1_5_P2_5_P3 via forge-council vulcan/claude-code 2026-09-11 on cb841a6 (transcript evidence/review/verdicts/threat_coverage/independent_security_review-cb841a6.md); all eleven items closed by 56bac4b and 43f2f5b and re-derived closed in the 2026-09-14 round"
   },
   "anti_goal_conformance": {
     "report": "evidence/validation/anti-goal-conformance.json",

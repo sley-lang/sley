@@ -519,12 +519,21 @@ fn hello_header_violations_carry_the_codec_code() {
         let text = with(hello.clone(), &[label], value).to_string();
         assert_eq!(frame_from_json(&text), Err(codec.clone()), "{label}");
     }
-    // A hello naming another protocol version is judged by the same codec
-    // rule (contract section 8): any PROTOCOL_* code, never a bridge code.
-    let versioned = with(hello.clone(), &["protocol_version"], Value::from(99)).to_string();
-    assert!(
-        matches!(frame_from_json(&versioned), Err(BridgeError::Protocol(_))),
-        "protocol_version"
+    // A hello naming another protocol version is judged by the codec's
+    // version-claim rule first (contract section 8, revision 10): above 1
+    // is PROTOCOL_VERSION_UNSUPPORTED, below 1 is PROTOCOL_DOWNGRADE, and
+    // never a bridge code.
+    let above = with(hello.clone(), &["protocol_version"], Value::from(99)).to_string();
+    assert_eq!(
+        frame_from_json(&above),
+        Err(protocol(ProtocolErrorCode::VersionUnsupported)),
+        "protocol_version above 1"
+    );
+    let below = with(hello.clone(), &["protocol_version"], Value::from(0)).to_string();
+    assert_eq!(
+        frame_from_json(&below),
+        Err(protocol(ProtocolErrorCode::Downgrade)),
+        "protocol_version below 1"
     );
     // The all-zero bounds are the bridge's own rule (contract section 8),
     // judged before the codec runs.

@@ -152,6 +152,10 @@ class FrozenReviewCases(unittest.TestCase):
         summary = json.loads(SUMMARY_TEXT)
         section = summary["session_handle_profile"]
         self.assertEqual(section["contract_revision"], 4)
+        # The live record may already carry the revision-4 PASSes; the
+        # negative control is a freeze with the current review still open.
+        for lane in ("ariadne", "nabu", "vulcan"):
+            section["current_delta_review"][lane] = "PENDING"
         section["status"] = CHECKER.FROZEN_STATUS
         mutated_summary = json.dumps(summary)
         code, payload = run_checker_with_overrides(summary_text=mutated_summary)

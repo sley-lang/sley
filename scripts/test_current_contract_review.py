@@ -89,7 +89,7 @@ def pass_current_review(section: dict, revision: int) -> None:
 class BridgeValidBaseline(unittest.TestCase):
     def test_valid_baseline_accepted(self):
         section = json.loads(SUMMARY_TEXT)["json_bridge"]
-        self.assertEqual(section["contract_revision"], 9)
+        self.assertEqual(section["contract_revision"], BRIDGE_CHECKER.SPEC_REVISION)
         code, payload = run_checker_with_summary(BRIDGE_CHECKER, SUMMARY_TEXT)
         self.assertEqual(code, 0)
         self.assertEqual(payload.get("result"), "PASS")
@@ -98,7 +98,7 @@ class BridgeValidBaseline(unittest.TestCase):
 class CliValidBaseline(unittest.TestCase):
     def test_valid_baseline_accepted(self):
         section = json.loads(SUMMARY_TEXT)["cli"]
-        self.assertEqual(section["contract_revision"], 6)
+        self.assertEqual(section["contract_revision"], CLI_CHECKER.SPEC_REVISION)
         code, payload = run_checker_with_summary(CLI_CHECKER, SUMMARY_TEXT)
         self.assertEqual(code, 0)
         self.assertEqual(payload.get("result"), "PASS")
@@ -113,7 +113,7 @@ class Smp1TerminalAcceptance(unittest.TestCase):
         preserved = {key: section[key] for key in HISTORICAL_VERDICTS}
         section["status"] = SMP1_CHECKER.FROZEN_STATUS
         section["contract_complete"] = True
-        pass_current_review(section, 12)
+        pass_current_review(section, SMP1_CHECKER.CONTRACT_REVISION)
         self.assertEqual(section["status"], "S20_400_CONTRACT_FROZEN")
         self.assertTrue(section["contract_complete"])
         for key, value in preserved.items():
@@ -155,7 +155,7 @@ class BridgeTerminalAcceptance(unittest.TestCase):
         preserved = {key: section[key] for key in HISTORICAL_VERDICTS}
         section["status"] = BRIDGE_CHECKER.COMPLETE_STATUS
         section["implementation_complete"] = True
-        pass_current_review(section, 9)
+        pass_current_review(section, BRIDGE_CHECKER.SPEC_REVISION)
         self.assertEqual(section["status"], "S20_420_COMPLETE")
         self.assertTrue(section["implementation_complete"])
         for key, value in preserved.items():
@@ -176,7 +176,7 @@ class CliTerminalAcceptance(unittest.TestCase):
         preserved = {key: section[key] for key in HISTORICAL_VERDICTS}
         section["status"] = CLI_CHECKER.COMPLETE_STATUS
         section["implementation_complete"] = True
-        pass_current_review(section, 6)
+        pass_current_review(section, CLI_CHECKER.SPEC_REVISION)
         self.assertEqual(section["status"], "S20_430_COMPLETE")
         self.assertTrue(section["implementation_complete"])
         for key, value in preserved.items():

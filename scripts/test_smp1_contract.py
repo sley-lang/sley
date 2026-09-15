@@ -16,6 +16,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -44,6 +45,21 @@ SUMMARY_TEXT = (ROOT / "machineresearch/sley-2.0/machine-summary.json").read_tex
 APPENDIX_A = "## Appendix A. Body records of the dispatched methods (S20-410)"
 APPENDIX_B = "## Appendix B. Cancellation, streaming, and budget records (S20-440)"
 CURRENT_COMPOSITION = "Current composition (revision 12):"
+# The composed pins follow the bridge and CLI status lines, so a revision
+# move never leaves this suite asserting a stale literal.
+BRIDGE_REVISION = re.search(
+    r"^Status: S20-420 contract draft, revision (\d+)",
+    (ROOT / "docs/spec/SMP1_JSON_BRIDGE_V1.md").read_text(encoding="utf-8"),
+    flags=re.M,
+).group(1)
+CLI_REVISION = re.search(
+    r"^Status: S20-430 contract draft, revision (\d+)",
+    (ROOT / "docs/spec/SLEY_CLI_V1.md").read_text(encoding="utf-8"),
+    flags=re.M,
+).group(1)
+BRIDGE_PIN = f"`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision {BRIDGE_REVISION}"
+CLI_PIN = f"`docs/spec/SLEY_CLI_V1.md` revision {CLI_REVISION}"
+
 V1_REPORT_ROW = "| 604 | `report` | report identity | report record | S20-290 (report store is S20-560) |"
 
 
@@ -110,8 +126,8 @@ class AppendixScopeCases(unittest.TestCase):
 class ReversePinCases(unittest.TestCase):
     """VUL-P2S-03/N-STATIC-02: historical prose must not satisfy current pins."""
 
-    BRIDGE_PIN = "`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8"
-    CLI_PIN = "`docs/spec/SLEY_CLI_V1.md` revision 6"
+    BRIDGE_PIN = BRIDGE_PIN
+    CLI_PIN = CLI_PIN
 
     def test_historical_shadow_does_not_satisfy_current_pin(self):
         self.assertIn(CURRENT_COMPOSITION, SPEC_TEXT)
@@ -119,8 +135,8 @@ class ReversePinCases(unittest.TestCase):
         self.assertIn(self.CLI_PIN, SPEC_TEXT)
         shadow = (
             "Historical note: an earlier draft pinned the bridge "
-            "`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8 and the CLI "
-            "`docs/spec/SLEY_CLI_V1.md` revision 6 in passing.\n"
+            f"{BRIDGE_PIN} and the CLI "
+            f"{CLI_PIN} in passing.\n"
         )
         head, sep, tail = SPEC_TEXT.partition(CURRENT_COMPOSITION)
         self.assertEqual(sep, CURRENT_COMPOSITION)
@@ -223,8 +239,8 @@ class CompositionAnchorCases(unittest.TestCase):
     def test_historical_references_outside_record_accepted(self):
         shadow = (
             "Historical note: an earlier draft pinned the bridge "
-            "`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 8 and the CLI "
-            "`docs/spec/SLEY_CLI_V1.md` revision 6 in passing.\n"
+            f"{BRIDGE_PIN} and the CLI "
+            f"{CLI_PIN} in passing.\n"
         )
         self.assertIn(CURRENT_COMPOSITION, SPEC_TEXT)
         mutated = shadow + SPEC_TEXT

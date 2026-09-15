@@ -43,7 +43,12 @@ SEARCHED = {
 # co-location with any assertion is not exercise (independent security
 # review, 2026-09-11, P2: a dead or reserved symbol counted as exercised
 # because its defining file also carried unrelated tests).
-RUST_TEST_MARKERS = ("#[cfg(test)]", "mod tests")
+# The test region of a Rust file is its in-file tests module; a lone
+# `#[cfg(test)]` on an earlier helper or `mod x;` line is not the start of
+# test text (independent security review 2026-09-14, P3).
+RUST_TESTS_MODULE = re.compile(
+    r"#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\(crate\))?\s+)?mod\s+\w+\s*\{"
+)
 EXERCISE_TREES = ("conformance", "fuzz/targets", "oracle")
 EXERCISE_SUFFIXES = (".rs", ".py", ".json")
 # This generator names example codes in its own prose, and the threat register
@@ -109,7 +114,11 @@ def recorded_exercises() -> dict[str, list[str]]:
             continue
         cells = [cell.strip() for cell in line.strip("|").split("|")]
         if len(cells) >= 5 and cells[4]:
-            mapping[cells[0]] = re.findall(r"`([^`]+)`", cells[4]) or [cells[4]]
+            # A threat may carry several addendum rows (T35: the query-owned
+            # admission and the VM-owned cache key); every row's record counts.
+            mapping.setdefault(cells[0], []).extend(
+                re.findall(r"`([^`]+)`", cells[4]) or [cells[4]]
+            )
     return mapping
 
 
@@ -135,7 +144,8 @@ def realized_codes() -> dict[str, list[str]]:
         codes = re.findall(r"`([A-Z][A-Z0-9_]+)`", cells[2])
         codes += re.findall(r"`([A-Za-z][A-Za-z0-9]*::[A-Za-z][A-Za-z0-9]*)`", cells[2])
         if codes:
-            mapping[cells[0]] = codes
+            merged = mapping.setdefault(cells[0], [])
+            merged.extend(code for code in codes if code not in merged)
     return mapping
 
 
@@ -226,12 +236,9 @@ def exercise_sources() -> list[tuple[str, str]]:
         if "/tests/" in relative:
             sources.append((relative, text))
             continue
-        marker = min(
-            (index for index in (text.find(m) for m in RUST_TEST_MARKERS) if index >= 0),
-            default=-1,
-        )
-        if marker >= 0:
-            sources.append((f"{relative}#tests", text[marker:]))
+        module = RUST_TESTS_MODULE.search(text)
+        if module:
+            sources.append((f"{relative}#tests", text[module.start() :]))
     for tree in ("scripts", "bench"):
         for path in sorted((ROOT / tree).rglob("*.py")):
             relative = str(path.relative_to(ROOT))

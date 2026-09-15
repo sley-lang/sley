@@ -10,7 +10,8 @@ use std::process::{Command, Stdio};
 use serde_json::Value;
 use sley_id::SessionId;
 use sley_json_bridge::{
-    METHOD_TABLE_JSON, METHOD_TABLE_V2_JSON, frame_from_json, frame_to_json, hello_to_json,
+    MAX_JSON_ELEMENTS, METHOD_TABLE_JSON, METHOD_TABLE_V2_JSON, frame_from_json, frame_to_json,
+    hello_to_json,
 };
 use sley_protocol::{
     BoundedContext, DecodedFrame, FrameKind, Hello, MAX_FRAME_BYTES, Method, PROTOCOL_VERSION,
@@ -488,6 +489,63 @@ fn a_failed_negotiation_is_answered_once_and_ends_the_input() {
     assert_eq!(report["frames_read"], 1);
     assert_eq!(report["handshake_id"], Value::Null);
     assert_eq!(report["codes"]["40003"], 1);
+}
+
+#[test]
+fn a_json_line_at_the_element_ceiling_is_refused_and_ends_the_input() {
+    // S20-430 section 8 (revision 8): a JSON line the bridge refuses with
+    // JSON_BRIDGE_RESOURCE_LIMIT for any ceiling ends the input. The
+    // element ceiling is inclusive (bridge contract section 3), so a line
+    // holding exactly MAX_JSON_ELEMENTS value positions is refused, and the
+    // well-formed frame after it is never read.
+    let (temp, path) = repository("cli-element-ceiling");
+    let direct = direct(&path);
+    let mut lines = String::new();
+    lines.push_str(&frame_to_json(&encode_hello_frame(&offered()).unwrap().bytes).unwrap());
+    lines.push('\n');
+    let mut wide = String::with_capacity(2 * MAX_JSON_ELEMENTS + 2);
+    wide.push('[');
+    wide.push_str(&vec!["0"; MAX_JSON_ELEMENTS].join(","));
+    wide.push(']');
+    lines.push_str(&wide);
+    lines.push('\n');
+    lines.push_str(&frame_to_json(&direct.frames[0]).unwrap());
+    lines.push('\n');
+    let report = temp.child("report.json");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            path.to_str().unwrap(),
+            "--json",
+            "--report",
+            report.to_str().unwrap(),
+        ],
+        lines.as_bytes(),
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let text = String::from_utf8(stdout).unwrap();
+    let outputs: Vec<Vec<u8>> = text
+        .lines()
+        .map(|line| frame_from_json(line).unwrap().bytes)
+        .collect();
+    // The hello answer, then the in-place refusal; the third line is never
+    // answered because the refusal ended the input.
+    assert_eq!(outputs.len(), 2);
+    let rejected = response(&outputs[1]);
+    assert_eq!(
+        (rejected.session, rejected.request_id, rejected.method),
+        (None, 0, 0)
+    );
+    let failure = ProtocolFailure::decode(&rejected.body).unwrap();
+    assert_eq!(
+        (failure.code, failure.symbol.as_str()),
+        (42_004, "JSON_BRIDGE_RESOURCE_LIMIT")
+    );
+    let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    assert_eq!(report["frames_read"], 2);
+    assert_eq!(report["failed_answers"], 1);
+    assert_eq!(report["codes"]["42004"], 1);
 }
 
 #[test]

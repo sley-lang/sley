@@ -355,7 +355,8 @@ def generate_seed_corpus() -> tuple[int, int]:
     # value construction, so every seed byte selects the lane it names no
     # matter how many bytes the outer fixture's canonical value consumes:
     # [fixture, family_gate, family, extended_toggle, map_toggle,
-    #  canonical_flag, limit_selector] + filler.
+    #  canonical_flag] + filler; the limits profile is drawn after the
+    # inputs (vm_canonical_inputs.rs) and is pinned only by the uniform filler.
     for fixture in range(FIXTURE_COUNT):
         for family in range(EXTENDED_FIXTURE_COUNT):
             seeds.append(bytes([fixture, 0, family, 1, 0, 0, 0]) + bytes([0]) * 64)

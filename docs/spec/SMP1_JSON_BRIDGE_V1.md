@@ -1,6 +1,6 @@
 # SMP1 JSON Bridge v1
 
-Status: S20-420 contract draft, revision 9 (2026-09-14); Council review
+Status: S20-420 contract draft, revision 10 (2026-09-14); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 names method tag zero (section 9) for the
@@ -22,8 +22,14 @@ Revision 9 derives the text ceiling from the frame ceiling in code
 element ceiling that bounds materialization before parsing, declares
 duplicate-key and hello-rendering rules the readers already follow, and
 states the envelope and fuzz-slice boundaries; no encoding changes.
-The revision 7 history is retained as history and does not review revision
-8; its new-delta review is pending. The implementation is
+Revision 10 corrects the hello protocol-version wording of section 8 to
+the codec's own split (a claimed version below 1 is `PROTOCOL_DOWNGRADE`,
+above 1 `PROTOCOL_VERSION_UNSUPPORTED`; `PROTOCOL_FRAME_INVALID` names the
+hello's session, request id, method, and flags), states the element
+ceiling as inclusive (1,048,576 positions is refused), and declares the
+additive versioned exports the crate already carries (section 10); no
+encoding or behavior changes. The revision 9 history is retained as
+history and does not review revision 10; its new-delta review is pending. The implementation is
 `crates/sley-json-bridge`; implementation state is tracked in the machine
 summary.
 
@@ -162,8 +168,9 @@ chunk_to_json / chunk_from_json, selected_to_json
 would be invalid on the wire fails with its `PROTOCOL_*` code, never with a
 bridge code; the bridge adds shape and encoding failures only. A JSON text
 larger than 268,435,456 bytes, nested deeper than 32 levels, or holding
-more than 1,048,576 value positions is `JSON_BRIDGE_RESOURCE_LIMIT`
-before parsing. The byte ceiling is four times the absolute frame ceiling
+1,048,576 or more value positions is `JSON_BRIDGE_RESOURCE_LIMIT`
+before parsing (the element ceiling is inclusive: `positions >=
+MAX_JSON_ELEMENTS` refuses, so at most 1,048,576 values materialize). The byte ceiling is four times the absolute frame ceiling
 (`MAX_JSON_TEXT_BYTES = 4 * MAX_FRAME_BYTES`, derived in code so the
 relationship is compiler-checked): any frame that fits on the wire fits
 in text with room for its field names and envelope. The element ceiling
@@ -236,9 +243,12 @@ benchmark, packaging, release, or GA.
 - A `hello` Frame carries a null `session`, a zero `request_id`, an empty
   `method`, all flags false, and the all-zero bounds. The protocol version,
   session, request id, method, and flags are the codec's hello header rule
-  (SMP1 section 2):
-  the reader builds the frame and the codec judges it, so any other value
-  there is `PROTOCOL_FRAME_INVALID`, never a bridge code. The all-zero
+  (SMP1 section 2): the reader builds the frame and the codec judges it,
+  so any other value there carries the codec's code, never a bridge code.
+  The codec judges the protocol version first, as a version claim: a
+  hello naming a version below 1 is `PROTOCOL_DOWNGRADE` and one naming a
+  version above 1 is `PROTOCOL_VERSION_UNSUPPORTED`; any other session,
+  request id, method, or flags value is `PROTOCOL_FRAME_INVALID`. The all-zero
   bounds are the bridge's own rule, judged before the codec runs, so any
   other bounds value is `JSON_BRIDGE_SHAPE_INVALID`. The `body` is the hello
   record, which the reader decodes and re-encodes through the codec
@@ -286,6 +296,12 @@ Capable bridge runtime receives a capability context for Hello names and
 an exact expected version for ordinary frames, delegates canonical bytes,
 identity, and error precedence to the protocol owners, and never admits
 entity methods on an explicit ordinary expected-1 frame even when a
-capable Hello 1 advertises them. This surface is declared, not
-implemented: the crate, vectors, and oracle in this revision stay version
-1-only, and no capable symbol is required by the stage checker.
+capable Hello 1 advertises them. The capable runtime (a capability
+context driving admission) is declared, not implemented. What the crate
+does carry, additively since the phase-3 slice, are the version-selected
+exports `frame_to_json_for_version`, `frame_from_json_for_version`,
+`hello_to_json_versioned`, and `METHOD_TABLE_V2_JSON`, which the S20-430
+capable CLI calls (`scripts/check_cli_contract.py` requires them); the
+unversioned entrypoints keep their frozen version 1 defaults, the vectors
+and oracle stay version 1-only, and no capable symbol is required by the
+stage checker.

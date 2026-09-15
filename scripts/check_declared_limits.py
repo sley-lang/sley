@@ -83,11 +83,25 @@ def spellings(value: int) -> set[str]:
     return forms
 
 
-def evaluate(initializer: str) -> int | None:
-    """A platform-independent value for simple initializers, else None."""
+# A limit derived from another declared limit by a constant factor:
+# `4 * (MAX_FRAME_BYTES as usize)`. The referenced constant must itself
+# evaluate; the cast is a width change, not a value change.
+DERIVED = re.compile(r"(\d[\d_]*)\s*\*\s*\(\s*(MAX_[A-Z0-9_]+)\s+as\s+\w+\s*\)")
+
+
+def evaluate(initializer: str, known: dict[str, int] | None = None) -> int | None:
+    """A platform-independent value for simple initializers, else None.
+
+    `known` maps already-evaluated limit names to values so a derived
+    initializer (a literal factor times another declared limit) evaluates
+    to the value the compiler computes, and the census witnesses it.
+    """
     text = initializer.strip()
     if NUMERIC.fullmatch(text):
         return int(text.replace("_", ""))
+    derived = DERIVED.fullmatch(text)
+    if derived and known and derived.group(2) in known:
+        return int(derived.group(1).replace("_", "")) * known[derived.group(2)]
     shift = SHIFT.fullmatch(text)
     if shift:
         value = 1 << int(shift.group(1))
@@ -137,13 +151,23 @@ def main() -> int:
     undocumented = []
     weak = []
     unevaluated = []
+    declarations: list[tuple[Path, str, str]] = []
     for path in sorted((ROOT / "crates").rglob("*.rs")):
         if "/target/" in str(path):
             continue
         for match in DECLARATION.finditer(path.read_text(encoding="utf-8", errors="ignore")):
-            name, initializer = match.group(1), match.group(2)
+            declarations.append((path, match.group(1), match.group(2)))
+    # First pass: every literal limit is a known value; second pass: a
+    # derived initializer evaluates through the limit it names.
+    known: dict[str, int] = {}
+    for _path, name, initializer in declarations:
+        value = evaluate(initializer)
+        if value is not None and name not in known:
+            known[name] = value
+    for path, name, initializer in declarations:
+        if True:
             declared += 1
-            value = evaluate(initializer)
+            value = evaluate(initializer, known)
             verdict = check_constant(name, value, initializer.strip(), docs)
             verdict["source"] = str(path.relative_to(ROOT))
             if verdict["grade"] == "undocumented":
