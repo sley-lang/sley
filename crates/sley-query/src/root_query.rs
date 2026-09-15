@@ -1926,14 +1926,9 @@ pub(crate) mod tests {
                 exposure: 1,
             },
         ];
-        let first_request = build_root_query_request(
-            &input,
-            RootQuery::ListDependencyRoots,
-            one.clone(),
-            true,
-            None,
-        )
-        .unwrap();
+        let first_request =
+            build_root_query_request(&input, RootQuery::ListDependencyRoots, one, true, None)
+                .unwrap();
         let first = page(
             Complete {
                 result: RootQueryResult::Roots(roots.to_vec()),
@@ -1949,7 +1944,7 @@ pub(crate) mod tests {
         let second_request = build_root_query_request(
             &input,
             RootQuery::ListDependencyRoots,
-            one.clone(),
+            one,
             true,
             first.next_after,
         )
@@ -1974,8 +1969,7 @@ pub(crate) mod tests {
         }
 
         let first_request =
-            build_root_query_request(&input, RootQuery::ListEntryPoints, one.clone(), true, None)
-                .unwrap();
+            build_root_query_request(&input, RootQuery::ListEntryPoints, one, true, None).unwrap();
         let first = page(
             Complete {
                 result: RootQueryResult::EntryRows(rows.to_vec()),
