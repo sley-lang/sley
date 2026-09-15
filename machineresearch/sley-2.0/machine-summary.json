@@ -813,7 +813,7 @@
   "root_backed_query_profile": {
     "status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md",
-    "contract_revision": 6,
+    "contract_revision": 7,
     "adr": "docs/adr/ADR-0030-root-backed-query-boundary.md",
     "checker": "scripts/check_root_backed_query_profile.py",
     "query_classes": 19,
@@ -869,7 +869,7 @@
     "vulcan_surface_review_note": "base field held at the prior PASS pending the revision-7 delta lane; the 2026-09-15 round at a809906 returned REVISE_0_P0_0_P1_0_P2_4_P3_2_P4 (see vulcan_surface_review_revision_3_note).",
     "vulcan_surface_review_revision_2": "REVISE_0_P0_0_P1_1_P2_0_P3_1_P4",
     "vulcan_surface_review_revision_2_note": "REVISE via harness vulcan final 2026-09-13 on a4b60294e4dd75133fa08f92bf16022fb05bb807 (transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-a4b6029.md): 4 carried P1s verified closed at engine; 1 P2 (vector-gate tamper coverage) + 1 P4 open [value corrected 2026-09-15 to the transcript's REVISE_0_P0_0_P1_1_P2_0_P3_1_P4; the earlier PASS string contradicted its own note]",
-    "contract_text_review_note": "revision 6 (2026-09-15) closes the round-7 wording packet under the operator authorization of 2026-09-15 (sections 3, 7, 9, 10); the row closes when the three lanes review revision 6 Round at a809906 (2026-09-15): all three lanes REVISE on revision 6 text (section 7 attribution and class names, class-1 count, section 9 evidence rule, duplicate sentence, revision pointers); revision 7 repairs them and the row closes on the revision-7 delta PASS.",
+    "contract_text_review_note": "revision 6 (2026-09-15, f7df74f) closed the round-7 wording packet and revision 7 (2026-09-15) repairs the a809906 round's text findings under the operator authorization of 2026-09-15 (sections 3, 7, 9, 10); the row closes when the three lanes review revision 6 Round at a809906 (2026-09-15): all three lanes REVISE on revision 6 text (section 7 attribution and class names, class-1 count, section 9 evidence rule, duplicate sentence, revision pointers); revision 7 repairs them and the row closes on the revision-7 delta PASS.",
     "ariadne_contract_review_revision_2": "REVISE_0_P0_0_P1_1_P2_4_P3_2_P4",
     "ariadne_contract_review_revision_2_note": "REVISE via harness ariadne 2026-09-15 on a809906f78f1bfdb9cde8da4c108c4d692dad297 (revision-6 round; transcript evidence/review/verdicts/root_backed_query_profile/ariadne_contract_review-a809906.md): section 7 misattributes the hit-path audit to verify_cached_snapshot and claims a forged edge set cannot reach the engine (P2); class-1 direct-edge count omitted, classes 14/15 misnamed, WORK_PACKAGES revision pointer, checker revision unasserted (P3); duplicated section 3 sentence, rule-1 arm residue (P4). Repaired as revision 7; the delta verdict at the repair commit replaces the base field.",
     "nabu_architecture_review_revision_2": "REVISE_0_P0_0_P1_1_P2_4_P3_5_P4",
