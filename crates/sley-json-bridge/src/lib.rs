@@ -26,7 +26,12 @@ use sley_protocol::{
 /// Largest JSON text the bridge parses: four times the absolute frame
 /// ceiling, so any frame that fits on the wire fits in text with room for
 /// its field names and envelope (contract section 3).
+#[allow(
+    clippy::cast_possible_truncation,
+    reason = "the assertion below pins the frame ceiling inside a 32-bit usize with room for the factor"
+)]
 pub const MAX_JSON_TEXT_BYTES: usize = 4 * (MAX_FRAME_BYTES as usize);
+const _: () = assert!(MAX_FRAME_BYTES <= (u32::MAX as u64) / 4);
 /// Deepest object or array nesting the bridge parses (contract section 3).
 pub const MAX_JSON_DEPTH: usize = 32;
 /// Largest number of JSON value positions the bridge materializes from one

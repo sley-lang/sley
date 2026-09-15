@@ -8,7 +8,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "ba54c595d226673f61ed32004bce09f9ae8d87b7578c1c19d909d1027cdd0537",
+  "dossier_digest": "003400df8150a7831c13145e9a5e05d4dd3098e7ce89a316db968bc661614295",
   "entries": [
     {
       "evidence": [
@@ -146,7 +146,7 @@
         "property_tests": 0,
         "python_tests": 359,
         "rust_ignored_emitters": 16,
-        "rust_unit_tests": 1421
+        "rust_unit_tests": 1423
       }
     },
     {
@@ -189,7 +189,7 @@
     {
       "evidence": [],
       "item": "security review result",
-      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions). Its input is measured: of the 56 registered threats, 43 have a located control that a test or corpus exercises, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
+      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions). Its input is measured: of the 56 registered threats, 44 have a located control that a test or corpus exercises, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
       "state": "GATED",
       "value": null
     },
@@ -451,7 +451,7 @@
       }
     }
   ],
-  "entries_digest": "77ed1cef04ec5934312cf0dd5e61216ef532d3e286081a3defd6e7a192158f08",
+  "entries_digest": "30d0baf67167712edcfc8c16a84d3767bbe158aa149bdddbef4bfa20c2d65980",
   "evidenced": 24,
   "gated": 10,
   "gates": {

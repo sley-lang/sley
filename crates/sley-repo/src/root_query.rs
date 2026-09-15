@@ -20,9 +20,7 @@ use sley_query::{
 use sley_txn::{RepositoryMaintenanceGuard, VerifiedRevision};
 
 use crate::complete_root::{CompleteRootError, CompleteRootRequest};
-use crate::index_cache::{
-    CacheOutcome, IndexCacheError, complete_root_snapshot, fresh_snapshot,
-};
+use crate::index_cache::{CacheOutcome, IndexCacheError, complete_root_snapshot, fresh_snapshot};
 
 /// Failure of the repository query surface with every wrapped code preserved.
 #[derive(Debug)]
@@ -203,7 +201,8 @@ pub fn run_context_capsule(
     after: Option<Cursor>,
 ) -> Result<ContextCapsule, RepositoryQueryError> {
     let outcome = run_root_query_fresh(revision, query, limits, allow_continuation, after)?;
-    build_context_capsule(&outcome.request, &outcome.response).map_err(RepositoryQueryError::Capsule)
+    build_context_capsule(&outcome.request, &outcome.response)
+        .map_err(RepositoryQueryError::Capsule)
 }
 
 /// Field-4 fingerprints carried by the verified objects, in binding order.

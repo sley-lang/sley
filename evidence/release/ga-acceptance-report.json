@@ -237,13 +237,13 @@
     },
     {
       "criterion": "all P0/P1 threats have passing tests",
-      "evidence": "threat coverage report: 43 exercised, 0 P0/P1 without a located symbol; 495 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol. Whether a located, exercised control mitigates its threat stays the review's judgment",
+      "evidence": "threat coverage report: 44 exercised, 0 P0/P1 without a located symbol; 495 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol. Whether a located, exercised control mitigates its threat stays the review's judgment",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 0 open P0/P1/P2 findings across 291 obligations",
+      "evidence": "finding register declares 0 open P0/P1/P2 findings across 335 obligations",
       "group": "26.6 policy and security",
       "state": "EVIDENCED"
     },
@@ -321,7 +321,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 46 open obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 12 open obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -339,7 +339,7 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "report_digest": "1f32a3f9408dff20398d5fb3d22481806a048b19dbeba4ec076986c8e9821f66",
+  "report_digest": "eb332932e56c224c21277dc12f2a217b7adb4f2ee31e83e1218e358d5ad84e38",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 16,

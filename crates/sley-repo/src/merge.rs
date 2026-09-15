@@ -2528,6 +2528,17 @@ pub(crate) mod tests {
 
     #[test]
     fn set_valued_fields_compose_and_conflicts_are_classified() {
+        fn add_add_shape(outcome: &MergeOutcome) -> (ConflictReason, u32) {
+            match outcome {
+                MergeOutcome::Conflict(conflict) => {
+                    assert_eq!(conflict.conflict.conflicts.len(), 1);
+                    let entry = &conflict.conflict.conflicts[0];
+                    assert_eq!(entry.entity_id, id(31));
+                    (entry.reason, entry.kind)
+                }
+                MergeOutcome::Merged(_) => panic!("expected an AddAdd conflict"),
+            }
+        }
         let base = base_bodies();
         let o = synthetic(50, &base, &[]);
         // Both sides add a different member to namespace 4: composed.
@@ -2580,17 +2591,6 @@ pub(crate) mod tests {
         divergent_ours.push((31, constant(true)));
         let mut divergent_theirs = with(&base, 4, namespace(None, &[6, 16, 18, 19, 31]));
         divergent_theirs.push((31, namespace(Some(4), &[])));
-        fn add_add_shape(outcome: &MergeOutcome) -> (ConflictReason, u32) {
-            match outcome {
-                MergeOutcome::Conflict(conflict) => {
-                    assert_eq!(conflict.conflict.conflicts.len(), 1);
-                    let entry = &conflict.conflict.conflicts[0];
-                    assert_eq!(entry.entity_id, id(31));
-                    (entry.reason, entry.kind)
-                }
-                MergeOutcome::Merged(_) => panic!("expected an AddAdd conflict"),
-            }
-        }
         let forward_outcome = judge_merge(
             &o,
             &synthetic(51, &divergent_ours, &[]),

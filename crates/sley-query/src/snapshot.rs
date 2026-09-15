@@ -798,6 +798,7 @@ fn impact_kind(tag: u32) -> Result<ImpactKind, IndexSnapshotError> {
 
 /// Maps a snapshot failure to its cache discard reason. Shared with the
 /// repository index cache so the mapping lives in exactly one place.
+#[must_use]
 pub fn discard_reason(code: IndexSnapshotErrorCode) -> CacheDiscardReason {
     match code {
         IndexSnapshotErrorCode::ProfileUnsupported | IndexSnapshotErrorCode::VersionUnsupported => {

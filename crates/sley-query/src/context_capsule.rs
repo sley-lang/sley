@@ -570,8 +570,7 @@ fn derive_facts(
     // rows than the contract allows fails here, before encoding (S20-320
     // revision 4). Unreachable through the current result shapes, which
     // emit at most one row each; defense in depth, like `index_of` below.
-    if objects.len() > MAX_CONTEXT_CAPSULE_TABLE || fingerprints.len() > MAX_CONTEXT_CAPSULE_TABLE
-    {
+    if objects.len() > MAX_CONTEXT_CAPSULE_TABLE || fingerprints.len() > MAX_CONTEXT_CAPSULE_TABLE {
         return fail(ContextCapsuleErrorCode::ResourceLimit);
     }
     // Structural invariant the preimage depends on: exactly one kind per
@@ -904,7 +903,8 @@ mod tests {
     }
 
     #[test]
-    fn foreign_and_drifted_sources_and_the_code_table_are_exact() {        let owned = Owned::new();
+    fn foreign_and_drifted_sources_and_the_code_table_are_exact() {
+        let owned = Owned::new();
         let borrowed = Borrowed::new(&owned);
         let input = borrowed.input();
         let full = QueryLimits::profile_maximum();

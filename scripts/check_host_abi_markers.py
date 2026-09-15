@@ -188,6 +188,9 @@ FORBIDDEN = [
     "std::env",
     "std::process",
     "std::net",
+    # T29's structural claim includes "no clock access"; the marker makes the
+    # clock half of that claim mechanical (independent security review P4).
+    "std::time",
     "Command::new",
 ]
 for crate_dir in CLOSURE:

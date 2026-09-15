@@ -16,8 +16,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use sley_id::StateRoot;
 use sley_query::{
     CacheDiscardReason, IndexSnapshot, IndexSnapshotBuildError, IndexSnapshotError,
-    IndexSnapshotErrorCode, SnapshotContext, build_complete_root_snapshot,
-    decode_complete_root_snapshot, discard_reason, MAX_SNAPSHOT_RECORD_BYTES,
+    IndexSnapshotErrorCode, MAX_SNAPSHOT_RECORD_BYTES, SnapshotContext,
+    build_complete_root_snapshot, decode_complete_root_snapshot, discard_reason,
 };
 use sley_txn::{RepositoryMaintenanceGuard, VerifiedRevision};
 
@@ -341,7 +341,10 @@ mod tests {
         );
         assert_eq!(first.inventory().len(), 7);
         assert!(index_cache_path(&repository, revision.state_root().root).is_file());
-        assert_eq!(verify_cached_snapshot(&repository, &revision, &guard).unwrap(), CacheVerify::Match);
+        assert_eq!(
+            verify_cached_snapshot(&repository, &revision, &guard).unwrap(),
+            CacheVerify::Match
+        );
         // Remove the object store: a hit must not touch it.
         fs::remove_dir_all(repository.join("objects")).unwrap();
         let (second, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
@@ -435,7 +438,10 @@ mod tests {
             outcome,
             CacheOutcome::Rebuilt(CacheDiscardReason::CompletenessUnsupported)
         );
-        assert_eq!(verify_cached_snapshot(&repository, &revision, &guard).unwrap(), CacheVerify::Match);
+        assert_eq!(
+            verify_cached_snapshot(&repository, &revision, &guard).unwrap(),
+            CacheVerify::Match
+        );
 
         fs::write(&path, b"garbage").unwrap();
         let (_, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
@@ -491,7 +497,10 @@ mod tests {
         );
         // The audit still rebuilds the true record underneath.
         let (rebuilt, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
-        assert_eq!(outcome, CacheOutcome::Rebuilt(CacheDiscardReason::DigestMismatch));
+        assert_eq!(
+            outcome,
+            CacheOutcome::Rebuilt(CacheDiscardReason::DigestMismatch)
+        );
         assert_eq!(rebuilt, fresh);
     }
 
@@ -504,11 +513,16 @@ mod tests {
         let other = temp.child("elsewhere");
         fs::create_dir_all(&other).unwrap();
         let revision = transactions.verified_revision(genesis_id).unwrap();
-        let error =
-            complete_root_snapshot(&other, &revision, &guard).unwrap_err();
-        assert_eq!(error.code().as_str(), IndexSnapshotErrorCode::RootIo.as_str());
+        let error = complete_root_snapshot(&other, &revision, &guard).unwrap_err();
+        assert_eq!(
+            error.code().as_str(),
+            IndexSnapshotErrorCode::RootIo.as_str()
+        );
         let error = verify_cached_snapshot(&other, &revision, &guard).unwrap_err();
-        assert_eq!(error.code().as_str(), IndexSnapshotErrorCode::RootIo.as_str());
+        assert_eq!(
+            error.code().as_str(),
+            IndexSnapshotErrorCode::RootIo.as_str()
+        );
     }
 
     #[test]
@@ -552,8 +566,7 @@ mod tests {
         fs::set_permissions(&directory, fs::Permissions::from_mode(0o555)).unwrap();
         // Fail-open: the fresh build is returned even though the
         // write-back cannot land, and no error escapes.
-        let (rebuilt, outcome) =
-            complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        let (rebuilt, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
         assert_eq!(outcome, CacheOutcome::Rebuilt(CacheDiscardReason::Missing));
         assert_eq!(rebuilt, fresh);
         assert!(!path.exists());

@@ -1354,35 +1354,30 @@ fn kind_tag(value: u32, allow_zero: bool) -> Result<u32> {
 
 /// The closed field grammar of contract section 2: every `(kind, field)`
 /// pair the judgment emits, with the only flag bits beyond the presence
-/// bit the table allows (TypeDef field 2 bits 1-3, Function field 2 bit
-/// 1). The decoder rejects anything off-table, so forged evidence cannot
-/// smuggle arbitrary kind, field, or flag codes through a round-trip.
+/// bit the table allows (`TypeDef` field 2 bits 1-3, `Function` field 2
+/// bit 1). The decoder rejects anything off-table, so forged evidence cannot
+/// smuggle arbitrary kind, field, or flag codes through a round-trip. Every
+/// kind's fields are the contiguous range `1..=count`; the table below is
+/// that count per kind tag 1 through 18.
+const FIELD_COUNT_BY_KIND: [u32; 18] = [5, 4, 2, 4, 8, 4, 5, 6, 1, 3, 6, 3, 5, 6, 6, 2, 2, 3];
+
 fn valid_field_grammar(kind: u32, field: u32, flags: u32) -> bool {
     if flags & 1 == 0 {
+        return false;
+    }
+    let Some(count) = kind
+        .checked_sub(1)
+        .and_then(|index| FIELD_COUNT_BY_KIND.get(index as usize))
+    else {
+        return false;
+    };
+    if field == 0 || field > *count {
         return false;
     }
     match (kind, field) {
         (4, 2) => flags <= 15,
         (5, 2) => flags <= 3,
-        (1, 1) | (1, 2) | (1, 3) | (1, 4) | (1, 5) => flags == 1,
-        (2, 1) | (2, 2) | (2, 3) | (2, 4) => flags == 1,
-        (3, 1) | (3, 2) => flags == 1,
-        (4, 1) | (4, 3) | (4, 4) => flags == 1,
-        (5, 1) | (5, 3) | (5, 4) | (5, 5) | (5, 6) | (5, 7) | (5, 8) => flags == 1,
-        (6, 1) | (6, 2) | (6, 3) | (6, 4) => flags == 1,
-        (7, 1) | (7, 2) | (7, 3) | (7, 4) | (7, 5) => flags == 1,
-        (8, 1) | (8, 2) | (8, 3) | (8, 4) | (8, 5) | (8, 6) => flags == 1,
-        (9, 1) => flags == 1,
-        (10, 1) | (10, 2) | (10, 3) => flags == 1,
-        (11, 1) | (11, 2) | (11, 3) | (11, 4) | (11, 5) | (11, 6) => flags == 1,
-        (12, 1) | (12, 2) | (12, 3) => flags == 1,
-        (13, 1) | (13, 2) | (13, 3) | (13, 4) | (13, 5) => flags == 1,
-        (14, 1) | (14, 2) | (14, 3) | (14, 4) | (14, 5) | (14, 6) => flags == 1,
-        (15, 1) | (15, 2) | (15, 3) | (15, 4) | (15, 5) | (15, 6) => flags == 1,
-        (16, 1) | (16, 2) => flags == 1,
-        (17, 1) | (17, 2) => flags == 1,
-        (18, 1) | (18, 2) | (18, 3) => flags == 1,
-        _ => false,
+        _ => flags == 1,
     }
 }
 
@@ -2509,6 +2504,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn decoder_rejection_matrix_reaches_every_frozen_code() {
         let base = Fixture::new(50);
         let mut target = Fixture::new(51);
@@ -3191,11 +3187,7 @@ pub(crate) mod tests {
                     removed: Vec::new(),
                 }];
                 let encoded = encode_semantic_delta(&bad_flags).unwrap();
-                rejections.push((
-                    "bad-flags",
-                    "COMPARE_FORMAT_INVALID",
-                    encoded.stored_bytes,
-                ));
+                rejections.push(("bad-flags", "COMPARE_FORMAT_INVALID", encoded.stored_bytes));
                 // Equal roots admit only the empty delta.
                 let mut same_roots = stored.delta.clone();
                 same_roots.target_root = same_roots.base_root;

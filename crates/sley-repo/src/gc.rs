@@ -1058,8 +1058,21 @@ fn collect_inner<V: GcObjectVerifier>(
     guard: &ExclusiveGcGuard,
 ) -> Result<GcReport> {
     require_guard(store, guard)?;
-    let mut report = plan_gc(store, snapshot, verifier)?;
+    let report = plan_gc(store, snapshot, verifier)?;
     sync_inventory_leaf_directories(store)?;
+    delete_planned_candidates(store, verifier, report)
+}
+
+/// Deletes the plan's candidates in order. The reachability guard runs
+/// before every read and unlink: a candidate the plan also lists as
+/// reachable is `GC_REACHABILITY_VIOLATION`, and nothing is deleted for
+/// that run. `plan_gc` never produces such a plan, so the guard is the
+/// invariant's last line, exercised by the injected-plan test.
+fn delete_planned_candidates<V: GcObjectVerifier>(
+    store: &ObjectStore,
+    verifier: &V,
+    mut report: GcReport,
+) -> Result<GcReport> {
     let reachable = report
         .reachable_objects
         .iter()
@@ -1091,6 +1104,27 @@ fn collect_inner<V: GcObjectVerifier>(
     }
     report.decision = GcDecision::Collected;
     Ok(report)
+}
+
+/// T40 fault seeding: a plan whose candidate list names a reachable object.
+/// The planner cannot produce one, so the only way to reach the guard is to
+/// hand the deleter a corrupted plan.
+#[cfg(test)]
+fn gc_collect_with_injected_reachable_candidate<V: GcObjectVerifier>(
+    store: &ObjectStore,
+    snapshot: &RetentionSnapshot,
+    verifier: &V,
+    guard: &ExclusiveGcGuard,
+) -> Result<GcReport> {
+    require_guard(store, guard)?;
+    let mut report = plan_gc(store, snapshot, verifier)?;
+    sync_inventory_leaf_directories(store)?;
+    let reachable = *report
+        .reachable_objects
+        .first()
+        .ok_or_else(|| GcError::gc(GcErrorCode::InternalInvariant))?;
+    report.deletion_candidates.insert(0, reachable);
+    delete_planned_candidates(store, verifier, report)
 }
 
 #[cfg(test)]
@@ -2622,6 +2656,39 @@ mod tests {
                 .all(|object| !report.deletion_candidates.contains(object))
         );
         assert!(report.reachable_objects.contains(&fixture.child_id));
+    }
+
+    #[test]
+    fn t40_reachable_candidate_in_a_corrupted_plan_trips_the_guard_before_any_delete() {
+        let fixture = fixture();
+        let snapshot = RetentionSnapshot::new(
+            vec![anchor(
+                RetentionKind::Lease,
+                13,
+                vec![RetentionTarget::StateRoot(fixture.retained.root)],
+            )],
+            vec![fixture.retained.clone()],
+        )
+        .unwrap();
+        let guard = acquire_exclusive_gc(&fixture.store).unwrap();
+        let error = gc_collect_with_injected_reachable_candidate(
+            &fixture.store,
+            &snapshot,
+            &fixture.verifier,
+            &guard,
+        )
+        .unwrap_err();
+        assert_eq!(error.symbol(), "GC_REACHABILITY_VIOLATION");
+        assert!(error.partial_report().is_none());
+        // The guard fired before the first unlink: every object, reachable
+        // or not, is still on disk.
+        assert!(fixture.store.object_path(fixture.child_id).exists());
+        assert!(fixture.store.object_path(fixture.unreachable_id).exists());
+        // An honest plan over the untouched store still collects exactly the
+        // unreachable object, so the failed run left no partial state.
+        let collected = gc_collect(&fixture.store, &snapshot, &fixture.verifier, &guard).unwrap();
+        assert_eq!(collected.deleted_objects, vec![fixture.unreachable_id]);
+        assert!(fixture.store.object_path(fixture.child_id).exists());
     }
 
     #[test]

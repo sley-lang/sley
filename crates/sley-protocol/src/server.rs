@@ -40,8 +40,7 @@ use sley_repo::{
     compare_complete_roots, encode_verified_entity_read_response, export_repository_exchange,
     gc_collect, gc_dry_run, import_repository_exchange, judge_merge_verified,
     prepare_verified_entity_read, read_execution_report, run_root_query, run_root_query_fresh,
-    store_execution_report,
-    transaction_ancestry,
+    store_execution_report, transaction_ancestry,
 };
 use sley_scb1::{encode_bytes, encode_list, encode_record, encode_union, encode_uvar};
 use sley_state_root::conformance_epoch_id as state_epoch_id;

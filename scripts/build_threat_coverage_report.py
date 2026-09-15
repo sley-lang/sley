@@ -36,7 +36,16 @@ SEARCHED = {
     # The benchmark, accounting, and release harnesses enforce controls too.
     "harness": ("bench",),
 }
-TEST_MARKERS = ("#[test]", "def test_", "assert")
+# Exercise is a symbol reached from a test, corpus, fuzz target, or oracle,
+# never a mention in the production code or the checker table that names
+# it: an in-file Rust test module (everything past the test marker), a
+# `tests/` directory or `test_*.py` file, and the corpus trees below. File
+# co-location with any assertion is not exercise (independent security
+# review, 2026-09-11, P2: a dead or reserved symbol counted as exercised
+# because its defining file also carried unrelated tests).
+RUST_TEST_MARKERS = ("#[cfg(test)]", "mod tests")
+EXERCISE_TREES = ("conformance", "fuzz/targets", "oracle")
+EXERCISE_SUFFIXES = (".rs", ".py", ".json")
 # This generator names example codes in its own prose, and the threat register
 # is the source rather than an implementation, so neither may count as a
 # located control.
@@ -62,16 +71,25 @@ def structural_entries() -> set[str]:
     if "## Realized codes" not in text:
         return set()
     section = text[text.index("## Realized codes") :]
-    structural = set()
+    # A threat is structural only when every addendum row it carries names
+    # no symbol: one symbol-bearing row makes it a located control (the
+    # independent security review found T35 read as structural because its
+    # first row described the admission type and its second named the code).
+    with_symbol: set[str] = set()
+    without_symbol: set[str] = set()
     for line in section.split("\n"):
         if not line.startswith("| T"):
             continue
         cells = [cell.strip() for cell in line.strip("|").split("|")]
-        if len(cells) >= 3 and not re.findall(
+        if len(cells) < 3:
+            continue
+        if re.findall(
             r"`([A-Z][A-Z0-9_]+|[A-Za-z][A-Za-z0-9]*::[A-Za-z][A-Za-z0-9]*)`", cells[2]
         ):
-            structural.add(cells[0])
-    return structural
+            with_symbol.add(cells[0])
+        else:
+            without_symbol.add(cells[0])
+    return without_symbol - with_symbol
 
 
 def recorded_exercises() -> dict[str, list[str]]:
@@ -191,16 +209,62 @@ def family_symbols() -> dict[str, set[str]]:
     return families
 
 
-def classify(found: dict[str, list[str]], evidence_present: bool) -> str:
+def exercise_sources() -> list[tuple[str, str]]:
+    """Every (relative path, exercising text) pair a symbol may be reached from.
+
+    A Rust file contributes only its test region (from the first test marker
+    on), so a production match in the same file never counts; a file under a
+    `tests/` directory, a `test_*.py`, and every corpus, fuzz target, and
+    oracle file contributes its whole text.
+    """
+    sources: list[tuple[str, str]] = []
+    for path in sorted((ROOT / "crates").rglob("*.rs")):
+        relative = str(path.relative_to(ROOT))
+        if "/target/" in relative:
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        if "/tests/" in relative:
+            sources.append((relative, text))
+            continue
+        marker = min(
+            (index for index in (text.find(m) for m in RUST_TEST_MARKERS) if index >= 0),
+            default=-1,
+        )
+        if marker >= 0:
+            sources.append((f"{relative}#tests", text[marker:]))
+    for tree in ("scripts", "bench"):
+        for path in sorted((ROOT / tree).rglob("*.py")):
+            relative = str(path.relative_to(ROOT))
+            if "__pycache__" in relative:
+                continue
+            if path.name.startswith("test_") or "/tests/" in relative:
+                sources.append((relative, path.read_text(encoding="utf-8", errors="ignore")))
+    for tree in EXERCISE_TREES:
+        base = ROOT / tree
+        if not base.is_dir():
+            continue
+        for path in sorted(base.rglob("*")):
+            relative = str(path.relative_to(ROOT))
+            if not path.is_file() or path.suffix not in EXERCISE_SUFFIXES:
+                continue
+            if "/target/" in relative or "__pycache__" in relative:
+                continue
+            sources.append((relative, path.read_text(encoding="utf-8", errors="ignore")))
+    return sources
+
+
+def exercised_in(symbols: list[str], sources: list[tuple[str, str]]) -> list[str]:
+    """The exercising sources that name any of the searched symbols."""
+    return [relative for relative, text in sources if any(symbol in text for symbol in symbols)]
+
+
+def classify(found: dict[str, list[str]], evidence_present: bool, exercised: list[str]) -> str:
     if evidence_present:
         return "PLANNED_EVIDENCE_PRESENT"
     if not found:
         return "SYMBOL_NOT_LOCATED"
-    for paths in found.values():
-        for relative in paths:
-            text = (ROOT / relative).read_text(encoding="utf-8", errors="ignore")
-            if any(marker in text for marker in TEST_MARKERS):
-                return "SYMBOL_REALIZED_WITH_EXERCISE"
+    if exercised:
+        return "SYMBOL_REALIZED_WITH_EXERCISE"
     return "SYMBOL_REALIZED_NO_EXERCISE_LOCATED"
 
 
@@ -210,6 +274,7 @@ def build_report() -> dict:
     realized = realized_codes()
     structural = structural_entries()
     exercises = recorded_exercises()
+    sources = exercise_sources()
     threats = []
     for row in rows:
         codes = realized.get(row["id"], [row["expected_failure_code"]])
@@ -218,6 +283,7 @@ def build_report() -> dict:
             for area, paths in locate(code).items():
                 found[area] = sorted(set(found.get(area, [])) | set(paths))
         evidence_present = (ROOT / row["planned_evidence_path"]).exists()
+        exercised = exercised_in(codes, sources)
         threats.append(
             {
                 **row,
@@ -226,11 +292,14 @@ def build_report() -> dict:
                     if row["id"] in structural
                     else "SYMBOL_REALIZED_WITH_EXERCISE"
                     if found
-                    and classify(found, evidence_present) == "SYMBOL_REALIZED_NO_EXERCISE_LOCATED"
+                    and classify(found, evidence_present, exercised)
+                    == "SYMBOL_REALIZED_NO_EXERCISE_LOCATED"
                     and row["id"] in exercises
-                    else classify(found, evidence_present)
+                    else classify(found, evidence_present, exercised)
                 ),
                 "recorded_exercise": exercises.get(row["id"], []),
+                "exercised_in": exercised[:6],
+                "exercised_source_count": len(exercised),
                 "searched_codes": codes,
                 "realized_code_recorded": row["id"] in realized,
                 "located_in": {area: paths[:4] for area, paths in sorted(found.items())},
@@ -277,8 +346,11 @@ def build_report() -> dict:
         "threats": threats,
         "interpretation": (
             "locating a symbol proves the named control exists in the tree, not that the threat is "
-            "mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also "
-            "carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own "
+            "mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance "
+            "corpus, fuzz target, or oracle names the symbol (or the addendum records the test that "
+            "reaches it by variant), never that a production file merely carries some assertion; "
+            "SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches "
+            "it, and PLANNED_EVIDENCE_PRESENT means the register's own "
             "evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent "
             "security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED "
             "means the addendum records a control that is the absence of something, so no symbol "

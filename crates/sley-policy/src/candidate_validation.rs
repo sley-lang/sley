@@ -2123,15 +2123,39 @@ mod tests {
             Self::with_policy_options_and_tests(allow_create, protect_base, required_contract, &[])
         }
 
-        #[allow(
-            clippy::too_many_lines,
-            reason = "fixture constructor threads policy/state/candidate together; splitting hides the shared bindings"
-        )]
+        /// T07 fault seeding: the base state already binds the exact
+        /// identity the candidate's create operation derives, so phase 4
+        /// must refuse on the live-binding branch rather than the tombstone
+        /// branch.
+        fn with_live_binding_collision() -> Self {
+            Self::build(true, false, None, &[], true)
+        }
+
         fn with_policy_options_and_tests(
             allow_create: bool,
             protect_base: bool,
             required_contract: Option<EntityId>,
             required_tests: &[EntityId],
+        ) -> Self {
+            Self::build(
+                allow_create,
+                protect_base,
+                required_contract,
+                required_tests,
+                false,
+            )
+        }
+
+        #[allow(
+            clippy::too_many_lines,
+            reason = "fixture constructor threads policy/state/candidate together; splitting hides the shared bindings"
+        )]
+        fn build(
+            allow_create: bool,
+            protect_base: bool,
+            required_contract: Option<EntityId>,
+            required_tests: &[EntityId],
+            live_binding_collision: bool,
         ) -> Self {
             let workspace_id = fixed(1, WorkspaceId::from_bytes);
             let principal_id = fixed(2, PrincipalId::from_bytes);
@@ -2172,18 +2196,38 @@ mod tests {
                 },
             )
             .unwrap();
-            let base_state = StateRootBuilder::new(
+            let nonce = fixed(30, CandidateNonce::from_bytes);
+            let target = EntityId::derive(workspace_id, nonce, 3, 0);
+            let mut base_objects = vec![base_object];
+            if live_binding_collision {
+                base_objects.push(
+                    build_entity_object(
+                        schema_epoch_id,
+                        &EntityObjectRecord {
+                            entity_id: target,
+                            body: EntityBodyValue::Namespace(NamespaceBody {
+                                parent: None,
+                                members: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                            }),
+                            label: None,
+                            semantic_fingerprint: None,
+                        },
+                    )
+                    .unwrap(),
+                );
+                base_objects.sort_by_key(|object| object.record().entity_id);
+            }
+            let mut state_builder = StateRootBuilder::new(
                 workspace_id,
                 fixed(20, ObjectId::from_bytes),
                 fixed(21, ObjectId::from_bytes),
                 policy.root(),
-            )
-            .entity_binding(base_entity, base_object.object_id())
-            .build(&state_registry().unwrap())
-            .unwrap();
-
-            let nonce = fixed(30, CandidateNonce::from_bytes);
-            let target = EntityId::derive(workspace_id, nonce, 3, 0);
+            );
+            for object in &base_objects {
+                state_builder =
+                    state_builder.entity_binding(object.record().entity_id, object.object_id());
+            }
+            let base_state = state_builder.build(&state_registry().unwrap()).unwrap();
             let summary = build_capability_summary_projection(
                 principal_id,
                 workspace_id,
@@ -2231,7 +2275,7 @@ mod tests {
                 workspace_id,
                 transaction_id,
                 principal_id,
-                base_objects: vec![base_object],
+                base_objects,
                 base_state,
                 policy,
                 candidate,
@@ -2714,6 +2758,31 @@ mod tests {
             CandidateDecision::StaleEntity,
             3,
             "CANDIDATE_APPLY_EXACT_PREIMAGE_MISMATCH",
+        );
+    }
+
+    #[test]
+    fn t07_live_bound_target_identity_collides_on_the_live_binding_branch() {
+        let fixture = Fixture::with_live_binding_collision();
+        let target = fixture.candidate.record.operations[0].target_entity;
+        assert!(
+            fixture
+                .base_state
+                .record
+                .entity_bindings
+                .binary_search_by_key(&target, |(entity, _)| *entity)
+                .is_ok(),
+            "the seeded fault must be a live binding of the derived identity"
+        );
+        // No tombstone is seeded, so only the live-binding predicate can
+        // produce the collision.
+        let output =
+            validate_candidate_bytes(&fixture.context(), &fixture.candidate.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::InvalidIdentity,
+            4,
+            "CANDIDATE_IDENTITY_COLLISION",
         );
     }
 

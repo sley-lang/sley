@@ -2,8 +2,8 @@
   "by_severity": {
     "P0": {
       "PLANNED_EVIDENCE_PRESENT": 6,
-      "STRUCTURAL_CONTROL_RECORDED": 4,
-      "SYMBOL_REALIZED_WITH_EXERCISE": 36
+      "STRUCTURAL_CONTROL_RECORDED": 3,
+      "SYMBOL_REALIZED_WITH_EXERCISE": 37
     },
     "P1": {
       "PLANNED_EVIDENCE_PRESENT": 3,
@@ -12,19 +12,28 @@
   },
   "contract": "sley2.threat-coverage-report.v1",
   "independent_security_review": "PENDING",
-  "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a file that mentions the symbol also carries a test or assertion, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
+  "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "edec8738d5f5fbfd43a62c4c3e26210a9e17776f7d90a6534d653d05863acdf6",
+  "report_digest": "b276f8e95f27f833c5ce1d0d6f3b71d9ec0d2212ffa3e036d4487fac3e4f3405",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
-    "STRUCTURAL_CONTROL_RECORDED": 4,
-    "SYMBOL_REALIZED_WITH_EXERCISE": 43
+    "STRUCTURAL_CONTROL_RECORDED": 3,
+    "SYMBOL_REALIZED_WITH_EXERCISE": 44
   },
   "threat_count": 56,
   "threats": [
     {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-repo/src/compare.rs#tests",
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-state-root/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 26,
       "expected_failure_code": "SCB_MALFORMED",
       "id": "T01",
       "located_file_count": 24,
@@ -72,6 +81,15 @@
       "threat": "malformed SCB1"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-schema/src/lib.rs#tests",
+        "crates/sley-state-root/src/lib.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests"
+      ],
+      "exercised_source_count": 20,
       "expected_failure_code": "SCB_NON_CANONICAL",
       "id": "T02",
       "located_file_count": 20,
@@ -115,6 +133,15 @@
       "threat": "alternate noncanonical encoding"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-repo/src/gc.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-state-root/src/lib.rs#tests",
+        "crates/sley-store/src/lib.rs#tests",
+        "crates/sley-txn/src/codec.rs#tests"
+      ],
+      "exercised_source_count": 22,
       "expected_failure_code": "SCB_DIGEST_MISMATCH",
       "id": "T03",
       "located_file_count": 21,
@@ -153,6 +180,14 @@
       "threat": "object hash mismatch"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-store/src/lib.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests",
+        "fuzz/targets/repository_pack_importer.rs"
+      ],
+      "exercised_source_count": 5,
       "expected_failure_code": "STORE_OBJECT_SUBSTITUTION",
       "id": "T04",
       "located_file_count": 7,
@@ -186,6 +221,10 @@
       "threat": "object substitution"
     },
     {
+      "exercised_in": [
+        "crates/sley-schema/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "SCHEMA_DOWNGRADE",
       "id": "T05",
       "located_file_count": 1,
@@ -209,6 +248,15 @@
       "threat": "schema downgrade"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-schema/src/lib.rs#tests",
+        "crates/sley-state-root/src/lib.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests"
+      ],
+      "exercised_source_count": 6,
       "expected_failure_code": "SCHEMA_EPOCH_MISMATCH",
       "id": "T06",
       "located_file_count": 7,
@@ -238,6 +286,10 @@
       "threat": "schema epoch confusion"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "ID_DUPLICATE_ENTITY",
       "id": "T07",
       "located_file_count": 1,
@@ -251,6 +303,7 @@
       "planned_evidence_present": false,
       "realized_code_recorded": true,
       "recorded_exercise": [
+        "t07_live_bound_target_identity_collides_on_the_live_binding_branch",
         "tombstones_graph_errors_and_missing_references_are_distinct"
       ],
       "related_family_symbols": [],
@@ -263,6 +316,10 @@
       "threat": "duplicate logical identity"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "ID_REUSE_FORBIDDEN",
       "id": "T08",
       "located_file_count": 1,
@@ -288,6 +345,11 @@
       "threat": "identity reuse after deletion"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "fuzz/targets/ssmc_graph_cfg_checker.rs"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "GRAPH_UNRESOLVED_REFERENCE",
       "id": "T09",
       "located_file_count": 4,
@@ -316,6 +378,11 @@
       "threat": "dangling reference"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "fuzz/targets/ssmc_graph_cfg_checker.rs"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "GRAPH_CYCLE_FORBIDDEN",
       "id": "T10",
       "located_file_count": 6,
@@ -351,6 +418,10 @@
       "threat": "hostile graph cycles"
     },
     {
+      "exercised_in": [
+        "fuzz/targets/ssmc_graph_cfg_checker.rs"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "CFG_RESOURCE_LIMIT",
       "id": "T11",
       "located_file_count": 6,
@@ -383,6 +454,10 @@
       "threat": "pathological CFG"
     },
     {
+      "exercised_in": [
+        "fuzz/targets/ssmc_graph_cfg_checker.rs"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "TYPE_RESOURCE_LIMIT",
       "id": "T12",
       "located_file_count": 3,
@@ -410,6 +485,10 @@
       "threat": "type-checker nontermination"
     },
     {
+      "exercised_in": [
+        "conformance/root-backed-query/v1/rejected.json"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "QUERY_RESOURCE_LIMIT",
       "id": "T13",
       "located_file_count": 4,
@@ -438,6 +517,11 @@
       "threat": "query explosion"
     },
     {
+      "exercised_in": [
+        "crates/sley-protocol/src/lib.rs#tests",
+        "conformance/root-backed-query/v1/rejected.json"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "QUERY_REQUIRED_FACT_OMITTED",
       "id": "T14",
       "located_file_count": 8,
@@ -469,6 +553,12 @@
       "threat": "truncation hides required facts"
     },
     {
+      "exercised_in": [
+        "crates/sley-protocol/src/server.rs#tests",
+        "crates/sley-protocol/src/session.rs#tests",
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+      ],
+      "exercised_source_count": 3,
       "expected_failure_code": "SESSION_STALE_HANDLE",
       "id": "T15",
       "located_file_count": 6,
@@ -501,6 +591,15 @@
       "threat": "handle reuse across roots"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-state-root/src/lib.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests",
+        "crates/sley-vm/tests/rw080_codec_envelope.rs"
+      ],
+      "exercised_source_count": 18,
       "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
       "id": "T16",
       "located_file_count": 28,
@@ -545,6 +644,13 @@
       "threat": "oversized mutation list"
     },
     {
+      "exercised_in": [
+        "crates/sley-txn/src/repository.rs#tests",
+        "conformance/candidate-result/v1/accepted.json",
+        "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+      ],
+      "exercised_source_count": 4,
       "expected_failure_code": "STALE_ROOT",
       "id": "T17",
       "located_file_count": 10,
@@ -581,6 +687,11 @@
       "threat": "stale-root commit"
     },
     {
+      "exercised_in": [
+        "conformance/candidate-result/v1/accepted.json",
+        "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "STALE_ENTITY",
       "id": "T18",
       "located_file_count": 4,
@@ -611,6 +722,10 @@
       "threat": "stale-entity commit"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "POLICY_SELF_MODIFICATION",
       "id": "T19",
       "located_file_count": 1,
@@ -637,6 +752,10 @@
       "threat": "candidate modifies own policy"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "SCHEMA_SELF_MODIFICATION",
       "id": "T20",
       "located_file_count": 1,
@@ -662,6 +781,11 @@
       "threat": "candidate modifies validator epoch"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "POLICY_ORACLE_SELF_MODIFICATION",
       "id": "T21",
       "located_file_count": 3,
@@ -693,6 +817,11 @@
       "threat": "candidate weakens mandatory tests"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "CAP_AUTHENTICATOR_INVALID",
       "id": "T22",
       "located_file_count": 2,
@@ -717,6 +846,11 @@
       "threat": "capability forgery"
     },
     {
+      "exercised_in": [
+        "crates/sley-adapter/src/lib.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "CAP_REPLAY",
       "id": "T23",
       "located_file_count": 2,
@@ -741,6 +875,11 @@
       "threat": "capability replay"
     },
     {
+      "exercised_in": [
+        "crates/sley-adapter/src/lib.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "CAP_SCOPE_MISMATCH",
       "id": "T24",
       "located_file_count": 3,
@@ -766,6 +905,11 @@
       "threat": "capability scope confusion"
     },
     {
+      "exercised_in": [
+        "crates/sley-adapter/src/lib.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "ADAPTER_IDENTITY_MISMATCH",
       "id": "T25",
       "located_file_count": 2,
@@ -794,6 +938,11 @@
       "threat": "adapter impersonation"
     },
     {
+      "exercised_in": [
+        "crates/sley-adapter/src/lib.rs#tests",
+        "crates/sley-policy/src/candidate_validation.rs#tests"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "ADAPTER_TYPE_MISMATCH",
       "id": "T26",
       "located_file_count": 3,
@@ -822,6 +971,10 @@
       "threat": "adapter response injection"
     },
     {
+      "exercised_in": [
+        "crates/sley-adapter/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "ADAPTER_PATH_INVALID",
       "id": "T27",
       "located_file_count": 1,
@@ -849,6 +1002,8 @@
       "threat": "path traversal"
     },
     {
+      "exercised_in": [],
+      "exercised_source_count": 0,
       "expected_failure_code": "ADAPTER_SYMLINK_ESCAPE",
       "id": "T28",
       "located_file_count": 0,
@@ -874,6 +1029,8 @@
       "threat": "symlink escape"
     },
     {
+      "exercised_in": [],
+      "exercised_source_count": 0,
       "expected_failure_code": "VM_AMBIENT_STATE_FORBIDDEN",
       "id": "T29",
       "located_file_count": 0,
@@ -904,6 +1061,10 @@
       "threat": "environment leakage"
     },
     {
+      "exercised_in": [
+        "crates/sley-vm/src/execute.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "VM_OUTPUT_LIMIT",
       "id": "T30",
       "located_file_count": 4,
@@ -935,6 +1096,8 @@
       "threat": "output flooding"
     },
     {
+      "exercised_in": [],
+      "exercised_source_count": 0,
       "expected_failure_code": "VM_CANCELLED",
       "id": "T31",
       "located_file_count": 2,
@@ -963,6 +1126,11 @@
       "threat": "cancellation bypass"
     },
     {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-vm/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "VM_RESOURCE_LIMIT",
       "id": "T32",
       "located_file_count": 7,
@@ -996,6 +1164,12 @@
       "threat": "fuel/memory bypass"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/tests/rw060_source_free_lifecycle.rs",
+        "crates/sley-vm/src/extended.rs#tests",
+        "crates/sley-vm/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 3,
       "expected_failure_code": "VM_NONDETERMINISM_DETECTED",
       "id": "T33",
       "located_file_count": 5,
@@ -1029,6 +1203,14 @@
       "threat": "VM nondeterminism"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests",
+        "conformance/scb1/v1/rejected.json",
+        "oracle/scb1/src/sley2_scb1_oracle/codec.py",
+        "oracle/scb1/src/sley2_scb1_oracle/mutation_value.py"
+      ],
+      "exercised_source_count": 5,
       "expected_failure_code": "VM_FLOAT_PROFILE_MISMATCH",
       "id": "T34",
       "located_file_count": 7,
@@ -1064,6 +1246,10 @@
       "threat": "floating host divergence"
     },
     {
+      "exercised_in": [
+        "crates/sley-vm/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "CACHE_BINDING_MISMATCH",
       "id": "T35",
       "located_file_count": 2,
@@ -1088,10 +1274,18 @@
         "VM_LOWER_CACHE_KEY_UNSUPPORTED"
       ],
       "severity": "P0",
-      "state": "STRUCTURAL_CONTROL_RECORDED",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
       "threat": "cache poisoning"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-store/src/lib.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests",
+        "fuzz/targets/repository_pack_importer.rs"
+      ],
+      "exercised_source_count": 5,
       "expected_failure_code": "STORE_DERIVED_INPUT_FORBIDDEN",
       "id": "T36",
       "located_file_count": 7,
@@ -1127,6 +1321,10 @@
       "threat": "derived index treated as canonical"
     },
     {
+      "exercised_in": [
+        "crates/sley-store/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "RECOVERY_STAGED_OBJECT",
       "id": "T37",
       "located_file_count": 3,
@@ -1154,6 +1352,11 @@
       "threat": "crash during object write"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "RECOVERY_RECEIPT_INCOMPLETE",
       "id": "T38",
       "located_file_count": 5,
@@ -1183,6 +1386,10 @@
       "threat": "crash during receipt write"
     },
     {
+      "exercised_in": [
+        "crates/sley-txn/src/repository.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "RECOVERY_REF_CAS_INCOMPLETE",
       "id": "T39",
       "located_file_count": 4,
@@ -1211,6 +1418,10 @@
       "threat": "crash during accepted-head or later ref update"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/src/gc.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "GC_REACHABILITY_VIOLATION",
       "id": "T40",
       "located_file_count": 2,
@@ -1225,8 +1436,11 @@
       "owner": "sley-store",
       "planned_evidence_path": "evidence/security/T40/",
       "planned_evidence_present": false,
-      "realized_code_recorded": false,
-      "recorded_exercise": [],
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "t40_reachable_candidate_in_a_corrupted_plan_trips_the_guard_before_any_delete",
+        "t40_seed_reachable_candidate_assertion_is_effective"
+      ],
       "related_family_symbols": [],
       "required_test": "graph/pin/lease property",
       "searched_codes": [
@@ -1237,6 +1451,11 @@
       "threat": "GC deletes reachable object"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/src/exchange.rs#tests",
+        "conformance/repository-exchange/v1/rejected.json"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "PACK_INVALID",
       "id": "T41",
       "located_file_count": 1,
@@ -1262,6 +1481,10 @@
       "threat": "malicious pack"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "PACK_DECOMPRESSION_LIMIT",
       "id": "T42",
       "located_file_count": 1,
@@ -1287,6 +1510,8 @@
       "threat": "decompression bomb"
     },
     {
+      "exercised_in": [],
+      "exercised_source_count": 0,
       "expected_failure_code": "MERGE_CHANGE_LOSS",
       "id": "T43",
       "located_file_count": 2,
@@ -1316,6 +1541,10 @@
       "threat": "merge loses change"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/src/merge.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "MERGE_CONFLICT_REQUIRED",
       "id": "T44",
       "located_file_count": 2,
@@ -1344,6 +1573,15 @@
       "threat": "merge silently chooses conflict"
     },
     {
+      "exercised_in": [
+        "crates/sley-protocol/src/lib.rs#tests",
+        "crates/sley-protocol/src/server.rs#tests",
+        "conformance/entity-read/v2/accepted.json",
+        "conformance/entity-read/v2/inputs.json",
+        "conformance/entity-read/v2/rejected.json",
+        "conformance/smp1-json-bridge/v1/rejected.json"
+      ],
+      "exercised_source_count": 8,
       "expected_failure_code": "PROTOCOL_DOWNGRADE",
       "id": "T45",
       "located_file_count": 8,
@@ -1378,6 +1616,13 @@
       "threat": "protocol downgrade"
     },
     {
+      "exercised_in": [
+        "crates/sley-protocol/src/lib.rs#tests",
+        "conformance/entity-read/v2/inputs.json",
+        "conformance/entity-read/v2/rejected.json",
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+      ],
+      "exercised_source_count": 4,
       "expected_failure_code": "PROTOCOL_REQUEST_ID_CONFLICT",
       "id": "T46",
       "located_file_count": 4,
@@ -1408,6 +1653,10 @@
       "threat": "request ID confusion"
     },
     {
+      "exercised_in": [
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "SESSION_WORKSPACE_MISMATCH",
       "id": "T47",
       "located_file_count": 5,
@@ -1439,6 +1688,11 @@
       "threat": "cross-workspace leakage"
     },
     {
+      "exercised_in": [
+        "conformance/candidate-result/v1/accepted.json",
+        "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
+      ],
+      "exercised_source_count": 2,
       "expected_failure_code": "CAPABILITY_DENIED",
       "id": "T48",
       "located_file_count": 4,
@@ -1469,6 +1723,15 @@
       "threat": "model-generated authority claim"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests",
+        "crates/sley-vm/tests/rw080_codec_envelope.rs",
+        "crates/sley-vm/tests/rw080_codec_program_outer.rs",
+        "conformance/candidate-result/v1/rejected.json",
+        "conformance/mutation-candidate/v1/rejected.json"
+      ],
+      "exercised_source_count": 15,
       "expected_failure_code": "SCB_MAGIC_INVALID",
       "id": "T49",
       "located_file_count": 16,
@@ -1507,6 +1770,8 @@
       "threat": "debug dump used as canonical input"
     },
     {
+      "exercised_in": [],
+      "exercised_source_count": 0,
       "expected_failure_code": "REPO_EXTERNAL_METADATA_FORBIDDEN",
       "id": "T50",
       "located_file_count": 0,
@@ -1528,6 +1793,10 @@
       "threat": "Git metadata used as Sley state"
     },
     {
+      "exercised_in": [
+        "crates/sley-repo/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "PACK_DIGEST_MISMATCH",
       "id": "T51",
       "located_file_count": 1,
@@ -1551,6 +1820,8 @@
       "threat": "ZJX transport tampering"
     },
     {
+      "exercised_in": [],
+      "exercised_source_count": 0,
       "expected_failure_code": "RELEASE_DEPENDENCY_MISMATCH",
       "id": "T52",
       "located_file_count": 0,
@@ -1570,6 +1841,10 @@
       "threat": "dependency substitution"
     },
     {
+      "exercised_in": [
+        "bench/release/tests/test_packaging.py"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "RELEASE_ARTIFACT_MISMATCH",
       "id": "T53",
       "located_file_count": 4,
@@ -1602,6 +1877,8 @@
       "threat": "release artifact substitution"
     },
     {
+      "exercised_in": [],
+      "exercised_source_count": 0,
       "expected_failure_code": "RELEASE_SECRET_FINDING",
       "id": "T54",
       "located_file_count": 0,
@@ -1621,6 +1898,8 @@
       "threat": "secret committed in fixtures"
     },
     {
+      "exercised_in": [],
+      "exercised_source_count": 0,
       "expected_failure_code": "BENCH_CONTROL_VIOLATION",
       "id": "T55",
       "located_file_count": 2,
@@ -1652,6 +1931,15 @@
       "threat": "benchmark contamination/cherry-pick"
     },
     {
+      "exercised_in": [
+        "crates/sley-cli/tests/cli.rs",
+        "crates/sley-protocol/src/lib.rs#tests",
+        "crates/sley-protocol/src/server.rs#tests",
+        "conformance/entity-read/v2/inputs.json",
+        "conformance/entity-read/v2/rejected.json",
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+      ],
+      "exercised_source_count": 6,
       "expected_failure_code": "SESSION_UNKNOWN",
       "id": "T56",
       "located_file_count": 8,
