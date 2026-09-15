@@ -211,15 +211,24 @@ pub struct RootQueryInput<'a> {
 impl RootQueryInput<'_> {
     /// Checks the section 1 binding rules.
     ///
+    /// Section 1 carve-out: a snapshot whose completeness is not
+    /// `CompleteRoot(2)` is not a binding failure. Both entry points
+    /// (`build_root_query_request` and `execute_root_query`) route arm
+    /// disagreement through the arm gate as `QUERY_PROFILE_UNSUPPORTED`
+    /// (precedence item 2) before this check runs, so the completeness
+    /// comparison below is a defensive residue that the gated entry points
+    /// never reach with an arm-1 snapshot; it is not the
+    /// `QUERY_ROOT_MISMATCH` arm rule.
+    ///
     /// # Errors
     ///
-    /// Returns `QUERY_ROOT_MISMATCH` when the snapshot, bodies, bindings,
-    /// facts, or fingerprints disagree, and when the nine `STATE_ROOT_V1`
-    /// fields the input carries do not recompute to the claimed root. The
-    /// recompute binds every caller-supplied answer-bearing fact (the bound
-    /// `ObjectId` values, the entry points, the dependency roots, the three
-    /// roots, and the interpretation flags) instead of checking shape
-    /// agreement alone.
+    /// Returns `QUERY_ROOT_MISMATCH` when the snapshot context, bodies,
+    /// bindings, facts, or fingerprints disagree, and when the nine
+    /// `STATE_ROOT_V1` fields the input carries do not recompute to the
+    /// claimed root. The recompute binds every caller-supplied
+    /// answer-bearing fact (the bound `ObjectId` values, the entry points,
+    /// the dependency roots, the three roots, and the interpretation flags)
+    /// instead of checking shape agreement alone.
     pub fn verify(&self) -> Result<(), RootQueryError> {
         if self.snapshot.completeness() != IndexCompleteness::CompleteRoot
             || self.snapshot.context().schema_epoch != self.schema_epoch
@@ -1891,16 +1900,22 @@ pub(crate) mod tests {
         ]
     }
 
-    /// Section 9 (revision 6): the frozen fixture carries one dependency
-    /// root and one entry point, so the fixture walks of classes 10 and 11
-    /// are degenerate and a second item cannot be added to the input (a
-    /// root without its dependency-binding entity is
+    /// Section 9 (revision 6, extended in revision 7): the frozen fixture
+    /// carries one dependency root, one entry point, and one package
+    /// dependency, so the fixture walks of classes 7, 10, and 11 are
+    /// degenerate and a second item cannot be added to the input (a root
+    /// without its dependency-binding entity is
     /// `RootDependencyRootsMismatch` at the S20-250 judgment). These unit
-    /// walks pin the truncated-emission arms of `Roots` and `EntryRows` at
-    /// the paging layer over a two-item complete result at limit 1: page
-    /// one is truncated with the first key as `next_after`, page two
-    /// returns the second item untruncated, and the union is the complete
-    /// result with the exact `total_count` on both pages.
+    /// walks pin the truncated-emission arms of `Roots`, `EntryRows`,
+    /// `DependencyRows` (class 7, key `row.binding`), and
+    /// `InventoryEntries` (class 8, key `entry.entity`) at the paging
+    /// layer over a two-item complete result at limit 1: page one is
+    /// truncated with the first key as `next_after`, page two returns the
+    /// second item untruncated, and the union is the complete result in
+    /// key order with the exact `total_count` on both pages. Both requests
+    /// of every walk go through `build_root_query_request` over the real
+    /// fixture, so limits, the arm gate, cursor typing, and `verify()` run;
+    /// only the `Complete` fed to `page()` is synthetic.
     #[test]
     fn single_item_classes_walk_two_items_at_limit_one() {
         let owned = Owned::new();
@@ -2009,6 +2024,140 @@ pub(crate) mod tests {
                 assert_eq!(b[0].entry_point, rows[1].entry_point);
             }
             other => panic!("expected entry pages, got {other:?}"),
+        }
+
+        // Class 7 `ListPackageDependencies`: `DependencyRows` keyed by
+        // `row.binding` with an entity cursor. `id(0x03)` is the fixture
+        // package the arm gate admits.
+        let dependency_rows = [
+            DependencyRow {
+                binding: id(0x40),
+                dependency_root: StateRoot::from_bytes([0x09; 32]),
+                external_package: id(0x03),
+                local_namespace: id(0x04),
+            },
+            DependencyRow {
+                binding: id(0x41),
+                dependency_root: StateRoot::from_bytes([0x09; 32]),
+                external_package: id(0x03),
+                local_namespace: id(0x04),
+            },
+        ];
+        let first_request = build_root_query_request(
+            &input,
+            RootQuery::ListPackageDependencies { package: id(0x03) },
+            one,
+            true,
+            None,
+        )
+        .unwrap();
+        let first = page(
+            Complete {
+                result: RootQueryResult::DependencyRows(dependency_rows.to_vec()),
+            },
+            &first_request,
+        )
+        .unwrap();
+        assert_eq!(
+            (first.total_count, first.returned, first.truncated),
+            (2, 1, true)
+        );
+        assert_eq!(
+            first.next_after,
+            Some(Cursor::Entity(dependency_rows[0].binding))
+        );
+        let second_request = build_root_query_request(
+            &input,
+            RootQuery::ListPackageDependencies { package: id(0x03) },
+            one,
+            true,
+            first.next_after,
+        )
+        .unwrap();
+        let second = page(
+            Complete {
+                result: RootQueryResult::DependencyRows(dependency_rows.to_vec()),
+            },
+            &second_request,
+        )
+        .unwrap();
+        assert_eq!(
+            (second.total_count, second.returned, second.truncated),
+            (2, 1, false)
+        );
+        assert_eq!(second.next_after, None);
+        match (&first.result, &second.result) {
+            (RootQueryResult::DependencyRows(a), RootQueryResult::DependencyRows(b)) => {
+                assert_eq!(
+                    (a.as_slice(), b.as_slice()),
+                    (&dependency_rows[..1], &dependency_rows[1..])
+                );
+            }
+            other => panic!("expected dependency-row pages, got {other:?}"),
+        }
+
+        // Class 8 `ListNamespaceMembers`: `InventoryEntries` keyed by
+        // `entry.entity` with an entity cursor. `id(0x04)` is the fixture
+        // namespace the arm gate admits.
+        let entries = [
+            IndexInventoryEntry {
+                entity: id(0x50),
+                kind: ModeledEntityKind::Function,
+            },
+            IndexInventoryEntry {
+                entity: id(0x51),
+                kind: ModeledEntityKind::TypeDef,
+            },
+        ];
+        let first_request = build_root_query_request(
+            &input,
+            RootQuery::ListNamespaceMembers {
+                namespace: id(0x04),
+            },
+            one,
+            true,
+            None,
+        )
+        .unwrap();
+        let first = page(
+            Complete {
+                result: RootQueryResult::InventoryEntries(entries.to_vec()),
+            },
+            &first_request,
+        )
+        .unwrap();
+        assert_eq!(
+            (first.total_count, first.returned, first.truncated),
+            (2, 1, true)
+        );
+        assert_eq!(first.next_after, Some(Cursor::Entity(entries[0].entity)));
+        let second_request = build_root_query_request(
+            &input,
+            RootQuery::ListNamespaceMembers {
+                namespace: id(0x04),
+            },
+            one,
+            true,
+            first.next_after,
+        )
+        .unwrap();
+        let second = page(
+            Complete {
+                result: RootQueryResult::InventoryEntries(entries.to_vec()),
+            },
+            &second_request,
+        )
+        .unwrap();
+        assert_eq!(
+            (second.total_count, second.returned, second.truncated),
+            (2, 1, false)
+        );
+        assert_eq!(second.next_after, None);
+        match (&first.result, &second.result) {
+            (RootQueryResult::InventoryEntries(a), RootQueryResult::InventoryEntries(b)) => {
+                assert_eq!((a.as_slice(), b.as_slice()), (&entries[..1], &entries[1..]));
+            }
+            other => panic!("expected inventory-entry pages, got {other:?}"),
         }
     }
 

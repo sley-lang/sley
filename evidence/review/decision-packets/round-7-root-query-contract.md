@@ -50,3 +50,20 @@ governance changes are NOT authorized under the current order.
 Approve the §3/§7/§9/§10 wording amendments (S20-310 owner drafts), or
 decline with the consequence that the S20-320 T14 gate stays
 uncheckable and the listed FAILs stand.
+
+## Disposition
+
+Approved. On 2026-09-15 the operator authorized the section 3/7/9/10
+wording amendments as S20-310 owner drafts, consistent with the reviewed
+semantics (primary record:
+`~/.config/greyforge/agents/handoffs/2026-09-15-sley2-qualification-reconciliation.json`,
+field `operator_authorization_2026_09_15`). Implemented as contract
+revision 6 (f7df74f); the a809906 council round (Ariadne, Nabu, Vulcan:
+REVISE, no code defect) found the section 7 audit attribution, class
+names, and class-1 count, the section 3 duplicate, and the section 9
+evidence rule wanting, and revision 7 repairs them. Items 3-6 were closed
+by revision 5; of item 9, the checker's contract-revision assertion is
+added with revision 7 (`scripts/check_root_backed_query_profile.py`),
+while its freeze-sequencing and vector-binding parts remain governance
+work. Section 1 rule 1 and ADR-0030 were outside this grant and remain
+as they are.

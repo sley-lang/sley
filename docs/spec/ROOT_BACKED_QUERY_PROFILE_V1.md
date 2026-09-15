@@ -1,6 +1,6 @@
 # Root-Backed Query Profile v1
 
-Status: S20-310 full contract draft, revision 6 (2026-09-15); implemented
+Status: S20-310 full contract draft, revision 7 (2026-09-15); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
 and the package is not complete. Revision 5 repairs the review-round P1/P2
@@ -16,7 +16,13 @@ consumer applies, section 7 names which answer facts a cache hit supplies
 and which the verified record supplies, section 9 states the one-walk-per-
 cursor-key-type evidence rule with the unit walks that pin the truncated
 arms of the single-item classes, and section 10 states that the
-nineteen-class enumeration is chosen, not derived. Revision 4 composes the entity-read
+nineteen-class enumeration is chosen, not derived. Revision 7 repairs the
+a809906 council round's items: the section 7 audit attribution (the
+hit-path decode audit is separated from the off-path
+`verify_cached_snapshot` byte-rebuild audit), the section 7 class names
+and class-1 direct-edge count, the section 3 duplicate sentence, and the
+section 9 evidence rule (the unit walks now cover `Roots`, `EntryRows`,
+`DependencyRows`, and `InventoryEntries`). Revision 4 composes the entity-read
 surface (section 11): the S20-310 methods 306/307 stay governed by
 `docs/spec/ENTITY_READ_PROFILE_V2.md`, whose owner, adapter, corpus, and
 vector line are listed as profile surface without changing the
@@ -247,11 +253,10 @@ member identity, for `ListEntryPoints` the entry-point identity, for edge
 classes the canonical `(dependent, dependency, kind)` triple, for
 `ListDependencyRoots` the `StateRoot`. Keys are unique identities, so pages
 compose only when successive requests are identical except for `after`
-(same snapshot, root, epoch, workspace, limits, class, and body): then the
-union of the pages is the complete result and keys strictly increase
-across the walk, so no page can hide a fact. Because `total_count`
-is exact on every page and the key order is canonical, the union of the
-pages is the complete result and no page can hide a fact.
+(same snapshot, root, epoch, workspace, limits, class, and body): then,
+because `total_count` is exact on every page and the key order is
+canonical, keys strictly increase across the walk, the union of the pages
+is the complete result, and no page can hide a fact.
 
 A consumer accepts a response as the complete result under exactly one of
 two rules. A standalone response is complete iff `after = None` and
@@ -387,23 +392,40 @@ run_root_query(repository, revision, query, limits, allow_continuation, after)
 ```
 
 The revision is an S20-390 verified revision. The snapshot comes from the
-S20-300 cache (`Hit` or `Rebuilt`). A hit supplies exactly the derived
-edge facts: `direct_edges` and their inverse, which answer the edge
+S20-300 cache (`Hit` or `Rebuilt`). A hit supplies the derived edge facts,
+`direct_edges` and their inverse, and those facts answer exactly the edge
 classes 12 through 15 (`ListDirectDependencies`, `ListDirectDependents`,
-`ListImpactClosure`, `ListReverseImpactClosure`) and nothing else. Every
-other answer fact is record-derived: bodies, bindings, fingerprints,
-kinds, namespace membership, entry points, dependency roots, and the
-section 1 binding come from the verified objects and the verified
-`StateRootRecord`, never from the cache. A hit is admitted only through
-`decode_complete_root_snapshot`, whose decode-time audit rebuilds the
-inverse edge groups from the direct edges and refuses a snapshot whose
-groups differ (`verify_cached_snapshot`, the byte-rebuild audit of
-S20-300), and the section 1 binding is re-checked on every hit, so a
-cached inventory can never disagree with the record and a forged edge
-set cannot reach the engine. The surface is read-only derived query
-evidence: it grants no root, commit, policy, mutation, session, or
-protocol authority, and nothing it returns is an input to validation,
-comparison, merge, commit, exchange, GC, or recovery.
+`ReverseImpactClosure`, `ForwardDependencyClosure`) and the direct-edge
+count that `GetRootSummary` (class 1) reports; no other answer fact comes
+from a hit. Every other answer fact is record-derived: bodies, bindings,
+fingerprints, kinds, namespace membership, entry points, dependency
+roots, and the section 1 binding come from the verified objects and the
+verified `StateRootRecord`, never from the cache (the inventory a hit
+carries is read for identities and kinds, but the section 1 binding,
+re-checked on every request, forces each of them equal to the verified
+objects', so those answers are record-determined). Two audits apply to a
+cached record, and they are distinct. The hit-path admission audit is the
+decode-time audit inside `decode_complete_root_snapshot`: the hit path
+(`complete_root_snapshot` -> `accept_cached` -> decode, then alignment of
+the cached inventory identities with the record's `entity_bindings`, in
+`crates/sley-repo/src/index_cache.rs`) checks the format, context, and
+arm, authenticates the record's self-digest trailer, rebuilds the inverse
+edge groups from the direct edges, and refuses a snapshot whose groups
+disagree. That audit proves the internal consistency of the cached edge
+set, not its agreement with the objects, and this profile claims no more:
+under the S20-300 hit-authority rule a self-consistent cached edge set is
+authoritative on a hit, accepted only under the repository authority that
+wrote it and only for this read-only derived query surface. The
+byte-rebuild audit `verify_cached_snapshot` (S20-300) rebuilds the
+snapshot from the revision's objects and compares the cached record byte
+for byte; it is a separate off-path audit for Tier 2 evidence that the
+hit path never calls. Exported evidence never rests on a bare hit:
+`run_root_query_fresh` (`crates/sley-repo/src/root_query.rs`) answers
+from a fresh rebuild and is the exported-evidence path. The surface is
+read-only derived query evidence: it grants no root, commit, policy,
+mutation, session, or protocol authority, and nothing it returns is an
+input to validation, comparison, merge, commit, exchange, GC, or
+recovery.
 
 ## 8. Stable failures and precedence
 
@@ -454,11 +476,17 @@ Implementation acceptance requires at least:
   the complete result with exact `total_count` on every page, plus the
   truncated-without-continuation, invalid-cursor, and depth-cut failures;
   where the frozen fixture carries a single item for a class (one
-  dependency root, one entry point), the fixture walk is degenerate (page
+  dependency root for `ListDependencyRoots`, one entry point for
+  `ListEntryPoints`, one package dependency for
+  `ListPackageDependencies`), a fixture walk is degenerate at best (page
   one complete, page two empty past the end), so the truncated-emission
-  arms of those classes are pinned by unit walks at limit 1 over a
-  two-item input in `crates/sley-query/src/root_query.rs`, which is the
-  evidence rule rather than a fixture with invented items;
+  arms of the paging layer are pinned by unit walks at limit 1 over a
+  two-item complete result in `crates/sley-query/src/root_query.rs`
+  (`single_item_classes_walk_two_items_at_limit_one`, covering the
+  `Roots`, `EntryRows`, `DependencyRows`, and `InventoryEntries` arms,
+  the last for `ListNamespaceMembers`, whose fixture result no vector
+  walks), which is the evidence rule rather than a fixture with invented
+  items;
 - 128 equal queries producing byte-identical identities and records;
 - the class-kind applicability matrix, the binding failure matrix
   (`QUERY_ROOT_MISMATCH`), and the restricted arm-1 snapshot rejected with
