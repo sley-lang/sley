@@ -59,13 +59,17 @@ The implementation provides:
   `InventoryEntries` arms). Implementation, corpus, oracle, and fuzz slice
   refreshed accordingly.
 - Conformance corpus: `conformance/root-backed-query/v1/accepted.json`
-  (twenty-three vectors: all nineteen classes over the frozen S20-250
+  (twenty-seven vectors: all nineteen classes over the frozen S20-250
   fixture with the S20-300 snapshot, the honestly recomputed root, epoch,
-  workspace, synthetic bindings, fingerprints, and roots, plus two-page
-  continuation walks over entities and edges) and `rejected.json` (eight failures: truncation
-  without continuation, wrong cursor type, cursor on a single-key class,
-  class not applicable, unresolved entity, noncanonical filter, depth cut,
-  work exhausted), drift-gated by
+  workspace, synthetic bindings, fingerprints, and roots, plus four two-page
+  continuation walks, one per cursor key type and the section 9 single-item
+  classes: entities (`page-namespaces`), edges (`page-edges`), dependency
+  roots (`page-roots`), and entry points (`page-entry-points`)) and
+  `rejected.json` (ten mutations: truncation without continuation, wrong
+  cursor type, cursor on a single-key class, class not applicable,
+  unresolved entity, noncanonical filter, depth cut, work exhausted, the
+  31008 `QUERY_ROOT_MISMATCH` binding-substituted fact, and the 31000
+  `QUERY_PROFILE_UNSUPPORTED` arm-1 snapshot), drift-gated by
   `scripts/generate_root_backed_query_fixtures.py --check` in `make quick`;
   `scripts/check_root_backed_query_vector.py` recomputes every
   `RootQueryId` and response record from the S20-250 fixture bodies, its
@@ -73,8 +77,12 @@ The implementation provides:
   accounting, paging, and precedence, registered in `make conformance`
   under the frozen oracle environment.
 - Native tests: `sley-query` root-query tests (every class over the
-  fixture with 128-run determinism; continuation walks over entities and
-  edges that union to the complete result with exact totals, plus the
+  fixture with 128-run determinism; continuation walks over entities,
+  edges, dependency roots, and entry points that union to the complete
+  result with exact totals, the revision-7 paging-layer unit walk
+  `single_item_classes_walk_two_items_at_limit_one` pinning the `Roots`,
+  `EntryRows`, `DependencyRows`, and `InventoryEntries` truncated arms at
+  limit 1 over two rows, plus the
   omitted, invalid-cursor, depth-cut, and single-key failures; the
   applicability, resolution, shape, limit, binding, arm-1, foreign-request,
   and drift matrices with the eleven-code table; the section 4 schedule pin
@@ -83,8 +91,9 @@ The implementation provides:
   substituted answer-bearing fact is `QUERY_ROOT_MISMATCH`), one
   `sley-repo` test (rebuild then cache hit answering byte-identical
   records, a by-kind and entity walk against the verified objects, and the
-  cached edges served with the object store removed); `sley-query` 65
-  tests, `sley-repo` 346 tests, `sley-id` 7 tests pass.
+  cached edges served with the object store removed); at revision 7
+  `sley-query` 104 tests, `sley-repo` 377 tests (plus the integration
+  binaries), `sley-id` 7 tests pass.
 - Persistent fuzz: `fuzz/targets/root_query_engine.rs` (structured root
   plus typed query, limits, flag, and cursor; determinism, record length,
   count, truncation, and continuation-walk invariants; the target claims
