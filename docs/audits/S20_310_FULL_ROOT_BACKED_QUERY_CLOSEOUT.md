@@ -1,6 +1,6 @@
 # S20-310 Full Root-Backed Query Closeout
 
-Status: **implemented under the draft Root-Backed Query Profile v1 contract (revision 3); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft Root-Backed Query Profile v1 contract (revision 7, 2026-09-15; revision 3 on 2026-09-03, revision 5 on 2026-09-13, revisions 6 and 7 on 2026-09-15); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 
@@ -43,11 +43,21 @@ The implementation provides:
 
 ## Evidence
 
-- Contract draft revision 3 (revision 2 plus the section 1 root-bound
-  input binding: `verify()` recomputes the `StateRoot` digest from the nine
+- Contract draft revision 7 (2026-09-15) and ADR-0030. Revision 3
+  (2026-09-03) was revision 2 plus the section 1 root-bound input binding
+  (`verify()` recomputes the `StateRoot` digest from the nine
   `STATE_ROOT_V1` fields with `interpretation_flags` in the input, so every
-  caller-declared answer-bearing fact is committed) and ADR-0030;
-  implementation, corpus, oracle, and fuzz slice refreshed accordingly.
+  caller-declared answer-bearing fact is committed); revision 4 composed
+  the entity-read surface (section 11); revision 5 (2026-09-13) repaired
+  the review-round P1/P2 text items; revision 6 (2026-09-15) closed the
+  round-7 wording packet (sections 3, 7, 9, 10) under the 2026-09-15
+  operator authorization; revision 7 (2026-09-15) repairs the a809906
+  council round's section 7 audit attribution, class names, and class-1
+  direct-edge count, the section 3 duplicate sentence, and the section 9
+  evidence rule (the unit walk `single_item_classes_walk_two_items_at_limit_one`
+  now covers the `Roots`, `EntryRows`, `DependencyRows`, and
+  `InventoryEntries` arms). Implementation, corpus, oracle, and fuzz slice
+  refreshed accordingly.
 - Conformance corpus: `conformance/root-backed-query/v1/accepted.json`
   (twenty-three vectors: all nineteen classes over the frozen S20-250
   fixture with the S20-300 snapshot, the honestly recomputed root, epoch,
