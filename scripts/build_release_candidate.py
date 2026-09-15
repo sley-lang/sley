@@ -40,25 +40,14 @@ RELEASE_TARGET = "x86_64-unknown-linux-musl"
 # Link environment that must never influence the release build: any ambient
 # CC (or flags) would reselect the host toolchain behind the target pin.
 SCRUBBED_LINK_ENV = ("CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LD")
-# Build environment that must never influence the release build either
-# (Vulcan P4 at a809906): CARGO_ENCODED_RUSTFLAGS outranks the remap
-# RUSTFLAGS set below, RUSTC / RUSTC_WRAPPER substitute the compiler behind
-# the toolchain pin, and CARGO_PROFILE_RELEASE_* rewrites the release
-# profile without touching the tree. The attestation binds toolchain
-# version strings only, so an override here would attest REPRODUCIBLE for
-# a non-canonical binary that only the second host's CONFLICT could catch.
+# Ambient compiler and profile overrides must not bypass the pinned build.
 SCRUBBED_BUILD_ENV = ("CARGO_ENCODED_RUSTFLAGS", "RUSTC", "RUSTC_WRAPPER")
 SCRUBBED_BUILD_ENV_PREFIXES = ("CARGO_PROFILE_RELEASE_",)
 MANIFEST_CONTRACT = "sley2.release-candidate-manifest.v1"
 EVIDENCE_DIR = ROOT / "evidence/runtime/s20-720-release-candidate"
 INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
 CONFORMANCE_SUBSET = ("conformance/smp1/v1", "conformance/smp1-json-bridge/v1", "conformance/release-demo/v1")
-# Tracked files outside crates/ that the release binary embeds at compile
-# time (`include_str!` / `include_bytes!` in non-test code of crates that
-# sley-cli links): a change to one of them changes bin/sley without
-# touching crates/, so they are artifact inputs (Vulcan P2 at a809906). The
-# unit lane scans every embed under crates/ and refuses a non-test embed
-# outside this surface.
+# Compile-time embeds outside crates/ also change the packaged binary.
 EMBEDDED_INPUT_PATHS = (
     "docs/spec/SSMC1_EPOCH1_SCHEMA.txt",
     "conformance/smp1-json-bridge/v2/methods.json",

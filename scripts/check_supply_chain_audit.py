@@ -15,7 +15,7 @@ INVENTORY_PATH = ROOT / "evidence/security/T52/pre-release-inventory.json"
 SECRET_SCAN_PATH = ROOT / "evidence/security/T54/secret-scan.json"
 SUMMARY_PATH = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 EXPECTED_BLOCKERS: list = []
-EXPECTED_ANCHOR = "724a899b1dfcc0ee8f3bf0b67f647d3156a24895"
+EXPECTED_ANCHOR = "7804f665e0ee65de240c43fe3b56dc89cf7e9d80"
 # The exact installed root license bytes (S20-710 license decision
 # 2026-09-14): the inventory records these digests and the checker pins
 # them, so a modified LICENSE or NOTICE fails instead of passing open.
@@ -213,7 +213,7 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "t52_local_lock_inventory": "PASS",
         "t54_high_confidence_scan": "PASS",
         "history_blobs_scanned": 5950,
-        "history_bytes_scanned": 380_847_122,
+        "history_bytes_scanned": 380847122,
         "secret_patterns": 21,
         "secret_findings": 0,
         "matched_secret_values_emitted": False,

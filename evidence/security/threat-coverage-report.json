@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "2c9e336c49548174288dfc66be9a5580dade90913d69e9341ff621a8b81c17bd",
+  "report_digest": "45acd24f1b9dcdefadc6e3188426f5cd97c625c00dcc3e1099d83b6452dac552",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -1859,12 +1859,13 @@
     },
     {
       "exercised_in": [
-        "bench/release/tests/test_packaging.py"
+        "bench/release/tests/test_packaging.py",
+        "bench/review/tests/test_ga_acceptance_report.py"
       ],
-      "exercised_source_count": 1,
+      "exercised_source_count": 2,
       "expected_failure_code": "RELEASE_ARTIFACT_MISMATCH",
       "id": "T53",
-      "located_file_count": 4,
+      "located_file_count": 5,
       "located_in": {
         "checkers": [
           "scripts/build_release_candidate.py",
@@ -1872,7 +1873,8 @@
           "scripts/check_reproducibility_and_independent_conformance.py"
         ],
         "harness": [
-          "bench/release/tests/test_packaging.py"
+          "bench/release/tests/test_packaging.py",
+          "bench/review/tests/test_ga_acceptance_report.py"
         ]
       },
       "owner": "release",

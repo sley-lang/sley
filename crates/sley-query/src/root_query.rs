@@ -1900,22 +1900,8 @@ pub(crate) mod tests {
         ]
     }
 
-    /// Section 9 (revision 6, extended in revision 7): the frozen fixture
-    /// carries one dependency root, one entry point, and one package
-    /// dependency, so the fixture walks of classes 7, 10, and 11 are
-    /// degenerate and a second item cannot be added to the input (a root
-    /// without its dependency-binding entity is
-    /// `RootDependencyRootsMismatch` at the S20-250 judgment). These unit
-    /// walks pin the truncated-emission arms of `Roots`, `EntryRows`,
-    /// `DependencyRows` (class 7, key `row.binding`), and
-    /// `InventoryEntries` (class 8, key `entry.entity`) at the paging
-    /// layer over a two-item complete result at limit 1: page one is
-    /// truncated with the first key as `next_after`, page two returns the
-    /// second item untruncated, and the union is the complete result in
-    /// key order with the exact `total_count` on both pages. Both requests
-    /// of every walk go through `build_root_query_request` over the real
-    /// fixture, so limits, the arm gate, cursor typing, and `verify()` run;
-    /// only the `Complete` fed to `page()` is synthetic.
+    /// The frozen fixture has only one item in these classes, so synthetic
+    /// complete results exercise truncation while requests use real validation.
     #[test]
     fn single_item_classes_walk_two_items_at_limit_one() {
         let owned = Owned::new();

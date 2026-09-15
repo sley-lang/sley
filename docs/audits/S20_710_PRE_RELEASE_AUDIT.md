@@ -130,3 +130,12 @@ execution; the pre-decision record above is preserved unchanged.
   the new anchor, SBOM/provenance approval, history re-anchor at the release
   candidate, and disposition of every finding before S20-710 can pass. No
   legal compatibility opinion is offered here.
+
+## Attribution rewrite anchor mapping — 2026-09-15
+
+The pre-rewrite anchor `724a899` maps to reachable commit `7804f66`.
+Both have tree `b29d1681ba4508ae0b9dd600a131cd58a467c93d`. The mapping
+repairs fresh-clone regeneration after the attribution rewrite; it does not
+advance the audit boundary to the current release candidate. The history
+scan is regenerated over the rewritten ancestry and its counts are recorded
+in the machine summary. The old review artifacts remain historical evidence.

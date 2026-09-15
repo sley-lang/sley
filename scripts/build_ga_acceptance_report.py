@@ -39,7 +39,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+
 from bench.accounting import report as accounting
+import build_reproducibility_report as reproducibility
 
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 CONFORMANCE = ROOT / "evidence/conformance/independent-conformance-report.json"
@@ -49,6 +53,7 @@ ANTI_GOALS = ROOT / "evidence/validation/anti-goal-conformance.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 REPRO = ROOT / "evidence/release/reproducibility-report.json"
 SECRET_SCAN = ROOT / "evidence/security/T54/secret-scan.json"
+CANDIDATE_CONTENT = ROOT / "evidence/release/candidate-content-checks.json"
 CYCLONEDX = ROOT / "evidence/release/sbom/cyclonedx-1.6.json"
 SPDX = ROOT / "evidence/release/sbom/spdx-2.3.json"
 PROVENANCE = ROOT / "evidence/release/provenance.json"
@@ -251,6 +256,7 @@ def load_sources() -> dict:
         "register": load(REGISTER),
         "repro": load(REPRO),
         "secret_scan": optional(SECRET_SCAN),
+        "candidate_content": optional(CANDIDATE_CONTENT),
         "cyclonedx": optional(CYCLONEDX),
         "spdx": optional(SPDX),
         "provenance": optional(PROVENANCE),
@@ -409,8 +415,9 @@ def derive_criteria(sources: dict) -> list[dict]:
     matrix_rows = crash.get("matrix_rows")
     crash_matrix = complete("s20_530_crash_recovery") and isinstance(matrix_rows, int) and matrix_rows > 0
 
-    attestations = [row for row in repro.get("attestations", []) or [] if isinstance(row, dict)]
-    attestation = attestations[0] if attestations else {}
+    selected = reproducibility.select_attestation(repro)
+    attestation = selected or {}
+    attestations = reproducibility.admissible_attestations(repro, attestation.get("commit")) if selected else []
     release = summary.get("release_decision")
     release = release if isinstance(release, dict) else {}
     final_commit_fixed = (
@@ -425,12 +432,14 @@ def derive_criteria(sources: dict) -> list[dict]:
     packaging = section("release_candidate_packaging")
     demo = str(packaging.get("candidate_demo", ""))
     demo_passed = complete("release_candidate_packaging") and re.fullmatch(r"PASS_\d+_STEPS", demo) is not None
-    scan = sources.get("secret_scan") or {}
+    content = sources.get("candidate_content") or {}
     scan_clean = (
-        scan.get("contract") == "s20-710-secret-scan-v1"
-        and scan.get("result") == "PASS_NO_HIGH_CONFIDENCE_FINDINGS"
-        and scan.get("findings") == []
-        and scan.get("matched_secret_values_emitted") is False
+        bool(selected)
+        and content.get("contract") == "sley2.candidate-content-checks.v1"
+        and verify_report_digest(content)
+        and reproducibility.binds_candidate(attestation, content)
+        and content.get("result") == "PASS"
+        and content.get("checks") == {"manifest": True, "forbidden_content": True}
     )
     bom = sources.get("cyclonedx") or {}
     spdx = sources.get("spdx") or {}
@@ -447,8 +456,7 @@ def derive_criteria(sources: dict) -> list[dict]:
     )
     reproducible = (
         repro.get("result") == "MULTI_HOST_REPRODUCIBLE"
-        and bool(attestations)
-        and all(row.get("reproducibility") == "REPRODUCIBLE" for row in attestations)
+        and len({row["host_label"] for row in attestations}) >= reproducibility.REQUIRED_HOSTS
         and isinstance(repro.get("distinct_hosts"), int)
         and isinstance(repro.get("required_hosts"), int)
         and repro["distinct_hosts"] >= repro["required_hosts"]
@@ -593,8 +601,9 @@ def derive_criteria(sources: dict) -> list[dict]:
          f"the S20-720 unpacked demo runs the packaged binary outside the tree: candidate_demo {demo or 'absent'}, "
          f"packaging status {status('release_candidate_packaging')}"),
         ("26.8 packaging", "artifact contains no secrets, local paths, caches, or debug files", state(scan_clean),
-         f"the S20-720 forbidden content scan (evidence/security/T54/secret-scan.json) reports {scan.get('result', 'no scan')} with "
-         f"{len(scan.get('findings', []) or []) if scan else 'no'} findings"),
+         f"S20-720 artifact checks ({display(CANDIDATE_CONTENT)}) result {content.get('result', 'absent')}; "
+         f"manifest/member and forbidden-content checks {content.get('checks', {})}; "
+         f"bound to selected candidate {scan_clean}"),
         ("26.8 packaging", "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded", state(records_recorded, GATED),
          f"attested manifest digest {str(attestation.get('manifest_digest', ''))[:12] or 'none'}, artifact digest "
          f"{str(attestation.get('artifact_sha256', ''))[:12] or 'none'}, {attestation.get('artifact_size_bytes', 'no')} bytes; "

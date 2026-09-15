@@ -154,7 +154,7 @@ def build_entries(sources: dict) -> list[dict]:
     test_inventory = sources["inventory_of_tests"]
     threats = sources["threat_coverage"]
     acceptance = sources["ga_acceptance"]
-    attestation = repro["attestations"][0] if repro.get("attestations") else None
+    attestation = ga_builder().reproducibility.select_attestation(repro)
     succession = summary.get("succession", {})
     audit = summary.get("s20_710_pre_release_audit", {})
     trials = succession.get("trials_executed", 0)

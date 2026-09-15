@@ -1,0 +1,13 @@
+{
+  "artifact_sha256": "6d970bf4d5da78b034a837109348e3d1e373c6566cfae67a4fd84b447160e159",
+  "artifact_size_bytes": 2190465,
+  "checks": {
+    "forbidden_content": true,
+    "manifest": true
+  },
+  "commit": "7a94a4a31272a6dc7588aff902dcde81f7d10a4e",
+  "contract": "sley2.candidate-content-checks.v1",
+  "manifest_digest": "aea8182d7d20258ee98e2ab7df26fa8845ec577f72d2d78d51610a5435b0fa3b",
+  "report_digest": "5b29048b8d87ae88624fa78bfd8475f38a64cbad83405de17fd45f9824f60958",
+  "result": "PASS"
+}

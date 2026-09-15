@@ -109,13 +109,14 @@ class DerivationTests(Fixture):
             elif name == "artifact runs with no source-tree access":
                 summary["release_candidate_packaging"]["candidate_demo"] = "FAIL_3_STEPS"
             elif name == "artifact contains no secrets, local paths, caches, or debug files":
-                sources["secret_scan"]["findings"] = [{"pattern": "probe"}]
+                sources["candidate_content"] = None
             elif name == "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded":
                 sources["provenance"] = None
             elif name == "second clean build establishes reproducibility":
                 sources["repro"]["result"] = "SINGLE_HOST_REPRODUCIBLE"
             elif name == "the source working tree is clean":
-                attestation["working_tree_clean"] = False
+                for row in sources["repro"]["attestations"]:
+                    row["working_tree_clean"] = False
             elif name == "publication remains unauthorized unless separately granted":
                 summary["publication_authorized"] = True
             else:
@@ -150,7 +151,8 @@ class DerivationTests(Fixture):
     def test_contrary_facts_read_in_the_evidence_string(self) -> None:
         sources = self.sources()
         sources["repro"]["result"] = "PACKAGE_NOT_REPRODUCIBLE"
-        sources["repro"]["attestations"][0]["working_tree_clean"] = None
+        for row in sources["repro"]["attestations"]:
+            row["working_tree_clean"] = None
         sources["summary"]["conformance"]["cross_implementation_agreement"] = "FAIL"
         report = ga.build_report(sources)
         self.assertEqual(state_of(report, "second clean build establishes reproducibility"), ga.GATED)
@@ -255,6 +257,10 @@ class RegisterPredicateTests(Fixture):
         criterion = "Nabu approves architectural and cross-product boundaries"
         sources = self.sources()
         register = sources["register"]
+        register["obligations"] = [{
+            "section": "fixture", "field": "nabu_architecture_review",
+            "reviewer": "nabu", "state": "PASS", "disposition": "PASS",
+        }]
         register["unclaimed_carried_findings"] = []
         register["unclassified"] = []
         report = ga.build_report(sources)
@@ -293,6 +299,57 @@ class RegisterPredicateTests(Fixture):
 
 
 class ReleaseAndThresholdTests(Fixture):
+
+    def test_current_candidate_selection_is_shared_with_the_dossier(self) -> None:
+        from scripts import build_reproducibility_report as repro_builder
+        from bench.review.tests.test_decision_dossier import SourceSeparationTests, dossier
+        current = copy.deepcopy(self.live["repro"]["attestations"][0])
+        current["host_label"] = "primary"
+        secondary = {**current, "host_label": "secondary"}
+        archive = {**current, "host_label": "archive", "commit": "d" * 40}
+        for label, attestations, expected in (
+            ("archived host", [archive, current, secondary], current["commit"]),
+            ("tie", [archive, current], None),
+            ("dirty", [{**current, "working_tree_clean": False}], None),
+            ("absent", [], None),
+        ):
+            with self.subTest(label=label):
+                report = dict(self.live["repro"], attestations=attestations)
+                selected = repro_builder.select_attestation(report)
+                self.assertEqual(selected["commit"] if selected else None, expected)
+                sources = self.sources()
+                sources["repro"] = report
+                sources["summary"]["release_decision"] = {
+                    "state": "RELEASE_APPROVED", "final_commit": current["commit"]
+                }
+                criterion = "artifact is built from the final candidate commit"
+                self.assertEqual(state_of(ga.build_report(sources), criterion), ga.EVIDENCED if expected else ga.GATED)
+                dossier_sources = SourceSeparationTests().live_sources()
+                dossier_sources["repro"] = report
+                entries = dossier.build_entries(dossier_sources)
+                actual = next(entry for entry in entries if entry["item"] == "final commit")
+                self.assertEqual(actual["value"], expected)
+
+    def test_artifact_safety_needs_bound_artifact_checks(self) -> None:
+        sources = self.sources()
+        attestation = sources["repro"]["attestations"][0]
+        content = {
+            "contract": "sley2.candidate-content-checks.v1",
+            **{key: attestation[key] for key in ("commit", "artifact_sha256", "manifest_digest", "artifact_size_bytes")},
+            "result": "PASS",
+            "checks": {"manifest": True, "forbidden_content": True},
+        }
+        criterion = "artifact contains no secrets, local paths, caches, or debug files"
+        for change in (None, {"result": "FAIL"}, {"commit": "0" * 40}, {"checks": {"manifest": False, "forbidden_content": True}}, {"checks": {}}, {"report_digest": "0" * 64}):
+            sources["candidate_content"] = None if change is None else dict(content, **change)
+            if change is not None and "report_digest" not in change:
+                sources["candidate_content"]["report_digest"] = ga.digest_of(sources["candidate_content"])
+            self.assertNotEqual(state_of(ga.build_report(sources), criterion), ga.EVIDENCED, change)
+        sources["candidate_content"] = dict(content, report_digest=ga.digest_of(content))
+        self.assertEqual(state_of(ga.build_report(sources), criterion), ga.EVIDENCED)
+        sources["repro"]["attestations"] = []
+        self.assertNotEqual(state_of(ga.build_report(sources), criterion), ga.EVIDENCED)
+
     def test_the_release_approved_path_does_not_crash(self) -> None:
         criterion = "artifact is built from the final candidate commit"
         sources = self.sources()

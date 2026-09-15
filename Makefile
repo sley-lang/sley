@@ -76,6 +76,7 @@ quick:
 	python3 scripts/check_sley2_trial_runner.py
 	python3 scripts/check_succession_accounting.py
 	python3 scripts/check_release_candidate_packaging.py
+	python3 scripts/build_candidate_content_report.py --check
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py
 	python3 scripts/check_finding_register.py
@@ -202,6 +203,7 @@ evidence-refresh:
 	python3 scripts/check_error_symbol_registration.py
 	python3 scripts/generate_supply_chain_evidence.py
 	python3 scripts/build_independent_conformance_report.py
+	python3 scripts/build_candidate_content_report.py
 	python3 scripts/build_standards_sbom.py
 	python3 scripts/build_release_provenance.py
 	python3 scripts/build_test_inventory.py
@@ -223,6 +225,7 @@ evidence-refresh:
 release-candidate-smoke:
 	python3 scripts/build_release_candidate.py --timeout-seconds 900 --require-clean
 	python3 scripts/build_reproducibility_report.py
+	python3 scripts/build_candidate_content_report.py
 	python3 scripts/build_standards_sbom.py
 	python3 scripts/build_release_provenance.py
 	python3 scripts/build_finding_register.py
@@ -236,6 +239,7 @@ release-candidate-smoke:
 	# so it runs last and the tree is consistent when the smoke returns.
 	python3 scripts/generate_supply_chain_evidence.py
 	python3 scripts/check_release_candidate_packaging.py
+	python3 scripts/build_candidate_content_report.py --check
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py
 	python3 scripts/check_finding_register.py

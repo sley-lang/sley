@@ -1,5 +1,9 @@
 # Resume state, 2026-09-14 (qualification wave after P-C)
 
+Latest recovery: `docs/status/RECOVERY-2026-09-15.md`. It records integration
+repairs, the reachable audit-anchor mapping, and validation caveats. Read the
+current machine summary for candidate identity and outstanding reviews.
+
 The previous resume note (2026-09-08, architecture-tightening closeout) is
 history in git at `7c83630` (the 2026-09-14 operator-approved attribution
 strip rewrote every commit id; trees are unchanged, so records that name

@@ -875,7 +875,13 @@
     "nabu_architecture_review_revision_2": "REVISE_0_P0_0_P1_1_P2_4_P3_5_P4",
     "nabu_architecture_review_revision_2_note": "REVISE via harness nabu 2026-09-15 on a809906f78f1bfdb9cde8da4c108c4d692dad297 (revision-6 round; transcript evidence/review/verdicts/root_backed_query_profile/nabu_architecture_review-a809906.md): same section 7 P2/P3 items on the cache-authority boundary; WORK_PACKAGES and closeout revision pointers; checker revision and revision-6 paragraphs unbound (P3); packet disposition, ADR-0030 section 11 residue, verify() doc comment, duplicate sentence, rule-1 residue (P4); no code change required. Repaired as revision 7; the delta verdict at the repair commit replaces the base field.",
     "vulcan_surface_review_revision_3": "REVISE_0_P0_0_P1_0_P2_4_P3_2_P4",
-    "vulcan_surface_review_revision_3_note": "REVISE via harness vulcan 2026-09-15 on a809906f78f1bfdb9cde8da4c108c4d692dad297 (revision-6 round; transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-a809906.md): mechanics green on every gate; section 7 class names, class-1 count, audit attribution (P3); section 9 evidence rule false for class 7 DependencyRows and class 8 InventoryEntries truncated arms (P3); duplicate sentence and stale revision pointers (P4). Repaired as revision 7; the delta verdict at the repair commit replaces the base field."
+    "vulcan_surface_review_revision_3_note": "REVISE via harness vulcan 2026-09-15 on a809906f78f1bfdb9cde8da4c108c4d692dad297 (revision-6 round; transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-a809906.md): mechanics green on every gate; section 7 class names, class-1 count, audit attribution (P3); section 9 evidence rule false for class 7 DependencyRows and class 8 InventoryEntries truncated arms (P3); duplicate sentence and stale revision pointers (P4). Repaired as revision 7; the delta verdict at the repair commit replaces the base field.",
+    "current_delta_review": {
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
+    },
+    "current_delta_review_note": "2026-09-15 recovery: revision-7 qualification repairs and integration fixes require fresh lane reviews. Earlier transcripts and verdicts remain historical evidence; the local development review does not substitute for three-lane Council approval."
   },
   "restricted_query_capsule_profile": {
     "status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
@@ -3750,7 +3756,7 @@
     "contract": "docs/audits/S20_710_PRE_RELEASE_AUDIT.md",
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
-    "history_anchor_commit": "724a899b1dfcc0ee8f3bf0b67f647d3156a24895",
+    "history_anchor_commit": "7804f665e0ee65de240c43fe3b56dc89cf7e9d80",
     "cargo_lock_sha256": "4b6af7f0f01b23db0bb44f23385ab82e1ed979c80bd57873243dd3e391d4eacc",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
     "cargo_workspace_packages": 18,
@@ -3784,7 +3790,8 @@
     "history_reanchor_note": "2026-09-14 re-anchored facfa86 to 724a899 (licensed-candidate L1): 5950 blobs / 380847122 bytes, 0 findings, 0 blockers; zero deletions facfa86..L1 so history-plus-candidate coverage through the checkpoint tree is complete; the freeze commit L2 and the mint re-anchor the release audit",
     "root_license_spdx": "Apache-2.0",
     "root_license_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-    "notice_sha256": "e7151ea0ee545a9edec91ecf963acefec4d6c2cfd92aa6080b1afe517d5a5dfa"
+    "notice_sha256": "e7151ea0ee545a9edec91ecf963acefec4d6c2cfd92aa6080b1afe517d5a5dfa",
+    "history_anchor_mapping_note": "2026-09-15: pre-rewrite 724a899 maps to reachable 7804f66 with identical tree b29d1681ba4508ae0b9dd600a131cd58a467c93d. Restores fresh-clone regeneration without advancing the historical audit boundary; full candidate re-anchor remains a separate decision."
   },
   "release_candidate_packaging": {
     "status": "S20_720_COMPLETE",
@@ -4102,7 +4109,13 @@
     "p1_open_count": 0,
     "p1_open": [],
     "attestation_supersedes": "1023a31/7291656c and 43f2f5b/a8da8b48 (re-minted after the 2026-09-14 attribution strip rewrote commit ids; prior identities preserved in history)",
-    "candidate_consumers_note": "one exported owner for attestation admissibility and candidate selection since revision 7 (admissible_attestation / admissible_attestations / select_attestation / binds_candidate in scripts/build_reproducibility_report.py), imported by build_release_provenance.py, build_standards_sbom.py, check_standards_sbom_and_provenance.py, and check_release_candidate_packaging.py; build_decision_dossier.py:135 and build_ga_acceptance_report.py:159 still select attestations[0] and are queued to import select_attestation with their rewrite"
+    "candidate_consumers_note": "one exported owner for attestation admissibility and candidate selection since revision 7 (admissible_attestation / admissible_attestations / select_attestation / binds_candidate in scripts/build_reproducibility_report.py), imported by build_release_provenance.py, build_standards_sbom.py, check_standards_sbom_and_provenance.py, and check_release_candidate_packaging.py; build_decision_dossier.py:135 and build_ga_acceptance_report.py:159 still select attestations[0] and are queued to import select_attestation with their rewrite",
+    "current_delta_review": {
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
+    },
+    "current_delta_review_note": "2026-09-15 recovery: revision-7 qualification repairs and integration fixes require fresh lane reviews. Earlier transcripts and verdicts remain historical evidence; the local development review does not substitute for three-lane Council approval."
   },
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
@@ -4168,7 +4181,13 @@
     "vulcan_surface_review_note": "PASS via harness vulcan delta 2026-09-15 on a809906f78f1bfdb9cde8da4c108c4d692dad297 (transcript evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-a809906.md): the a809906 fold repair closes the 70283ce P3 with no false-PASS path (builder-attributed closure refusal only, malformed stdout never folded, fold runs after closure:ineligible is recorded), 56/56 and 110/110 tests. History: revision-4 PASS (1 P4) at a4b6029, revision-5 REVISE (1 P3) at 70283ce.",
     "ariadne_contract_review_revision_4": "REVISE_0_P0_0_P1_0_P2_1_P3_2_P4",
     "ariadne_contract_review_revision_4_note": "REVISE via harness ariadne 2026-09-15 on a809906f78f1bfdb9cde8da4c108c4d692dad297 (transcript evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-a809906.md): P3 the SPDX document carried a hasExtractedLicensingInfos entry for the listed identifier Apache-2.0 (SPDX 2.3 clause 10.1 reserves it for LicenseRef- ids); P4 section 2 shape freeze omitted emitted fields and section 1 lock-digest wording; P4 closure HEAD said to be recorded in the summary. Repaired the same day (builder drops the entry, spec sections 1/2/3/7 reworded, test renamed to its claim); prior a4b6029 P3/P4 and the 3320ca9 P3 items confirmed closed. The delta verdict at the repair commit replaces the base field.",
-    "ariadne_contract_review_note": "base field held at the revision-3 PASS (4 P3, since closed) pending the delta lane over the 2026-09-15 repair; the round at a809906 returned REVISE (1 P3, 2 P4), see ariadne_contract_review_revision_4_note."
+    "ariadne_contract_review_note": "base field held at the revision-3 PASS (4 P3, since closed) pending the delta lane over the 2026-09-15 repair; the round at a809906 returned REVISE (1 P3, 2 P4), see ariadne_contract_review_revision_4_note.",
+    "current_delta_review": {
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
+    },
+    "current_delta_review_note": "2026-09-15 recovery: revision-7 qualification repairs and integration fixes require fresh lane reviews. Earlier transcripts and verdicts remain historical evidence; the local development review does not substitute for three-lane Council approval."
   },
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
@@ -4178,8 +4197,8 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 383,
-    "open_reviews": 1,
+    "obligations": 402,
+    "open_reviews": 13,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 38,
@@ -4231,7 +4250,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "1 review obligations are open",
+      "13 review obligations are open",
       "18 GA acceptance criteria are not evidenced",
       "3 review dispositions are unclassified",
       "no succession trial has been executed",
@@ -4276,7 +4295,13 @@
     "ariadne_contract_review_initial_note": "no transcript of the 2026-09-04 Council FAIL round (FAIL_2_P0_5_P1_7_P2_3_P3) is tracked under evidence/review/verdicts/decision_dossier/; the verdict is recorded in evidence/review/S20_710_ACCEPTANCE_MAP.md section 2.4 and its P0 items are recited secondhand by the ariadne d384f0f final transcript (evidence/review/verdicts/decision_dossier/ariadne-final-review-d384f0f.md); no initial-round record beyond those is tracked",
     "nabu_architecture_review_initial_note": "no transcript of the 2026-09-04 Council FAIL round (FAIL_2_P0_7_P1_5_P2_3_P3) is tracked under evidence/review/verdicts/decision_dossier/; the verdict is recorded in evidence/review/S20_710_ACCEPTANCE_MAP.md section 2.4 and its P0 items are recited secondhand by the nabu d384f0f final transcript (evidence/review/verdicts/decision_dossier/nabu-final-review-d384f0f.md); no initial-round record beyond those is tracked",
     "vulcan_surface_review_initial_note": "no transcript of the 2026-09-04 Council FAIL round (FAIL_1_P0_3_P1_3_P2_3_P3) is tracked under evidence/review/verdicts/decision_dossier/; the verdict is recorded in evidence/review/S20_710_ACCEPTANCE_MAP.md section 2.4 and its P0 items are recited secondhand by the vulcan d384f0f final transcript (evidence/review/verdicts/decision_dossier/vulcan-final-review-d384f0f.md); no initial-round record beyond those is tracked",
-    "round_a809906": "Council round at a809906 (2026-09-15) read REVISE in all three lanes (Ariadne 4 P2/3 P3/2 P4, Nabu 2 P2/5 P3/1 P4, Vulcan 4 P2/4 P3/2 P4; transcripts evidence/review/verdicts/decision_dossier/{ariadne_contract_review,nabu_architecture_review,vulcan_surface_review}-a809906.md); contract revision 7 closes every actionable item (GA derivation from register predicates, digest binding, RELEASE_APPROVED crash, one threshold key, rule 1 OTHER rows and register result, HISTORICAL_ROUND P2 rows, pipeline order, GA drift and mirror checks, GA unit tests); re-review pending"
+    "round_a809906": "Council round at a809906 (2026-09-15) read REVISE in all three lanes (Ariadne 4 P2/3 P3/2 P4, Nabu 2 P2/5 P3/1 P4, Vulcan 4 P2/4 P3/2 P4; transcripts evidence/review/verdicts/decision_dossier/{ariadne_contract_review,nabu_architecture_review,vulcan_surface_review}-a809906.md); contract revision 7 closes every actionable item (GA derivation from register predicates, digest binding, RELEASE_APPROVED crash, one threshold key, rule 1 OTHER rows and register result, HISTORICAL_ROUND P2 rows, pipeline order, GA drift and mirror checks, GA unit tests); re-review pending",
+    "current_delta_review": {
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
+    },
+    "current_delta_review_note": "2026-09-15 recovery: revision-7 qualification repairs and integration fixes require fresh lane reviews. Earlier transcripts and verdicts remain historical evidence; the local development review does not substitute for three-lane Council approval."
   },
   "remaining_gates": {
     "council_model_access": "OPEN since 2026-09-04T02:29Z. The blocker was never a credential: the stock Anthropic plugin was installed but blocked by the plugins allowlist, so its provider, CLI backend, and model catalog never loaded and requests fell through to a generic HTTP path with an empty key. Adding anthropic to plugins.allow and enabling it opened the claude-cli lane, which uses the local Claude Code CLI session rather than a gateway key. The dispatcher is running 69 staged reviews; checkpoint in machineresearch/sley-2.0/COUNCIL_REVIEW_CHECKPOINT_2026-09-04.md",

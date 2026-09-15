@@ -41,20 +41,9 @@ ROOT = Path(__file__).resolve().parents[1]
 # Records-eligible prefixes: review/evidence records only.
 ELIGIBLE_PREFIXES = ("evidence/", "machineresearch/")
 
-# Bound inputs: derivation inputs under the records prefixes whose change
-# re-binds the attestation and therefore ends the closure. (Emitted
-# documents -- the SBOM pair, the provenance statement, the
-# reproducibility report -- need no byte-invariance: the builders
-# re-derive them from the unchanged attestation-bound inputs and refuse
-# on any byte difference, and the attestation 4-tuple gate still names
-# the candidate. A change to crates/, scripts/, specs/contracts,
-# lockfiles, or any other path outside the eligible prefixes is an
-# attestation-bound change and is always ineligible.) Derived, not
-# restated: the bound inputs are exactly the members of the S20-720
-# artifact input surface that lie under a records-eligible prefix, so a
-# surface addition under evidence/ or machineresearch/ re-binds the
-# closure the moment S20-730 starts reporting it stale (Nabu P3 at
-# a809906: the hand copy had no binding to the surface).
+# Derive bound records from the artifact input surface so both freshness
+# checks change together when packaging gains an input. Emitted reports
+# are checked by re-derivation rather than treated as artifact inputs.
 BOUND_PATHS = tuple(
     path
     for path in build_release_candidate.ARTIFACT_INPUT_PATHS
