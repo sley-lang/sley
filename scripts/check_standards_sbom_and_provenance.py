@@ -347,16 +347,21 @@ def main() -> int:
                 if (subject, external.get("commit")) not in attested:
                     problems.append("provenance:subject-attestation-mismatch")
 
+        drift_problems = []
         for argv, label in (
             (["scripts/build_standards_sbom.py", "--check"], "sbom"),
             (["scripts/build_release_provenance.py", "--check"], "provenance"),
         ):
             if run(argv).returncode != 0:
-                problems.append(f"{label}:drift")
+                drift_problems.append(f"{label}:drift")
         # Records-closure accounting (contract revision 5): the closure
         # HEAD is recorded separately, never inside the documents. An
         # advanced HEAD that is not a provable closure is reported
-        # explicitly; the builders above already refuse it.
+        # explicitly; the builders above already refuse it, so on an
+        # ineligible HEAD the one underlying cause is reported once as
+        # `closure:ineligible` and the builders' relabeled refusals are
+        # folded into it (Vulcan P3, 2026-09-13: two labels for one cause).
+        closure_ineligible = False
         try:
             candidate = json.loads(read(ROOT / "evidence/runtime/s20-720-release-candidate/evidence.json"))
             head = subprocess.run(
@@ -370,9 +375,12 @@ def main() -> int:
                 cstat = records_closure.closure_status(str(candidate.get("commit")))
                 closure["reason"] = cstat.reason
                 if not cstat.is_closure:
+                    closure_ineligible = True
                     problems.append("closure:ineligible")
         except (OSError, json.JSONDecodeError):
             problems.append("closure:unverifiable")
+        if not closure_ineligible:
+            problems.extend(drift_problems)
         if run(["-m", "unittest", "discover", "-s", "bench/release/tests", "-t", "."]).returncode != 0:
             problems.append("release-tests:fail")
 

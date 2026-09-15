@@ -699,7 +699,10 @@ class RecordsClosureTests(unittest.TestCase):
         self.assertFalse(status.is_closure)
         self.assertIn("records-closure-unverifiable", status.reason)
 
-    def test_builders_admit_an_eligible_closure_without_remint(self) -> None:
+    def test_builders_admit_an_eligible_closure_keeping_the_candidate_binding(self) -> None:
+        # Compares the candidate-bound properties, subject, and SPDX version of
+        # the admitted documents; byte identity of re-derived documents is the
+        # drift tests' claim, not this one's (Vulcan P4, 2026-09-13).
         candidate = patch_candidate(self, sbom, provenance)
         descendant = "b" * 40
         sbom.git_head = lambda: descendant

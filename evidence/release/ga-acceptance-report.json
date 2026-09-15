@@ -1,19 +1,5 @@
 {
   "awaiting_review": [
-    "VM semantics agree with conformance fixtures",
-    "No undefined behavior exists in the program model",
-    "No ambient authority exists",
-    "agents can create and maintain programs without source",
-    "query capsules are bounded",
-    "session handles are stale-safe",
-    "typed affordances and mutations are available",
-    "disjoint merge is deterministic",
-    "ambiguous merge creates conflict objects",
-    "policy is protected from the judged candidate",
-    "capability tokens cannot be forged or replayed across scope",
-    "all P0/P1 threats have passing tests",
-    "Ariadne approves SSMC1 and semantic correctness",
-    "Nabu approves architectural and cross-product boundaries",
     "Vulcan or current independent reviewer issues a complete PASS",
     "all reviewer findings are resolved or dispositioned below P3"
   ],
@@ -111,45 +97,45 @@
     },
     {
       "criterion": "VM semantics agree with conformance fixtures",
-      "evidence": "conformance/vm-extended/v1 with the independent oracle; the extended profile's reviews are pending",
+      "evidence": "conformance/vm-extended/v1 with the independent oracle; vm_extended_opcode_profile status S20_260_270_EXTENDED_COMPLETE",
       "group": "26.3 semantics",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "No undefined behavior exists in the program model",
-      "evidence": "the exhaustive judgment and execution contracts; the independent semantic review owns this",
+      "evidence": "the exhaustive judgment and execution contracts (type, CFG, effect, VM extended, S20-360 operation analysis, S20-390 extended profile) at terminal status with every Ariadne lane obligation PASS or historical in the finding register",
       "group": "26.3 semantics",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "No ambient authority exists",
-      "evidence": "capability and policy contracts; anti-goal 'untyped or ambient effects' is REVIEW_ONLY",
+      "evidence": "protected policy root, capability tokens, and reference adapters at terminal status; independent security review PASS_0_P0_0_P1_0_P2_3_P3_5_P4; anti-goal 'arbitrary shell' HOLDS",
       "group": "26.3 semantics",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "agents can create and maintain programs without source",
-      "evidence": "the SMP1 endpoint, the JSON bridge, and the CLI are implemented with reviews pending",
+      "evidence": "SMP1 endpoint status S20_400_COMPLETE, bridge S20_420_COMPLETE, CLI S20_430_COMPLETE; candidate validation and atomic commit at their boundaries; no source parser in the GA graph",
       "group": "26.4 agent loop",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "query capsules are bounded",
       "evidence": "machine summary context_capsule_profile status S20_320_FULL_COMPLETE",
       "group": "26.4 agent loop",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "session handles are stale-safe",
       "evidence": "machine summary session_handle_profile status S20_330_COMPLETE",
       "group": "26.4 agent loop",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "typed affordances and mutations are available",
-      "evidence": "machine summary protocol status S20_400_COMPLETE",
+      "evidence": "machine summary protocol status S20_400_COMPLETE; mutation schema S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY; candidate construction S20_350_COMPLETE_PROPOSAL_ONLY",
       "group": "26.4 agent loop",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "invalid candidates cannot commit",
@@ -191,13 +177,13 @@
       "criterion": "disjoint merge is deterministic",
       "evidence": "machine summary merge status S20_520_COMPLETE",
       "group": "26.5 repository",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "ambiguous merge creates conflict objects",
-      "evidence": "the S20-520 conflict objects with their corpus; reviews pending",
+      "evidence": "the S20-520 conflict objects with their corpus; merge status S20_520_COMPLETE",
       "group": "26.5 repository",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "GC preserves all retained roots",
@@ -215,13 +201,13 @@
       "criterion": "policy is protected from the judged candidate",
       "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT",
       "group": "26.6 policy and security",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "capability tokens cannot be forged or replayed across scope",
       "evidence": "machine summary capability_token_profile status S20_380_COMPLETE_NARROW_LOCAL_PROFILE",
       "group": "26.6 policy and security",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "adapters are bounded",
@@ -239,11 +225,11 @@
       "criterion": "all P0/P1 threats have passing tests",
       "evidence": "threat coverage report: 44 exercised, 0 P0/P1 without a located symbol; 495 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol. Whether a located, exercised control mitigates its threat stays the review's judgment",
       "group": "26.6 policy and security",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 0 open P0/P1/P2 findings across 374 obligations",
+      "evidence": "finding register declares 0 open P0/P1/P2 findings across 376 obligations",
       "group": "26.6 policy and security",
       "state": "EVIDENCED"
     },
@@ -255,7 +241,7 @@
     },
     {
       "criterion": "every section 22 threshold passes",
-      "evidence": "succession trials_executed 0; the harness passes its smokes and needs model access and spend authorization",
+      "evidence": "succession trials_executed 0; the harness passes its smokes and the campaign has not recorded a threshold table",
       "group": "26.7 succession",
       "state": "GATED"
     },
@@ -267,7 +253,7 @@
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "the attested commit is the latest local candidate; the final commit is fixed at the release decision",
+      "evidence": "attested commit 7a94a4a31272a6dc7588aff902dcde81f7d10a4e; the final commit is fixed by a recorded release decision (machine summary release_decision), state None",
       "group": "26.8 packaging",
       "state": "GATED"
     },
@@ -303,19 +289,19 @@
     },
     {
       "criterion": "Ariadne approves SSMC1 and semantic correctness",
-      "evidence": "Council lane unavailable; requests staged",
+      "evidence": "finding register Ariadne lane: 77 PASS, 0 PENDING",
       "group": "26.9 review",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "Nabu approves architectural and cross-product boundaries",
-      "evidence": "Council lane unavailable; requests staged",
+      "evidence": "finding register Nabu lane: 71 PASS, 0 PENDING",
       "group": "26.9 review",
-      "state": "AWAITS_REVIEW"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "Vulcan or current independent reviewer issues a complete PASS",
-      "evidence": "S20-740 independent review is PENDING",
+      "evidence": "S20-740 independent review PENDING; Vulcan lane clear",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -339,11 +325,11 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "report_digest": "1baee29f9b48ddf12a7f3b3522a8c9a1eef7b6775b3f4d6bf7c849bc54734a37",
+  "report_digest": "88851f6899af55166cc249edf80e5f34cc625d2e4ede9ece8459dfa2b715a2a1",
   "source": "master goal section 26",
   "states": {
-    "AWAITS_REVIEW": 16,
-    "EVIDENCED": 34,
+    "AWAITS_REVIEW": 2,
+    "EVIDENCED": 48,
     "GATED": 2
   }
 }

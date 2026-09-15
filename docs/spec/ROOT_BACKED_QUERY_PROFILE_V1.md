@@ -1,6 +1,6 @@
 # Root-Backed Query Profile v1
 
-Status: S20-310 full contract draft, revision 5 (2026-09-13); implemented
+Status: S20-310 full contract draft, revision 6 (2026-09-15); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
 and the package is not complete. Revision 5 repairs the review-round P1/P2
@@ -9,7 +9,14 @@ split (arm-1 snapshots fail `QUERY_PROFILE_UNSUPPORTED`, section 8 item 2),
 the precedence list states the engine's cursor-before-drift order for the
 drift subcase (section 8 items 3-4), paging keys are named with the
 page-union consumer rule (section 3), and the exclusion list names the
-non-enumerating lookup classes (section 10). Revision 4 composes the entity-read
+non-enumerating lookup classes (section 10). Revision 6 closes the round-7
+wording packet (operator authorization 2026-09-15, consistent with the
+reviewed semantics): section 3 states the page-set acceptance rule a
+consumer applies, section 7 names which answer facts a cache hit supplies
+and which the verified record supplies, section 9 states the one-walk-per-
+cursor-key-type evidence rule with the unit walks that pin the truncated
+arms of the single-item classes, and section 10 states that the
+nineteen-class enumeration is chosen, not derived. Revision 4 composes the entity-read
 surface (section 11): the S20-310 methods 306/307 stay governed by
 `docs/spec/ENTITY_READ_PROFILE_V2.md`, whose owner, adapter, corpus, and
 vector line are listed as profile surface without changing the
@@ -244,7 +251,20 @@ compose only when successive requests are identical except for `after`
 union of the pages is the complete result and keys strictly increase
 across the walk, so no page can hide a fact. Because `total_count`
 is exact on every page and the key order is canonical, the union of the
-pages is the complete result and no page can hide a fact. Closure depth
+pages is the complete result and no page can hide a fact.
+
+A consumer accepts a response as the complete result under exactly one of
+two rules. A standalone response is complete iff `after = None` and
+`truncated = false`. A page set is complete iff every page was produced by
+requests identical except for `after`; the first page has `after = None`;
+each later page's `after` equals the previous page's `next_after`; every
+page but the last has `truncated = true`; the last page has `truncated =
+false` and `next_after = None`; every page carries the same `total_count`;
+and the sum of `returned` over the pages equals that `total_count`. A
+response set meeting neither rule is not a complete result, whatever its
+pages contain; a consumer that needs completeness and lacks continuation
+authority must use `allow_continuation = false` and treat
+`QUERY_REQUIRED_FACT_OMITTED` as the answer. Closure depth
 keeps the restricted rule: a `max_depth` that cuts a closure short is
 `QUERY_REQUIRED_FACT_OMITTED`, never a page. Single-key classes never page:
 their whole result must fit the applied limits or the query fails
@@ -367,10 +387,20 @@ run_root_query(repository, revision, query, limits, allow_continuation, after)
 ```
 
 The revision is an S20-390 verified revision. The snapshot comes from the
-S20-300 cache (`Hit` or `Rebuilt`); a hit supplies edges only, while every
-body, binding, fingerprint, and root fact comes from the verified objects
-and record, and the section 1 binding is re-checked so a cached inventory
-can never disagree with the record. The surface is read-only derived query
+S20-300 cache (`Hit` or `Rebuilt`). A hit supplies exactly the derived
+edge facts: `direct_edges` and their inverse, which answer the edge
+classes 12 through 15 (`ListDirectDependencies`, `ListDirectDependents`,
+`ListImpactClosure`, `ListReverseImpactClosure`) and nothing else. Every
+other answer fact is record-derived: bodies, bindings, fingerprints,
+kinds, namespace membership, entry points, dependency roots, and the
+section 1 binding come from the verified objects and the verified
+`StateRootRecord`, never from the cache. A hit is admitted only through
+`decode_complete_root_snapshot`, whose decode-time audit rebuilds the
+inverse edge groups from the direct edges and refuses a snapshot whose
+groups differ (`verify_cached_snapshot`, the byte-rebuild audit of
+S20-300), and the section 1 binding is re-checked on every hit, so a
+cached inventory can never disagree with the record and a forged edge
+set cannot reach the engine. The surface is read-only derived query
 evidence: it grants no root, commit, policy, mutation, session, or
 protocol authority, and nothing it returns is an input to validation,
 comparison, merge, commit, exchange, GC, or recovery.
@@ -419,9 +449,16 @@ Implementation acceptance requires at least:
   workspace, bindings, and fingerprints, and an independent Python
   reproduction of every identity and record from the fixture bodies and
   frozen edges;
-- a continuation walk for every paged class whose pages union to the
-  complete result with exact `total_count` on every page, plus the
+- one continuation walk per cursor key type over the frozen fixture
+  (entity, edge-triple, and root cursors), each walk's pages unioning to
+  the complete result with exact `total_count` on every page, plus the
   truncated-without-continuation, invalid-cursor, and depth-cut failures;
+  where the frozen fixture carries a single item for a class (one
+  dependency root, one entry point), the fixture walk is degenerate (page
+  one complete, page two empty past the end), so the truncated-emission
+  arms of those classes are pinned by unit walks at limit 1 over a
+  two-item input in `crates/sley-query/src/root_query.rs`, which is the
+  evidence rule rather than a fixture with invented items;
 - 128 equal queries producing byte-identical identities and records;
 - the class-kind applicability matrix, the binding failure matrix
   (`QUERY_ROOT_MISMATCH`), and the restricted arm-1 snapshot rejected with
@@ -449,6 +486,14 @@ This contract does not claim:
   enumerating class);
 - any authority beyond read-only derived query evidence;
 - runtime, benchmark, packaging, release, or GA.
+
+The nineteen query classes of section 2 are a chosen closed enumeration,
+not a derivation from the entity or edge model: a later profile may add a
+class 20 only additively, with its own key type or an existing one, and
+no existing class number, cursor tag, or key type is reallocated (tag 3
+stays the root cursor and class 18 stays what section 2 names). Empty
+results for classes 16, 17, and 19 are lawful complete answers
+(`total_count = 0`), not failures.
 
 ## 11. Entity-read composition
 

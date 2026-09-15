@@ -1891,6 +1891,133 @@ pub(crate) mod tests {
         ]
     }
 
+    /// Section 9 (revision 6): the frozen fixture carries one dependency
+    /// root and one entry point, so the fixture walks of classes 10 and 11
+    /// are degenerate and a second item cannot be added to the input (a
+    /// root without its dependency-binding entity is
+    /// `RootDependencyRootsMismatch` at the S20-250 judgment). These unit
+    /// walks pin the truncated-emission arms of `Roots` and `EntryRows` at
+    /// the paging layer over a two-item complete result at limit 1: page
+    /// one is truncated with the first key as `next_after`, page two
+    /// returns the second item untruncated, and the union is the complete
+    /// result with the exact `total_count` on both pages.
+    #[test]
+    fn single_item_classes_walk_two_items_at_limit_one() {
+        let owned = Owned::new();
+        let borrowed = Borrowed::new(&owned);
+        let input = borrowed.input();
+        let one = QueryLimits {
+            max_returned_entities: 1,
+            ..QueryLimits::profile_maximum()
+        };
+        let roots = [
+            StateRoot::from_bytes([0x10; 32]),
+            StateRoot::from_bytes([0xFE; 32]),
+        ];
+        let rows = [
+            EntryRow {
+                entry_point: id(0x30),
+                function: id(0x07),
+                exposure: 1,
+            },
+            EntryRow {
+                entry_point: id(0x31),
+                function: id(0x07),
+                exposure: 1,
+            },
+        ];
+        let first_request = build_root_query_request(
+            &input,
+            RootQuery::ListDependencyRoots,
+            one.clone(),
+            true,
+            None,
+        )
+        .unwrap();
+        let first = page(
+            Complete {
+                result: RootQueryResult::Roots(roots.to_vec()),
+            },
+            &first_request,
+        )
+        .unwrap();
+        assert_eq!(
+            (first.total_count, first.returned, first.truncated),
+            (2, 1, true)
+        );
+        assert_eq!(first.next_after, Some(Cursor::Root(roots[0])));
+        let second_request = build_root_query_request(
+            &input,
+            RootQuery::ListDependencyRoots,
+            one.clone(),
+            true,
+            first.next_after,
+        )
+        .unwrap();
+        let second = page(
+            Complete {
+                result: RootQueryResult::Roots(roots.to_vec()),
+            },
+            &second_request,
+        )
+        .unwrap();
+        assert_eq!(
+            (second.total_count, second.returned, second.truncated),
+            (2, 1, false)
+        );
+        assert_eq!(second.next_after, None);
+        match (&first.result, &second.result) {
+            (RootQueryResult::Roots(a), RootQueryResult::Roots(b)) => {
+                assert_eq!((a.as_slice(), b.as_slice()), (&roots[..1], &roots[1..]));
+            }
+            other => panic!("expected root pages, got {other:?}"),
+        }
+
+        let first_request =
+            build_root_query_request(&input, RootQuery::ListEntryPoints, one.clone(), true, None)
+                .unwrap();
+        let first = page(
+            Complete {
+                result: RootQueryResult::EntryRows(rows.to_vec()),
+            },
+            &first_request,
+        )
+        .unwrap();
+        assert_eq!(
+            (first.total_count, first.returned, first.truncated),
+            (2, 1, true)
+        );
+        assert_eq!(first.next_after, Some(Cursor::Entity(rows[0].entry_point)));
+        let second_request = build_root_query_request(
+            &input,
+            RootQuery::ListEntryPoints,
+            one,
+            true,
+            first.next_after,
+        )
+        .unwrap();
+        let second = page(
+            Complete {
+                result: RootQueryResult::EntryRows(rows.to_vec()),
+            },
+            &second_request,
+        )
+        .unwrap();
+        assert_eq!(
+            (second.total_count, second.returned, second.truncated),
+            (2, 1, false)
+        );
+        assert_eq!(second.next_after, None);
+        match (&first.result, &second.result) {
+            (RootQueryResult::EntryRows(a), RootQueryResult::EntryRows(b)) => {
+                assert_eq!(a.len() + b.len(), 2);
+                assert_eq!(a[0].entry_point, rows[0].entry_point);
+                assert_eq!(b[0].entry_point, rows[1].entry_point);
+            }
+            other => panic!("expected entry pages, got {other:?}"),
+        }
+    }
+
     fn run(input: &RootQueryInput<'_>, query: RootQuery) -> RootQueryResponse {
         let request =
             build_root_query_request(input, query, QueryLimits::profile_maximum(), false, None)

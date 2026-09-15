@@ -2,6 +2,20 @@
 
 Status: **S20-540 pack exchange is complete; full S20-250, S20-510 semantic comparison, S20-520 merge, the full S20-300 complete-root snapshot, the full S20-310 root-backed queries, and the full S20-320 context capsule are implemented with Council reviews pending; the S20-400 SMP1 contract is drafted and S20-410 is implemented (frame, negotiation, identity scoping, and the deterministic server over thirty-two methods) with reviews pending; S20-440 cancellation, streaming, and budgets and S20-330 negotiated sessions are implemented with reviews pending; S20-420 JSON bridge, S20-430 CLI, the S20-620 Sley 2 trial runner, and S20-630 accounting are implemented with reviews pending; the S20-410 slice C dispatch (gc, execute, report) is implemented under SMP1 revision 7; S20-720 release candidate mechanics are implemented with reviews pending; the full S20-260/S20-270 opcode program is implemented (contract revision 7, six family slices, nineteen vectors, reviews pending); the SMP1 revision 8 execute profile selector is implemented; S20-730 mechanics are implemented (single-host reproducibility attestation and declared independent-oracle coverage of every fixture family, reviews pending); the standards SBOM and release provenance are implemented (deterministic CycloneDX 1.6 and SPDX 2.3 documents and an unsigned in-toto statement, reviews pending, the S20-710 audit still blocked on the root license text); the S20-740 finding register is implemented (181 review obligations derived from the machine summary, sixty open while the lanes are down, the completion invariant enforced); the S20-750 decision dossier is implemented (all thirty-four completion-report items derived, eleven gated, decision state BLOCKED); the full S20-360 operation analysis and the extended semantic profile are implemented (candidate validation judges the E1 through E6 operation families and a receipt names the analysis that validated its program); the extended VM fuzz lanes and the tracked test inventory are implemented; every one of the nineteen fixture families is now independently checked, so the local evidence is complete and every remaining boundary is gated by Council model access, a schema epoch decision, or operator authority; the Sley 2 goal remains incomplete**
 
+Status update (2026-09-15): the Status paragraph above is retained verbatim
+as the frontier record its checker pins. Since it was written the Council
+reviews it names as pending have been held (2026-09-13/14 finals and the
+2026-09-14/15 council-lane rounds, transcripts under
+`evidence/review/verdicts/`), and the following packages moved to their
+terminal statuses after every lane passed and each checker accepted: S20-250
+full, S20-260/270 extended, S20-300 full, S20-320 full, S20-330, S20-400/410,
+S20-420, S20-430, S20-510, S20-520, S20-620, S20-630, S20-720. The machine
+summary's per-package `status` fields are the live record; this document's
+narrative is history plus this update. Still open at the frontier: S20-310
+(revision-6 wording review), S20-710 full (signing and transparency),
+S20-730 and S20-740 clean-pass reviews, S20-750 (release decision), S20-760
+and S20-770 acceptance, and S20-640 (succession trials).
+
 This audit records the first unavailable boundary in each unfinished lane and
 the one dependency-complete package that may proceed. It does not convert
 restricted profiles into GA, substitute documentation for implementation, or

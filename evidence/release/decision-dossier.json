@@ -3,12 +3,12 @@
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
     "1 review obligations are open",
-    "18 GA acceptance criteria are not evidenced",
+    "4 GA acceptance criteria are not evidenced",
     "no succession trial has been executed",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "16e3b35c587864fdc4ef70e2ea3dd584a2141517efa2c468b1befb4a549eeee8",
+  "dossier_digest": "2faf75bd00f772554696d95675e20d7ee8e5ba6c3e4ede01b0a74d0ed0fd1987",
   "entries": [
     {
       "evidence": [
@@ -146,7 +146,7 @@
         "property_tests": 0,
         "python_tests": 359,
         "rust_ignored_emitters": 16,
-        "rust_unit_tests": 1424
+        "rust_unit_tests": 1425
       }
     },
     {
@@ -187,11 +187,14 @@
       }
     },
     {
-      "evidence": [],
+      "evidence": [
+        "evidence/security/threat-coverage-report.json",
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
       "item": "security review result",
-      "note": "the independent security review is Vulcan's and the lane is unavailable (the finding register records the deferred dispositions). Its input is measured: of the 56 registered threats, 44 have a located control whose symbol a test region, test file, corpus, fuzz target, or oracle names, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
-      "state": "GATED",
-      "value": null
+      "note": "the independent security review is Vulcan's; the machine summary records it as PASS_0_P0_0_P1_0_P2_3_P3_5_P4 (transcripts under evidence/review/verdicts/threat_coverage/). Its input is measured: of the 56 registered threats, 44 have a located control whose symbol a test region, test file, corpus, fuzz target, or oracle names, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
+      "state": "EVIDENCED",
+      "value": "PASS_0_P0_0_P1_0_P2_3_P3_5_P4"
     },
     {
       "evidence": [
@@ -337,18 +340,18 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 374,
+        "obligations": 376,
         "open_reviews": 1,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
-          "P0": 132,
-          "P1": 175,
-          "P2": 185,
-          "P3": 205,
-          "P4": 23
+          "P0": 126,
+          "P1": 170,
+          "P2": 180,
+          "P3": 200,
+          "P4": 25
         },
         "states": {
-          "HISTORICAL_ROUND": 97,
+          "HISTORICAL_ROUND": 99,
           "OTHER": 3,
           "PASS": 273,
           "PENDING": 1
@@ -402,7 +405,6 @@
           "invalid committed states",
           "release decision state",
           "repair loops by arm",
-          "security review result",
           "stale candidates incorrectly accepted",
           "strict correctness by arm"
         ],
@@ -420,14 +422,14 @@
     {
       "evidence": [],
       "item": "independent review result",
-      "note": "S20-740 records the independent review as PENDING; no reviewer has issued a complete PASS",
+      "note": "S20-740 records the independent review as PENDING; the item is evidenced only by a recorded complete PASS from the independent reviewer over a CLEAR register",
       "state": "GATED",
       "value": null
     },
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 34 evidenced, 16 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 48 evidenced, 2 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -451,9 +453,9 @@
       }
     }
   ],
-  "entries_digest": "8a76ef2fa35101a881c96b1452eeb543a77adc1a0dcdd7e86648d34a638b5c58",
-  "evidenced": 24,
-  "gated": 10,
+  "entries_digest": "a398d7e412828398c19ab9aae7b6807bdf97854de78549c1b30a27f3cc0af865",
+  "evidenced": 25,
+  "gated": 9,
   "gates": {
     "release-check": "NOT_IMPLEMENTED",
     "v2": "NOT_IMPLEMENTED"

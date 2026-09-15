@@ -289,8 +289,13 @@ def build_entries(sources: dict) -> list[dict]:
         ),
         entry(
             "security review result",
-            note="the independent security review is Vulcan's and the lane is unavailable (the "
-            "finding register records the deferred dispositions). Its input is measured: of the "
+            value=(summary.get("threat_coverage", {}).get("independent_security_review")
+                   if str(summary.get("threat_coverage", {}).get("independent_security_review", "")).startswith("PASS") else None),
+            evidence=[SUMMARY, THREAT_COVERAGE]
+            if str(summary.get("threat_coverage", {}).get("independent_security_review", "")).startswith("PASS") else [],
+            note=f"the independent security review is Vulcan's; the machine summary records it as "
+            f"{summary.get('threat_coverage', {}).get('independent_security_review', 'PENDING')} "
+            "(transcripts under evidence/review/verdicts/threat_coverage/). Its input is measured: of the "
             f"{threats['threat_count']} registered threats, "
             f"{threats['states'].get('SYMBOL_REALIZED_WITH_EXERCISE', 0)} have a located "
             f"control whose symbol a test region, test file, corpus, fuzz target, or oracle names, "
@@ -416,8 +421,11 @@ def build_entries(sources: dict) -> list[dict]:
         ),
         entry(
             "independent review result",
-            note="S20-740 records the independent review as PENDING; no reviewer has issued a "
-            "complete PASS",
+            value=("PASS" if summary.get("finding_register", {}).get("independent_review") == "PASS" else None),
+            evidence=[SUMMARY, REGISTER] if summary.get("finding_register", {}).get("independent_review") == "PASS" else [],
+            note=f"S20-740 records the independent review as "
+            f"{summary.get('finding_register', {}).get('independent_review', 'PENDING')}; the item is "
+            "evidenced only by a recorded complete PASS from the independent reviewer over a CLEAR register",
         ),
         entry(
             "release decision state",

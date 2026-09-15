@@ -249,10 +249,15 @@ provably records-only, decided by `scripts/records_closure.py`:
 - every changed tracked path is under `evidence/` or `machineresearch/`;
   any change to `crates/`, `scripts/`, specs/contracts, lockfiles, build
   inputs, or any other attestation-bound path makes the HEAD ineligible;
-- none of the bound inputs changed (the T52 inventory the SPDX namespace
-  binds; the emitted documents are validated instead by byte-identical
-  re-derivation, and the candidate still needs its clean `REPRODUCIBLE`
-  attestation 4-tuple).
+- none of the bound inputs changed. The bound input is the T52 inventory
+  the SPDX namespace binds. The emitted documents (the SBOM pair and the
+  provenance statement) and the reproducibility report are not bound
+  inputs: they are validated by the second layer, byte-identical
+  re-derivation over the closure HEAD plus the attestation 4-tuple gate
+  (commit, artifact digest, manifest digest, size) that the candidate must
+  still satisfy with a clean `REPRODUCIBLE` attestation. A reader needs
+  both layers: the first says what may not move, the second says how the
+  documents that may be re-derived are checked.
 
 The SBOM and provenance documents stay bound to the original attested
 source candidate, the closure HEAD is recorded separately (checker output
