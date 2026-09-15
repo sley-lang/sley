@@ -323,3 +323,14 @@ review each; the register therefore reads 6 delta rows PENDING plus the
 operator-held S20-310 wording packet.
 
 Nothing here is a release decision, a GA claim, or a publication.
+
+### 10.1 Commit-id mapping after the history rewrite
+
+The operator-approved attribution strip of 2026-09-14 23:55 rewrote every
+commit id (trees unchanged). Records and transcripts filed before it name
+the pre-rewrite ids; by tree identity: `43f2f5b` = `7c7da9c` (repair
+commit, reviewed scope), `1023a31` = `e0ec341` (wave commit), `c0f4ff6` =
+`7c83630` (P-C finals), `d384f0f` = `bf5b7e7`, `baf9a4d` = `eae95d9`. The
+candidate attestations bind commit ids, so the candidate was re-minted at
+the rewritten head; the machine summary's `candidate_*` fields name it.
+

@@ -1,7 +1,10 @@
 # Resume state, 2026-09-14 (qualification wave after P-C)
 
 The previous resume note (2026-09-08, architecture-tightening closeout) is
-history in git at `c0f4ff6`. Since then: the licensed candidate (Apache-2.0
+history in git at `7c83630` (the 2026-09-14 operator-approved attribution
+strip rewrote every commit id; trees are unchanged, so records that name
+pre-rewrite ids map by tree: `c0f4ff6` -> `7c83630`, `43f2f5b` -> `7c7da9c`,
+`1023a31` -> `e0ec341`, `d384f0f` -> `bf5b7e7`, `baf9a4d` -> `eae95d9`). Since then: the licensed candidate (Apache-2.0
 root license, L1 `724a899`), the dual-host attestations for `74bb0ba` and
 `baf9a4d`, the P-A symbol-gate closure, the P-C package repair wave with
 harness finals (2026-09-13/14), and this wave's qualification repairs,
