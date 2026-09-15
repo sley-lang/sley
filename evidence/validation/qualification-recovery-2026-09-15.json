@@ -1,0 +1,47 @@
+{
+  "kind": "LOCAL_RECOVERY_VALIDATION",
+  "date": "2026-09-15",
+  "source_commit": "9b4f0648c9e226b0852d7a83b10ac6f550ecf45b",
+  "candidate": {
+    "artifact_sha256": "18ee1ecfb9d24fa6f5f4b08e0eddb3ee740552524a1dcab6072ac3d3b6717d57",
+    "artifact_size_bytes": 2190457,
+    "manifest_digest": "15a768164daf6a7700a29dfccfd96c4f6e953b2ee232c67a3281b65ecf90d661",
+    "member_count": 15
+  },
+  "reproducibility": {
+    "result": "MULTI_HOST_REPRODUCIBLE",
+    "hosts": 2,
+    "attested_commits": [
+      "9b4f0648c9e226b0852d7a83b10ac6f550ecf45b"
+    ]
+  },
+  "validation": {
+    "primary_release_candidate_build_exit": 0,
+    "secondary_release_candidate_build_exit": 0,
+    "release_candidate_verify_exit": 0,
+    "evidence_refresh_exit": 0,
+    "quick_exit": 0,
+    "lint_exit": 0,
+    "rust_passed": 1419,
+    "rust_failed": 0,
+    "rust_ignored": 16
+  },
+  "scope_note": "The gates ran on the source commit with refreshed matching candidate records. Subsequent recovery records are checked through records-only closure; this is not Council approval or a release decision.",
+  "development_review": "evidence/review/verdicts/development/qualification-recovery-df11a43.md",
+  "repair_record": "evidence/review/verdicts/development/qualification-recovery-df11a43-resolution.json",
+  "remaining": {
+    "open_review_obligations": 13,
+    "unclassified_dispositions": 3,
+    "ga_criteria": {
+      "AWAITS_REVIEW": 16,
+      "EVIDENCED": 34,
+      "GATED": 2
+    },
+    "succession_campaign": "NOT_EXECUTED",
+    "full_candidate_history_reanchor": "OPERATOR_DECISION_PENDING",
+    "signing_and_transparency": "OPERATOR_DECISION_PENDING",
+    "release_decision": "BLOCKED",
+    "publication_authorized": false
+  },
+  "recovery_warning": "Session reader recovered no last user request and skipped 273 unknown records; current repository evidence supplied the continuation context."
+}

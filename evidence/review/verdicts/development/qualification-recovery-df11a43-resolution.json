@@ -1,0 +1,36 @@
+{
+  "scope_commit": "9b4f0648c9e226b0852d7a83b10ac6f550ecf45b",
+  "review": "evidence/review/verdicts/development/qualification-recovery-df11a43.md",
+  "kind": "IMPLEMENTER_REPAIR_RECORD",
+  "council_approval": false,
+  "repairs": [
+    {
+      "issue": 1,
+      "change": "GA and dossier use the shared admissible candidate selector; artifact checks bind the explicit current mint evidence.",
+      "tests": [
+        "test_current_candidate_selection_is_shared_with_the_dossier",
+        "test_new_primary_selects_build_despite_carried_old_secondary",
+        "test_each_recorded_candidate_is_selectable_with_its_binding"
+      ]
+    },
+    {
+      "issue": 2,
+      "change": "Archive-content report checks bytes, manifest, exact file/directory members and forbidden content; GA requires its digest and candidate binding.",
+      "tests": [
+        "test_artifact_safety_needs_bound_artifact_checks",
+        "test_checks_archive_and_refuses_changed_identity",
+        "test_extra_member_fails_even_with_a_matching_manifest",
+        "test_local_path_in_matching_archive_fails_content_check"
+      ]
+    },
+    {
+      "issue": 3,
+      "change": "Shortened build override, compile-time embed, bound-record and root-query paging-test comments; review history stays in audit records.",
+      "validation": "Source diff inspection; no runtime code change for this comment repair."
+    }
+  ],
+  "pipeline_regressions": [
+    "test_summary_mirrors_follow_single_and_two_host_reports"
+  ],
+  "remaining": "Fresh council delta reviews and operator-held release obligations remain pending."
+}

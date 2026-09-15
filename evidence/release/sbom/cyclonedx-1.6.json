@@ -2119,7 +2119,7 @@
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "6d970bf4d5da78b034a837109348e3d1e373c6566cfae67a4fd84b447160e159"
+          "content": "18ee1ecfb9d24fa6f5f4b08e0eddb3ee740552524a1dcab6072ac3d3b6717d57"
         }
       ],
       "licenses": [
@@ -2134,11 +2134,11 @@
     "properties": [
       {
         "name": "sley2:commit",
-        "value": "7a94a4a31272a6dc7588aff902dcde81f7d10a4e"
+        "value": "9b4f0648c9e226b0852d7a83b10ac6f550ecf45b"
       },
       {
         "name": "sley2:inventory-digest",
-        "value": "285c97b1e54a8d9513c7ebb0d3fca95ede83008a384971a46b76b7ee2a1fe334"
+        "value": "db5e6e44aee4787736effb0cf2c5c3fd01c2704be5dbec8aa5c5a40a25ec538c"
       },
       {
         "name": "sley2:license-disposition-blocked",
@@ -2146,7 +2146,7 @@
       },
       {
         "name": "sley2:manifest-digest",
-        "value": "aea8182d7d20258ee98e2ab7df26fa8845ec577f72d2d78d51610a5435b0fa3b"
+        "value": "15a768164daf6a7700a29dfccfd96c4f6e953b2ee232c67a3281b65ecf90d661"
       },
       {
         "name": "sley2:publication-authorized",
@@ -2167,7 +2167,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:86d08e5c-68c1-87e4-8d18-cc565012f403",
+  "serialNumber": "urn:uuid:99bed820-32e9-8513-8fd8-1abbcdf8a9ca",
   "specVersion": "1.6",
   "version": 1
 }
