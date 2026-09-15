@@ -820,7 +820,7 @@ python3 scripts/check_legacy_runner.py
 {
   "archive_members_verified": 1568,
   "artifact_bytes_verified": true,
-  "artifact_sha256": "b24f19c6a348751c93c9cf63f6f4154f6132796112c26f9d8c0e71324080dbc7",
+  "artifact_sha256": "<legacy artifact digest redacted: clean-room sentinel, see scripts/check_clean_room_boundary.py>",
   "artifact_size_bytes": 4611024,
   "benchmark_trials_executed": 0,
   "contract": "s20-600-frozen-legacy-artifact-adapter-v1",

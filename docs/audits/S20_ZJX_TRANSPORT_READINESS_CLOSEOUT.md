@@ -80,12 +80,16 @@ on it or on any transport crate (ZT-11 below). The existing execution context
 (`ExecutionRequest`, policy roots, capability summaries) is untouched; no
 `run(graph)` shortcut exists or was added.
 
-The adapter cannot bypass the importer: `AcceptedRepositoryPack`,
-`AcceptedRepositoryExchange`, `ImportReport`, and `ExchangeImportReport` are
-produced only by the owning functions, `PreflightedPack` and
-`promote_pack_objects` are crate-private, and the transaction-owner clone API
-(`initialize_trusted_clone_*_with_maintenance`) requires the importer's
-exclusive maintenance guard.
+The adapter cannot bypass the importer: no persistence or execution API
+consumes an `AcceptedRepositoryPack`, `AcceptedRepositoryExchange`,
+`ImportReport`, or `ExchangeImportReport` value (the public
+`seal_mutated_conformance_pack_for_testing` builds a pack value, and the
+report structs are constructible, but neither confers acceptance; the only
+way bytes reach a store or a target is through the importers, which take
+`&[u8]`), `PreflightedPack` and `promote_pack_objects` are crate-private, and
+the transaction-owner clone API (`initialize_trusted_clone_*_with_maintenance`)
+re-verifies every receipt under the importer's exclusive maintenance guard
+and the incomplete-clone marker.
 
 Streaming is not required and not claimed. The exchange contract's own text
 places streamed or compressed profiles outside v1.
@@ -137,7 +141,7 @@ disposition is filled by the independent lanes in section 10.
 | ZR-07 | Byte-oriented boundary without mandatory streaming | pack and exchange import phases | `&[u8]` inputs bounded at `decode_envelope` (`lib.rs:689`, `exchange.rs:645`) | witness (all tests take bytes; destination path only); helper short-read/EOF/I/O rows in `test_frame_reader_bounds_output_and_fails_closed_on_every_outer_defect` (helper behavior only) | EXISTING_PROVEN |
 | ZR-08 | Exact contract, epoch, version selection; no fallback | `SCB1.md`, `SCHEMA_EPOCH_V1.md`, pack/exchange envelopes | envelope magic, version, contract tag, epoch lookup via `SchemaEpochRegistry::lookup_contract` and `decode_contract`; nested-exchange rejection | pack corpus `magic`, `contract-tag`, `resealed-epoch`; exchange corpus `nested-exchange`; `wrong_version_and_epoch_set_fail_with_their_owned_symbols` | EXISTING_PROVEN |
 | ZR-09 | Metadata and authority separation | `SCB1.md` closed fields and extension allowlist | `RecordReader::required`/`finish` (`SCB_FIELD_UNKNOWN`, `SCB_FIELD_ORDER`, `SCB_FIELD_DUPLICATE`), SCB1 `SCB_EXTENSION_UNKNOWN` | SCB1 corpus `record-unknown-field`, `unknown-extension`, `record-duplicate-field`, `record-field-order` (`conformance/scb1/v1/rejected.json`, oracle-checked in `make conformance`); witness `outer_annotations_change_the_frame_but_not_the_inner_identity` | EXISTING_PROVEN |
-| ZR-10 | Verification, errors, atomicity | pack steps 1-7; exchange steps 1-9; `CRASH_RECOVERY_MATRIX_V1.md` | preflight/persistence split (`preflight_conformance_pack` then `promote_pack_objects`; `preflight` then 8.1-8.7 under the maintenance guard, head written last, marker as write guard) | pack `*_fails_before_promotion` (7 tests), `object_verifier_failure_precedes_all_promotions`; exchange `target_rules_fail_closed_before_any_write`, `interruption_rows_x01_to_x07_converge_on_retry`, `frozen_write_paths_fail_closed_on_a_marked_root`; witness rejection and late-outer-failure tests | EXISTING_PROVEN |
+| ZR-10 | Verification, errors, atomicity | pack steps 1-7; exchange steps 1-9; `CRASH_RECOVERY_MATRIX_V1.md` | preflight/persistence split (`preflight_conformance_pack` then `promote_pack_objects`; `preflight` then 8.1-8.7 under the maintenance guard, head written last, marker as write guard) | pack `*_fails_before_promotion` (6 tests) and `object_verifier_failure_precedes_all_promotions`; exchange `target_rules_fail_closed_before_any_write`, `interruption_rows_x01_to_x07_converge_on_retry`, `frozen_write_paths_fail_closed_on_a_marked_root`; witness rejection and late-outer-failure tests | EXISTING_PROVEN |
 | ZR-11 | Resource contracts | pack and exchange resource-limit sections; `check_declared_limits.py` | section 6 map | `decode_limits_bind_before_allocation_and_a_maximal_shape_decodes`; `bounded_pack_import_fuzz_smoke_rejects_rehashed_mutations`; S20-700 pack and exchange persistent slices | EXISTING_PROVEN |
 | ZR-12 | Concrete integration witness | this closeout | production importers and exporters | `crates/sley-repo/tests/zjx_readiness_witness.rs`, 10/10 PASS | added test only |
 | ZR-13 | Compatibility and performance | frozen contracts; `RELEASE_CANDIDATE_PACKAGING_V1.md` | no production byte changed | section 7 (executable non-effect) | EXISTING_PROVEN |
@@ -214,7 +218,7 @@ was observed in the audited production paths.
 | Test inventory | rebuilt (`build_test_inventory.py`): sley-repo 396 -> 406 test attributes, total 1,425 -> 1,435 |
 | Benchmark results | not affected (no executable change) |
 
-Blocks: none new. Re-mint requires the existing procedure (detached
+Blocks: none new. (The first review round found that the filed `make-quick.log` carried a clean-room sentinel and that the T54 scan had been regenerated before the last files were staged; both are corrected at the revision commit, where the T54 scan is regenerated as the last staged step.) Re-mint requires the existing procedure (detached
 worktree, lab attestation, merge with `--attest`) and is already queued after
 the running review cycle; it is not this amendment's obligation.
 
@@ -237,9 +241,9 @@ working-tree witness; candidate identity: the witness commit. Logs live under
 | ZT-09 | Outer failure, including late finalization, cannot cause early import/promotion/success | witness `late_outer_failure_after_a_complete_inner_pack_payload_persists_nothing` (finalizer flip, trailing byte, truncation: store tree empty, then a clean frame imports normally) and `…_exchange_payload_persists_nothing` (target does not exist after the outer failure; a clean frame then clones) | PASS | `witness-run.log` |
 | ZT-10 | Destination path and outer annotations do not change inner identity; canonical metadata stays bound | witness: identical object-store and clone trees under different destination paths; annotation changes the frame, not the payload, pack ID, roots, or objects | PASS | `witness-run.log` |
 | ZT-11 | No ZJX/backend/plugin/network requirement in default or release features | `cargo metadata --locked` closure: 27 external crates in the normal closure, 30 with dev/build kinds; none matching zjx, zstd, flate, lz4, brotli, snap, xz, lzma, reqwest, hyper, tokio, libloading, dlopen, openssl, rustls, curl, ureq, wasm, ffi; no default features anywhere; `build_anti_goal_conformance.py` corpus (`greyforge_product` sentinel scan) via `make evidence-refresh` history | PASS | `dependency-closure.json`, `baseline.txt` |
-| ZT-12 | Machine protocol, CLI, diagnostics, execution unchanged | `make quick` (all contract checkers, `cargo check --workspace`, `cargo test --workspace`); `make lint` (`cargo fmt --check`, workspace clippy `-D warnings` with pedantic) | `make lint` PASS. `make quick` stops at the pre-existing staleness tripwire (expected until the re-mint); the 34 steps after it were run individually: 31 PASS, the standards checker's pre-existing `closure:ineligible` (expected), and two pre-existing drifts repaired here (the 2026-09-15 handoff note spelled the renamed origin, one clause reworded; the T54 secret scan regenerated); `cargo test --workspace`: 295 passed, 0 failed | `make-quick.log`, `make-quick-remaining-steps.log`, `make-lint.log`, `evidence/build/lint-report.json` |
+| ZT-12 | Machine protocol, CLI, diagnostics, execution unchanged | `make quick` (all contract checkers, `cargo check --workspace`, `cargo test --workspace`); `make lint` (`cargo fmt --check`, workspace clippy `-D warnings` with pedantic) | `make lint` PASS. `make quick` stops at the pre-existing staleness tripwire (expected until the re-mint); the 34 steps after it were run individually: 31 PASS, the standards checker's pre-existing `closure:ineligible` (expected), and two pre-existing drifts repaired here (the 2026-09-15 handoff note spelled the renamed origin, one clause reworded; the T54 secret scan regenerated); `cargo test --workspace`: 295 passed, 0 failed. Correction at the revision commit (Nabu P2 at `161a2f3`): the filed `make-quick.log` itself carried the S20-600 legacy artifact digest printed by `check_legacy_runner.py`, so `check_clean_room_boundary.py` failed once the log was tracked; the digest is redacted in the log and the checker passes again at the revision | `make-quick.log`, `make-quick-remaining-steps.log`, `make-lint.log`, `evidence/build/lint-report.json` |
 | ZT-13 | Independent vectors/oracle results unchanged; no golden regeneration | `sha256sum -c SHA256SUMS` (pack, exchange); `check_repository_pack_vector.py`; `check_repository_exchange_vector.py`; `generate_repository_pack_rejections.py --check`; `generate_repository_exchange_fixtures.py --check` | PASS (all four OK, drift `[]`) | `zt13-vectors.log` |
-| ZT-14 | Qualification impact, artifacts, performance evidence, independent review bound to the actual candidate | sections 2, 7, 8, 10; machine-summary section `zjx_transport_readiness` names the witness commit and the reviewed scope SHA | see section 10 | `zjx-transport-readiness-v1.json`, `evidence/review/verdicts/zjx_transport_readiness/` |
+| ZT-14 | Qualification impact, artifacts, performance evidence, independent review bound to the actual candidate | sections 2, 7, 8, 10; witness commit `161a2f3480dfca3df22019a9df4e3e3e4a38674f` (reviewed scope); the revision commit answers the lane findings; the records-only follow-up pins `witness_commit`, `review_scope_sha`, and the lane verdicts in the machine-summary section `zjx_transport_readiness` | see section 10 | `zjx-transport-readiness-v1.json`, `evidence/review/verdicts/zjx_transport_readiness/` |
 
 Inapplicable rows: none. Skipped checks: none. Failing baselines carried
 forward unchanged: the pre-existing candidate-staleness tripwire in
@@ -250,8 +254,16 @@ recorded in the 2026-09-15 handoff and unrelated to this amendment).
 ## 10. Independent review (ZR-02, ZR-12, ZR-14)
 
 Three read-only council lanes (Ariadne contract, Nabu architecture, Vulcan
-surface/security) are dispatched against the witness commit with the
-standing brief. Each lane must state the adapter's exact insertion point,
+surface/security) were dispatched against the witness commit `161a2f3` with
+the standing brief. Round 1 (transcripts `<lane>-161a2f3.md`): all three
+upheld the transport-readiness claim and the insertion-point analysis and
+returned REVISE on records-only items (Ariadne `REVISE_0_P0_0_P1_1_P2_2_P3_2_P4`,
+Nabu `REVISE_0_P0_0_P1_1_P2_0_P3_2_P4`, Vulcan `REVISE_0_P0_0_P1_1_P2_1_P3_1_P4`):
+the filed `make-quick.log` carried the legacy artifact digest sentinel, the
+T54 scan predated the final staging, section 3's "produced only by the
+owning functions" sentence was inexact, the ZR-10 test count was off by one,
+and ZT-14 pointed at a not-yet-pinned commit. Every item is answered at the
+revision commit; the delta round reviews that commit. Each lane must state the adapter's exact insertion point,
 explain why it is neither a kernel dependency nor a validation bypass, and
 judge this closeout's matrix. Transcripts:
 `evidence/review/verdicts/zjx_transport_readiness/<lane>-<scope_sha>.md`;

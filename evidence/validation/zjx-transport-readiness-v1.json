@@ -214,7 +214,11 @@
           "check_clean_room_boundary: legacy-reference in docs/status/HANDOFF-2026-09-15-QUALIFICATION.md (the 4168332 handoff note spelled the renamed origin; one clause reworded, no other change)",
           "check_supply_chain_audit: T54 secret-scan drift (evidence/security/T54/secret-scan.json regenerated with scripts/generate_supply_chain_evidence.py; scan PASS)"
         ],
-        "cargo_test_workspace": "295 passed, 0 failed across 10 suites (plus the crate suites already logged)"
+        "cargo_test_workspace": "295 passed, 0 failed across 10 suites (plus the crate suites already logged)",
+        "round_1_corrections": [
+          "make-quick.log line 823: legacy artifact digest sentinel redacted (clean-room checker PASS again)",
+          "T54 secret scan regenerated as the last staged step of the revision commit"
+        ]
       }
     }
   },
@@ -225,8 +229,22 @@
       "vulcan_surface_review"
     ],
     "transcripts": "evidence/review/verdicts/zjx_transport_readiness/",
-    "scope_sha": "PENDING_COMMIT",
-    "result": "PENDING"
+    "scope_sha": "161a2f3480dfca3df22019a9df4e3e3e4a38674f",
+    "result": "ROUND_1_REVISE_RECORDS_ONLY_DELTA_PENDING",
+    "round_1": {
+      "ariadne_contract_review": {
+        "verdict": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
+        "transcript": "evidence/review/verdicts/zjx_transport_readiness/ariadne_contract_review-161a2f3.md"
+      },
+      "nabu_architecture_review": {
+        "verdict": "REVISE_0_P0_0_P1_1_P2_0_P3_2_P4",
+        "transcript": "evidence/review/verdicts/zjx_transport_readiness/nabu_architecture_review-161a2f3.md"
+      },
+      "vulcan_surface_review": {
+        "verdict": "REVISE_0_P0_0_P1_1_P2_1_P3_1_P4",
+        "transcript": "evidence/review/verdicts/zjx_transport_readiness/vulcan_surface_review-161a2f3.md"
+      }
+    }
   },
-  "witness_commit": "PENDING_COMMIT"
+  "witness_commit": "161a2f3480dfca3df22019a9df4e3e3e4a38674f"
 }
