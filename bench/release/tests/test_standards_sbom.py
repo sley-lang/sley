@@ -773,5 +773,53 @@ class RecordsClosureTests(unittest.TestCase):
             provenance.build_statement()
 
 
+checker = load("check_standards_sbom_and_provenance")
+
+
+class CheckerFoldTests(unittest.TestCase):
+    """The checker folds only the builders' own closure refusals (Vulcan P3, 2026-09-15)."""
+
+    def test_closure_refusal_is_named_by_the_builder_detail(self) -> None:
+        stdout = json.dumps(
+            {
+                "result": "FAIL",
+                "code": 4,
+                "name": "INVENTORY_INVALID",
+                "detail": "candidate commit abc is not HEAD; records-closure-ineligible: scripts/x.py; rebuild",
+            }
+        )
+        self.assertEqual(checker.builder_refusal_label("sbom", stdout), "sbom:closure-refusal")
+
+    def test_tracked_invalid_and_drift_keep_their_own_labels(self) -> None:
+        invalid = json.dumps(
+            {"mode": "check", "result": "FAIL", "state": "MISMATCH_TRACKED_INVALID", "problems": ["x"]}
+        )
+        drift = json.dumps(
+            {"mode": "check", "result": "FAIL", "code": 7, "name": "DOCUMENT_DRIFT", "detail": "differs"}
+        )
+        self.assertEqual(checker.builder_refusal_label("provenance", invalid), "provenance:tracked-invalid")
+        self.assertEqual(checker.builder_refusal_label("provenance", drift), "provenance:drift")
+        self.assertEqual(checker.builder_refusal_label("sbom", ""), "sbom:drift")
+        self.assertEqual(checker.builder_refusal_label("sbom", "not json"), "sbom:drift")
+
+    def test_ineligible_closure_folds_only_closure_refusals(self) -> None:
+        problems = ["sbom:closure-refusal", "provenance:tracked-invalid", "provenance:drift"]
+        self.assertEqual(
+            checker.fold_closure_refusals(problems, closure_ineligible=True),
+            ["provenance:tracked-invalid", "provenance:drift"],
+        )
+        self.assertEqual(
+            checker.fold_closure_refusals(["sbom:closure-refusal", "provenance:closure-refusal"], True),
+            [],
+        )
+
+    def test_eligible_closure_folds_nothing(self) -> None:
+        problems = ["sbom:closure-refusal", "provenance:tracked-invalid"]
+        self.assertEqual(
+            checker.fold_closure_refusals(problems, closure_ineligible=False),
+            ["sbom:drift", "provenance:tracked-invalid"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

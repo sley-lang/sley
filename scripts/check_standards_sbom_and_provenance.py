@@ -127,6 +127,44 @@ def run(argv: list[str]) -> subprocess.CompletedProcess[str]:
     )
 
 
+def builder_refusal_label(label: str, stdout: str) -> str:
+    """Name a builder's `--check` failure by the cause the builder reported.
+
+    The builders print one JSON record on stdout. Three failure branches
+    exist and only one of them is the records-closure refusal the checker
+    folds into `closure:ineligible`: the builder's own `detail` names a
+    `records-closure-*` reason. A `MISMATCH_TRACKED_INVALID` state (tracked
+    document invalid under the candidate evidence) and a `DOCUMENT_DRIFT`
+    code (tracked document differs from the derived one) are reported under
+    their own labels and are never folded, whatever the closure state
+    (Vulcan P3, 2026-09-15: the fold assumed a single cause).
+    """
+    try:
+        record = json.loads(stdout) if stdout.strip() else {}
+    except json.JSONDecodeError:
+        record = {}
+    if not isinstance(record, dict):
+        record = {}
+    if "records-closure-" in str(record.get("detail", "")):
+        return f"{label}:closure-refusal"
+    if record.get("state") == "MISMATCH_TRACKED_INVALID":
+        return f"{label}:tracked-invalid"
+    return f"{label}:drift"
+
+
+def fold_closure_refusals(drift_problems: list[str], closure_ineligible: bool) -> list[str]:
+    """Drop only the builders' closure refusals when the closure is ineligible.
+
+    Every other builder failure keeps its own label so an unrelated defect
+    in a tracked document is never hidden behind `closure:ineligible`.
+    """
+    if not closure_ineligible:
+        return [
+            problem.replace(":closure-refusal", ":drift") for problem in drift_problems
+        ]
+    return [problem for problem in drift_problems if not problem.endswith(":closure-refusal")]
+
+
 def main() -> int:
     problems: list[str] = []
     closure: dict[str, object] = {"advanced": False}
@@ -352,15 +390,19 @@ def main() -> int:
             (["scripts/build_standards_sbom.py", "--check"], "sbom"),
             (["scripts/build_release_provenance.py", "--check"], "provenance"),
         ):
-            if run(argv).returncode != 0:
-                drift_problems.append(f"{label}:drift")
+            completed = run(argv)
+            if completed.returncode != 0:
+                drift_problems.append(builder_refusal_label(label, completed.stdout))
         # Records-closure accounting (contract revision 5): the closure
         # HEAD is recorded separately, never inside the documents. An
         # advanced HEAD that is not a provable closure is reported
         # explicitly; the builders above already refuse it, so on an
         # ineligible HEAD the one underlying cause is reported once as
-        # `closure:ineligible` and the builders' relabeled refusals are
+        # `closure:ineligible` and the builders' closure refusals are
         # folded into it (Vulcan P3, 2026-09-13: two labels for one cause).
+        # Only a refusal the builder itself attributes to the closure is
+        # folded; a tracked-document defect keeps its own label (Vulcan P3,
+        # 2026-09-15: the fold must not assume a single cause).
         closure_ineligible = False
         try:
             candidate = json.loads(read(ROOT / "evidence/runtime/s20-720-release-candidate/evidence.json"))
@@ -379,8 +421,7 @@ def main() -> int:
                     problems.append("closure:ineligible")
         except (OSError, json.JSONDecodeError):
             problems.append("closure:unverifiable")
-        if not closure_ineligible:
-            problems.extend(drift_problems)
+        problems.extend(fold_closure_refusals(drift_problems, closure_ineligible))
         if run(["-m", "unittest", "discover", "-s", "bench/release/tests", "-t", "."]).returncode != 0:
             problems.append("release-tests:fail")
 

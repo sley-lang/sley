@@ -229,7 +229,7 @@
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 0 open P0/P1/P2 findings across 376 obligations",
+      "evidence": "finding register declares 0 open P0/P1/P2 findings across 383 obligations",
       "group": "26.6 policy and security",
       "state": "EVIDENCED"
     },
@@ -289,13 +289,13 @@
     },
     {
       "criterion": "Ariadne approves SSMC1 and semantic correctness",
-      "evidence": "finding register Ariadne lane: 77 PASS, 0 PENDING",
+      "evidence": "finding register Ariadne lane: 78 PASS, 0 PENDING",
       "group": "26.9 review",
       "state": "EVIDENCED"
     },
     {
       "criterion": "Nabu approves architectural and cross-product boundaries",
-      "evidence": "finding register Nabu lane: 71 PASS, 0 PENDING",
+      "evidence": "finding register Nabu lane: 72 PASS, 0 PENDING",
       "group": "26.9 review",
       "state": "EVIDENCED"
     },
@@ -325,7 +325,7 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "report_digest": "88851f6899af55166cc249edf80e5f34cc625d2e4ede9ece8459dfa2b715a2a1",
+  "report_digest": "5342ecac08a59a8745d82492f907b40b60ebaa384db78430ae54f6880fbc90a6",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 2,

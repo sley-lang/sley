@@ -102,7 +102,7 @@
       "status": "IMPLEMENTED_SCOPED_S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY"
     }
   ],
-  "obligation_count": 383,
+  "obligation_count": 384,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -5062,6 +5062,20 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "REVISE_0_P0_0_P1_0_P2_1_P3",
+      "field": "vulcan_surface_review_revision_5",
+      "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "vulcan",
+      "section": "standards_sbom_and_provenance",
+      "severities": [
+        "P3"
+      ],
+      "state": "HISTORICAL_ROUND",
+      "superseded_by": "vulcan_surface_review"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "PASS_WITH_ZERO_EPOCH_AUTHORIZATION_CORRECTION",
       "field": "ariadne_design_review",
       "package_status": "S20_160_COMPLETE",
@@ -5641,7 +5655,7 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "obligations_digest": "8c9c49e1bdf767b3b3c1f1a8948136624cbc78768b543460c911df3e8c3b0f0c",
+  "obligations_digest": "006a7ae80efb7ae124b4e56f723a3a0ef3dadf4f5e10963173e532bf8d4617fc",
   "open_reviews": [
     {
       "disposition": "PENDING_S20_310_WORDING_DECISION_PACKET_ROUND7_P1_4_IMPLEMENTED",
@@ -5718,18 +5732,18 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "c6999ec83dd43f641d069d23665b06b7a49928a8fff424e49f06f116637be89c",
+  "register_digest": "d3a8546ca8a65ef201a49f96bb0a8dc89b58932de3599e439995a721feabb1e1",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
     "P1": 170,
     "P2": 183,
-    "P3": 203,
+    "P3": 204,
     "P4": 28
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
-    "HISTORICAL_ROUND": 103,
+    "HISTORICAL_ROUND": 104,
     "OTHER": 3,
     "PASS": 276,
     "PENDING": 1
@@ -6278,6 +6292,12 @@
     {
       "disposition": "REVISE_0_P0_0_P1_1_P2_0_P3_1_P4",
       "field": "vulcan_surface_review_revision_3",
+      "section": "standards_sbom_and_provenance",
+      "superseded_by": "vulcan_surface_review"
+    },
+    {
+      "disposition": "REVISE_0_P0_0_P1_0_P2_1_P3",
+      "field": "vulcan_surface_review_revision_5",
       "section": "standards_sbom_and_provenance",
       "superseded_by": "vulcan_surface_review"
     },
