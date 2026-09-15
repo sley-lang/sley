@@ -1,10 +1,12 @@
 # ADR-0040: reproducibility attestations and independent conformance as derived evidence
 
-Status: proposed; the S20-730 contract is a draft at revision 6 with
+Status: proposed; the S20-730 contract is a draft at revision 7 with
 Council review pending; mechanics implemented (2026-09-03, revised
 2026-09-05) with a single-host reproducibility report, a tracked
 independent conformance report with coverage depths, and `release-check`
 still fail-closed
+
+Note (revision 7, 2026-09-15): the single-host wording in this ADR is historical; the tracked report has carried a second-host attestation minted through the contract's section 5.1 runbook since `6a2eef7`, and decision 1's "names the gated second host" describes the single-host case only.
 
 Date: 2026-09-03
 

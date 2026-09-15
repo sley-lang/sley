@@ -49,6 +49,23 @@
   reading as a semantically judged one. The stale section 9 exclusion
   (extended VM vectors "stay native-only") is corrected.
 
+## Second-host lane record
+
+An attestation is unsigned and carries no host binding by design (contract
+section 1, ADR-0040 decision 5), so the report cannot distinguish a genuine
+second-host reproduction from a same-host relabel; operator custody of the
+transfer is the trust root (contract section 5.1). This record makes each
+exercise of the lane auditable without putting identity in the report: one
+row per lab mint, verified facts only.
+
+| Candidate commit | Date (local) | Transport lane | Lab checkout | Lab candidate `evidence.json` sha256 | Artifact sha256 | Transferred attestation-file sha256 | Bundle commit | Merge commit |
+|---|---|---|---|---|---|---|---|---|
+| `7a94a4a31272a6dc7588aff902dcde81f7d10a4e` | 2026-09-14 (lab checkout created 23:58) | `forge-lab-connect` (`ssh greyforgelab`) | `~/sley2-repro-7a94a4a`, detached at `7a94a4a31272a6dc7588aff902dcde81f7d10a4e` | `00b28ee070b7139ea85e33f088d312ebf2a120e941dba6df305792bf56172842` | `6d970bf4d5da78b034a837109348e3d1e373c6566cfae67a4fd84b447160e159` | not retained (the file was consumed by the `--attest` merge before this record existed) | not recorded for this mint | `6a2eef7` (label `secondary`, `MULTI_HOST_REPRODUCIBLE`) |
+
+The next mint fills its row completely: the operator records the
+attestation-file sha256 and the bundle commit before running the `--attest`
+merge on the primary, then adds the merge commit.
+
 ## Reconciliation
 
 No re-review was needed: these fixes change mechanics and reported facts

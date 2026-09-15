@@ -247,12 +247,20 @@ def runner_label(command: str) -> str:
     if "sley2-scb1-oracle" in command:
         return "oracle/scb1 (Python, S20-130 independent)"
     match = re.search(r"scripts/(check_[a-z0-9_]+\.py)", command)
-    if match and re.search(
-        r"^\s*(import|from)\s+sley2_scb1_oracle",
-        (ROOT / "scripts" / match.group(1)).read_text(encoding="utf-8"),
-        re.MULTILINE,
-    ):
-        return "oracle/scb1 (Python, S20-130 independent)"
+    if match:
+        script = ROOT / "scripts" / match.group(1)
+        try:
+            source = script.read_text(encoding="utf-8")
+        except OSError as error:
+            # A declared oracle whose script is not on disk cannot run: the
+            # coverage map drifted from the tree (contract section 7 wants
+            # a coded object, never a bare FileNotFoundError).
+            raise ConformanceError(
+                ConformanceErrorCode.ORACLE_DRIFT,
+                f"{display(script)}: declared oracle script is unreadable ({error.strerror})",
+            ) from error
+        if re.search(r"^\s*(import|from)\s+sley2_scb1_oracle", source, re.MULTILINE):
+            return "oracle/scb1 (Python, S20-130 independent)"
     return "scripts/ (Python, S20-130 independent)"
 
 
@@ -518,15 +526,20 @@ def main() -> int:
         return 0
     except (ConformanceError, OSError) as error:
         if isinstance(error, ConformanceError):
-            payload = {
-                "result": "FAIL",
-                "code": int(error.code),
-                "name": error.code.name,
-                "detail": error.detail,
-            }
+            code = error.code
+            detail = error.detail
         else:
-            payload = {"result": "FAIL", "detail": str(error)}
-        print(canonical(payload), end="")
+            # Any other I/O failure (an unreadable tree, an unwritable
+            # output) is an unreadable fixture surface: still one JSON
+            # object naming a code (contract section 7).
+            code = ConformanceErrorCode.FIXTURE_UNREADABLE
+            detail = str(error)
+        print(
+            canonical(
+                {"result": "FAIL", "code": int(code), "name": code.name, "detail": detail}
+            ),
+            end="",
+        )
         return 1
 
 

@@ -5,7 +5,9 @@ from __future__ import annotations
 import importlib.util
 import hashlib
 import json
+import re
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -23,6 +25,7 @@ def load(name: str):
 
 repro = load("build_reproducibility_report")
 conformance = load("build_independent_conformance_report")
+candidate_mechanics = load("build_release_candidate")
 
 
 def evidence_record(**overrides) -> dict:
@@ -185,6 +188,77 @@ class ReproducibilityTests(unittest.TestCase):
     def test_a_missing_tracked_report_carries_nothing(self) -> None:
         self.assertEqual(
             repro.carried_attestations(self.root / "absent.json", set()), []
+        )
+
+    def test_the_admissibility_predicate_is_the_attestation_contract(self) -> None:
+        attestation = repro.local_attestation("primary", self.write_evidence())
+        self.assertTrue(repro.admissible_attestation(attestation))
+        for denied in (
+            {**attestation, "working_tree_clean": False},
+            {**attestation, "reproducibility": "DIFFERS"},
+            {**attestation, "differing_members": ["bin/sley"]},
+            {**attestation, "toolchain": {"cargo": "", "rustc": "rustc 1.93.0"}},
+            {**attestation, "toolchain": None},
+            {**attestation, "commit": "not-hex"},
+            {key: value for key, value in attestation.items() if key != "manifest_digest"},
+            {"reproducibility": "REPRODUCIBLE", "working_tree_clean": True},
+            None,
+            [],
+        ):
+            self.assertFalse(repro.admissible_attestation(denied), denied)
+
+    def test_admissible_attestations_filter_a_report_and_a_commit(self) -> None:
+        first = repro.local_attestation("primary", self.write_evidence())
+        second = repro.local_attestation("secondary", self.write_evidence())
+        other = repro.local_attestation("tertiary", self.write_evidence(commit="d" * 40))
+        report = repro.build_report([first, second, other])
+        report["attestations"].append({"host_label": "forged", "reproducibility": "REPRODUCIBLE"})
+        labels = [item["host_label"] for item in repro.admissible_attestations(report)]
+        self.assertEqual(labels, ["primary", "secondary", "tertiary"])
+        self.assertEqual(
+            [item["host_label"] for item in repro.admissible_attestations(report, "d" * 40)],
+            ["tertiary"],
+        )
+        self.assertEqual(repro.admissible_attestations(report, "e" * 40), [])
+        self.assertEqual(repro.admissible_attestations(None), [])
+        self.assertEqual(repro.admissible_attestations({"attestations": "x"}), [])
+
+    def test_candidate_selection_has_one_owner_and_fails_closed_on_ties(self) -> None:
+        first = repro.local_attestation("primary", self.write_evidence())
+        second = repro.local_attestation("secondary", self.write_evidence())
+        stale = repro.local_attestation("archive", self.write_evidence(commit="d" * 40))
+        report = repro.build_report([stale, first, second])
+        # attestations[0] is the alphabetically first label ("archive"),
+        # which names the wrong commit; the selection follows the hosts.
+        self.assertEqual(report["attestations"][0]["host_label"], "archive")
+        selected = repro.select_attestation(report)
+        self.assertIsNotNone(selected)
+        self.assertEqual((selected["commit"], selected["host_label"]), ("b" * 40, "primary"))
+        # A candidate evidence record binds the 4-tuple exactly.
+        candidate = evidence_record()
+        self.assertEqual(repro.select_attestation(report, candidate)["host_label"], "primary")
+        self.assertIsNone(repro.select_attestation(report, {**candidate, "artifact_size_bytes": 1}))
+        self.assertEqual(
+            repro.select_attestation(report, {**candidate, "commit": "d" * 40})["host_label"],
+            "archive",
+        )
+        self.assertIsNone(repro.select_attestation(report, {**candidate, "commit": "e" * 40}))
+        self.assertIsNone(repro.select_attestation(report, {"commit": "b" * 40}))
+        self.assertTrue(repro.binds_candidate(first, candidate))
+        self.assertFalse(repro.binds_candidate(stale, candidate))
+        # Two single-host commits tie: no current candidate, never a guess.
+        tie = repro.build_report([stale, first])
+        self.assertIsNone(repro.select_attestation(tie))
+        self.assertEqual(repro.select_attestation(tie, commit="d" * 40)["host_label"], "archive")
+        self.assertIsNone(repro.select_attestation({"attestations": []}))
+
+    def test_the_tracked_report_selects_the_recorded_candidate(self) -> None:
+        report = json.loads(repro.REPORT.read_text(encoding="utf-8"))
+        selected = repro.select_attestation(report)
+        self.assertIsNotNone(selected)
+        self.assertIn(selected["commit"], report["commits"])
+        self.assertEqual(
+            len(repro.admissible_attestations(report)), report["distinct_hosts"]
         )
 
     def test_a_hand_edited_report_fails_verification(self) -> None:
@@ -373,6 +447,35 @@ class IndependentConformanceTests(unittest.TestCase):
         ).stdout.split()
         self.assertEqual(sorted(recorded), sorted(tracked))
 
+    def test_a_declared_oracle_script_missing_from_disk_is_coded(self) -> None:
+        with self.assertRaises(conformance.ConformanceError) as error:
+            conformance.runner_label("python3 scripts/check_no_such_oracle_script.py")
+        self.assertEqual(error.exception.code, conformance.ConformanceErrorCode.ORACLE_DRIFT)
+        self.assertIn("check_no_such_oracle_script.py", error.exception.detail)
+
+    def test_an_io_failure_in_main_prints_a_coded_object(self) -> None:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        unwritable = Path(temp.name) / "not-a-directory"
+        unwritable.write_text("", encoding="utf-8")
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(ROOT / "scripts/build_independent_conformance_report.py"),
+                "--output",
+                str(unwritable / "report.json"),
+            ],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 1, completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["result"], "FAIL")
+        self.assertEqual(payload["code"], int(conformance.ConformanceErrorCode.FIXTURE_UNREADABLE))
+        self.assertEqual(payload["name"], "FIXTURE_UNREADABLE")
+
     def test_a_non_version_family_entry_fails_closed(self) -> None:
         recipe = conformance.conformance_recipe()
         with tempfile.TemporaryDirectory() as temp:
@@ -409,6 +512,73 @@ class IndependentConformanceTests(unittest.TestCase):
 
 
 class CoverageDepthTests(unittest.TestCase):
+    def test_compile_time_embedded_inputs_lie_inside_the_artifact_surface(self) -> None:
+        # Every include_str!/include_bytes! target under crates/ that
+        # resolves outside crates/ and is not test-only code is a release
+        # input: a change to it changes bin/sley, so it must be inside
+        # ARTIFACT_INPUT_PATHS or the freshness rule is evadable (Vulcan P2
+        # at a809906). Test-only embeds (tests/ directories, *tests.rs
+        # modules, and embeds below a #[cfg(test)] attribute) do not reach
+        # the binary and are excluded; doc attributes embed READMEs inside
+        # crates/ and resolve there.
+        surface = candidate_mechanics.ARTIFACT_INPUT_PATHS
+        tracked = set(
+            subprocess.run(
+                ["git", "ls-files"], cwd=ROOT, check=True, capture_output=True, text=True
+            ).stdout.split()
+        )
+        pattern = re.compile(r'include_(?:str|bytes)!\(\s*"([^"]+)"')
+        embedded: set[str] = set()
+        for source in sorted((ROOT / "crates").rglob("*.rs")):
+            relative = source.relative_to(ROOT)
+            if "tests" in relative.parts or relative.name.endswith("tests.rs"):
+                continue
+            test_only_from = None
+            for number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), 1):
+                if test_only_from is None and "#[cfg(test)]" in line:
+                    test_only_from = number
+                for match in pattern.finditer(line):
+                    if "#![doc" in line or (test_only_from is not None and number > test_only_from):
+                        continue
+                    target = (source.parent / match.group(1)).resolve()
+                    if target.is_relative_to(ROOT / "crates"):
+                        continue
+                    embedded.add(str(target.relative_to(ROOT)))
+        # Positive control: the two known embeds are found, so the scan
+        # cannot pass vacuously.
+        self.assertIn("docs/spec/SSMC1_EPOCH1_SCHEMA.txt", embedded)
+        self.assertIn("conformance/smp1-json-bridge/v2/methods.json", embedded)
+        for path in sorted(embedded):
+            self.assertIn(path, tracked, f"embedded input {path} is not tracked")
+            self.assertTrue(
+                any(path == entry or path.startswith(entry + "/") for entry in surface),
+                f"embedded release input {path} is outside ARTIFACT_INPUT_PATHS",
+            )
+        for path in candidate_mechanics.EMBEDDED_INPUT_PATHS:
+            self.assertIn(path, surface)
+
+    def test_the_release_build_environment_is_scrubbed(self) -> None:
+        env = {
+            "PATH": "/usr/bin",
+            "CARGO_HOME": "/cargo",
+            "CC": "gcc",
+            "LDFLAGS": "-L/opt",
+            "CARGO_ENCODED_RUSTFLAGS": "-Copt-level=1",
+            "RUSTC": "/opt/rustc",
+            "RUSTC_WRAPPER": "sccache",
+            "CARGO_PROFILE_RELEASE_OPT_LEVEL": "1",
+            "CARGO_PROFILE_RELEASE_LTO": "off",
+            "CARGO_PROFILE_DEV_OPT_LEVEL": "0",
+        }
+        scrubbed = candidate_mechanics.scrub_build_env(env)
+        self.assertEqual(
+            scrubbed,
+            {"PATH": "/usr/bin", "CARGO_HOME": "/cargo", "CARGO_PROFILE_DEV_OPT_LEVEL": "0"},
+        )
+        for name in ("CARGO_ENCODED_RUSTFLAGS", "RUSTC", "RUSTC_WRAPPER"):
+            self.assertIn(name, candidate_mechanics.SCRUBBED_BUILD_ENV)
+        self.assertIn("CARGO_PROFILE_RELEASE_", candidate_mechanics.SCRUBBED_BUILD_ENV_PREFIXES)
+
     def test_every_independent_family_declares_a_valid_depth(self) -> None:
         report = conformance.build_report()
         depths = {"semantic": [], "codec_and_identity": []}

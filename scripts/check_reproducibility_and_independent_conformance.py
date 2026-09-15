@@ -27,6 +27,10 @@ IN_PROGRESS_STATUS = "S20_730_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
 REVIEW_PENDING_STATUS = "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING"
 COMPLETE_STATUS = "S20_730_COMPLETE"
 IMPLEMENTATION_STATUSES = (IN_PROGRESS_STATUS, REVIEW_PENDING_STATUS, COMPLETE_STATUS)
+# The contract revision the spec header, ADR-0040, and the summary pointer
+# must all name: one constant instead of three hand-synchronised copies
+# (Ariadne P4 carried from 0bcc9c6, closed at revision 7).
+CONTRACT_REVISION = 7
 
 CODES = (
     (73000, "REPRO_EVIDENCE_MISSING"),
@@ -41,6 +45,7 @@ CODES = (
 SPEC_MARKERS = (
     "# Reproducibility and Independent Conformance v1",
     "Status: S20-730 contract draft",
+    f"Status: S20-730 contract draft, revision {CONTRACT_REVISION} (",
     "## 1. Reproducibility attestations",
     "sley2.reproducibility-attestation.v1",
     "## 2. Reproducibility report",
@@ -58,6 +63,7 @@ SPEC_MARKERS = (
 )
 ADR_MARKERS = (
     "# ADR-0040: reproducibility attestations and independent conformance as derived evidence",
+    f"draft at revision {CONTRACT_REVISION}",
     "1. **Attestations, not assertions.**",
     "2. **Conflicts fail closed.**",
     "3. **Coverage is declared.**",
@@ -75,6 +81,9 @@ REPRO_MARKERS = (
     '"sley2.reproducibility-attestation.v1"',
     "def local_attestation(",
     "def validate_attestation(",
+    "def admissible_attestation(",
+    "def admissible_attestations(",
+    "def select_attestation(",
     "def build_report(",
     "def verify_report(",
     "def carried_attestations(",
@@ -233,6 +242,7 @@ def main() -> int:
         problems.append("machine-summary:status")
     for key, value in (
         ("contract", "docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md"),
+        ("contract_revision", CONTRACT_REVISION),
         ("adr", "docs/adr/ADR-0040-reproducibility-and-independent-conformance-boundary.md"),
         ("checker", "scripts/check_reproducibility_and_independent_conformance.py"),
         ("reproducibility_report", "evidence/release/reproducibility-report.json"),
@@ -326,6 +336,25 @@ def main() -> int:
             repro = load_module("build_reproducibility_report")
             for integrity in repro.verify_report(report):
                 problems.append(f"reproducibility-report:integrity:{integrity}")
+            # The summary section restates the report's headline facts by
+            # hand too; reproducibility_result, second_host_status, and
+            # blockers stayed at the 2026-09-03 single-host values through
+            # three dual-host mints because nothing bound them (Ariadne,
+            # Nabu, and Vulcan P3 at a809906). Bind every restated field to
+            # the tracked report in the same pattern as the conformance
+            # counts above; the attested commit is the builder's own
+            # candidate selection, never attestations[0].
+            selected = repro.select_attestation(report)
+            for summary_key, report_value in (
+                ("reproducibility_result", report.get("result")),
+                ("second_host_status", (report.get("second_host") or {}).get("status")),
+                ("attested_hosts", report.get("distinct_hosts")),
+                ("required_hosts", report.get("required_hosts")),
+                ("attested_commit", selected.get("commit") if selected else None),
+                ("blockers", report.get("blockers")),
+            ):
+                if section.get(summary_key) != report_value:
+                    problems.append(f"machine-summary:{summary_key}:report-mismatch")
             try:
                 candidate = load_module("build_release_candidate")
                 surface = tuple(candidate.ARTIFACT_INPUT_PATHS)

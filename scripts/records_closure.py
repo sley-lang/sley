@@ -25,8 +25,15 @@ refuses closed with a records-closure reason.
 from __future__ import annotations
 
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+try:
+    import build_release_candidate
+except ImportError:  # loaded by path (unit lane) without scripts/ on sys.path
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import build_release_candidate
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,9 +49,16 @@ ELIGIBLE_PREFIXES = ("evidence/", "machineresearch/")
 # on any byte difference, and the attestation 4-tuple gate still names
 # the candidate. A change to crates/, scripts/, specs/contracts,
 # lockfiles, or any other path outside the eligible prefixes is an
-# attestation-bound change and is always ineligible.)
-BOUND_PATHS = (
-    "evidence/security/T52/pre-release-inventory.json",
+# attestation-bound change and is always ineligible.) Derived, not
+# restated: the bound inputs are exactly the members of the S20-720
+# artifact input surface that lie under a records-eligible prefix, so a
+# surface addition under evidence/ or machineresearch/ re-binds the
+# closure the moment S20-730 starts reporting it stale (Nabu P3 at
+# a809906: the hand copy had no binding to the surface).
+BOUND_PATHS = tuple(
+    path
+    for path in build_release_candidate.ARTIFACT_INPUT_PATHS
+    if path.startswith(ELIGIBLE_PREFIXES)
 )
 
 

@@ -596,15 +596,20 @@ class ValidateTrackedTests(unittest.TestCase):
             self.assertIn(pair, admitted)
 
     def test_admission_predicate_directly(self) -> None:
-        self.assertTrue(
-            provenance.is_admittable(
-                {"reproducibility": "REPRODUCIBLE", "working_tree_clean": True}
-            )
-        )
+        # The predicate is the S20-730 attestation contract shape, owned by
+        # build_reproducibility_report (revision 7): a full clean
+        # REPRODUCIBLE attestation admits; a dirty, unreproduced, partial,
+        # toolchain-less, or non-object entry does not.
+        report = json.loads(sbom.REPRO_REPORT.read_text(encoding="utf-8"))
+        admitted = dict(report["attestations"][0])
+        self.assertTrue(provenance.is_admittable(admitted))
         for denied in (
-            {"reproducibility": "REPRODUCIBLE", "working_tree_clean": False},
-            {"reproducibility": "DIFFERS", "working_tree_clean": True},
-            {"reproducibility": "REPRODUCIBLE"},
+            {**admitted, "working_tree_clean": False},
+            {**admitted, "reproducibility": "DIFFERS"},
+            {**admitted, "differing_members": ["bin/sley"]},
+            {**admitted, "toolchain": {"cargo": "", "rustc": "rustc 1.93.0"}},
+            {**admitted, "toolchain": None},
+            {"reproducibility": "REPRODUCIBLE", "working_tree_clean": True},
             {},
             None,
             [],
@@ -698,6 +703,24 @@ class RecordsClosureTests(unittest.TestCase):
         status = closure.closure_status("0" * 40)
         self.assertFalse(status.is_closure)
         self.assertIn("records-closure-unverifiable", status.reason)
+
+    def test_bound_paths_are_the_records_eligible_artifact_inputs(self) -> None:
+        # The bound inputs are derived from the S20-720 artifact surface,
+        # not restated: every surface member under a records-eligible
+        # prefix is bound, nothing else is, and the T52 inventory (the one
+        # such member today) is present, so a surface addition under
+        # evidence/ can never leave the closure model fail-open.
+        candidate = load("build_release_candidate")
+        expected = tuple(
+            path
+            for path in candidate.ARTIFACT_INPUT_PATHS
+            if path.startswith(closure.ELIGIBLE_PREFIXES)
+        )
+        self.assertEqual(closure.BOUND_PATHS, expected)
+        self.assertIn("evidence/security/T52/pre-release-inventory.json", closure.BOUND_PATHS)
+        for path in closure.BOUND_PATHS:
+            self.assertIn(path, candidate.ARTIFACT_INPUT_PATHS)
+            self.assertTrue(path.startswith(closure.ELIGIBLE_PREFIXES), path)
 
     def test_builders_admit_an_eligible_closure_keeping_the_candidate_binding(self) -> None:
         # Compares the candidate-bound properties, subject, and SPDX version of

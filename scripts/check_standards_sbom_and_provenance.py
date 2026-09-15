@@ -121,6 +121,17 @@ def load_builder():
     return module
 
 
+def load_repro():
+    """The S20-730 builder: the owner of the attestation admissibility rule."""
+    spec = importlib.util.spec_from_file_location(
+        "build_reproducibility_report", ROOT / "scripts/build_reproducibility_report.py"
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def run(argv: list[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, *argv], cwd=ROOT, check=False, capture_output=True, text=True
@@ -293,9 +304,8 @@ def main() -> int:
                 inventory_digest = hashlib.sha256(INVENTORY.read_bytes()).hexdigest()
                 repro = json.loads(read(REPRO_REPORT))
                 attested = {
-                    attestation.get("artifact_sha256")
-                    for attestation in repro.get("attestations", [])
-                    if isinstance(attestation, dict)
+                    attestation["artifact_sha256"]
+                    for attestation in load_repro().admissible_attestations(repro)
                 }
                 expected = {
                     f"urn:sley2:spdx:{inventory_digest}:{digest}" for digest in attested
@@ -373,14 +383,8 @@ def main() -> int:
             else:
                 repro = json.loads(read(REPRO_REPORT))
                 attested = {
-                    (
-                        attestation.get("artifact_sha256"),
-                        attestation.get("commit"),
-                    )
-                    for attestation in repro.get("attestations", [])
-                    if isinstance(attestation, dict)
-                    and attestation.get("working_tree_clean") is True
-                    and attestation.get("reproducibility") == "REPRODUCIBLE"
+                    (attestation["artifact_sha256"], attestation["commit"])
+                    for attestation in load_repro().admissible_attestations(repro)
                 }
                 if (subject, external.get("commit")) not in attested:
                     problems.append("provenance:subject-attestation-mismatch")

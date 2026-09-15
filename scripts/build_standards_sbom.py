@@ -19,9 +19,11 @@ from enum import IntEnum
 from pathlib import Path
 
 try:
+    import build_reproducibility_report as repro
     import records_closure
 except ImportError:  # loaded by path (unit lane) without scripts/ on sys.path
     sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import build_reproducibility_report as repro
     import records_closure
 
 
@@ -491,19 +493,9 @@ def require_attested_candidate(candidate: dict) -> None:
         )
     try:
         report = json.loads(REPRO_REPORT.read_text(encoding="utf-8"))
-        attestations = report.get("attestations", [])
     except (OSError, json.JSONDecodeError) as error:
         raise SbomError(SbomErrorCode.INVENTORY_INVALID, f"attestation report unreadable: {error}") from error
-    if not any(
-        isinstance(attestation, dict)
-        and attestation.get("commit") == candidate.get("commit")
-        and attestation.get("artifact_sha256") == candidate.get("artifact_sha256")
-        and attestation.get("manifest_digest") == candidate.get("manifest_digest")
-        and attestation.get("artifact_size_bytes") == candidate.get("artifact_size_bytes")
-        and attestation.get("reproducibility") == "REPRODUCIBLE"
-        and attestation.get("working_tree_clean") is True
-        for attestation in attestations
-    ):
+    if repro.select_attestation(report, candidate) is None:
         raise SbomError(
             SbomErrorCode.INVENTORY_INVALID,
             "no clean REPRODUCIBLE attestation names this candidate; "

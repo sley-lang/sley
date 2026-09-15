@@ -1,6 +1,6 @@
 # Reproducibility and Independent Conformance v1
 
-Status: S20-730 contract draft, revision 6 (2026-09-11); Council review
+Status: S20-730 contract draft, revision 7 (2026-09-15); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the independent oracles that closed the two
 native-only families (section 5). Revision 3 carries previously merged
@@ -20,7 +20,17 @@ other family-root or nested entry failing closed, conflicting duplicate manifest
 lines are `CONFORMANCE_SUMS_MISMATCH`, shapes record mapping sizes, and the
 report carries an auditable `tracked_corpus_directories` count; section 2
 records that minting requires a whole-tree clean checkout including
-untracked files, deliberately stricter than the surface-scoped check. The mechanics are `scripts/build_reproducibility_report.py` and
+untracked files, deliberately stricter than the surface-scoped check.
+Revision 7 (2026-09-15, the a809906 Council round) changes no rule: it
+records that the second-host lane was exercised through the section 5.1
+runbook (section 9), completes the section 2 surface enumeration with the
+root license files and the compile-time embedded inputs, states that the
+report's `blockers` list is the wave-time list and not a live gate, names
+the build-environment scrub, points section 1 `working_tree_clean` at the
+whole-tree rule, exports the attestation admissibility and candidate
+selection helpers every consumer imports, and binds the machine summary's
+restated reproducibility facts to the report in the checker. The
+mechanics are `scripts/build_reproducibility_report.py` and
 `scripts/build_independent_conformance_report.py`; implementation state is
 tracked in the machine summary.
 
@@ -65,6 +75,22 @@ record whose result is not `PASS` or whose two builds were not
 `REPRODUCIBLE` cannot become an attestation (`REPRO_EVIDENCE_INVALID`); a
 missing record is `REPRO_EVIDENCE_MISSING`. No host name, user name, path, or
 time enters an attestation; the host label is the operator's.
+`working_tree_clean` is the whole-tree rule of sections 2 (minting bullet)
+and 8: the S20-720 predicate over tracked and untracked files at the mint,
+deliberately stricter than the surface-scoped uncommitted check the checker
+runs against the filing tree.
+
+An attestation is *admissible* exactly when it passes this section's shape;
+`build_reproducibility_report.admissible_attestation` owns that predicate,
+`admissible_attestations(report, commit=None)` applies it to a report, and
+`select_attestation(report, candidate=None, commit=None)` names the one
+attestation of the current candidate (with a candidate evidence record, the
+attestation binding its commit, artifact digest, manifest digest, and size;
+without one, the attested commit carrying the most agreeing hosts, and
+`None` when two commits tie). Every consumer of the tracked report (the
+provenance and SBOM builders, the standards and packaging checkers, the
+dossier and GA builders) imports these instead of restating the filter or
+selecting `attestations[0]`.
 
 ## 2. Reproducibility report
 
@@ -110,14 +136,35 @@ Rules:
   `REPRO_ATTESTATION_INVALID`. Ancestry alone does not make an attestation
   current: no tracked file under the artifact input surface
   (`build_release_candidate.ARTIFACT_INPUT_PATHS`: the Rust workspace, the
-  toolchain pin, the demo runner, the SBOM inventory, the conformance
-  subset, and the packaging script whose flags stage the binary) may
-  differ between the attested commit and `HEAD`, else the artifact the
-  report describes is not the artifact this tree builds, and the report is
-  stale. The attested toolchain must also match the filing toolchain: a
-   compiler upgrade changes the bytes without touching the tree. The cure
-   for a stale report is `make release-candidate-smoke`, not an edit;
- - minting while the operator working tree carries retained untracked
+  workspace manifest and lockfile, the toolchain pin, the root license
+  files `LICENSE` and `NOTICE`, the demo runner, the SBOM inventory, the
+  packaging script whose flags stage the binary, the tracked files the
+  binary embeds at compile time, today `docs/spec/SSMC1_EPOCH1_SCHEMA.txt`
+  and `conformance/smp1-json-bridge/v2/methods.json`, and the conformance
+  subset) may differ between the attested commit and `HEAD`, else the
+  artifact the report describes is not the artifact this tree builds, and
+  the report is stale. The unit lane scans every `include_str!` and
+  `include_bytes!` under `crates/` and refuses a non-test embed outside
+  the surface, so the enumeration cannot silently lag the binary. The
+  attested toolchain must also match the filing toolchain: a compiler
+  upgrade changes the bytes without touching the tree. The cure for a
+  stale report is `make release-candidate-smoke`, not an edit;
+- the release build runs with every link and build override scrubbed from
+  its environment (`build_release_candidate.SCRUBBED_LINK_ENV`: `CC`,
+  `CXX`, `CFLAGS`, `CXXFLAGS`, `CPPFLAGS`, `LDFLAGS`, `LD`;
+  `SCRUBBED_BUILD_ENV`: `CARGO_ENCODED_RUSTFLAGS`, `RUSTC`, `RUSTC_WRAPPER`;
+  and every `CARGO_PROFILE_RELEASE_*` variable), because an attestation
+  binds toolchain version strings only and an ambient override would attest
+  `REPRODUCIBLE` for a non-canonical binary that only a second host's
+  `REPRO_ATTESTATION_CONFLICT` could catch;
+- `blockers` records the wave-time list: the packages that were open when
+  the candidate was minted, as the builder's constant names them. The
+  report is digest-bound and re-minted only by the two-host smoke, so the
+  list is not a live gate and is not re-derived from package statuses; the
+  live gates are `release-check`, `v2`, and the package checkers. Only
+  `second_host_attestation_operator_lane` is derived, dropping exactly when
+  the merge reaches `required_hosts`;
+- minting while the operator working tree carries retained untracked
   material that must not be moved uses the canonical detached linked
   worktree procedure (operator decision, S20-720 wave): start from the exact
   candidate commit, create a detached linked worktree, prove that worktree
@@ -253,7 +300,7 @@ kernel (master goal section 6.5).
   cache keys and request identities from frozen preimages.
 - `native_only`: the family is exercised only through Rust code or through
   the packaged binary; it counts against the independent PASS. No family is
-  native-only at revision 6.
+  native-only at revision 7 (unchanged since revision 2).
 
 ## 5.1 Second-host runbook
 
@@ -284,6 +331,15 @@ attest the same commit with the same artifact digest; a disagreement is
 `REPRO_ATTESTATION_CONFLICT` and writes no report, which is the point of the
 exercise. Nothing in this runbook requires the second host to run any Sley
 service, expose a port, or share a filesystem.
+
+An attestation is unsigned and carries no host binding by design, so a
+second-host attestation is indistinguishable in the report from a same-host
+relabel; the trust root is operator custody of the transfer. Each exercise
+of this runbook therefore files one row of the second-host lane record in
+`docs/audits/S20_730_REPRODUCIBILITY_CLOSEOUT.md` (date, transport lane,
+lab checkout and commit, lab-side evidence record digest, transferred
+attestation-file digest, bundle commit, merge commit), keeping identity out
+of the report while the `MULTI_HOST_REPRODUCIBLE` claim stays auditable.
 
 ## 6. Evidence files
 
@@ -331,8 +387,12 @@ to surface-only cleanliness.
 
 ## 9. Explicit exclusions
 
-- No second-host build, transfer, or dispatch: the laptop lane is gated by
-  the operator posture and stays gated until reopened for this purpose.
+- No automated second-host build, transfer, or dispatch: the mechanics
+  never build on, copy to, or dispatch a second host. Revision 7 records
+  that the operator exercised the lane through the section 5.1 runbook
+  (the tracked report carries a `secondary` attestation of the candidate
+  merged at `6a2eef7`; lane record in the closeout audit); the exclusion is
+  unchanged and names the mechanics, not the operator's lane.
 - No independent VM semantic oracle: the extended VM vectors are checked at
   `codec_and_identity` depth, and an independent lowering and execution
   oracle that judges VM semantics would be a separate package. Revision 2

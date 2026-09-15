@@ -40,15 +40,36 @@ RELEASE_TARGET = "x86_64-unknown-linux-musl"
 # Link environment that must never influence the release build: any ambient
 # CC (or flags) would reselect the host toolchain behind the target pin.
 SCRUBBED_LINK_ENV = ("CC", "CXX", "CFLAGS", "CXXFLAGS", "CPPFLAGS", "LDFLAGS", "LD")
+# Build environment that must never influence the release build either
+# (Vulcan P4 at a809906): CARGO_ENCODED_RUSTFLAGS outranks the remap
+# RUSTFLAGS set below, RUSTC / RUSTC_WRAPPER substitute the compiler behind
+# the toolchain pin, and CARGO_PROFILE_RELEASE_* rewrites the release
+# profile without touching the tree. The attestation binds toolchain
+# version strings only, so an override here would attest REPRODUCIBLE for
+# a non-canonical binary that only the second host's CONFLICT could catch.
+SCRUBBED_BUILD_ENV = ("CARGO_ENCODED_RUSTFLAGS", "RUSTC", "RUSTC_WRAPPER")
+SCRUBBED_BUILD_ENV_PREFIXES = ("CARGO_PROFILE_RELEASE_",)
 MANIFEST_CONTRACT = "sley2.release-candidate-manifest.v1"
 EVIDENCE_DIR = ROOT / "evidence/runtime/s20-720-release-candidate"
 INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
 CONFORMANCE_SUBSET = ("conformance/smp1/v1", "conformance/smp1-json-bridge/v1", "conformance/release-demo/v1")
+# Tracked files outside crates/ that the release binary embeds at compile
+# time (`include_str!` / `include_bytes!` in non-test code of crates that
+# sley-cli links): a change to one of them changes bin/sley without
+# touching crates/, so they are artifact inputs (Vulcan P2 at a809906). The
+# unit lane scans every embed under crates/ and refuses a non-test embed
+# outside this surface.
+EMBEDDED_INPUT_PATHS = (
+    "docs/spec/SSMC1_EPOCH1_SCHEMA.txt",
+    "conformance/smp1-json-bridge/v2/methods.json",
+)
 # Every tracked input the staged artifact derives from: the release binary is
-# built from the Rust workspace, the packaging logic below stages it, and the
-# stage adds the demo runner, the SBOM inventory, and the conformance subset.
-# S20-730 reads this surface for its attestation freshness rule; keep it
-# exact when staging changes.
+# built from the Rust workspace and its compile-time embeds, the packaging
+# logic below stages it, and the stage adds the demo runner, the root
+# license files, the SBOM inventory, and the conformance subset. S20-730
+# reads this surface for its attestation freshness rule and S20-710 derives
+# its records-closure bound inputs from it; keep it exact when staging or
+# embedding changes.
 ARTIFACT_INPUT_PATHS = (
     "crates",
     "Cargo.toml",
@@ -59,6 +80,7 @@ ARTIFACT_INPUT_PATHS = (
     "bench/release/run_demo.py",
     "evidence/security/T52/pre-release-inventory.json",
     "scripts/build_release_candidate.py",
+    *EMBEDDED_INPUT_PATHS,
     *CONFORMANCE_SUBSET,
 )
 EXECUTABLE_MEMBERS = {"bin/sley", "demo/run_demo.py"}
@@ -348,14 +370,25 @@ def require_release_target() -> None:
         )
 
 
+def scrub_build_env(env: dict[str, str]) -> dict[str, str]:
+    """The environment minus every link and build override the release
+    build must never see (SCRUBBED_LINK_ENV, SCRUBBED_BUILD_ENV, and every
+    SCRUBBED_BUILD_ENV_PREFIXES variable)."""
+    return {
+        name: value
+        for name, value in env.items()
+        if name not in SCRUBBED_LINK_ENV
+        and name not in SCRUBBED_BUILD_ENV
+        and not name.startswith(SCRUBBED_BUILD_ENV_PREFIXES)
+    }
+
+
 def clean_build(target: Path, timeout: int) -> Path:
     if target.exists():
         shutil.rmtree(target)
     require_release_target()
-    env = dict(os.environ)
+    env = scrub_build_env(dict(os.environ))
     env["CARGO_TARGET_DIR"] = str(target)
-    for name in SCRUBBED_LINK_ENV:
-        env.pop(name, None)
     cargo_home = Path(os.environ.get("CARGO_HOME", str(Path.home() / ".cargo")))
     home = Path.home()
     # The working tree, the cargo registry sources, and the home directory
