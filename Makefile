@@ -208,11 +208,15 @@ evidence-refresh:
 	python3 scripts/record_session_threat_matrices.py
 	python3 scripts/build_threat_coverage_report.py
 	python3 scripts/build_anti_goal_conformance.py
-	python3 scripts/build_ga_acceptance_report.py
+	# Register -> GA report -> dossier, in that order, before and after the
+	# counter sync: the GA report reads the register, the dossier reads both
+	# and refuses a GA report bound to another register.
 	python3 scripts/build_finding_register.py
+	python3 scripts/build_ga_acceptance_report.py
 	python3 scripts/build_decision_dossier.py
 	python3 scripts/sync_evidence_counters.py
 	python3 scripts/build_finding_register.py
+	python3 scripts/build_ga_acceptance_report.py
 	python3 scripts/build_decision_dossier.py
 	python3 scripts/generate_supply_chain_evidence.py
 
@@ -222,9 +226,11 @@ release-candidate-smoke:
 	python3 scripts/build_standards_sbom.py
 	python3 scripts/build_release_provenance.py
 	python3 scripts/build_finding_register.py
+	python3 scripts/build_ga_acceptance_report.py
 	python3 scripts/build_decision_dossier.py
 	python3 scripts/sync_evidence_counters.py
 	python3 scripts/build_finding_register.py
+	python3 scripts/build_ga_acceptance_report.py
 	python3 scripts/build_decision_dossier.py
 	# The T54 scan covers the evidence documents the builders above rewrote,
 	# so it runs last and the tree is consistent when the smoke returns.

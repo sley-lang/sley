@@ -18,11 +18,13 @@ SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
 SCRIPT = ROOT / "scripts/build_decision_dossier.py"
 TESTS = ROOT / "bench/review/tests/test_decision_dossier.py"
+GA_TESTS = ROOT / "bench/review/tests/test_ga_acceptance_report.py"
+GA_ACCEPTANCE = ROOT / "evidence/release/ga-acceptance-report.json"
 DOSSIER = ROOT / "evidence/release/decision-dossier.json"
 TEST_INVENTORY = ROOT / "evidence/validation/test-inventory.json"
 LICENSE_INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
 
-SPEC_REVISION = 6
+SPEC_REVISION = 7
 
 DRAFT_STATUS = "S20_750_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_750_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
@@ -43,6 +45,7 @@ SPEC_MARKERS = (
     "## 1. Items",
     "## 1.1 The required items",
     "## 2. Sources",
+    "## 2.1 GA acceptance report",
     "## 3. Decision state",
     "sley2.decision-dossier.v1",
     "OPERATOR_DECISION_NOT_DELEGATED",
@@ -196,6 +199,8 @@ def main() -> int:
                     problems.append(f"build_decision_dossier-missing:{marker}")
         if not TESTS.exists():
             problems.append(f"missing:{TESTS.relative_to(ROOT)}")
+        if not GA_TESTS.exists():
+            problems.append(f"missing:{GA_TESTS.relative_to(ROOT)}")
         if not DOSSIER.exists():
             problems.append(f"missing:{DOSSIER.relative_to(ROOT)}")
         else:
@@ -259,10 +264,36 @@ def main() -> int:
                 problems.append("machine-summary:evidenced_items")
             if section.get("gated_items") != dossier.get("gated"):
                 problems.append("machine-summary:gated_items")
+            if section.get("decision_reasons") != dossier.get("decision_reasons"):
+                problems.append("machine-summary:decision_reasons")
+            if (
+                isinstance(sbom.get("value"), dict)
+                and section.get("license_disposition_blocked") != sbom["value"].get("license_disposition_blocked")
+            ):
+                problems.append("machine-summary:license_disposition_blocked")
+            # The GA acceptance mirror is cross-checked like the dossier
+            # counters: a stale mirror is a record contradiction.
+            mirror = summary.get("ga_acceptance")
+            try:
+                acceptance = json.loads(read(GA_ACCEPTANCE))
+            except (OSError, json.JSONDecodeError):
+                acceptance = None
+                problems.append("ga-acceptance-report:unreadable")
+            if not isinstance(mirror, dict):
+                problems.append("machine-summary:ga_acceptance")
+            elif acceptance is not None:
+                for key in ("criterion_count", "states", "gated", "awaiting_review"):
+                    if mirror.get(key) != acceptance.get(key):
+                        problems.append(f"machine-summary:ga_acceptance.{key}")
+                if mirror.get("ga_claimed") is not False or acceptance.get("ga_claimed") is not False:
+                    problems.append("ga-acceptance:ga_claimed")
         if run(["scripts/build_decision_dossier.py", "--check"]).returncode != 0:
             problems.append("decision-dossier:drift")
         if run(["scripts/build_test_inventory.py", "--check"]).returncode != 0:
             problems.append("test-inventory:drift")
+        # The GA report is a dossier decision input: it must not drift either.
+        if run(["scripts/build_ga_acceptance_report.py", "--check"]).returncode != 0:
+            problems.append("ga-acceptance-report:drift")
         if not TEST_INVENTORY.exists():
             problems.append(f"missing:{TEST_INVENTORY.relative_to(ROOT)}")
         if run(["-m", "unittest", "discover", "-s", "bench/review/tests", "-t", "."]).returncode != 0:

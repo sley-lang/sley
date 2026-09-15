@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 import sys
 from enum import IntEnum
@@ -17,6 +18,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+GA_BUILDER = ROOT / "scripts/build_ga_acceptance_report.py"
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REPRO = ROOT / "evidence/release/reproducibility-report.json"
 CYCLONEDX = ROOT / "evidence/release/sbom/cyclonedx-1.6.json"
@@ -63,6 +65,26 @@ def digest_of(value: object) -> str:
 def display(path: Path) -> str:
     """The repository-relative path when the path is inside the tree."""
     return str(path.relative_to(ROOT)) if path.is_relative_to(ROOT) else str(path)
+
+
+_GA_BUILDER = None
+
+
+def ga_builder():
+    """The GA report builder, loaded by path so its predicates are shared.
+
+    The complete-PASS form, the register-row verdict test, and the section
+    22 threshold derivation are defined once there; the dossier reads them
+    rather than re-implementing them (contract section 2.1).
+    """
+    global _GA_BUILDER
+    if _GA_BUILDER is None:
+        spec = importlib.util.spec_from_file_location("build_ga_acceptance_report", GA_BUILDER)
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _GA_BUILDER = module
+    return _GA_BUILDER
 
 
 def load(path: Path, contract: str | None = None) -> dict:
@@ -144,6 +166,26 @@ def build_entries(sources: dict) -> list[dict]:
     def package_state(name: str) -> str | None:
         section = summary.get(name)
         return section.get("status") if isinstance(section, dict) else None
+
+    shared = ga_builder()
+    # Item 15: the recorded security verdict evidences only through the
+    # register's classifier (row state PASS, complete PASS form, neither
+    # unclaimed nor unclassified). The transcript the summary note names is
+    # cited so its absence fails the build, never a quiet note.
+    security_field = summary.get("threat_coverage", {}).get("independent_security_review")
+    security_pass, security_reason = shared.verdict_complete_pass(
+        register, "threat_coverage", "independent_security_review"
+    )
+    security_note = str(summary.get("threat_coverage", {}).get("independent_security_review_note", ""))
+    transcripts = [ROOT / match for match in shared.TRANSCRIPT.findall(security_note)]
+    security_evidence = [SUMMARY, THREAT_COVERAGE, REGISTER, *transcripts]
+    # Item 32: a complete PASS from the independent reviewer over a register
+    # whose result is CLEAR, the same definition GA criterion 26.9.3 reads.
+    independent_review = summary.get("finding_register", {}).get("independent_review")
+    register_result = register.get("result")
+    independent_pass = (
+        shared.complete_pass_form(independent_review) and register_result == "FINDING_REGISTER_CLEAR"
+    )
 
     entries = [
         entry(
@@ -289,13 +331,14 @@ def build_entries(sources: dict) -> list[dict]:
         ),
         entry(
             "security review result",
-            value=(summary.get("threat_coverage", {}).get("independent_security_review")
-                   if str(summary.get("threat_coverage", {}).get("independent_security_review", "")).startswith("PASS") else None),
-            evidence=[SUMMARY, THREAT_COVERAGE]
-            if str(summary.get("threat_coverage", {}).get("independent_security_review", "")).startswith("PASS") else [],
+            value=security_field if security_pass else None,
+            evidence=security_evidence if security_pass else (transcripts if transcripts else []),
             note=f"the independent security review is Vulcan's; the machine summary records it as "
-            f"{summary.get('threat_coverage', {}).get('independent_security_review', 'PENDING')} "
-            "(transcripts under evidence/review/verdicts/threat_coverage/). Its input is measured: of the "
+            f"{security_field or 'PENDING'} and the finding register classifies it: {security_reason}. "
+            "The item is evidenced only by a complete PASS (the bare PASS token or an all-zero enumerated "
+            "count form the register classifies PASS, with no unclaimed finding); the transcript the "
+            f"summary note names ({', '.join(display(path) for path in transcripts) or 'none named'}) is "
+            "cited as evidence and must exist. Its input is measured: of the "
             f"{threats['threat_count']} registered threats, "
             f"{threats['states'].get('SYMBOL_REALIZED_WITH_EXERCISE', 0)} have a located "
             f"control whose symbol a test region, test file, corpus, fuzz target, or oracle names, "
@@ -399,10 +442,14 @@ def build_entries(sources: dict) -> list[dict]:
                 "declared_open_findings": register.get("declared_open_findings"),
                 "open_reviews": len(register.get("open_reviews", [])),
                 "deferred_reviews": len(register.get("deferred_reviews", [])),
+                "unclassified": len(register.get("unclassified", [])),
+                "unclaimed_carried_findings": len(register.get("unclaimed_carried_findings", [])),
                 "result": register.get("result"),
             },
             evidence=[REGISTER],
-            note="the S20-740 register of every recorded review obligation",
+            note="the S20-740 register of every recorded review obligation: pending, deferred, "
+            "unclassified (OTHER), and unclaimed-carried rows are counted, and the register's own "
+            "result is carried so the decision rule reads it",
         ),
         entry(
             "residual risks",
@@ -421,11 +468,13 @@ def build_entries(sources: dict) -> list[dict]:
         ),
         entry(
             "independent review result",
-            value=("PASS" if summary.get("finding_register", {}).get("independent_review") == "PASS" else None),
-            evidence=[SUMMARY, REGISTER] if summary.get("finding_register", {}).get("independent_review") == "PASS" else [],
-            note=f"S20-740 records the independent review as "
-            f"{summary.get('finding_register', {}).get('independent_review', 'PENDING')}; the item is "
-            "evidenced only by a recorded complete PASS from the independent reviewer over a CLEAR register",
+            value=(independent_review if independent_pass else None),
+            evidence=[SUMMARY, REGISTER] if independent_pass else [],
+            note=f"S20-740 records the independent review as {independent_review or 'PENDING'} over a "
+            f"register whose result is {register_result}; the item is evidenced only by a recorded "
+            "complete PASS (the bare PASS token or an all-zero enumerated count form the register's "
+            "classifier reads PASS) from the independent reviewer while the register result is "
+            "FINDING_REGISTER_CLEAR, the definition GA criterion 26.9.3 shares",
         ),
         entry(
             "release decision state",
@@ -510,8 +559,9 @@ def open_p2_rows(register: object, approved: set[str]) -> list[str]:
 
     The register carries review rows, not per-finding identities, so an
     approval names the `section:field` row whose P2s it covers. A row is
-    open for P2 purposes while it mentions P2, is not a passing row, and
-    does not itself declare no open findings.
+    open for P2 purposes while it mentions P2, is neither a passing row nor
+    a historical round (a FAIL/REVISE the register folds under a same-lane
+    superseding PASS), and does not itself declare no open findings.
     """
     if not isinstance(register, dict):
         return ["the finding register is unavailable, so P2 approval is unverifiable"]
@@ -524,7 +574,7 @@ def open_p2_rows(register: object, approved: set[str]) -> list[str]:
             continue
         if "P2" not in row.get("severities", []):
             continue
-        if row.get("state") == "PASS" or row.get("declares_no_open_p0_p1_p2") is True:
+        if row.get("state") in ("PASS", "HISTORICAL_ROUND") or row.get("declares_no_open_p0_p1_p2") is True:
             continue
         name = f"{row.get('section')}:{row.get('field')}"
         if name not in approved:
@@ -554,9 +604,10 @@ def derive_decision(sources: dict, entries: list[dict]) -> tuple[str, list[str]]
     entries' backs: a missing decision-input entry fails closed, and a gated
     entry contributes its gated fact. Four inputs have no section 30 item that
     carries them (the release-check and v2 gate states, the succession
-    thresholds, the GA acceptance states, and the approved conditional
-    items), so those four rules read the tracked sources the contract names;
-    everything else comes from the entries.
+    thresholds derived from the tracked S20-630 accounting report, the GA
+    acceptance states, and the approved conditional items), so those four
+    rules read the tracked sources the contract names; everything else comes
+    from the entries.
     """
     summary = sources["summary"]
     if not isinstance(summary, dict):
@@ -581,11 +632,22 @@ def derive_decision(sources: dict, entries: list[dict]) -> tuple[str, list[str]]
 
     findings = evidenced_value("findings by severity and disposition")
     if findings is not None:
+        # Rule 1 "any open review obligation": PENDING rows, OTHER
+        # (unclassified) rows, and the register's own result are all read
+        # off the entry; a register that is not CLEAR blocks by itself.
         if findings.get("open_reviews"):
             blocked.append(f"{findings['open_reviews']} review obligations are open")
         if findings.get("deferred_reviews"):
             blocked.append(
                 f"{findings['deferred_reviews']} review lanes are deferred and unavailable"
+            )
+        if findings.get("unclassified"):
+            blocked.append(
+                f"{findings['unclassified']} review dispositions are unclassified"
+            )
+        if findings.get("result") != "FINDING_REGISTER_CLEAR":
+            blocked.append(
+                f"the finding register result is {findings.get('result')}, not FINDING_REGISTER_CLEAR"
             )
     elif "findings by severity and disposition" in by_item:
         blocked.append("the findings entry is gated, so openness is unknown")
@@ -651,12 +713,18 @@ def derive_decision(sources: dict, entries: list[dict]) -> tuple[str, list[str]]
             return "FAIL", [f"an unapproved P2 finding is recorded: {name}" for name in uncovered]
     if gate_failed:
         return "FAIL", [f"a required gate failed: {name}" for name in sorted(gate_failed)]
-    thresholds = summary.get("succession", {})
-    thresholds = thresholds.get("thresholds_pass") if isinstance(thresholds, dict) else None
-    if thresholds is not None and not isinstance(thresholds, bool):
-        raise DossierError(DossierErrorCode.SOURCE_INVALID, "thresholds_pass is not a boolean")
-    if not thresholds:
-        return "ALPHA_COMPLETE", ["the succession thresholds do not pass"]
+    # The one section 22 threshold verdict, derived by the GA builder from
+    # the tracked S20-630 accounting report; no summary hand key is read, and
+    # an absent verdict is a non-passing one.
+    thresholds = sources.get("thresholds")
+    if thresholds is not None and not isinstance(thresholds, dict):
+        raise DossierError(DossierErrorCode.SOURCE_INVALID, "decision sources: thresholds is not an object")
+    passed = thresholds.get("pass") if isinstance(thresholds, dict) else None
+    if passed is not None and not isinstance(passed, bool):
+        raise DossierError(DossierErrorCode.SOURCE_INVALID, "thresholds pass is not a boolean")
+    if not passed:
+        why = thresholds.get("note") if isinstance(thresholds, dict) else "no threshold verdict was derived"
+        return "ALPHA_COMPLETE", [f"the succession thresholds do not pass: {why}"]
     if summary.get("approved_conditional_items"):
         return "CONDITIONAL_PASS", ["an approved non-correctness item remains"]
     return "PASS", []
@@ -690,6 +758,23 @@ def build_dossier() -> dict:
     spdx = sources["spdx"]
     if not isinstance(spdx.get("spdxVersion"), str) or not isinstance(spdx.get("packages"), list):
         raise DossierError(DossierErrorCode.SOURCE_INVALID, "spdx: unexpected shape")
+    # The GA report is a decision input (rule 1 count, rule 5 gate): its
+    # digest must verify, and it must be bound to the register this dossier
+    # reads, or a hand-edited or stale report could remove a BLOCKED reason.
+    shared = ga_builder()
+    acceptance = sources["ga_acceptance"]
+    if not shared.verify_report_digest(acceptance):
+        raise DossierError(
+            DossierErrorCode.SOURCE_INVALID,
+            "ga-acceptance-report.json: report_digest does not verify against the report body",
+        )
+    if acceptance.get("register_digest") != sources["register"].get("register_digest"):
+        raise DossierError(
+            DossierErrorCode.SOURCE_INVALID,
+            "ga-acceptance-report.json: register_digest differs from the finding register read "
+            "(rebuild the GA report after the register)",
+        )
+    sources["thresholds"] = shared.succession_thresholds()
     # Gate authority is dual-sourced: the live stub runs plus the summary
     # hand field. A hand edit clearing the field cannot clear a gate the
     # stub still reports closed.
