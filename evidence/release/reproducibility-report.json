@@ -2,13 +2,13 @@
   "attestations": [
     {
       "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "artifact_sha256": "9ee3971caddb5ef47859bb67a2a4ffb3c6d7d5ce529d69fbafbdd215fb09cf2e",
-      "artifact_size_bytes": 2190463,
-      "commit": "27ad8d7e4717a72a74ff1c63c27d9f24c92b012a",
+      "artifact_sha256": "d36d9a0165c25e27f20405d03fb9e5849b960af8ed5369edc69aed88b13906c7",
+      "artifact_size_bytes": 2190456,
+      "commit": "cd22b0ea30c58bdfdc710e634dd65325f7047bbc",
       "contract": "sley2.reproducibility-attestation.v1",
       "differing_members": [],
       "host_label": "primary",
-      "manifest_digest": "73fd4b322bbd556c60c0d2359987951ea0f9647ca3ae053abf939cc8562d57af",
+      "manifest_digest": "9f461c92797284dfba5918ce387d3f64bcc7c2d1726483f3defb49199d2dfb49",
       "member_count": 15,
       "reproducibility": "REPRODUCIBLE",
       "toolchain": {
@@ -19,13 +19,13 @@
     },
     {
       "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "artifact_sha256": "9ee3971caddb5ef47859bb67a2a4ffb3c6d7d5ce529d69fbafbdd215fb09cf2e",
-      "artifact_size_bytes": 2190463,
-      "commit": "27ad8d7e4717a72a74ff1c63c27d9f24c92b012a",
+      "artifact_sha256": "d36d9a0165c25e27f20405d03fb9e5849b960af8ed5369edc69aed88b13906c7",
+      "artifact_size_bytes": 2190456,
+      "commit": "cd22b0ea30c58bdfdc710e634dd65325f7047bbc",
       "contract": "sley2.reproducibility-attestation.v1",
       "differing_members": [],
       "host_label": "secondary",
-      "manifest_digest": "73fd4b322bbd556c60c0d2359987951ea0f9647ca3ae053abf939cc8562d57af",
+      "manifest_digest": "9f461c92797284dfba5918ce387d3f64bcc7c2d1726483f3defb49199d2dfb49",
       "member_count": 15,
       "reproducibility": "REPRODUCIBLE",
       "toolchain": {
@@ -41,8 +41,8 @@
     "council_reviews"
   ],
   "commits": {
-    "27ad8d7e4717a72a74ff1c63c27d9f24c92b012a": {
-      "artifact_sha256": "9ee3971caddb5ef47859bb67a2a4ffb3c6d7d5ce529d69fbafbdd215fb09cf2e",
+    "cd22b0ea30c58bdfdc710e634dd65325f7047bbc": {
+      "artifact_sha256": "d36d9a0165c25e27f20405d03fb9e5849b960af8ed5369edc69aed88b13906c7",
       "hosts": [
         "primary",
         "secondary"
@@ -53,7 +53,7 @@
   "distinct_hosts": 2,
   "ga_claimed": false,
   "publication_authorized": false,
-  "report_digest": "5460a3196cc318bc6718061825bc5683f5e3401e0844b302d16ef62ced7b2aa6",
+  "report_digest": "00ec7e57f513f2249a28c3e238ca4c29cc0fa5c0082b5f27e5b24761a4909b8c",
   "required_hosts": 2,
   "result": "MULTI_HOST_REPRODUCIBLE",
   "second_host": {
