@@ -3300,6 +3300,221 @@ fn versioned_hello_travels_at_frame_one_and_selects_two() {
     let _ = reidentity;
 }
 
+// ---------------------------------------------------------------------------
+// Protocol version 3 native negotiation (NATIVE_TEST_ADMISSION_V1 App. C)
+// ---------------------------------------------------------------------------
+
+use crate::{
+    FEATURE_NATIVE_TESTS_V1, PROTOCOL_VERSION_V3, Retryability, TESTS_AFFECTED_TAG,
+    TESTS_ATTEMPT_STATUS_TAG, TESTS_REPLAY_TAG, TESTS_REPORT_READ_TAG, TESTS_SELECTED_TAG,
+};
+
+fn v3_methods() -> Vec<u32> {
+    Method::V3_ALL
+        .iter()
+        .filter(|method| !method.is_reserved())
+        .map(|method| method.tag())
+        .collect()
+}
+
+fn v3hello(methods: Vec<u32>, features: u32) -> Hello {
+    Hello {
+        protocol_versions: vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3],
+        schema_epochs: vec![epoch(0x11)],
+        limits: LimitProfile {
+            max_frame_bytes: 8_388_608,
+            max_entities: 65_535,
+            max_edges: 400_000,
+            max_depth: 65_535,
+            max_response_bytes: 8_388_608,
+            max_work: 100_000_000,
+            max_inflight: 4,
+            max_sessions: 256,
+        },
+        methods,
+        features,
+        adapters: vec![],
+        effects: vec![],
+    }
+}
+
+fn v3request_frame(
+    session: Option<SessionId>,
+    request_id: u64,
+    tag: u32,
+    body: Vec<u8>,
+) -> Vec<u8> {
+    encode_frame_for_version(
+        &ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION_V3,
+            session,
+            request_id,
+            kind: FrameKind::Request,
+            method: tag,
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body,
+        },
+        PROTOCOL_VERSION_V3,
+    )
+    .unwrap()
+    .bytes
+}
+
+fn open_v3_session(server: &mut Server) -> SessionId {
+    let open = server
+        .answer(&v3request_frame(
+            None,
+            0,
+            Method::SessionOpen.tag(),
+            server.handshake_id().as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!open.failed);
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&open.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3).unwrap()
+    else {
+        panic!("v3 session open response");
+    };
+    assert_eq!(frame.protocol_version, PROTOCOL_VERSION_V3);
+    SessionId::from_bytes(frame.body.as_slice().try_into().unwrap())
+}
+
+fn call_v3(server: &mut Server, session: SessionId, request_id: u64, tag: u32) -> ProtocolFailure {
+    let answer = server
+        .answer(&v3request_frame(Some(session), request_id, tag, Vec::new()))
+        .unwrap();
+    assert!(answer.failed, "{tag} unexpectedly succeeded");
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3)
+            .unwrap()
+    else {
+        panic!("v3 response frame");
+    };
+    assert_eq!(frame.method, tag);
+    ProtocolFailure::decode(&frame.body).unwrap()
+}
+
+#[test]
+fn v3_offered_hello_names_v3_table_and_native_bit() {
+    let offered = Server::offered_hello_v3().unwrap();
+    assert_eq!(
+        offered.protocol_versions,
+        vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3]
+    );
+    assert_eq!(offered.methods, v3_methods());
+    assert_eq!(
+        offered.methods.len(),
+        Method::V3_ALL
+            .iter()
+            .filter(|method| !method.is_reserved())
+            .count()
+    );
+    for tag in [
+        TESTS_SELECTED_TAG,
+        TESTS_AFFECTED_TAG,
+        TESTS_REPORT_READ_TAG,
+        TESTS_REPLAY_TAG,
+        TESTS_ATTEMPT_STATUS_TAG,
+    ] {
+        assert!(!offered.methods.contains(&tag), "v3 offers no native {tag}");
+    }
+    assert!(offered.features & FEATURE_NATIVE_TESTS_V1 != 0);
+    // The v3 hello still travels at frame version 1 so older peers can
+    // read the offer and negotiate down.
+    let encoded = crate::encode_hello_frame(&offered).unwrap();
+    let (decoded, _) = decode_frame(&encoded.bytes, MAX_FRAME_BYTES).unwrap();
+    let DecodedFrame::Hello(label) = decoded else {
+        panic!("hello frame");
+    };
+    assert_eq!(
+        label.protocol_versions,
+        vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3]
+    );
+    decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION).unwrap();
+    assert_eq!(
+        decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+            .unwrap_err()
+            .code(),
+        ProtocolErrorCode::Downgrade
+    );
+    // Offered against offered selects v3 with the bit and no native tags.
+    let selected = negotiate_versioned(&offered, &offered).unwrap();
+    assert_eq!(selected.protocol_version, PROTOCOL_VERSION_V3);
+    assert!(selected.features & FEATURE_NATIVE_TESTS_V1 != 0);
+    assert_eq!(selected.methods, offered.methods);
+}
+
+#[test]
+fn v3_native_calls_refuse_reserved_with_bit_and_unnegotiated_without() {
+    // With the bit, a peer-offered native tag negotiates and refuses as
+    // reserved; without the bit, negotiation strips it and the same call
+    // refuses as not-negotiated. Either way no native semantics run.
+    let mut offered_native = v3_methods();
+    offered_native.extend_from_slice(&[
+        TESTS_REPORT_READ_TAG,
+        TESTS_REPLAY_TAG,
+        TESTS_ATTEMPT_STATUS_TAG,
+    ]);
+    offered_native.sort_unstable();
+    let bit = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1;
+    let (temp, _, _) = genesis("v3-native-refusal", executable_bodies(), &[]);
+    let repository = temp.child("repo");
+    let mut server = Server::new_versioned(
+        &repository,
+        &v3hello(offered_native.clone(), bit),
+        &v3hello(offered_native.clone(), bit),
+    )
+    .unwrap();
+    assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V3);
+    assert!(server.profile().admits(Method::TestsReportRead));
+    let session = open_v3_session(&mut server);
+    for (request_id, tag) in [
+        TESTS_REPORT_READ_TAG,
+        TESTS_REPLAY_TAG,
+        TESTS_ATTEMPT_STATUS_TAG,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let failure = call_v3(&mut server, session, request_id as u64 + 1, tag);
+        assert_eq!(failure.code, ProtocolErrorCode::MethodUnsupported.numeric());
+        assert_eq!(failure.details, RESERVED_SEAM_620_DETAIL);
+        assert_eq!(failure.retryability, Retryability::AfterCapability);
+    }
+    // Without the bit the tags never reach admission: the selection
+    // drops them, and dispatch still refuses the reserved method (the
+    // reserved arm dominates the gate for unimplemented methods, so the
+    // bit's effect shows in `admits`, not in the refusal code).
+    let plain = FEATURE_CANCEL | FEATURE_STREAM;
+    let mut unnegotiated = Server::new_versioned(
+        &repository,
+        &v3hello(offered_native.clone(), plain),
+        &v3hello(offered_native, plain),
+    )
+    .unwrap();
+    assert_eq!(unnegotiated.profile().protocol_version, PROTOCOL_VERSION_V3);
+    assert!(!unnegotiated.profile().admits(Method::TestsReplay));
+    let session = open_v3_session(&mut unnegotiated);
+    let failure = call_v3(&mut unnegotiated, session, 1, TESTS_REPLAY_TAG);
+    assert_eq!(failure.code, ProtocolErrorCode::MethodUnsupported.numeric());
+    assert_eq!(failure.details, RESERVED_SEAM_620_DETAIL);
+    assert_eq!(failure.retryability, Retryability::AfterCapability);
+}
+
+#[test]
+fn native_selection_refuses_reserved_on_v1_paths() {
+    // v1 and v2 refuse the reserved native selections byte-for-byte as
+    // before: `tests.selected`/`tests.affected` decode, then refuse as
+    // reserved with the seam detail and AfterCapability.
+    let mut harness = Harness::new("smp1-native-v1-refusal");
+    for method in [Method::TestsSelected, Method::TestsAffected] {
+        let failure = harness.fail(method, Vec::new());
+        assert_eq!(failure.details, RESERVED_SEAM_620_DETAIL);
+        assert_eq!(failure.retryability, Retryability::AfterCapability);
+    }
+}
+
 #[test]
 fn versioned_session_open_binds_and_claims_split() {
     let mut harness = VServer::new("v2-open");
@@ -3332,11 +3547,11 @@ fn versioned_session_open_binds_and_claims_split() {
         ProtocolFailure::decode(&frame.body).unwrap().code,
         ProtocolErrorCode::Downgrade.numeric()
     );
-    // An undefined selection emits nothing, so the v3-claiming wire bytes
+    // An undefined selection emits nothing, so the v4-claiming wire bytes
     // are minted past validation on purpose: the server must still refuse
     // them `PROTOCOL_VERSION_UNSUPPORTED` when they arrive on the wire.
-    let v3_claim = ProtocolFrame {
-        protocol_version: 3,
+    let v4_claim = ProtocolFrame {
+        protocol_version: 4,
         session: None,
         request_id: 0,
         kind: FrameKind::Request,
@@ -3346,13 +3561,13 @@ fn versioned_session_open_binds_and_claims_split() {
         body: harness.server.handshake_id().as_bytes().to_vec(),
     };
     assert_eq!(
-        encode_frame_for_version(&v3_claim, 3).unwrap_err().code(),
+        encode_frame_for_version(&v4_claim, 4).unwrap_err().code(),
         ProtocolErrorCode::VersionUnsupported
     );
-    let v3_open = crate::encode_envelope(v3_claim.kind, &v3_claim.payload().unwrap())
+    let v4_open = crate::encode_envelope(v4_claim.kind, &v4_claim.payload().unwrap())
         .unwrap()
         .bytes;
-    let answer = harness.server.answer(&v3_open).unwrap();
+    let answer = harness.server.answer(&v4_open).unwrap();
     assert!(answer.failed);
     let (DecodedFrame::Response(frame), _) =
         decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
@@ -4330,9 +4545,9 @@ fn repair_hello_wire_version_is_always_one() {
 }
 
 #[test]
-fn repair_explicit_negotiation_supports_only_one_and_two() {
-    // R6 / VUL-P2-04: the operational explicit path implements versions 1
-    // and 2 only. An unsupported greatest-common selection is refused with
+fn repair_explicit_negotiation_supports_one_two_and_three() {
+    // R6 / VUL-P2-04: the operational explicit path implements versions 1,
+    // 2, and 3. An unsupported greatest-common selection is refused with
     // the existing VersionUnsupported code; legacy helpers keep arbitrary
     // numeric behavior and opaque/reserved tag rules are unchanged.
     fn with_versions_opaque(versions: Vec<u32>, methods: &[u32]) -> Hello {
@@ -4360,7 +4575,14 @@ fn repair_explicit_negotiation_supports_only_one_and_two() {
         protocol_versions: versions,
         ..base.clone()
     };
-    for versions in [vec![1], vec![2], vec![1, 2]] {
+    for versions in [
+        vec![1],
+        vec![2],
+        vec![3],
+        vec![1, 2],
+        vec![1, 2, 3],
+        vec![2, 3],
+    ] {
         let selected = negotiate_versioned(
             &with_versions(versions.clone()),
             &with_versions(versions.clone()),
@@ -4372,7 +4594,7 @@ fn repair_explicit_negotiation_supports_only_one_and_two() {
             "supported selection {versions:?}"
         );
     }
-    for versions in [vec![3], vec![1, 2, 3], vec![2, 3]] {
+    for versions in [vec![4], vec![1, 4], vec![2, 4]] {
         let refused = negotiate_versioned(
             &with_versions(versions.clone()),
             &with_versions(versions.clone()),
@@ -4389,15 +4611,15 @@ fn repair_explicit_negotiation_supports_only_one_and_two() {
     // serving session can exist.
     let (temp, _, _) = genesis("repair-r6-unsupported", executable_bodies(), &[]);
     let repository = temp.child("repo");
-    let bad = with_versions(vec![1, 2, 3]);
+    let bad = with_versions(vec![4]);
     assert_eq!(
         Server::new_versioned(&repository, &bad, &bad)
             .unwrap_err()
             .code(),
         ProtocolErrorCode::VersionUnsupported
     );
-    // Version-aware method availability claims nothing for version 3 while
-    // the supported version rules are unchanged.
+    // Version-aware method availability claims v3 methods on version 3
+    // while the lower-version rules are unchanged.
     assert!(Method::from_tag_versioned(ENTITY_VERSION_TAG, PROTOCOL_VERSION_V2).is_ok());
     assert_eq!(
         Method::from_tag_versioned(ENTITY_VERSION_TAG, PROTOCOL_VERSION)
@@ -4405,8 +4627,9 @@ fn repair_explicit_negotiation_supports_only_one_and_two() {
             .code(),
         ProtocolErrorCode::MethodUnsupported
     );
+    assert!(Method::from_tag_versioned(ENTITY_VERSION_TAG, 3).is_ok());
     assert_eq!(
-        Method::from_tag_versioned(ENTITY_VERSION_TAG, 3)
+        Method::from_tag_versioned(ENTITY_VERSION_TAG, 4)
             .unwrap_err()
             .code(),
         ProtocolErrorCode::VersionUnsupported

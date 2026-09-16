@@ -31,10 +31,25 @@ pub const PROTOCOL_VERSION: u32 = 1;
 /// Protocol version 2: the only version admitting the entity-read methods
 /// 306 and 307 (contract `docs/spec/ENTITY_READ_PROFILE_V2.md`).
 pub const PROTOCOL_VERSION_V2: u32 = 2;
+/// Protocol version 3: the only version admitting the native test methods
+/// 601, 602, 605, 606, and 607 alongside version 2, gated additionally by
+/// the negotiated `FEATURE_NATIVE_TESTS_V1` bit (contract
+/// `docs/spec/NATIVE_TEST_ADMISSION_V1.md` Appendix C).
+pub const PROTOCOL_VERSION_V3: u32 = 3;
 /// Method tag of `entity.version`.
 pub const ENTITY_VERSION_TAG: u32 = 306;
 /// Method tag of `entity.signature`.
 pub const ENTITY_SIGNATURE_TAG: u32 = 307;
+/// Method tag of `tests.selected`.
+pub const TESTS_SELECTED_TAG: u32 = 601;
+/// Method tag of `tests.affected`.
+pub const TESTS_AFFECTED_TAG: u32 = 602;
+/// Method tag of `tests.report_read`.
+pub const TESTS_REPORT_READ_TAG: u32 = 605;
+/// Method tag of `tests.replay`.
+pub const TESTS_REPLAY_TAG: u32 = 606;
+/// Method tag of `tests.attempt_status`.
+pub const TESTS_ATTEMPT_STATUS_TAG: u32 = 607;
 /// Absolute frame ceiling; negotiated `max_frame_bytes` never exceeds it.
 pub const MAX_FRAME_BYTES: u64 = 67_108_864;
 /// Protocol frame contract tag (every frame kind shares it).
@@ -50,11 +65,18 @@ pub const FEATURE_CHECKSUM: u32 = 8;
 /// (`limits` field 6 value 2, contract appendix C). Without the negotiated
 /// bit, selecting it is `PROTOCOL_PAYLOAD_INVALID`.
 pub const FEATURE_EXTENDED_EXECUTE: u32 = 16;
+/// Feature bit 5: the session negotiates the native test methods (contract
+/// `docs/spec/NATIVE_TEST_ADMISSION_V1.md` Appendix C). A selected v3
+/// intersection that lacks this bit drops the native tags before the
+/// profile hash, so they refuse as not-negotiated; with the bit they stay
+/// negotiated and refuse as reserved until their semantics slices land.
+pub const FEATURE_NATIVE_TESTS_V1: u32 = 32;
 const FEATURE_MASK: u32 = FEATURE_CANCEL
     | FEATURE_STREAM
     | FEATURE_JSON_BRIDGE
     | FEATURE_CHECKSUM
-    | FEATURE_EXTENDED_EXECUTE;
+    | FEATURE_EXTENDED_EXECUTE
+    | FEATURE_NATIVE_TESTS_V1;
 /// Flag bits of a frame.
 pub const FLAG_CANCEL: u32 = 1;
 pub const FLAG_STREAM: u32 = 2;
@@ -437,6 +459,9 @@ pub enum Method {
     TestsAffected,
     Cancel,
     Report,
+    TestsReportRead,
+    TestsReplay,
+    TestsAttemptStatus,
     EntityVersion,
     EntitySignature,
 }
@@ -534,6 +559,60 @@ impl Method {
         Self::Report,
     ];
 
+    /// The version-3 table: the frozen v2 tags plus the three native test
+    /// methods new in that scope, in tag order. The legacy `ALL` and `V2_ALL`
+    /// tables are unchanged. All five native methods stay reserved until
+    /// their semantics slices land, so v3 negotiation works while every
+    /// native call still refuses `PROTOCOL_METHOD_UNSUPPORTED`.
+    pub const V3_ALL: [Self; 46] = [
+        Self::SessionOpen,
+        Self::SessionRenew,
+        Self::SessionClose,
+        Self::SessionCapabilities,
+        Self::SessionBudgets,
+        Self::WorkspaceCreate,
+        Self::WorkspaceOpen,
+        Self::RefsList,
+        Self::RefsResolve,
+        Self::RevisionRead,
+        Self::BranchCreate,
+        Self::BranchAdvance,
+        Self::Compare,
+        Self::MergeJudge,
+        Self::MergeCommit,
+        Self::ExchangeExport,
+        Self::ExchangeImport,
+        Self::GcDryRun,
+        Self::GcCollect,
+        Self::RefsRecover,
+        Self::QueryRoot,
+        Self::QueryContinue,
+        Self::Capsule,
+        Self::QueryRestricted,
+        Self::HandleExpand,
+        Self::Diagnostics,
+        Self::EntityVersion,
+        Self::EntitySignature,
+        Self::CandidateCreate,
+        Self::CandidateAppend,
+        Self::CandidateValidate,
+        Self::CandidateInspect,
+        Self::CandidateDiscard,
+        Self::Commit,
+        Self::ReceiptRead,
+        Self::Checkout,
+        Self::RefMoveProtected,
+        Self::Recovery,
+        Self::Execute,
+        Self::TestsSelected,
+        Self::TestsAffected,
+        Self::Cancel,
+        Self::Report,
+        Self::TestsReportRead,
+        Self::TestsReplay,
+        Self::TestsAttemptStatus,
+    ];
+
     #[must_use]
     pub const fn tag(self) -> u32 {
         match self {
@@ -574,10 +653,13 @@ impl Method {
             Self::RefMoveProtected => 503,
             Self::Recovery => 504,
             Self::Execute => 600,
-            Self::TestsSelected => 601,
-            Self::TestsAffected => 602,
+            Self::TestsSelected => TESTS_SELECTED_TAG,
+            Self::TestsAffected => TESTS_AFFECTED_TAG,
             Self::Cancel => 603,
             Self::Report => 604,
+            Self::TestsReportRead => TESTS_REPORT_READ_TAG,
+            Self::TestsReplay => TESTS_REPLAY_TAG,
+            Self::TestsAttemptStatus => TESTS_ATTEMPT_STATUS_TAG,
             Self::EntityVersion => ENTITY_VERSION_TAG,
             Self::EntitySignature => ENTITY_SIGNATURE_TAG,
         }
@@ -627,6 +709,9 @@ impl Method {
             Self::TestsAffected => "tests.affected",
             Self::Cancel => "cancel",
             Self::Report => "report",
+            Self::TestsReportRead => "tests.report_read",
+            Self::TestsReplay => "tests.replay",
+            Self::TestsAttemptStatus => "tests.attempt_status",
             Self::EntityVersion => "entity.version",
             Self::EntitySignature => "entity.signature",
         }
@@ -639,11 +724,21 @@ impl Method {
     }
 
     /// Reserved methods fail `PROTOCOL_METHOD_UNSUPPORTED` at this revision.
+    /// The three v3-native methods join the reserved set until their
+    /// semantics slices land; `tests.selected` and `tests.affected` stay
+    /// reserved in every version, so v1/v2 refuse them byte-for-byte as
+    /// before.
     #[must_use]
     pub const fn is_reserved(self) -> bool {
         matches!(
             self,
-            Self::Diagnostics | Self::RefMoveProtected | Self::TestsSelected | Self::TestsAffected
+            Self::Diagnostics
+                | Self::RefMoveProtected
+                | Self::TestsSelected
+                | Self::TestsAffected
+                | Self::TestsReportRead
+                | Self::TestsReplay
+                | Self::TestsAttemptStatus
         )
     }
 
@@ -665,6 +760,9 @@ impl Method {
     pub const fn introduced_in(self) -> u32 {
         match self {
             Self::EntityVersion | Self::EntitySignature => PROTOCOL_VERSION_V2,
+            Self::TestsReportRead | Self::TestsReplay | Self::TestsAttemptStatus => {
+                PROTOCOL_VERSION_V3
+            }
             _ => PROTOCOL_VERSION,
         }
     }
@@ -673,19 +771,23 @@ impl Method {
     ///
     /// Version 2 methods stay `PROTOCOL_METHOD_UNSUPPORTED` on every v1
     /// serving path, including an opaque negotiated intersection that
-    /// retained their numeric tags.
+    /// retained their numeric tags; version 3 methods stay unsupported on
+    /// every v1 and v2 path the same way.
     ///
     /// # Errors
     ///
     /// Returns `PROTOCOL_METHOD_UNSUPPORTED` for any tag outside the
     /// version's table.
     pub fn from_tag_versioned(tag: u32, version: u32) -> Result<Self> {
-        // Only versions 1 and 2 are defined on the explicit path: no
+        // Only versions 1, 2, and 3 are defined on the explicit path: no
         // method is claimed for an undefined version.
-        if version != PROTOCOL_VERSION && version != PROTOCOL_VERSION_V2 {
+        if version != PROTOCOL_VERSION
+            && version != PROTOCOL_VERSION_V2
+            && version != PROTOCOL_VERSION_V3
+        {
             return fail(ProtocolErrorCode::VersionUnsupported);
         }
-        let method = Self::V2_ALL
+        let method = Self::V3_ALL
             .iter()
             .copied()
             .find(|method| method.tag() == tag)
@@ -909,12 +1011,17 @@ pub fn negotiate(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
 }
 
 /// Derives the selected profile from two hellos with explicit version
-/// awareness (contract `docs/spec/ENTITY_READ_PROFILE_V2.md` section 2).
+/// awareness (contract `docs/spec/ENTITY_READ_PROFILE_V2.md` section 2 and
+/// `docs/spec/NATIVE_TEST_ADMISSION_V1.md` Appendix C).
 ///
 /// The legacy derivation is preserved exactly, including opaque unknown
-/// numeric intersections; only the known version-2 tags are filtered from
-/// the intersection when the selected version is 1. Reserved tags remain
-/// invalid offers in both versions through `Hello::validate`.
+/// numeric intersections; only the known higher-version tags are filtered
+/// from the intersection when the selected version is lower. Reserved tags
+/// remain invalid offers in every version through `Hello::validate`. On v3
+/// the native tags additionally require the negotiated
+/// `FEATURE_NATIVE_TESTS_V1` bit: a selected intersection that lacks the
+/// bit drops them before the profile hash, so they refuse as
+/// not-negotiated rather than reserved.
 ///
 /// # Errors
 ///
@@ -924,19 +1031,38 @@ pub fn negotiate(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
 /// `PROTOCOL_LIMIT_EXCEEDED`.
 pub fn negotiate_versioned(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
     let mut profile = negotiate(client, server)?;
-    // The operational explicit path implements versions 1 and 2 only: an
+    // The operational explicit path implements versions 1, 2, and 3: an
     // unsupported greatest-common selection is refused before
     // establishment with no fallback to a lower offered version. Legacy
     // `negotiate` keeps arbitrary numeric behavior exactly.
     if profile.protocol_version != PROTOCOL_VERSION
         && profile.protocol_version != PROTOCOL_VERSION_V2
+        && profile.protocol_version != PROTOCOL_VERSION_V3
     {
         return fail(ProtocolErrorCode::VersionUnsupported);
     }
     if profile.protocol_version == PROTOCOL_VERSION {
-        profile
-            .methods
-            .retain(|tag| *tag != ENTITY_VERSION_TAG && *tag != ENTITY_SIGNATURE_TAG);
+        profile.methods.retain(|tag| {
+            *tag != ENTITY_VERSION_TAG
+                && *tag != ENTITY_SIGNATURE_TAG
+                && *tag != TESTS_REPORT_READ_TAG
+                && *tag != TESTS_REPLAY_TAG
+                && *tag != TESTS_ATTEMPT_STATUS_TAG
+        });
+    } else if profile.protocol_version == PROTOCOL_VERSION_V2 {
+        profile.methods.retain(|tag| {
+            *tag != TESTS_REPORT_READ_TAG
+                && *tag != TESTS_REPLAY_TAG
+                && *tag != TESTS_ATTEMPT_STATUS_TAG
+        });
+    } else if profile.features & FEATURE_NATIVE_TESTS_V1 == 0 {
+        profile.methods.retain(|tag| {
+            *tag != TESTS_SELECTED_TAG
+                && *tag != TESTS_AFFECTED_TAG
+                && *tag != TESTS_REPORT_READ_TAG
+                && *tag != TESTS_REPLAY_TAG
+                && *tag != TESTS_ATTEMPT_STATUS_TAG
+        });
     }
     Ok(profile)
 }
@@ -1154,10 +1280,11 @@ impl ProtocolFrame {
 
     /// Validates a decoded frame's header under an explicitly selected
     /// protocol version (contract `docs/spec/ENTITY_READ_PROFILE_V2.md`
-    /// section 2): below the selection is a downgrade attempt, above it
-    /// names a version the selection does not know.
+    /// section 2 and `docs/spec/NATIVE_TEST_ADMISSION_V1.md` Appendix C):
+    /// below the selection is a downgrade attempt, above it names a version
+    /// the selection does not know.
     ///
-    /// The selection itself is gated first: only versions 1 and 2 are
+    /// The selection itself is gated first: only versions 1, 2, and 3 are
     /// defined on the explicit path (contract `docs/spec/SMP1.md`
     /// section 2, like [`Method::from_tag_versioned`] and
     /// [`negotiate_versioned`]), so any other expected version is
@@ -1168,7 +1295,10 @@ impl ProtocolFrame {
     ///
     /// Returns the exact validation failure; never a partial judgment.
     pub fn validate_for_version(&self, expected_version: u32) -> Result<()> {
-        if expected_version != PROTOCOL_VERSION && expected_version != PROTOCOL_VERSION_V2 {
+        if expected_version != PROTOCOL_VERSION
+            && expected_version != PROTOCOL_VERSION_V2
+            && expected_version != PROTOCOL_VERSION_V3
+        {
             return fail(ProtocolErrorCode::VersionUnsupported);
         }
         if self.protocol_version < expected_version {
@@ -3175,27 +3305,27 @@ mod tests {
             protocol_version: PROTOCOL_VERSION,
             ..req.clone()
         };
-        let v3_claim = ProtocolFrame {
-            protocol_version: 3,
+        let v4_claim = ProtocolFrame {
+            protocol_version: 4,
             ..req.clone()
         };
         let downgrade = encode_frame_for_version(&v1_claim, PROTOCOL_VERSION)
             .unwrap()
             .bytes;
-        // An undefined selection emits nothing: the v3-claiming wire bytes
+        // An undefined selection emits nothing: the v4-claiming wire bytes
         // below are minted past validation on purpose, so the decode side
         // keeps its negative vector while the encode side stays fail-closed.
         assert_eq!(
-            encode_frame_for_version(&v3_claim, 3).unwrap_err().code(),
+            encode_frame_for_version(&v4_claim, 4).unwrap_err().code(),
             ProtocolErrorCode::VersionUnsupported
         );
-        let upgraded = encode_envelope(v3_claim.kind, &v3_claim.payload().unwrap())
+        let upgraded = encode_envelope(v4_claim.kind, &v4_claim.payload().unwrap())
             .unwrap()
             .bytes;
         let rejects: Vec<(&str, Vec<u8>, ProtocolErrorCode)> = vec![
             ("v1-frame-on-v2", downgrade, ProtocolErrorCode::Downgrade),
             (
-                "v3-frame-on-v2",
+                "v4-frame-on-v2",
                 upgraded,
                 ProtocolErrorCode::VersionUnsupported,
             ),
@@ -3212,6 +3342,199 @@ mod tests {
                 code.numeric()
             );
         }
+    }
+
+    #[test]
+    fn version_three_table_and_legacy_decoder_are_exact() {
+        assert_eq!(Method::ALL.len(), 41);
+        assert_eq!(Method::V2_ALL.len(), 43);
+        assert_eq!(Method::V3_ALL.len(), 46);
+        let v2_tags: Vec<u32> = Method::V2_ALL.iter().map(|method| method.tag()).collect();
+        let tags: Vec<u32> = Method::V3_ALL.iter().map(|method| method.tag()).collect();
+        assert!(strictly_increasing(&tags));
+        // The v3 table is the frozen v2 table plus the three native tags
+        // in order after `report`.
+        assert_eq!(&tags[..v2_tags.len() - 5], &v2_tags[..v2_tags.len() - 5]);
+        assert_eq!(
+            &tags[v2_tags.len() - 5..],
+            &[600, 601, 602, 603, 604, 605, 606, 607]
+        );
+        assert_eq!(Method::TestsReportRead.tag(), TESTS_REPORT_READ_TAG);
+        assert_eq!(Method::TestsReplay.tag(), TESTS_REPLAY_TAG);
+        assert_eq!(Method::TestsAttemptStatus.tag(), TESTS_ATTEMPT_STATUS_TAG);
+        assert_eq!(Method::TestsSelected.tag(), TESTS_SELECTED_TAG);
+        assert_eq!(Method::TestsAffected.tag(), TESTS_AFFECTED_TAG);
+        assert_eq!(Method::TestsReportRead.name(), "tests.report_read");
+        assert_eq!(Method::TestsReplay.name(), "tests.replay");
+        assert_eq!(Method::TestsAttemptStatus.name(), "tests.attempt_status");
+        assert_eq!(Method::TestsReportRead.family(), 6);
+        assert_eq!(Method::TestsReportRead.introduced_in(), PROTOCOL_VERSION_V3);
+        assert_eq!(Method::TestsReplay.introduced_in(), PROTOCOL_VERSION_V3);
+        assert_eq!(
+            Method::TestsAttemptStatus.introduced_in(),
+            PROTOCOL_VERSION_V3
+        );
+        // `tests.selected`/`tests.affected` decode exactly as before in
+        // every version, so v1/v2 refuse them byte-for-byte downstream.
+        assert_eq!(Method::TestsSelected.introduced_in(), PROTOCOL_VERSION);
+        assert_eq!(Method::TestsAffected.introduced_in(), PROTOCOL_VERSION);
+        assert!(Method::TestsSelected.is_reserved());
+        assert!(Method::TestsAffected.is_reserved());
+        assert!(Method::TestsReportRead.is_reserved());
+        assert!(Method::TestsReplay.is_reserved());
+        assert!(Method::TestsAttemptStatus.is_reserved());
+        assert!(!Method::Report.is_reserved());
+        for method in Method::V3_ALL {
+            assert_eq!(
+                Method::from_tag_versioned(method.tag(), PROTOCOL_VERSION_V3).unwrap(),
+                method
+            );
+        }
+        // The legacy decoder stays v1-only: the three new tags refuse
+        // there, while 601/602 keep resolving (their refusal stays the
+        // reserved-method dispatch refusal, byte-for-byte as before).
+        for tag in [605, 606, 607] {
+            assert_eq!(
+                Method::from_tag(tag).unwrap_err().code(),
+                ProtocolErrorCode::MethodUnsupported
+            );
+        }
+        for tag in [601, 602] {
+            assert_eq!(
+                Method::from_tag(tag).unwrap(),
+                Method::from_tag_versioned(tag, 1).unwrap()
+            );
+        }
+        // The versioned decoder refuses the new tags on v1 and v2 while
+        // resolving them on v3; unknown tags refuse everywhere and an
+        // undefined version claims nothing.
+        for tag in [605, 606, 607] {
+            for version in [PROTOCOL_VERSION, PROTOCOL_VERSION_V2] {
+                assert_eq!(
+                    Method::from_tag_versioned(tag, version).unwrap_err().code(),
+                    ProtocolErrorCode::MethodUnsupported
+                );
+            }
+        }
+        for tag in [601, 602, 300] {
+            for version in [PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3] {
+                Method::from_tag_versioned(tag, version).unwrap();
+            }
+        }
+        assert_eq!(
+            Method::from_tag_versioned(999, PROTOCOL_VERSION_V3)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::MethodUnsupported
+        );
+        assert_eq!(
+            Method::from_tag_versioned(300, 4).unwrap_err().code(),
+            ProtocolErrorCode::VersionUnsupported
+        );
+    }
+
+    #[test]
+    fn version_three_negotiation_gates_native_tags_on_feature_bit() {
+        fn v3_hello() -> Hello {
+            let mut hello = client_hello();
+            hello.protocol_versions =
+                vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3];
+            hello.methods.push(TESTS_REPORT_READ_TAG);
+            hello.methods.push(TESTS_REPLAY_TAG);
+            hello.methods.push(TESTS_ATTEMPT_STATUS_TAG);
+            hello.methods.push(999);
+            hello.methods.sort_unstable();
+            hello
+        }
+        // Reserved 601/602 offers stay invalid in every version through
+        // `Hello::validate`, so negotiation never sees them.
+        let mut reserved_offer = v3_hello();
+        reserved_offer.methods.push(TESTS_SELECTED_TAG);
+        reserved_offer.methods.sort_unstable();
+        assert_eq!(
+            reserved_offer.validate().unwrap_err().code(),
+            ProtocolErrorCode::PayloadInvalid
+        );
+        // The new bit validates; unknown bits still refuse.
+        let mut hello = v3_hello();
+        hello.features |= FEATURE_NATIVE_TESTS_V1;
+        hello.validate().unwrap();
+        hello.features |= 64;
+        assert_eq!(
+            hello.validate().unwrap_err().code(),
+            ProtocolErrorCode::PayloadInvalid
+        );
+        // v3 with the bit on both sides keeps the native tags.
+        let mut client = v3_hello();
+        let mut server = v3_hello();
+        for side in [&mut client, &mut server] {
+            side.features |= FEATURE_NATIVE_TESTS_V1;
+        }
+        let selected = negotiate_versioned(&client, &server).unwrap();
+        assert_eq!(selected.protocol_version, PROTOCOL_VERSION_V3);
+        assert!(selected.features & FEATURE_NATIVE_TESTS_V1 != 0);
+        for tag in [605, 606, 607, 999, 100] {
+            assert!(selected.methods.contains(&tag), "keeps {tag}");
+        }
+        // v3 without the bit drops the native tags before the profile
+        // hash while keeping opaque and ordinary tags.
+        let mut plain_client = v3_hello();
+        let plain_server = v3_hello();
+        plain_client.features |= FEATURE_NATIVE_TESTS_V1;
+        let stripped = negotiate_versioned(&plain_client, &plain_server).unwrap();
+        assert_eq!(stripped.protocol_version, PROTOCOL_VERSION_V3);
+        assert!(stripped.features & FEATURE_NATIVE_TESTS_V1 == 0);
+        for tag in [605, 606, 607] {
+            assert!(!stripped.methods.contains(&tag), "drops {tag}");
+        }
+        assert!(stripped.methods.contains(&999));
+        assert!(stripped.methods.contains(&100));
+        // v2 still strips the new tags; v1 strips v2 and v3 tags alike.
+        let v2_server = Hello {
+            protocol_versions: vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2],
+            ..server.clone()
+        };
+        let v2_selected = negotiate_versioned(&client, &v2_server).unwrap();
+        assert_eq!(v2_selected.protocol_version, PROTOCOL_VERSION_V2);
+        for tag in [605, 606, 607] {
+            assert!(!v2_selected.methods.contains(&tag), "v2 drops {tag}");
+        }
+        assert!(v2_selected.methods.contains(&999));
+        let v1_server = Hello {
+            protocol_versions: vec![PROTOCOL_VERSION],
+            ..server.clone()
+        };
+        let v1_selected = negotiate_versioned(&client, &v1_server).unwrap();
+        assert_eq!(v1_selected.protocol_version, PROTOCOL_VERSION);
+        for tag in [306, 307, 605, 606, 607] {
+            assert!(!v1_selected.methods.contains(&tag), "v1 drops {tag}");
+        }
+        assert!(v1_selected.methods.contains(&999));
+        // Greatest-common rules are unchanged: no fallback past an
+        // unsupported selection, and v3 wins only when both sides offer it.
+        let v3_only = Hello {
+            protocol_versions: vec![PROTOCOL_VERSION_V3],
+            ..server.clone()
+        };
+        let three = negotiate_versioned(&client, &v3_only).unwrap();
+        assert_eq!(three.protocol_version, PROTOCOL_VERSION_V3);
+        let two = negotiate_versioned(&client, &v2_server).unwrap();
+        assert_eq!(two.protocol_version, PROTOCOL_VERSION_V2);
+        let undefined = Hello {
+            protocol_versions: vec![4],
+            ..server.clone()
+        };
+        assert_eq!(
+            negotiate_versioned(&undefined, &undefined)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::VersionUnsupported
+        );
+        // The bound identity covers a v3 selection with the bit set.
+        let (bound, identity) = negotiate_identity_versioned(&client, &server).unwrap();
+        assert_eq!(bound, selected);
+        assert_eq!(bound.protocol_version, PROTOCOL_VERSION_V3);
+        let _ = identity;
     }
 
     #[test]
@@ -3333,10 +3656,18 @@ mod tests {
             ProtocolErrorCode::VersionUnsupported
         );
         assert_eq!(
-            decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, 3)
+            decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, 4)
                 .unwrap_err()
                 .code(),
             ProtocolErrorCode::VersionUnsupported
+        );
+        // A v2 claim decoded under the now-defined v3 selection is a
+        // downgrade, not an unknown version.
+        assert_eq!(
+            decode_frame_for_version(&encoded.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::Downgrade
         );
         let v1_frame = ProtocolFrame {
             protocol_version: PROTOCOL_VERSION,
@@ -3364,10 +3695,10 @@ mod tests {
 
     #[test]
     fn versioned_frame_codec_gates_undefined_selections_fail_closed() {
-        // Only versions 1 and 2 are defined on the explicit path (contract
-        // SMP1 section 2): every other selection fails
+        // Only versions 1, 2, and 3 are defined on the explicit path
+        // (contract SMP1 section 2): every other selection fails
         // `PROTOCOL_VERSION_UNSUPPORTED` on encode and on decode,
-        // regardless of the frame's own claim, while the {1, 2} domain
+        // regardless of the frame's own claim, while the {1, 2, 3} domain
         // keeps its exact claim split and frozen v1 behavior is unchanged.
         let base = ProtocolFrame {
             protocol_version: PROTOCOL_VERSION,
@@ -3389,12 +3720,18 @@ mod tests {
                 .bytes
         };
         // Encode: the defined domain round-trips, everything else refuses.
-        for claimed in [0, PROTOCOL_VERSION, PROTOCOL_VERSION_V2, 3] {
+        for claimed in [
+            0,
+            PROTOCOL_VERSION,
+            PROTOCOL_VERSION_V2,
+            PROTOCOL_VERSION_V3,
+            4,
+        ] {
             let frame = ProtocolFrame {
                 protocol_version: claimed,
                 ..base.clone()
             };
-            for expected in [PROTOCOL_VERSION, PROTOCOL_VERSION_V2] {
+            for expected in [PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3] {
                 let outcome = encode_frame_for_version(&frame, expected);
                 match claimed.cmp(&expected) {
                     std::cmp::Ordering::Equal => {
@@ -3411,7 +3748,7 @@ mod tests {
                     }
                 }
             }
-            for expected in [0, 3, u32::MAX] {
+            for expected in [0, 4, u32::MAX] {
                 assert_eq!(
                     encode_frame_for_version(&frame, expected)
                         .unwrap_err()
@@ -3423,9 +3760,15 @@ mod tests {
         }
         // Decode: envelope integrity precedes the selection domain, and the
         // domain precedes every claim and shape judgment.
-        for claimed in [0, PROTOCOL_VERSION, PROTOCOL_VERSION_V2, 3] {
+        for claimed in [
+            0,
+            PROTOCOL_VERSION,
+            PROTOCOL_VERSION_V2,
+            PROTOCOL_VERSION_V3,
+            4,
+        ] {
             let bytes = wire(claimed);
-            for expected in [0, 3, u32::MAX] {
+            for expected in [0, 4, u32::MAX] {
                 assert_eq!(
                     decode_frame_for_version(&bytes, MAX_FRAME_BYTES, expected)
                         .unwrap_err()
@@ -3459,11 +3802,25 @@ mod tests {
                     "decode claimed {claimed} under v2"
                 ),
             }
+            match decode_frame_for_version(&bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3) {
+                Ok(_) => assert_eq!(claimed, PROTOCOL_VERSION_V3),
+                Err(error) => assert_eq!(
+                    error.code(),
+                    if claimed < PROTOCOL_VERSION_V3 {
+                        ProtocolErrorCode::Downgrade
+                    } else {
+                        ProtocolErrorCode::VersionUnsupported
+                    },
+                    "decode claimed {claimed} under v3"
+                ),
+            }
         }
         let v1_bytes = wire(PROTOCOL_VERSION);
         let v2_bytes = wire(PROTOCOL_VERSION_V2);
+        let v3_bytes = wire(PROTOCOL_VERSION_V3);
         decode_frame_for_version(&v1_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION).unwrap();
         decode_frame_for_version(&v2_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2).unwrap();
+        decode_frame_for_version(&v3_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3).unwrap();
         assert_eq!(
             decode_frame_for_version(&v2_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION)
                 .unwrap_err()
@@ -3476,21 +3833,33 @@ mod tests {
                 .code(),
             ProtocolErrorCode::Downgrade
         );
+        assert_eq!(
+            decode_frame_for_version(&v3_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::VersionUnsupported
+        );
+        assert_eq!(
+            decode_frame_for_version(&v1_bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::Downgrade
+        );
         // A corrupted envelope still fails frame-invalid before the
         // undefined selection is even reached.
         let mut corrupt = v2_bytes.clone();
         let magic_at = LENGTH_PREFIX;
         corrupt[magic_at] ^= 0xff;
         assert_eq!(
-            decode_frame_for_version(&corrupt, MAX_FRAME_BYTES, 3)
+            decode_frame_for_version(&corrupt, MAX_FRAME_BYTES, 4)
                 .unwrap_err()
                 .code(),
             ProtocolErrorCode::FrameInvalid
         );
-        // A v3 claim with bad flags under a defined selection still reports
+        // A v4 claim with bad flags under a defined selection still reports
         // the version split first, pinning claim-before-shape ordering.
         let bad_flags = ProtocolFrame {
-            protocol_version: 3,
+            protocol_version: 4,
             flags: 0xffff,
             ..base.clone()
         };
@@ -3507,7 +3876,7 @@ mod tests {
         // not the downgrade its wire-1 claim would earn under version 2.
         let hello_bytes = encode_hello_frame(&v2_client_hello()).unwrap().bytes;
         assert_eq!(
-            decode_frame_for_version(&hello_bytes, MAX_FRAME_BYTES, 3)
+            decode_frame_for_version(&hello_bytes, MAX_FRAME_BYTES, 4)
                 .unwrap_err()
                 .code(),
             ProtocolErrorCode::VersionUnsupported

@@ -59,11 +59,12 @@ use crate::session::{
 };
 use crate::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_EXTENDED_EXECUTE,
-    FEATURE_STREAM, FLAG_CANCEL, FLAG_FAILED, FrameKind, Hello, LimitProfile, Method,
-    PROTOCOL_VERSION, PROTOCOL_VERSION_V2, ProtocolError, ProtocolErrorCode, ProtocolFailure,
-    ProtocolFrame, RequestRegistry, Retryability, SelectedProfile, SessionId, decode_frame,
-    decode_frame_for_version, encode_frame_for_version, negotiate_identity,
-    negotiate_identity_versioned, stream_response_for_version,
+    FEATURE_NATIVE_TESTS_V1, FEATURE_STREAM, FLAG_CANCEL, FLAG_FAILED, FrameKind, Hello,
+    LimitProfile, Method, PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3,
+    ProtocolError, ProtocolErrorCode, ProtocolFailure, ProtocolFrame, RequestRegistry,
+    Retryability, SelectedProfile, SessionId, decode_frame, decode_frame_for_version,
+    encode_frame_for_version, negotiate_identity, negotiate_identity_versioned,
+    stream_response_for_version,
 };
 
 /// Detail carried by `PROTOCOL_PAYLOAD_INVALID` when `report` names no
@@ -182,6 +183,15 @@ fn unsupported(reason: &[u8]) -> ProtocolFailure {
         details: reason.to_vec(),
         ..ProtocolFailure::protocol(ProtocolErrorCode::MethodUnsupported)
     }
+}
+
+/// A reserved tag names a real seam whose owner has not claimed it yet
+/// (contract section 4): the detail names the seam, and the failure is
+/// retryable after the capability appears.
+fn reserved_refusal(method: Method) -> ProtocolFailure {
+    let mut failure = unsupported(reserved_detail(method));
+    failure.retryability = Retryability::AfterCapability;
+    failure
 }
 
 /// The deterministic server over one repository.
@@ -343,6 +353,40 @@ impl Server {
                 .map(Method::tag)
                 .collect(),
             features: FEATURE_CANCEL | FEATURE_STREAM,
+            adapters: Vec::new(),
+            effects: Vec::new(),
+        };
+        hello.validate()?;
+        Ok(hello)
+    }
+
+    /// The hello a native-capable server offers: versions 1 through 3 with
+    /// the v3 method table and the native-tests feature bit. The hello
+    /// frame itself still travels at frame version 1 so older peers can
+    /// read the offer and negotiate down. The five native methods stay
+    /// reserved until their semantics slices land, so the offer carries no
+    /// native method tags yet: with the bit, a peer-offered native tag
+    /// negotiates and refuses as reserved; without the bit, negotiation
+    /// strips native tags and they refuse as not-negotiated.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PROTOCOL_INTERNAL_INVARIANT` when the conformance epoch
+    /// cannot be derived.
+    pub fn offered_hello_v3() -> core::result::Result<Hello, ProtocolError> {
+        let epoch = state_epoch_id()
+            .map_err(|_| ProtocolError::new(ProtocolErrorCode::InternalInvariant))?;
+        let hello = Hello {
+            protocol_versions: vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3],
+            schema_epochs: vec![epoch],
+            limits: LimitProfile::maximum(),
+            methods: Method::V3_ALL
+                .iter()
+                .copied()
+                .filter(|method| !method.is_reserved())
+                .map(Method::tag)
+                .collect(),
+            features: FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1,
             adapters: Vec::new(),
             effects: Vec::new(),
         };
@@ -882,13 +926,8 @@ impl Server {
         frame: &ProtocolFrame,
     ) -> Result<(Vec<u8>, BoundedContext)> {
         if !self.profile.admits(method) || method.is_reserved() {
-            // A reserved tag names a real seam whose owner has not claimed
-            // it yet (contract section 4): the detail names the seam, and
-            // the failure is retryable after the capability appears.
             if method.is_reserved() {
-                let mut failure = unsupported(reserved_detail(method));
-                failure.retryability = Retryability::AfterCapability;
-                return Err(failure);
+                return Err(reserved_refusal(method));
             }
             return Err(unsupported(b"SMP1-METHOD-NOT-NEGOTIATED"));
         }
@@ -980,11 +1019,10 @@ impl Server {
             Method::Diagnostics
             | Method::RefMoveProtected
             | Method::TestsSelected
-            | Method::TestsAffected => {
-                let mut failure = unsupported(reserved_detail(method));
-                failure.retryability = Retryability::AfterCapability;
-                Err(failure)
-            }
+            | Method::TestsAffected
+            | Method::TestsReportRead
+            | Method::TestsReplay
+            | Method::TestsAttemptStatus => Err(reserved_refusal(method)),
             Method::EntityVersion | Method::EntitySignature => {
                 // Served only through the explicit entity-read path with
                 // its retained revision and debit table; reaching the
