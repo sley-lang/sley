@@ -1,0 +1,143 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "ariadne",
+      "section": "root_backed_query_profile",
+      "verdict": "PASS",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/root_backed_query_profile/ariadne-400895e.md",
+      "sha256": "5b9761fe3aecbb48d1b1982bdc3aaf2138491d79cce79db1dd95fbc19203d57b",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "reproducibility_and_independent_conformance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne-400895e.md",
+      "sha256": "8d8c8245cb42e0c62c4d33dc3a23c8c18652cf280f68dab52f9f56b1a191505c",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "standards_sbom_and_provenance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne-400895e.md",
+      "sha256": "bc804ada078668c916ede739db9e5b82f7038cbbf63ea53f816481d705a80e45",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "decision_dossier",
+      "verdict": "PASS",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/decision_dossier/ariadne-400895e.md",
+      "sha256": "dd7d9f18c5f3ec0f93f44fcc42753e6626fb3a633002294ff64c36c373f536af",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "release_candidate_packaging",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/release_candidate_packaging/ariadne-400895e.md",
+      "sha256": "de148703f278c1d55b965fa286a30f360c0e41bb1420da801474f84063e2370a",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "root_backed_query_profile",
+      "verdict": "PASS",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/root_backed_query_profile/nabu-400895e.md",
+      "sha256": "1bf2f32f2d7705ae6c827e038a4aaa6e7f6bd29d4704d68b0dcec195d405c950",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "reproducibility_and_independent_conformance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu-400895e.md",
+      "sha256": "7c66b650749bfda2b857e6112b865ae14d8d818d23e282845fb7029c2bfe3d4f",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "standards_sbom_and_provenance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/standards_sbom_and_provenance/nabu-400895e.md",
+      "sha256": "ddba8944598ea90daff9e56cc99a49fc1625dd81e345ca5abacf609f24796ae3",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "decision_dossier",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/decision_dossier/nabu-400895e.md",
+      "sha256": "896b1787997bebcaa2f1344b69dff7a2f297545420fba6e22d43026300fd816c",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "release_candidate_packaging",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/release_candidate_packaging/nabu-400895e.md",
+      "sha256": "19f3253c1809614b74d890dbc358e233f87d53a7aa2bfa5badd529488538f027",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "root_backed_query_profile",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/root_backed_query_profile/vulcan-400895e.md",
+      "sha256": "1c34c1fc3ba6fb3972cf2c97b3c7f6558a8bad82ff966961da5b31b01ba98735",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "reproducibility_and_independent_conformance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan-400895e.md",
+      "sha256": "ee5ab135b5e572dcd8f7ad7629c635b25bfa38ad548d603ade7238328d0add8c",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "standards_sbom_and_provenance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan-400895e.md",
+      "sha256": "7a4ecfdf1446d1253961bcd7a793c4926b50d1f2ff4e0060dded9ba83ecf1684",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "decision_dossier",
+      "verdict": "PASS",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/decision_dossier/vulcan-400895e.md",
+      "sha256": "1f757610f484b672efa837ca671628cb3438b94eb9793d8ba24824f64560b04a",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "release_candidate_packaging",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4",
+      "scope_sha": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+      "path": "evidence/review/verdicts/release_candidate_packaging/vulcan-400895e.md",
+      "sha256": "2caef5cb96e1491956475ccc97fe4c5745b50590d14abb8ed736759fd3ddbf17",
+      "process_exit_code": 0
+    }
+  ],
+  "note": "Exact independently returned dispositions. Registration does not promote package completion or release approval."
+}

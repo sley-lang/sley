@@ -685,7 +685,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true")
     arguments = parser.parse_args(argv)
-    report = build_report()
+    try:
+        report = build_report()
+    except ValueError as error:
+        # GA acceptance is an S20-750 input; reuse its governed source error.
+        print(canonical({"mode": "check" if arguments.check else "write",
+            "result": "FAIL", "code": 76001, "name": "DOSSIER_SOURCE_INVALID",
+            "detail": str(error)}), end="")
+        return 1
     text = canonical(report)
     summary = {
         "criterion_count": report["criterion_count"],

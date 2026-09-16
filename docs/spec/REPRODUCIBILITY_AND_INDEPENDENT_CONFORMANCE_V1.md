@@ -1,6 +1,6 @@
 # Reproducibility and Independent Conformance v1
 
-Status: S20-730 contract draft, revision 8 (2026-09-15); Council review
+Status: S20-730 contract draft, revision 9 (2026-09-15); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the independent oracles that closed the two
 native-only families (section 5). Revision 3 carries previously merged
@@ -324,9 +324,10 @@ rather than automated:
    authorizes.
 4. On the primary host run
    `python3 scripts/build_reproducibility_report.py --attest /tmp/<label>-attestation.json`,
-   then `make evidence-refresh`. Commit the merged candidate records as a
-   provisional local checkpoint. File the lane record naming that actual
-   merge commit. Run `make evidence-refresh` again because the receipt changes
+   commit only the merged report and retained attestation as a provisional
+   local checkpoint. The other derived documents may still name the previous
+   candidate at this point. File the lane record naming that actual
+   merge commit. Run `make evidence-refresh` because the receipt changes
    the files covered by the T54 scan, then `make release-candidate-verify`
    and `make quick`.
    Commit the receipt as a records-only descendant after those checks pass.
@@ -471,3 +472,11 @@ uncommitted source changes, absent history and unavailable/changed toolchains.
 The revision-7 paragraph below its historical heading describes that wave,
 including its then-current mint. Current candidate identity is always the
 tracked report and summary, with the matching lane receipt in the ledger.
+
+## 11. Revision 9 runbook correction (2026-09-15)
+
+The 400895e review identified a redundant pre-commit refresh that was not
+performed in that mint. Section 5.1 now matches the recorded and required
+sequence: commit the merged report and retained secondary, file the receipt
+against that commit, refresh all derived evidence, verify, and run quick.
+The provisional merge is never claimed as a validated closure.

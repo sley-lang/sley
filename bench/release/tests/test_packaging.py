@@ -6,10 +6,12 @@ import importlib.util
 import io
 import os
 import re
+import subprocess
 import tarfile
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -49,6 +51,36 @@ class PackagingTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temp.cleanup()
+
+    def stage_actual(self, stage: Path) -> dict:
+        binary = self.root / "sley-fixture"
+        binary.write_bytes(b"fixture binary")
+        return packaging.stage_artifact(binary, stage, commit="a" * 40,
+            toolchain={"cargo": "fixture", "rustc": "fixture"},
+            working_tree_clean=True, blockers=[])
+
+    def test_stage_and_git_fixture_enumeration_share_the_member_owner(self) -> None:
+        stage = self.root / "actual"
+        self.stage_actual(stage)
+        fixtures = subprocess.check_output(["git", "ls-tree", "-r", "--name-only",
+            "HEAD", "--", *packaging.CONFORMANCE_SUBSET], cwd=ROOT, text=True).splitlines()
+        actual = {path.relative_to(stage).as_posix() for path in stage.rglob("*") if path.is_file()}
+        self.assertEqual(actual, packaging.expected_artifact_members(fixtures))
+
+    def test_staging_refuses_extra_and_missing_fixed_members(self) -> None:
+        build_manifest = packaging.build_manifest
+        for mutation in ("extra", "missing"):
+            def mutate_stage(stage, **kwargs):
+                if mutation == "extra":
+                    (stage / "unexpected.txt").write_text("unexpected")
+                else:
+                    (stage / "LICENSE").unlink()
+                return build_manifest(stage, **kwargs)
+            with self.subTest(mutation=mutation), patch.object(packaging, "build_manifest", side_effect=mutate_stage):
+                with self.assertRaises(packaging.PackageError) as error:
+                    self.stage_actual(self.root / mutation)
+                self.assertEqual(int(error.exception.code), 72007)
+                self.assertIn("owned member set", error.exception.detail)
 
     def test_deterministic_tar_ignores_times_owners_and_order(self) -> None:
         stage = stage_tree(self.root)

@@ -1,11 +1,13 @@
 # ADR-0043: the decision dossier is derived, and the decision is not
 
-Status: proposed; the S20-750 contract is a draft at revision 8 with Council
+Status: proposed; the S20-750 contract is a draft at revision 9 with Council
 review pending; dossier mechanics implemented (2026-09-03, revised
 2026-09-14) with the derived state `BLOCKED` and `release-check` and `v2`
 still fail-closed
 
 Note (2026-09-15): Revision 8 requires valid binding digests, complete zero-count PASS forms, and GATED packaging facts when no candidate is selected. Regression fixtures construct review states explicitly; the dossier still derives a decision without authorizing release.
+
+Note (revision 9, 2026-09-15): the GA CLI catches invalid-source values and emits the owner's coded 76001 refusal in write and check modes.
 
 Date: 2026-09-03
 

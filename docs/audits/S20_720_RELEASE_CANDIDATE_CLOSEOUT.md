@@ -1,12 +1,24 @@
 # S20-720 Release Candidate Closeout
 
-Status: **mechanics implemented under the draft Release Candidate Packaging v1 contract (revision 2); Council reviews pending, so the package is not complete; no release, no GA, `release-check` fail-closed; the Sley 2 goal remains incomplete**
+Status: **mechanics implemented under the draft Release Candidate Packaging v1 contract (revision 5); current delta Council reviews pending, so the package is not complete; no release, no GA, `release-check` fail-closed; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03
 
 Validation tier: **Tier 1 plus release-focused Tier 2 handoff**
 
-## Claim under review
+## Revision 5 follow-up (2026-09-15)
+
+Section 15 now owns `evidence/release/candidate-content-checks.json`: exact
+identity, member set and manifest binding, canonical digest, coded refusals,
+and local archive/runtime-evidence prerequisites. Stage and inspection use
+`expected_artifact_members`; a real staged-tree test compares it with Git's
+fixture enumeration, and extra/missing fixed members refuse with 72007.
+The current candidate has fifteen members and includes the approved LICENSE
+and NOTICE. The package returned from the earlier terminal status to
+`S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING` for this new surface. Current
+identity and review dispositions are in the machine summary and round records.
+
+## Historical initial claim (2026-09-03)
 
 The clean-room release candidate is mechanical evidence, not a release.
 `scripts/build_release_candidate.py` builds `sley-cli` twice in fresh
@@ -34,7 +46,7 @@ written and implemented while every Council lane was unavailable, so the
 Ariadne, Nabu, and Vulcan reviews that freeze it and complete the package
 are pending and must pass before the status above changes.
 
-## Evidence
+## Historical initial evidence (2026-09-03)
 
 - Contract draft revision 1, ADR-0038, and the stage checker at
   `4adaca8`; revision 2 and the mechanics at `cb51cb0`.

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import copy
+import contextlib
+import io
 import importlib.util
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from bench.accounting import report as accounting
@@ -86,6 +89,20 @@ class DerivationTests(Fixture):
                 sources["register"][key] = value
                 with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                     ga.build_report(sources)
+
+    def test_cli_reports_invalid_register_digest_without_a_traceback(self) -> None:
+        sources = self.sources()
+        sources["register"].pop("register_digest")
+        for argv in ([], ["--check"]):
+            output = io.StringIO()
+            with self.subTest(argv=argv), patch.object(ga, "load_sources", return_value=sources), contextlib.redirect_stdout(output):
+                self.assertEqual(ga.main(argv), 1)
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["code"], 76001)
+            self.assertEqual(result["name"], "DOSSIER_SOURCE_INVALID")
+            self.assertEqual(result["mode"], "check" if argv else "write")
+            self.assertEqual(result["result"], "FAIL")
+            self.assertIn("register_digest", result["detail"])
 
     def test_missing_candidate_gates_all_packaging_facts(self) -> None:
         sources = self.sources()

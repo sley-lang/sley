@@ -40,7 +40,7 @@ council-lane reviews, and re-mint.
   `git bundle` of `main`, clone detached at the candidate commit, run the
   build target, emit the attestation with `--host-label secondary`, copy the JSON
   back, merge with `--attest`, commit the merged records locally, file the
-  records-eligible lane receipt naming that commit, refresh evidence again, and run
+  records-eligible lane receipt naming that commit, refresh evidence, and run
   `make release-candidate-verify` after the merge.
 
 ## ZJX transport readiness amendment (2026-09-15)
@@ -82,8 +82,8 @@ queued re-mint.
    drift-gate ownership fork (N-P1-4).
 4. **Re-attest after any attestation-bound change** (anything outside
    `evidence/` and `machineresearch/`): mint in a detached worktree, attest
-   on the lab, merge, `make evidence-refresh`, commit a provisional local merge,
-   file its lane receipt, refresh evidence again, verify and run `make quick`,
+   on the lab, merge, commit the report and retained attestation provisionally,
+   file its lane receipt, refresh evidence, verify and run `make quick`,
    commit the receipt, push.
 
 ## Held decisions (operator or council authority, not machine-doable)

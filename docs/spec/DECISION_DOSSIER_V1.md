@@ -1,6 +1,6 @@
 # Decision Dossier v1
 
-Status: S20-750 contract draft, revision 8 (2026-09-15); Council review
+Status: S20-750 contract draft, revision 9 (2026-09-15); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review; the a809906 round read REVISE in all three lanes and revision 7
 closes it). Revision 2 adds the tracked test inventory as a source, which
@@ -214,7 +214,10 @@ rule 5's gate), so it is bound by the same rules as the dossier:
   `report_digest`. The dossier verifies `report_digest` against the report
   body and `register_digest` against the register it loads; a mismatch is
   `DOSSIER_SOURCE_INVALID`. Missing, null, empty or malformed register
-  digests are structural failures even if absent on both sides. A hand-edited or stale report cannot remove a
+  digests are structural failures even if absent on both sides. The GA CLI
+  catches invalid source values and emits `{mode, result: "FAIL", code: 76001,
+  name: "DOSSIER_SOURCE_INVALID", detail}` with exit 1 in write and check
+  modes, reusing the owning S20-750 source-error code. A hand-edited or stale report cannot remove a
   `BLOCKED` reason.
 - **Pipeline order.** Register, then GA report, then dossier, both before
   and after the counter sync (`make evidence-refresh` and
@@ -396,3 +399,11 @@ report and its execution prerequisites. The unused T54 input is removed.
 Regression fixtures explicitly construct contrary qualification facts;
 legitimate records-only review or license advances do not require changing
 tests or re-minting a candidate merely to update an assertion.
+
+## 10. Revision 9 CLI refusal (2026-09-15)
+
+The 400895e review identified the GA builder's uncaught register-digest
+`ValueError`. The CLI now reports the governed structural-source failure
+without a traceback; a regression test exercises both write and check modes
+with an actually malformed loaded register. Internal derivation still raises
+`ValueError`, which its CLI boundary handles.

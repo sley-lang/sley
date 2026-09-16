@@ -863,13 +863,13 @@
       "section 1 input binding checked only shape agreement and left seven root-committed answer-bearing facts caller-declared (bound ObjectIds, entry points, dependency roots, contract/test/policy roots), none in the RootQueryId preimage; raised by nabu. verify() now recomputes the StateRoot digest from the nine STATE_ROOT_V1 fields exactly as given (adding interpretation_flags to RootQueryInput, via a pure sley-state-root helper with no registry), a seven-fact tamper matrix pins QUERY_ROOT_MISMATCH for every substitution, and the honest sley-repo extraction verifies unchanged",
       "section 4 work-charging rule did not generate the implementation per-class numbers (GetEntity 3, GetSemanticFingerprint 2, ListOwningNamespaces namespace-subject scan, ListDirectDependencies full edge scan) while charged_work stayed frozen in SLEYRQR1; raised by nabu. Closed by the frozen section 4 per-class schedule: all nineteen traversal charges pinned including the class-9 namespace-subject zero-scan case, no charge value changed"
     ],
-    "contract_text_review": "PENDING_S20_310_WORDING_DECISION_PACKET_ROUND7_ITEMS_1_TO_4_IMPLEMENTED",
+    "contract_text_review": "PENDING_S20_310_WORDING_DECISION_PACKET_ROUND7_SECTIONS_3_7_9_10_IMPLEMENTED",
     "ariadne_contract_review_note": "base field held at the prior PASS pending the revision-7 delta lane; the 2026-09-15 round at a809906 returned REVISE_0_P0_0_P1_1_P2_4_P3_2_P4 (see ariadne_contract_review_revision_2_note).",
     "nabu_architecture_review_note": "base field held at the prior PASS pending the revision-7 delta lane; the 2026-09-15 round at a809906 returned REVISE_0_P0_0_P1_1_P2_4_P3_5_P4 (see nabu_architecture_review_revision_2_note).",
     "vulcan_surface_review_note": "base field held at the prior PASS pending the revision-7 delta lane; the 2026-09-15 round at a809906 returned REVISE_0_P0_0_P1_0_P2_4_P3_2_P4 (see vulcan_surface_review_revision_3_note).",
     "vulcan_surface_review_revision_2": "REVISE_0_P0_0_P1_1_P2_0_P3_1_P4",
     "vulcan_surface_review_revision_2_note": "REVISE via harness vulcan final 2026-09-13 on a4b60294e4dd75133fa08f92bf16022fb05bb807 (transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-a4b6029.md): 4 carried P1s verified closed at engine; 1 P2 (vector-gate tamper coverage) + 1 P4 open [value corrected 2026-09-15 to the transcript's REVISE_0_P0_0_P1_1_P2_0_P3_1_P4; the earlier PASS string contradicted its own note]",
-    "contract_text_review_note": "revision 6 (2026-09-15, f7df74f) closed the round-7 wording packet and revision 7 (2026-09-15) repairs the a809906 round's text findings under the operator authorization of 2026-09-15 (sections 3, 7, 9, 10); the row closes when the three lanes review revision 6 Round at a809906 (2026-09-15): all three lanes REVISE on revision 6 text (section 7 attribution and class names, class-1 count, section 9 evidence rule, duplicate sentence, revision pointers); revision 7 repairs them and the row closes on the revision-7 delta PASS.",
+    "contract_text_review_note": "Revision 7 implements the four operator-approved amendments to sections 3, 7, 9 and 10 (packet items 1, 2, 7 and 8). Packet items 3-6 were closed at revision 5. All three 400895e narratives confirm the wording amendments are satisfied; Vulcan requests unambiguous numbering in this token. Fresh final delta review will close the row.",
     "ariadne_contract_review_revision_2": "REVISE_0_P0_0_P1_1_P2_4_P3_2_P4",
     "ariadne_contract_review_revision_2_note": "REVISE via harness ariadne 2026-09-15 on a809906f78f1bfdb9cde8da4c108c4d692dad297 (revision-6 round; transcript evidence/review/verdicts/root_backed_query_profile/ariadne_contract_review-a809906.md): section 7 misattributes the hit-path audit to verify_cached_snapshot and claims a forged edge set cannot reach the engine (P2); class-1 direct-edge count omitted, classes 14/15 misnamed, WORK_PACKAGES revision pointer, checker revision unasserted (P3); duplicated section 3 sentence, rule-1 arm residue (P4). Repaired as revision 7; the delta verdict at the repair commit replaces the base field.",
     "nabu_architecture_review_revision_2": "REVISE_0_P0_0_P1_1_P2_4_P3_5_P4",
@@ -877,17 +877,23 @@
     "vulcan_surface_review_revision_3": "REVISE_0_P0_0_P1_0_P2_4_P3_2_P4",
     "vulcan_surface_review_revision_3_note": "REVISE via harness vulcan 2026-09-15 on a809906f78f1bfdb9cde8da4c108c4d692dad297 (revision-6 round; transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-a809906.md): mechanics green on every gate; section 7 class names, class-1 count, audit attribution (P3); section 9 evidence rule false for class 7 DependencyRows and class 8 InventoryEntries truncated arms (P3); duplicate sentence and stale revision pointers (P4). Repaired as revision 7; the delta verdict at the repair commit replaces the base field.",
     "current_delta_review": {
-      "ariadne": "REVISE_0_P0_0_P1_0_P2_1_P3_0_P4",
+      "ariadne": "PASS",
       "nabu": "PASS",
-      "vulcan": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4"
+      "vulcan": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4"
     },
-    "current_delta_review_note": "2026-09-15 recovery: revision-7 qualification repairs and integration fixes require fresh lane reviews. Earlier transcripts and verdicts remain historical evidence; the local development review does not substitute for three-lane Council approval. 2026-09-15: user-authorized fresh Council round completed at e050fe75a86c1b2f0bf779561ac2bc70bce34289 through three independent claude-code sessions (observed model claude-fable-5-1). Exact verdicts are recorded above; transcripts: evidence/review/verdicts/root_backed_query_profile/ariadne-e050fe7.md, evidence/review/verdicts/root_backed_query_profile/nabu-e050fe7.md, evidence/review/verdicts/root_backed_query_profile/vulcan-e050fe7.md. Reviewers performed static inspection; their Python/checker/test commands were denied by the harness permissions, so no new executed-test claim is made. Findings remain open. Round index: evidence/review/rounds/qualification-e050fe7.json.",
+    "current_delta_review_note": "Independent Council repair review at 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 through three claude-code sessions. Exact verdicts above; transcripts: evidence/review/verdicts/root_backed_query_profile/ariadne-400895e.md, evidence/review/verdicts/root_backed_query_profile/nabu-400895e.md, evidence/review/verdicts/root_backed_query_profile/vulcan-400895e.md. Orchestrator validation is recorded separately in evidence/validation/qualification-repair-2026-09-15.json; reviewer checks and limitations are stated in each transcript. Historical e050fe7 reports remain preserved.",
     "ariadne_contract_review_revision_3": "REVISE_0_P0_0_P1_0_P2_1_P3",
     "ariadne_contract_review_revision_3_note": "Historical independent verdict at c1d4177; transcript evidence/review/verdicts/root_backed_query_profile/ariadne_contract_review-c1d4177.md. Registered after the e050fe7 Council review exposed the missing lane entry. Closeout text repaired at ede5ef0; later delta review remains separately recorded.",
     "nabu_architecture_review_revision_3": "PASS",
     "nabu_architecture_review_revision_3_note": "Historical independent verdict at c1d4177; transcript evidence/review/verdicts/root_backed_query_profile/nabu_architecture_review-c1d4177.md. Registered after the e050fe7 Council review exposed the missing lane entry. Closeout text repaired at ede5ef0; later delta review remains separately recorded.",
     "vulcan_surface_review_revision_4": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
-    "vulcan_surface_review_revision_4_note": "Historical independent verdict at c1d4177; transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-c1d4177.md. Registered after the e050fe7 Council review exposed the missing lane entry. Closeout text repaired at ede5ef0; later delta review remains separately recorded."
+    "vulcan_surface_review_revision_4_note": "Historical independent verdict at c1d4177; transcript evidence/review/verdicts/root_backed_query_profile/vulcan_surface_review-c1d4177.md. Registered after the e050fe7 Council review exposed the missing lane entry. Closeout text repaired at ede5ef0; later delta review remains separately recorded.",
+    "ariadne_contract_review_revision_4": "REVISE_0_P0_0_P1_0_P2_1_P3_0_P4",
+    "ariadne_contract_review_revision_4_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/root_backed_query_profile/ariadne-e050fe7.md.",
+    "nabu_architecture_review_revision_4": "PASS",
+    "nabu_architecture_review_revision_4_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/root_backed_query_profile/nabu-e050fe7.md.",
+    "vulcan_surface_review_revision_5": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4",
+    "vulcan_surface_review_revision_5_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/root_backed_query_profile/vulcan-e050fe7.md."
   },
   "restricted_query_capsule_profile": {
     "status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
@@ -3814,7 +3820,6 @@
     "ga_claimed": false,
     "publication_authorized": false,
     "blockers": [
-      "root_license_text_operator_approval",
       "standards_sbom_and_provenance_s20_710_full",
       "succession_thresholds_s20_640",
       "council_reviews"
@@ -3838,7 +3843,7 @@
     "candidate_member_count": 15,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
-    "offline_tests": 12,
+    "offline_tests": 14,
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
@@ -3877,15 +3882,15 @@
     "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
     "vulcan_surface_review_initial": "FAIL_2_P0_5_P1_6_P2_5_P3",
     "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
-    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING)",
+    "status_note": "The earlier revision-4 mechanics were marked complete on 2026-09-15. Revision 5 reopened the package as S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING for the owned section-15 artifact-content report, shared member enumeration, coded refusals and local verification prerequisites. The 400895e review findings and their follow-up repairs are retained; completion awaits fresh current-delta acceptance.",
     "candidate_content_report": "evidence/release/candidate-content-checks.json",
     "candidate_content_checker": "scripts/build_candidate_content_report.py",
     "current_delta_review": {
-      "ariadne": "PENDING",
-      "nabu": "PENDING",
-      "vulcan": "PENDING"
+      "ariadne": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "nabu": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4",
+      "vulcan": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4"
     },
-    "current_delta_review_note": "Packaging revision 5 owns the new content-report surface and shared member enumeration; fresh owner-lane reviews are required. Earlier COMPLETE and PASS records remain historical evidence."
+    "current_delta_review_note": "Independent Council repair review at 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 through three claude-code sessions. Exact verdicts above; transcripts: evidence/review/verdicts/release_candidate_packaging/ariadne-400895e.md, evidence/review/verdicts/release_candidate_packaging/nabu-400895e.md, evidence/review/verdicts/release_candidate_packaging/vulcan-400895e.md. Orchestrator validation is recorded separately in evidence/validation/qualification-repair-2026-09-15.json; reviewer checks and limitations are stated in each transcript. Historical e050fe7 reports remain preserved."
   },
   "local_completion_frontier": {
     "status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
@@ -4036,8 +4041,8 @@
   "reproducibility_and_independent_conformance": {
     "status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md",
-    "contract_revision": 8,
-    "contract_revision_note": "revision 7 (2026-09-15) repairs the a809906 Council round: no rule change; second-host lane recorded as exercised (section 9), surface enumeration completed, blockers semantics stated, build-environment scrub named, one exported attestation admissibility/selection owner, summary-to-report bindings in the checker; the checker constant CONTRACT_REVISION pins this value against the spec header and ADR-0040",
+    "contract_revision": 9,
+    "contract_revision_note": "Revision 7 introduced the shared selection owner and summary bindings. Revision 8 added the records-eligible custody ledger, retained attestation hashes and merge-history checks, artifact-name pin and real-history/toolchain regression tests. Revision 9 aligns the runbook with the exercised order: provisional report/attestation commit, receipt, evidence refresh, verification. CONTRACT_REVISION now pins 9 against the header, ADR and summary.",
     "adr": "docs/adr/ADR-0040-reproducibility-and-independent-conformance-boundary.md",
     "checker": "scripts/check_reproducibility_and_independent_conformance.py",
     "reproducibility_report": "evidence/release/reproducibility-report.json",
@@ -4125,17 +4130,23 @@
     "attestation_supersedes": "1023a31/7291656c and 43f2f5b/a8da8b48 (re-minted after the 2026-09-14 attribution strip rewrote commit ids; prior identities preserved in history)",
     "candidate_consumers_note": "The dossier and GA report import the shared S20-730 selector; candidate-content evidence uses the explicit current-build binding during host handoff.",
     "current_delta_review": {
-      "ariadne": "REVISE_0_P0_0_P1_0_P2_1_P3_3_P4",
-      "nabu": "REVISE_0_P0_0_P1_0_P2_1_P3_2_P4",
-      "vulcan": "REVISE_0_P0_0_P1_0_P2_1_P3_4_P4"
+      "ariadne": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "nabu": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4",
+      "vulcan": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4"
     },
-    "current_delta_review_note": "2026-09-15 recovery: revision-7 qualification repairs and integration fixes require fresh lane reviews. Earlier transcripts and verdicts remain historical evidence; the local development review does not substitute for three-lane Council approval. 2026-09-15: user-authorized fresh Council round completed at e050fe75a86c1b2f0bf779561ac2bc70bce34289 through three independent claude-code sessions (observed model claude-fable-5-1). Exact verdicts are recorded above; transcripts: evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne-e050fe7.md, evidence/review/verdicts/reproducibility_and_independent_conformance/nabu-e050fe7.md, evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan-e050fe7.md. Reviewers performed static inspection; their Python/checker/test commands were denied by the harness permissions, so no new executed-test claim is made. Findings remain open. Round index: evidence/review/rounds/qualification-e050fe7.json.",
+    "current_delta_review_note": "Independent Council repair review at 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 through three claude-code sessions. Exact verdicts above; transcripts: evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne-400895e.md, evidence/review/verdicts/reproducibility_and_independent_conformance/nabu-400895e.md, evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan-400895e.md. Orchestrator validation is recorded separately in evidence/validation/qualification-repair-2026-09-15.json; reviewer checks and limitations are stated in each transcript. Historical e050fe7 reports remain preserved.",
     "ariadne_contract_review_revision_4": "REVISE_0_P0_0_P1_0_P2_1_P3_4_P4",
     "ariadne_contract_review_revision_4_note": "Historical independent verdict at a809906; transcript evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-a809906.md. Registered after the e050fe7 Council review exposed the missing lane entry. Revision-7 repairs and later integration changes are separately reviewed; this historical verdict is preserved.",
     "nabu_architecture_review_revision_5": "REVISE_0_P0_0_P1_0_P2_4_P3_3_P4",
     "nabu_architecture_review_revision_5_note": "Historical independent verdict at a809906; transcript evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-a809906.md. Registered after the e050fe7 Council review exposed the missing lane entry. Revision-7 repairs and later integration changes are separately reviewed; this historical verdict is preserved.",
     "vulcan_surface_review_revision_7": "REVISE_0_P0_0_P1_1_P2_3_P3_3_P4",
-    "vulcan_surface_review_revision_7_note": "Historical independent verdict at a809906; transcript evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-a809906.md. Registered after the e050fe7 Council review exposed the missing lane entry. Revision-7 repairs and later integration changes are separately reviewed; this historical verdict is preserved."
+    "vulcan_surface_review_revision_7_note": "Historical independent verdict at a809906; transcript evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-a809906.md. Registered after the e050fe7 Council review exposed the missing lane entry. Revision-7 repairs and later integration changes are separately reviewed; this historical verdict is preserved.",
+    "ariadne_contract_review_revision_5": "REVISE_0_P0_0_P1_0_P2_1_P3_3_P4",
+    "ariadne_contract_review_revision_5_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne-e050fe7.md.",
+    "nabu_architecture_review_revision_6": "REVISE_0_P0_0_P1_0_P2_1_P3_2_P4",
+    "nabu_architecture_review_revision_6_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/reproducibility_and_independent_conformance/nabu-e050fe7.md.",
+    "vulcan_surface_review_revision_8": "REVISE_0_P0_0_P1_0_P2_1_P3_4_P4",
+    "vulcan_surface_review_revision_8_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan-e050fe7.md."
   },
   "standards_sbom_and_provenance": {
     "status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
@@ -4200,11 +4211,17 @@
     "ariadne_contract_review_revision_4_note": "REVISE via harness ariadne 2026-09-15 on a809906f78f1bfdb9cde8da4c108c4d692dad297 (transcript evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-a809906.md): P3 the SPDX document carried a hasExtractedLicensingInfos entry for the listed identifier Apache-2.0 (SPDX 2.3 clause 10.1 reserves it for LicenseRef- ids); P4 section 2 shape freeze omitted emitted fields and section 1 lock-digest wording; P4 closure HEAD said to be recorded in the summary. Repaired the same day (builder drops the entry, spec sections 1/2/3/7 reworded, test renamed to its claim); prior a4b6029 P3/P4 and the 3320ca9 P3 items confirmed closed. The delta verdict at the repair commit replaces the base field.",
     "ariadne_contract_review_note": "base field held at the revision-3 PASS (4 P3, since closed) pending the delta lane over the 2026-09-15 repair; the round at a809906 returned REVISE (1 P3, 2 P4), see ariadne_contract_review_revision_4_note.",
     "current_delta_review": {
-      "ariadne": "REVISE_0_P0_0_P1_0_P2_1_P3_3_P4",
-      "nabu": "REVISE_0_P0_0_P1_0_P2_0_P3_4_P4",
-      "vulcan": "REVISE_0_P0_0_P1_0_P2_1_P3_5_P4"
+      "ariadne": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "nabu": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "vulcan": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4"
     },
-    "current_delta_review_note": "2026-09-15 recovery: revision-7 qualification repairs and integration fixes require fresh lane reviews. Earlier transcripts and verdicts remain historical evidence; the local development review does not substitute for three-lane Council approval. 2026-09-15: user-authorized fresh Council round completed at e050fe75a86c1b2f0bf779561ac2bc70bce34289 through three independent claude-code sessions (observed model claude-fable-5-1). Exact verdicts are recorded above; transcripts: evidence/review/verdicts/standards_sbom_and_provenance/ariadne-e050fe7.md, evidence/review/verdicts/standards_sbom_and_provenance/nabu-e050fe7.md, evidence/review/verdicts/standards_sbom_and_provenance/vulcan-e050fe7.md. Reviewers performed static inspection; their Python/checker/test commands were denied by the harness permissions, so no new executed-test claim is made. Findings remain open. Round index: evidence/review/rounds/qualification-e050fe7.json."
+    "current_delta_review_note": "Independent Council repair review at 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 through three claude-code sessions. Exact verdicts above; transcripts: evidence/review/verdicts/standards_sbom_and_provenance/ariadne-400895e.md, evidence/review/verdicts/standards_sbom_and_provenance/nabu-400895e.md, evidence/review/verdicts/standards_sbom_and_provenance/vulcan-400895e.md. Orchestrator validation is recorded separately in evidence/validation/qualification-repair-2026-09-15.json; reviewer checks and limitations are stated in each transcript. Historical e050fe7 reports remain preserved.",
+    "ariadne_contract_review_revision_5": "REVISE_0_P0_0_P1_0_P2_1_P3_3_P4",
+    "ariadne_contract_review_revision_5_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/standards_sbom_and_provenance/ariadne-e050fe7.md.",
+    "nabu_architecture_review_revision_4": "REVISE_0_P0_0_P1_0_P2_0_P3_4_P4",
+    "nabu_architecture_review_revision_4_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/standards_sbom_and_provenance/nabu-e050fe7.md.",
+    "vulcan_surface_review_revision_6": "REVISE_0_P0_0_P1_0_P2_1_P3_5_P4",
+    "vulcan_surface_review_revision_6_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/standards_sbom_and_provenance/vulcan-e050fe7.md."
   },
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
@@ -4214,8 +4231,8 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 414,
-    "open_reviews": 15,
+    "obligations": 426,
+    "open_reviews": 12,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 37,
@@ -4258,7 +4275,7 @@
   "decision_dossier": {
     "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/DECISION_DOSSIER_V1.md",
-    "contract_revision": 8,
+    "contract_revision": 9,
     "adr": "docs/adr/ADR-0043-decision-dossier-derived-not-decided.md",
     "checker": "scripts/check_decision_dossier.py",
     "dossier": "evidence/release/decision-dossier.json",
@@ -4267,7 +4284,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "15 review obligations are open",
+      "12 review obligations are open",
       "19 GA acceptance criteria are not evidenced",
       "3 review dispositions are unclassified",
       "no succession trial has been executed",
@@ -4314,23 +4331,29 @@
     "vulcan_surface_review_initial_note": "no transcript of the 2026-09-04 Council FAIL round (FAIL_1_P0_3_P1_3_P2_3_P3) is tracked under evidence/review/verdicts/decision_dossier/; the verdict is recorded in evidence/review/S20_710_ACCEPTANCE_MAP.md section 2.4 and its P0 items are recited secondhand by the vulcan d384f0f final transcript (evidence/review/verdicts/decision_dossier/vulcan-final-review-d384f0f.md); no initial-round record beyond those is tracked",
     "round_a809906": "Council round at a809906 (2026-09-15) read REVISE in all three lanes (Ariadne 4 P2/3 P3/2 P4, Nabu 2 P2/5 P3/1 P4, Vulcan 4 P2/4 P3/2 P4; transcripts evidence/review/verdicts/decision_dossier/{ariadne_contract_review,nabu_architecture_review,vulcan_surface_review}-a809906.md); contract revision 7 closes every actionable item (GA derivation from register predicates, digest binding, RELEASE_APPROVED crash, one threshold key, rule 1 OTHER rows and register result, HISTORICAL_ROUND P2 rows, pipeline order, GA drift and mirror checks, GA unit tests); re-review pending",
     "current_delta_review": {
-      "ariadne": "REVISE_0_P0_0_P1_0_P2_1_P3_2_P4",
-      "nabu": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4",
-      "vulcan": "REVISE_0_P0_0_P1_0_P2_0_P3_3_P4"
+      "ariadne": "PASS",
+      "nabu": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "vulcan": "PASS"
     },
-    "current_delta_review_note": "2026-09-15 recovery: revision-7 qualification repairs and integration fixes require fresh lane reviews. Earlier transcripts and verdicts remain historical evidence; the local development review does not substitute for three-lane Council approval. 2026-09-15: user-authorized fresh Council round completed at e050fe75a86c1b2f0bf779561ac2bc70bce34289 through three independent claude-code sessions (observed model claude-fable-5-1). Exact verdicts are recorded above; transcripts: evidence/review/verdicts/decision_dossier/ariadne-e050fe7.md, evidence/review/verdicts/decision_dossier/nabu-e050fe7.md, evidence/review/verdicts/decision_dossier/vulcan-e050fe7.md. Reviewers performed static inspection; their Python/checker/test commands were denied by the harness permissions, so no new executed-test claim is made. Findings remain open. Round index: evidence/review/rounds/qualification-e050fe7.json.",
+    "current_delta_review_note": "Independent Council repair review at 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 through three claude-code sessions. Exact verdicts above; transcripts: evidence/review/verdicts/decision_dossier/ariadne-400895e.md, evidence/review/verdicts/decision_dossier/nabu-400895e.md, evidence/review/verdicts/decision_dossier/vulcan-400895e.md. Orchestrator validation is recorded separately in evidence/validation/qualification-repair-2026-09-15.json; reviewer checks and limitations are stated in each transcript. Historical e050fe7 reports remain preserved.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_0_P1_4_P2_3_P3_2_P4",
     "ariadne_contract_review_revision_1_note": "Historical independent verdict at a809906; transcript evidence/review/verdicts/decision_dossier/ariadne_contract_review-a809906.md. Registered after the e050fe7 Council review exposed the missing lane entry. Revision-7 repairs and later integration changes are separately reviewed; this historical verdict is preserved.",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_0_P1_2_P2_5_P3_1_P4",
     "nabu_architecture_review_revision_1_note": "Historical independent verdict at a809906; transcript evidence/review/verdicts/decision_dossier/nabu_architecture_review-a809906.md. Registered after the e050fe7 Council review exposed the missing lane entry. Revision-7 repairs and later integration changes are separately reviewed; this historical verdict is preserved.",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_0_P1_4_P2_4_P3_2_P4",
-    "vulcan_surface_review_revision_1_note": "Historical independent verdict at a809906; transcript evidence/review/verdicts/decision_dossier/vulcan_surface_review-a809906.md. Registered after the e050fe7 Council review exposed the missing lane entry. Revision-7 repairs and later integration changes are separately reviewed; this historical verdict is preserved."
+    "vulcan_surface_review_revision_1_note": "Historical independent verdict at a809906; transcript evidence/review/verdicts/decision_dossier/vulcan_surface_review-a809906.md. Registered after the e050fe7 Council review exposed the missing lane entry. Revision-7 repairs and later integration changes are separately reviewed; this historical verdict is preserved.",
+    "ariadne_contract_review_revision_2": "REVISE_0_P0_0_P1_0_P2_1_P3_2_P4",
+    "ariadne_contract_review_revision_2_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/decision_dossier/ariadne-e050fe7.md.",
+    "nabu_architecture_review_revision_2": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4",
+    "nabu_architecture_review_revision_2_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/decision_dossier/nabu-e050fe7.md.",
+    "vulcan_surface_review_revision_2": "REVISE_0_P0_0_P1_0_P2_0_P3_3_P4",
+    "vulcan_surface_review_revision_2_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/decision_dossier/vulcan-e050fe7.md."
   },
   "remaining_gates": {
     "council_model_access": "OPEN since 2026-09-04T02:29Z. The blocker was never a credential: the stock Anthropic plugin was installed but blocked by the plugins allowlist, so its provider, CLI backend, and model catalog never loaded and requests fell through to a generic HTTP path with an empty key. Adding anthropic to plugins.allow and enabling it opened the claude-cli lane, which uses the local Claude Code CLI session rather than a gateway key. The dispatcher is running 69 staged reviews; checkpoint in machineresearch/sley-2.0/COUNCIL_REVIEW_CHECKPOINT_2026-09-04.md",
     "schema_epoch_decision": "narrowed 2026-09-03 by the S20-760 revision 2 determinations: an epoch is required only for the four unsupported contract kinds, test_observe execution, and adapter replay and configuration. The production-epoch fingerprint requirement, contract_assert execution, and effect_request and capability_narrow execution are profile work under epoch 1, and contract_assert execution is unblocked today. The decision itself remains the schema owner's",
     "succession_trials": "the six per-arm metrics need executed benchmark trials, which need model access and spend authorization. Verified 2026-09-03: the harness itself is ready, so an authorization is not at risk of being wasted on a broken pipeline. make sley2-runner-smoke (2 s), make legacy-runner-smoke (62 s), and make accounting-smoke (1 s) all pass at this commit, the S20-620 runner drives the endpoint with execution_mode offline_injected and external_command_policy forbidden, and the S20-630 accounting derives exact ratios and reports UNDETERMINED while trials_executed is zero. What is missing is only the real trials over the frozen fifteen-task corpus",
-    "root_license_text": "the S20-710 audit and both SBOM documents record it as their blocker",
+    "root_license_text": "RESOLVED: operator-approved on 2026-09-14; LICENSE and NOTICE are installed and inventoried, and the SBOM documents report zero blocked licenses. Remaining S20-710 audit dispositions and the full candidate-history re-anchor decision are separate held items.",
     "second_host_attestation": "multi-host reproducibility needs the gated laboratory lane",
     "release_decision": "the dossier derives BLOCKED; the decision and any publication are the operator's",
     "independent_conformance": "closed 2026-09-03: every one of the nineteen fixture families is now checked by an independent Python oracle, including the extended bytecode container and cache identity and the release demo identities; only the human independent review remains",
