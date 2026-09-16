@@ -1,11 +1,11 @@
 # ADR-0039: the extended opcode profile as a second, explicit VM profile
 
-Status: accepted; the S20-260/S20-270 full-profile contract is at revision
-12 with Nabu architecture review PASS and the Ariadne contract and Vulcan
-surface re-reviews PASS with no new findings; slices E1 through E6 plus E7a
-implemented (2026-09-05), the rest of E7 excluded; slice E8 (bridge
-adapter_invoke over frozen rows, contract rev 13, RW-030/RW-050) implemented
-in the VM persistent fuzz lane
+Status: accepted architecture; current contract revision 15 (2026-09-15).
+Slices E1–E6, E7a and E8 are implemented. Historical review records remain
+preserved; independent item-level review accepted the revision 15 corrections
+in `evidence/review/vm-nabu-correction-review-2026-09-15.md`.
+Revision 12 acceptance and the revision 13 E8 implementation are historical
+milestones, not the current revision number.
 
 Date: 2026-09-03
 

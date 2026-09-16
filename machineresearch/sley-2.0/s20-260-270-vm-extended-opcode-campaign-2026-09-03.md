@@ -1,11 +1,14 @@
 # S20-260/S20-270 VM Extended Opcode Campaign (2026-09-03)
 
-Status: contract draft revision 14 (2026-09-14 currency; revision 13 landed
-slice E8, the host bridge imports over frozen opcode 161; revision 14 records
-the E8 re-review status and anchors the stage checker to the Status line, no
-rule changes) with slices E1 through E6 plus E7a
-landed (twenty-two conformance vectors); Nabu architecture review PASS;
-Ariadne contract review and Vulcan surface review re-reviews queued. Slices
+Status: contract draft revision 15 (2026-09-15), with slices E1–E6, E7a
+and E8 implemented. Historical Nabu residual corrections passed independent
+item-level review (`evidence/review/vm-nabu-correction-review-2026-09-15.md`);
+prior verdicts and dated validation below remain preserved.
+Current conformance vectors: 31.
+Current endpoint status: SMP1 execute profile selector is implemented;
+field 6 selects EXTENDED_V1, and omission selects RESTRICTED_V1.
+
+Slices
 E1 through E6 landed under revisions 2 through 7 in order; revision 8 added
 the judgment-only entry, revision 9 landed slice E7a (`contract_assert`,
 opcode 144), revision 11 made the family fuzz lanes reach execution, and
@@ -168,8 +171,10 @@ in the session review loop with their request texts refreshed to revision
 12; their findings land as contract revisions before the freeze that turns
 the status to `S20_260_270_EXTENDED_COMPLETE`.
 
-The next authority-safe package is the SMP1 appendix C revision 8 execute
+Historical next-step paragraph (superseded by the implemented selector;
+current status is recorded above): the next authority-safe package was the
+SMP1 appendix C revision 8 execute
 profile selector (`S20-410-EXECUTE-PROFILE-SELECTOR`): an `execute` limits
 field naming the cache profile so the endpoint, the JSON bridge, the CLI, and
-the S20-620 runner can execute under `EXTENDED_V1`. Until it lands the
-endpoint executes under `RESTRICTED_V1` only.
+the S20-620 runner can execute under `EXTENDED_V1`. The former
+restricted-only endpoint statement no longer describes the current code.

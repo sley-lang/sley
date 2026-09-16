@@ -19,6 +19,8 @@ EXECUTE = ROOT / "crates/sley-vm/src/execute.rs"
 EXTENDED = ROOT / "crates/sley-vm/src/extended.rs"
 EXTENDED_TESTS = ROOT / "crates/sley-vm/src/extended_tests.rs"
 ACCEPTED = ROOT / "conformance/vm-extended/v1/accepted.json"
+CAMPAIGN = ROOT / "machineresearch/sley-2.0/s20-260-270-vm-extended-opcode-campaign-2026-09-03.md"
+CONSUMER = ROOT / "crates/sley-policy/src/candidate_validation.rs"
 
 DRAFT_STATUS = "S20_260_270_EXTENDED_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_260_270_EXTENDED_SLICES_IN_PROGRESS"
@@ -104,9 +106,22 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def current_record_problems(spec: str, adr: str, campaign: str, revision: object, count: int) -> list[str]:
+    """Compare current status headings only; dated historical records may differ."""
+    problems = []
+    for name, document in (("spec", spec), ("adr", adr), ("campaign", campaign)):
+        match = re.search(r"^Status:[^\n]*revision (\d+)", document, re.M)
+        if match is None or int(match.group(1)) != revision:
+            problems.append(f"current-revision:{name}")
+    match = re.search(r"^Current conformance vectors: (\d+)\.$", campaign, re.M)
+    if match is None or int(match.group(1)) != count:
+        problems.append("current-vector-count:campaign")
+    return problems
+
+
 def main() -> int:
     problems: list[str] = []
-    for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, VM_LIB, LOWER, EXECUTE, EXTENDED, EXTENDED_TESTS, ACCEPTED):
+    for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, VM_LIB, LOWER, EXECUTE, EXTENDED, EXTENDED_TESTS, ACCEPTED, CAMPAIGN, CONSUMER):
         if not path.exists():
             problems.append(f"missing:{path.relative_to(ROOT)}")
     if problems:
@@ -258,6 +273,26 @@ def main() -> int:
     vector_ids = [vector.get("id") for vector in accepted.get("vectors", [])]
     if "call-direct-depth-ceiling" not in vector_ids:
         problems.append("fixture:depth-ceiling-vector")
+    vectors_by_id = {vector.get("id"): vector for vector in accepted.get("vectors", [])}
+    depth = vectors_by_id.get("call-direct-depth-exceeded", {})
+    if depth.get("termination") != {"kind": "ResourceLimit", "resource": "CallDepth", "tag": 5} or "success_value_hash_hex" in depth:
+        problems.append("fixture:depth-exhaustion-termination")
+    duplicate = vectors_by_id.get("map-new-duplicate-key", {})
+    if duplicate.get("expected_failure_value") != {"kind": "DuplicateKey", "code": 1} or not duplicate.get("success_value_hash_hex"):
+        problems.append("fixture:duplicate-key-value")
+    problems.extend(current_record_problems(spec, adr, read(CAMPAIGN), section.get("contract_revision"), len(vector_ids)))
+    for profile in ("RESTRICTED_V1", "EXTENDED_V1"):
+        match = re.search(rf"pub const {profile}: Self = Self \{{\s*vm_version: \[([^]]+)\]", vm_lib)
+        if match is None or re.sub(r"\s", "", match.group(1)) != "1,0,0":
+            problems.append(f"shared-observation-vm-version:{profile}")
+    consumer = re.sub(r"\s+", "", read(CONSUMER))
+    guard = "if!operations_analyzable{continue;}"
+    prefilter = "letoperations_analyzable=program.operation_analysis_supported();"
+    judgment = "letjudgment=matchjudge_function_operations("
+    if any(marker not in consumer for marker in (prefilter, guard, judgment)):
+        problems.append("judgment-consumer:capability-prefilter")
+    elif not consumer.index(prefilter) < consumer.index(guard) < consumer.index(judgment):
+        problems.append("judgment-consumer:prefilter-order")
     if "supported_opcodes" in section:
         problems.append("machine-summary:restricted-key-misplaced")
     if status == COMPLETE_STATUS:

@@ -6217,9 +6217,9 @@
       "superseded_by": null
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_7_P1_6_P2_5_P3",
+      "disposition": "PASS_PRIOR_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
       "field": "nabu_architecture_review",
       "package_status": "S20_260_270_EXTENDED_COMPLETE",
       "reviewer": "nabu",
@@ -6449,7 +6449,7 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "obligations_digest": "452a51dbfe2059fa963b74337224d80e5110f5a03c912c826b4b9c1dbb95e085",
+  "obligations_digest": "7eb1e8b780f2ec01645e03352be9a7dd9acbcea35649009dc62d4992a9f64429",
   "open_reviews": [
     {
       "disposition": "PENDING",
@@ -6524,7 +6524,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "a5b8e2be411647eebbbed02b62064d89f4cc0a40045df2c86ef4cae659e1fc98",
+  "register_digest": "fd8afff077d1d1306110183d513d3b9e0013b0a38b62fccb7254a43fb2ea79da",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
@@ -7724,16 +7724,6 @@
       "unclaimed_severities": [
         "P3",
         "P4"
-      ]
-    },
-    {
-      "disposition": "PASS_0_P0_7_P1_6_P2_5_P3",
-      "field": "nabu_architecture_review",
-      "section": "vm_extended_opcode_profile",
-      "unclaimed_severities": [
-        "P1",
-        "P2",
-        "P3"
       ]
     }
   ],

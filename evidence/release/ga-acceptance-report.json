@@ -214,7 +214,7 @@
     },
     {
       "criterion": "policy is protected from the judged candidate",
-      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 81 PASS, 0 PENDING, 0 OTHER, 39 historical, 7 unclaimed or unclassified; lane open",
+      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 81 PASS, 0 PENDING, 0 OTHER, 39 historical, 6 unclaimed or unclassified; lane open",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
@@ -310,7 +310,7 @@
     },
     {
       "criterion": "Nabu approves architectural and cross-product boundaries",
-      "evidence": "finding register nabu lane: 81 PASS, 0 PENDING, 0 OTHER, 39 historical, 7 unclaimed or unclassified; lane open",
+      "evidence": "finding register nabu lane: 81 PASS, 0 PENDING, 0 OTHER, 39 historical, 6 unclaimed or unclassified; lane open",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -322,7 +322,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 1 open, 0 unclassified, and 41 unclaimed-carried obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 1 open, 0 unclassified, and 40 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -340,9 +340,9 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "452a51dbfe2059fa963b74337224d80e5110f5a03c912c826b4b9c1dbb95e085",
-  "register_digest": "a5b8e2be411647eebbbed02b62064d89f4cc0a40045df2c86ef4cae659e1fc98",
-  "report_digest": "569ae8890b7c11f8de21afa5c24d6fcb8c5c01b1866148c9e7d5e2d36699f20d",
+  "obligations_digest": "7eb1e8b780f2ec01645e03352be9a7dd9acbcea35649009dc62d4992a9f64429",
+  "register_digest": "fd8afff077d1d1306110183d513d3b9e0013b0a38b62fccb7254a43fb2ea79da",
+  "report_digest": "fc0494572adb80c9edee19d4fc8910696d6630db8e064f0503734d17d248eb43",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

@@ -2874,6 +2874,71 @@ fn depth_chain_fixture(links: u16) -> Fixture {
 }
 
 #[test]
+fn call_depth_refusal_precedes_call_entry_fuel_and_cancellation() {
+    let fixture = depth_chain_fixture(256);
+    // Each entered frame costs dispatch + entry fuel. The refused call's
+    // dispatch brings the total to 511; its entry charge must never run.
+    let outcome = execute_function(
+        fixture.input(CacheProfile::EXTENDED_V1),
+        ExecutionRequest {
+            inputs: vec![uint(9)],
+            limits: ExecutionLimits {
+                max_instructions: 100_000,
+                max_fuel: 511,
+                max_value_units: 100_000_000,
+                max_output_units: 10_000,
+                cancel_at_fuel: Some(511),
+            },
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        outcome.termination,
+        ExecutionTermination::ResourceLimit(ResourceKind::CallDepth)
+    );
+    assert_eq!(outcome.fuel_used, 511);
+    assert_eq!(outcome.instruction_count, 0);
+}
+
+#[test]
+fn epoch_one_profiles_share_the_frozen_observation_vm_version() {
+    assert_eq!(CacheProfile::RESTRICTED_V1.vm_version, [1, 0, 0]);
+    assert_eq!(
+        CacheProfile::EXTENDED_V1.vm_version,
+        CacheProfile::RESTRICTED_V1.vm_version
+    );
+}
+
+#[test]
+fn equal_values_share_hashes_and_canonical_nan_keeps_ieee_inequality() {
+    let hash = |value_type: TypeExpr, value: ConstValue| {
+        success(
+            &Fixture::new(
+                &[value_type],
+                &[step(
+                    Opcode::ValueHash,
+                    vec![Arg::P(0)],
+                    Immediate::None,
+                    TypeExpr::Bytes,
+                )],
+                Vec::new(),
+            ),
+            vec![value],
+        )
+    };
+    let integers = float_fixture(Opcode::Equal, u64_type(), 2);
+    assert_eq!(success(&integers, vec![uint(7), uint(7)]), boolean(true));
+    assert_eq!(hash(u64_type(), uint(7)), hash(u64_type(), uint(7)));
+    let nan = f64v(f64::from_bits(0x7ff8_0000_0000_0000));
+    let floats = float_fixture(Opcode::Equal, TypeExpr::F64, 2);
+    assert_eq!(
+        success(&floats, vec![nan.clone(), nan.clone()]),
+        boolean(false)
+    );
+    assert_eq!(hash(TypeExpr::F64, nan.clone()), hash(TypeExpr::F64, nan));
+}
+
+#[test]
 fn e6_call_depth_ceiling_is_256_live_frames_with_the_entry_included() {
     let generous = || ExecutionLimits {
         max_instructions: 100_000,
@@ -3294,6 +3359,20 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
             vec![uint(300), text("big"), uint(7), text("small")],
         ),
         (
+            "map-new-duplicate-key",
+            Fixture::new(
+                &[u64_type(), TypeExpr::Text, u64_type(), TypeExpr::Text],
+                &[step(
+                    Opcode::MapNew,
+                    vec![Arg::P(0), Arg::P(1), Arg::P(2), Arg::P(3)],
+                    Immediate::None,
+                    map_new_type(),
+                )],
+                Vec::new(),
+            ),
+            vec![uint(7), text("first"), uint(7), text("second")],
+        ),
+        (
             "cell-set-get",
             Fixture::new(
                 &[u64_type(), u64_type()],
@@ -3396,6 +3475,11 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
         (
             "call-direct-depth-ceiling",
             depth_chain_fixture(255),
+            vec![uint(9)],
+        ),
+        (
+            "call-direct-depth-exceeded",
+            depth_chain_fixture(256),
             vec![uint(9)],
         ),
         // RW-040 slice 2: the missing byte-processing workloads. Order
@@ -3535,9 +3619,36 @@ fn emit_vm_extended_vectors_for_fixture_refresh() {
             },
         )
         .unwrap();
+        if label == "call-direct-depth-exceeded" {
+            assert_eq!(
+                outcome.termination,
+                ExecutionTermination::ResourceLimit(ResourceKind::CallDepth)
+            );
+            println!(
+                "VM_EXTENDED_LIMIT|{label}|112|{}|{}|CallDepth|{}|{}|{}",
+                hex(&lowered.bytes),
+                hex(lowered.cache_key.as_bytes()),
+                hex(outcome.observation_id.as_bytes()),
+                outcome.instruction_count,
+                outcome.fuel_used
+            );
+            continue;
+        }
         let ExecutionTermination::Success(value) = &outcome.termination else {
             panic!("{label}: not a success");
         };
+        if label == "map-new-duplicate-key" {
+            let ConstData::Result(ResultConst::Err(failure)) = &value.data else {
+                panic!("duplicate key must yield Err");
+            };
+            assert_eq!(
+                failure.data,
+                ConstData::BuiltinFailure(BuiltinFailureValue {
+                    kind: BuiltinFailureKind::DuplicateKey,
+                    code: 1,
+                })
+            );
+        }
         let value_hash = hash_validated_value(SchemaEpochId::from_bytes([8; 32]), value).unwrap();
         // The vector's subject is the entry function's last operation; a
         // fixture with a callee also carries the callee's operations.

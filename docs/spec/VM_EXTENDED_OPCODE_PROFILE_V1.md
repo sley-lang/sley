@@ -1,12 +1,14 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 14 (2026-09-14);
-Council review pending (Ariadne contract review, Vulcan surface review; Nabu
-architecture review PASS). Revision 14 is a currency/hardening revision only
-(no rule changes): it records the review status of the revision-13 E8 delta
-(slice E8 implemented; re-review pending with the Ariadne FAIL and Vulcan
-FAIL rows open and no Nabu row), and the stage checker now anchors its
-revision extraction to this Status line. Revisions 2 through 7 record the clarifications of
+Status: S20-260/S20-270 full-profile contract draft, revision 15 (2026-09-15).
+This revision closes the historical Nabu documentation and corpus gaps;
+independent item-level review accepted these corrections (see
+`evidence/review/vm-nabu-correction-review-2026-09-15.md`). Existing epoch-1
+execution semantics and earlier vector identities are preserved. Revision
+14 recorded the E8 review currency; later E8 review evidence remains in the
+machine summary and is not replaced by this correction campaign.
+
+Revisions 2 through 7 record the clarifications of
 slices E1 through E6 (section 7); every slice is implemented. Revision 8 adds
 the judgment-only entry external owners use (section 3.1). Revision 9 lands
 slice E7a, `contract_assert` execution, which the S20-760 revision 2
@@ -140,7 +142,11 @@ wrapping exists.
 
 Operands are `F32` or `F64`: one for `float_neg`, three for `float_fma`,
 two for the rest; the result is the
-same type. Semantics are IEEE-754 binary32 or binary64,
+same type. Each operation is correctly rounded in its declared binary32 or
+binary64 format. Excess-precision evaluation, implicit FMA contraction of
+separately represented operations, flush-to-zero (FTZ), and denormals-are-zero
+(DAZ) are forbidden. A host/environment violating these requirements is
+nonconforming. Semantics are IEEE-754 binary32 or binary64,
 round-to-nearest-ties-to-even, subnormals preserved, `float_fma` a single
 rounding; every result that is a NaN is canonicalized to the quiet NaN with
 a zero sign and zero payload (`0x7fc00000`, `0x7ff8000000000000`), and every
@@ -197,6 +203,14 @@ value-unit budget is `VM_EXEC_RESOURCE_LIMIT` with `ResourceKind` value
 units.
 `value_hash` takes a hashable `T` and yields `Bytes` of exactly 32 bytes,
 the S20-250 `hash_validated_value` of the operand under the schema epoch.
+For admitted canonical non-float values, equality implies identical value
+hashes. The converse is not a proof of equality: hashes can collide.
+Canonical NaNs are a concrete named exception to the converse even without
+a cryptographic collision: identical canonical NaNs hash identically but
+IEEE `equal` returns false. This explains the exclusion of float-containing
+aggregates from structural equality. The native regression
+`equal_values_share_hashes_and_canonical_nan_keeps_ieee_inequality` pins the
+NaN exception and a non-float example.
 `global_get` takes Entity: a `GlobalValue` of the root whose initializer
 is a `Constant` and yields the global's type with the constant's value.
 `function_ref` takes Function `{ function, type_arguments: [] }` naming a
@@ -217,9 +231,15 @@ and the `call-direct-depth-ceiling` vector. The ceiling is fixed and ignores
 the manifest `ResourceLimits` call-depth field (field 5): no request path
 delivers that field to execution (the SMP1 limits record carries no depth),
 so honoring a caller-supplied depth needs a protocol change and a new
-`lowering_profile`; until then a declared depth binds nothing. Execution
-charges one fuel and one instruction
-per call. Recursion within the ceiling is allowed; a callee's trap or
+`lowering_profile`; until then a declared depth binds nothing. The existing
+fixed 256 bound belongs to the frozen VM/profile identity. Any future
+request-supplied depth must also be encoded in the observation-bound request
+limits: a profile tag alone cannot distinguish two depths in one profile.
+The prospective-frame depth check precedes call-entry fuel/cancellation
+charging. A depth refusal charges no call-entry action; any previously
+completed charges remain counted. `call_depth_refusal_precedes_call_entry_fuel_and_cancellation`
+pins the simultaneous boundary and accounting. Execution charges one fuel
+per admitted call; its instruction is counted only on successful return. Recursion within the ceiling is allowed; a callee's trap or
 resource termination terminates the whole execution.
 
 ### E7a contract assertions (144)
@@ -407,6 +427,14 @@ under `EXTENDED_V1` and returns the operation count and the judgment work,
 without emitting bytecode, deriving a cache key, lowering callees, or
 executing anything. It is the surface external owners use: S20-360 candidate
 validation calls it once per function unit after the S20-220 graph report.
+Callers must apply their owner's capability prefilter before judging:
+S20-360 uses `CandidateProgram::operation_analysis_supported()` and skips
+phase-7 operation judgment when it is false, preserving the later owning
+phase's diagnosis/refusal. Its excluded-opcode policy is owned by
+`sley-policy/src/candidate_program.rs`; E7a/E8 executable support does not
+by itself widen phase-7 analyzability. `VM_LOWER_OPCODE_UNSUPPORTED` is a
+capability result, not a general verdict that the program is invalid.
+The stage checker pins this consumer guard before its judgment call.
 The entry first landed in revision 8 and is unchanged in substance since;
 the campaign record cites revision 8 section 3.1 for that landing.
 
@@ -439,6 +467,16 @@ the unit exactly as lowering does, which is a no-op when the caller already
 narrowed per unit.
 
 ## 4. Observation and reports
+
+The admitted epoch-1 profiles share the frozen `vm_version = [1,0,0]`.
+The existing observation encoder may therefore use that common version;
+`epoch_one_profiles_share_the_frozen_observation_vm_version` and the stage
+checker enforce equality for the two admitted profiles. A future differing
+version must not enter that encoder without a versioned contract change.
+Observation/report decoders share `ResourceKind` tags 1 through 5; tag 5
+means CallDepth and is valid decoding vocabulary. Restricted execution
+cannot produce it; reachability differs from the shared wire vocabulary.
+
 
 The observation preimage of S20-270 is unchanged; the extended profile
 enters it through the cache key and the new resource kind, and every
@@ -483,6 +521,16 @@ again. For the profile: Tier 1 plus
 Tier 2 validation, and the Ariadne, Nabu, and Vulcan reviews with every
 report-grade finding closed.
 
+The corpus retains `call-direct-depth-ceiling` as a successful 256-frame
+boundary and adds `call-direct-depth-exceeded` for the refused 257th frame.
+The latter records `termination = {kind: ResourceLimit, resource: CallDepth,
+tag: 5}`, observation identity, instruction count and fuel used, and has no
+success-value hash. `map-new-duplicate-key` remains successful VM execution
+whose value is exactly `Err(BuiltinFailure(DuplicateKey,1))`; its metadata,
+value hash and observation identity are frozen separately. The native
+emitter asserts both outcomes. The independent Python oracle checks bytecode
+container/cache identities and record shape, not execution semantics.
+
 ## 6. Explicit exclusions
 
 This contract does not claim: E7 beyond slices E7a and E8; generic specialization or type
@@ -520,9 +568,9 @@ S20-360 full operation analysis; or GA.
   float is an S20-210 canonical constant (one quiet NaN, no negative zero),
   a NaN result becomes that canonical NaN, and a negative-zero result
   becomes positive zero, so `-0` never appears in a value; the subnormal
-  and rounding rules are the host's IEEE-754 binary32 and binary64
-  arithmetic under round-to-nearest-ties-to-even, with `float_fma` a single
-  fused rounding.
+  and rounding rules are the normative correctly-rounded environment in
+  section E3, not an implementation-defined host choice; `float_fma` has
+  one fused rounding.
 - E4: record and variant immediates must name non-generic definitions of
   the lowering environment (a generic definition, an unknown member, a
   record named as a variant, or `variant_get` on a payload-less case is
@@ -580,6 +628,7 @@ S20-360 full operation analysis; or GA.
   termination counts no call instructions), and refuses the frame that would
   make 257 live, so 256 live frames is the deepest reachable stack (entry frame included) with `ResourceLimit(CallDepth)`,
   tag 5, which occurs only under `EXTENDED_V1`; the restricted profile's
-  closed `ResourceKind` set is unchanged. The call stack is explicit
+  execution still reaches only tags 1 through 4, while shared decoders
+  accept the five-tag vocabulary described in section 4. The call stack is explicit
   (suspended caller frames in a list), so the ceiling never depends on the
   host stack.

@@ -407,7 +407,13 @@ def check_vm_extended(accepted_path: Path, rejected_path: Path | None = None) ->
             problems.append(f"{label}: the entry body carries no instruction")
         elif opcodes[-1] != vector["opcode"]:
             problems.append(f"{label}: recorded opcode is not the entry's last")
-        if vector["instruction_count"] < len(opcodes):
+        termination = vector.get("termination")
+        if termination is not None:
+            if termination != {"kind": "ResourceLimit", "resource": "CallDepth", "tag": 5}:
+                problems.append(f"{label}: unsupported expected termination record")
+            if "success_value_hash_hex" in vector:
+                problems.append(f"{label}: resource termination carries a success value hash")
+        if termination is None and vector["instruction_count"] < len(opcodes):
             problems.append(f"{label}: instruction count is below the static count")
         if entry["blocks"] and entry["blocks"][0]["slot"] != entry["entry_block"]:
             problems.append(f"{label}: the entry block slot is not first")

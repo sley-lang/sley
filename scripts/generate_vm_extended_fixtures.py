@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "conformance/vm-extended/v1"
-EXPECTED = ["tuple-project", "vector-set-out-of-range", "signed-less-than", "constant-ref", "int-add-overflow", "int-div-signed-min", "int-shl-signed", "float-div-canonical-nan", "float-fma-single-rounding", "float-less-than-nan", "record-get-field", "variant-get-none", "map-new-sorted", "cell-set-get", "value-hash-text", "global-get-constant", "call-direct-second", "call-direct-nested", "result-err", "contract-assert-holds", "contract-assert-violated", "call-direct-depth-ceiling", "bytes-less-than", "text-less-than", "vector-traverse", "cond-drain-loop", "bridge-bytes-to-vector", "bridge-vector-push", "bridge-vector-to-bytes"]
+EXPECTED = ["tuple-project", "vector-set-out-of-range", "signed-less-than", "constant-ref", "int-add-overflow", "int-div-signed-min", "int-shl-signed", "float-div-canonical-nan", "float-fma-single-rounding", "float-less-than-nan", "record-get-field", "variant-get-none", "map-new-sorted", "map-new-duplicate-key", "cell-set-get", "value-hash-text", "global-get-constant", "call-direct-second", "call-direct-nested", "result-err", "contract-assert-holds", "contract-assert-violated", "call-direct-depth-ceiling", "call-direct-depth-exceeded", "bytes-less-than", "text-less-than", "vector-traverse", "cond-drain-loop", "bridge-bytes-to-vector", "bridge-vector-push", "bridge-vector-to-bytes"]
 
 
 def main() -> int:
@@ -29,20 +29,27 @@ def main() -> int:
     )
     vectors = []
     for line in completed.stdout.splitlines():
-        if line.startswith("VM_EXTENDED_VECTOR|"):
+        if line.startswith(("VM_EXTENDED_VECTOR|", "VM_EXTENDED_LIMIT|")):
             parts = line.split("|")
-            vectors.append(
-                {
-                    "bytecode_hex": parts[3],
-                    "bytecode_sha256": hashlib.sha256(bytes.fromhex(parts[3])).hexdigest(),
-                    "cache_key_hex": parts[4],
-                    "id": parts[1],
-                    "instruction_count": int(parts[7]),
-                    "observation_id_hex": parts[6],
-                    "opcode": int(parts[2]),
-                    "success_value_hash_hex": parts[5],
-                }
-            )
+            vector = {
+                "bytecode_hex": parts[3],
+                "bytecode_sha256": hashlib.sha256(bytes.fromhex(parts[3])).hexdigest(),
+                "cache_key_hex": parts[4],
+                "id": parts[1],
+                "instruction_count": int(parts[7]),
+                "observation_id_hex": parts[6],
+                "opcode": int(parts[2]),
+            }
+            if parts[0] == "VM_EXTENDED_LIMIT":
+                if parts[1] != "call-direct-depth-exceeded" or parts[5] != "CallDepth":
+                    raise RuntimeError("unexpected resource termination vector")
+                vector["termination"] = {"kind": "ResourceLimit", "resource": "CallDepth", "tag": 5}
+                vector["fuel_used"] = int(parts[8])
+            else:
+                vector["success_value_hash_hex"] = parts[5]
+                if parts[1] == "map-new-duplicate-key":
+                    vector["expected_failure_value"] = {"kind": "DuplicateKey", "code": 1}
+            vectors.append(vector)
     if [vector["id"] for vector in vectors] != EXPECTED:
         raise RuntimeError(f"unexpected vector set {[v['id'] for v in vectors]}")
     # Deterministic rejections over the first accepted artifact, one per
