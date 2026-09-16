@@ -54,11 +54,12 @@ enum Domain {
     HistoricalTrustPolicy,
     SupervisorConfig,
     NativeAdmissionProfile,
+    NativeExchangeProfile,
 }
 
 impl Domain {
     #[cfg(test)]
-    const ALL: [Self; 47] = [
+    const ALL: [Self; 48] = [
         Self::Workspace,
         Self::Entity,
         Self::Object,
@@ -106,6 +107,7 @@ impl Domain {
         Self::HistoricalTrustPolicy,
         Self::SupervisorConfig,
         Self::NativeAdmissionProfile,
+        Self::NativeExchangeProfile,
     ];
 
     const fn bytes(self) -> &'static [u8] {
@@ -157,6 +159,7 @@ impl Domain {
             Self::HistoricalTrustPolicy => b"sley2.native-test-trust-policy.v1",
             Self::SupervisorConfig => b"sley2.native-test-supervisor-config.v1",
             Self::NativeAdmissionProfile => b"sley2.native-test-admission-profile.v1",
+            Self::NativeExchangeProfile => b"sley2.native-test-exchange-profile.v1",
         }
     }
 }
@@ -442,6 +445,10 @@ fixed_bytes_type! {
     /// Native admission profile digest, binding the exact admission descriptor.
     NativeAdmissionProfileId
 }
+fixed_bytes_type! {
+    /// Native exchange profile digest, binding the exact transport descriptor.
+    NativeExchangeProfileId
+}
 
 macro_rules! digest_type {
     ($name:ident, $domain:expr) => {
@@ -487,6 +494,7 @@ digest_type!(CommitAdmissionStatementId, Domain::CommitAdmissionStatement);
 digest_type!(HistoricalTrustPolicyId, Domain::HistoricalTrustPolicy);
 digest_type!(SupervisorConfigId, Domain::SupervisorConfig);
 digest_type!(NativeAdmissionProfileId, Domain::NativeAdmissionProfile);
+digest_type!(NativeExchangeProfileId, Domain::NativeExchangeProfile);
 digest_type!(ExecutionReportId, Domain::ExecutionReport);
 digest_type!(TestReportId, Domain::TestReport);
 digest_type!(RepositoryPackId, Domain::RepositoryPack);
@@ -537,7 +545,7 @@ mod tests {
     const ZERO: [u8; ID_LEN] = [0; ID_LEN];
     const ONE: [u8; ID_LEN] = [1; ID_LEN];
     const TEST_PREIMAGE: &[u8] = b"sley-id fixed vector preimage";
-    const FIXED_VECTORS: [(Domain, &str); 47] = [
+    const FIXED_VECTORS: [(Domain, &str); 48] = [
         (
             Domain::Workspace,
             "91280bdf6e8df93eafb445c63cf92f0590981d2d9e735d6b01cc9594e0b92f55",
@@ -726,6 +734,10 @@ mod tests {
             Domain::NativeAdmissionProfile,
             "50ad44b4748118b04451089fe615f79ea3fdc4a79548113e9da90be302fcc016",
         ),
+        (
+            Domain::NativeExchangeProfile,
+            "d6b524b8faee554f7cbfa593eb05a48e5824a6b726a09ce5d95e863d7d6f6af6",
+        ),
     ];
 
     fn decode_hex_32(hex: &str) -> [u8; ID_LEN] {
@@ -790,6 +802,7 @@ mod tests {
                 b"sley2.native-test-trust-policy.v1",
                 b"sley2.native-test-supervisor-config.v1",
                 b"sley2.native-test-admission-profile.v1",
+                b"sley2.native-test-exchange-profile.v1",
             ]
         );
     }
@@ -940,6 +953,7 @@ mod tests {
         assert_eq!(core::mem::size_of::<HistoricalTrustPolicyId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<SupervisorConfigId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<NativeAdmissionProfileId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<NativeExchangeProfileId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<ExecutionReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<TestReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<RepositoryPackId>(), ID_LEN);

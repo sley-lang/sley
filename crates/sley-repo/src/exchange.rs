@@ -52,10 +52,10 @@ const KIND_TAG: u32 = 540;
 const ID_LEN: usize = 32;
 const TREE_ALGORITHM_TAG: u64 = 1;
 const COMPRESSION_NONE: u64 = 0;
-const PACK_SECTION: u64 = 1;
-const RECEIPT_SECTION: u64 = 2;
-const BRANCH_SECTION: u64 = 3;
-const HEAD_SECTION: u64 = 4;
+pub(crate) const PACK_SECTION: u64 = 1;
+pub(crate) const RECEIPT_SECTION: u64 = 2;
+pub(crate) const BRANCH_SECTION: u64 = 3;
+pub(crate) const HEAD_SECTION: u64 = 4;
 const LEAF_DOMAIN: &[u8] = b"sley2.repository-exchange-leaf.v1";
 const NODE_DOMAIN: &[u8] = b"sley2.repository-exchange-node.v1";
 const HEAD_MAGIC: &[u8; 8] = b"SLEYHD01";
@@ -511,14 +511,14 @@ fn exchange_error(code: ExchangeErrorCode) -> ExchangeError {
     ExchangeError::exchange(code)
 }
 
-fn encode_bytes(value: &[u8]) -> Vec<u8> {
+pub(crate) fn encode_bytes(value: &[u8]) -> Vec<u8> {
     let mut out = encode_uvar(value.len() as u64);
     out.extend_from_slice(value);
     out
 }
 
 /// Computes the exact 73-byte S20-390 fixed-head value for a head.
-fn stored_head_bytes(transaction_id: TransactionId) -> Vec<u8> {
+pub(crate) fn stored_head_bytes(transaction_id: TransactionId) -> Vec<u8> {
     let mut prefix = Vec::with_capacity(HEAD_LEN);
     prefix.extend_from_slice(HEAD_MAGIC);
     prefix.extend_from_slice(&encode_uvar(1));
@@ -560,7 +560,7 @@ fn pack_to_exchange(error: PackError) -> ExchangeError {
     ExchangeError::Pack(error)
 }
 
-fn encode_branch_element(entry: &ExchangeBranchEntry) -> Result<Vec<u8>> {
+pub(crate) fn encode_branch_element(entry: &ExchangeBranchEntry) -> Result<Vec<u8>> {
     encode_record(&[
         (1, entry.branch_name.clone()),
         (2, entry.stored_origin.clone()),
@@ -845,7 +845,7 @@ fn decode_payload(input: &[u8]) -> Result<DecodedExchange> {
     })
 }
 
-fn content_leaf(section: u64, id: &[u8; ID_LEN], bytes: &[u8]) -> [u8; ID_LEN] {
+pub(crate) fn content_leaf(section: u64, id: &[u8; ID_LEN], bytes: &[u8]) -> [u8; ID_LEN] {
     let mut hasher = blake3::Hasher::new();
     hasher.update(LEAF_DOMAIN);
     hasher.update(&encode_uvar(section));
@@ -855,7 +855,7 @@ fn content_leaf(section: u64, id: &[u8; ID_LEN], bytes: &[u8]) -> [u8; ID_LEN] {
     *hasher.finalize().as_bytes()
 }
 
-fn branch_name_key(entry: &ExchangeBranchEntry) -> Result<[u8; ID_LEN]> {
+pub(crate) fn branch_name_key(entry: &ExchangeBranchEntry) -> Result<[u8; ID_LEN]> {
     let name = BranchName::parse(&entry.branch_name)
         .map_err(|_| exchange_error(ExchangeErrorCode::BranchInvalid))?;
     Ok(name.path_key())
@@ -904,8 +904,8 @@ fn compute_leaves(
     Ok(leaves)
 }
 
-fn merkle_root(leaves: &[[u8; ID_LEN]]) -> Result<[u8; ID_LEN]> {
-    if leaves.is_empty() || leaves.len() > MAX_EXCHANGE_LEAVES {
+pub(crate) fn merkle_root(leaves: &[[u8; ID_LEN]], maximum: usize) -> Result<[u8; ID_LEN]> {
+    if leaves.is_empty() || leaves.len() > maximum {
         return Err(exchange_error(ExchangeErrorCode::DigestTreeMismatch));
     }
     let mut level = leaves.to_vec();
@@ -1059,7 +1059,7 @@ fn build_exchange(
         return Err(exchange_error(ExchangeErrorCode::ResourceLimit));
     }
     let leaves = compute_leaves(pack_id, &object_pack, &receipts, accepted_head, &branches)?;
-    let digest_tree_root = merkle_root(&leaves)?;
+    let digest_tree_root = merkle_root(&leaves, MAX_EXCHANGE_LEAVES)?;
     let payload = encode_payload(
         &object_pack,
         &receipts,
@@ -1391,7 +1391,7 @@ fn preflight<V: CanonicalVerifier>(input: &[u8], verifier: &V) -> Result<Preflig
         &decoded.branches,
     )?;
     if decoded.leaves != expected_leaves
-        || merkle_root(&expected_leaves)? != decoded.digest_tree_root
+        || merkle_root(&expected_leaves, MAX_EXCHANGE_LEAVES)? != decoded.digest_tree_root
     {
         return Err(exchange_error(ExchangeErrorCode::DigestTreeMismatch));
     }
@@ -2717,7 +2717,7 @@ pub(crate) mod tests {
         )
         .unwrap();
         assert_eq!(leaves.len(), MAX_EXCHANGE_LEAVES);
-        let root = merkle_root(&leaves).unwrap();
+        let root = merkle_root(&leaves, MAX_EXCHANGE_LEAVES).unwrap();
         let payload = encode_payload(
             &exchange.object_pack,
             &maximal_receipts,

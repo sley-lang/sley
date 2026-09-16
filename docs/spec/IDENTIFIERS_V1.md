@@ -65,6 +65,7 @@ part of the `sley-id` kernel API.
 | historical trust policy | `sley2.native-test-trust-policy.v1` |
 | supervisor config | `sley2.native-test-supervisor-config.v1` |
 | native admission profile | `sley2.native-test-admission-profile.v1` |
+| native exchange profile (N6) | `sley2.native-test-exchange-profile.v1` |
 | repository pack leaf (S20-170) | `sley2.repository-pack-leaf.v1` |
 | repository pack node (S20-170) | `sley2.repository-pack-node.v1` |
 | repository exchange leaf (S20-540) | `sley2.repository-exchange-leaf.v1` |
