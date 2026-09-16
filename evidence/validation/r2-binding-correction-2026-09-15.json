@@ -1,0 +1,32 @@
+{
+  "schema": "sley2.scoped-validation.v1",
+  "date": "2026-09-15",
+  "scope": "R2 AR06 source-bound live execution and review binding",
+  "result": "SCOPED_CORRECTION_PASS_R2_NOT_READY",
+  "checks": {
+    "python_tests_passed": 9,
+    "live_rw060": "PASS",
+    "live_rw075_raw_callable": "PASS",
+    "live_rw075_exec_closure": "PASS",
+    "live_rw075_hydration_workloads": "PASS",
+    "live_admission_authority": "PASS",
+    "aggregate_source_stability": "PASS",
+    "aggregate_exit_code": 3,
+    "aggregate_decision": "NOT_READY"
+  },
+  "independent_review": "evidence/review/r2-binding-correction-2026-09-15.md",
+  "logs": [
+    {
+      "path": "/home/gfarch/Work/checkpoints/sley2-finish-20260915/r2-evidence-tests.log",
+      "sha256": "960da5fc1eb9cb5a2641bf51f826142d685bb57a0263278672f16391e5ced49c"
+    },
+    {
+      "path": "/home/gfarch/Work/checkpoints/sley2-finish-20260915/r2-binding-review-live-gate.log",
+      "sha256": "1f9239cf791b082d0423406d9b7db1c5a50f294899037fe8e5e4d744c67eb703"
+    }
+  ],
+  "limits": [
+    "Current source-bound Ariadne, Nabu and premium reviews remain required.",
+    "Local execution and inventory hashing are not signed third-party attestations."
+  ]
+}

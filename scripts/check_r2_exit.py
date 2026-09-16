@@ -29,6 +29,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from r2_execution_evidence import run_lifecycle, run_successor, source_digest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 PROFILE_JSON = ROOT / "conformance/bootstrap-profile/v1/profile.json"
@@ -98,18 +100,20 @@ except FileNotFoundError:
     boundary_ok = False
 check("P_host_boundary", boundary_ok, FROZEN["boundary"][:12])
 
-# RW-060 lifecycle identity.
+# RW-060 lifecycle execution, bound to the source reviewed for this R2 exit.
 try:
     summary = json.loads(SUMMARY.read_bytes().decode("utf-8"))
 except (FileNotFoundError, json.JSONDecodeError):
     summary = {}
-rw060 = summary.get("rw060_source_free_lifecycle", {})
-rw060_ok = (
-    rw060.get("status") == "RW060_COMPLETE"
-    and all(rw060.get(key) == value for key, value in RW060_IDS.items())
-    and RW060.exists()
-)
-check("RW060_lifecycle", rw060_ok, rw060.get("status", "missing"))
+try:
+    current_source = source_digest(ROOT)
+    lifecycle = run_lifecycle(ROOT, current_source, RW060_IDS)
+except (OSError, ValueError, subprocess.SubprocessError) as error:
+    current_source = ""
+    lifecycle = {"pass": False, "problems": [str(error)]}
+check("RW060_lifecycle", lifecycle["pass"], json.dumps(lifecycle, sort_keys=True))
+successor = run_successor(ROOT, current_source)
+check("RW075_current_execution", successor["pass"], json.dumps(successor, sort_keys=True))
 
 # RW-070 + RW-075 successor closure (v1 preserved, v2 current).
 try:
@@ -211,7 +215,17 @@ def lane_round(path: Path) -> tuple[int, str]:
     return (round_no, path.name)
 
 
-def latest_lane_verdict(prefix: str) -> str:
+def bound_review_text(text: str, expected_source: str | None) -> bool:
+    """A current-source review carries exactly one unambiguous binding."""
+    if expected_source is None:
+        return True
+    bindings = re.findall(r"^SOURCE_R2_SHA256:([^\n]*)$", text, re.MULTILINE)
+    return bindings == [" " + expected_source] and bool(
+        re.fullmatch(r"[0-9a-f]{64}", expected_source)
+    )
+
+
+def latest_lane_verdict(prefix: str, expected_source: str | None = None) -> str:
     """Round-aware lane verdict: evaluates the latest round file only.
 
     Candidates matching `<prefix>*.log` except `*infra*`
@@ -232,6 +246,8 @@ def latest_lane_verdict(prefix: str) -> str:
         text = candidates[-1][1].read_text(encoding="utf-8", errors="replace")
     except OSError:
         return "PENDING"
+    if not bound_review_text(text, expected_source):
+        return "PENDING"
     if re.search(r"^VERDICT:\s*FAIL(?![A-Za-z0-9_])", text, re.MULTILINE):
         return "FAIL"
     if re.search(r"^VERDICT:\s*PASS(?![A-Za-z0-9_])", text, re.MULTILINE):
@@ -251,13 +267,13 @@ check(
     rw070_nabu == "PASS",
     "round-4 verdict line plus round-5 confirmation",
 )
-rw075_ariadne = latest_lane_verdict("reweave-rw075-ariadne-")
-rw075_nabu = latest_lane_verdict("reweave-rw075-nabu-")
+rw075_ariadne = latest_lane_verdict("reweave-rw075-ariadne-", current_source)
+rw075_nabu = latest_lane_verdict("reweave-rw075-nabu-", current_source)
 check("RW075_ariadne_pass", rw075_ariadne == "PASS", f"latest-round verdict: {rw075_ariadne}")
 check("RW075_nabu_pass", rw075_nabu == "PASS", f"latest-round verdict: {rw075_nabu}")
 
 
-def premium_verdict() -> str:
+def premium_verdict(expected_source: str | None = None) -> str:
     """Premium delta verdict: latest round file only, exact token parse.
 
     Mirrors `latest_lane_verdict`: candidates matching
@@ -280,6 +296,8 @@ def premium_verdict() -> str:
         text = candidates[-1][1].read_text(encoding="utf-8", errors="replace")
     except OSError:
         return "PENDING"
+    if not bound_review_text(text, expected_source):
+        return "PENDING"
     if re.search(r"^VERDICT:\s*R2_ARCHITECTURE_FAIL(?![A-Za-z0-9_])", text, re.MULTILINE):
         return "FAIL"
     if re.search(r"^VERDICT:\s*R2_ARCHITECTURE_PASS(?![A-Za-z0-9_])", text, re.MULTILINE):
@@ -287,7 +305,7 @@ def premium_verdict() -> str:
     return "PENDING"
 
 
-premium = premium_verdict()
+premium = premium_verdict(current_source)
 check("premium_delta_R2_ARCHITECTURE_PASS", premium == "PASS", f"verdict: {premium}")
 
 blocker_open = fail_preserved and premium != "PASS"
@@ -295,6 +313,11 @@ evidence["architecture_blocker_open"] = blocker_open
 if blocker_open:
     failures.append("architecture_blocker_open")
 
+try:
+    source_still_current = bool(current_source) and source_digest(ROOT) == current_source
+except (OSError, ValueError, subprocess.SubprocessError):
+    source_still_current = False
+check("R2_source_stable_through_gate", source_still_current, current_source)
 ready = not failures
 print(f"R2_EXIT: {'READY' if ready else 'NOT_READY'}")
 print(f"historical_BOOTSTRAP_READY: TRUE (RW-070, superseded/invalidated by R2_ARCHITECTURE_FAIL)")
