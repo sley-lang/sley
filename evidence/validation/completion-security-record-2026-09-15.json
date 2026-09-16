@@ -1,0 +1,33 @@
+{
+  "scope": "Defensive scanner boundaries, T48 label independence, GC/lowering error-path coverage, R2 verdict token parsing, and honest review metadata classification",
+  "baseline": "4846bb6a2333efa6360bec3ed2296368943a338b",
+  "rust_passed": 693,
+  "python_review_passed": 98,
+  "clippy": "PASS for sley-policy, sley-repo, sley-vm all targets; dependencies checked",
+  "format": "cargo fmt --all --check PASS",
+  "independent_static_review": "evidence/review/completion-security-record-review-2026-09-15.md",
+  "logs": {
+    "scanner-tokens-green.log": {
+      "path": "/home/gfarch/Work/checkpoints/sley2-finish-20260915/scanner-tokens-green.log",
+      "sha256": "dc99214b152620745aac21bbc17b04fc14b3d6f3fa331904f63eadd977559e33"
+    },
+    "security-rust-tests.log": {
+      "path": "/home/gfarch/Work/checkpoints/sley2-finish-20260915/security-rust-tests.log",
+      "sha256": "edc85744153e2b97e346572d328595fabcbeead5e4c447a785a2370fe1f751e8"
+    },
+    "review-tests-verified.log": {
+      "path": "/home/gfarch/Work/checkpoints/sley2-finish-20260915/review-tests-verified.log",
+      "sha256": "6db6747e82a294fffe92c8676465a96f9e551eab735d1810281ef17f71a03243"
+    },
+    "security-clippy.log": {
+      "path": "/home/gfarch/Work/checkpoints/sley2-finish-20260915/security-clippy.log",
+      "sha256": "49081118eaa01f53437c49247b4dc6a25626938564766c7e4a15a46d7138140d"
+    }
+  },
+  "limitations": [
+    "No GA or final release acceptance.",
+    "No new final candidate built for this source delta. Existing accepted candidate and two-host evidence remain historical.",
+    "Full security closure, RW075 revision/lifecycle binding, historical review residuals, native product completion, live campaigns and final gates remain open.",
+    "Unchanged frozen S20-530 positional pin check already differs from current source; shared lexer was AST-identical and parity-tested; original isolated checker was preserved."
+  ]
+}

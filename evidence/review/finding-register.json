@@ -66,7 +66,7 @@
       "status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY"
     },
     {
-      "open_obligations": 1,
+      "open_obligations": 0,
       "section": "mutation_value_profile",
       "status": "S20_350_COMPLETE_PROPOSAL_ONLY"
     },
@@ -101,7 +101,7 @@
       "status": "IMPLEMENTED_SCOPED_S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY"
     }
   ],
-  "obligation_count": 444,
+  "obligation_count": 442,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -2105,18 +2105,6 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "TIMED_OUT_PARTIAL_HANDOFF_INTEGRATED_BY_CODEX",
-      "field": "merlin_review",
-      "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
-      "reviewer": "merlin",
-      "section": "mutation_value_profile",
-      "severities": [],
-      "state": "OTHER",
-      "superseded_by": null
-    },
-    {
-      "declares_closed_findings": false,
-      "declares_no_open_p0_p1_p2": false,
       "disposition": "PASS_FROZEN_ARCHITECTURE_INTEGRATED",
       "field": "nabu_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
@@ -4095,15 +4083,15 @@
       "superseded_by": null
     },
     {
-      "declares_closed_findings": true,
+      "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "SELF-REVIEW provisional (muse-spark/OpenCode, author line; record reviews/reweave-rw075-native-r12-2026-09-07.log): AR-01 CLOSED, AR-02 CLOSED (streaming residual declared), AR-03 CLOSED, AR-04 CLOSED (C1-exclusion declarative), AR-05 CLOSED (evidence risk), AR-06 PARTIALLY_CLOSED (revision/lifecycle evidence-binding remainder open; gate script untouched), AR-07 CLOSED, AR-08 CLOSED; 4 review-driven repairs (ingress refusal test, 4 authority legs, limits prose, boundary inventory); not independent acceptance, not gate input",
-      "field": "native_review_r12_2026_09_07",
+      "disposition": "PENDING",
+      "field": "independent_completion_review",
       "package_status": "RW075_CORRECTION_IMPLEMENTED",
       "reviewer": null,
       "section": "rw075_correction",
       "severities": [],
-      "state": "OTHER",
+      "state": "PENDING",
       "superseded_by": null
     },
     {
@@ -4501,18 +4489,6 @@
         "P3"
       ],
       "state": "PASS",
-      "superseded_by": null
-    },
-    {
-      "declares_closed_findings": false,
-      "declares_no_open_p0_p1_p2": false,
-      "disposition": "legacy_artifact_adapter",
-      "field": "review_lane",
-      "package_status": "IMPLEMENTED_VERIFIED_ARTIFACT_VERSION_SMOKE_ONLY",
-      "reviewer": null,
-      "section": "s20_600_frozen_legacy_adapter",
-      "severities": [],
-      "state": "OTHER",
       "superseded_by": null
     },
     {
@@ -6473,8 +6449,15 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "obligations_digest": "d2df44de620177cdb625d4e35a4224c3593e426fd55a95486ae0414f0a2f619b",
-  "open_reviews": [],
+  "obligations_digest": "452a51dbfe2059fa963b74337224d80e5110f5a03c912c826b4b9c1dbb95e085",
+  "open_reviews": [
+    {
+      "disposition": "PENDING",
+      "field": "independent_completion_review",
+      "section": "rw075_correction",
+      "severities": []
+    }
+  ],
   "package_open_claims": {
     "clean_room_disposition_register.p0_open": 0,
     "clean_room_disposition_register.p0_open_count": 0,
@@ -6541,7 +6524,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "2b2610424dea8675b7144f9529be7511873042abe211a509bb9aa9cf29eb5a4e",
+  "register_digest": "a5b8e2be411647eebbbed02b62064d89f4cc0a40045df2c86ef4cae659e1fc98",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
@@ -6553,8 +6536,8 @@
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "HISTORICAL_ROUND": 141,
-    "OTHER": 3,
-    "PASS": 300
+    "PASS": 300,
+    "PENDING": 1
   },
   "superseded_rounds": [
     {
@@ -7754,22 +7737,6 @@
       ]
     }
   ],
-  "unclassified": [
-    {
-      "disposition": "TIMED_OUT_PARTIAL_HANDOFF_INTEGRATED_BY_CODEX",
-      "field": "merlin_review",
-      "section": "mutation_value_profile"
-    },
-    {
-      "disposition": "SELF-REVIEW provisional (muse-spark/OpenCode, author line; record reviews/reweave-rw075-native-r12-2026-09-07.log): AR-01 CLOSED, AR-02 CLOSED (streaming residual declared), AR-03 CLOSED, AR-04 CLOSED (C1-exclusion declarative), AR-05 CLOSED (evidence risk), AR-06 PARTIALLY_CLOSED (revision/lifecycle evidence-binding remainder open; gate script untouched), AR-07 CLOSED, AR-08 CLOSED; 4 review-driven repairs (ingress refusal test, 4 authority legs, limits prose, boundary inventory); not independent acceptance, not gate input",
-      "field": "native_review_r12_2026_09_07",
-      "section": "rw075_correction"
-    },
-    {
-      "disposition": "legacy_artifact_adapter",
-      "field": "review_lane",
-      "section": "s20_600_frozen_legacy_adapter"
-    }
-  ],
+  "unclassified": [],
   "work_package": "S20-740"
 }

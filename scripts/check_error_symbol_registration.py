@@ -39,6 +39,8 @@ import re
 import sys
 from pathlib import Path
 
+from rust_source_regions import rust_test_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 NAMESPACE_SOURCE = ROOT / "docs/spec/ERROR_CODES_V1.md"
@@ -205,13 +207,11 @@ def unexercised() -> list[str]:
         text = path.read_text(encoding="utf-8", errors="ignore")
         relative = str(path.relative_to(ROOT))
         enum_names.update(re.findall(r"enum (\w+)", text))
-        # An in-file test module IS exercise: hits past the test marker
-        # count even though the file is the symbol's defining file.
-        marker = text.find("#[cfg(test)]")
-        if marker < 0:
-            marker = text.find("mod tests")
-        if marker >= 0:
-            test_regions[relative] = text[marker:]
+        # Only complete inline test modules count, never production text
+        # following a test-only helper or a finished test module.
+        tests = rust_test_text(text)
+        if tests:
+            test_regions[relative] = tests
         for match in re.finditer(
             r"Self::(\w+)\s*=>\s*(?:Some\()?\"([A-Z][A-Z0-9_]*)\"(?:\))?", text
         ):
@@ -229,12 +229,15 @@ def unexercised() -> list[str]:
     qualified_pat = re.compile(r"(\w+)::(\w+)(?!::)")
     string_hits: dict[str, set[str]] = {symbol: set() for symbol in names}
     qualified_use_files: dict[tuple[str, str], set[str]] = {}
+    exercise_texts = dict(test_regions)
     for path in exercise_corpus_files():
         try:
-            text = path.read_text(encoding="utf-8", errors="ignore")
+            exercise_texts[str(path.relative_to(ROOT))] = path.read_text(
+                encoding="utf-8", errors="ignore"
+            )
         except OSError:
             continue
-        relative = str(path.relative_to(ROOT))
+    for relative, text in exercise_texts.items():
         for match in string_pat.finditer(text):
             string_hits[match.group(0).strip('"')].add(relative)
         for match in qualified_pat.finditer(text):

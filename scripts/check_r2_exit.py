@@ -194,9 +194,9 @@ def review_verdict(pattern: str) -> str:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        if re.search(r"^VERDICT:\s*FAIL", text, re.MULTILINE):
+        if re.search(r"^VERDICT:\s*FAIL(?![A-Za-z0-9_])", text, re.MULTILINE):
             return "FAIL"
-        if re.search(r"^VERDICT:\s*PASS", text, re.MULTILINE):
+        if re.search(r"^VERDICT:\s*PASS(?![A-Za-z0-9_])", text, re.MULTILINE):
             state = "PASS"
     return state
 
@@ -232,9 +232,9 @@ def latest_lane_verdict(prefix: str) -> str:
         text = candidates[-1][1].read_text(encoding="utf-8", errors="replace")
     except OSError:
         return "PENDING"
-    if re.search(r"^VERDICT:\s*FAIL", text, re.MULTILINE):
+    if re.search(r"^VERDICT:\s*FAIL(?![A-Za-z0-9_])", text, re.MULTILINE):
         return "FAIL"
-    if re.search(r"^VERDICT:\s*PASS", text, re.MULTILINE):
+    if re.search(r"^VERDICT:\s*PASS(?![A-Za-z0-9_])", text, re.MULTILINE):
         return "PASS"
     return "PENDING"
 

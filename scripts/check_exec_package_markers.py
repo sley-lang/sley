@@ -14,6 +14,8 @@ import hashlib
 import re
 from pathlib import Path
 
+from rust_source_regions import rust_production_text
+
 ROOT = Path(__file__).resolve().parents[1]
 EXEC_RS = ROOT / "crates/sley-vm/src/exec_package.rs"
 HASH_RS = ROOT / "crates/sley-vm/src/raw_hash.rs"
@@ -152,7 +154,7 @@ SRC = ROOT / "crates/sley-vm/src"
 for path in sorted(SRC.glob("*.rs")):
     if path.name in ("exec_package.rs", "admission_authority.rs"):
         continue
-    production = path.read_text(encoding="utf-8").split("#[cfg(test)]")[0]
+    production = rust_production_text(path.read_text(encoding="utf-8"))
     if "admit_package_v2(" in production:
         problems.append(f"minter-exclusivity:{path.name}")
     if "AdmissionReceipt {" in production:

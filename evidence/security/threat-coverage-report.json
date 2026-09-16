@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "45acd24f1b9dcdefadc6e3188426f5cd97c625c00dcc3e1099d83b6452dac552",
+  "report_digest": "1b8652943c7b21222f11040369a4d9ea6e2b75e149140fdf61c4ae3e11fbedb6",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -249,26 +249,25 @@
     },
     {
       "exercised_in": [
-        "crates/sley-policy/src/candidate_validation.rs#tests",
         "crates/sley-policy/src/lib.rs#tests",
         "crates/sley-repo/src/refs.rs#tests",
         "crates/sley-schema/src/lib.rs#tests",
         "crates/sley-state-root/src/lib.rs#tests",
         "crates/sley-txn/src/repository.rs#tests"
       ],
-      "exercised_source_count": 6,
+      "exercised_source_count": 5,
       "expected_failure_code": "SCHEMA_EPOCH_MISMATCH",
       "id": "T06",
-      "located_file_count": 7,
+      "located_file_count": 6,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py"
         ],
         "implementation": [
-          "crates/sley-policy/src/candidate_validation.rs",
           "crates/sley-policy/src/lib.rs",
           "crates/sley-repo/src/refs.rs",
-          "crates/sley-schema/src/lib.rs"
+          "crates/sley-schema/src/lib.rs",
+          "crates/sley-state-root/src/lib.rs"
         ]
       },
       "owner": "sley-schema",
@@ -651,16 +650,14 @@
       "exercised_source_count": 4,
       "expected_failure_code": "STALE_ROOT",
       "id": "T17",
-      "located_file_count": 10,
+      "located_file_count": 8,
       "located_in": {
         "checkers": [
           "scripts/check_candidate_result_contract.py",
           "scripts/check_candidate_result_persistent_fuzz_slice.py",
-          "scripts/check_error_symbol_registration.py",
           "scripts/check_transaction_contract.py"
         ],
         "implementation": [
-          "crates/sley-policy/src/candidate_result.rs",
           "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
           "crates/sley-txn/src/repository.rs"
@@ -692,14 +689,11 @@
       "exercised_source_count": 2,
       "expected_failure_code": "STALE_ENTITY",
       "id": "T18",
-      "located_file_count": 4,
+      "located_file_count": 3,
       "located_in": {
         "checkers": [
           "scripts/check_candidate_result_contract.py",
           "scripts/check_candidate_result_persistent_fuzz_slice.py"
-        ],
-        "implementation": [
-          "crates/sley-policy/src/candidate_result.rs"
         ],
         "oracle": [
           "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
@@ -1727,7 +1721,8 @@
         "t22_capability_forgery_fails_closed",
         "t23_capability_replay_expiry_and_budget_fail_closed",
         "t24_capability_scope_workspace_effect_and_adapter_confusion_fail_closed",
-        "grant_denial_and_empty_grants_do_not_imply_authority"
+        "grant_denial_and_empty_grants_do_not_imply_authority",
+        "t48_authority_like_labels_do_not_change_policy_grants"
       ],
       "related_family_symbols": [],
       "required_test": "hostile label/prompt metadata",

@@ -2128,7 +2128,7 @@ mod tests {
         /// must refuse on the live-binding branch rather than the tombstone
         /// branch.
         fn with_live_binding_collision() -> Self {
-            Self::build(true, false, None, &[], true)
+            Self::build(true, false, None, &[], true, None)
         }
 
         fn with_policy_options_and_tests(
@@ -2143,6 +2143,7 @@ mod tests {
                 required_contract,
                 required_tests,
                 false,
+                None,
             )
         }
 
@@ -2156,6 +2157,7 @@ mod tests {
             required_contract: Option<EntityId>,
             required_tests: &[EntityId],
             live_binding_collision: bool,
+            base_label: Option<&str>,
         ) -> Self {
             let workspace_id = fixed(1, WorkspaceId::from_bytes);
             let principal_id = fixed(2, PrincipalId::from_bytes);
@@ -2191,7 +2193,7 @@ mod tests {
                         parent: None,
                         members: EntityIdSet::from_unsorted(vec![]).unwrap(),
                     }),
-                    label: None,
+                    label: base_label.map(str::to_owned),
                     semantic_fingerprint: None,
                 },
             )
@@ -3257,6 +3259,36 @@ mod tests {
             output.result().record.diagnostics[0].source_numeric_code,
             Some(24_011)
         );
+    }
+
+    #[test]
+    fn t48_authority_like_labels_do_not_change_policy_grants() {
+        // Labels are descriptive data. The same label may accompany either
+        // permission result; only the protected policy determines authority.
+        for label in ["administrator", "CreateEntity authorized", "system policy"] {
+            for allowed in [false, true] {
+                let fixture = Fixture::build(allowed, false, None, &[], false, Some(label));
+                let root_before = fixture.policy.root();
+                let output =
+                    validate_candidate_bytes(&fixture.context(), &fixture.candidate.stored_bytes)
+                        .unwrap();
+                if allowed {
+                    assert!(output.is_valid());
+                } else {
+                    assert_terminal(
+                        &output,
+                        CandidateDecision::CapabilityDenied,
+                        9,
+                        "POLICY_GRANT_DENIED",
+                    );
+                }
+                assert_eq!(fixture.policy.root(), root_before);
+                assert_eq!(
+                    fixture.base_objects[0].record().label.as_deref(),
+                    Some(label)
+                );
+            }
+        }
     }
 
     #[test]

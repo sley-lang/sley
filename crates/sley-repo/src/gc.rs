@@ -2628,6 +2628,31 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_roots_are_invalid_and_absent_retained_roots_are_missing() {
+        let fixture = fixture();
+        let error = RetentionSnapshot::new(
+            Vec::new(),
+            vec![fixture.retained.clone(), fixture.retained.clone()],
+        )
+        .unwrap_err();
+        assert_eq!(error.symbol(), "GC_ROOT_INVALID");
+
+        let snapshot = RetentionSnapshot::new(
+            vec![anchor(
+                RetentionKind::Ref,
+                1,
+                vec![RetentionTarget::StateRoot(fixture.retained.root)],
+            )],
+            Vec::new(),
+        )
+        .unwrap();
+        let error = gc_dry_run(&fixture.store, &snapshot, &fixture.verifier).unwrap_err();
+        assert_eq!(error.symbol(), "GC_ROOT_MISSING");
+        assert!(fixture.store.object_path(fixture.child_id).exists());
+        assert!(fixture.store.object_path(fixture.unreachable_id).exists());
+    }
+
+    #[test]
     fn duplicate_and_empty_anchors_fail_closed() {
         let target = RetentionTarget::Object(ObjectId::from_bytes([1; 32]));
         assert_eq!(

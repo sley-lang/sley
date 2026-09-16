@@ -1549,6 +1549,16 @@ mod tests {
     }
 
     #[test]
+    fn operation_judgment_rejects_missing_parameter_inventory() {
+        let mut fixture = bool_fixture(Opcode::BoolAnd);
+        fixture.parameters.pop();
+        let mut input = fixture.input();
+        input.profile = CacheProfile::EXTENDED_V1;
+        let error = judge_function_operations(input).unwrap_err();
+        assert_eq!(error.to_string(), "VM_LOWER_LOCAL_REFERENCE_INVALID");
+    }
+
+    #[test]
     fn all_lowering_codes_are_stable() {
         let codes = [
             LowerErrorCode::ProfileUnsupported,

@@ -23,6 +23,8 @@ import re
 import sys
 from pathlib import Path
 
+from rust_source_regions import rust_test_text
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTER = ROOT / "docs/THREAT_REGISTER.md"
@@ -36,19 +38,8 @@ SEARCHED = {
     # The benchmark, accounting, and release harnesses enforce controls too.
     "harness": ("bench",),
 }
-# Exercise is a symbol reached from a test, corpus, fuzz target, or oracle,
-# never a mention in the production code or the checker table that names
-# it: an in-file Rust test module (everything past the test marker), a
-# `tests/` directory or `test_*.py` file, and the corpus trees below. File
-# co-location with any assertion is not exercise (independent security
-# review, 2026-09-11, P2: a dead or reserved symbol counted as exercised
-# because its defining file also carried unrelated tests).
-# The test region of a Rust file is its in-file tests module; a lone
-# `#[cfg(test)]` on an earlier helper or `mod x;` line is not the start of
-# test text (independent security review 2026-09-14, P3).
-RUST_TESTS_MODULE = re.compile(
-    r"#\[cfg\(test\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\(crate\))?\s+)?mod\s+\w+\s*\{"
-)
+# A located test/corpus symbol is traceability, not proof of mitigation.
+# Inline Rust test modules are bounded by syntax, including code after them.
 EXERCISE_TREES = ("conformance", "fuzz/targets", "oracle")
 EXERCISE_SUFFIXES = (".rs", ".py", ".json")
 # This generator names example codes in its own prose, and the threat register
@@ -189,7 +180,7 @@ def locate(symbol: str) -> dict[str, list[str]]:
                 if relative in SELF_REFERENCES:
                     continue
                 text = path.read_text(encoding="utf-8", errors="ignore")
-                if symbol in text:
+                if names_symbol(symbol, text):
                     hits.append(relative)
         if hits:
             found[area] = hits
@@ -222,8 +213,8 @@ def family_symbols() -> dict[str, set[str]]:
 def exercise_sources() -> list[tuple[str, str]]:
     """Every (relative path, exercising text) pair a symbol may be reached from.
 
-    A Rust file contributes only its test region (from the first test marker
-    on), so a production match in the same file never counts; a file under a
+    A Rust file contributes only complete cfg(test) inline modules, so a
+    production match before or after a module never counts; a file under a
     `tests/` directory, a `test_*.py`, and every corpus, fuzz target, and
     oracle file contributes its whole text.
     """
@@ -236,9 +227,9 @@ def exercise_sources() -> list[tuple[str, str]]:
         if "/tests/" in relative:
             sources.append((relative, text))
             continue
-        module = RUST_TESTS_MODULE.search(text)
-        if module:
-            sources.append((f"{relative}#tests", text[module.start() :]))
+        tests = rust_test_text(text)
+        if tests:
+            sources.append((f"{relative}#tests", tests))
     for tree in ("scripts", "bench"):
         for path in sorted((ROOT / tree).rglob("*.py")):
             relative = str(path.relative_to(ROOT))
@@ -260,9 +251,14 @@ def exercise_sources() -> list[tuple[str, str]]:
     return sources
 
 
+def names_symbol(symbol: str, text: str) -> bool:
+    """Match a whole identifier/path, never a longer symbol containing it."""
+    return re.search(rf"(?<![A-Za-z0-9_]){re.escape(symbol)}(?![A-Za-z0-9_])", text) is not None
+
+
 def exercised_in(symbols: list[str], sources: list[tuple[str, str]]) -> list[str]:
     """The exercising sources that name any of the searched symbols."""
-    return [relative for relative, text in sources if any(symbol in text for symbol in symbols)]
+    return [relative for relative, text in sources if any(names_symbol(symbol, text) for symbol in symbols)]
 
 
 def classify(found: dict[str, list[str]], evidence_present: bool, exercised: list[str]) -> str:
