@@ -326,7 +326,9 @@ rather than automated:
    `python3 scripts/build_reproducibility_report.py --attest /tmp/<label>-attestation.json`,
    then `make evidence-refresh`. Commit the merged candidate records as a
    provisional local checkpoint. File the lane record naming that actual
-   merge commit, then run `make release-candidate-verify` and `make quick`.
+   merge commit. Run `make evidence-refresh` again because the receipt changes
+   the files covered by the T54 scan, then `make release-candidate-verify`
+   and `make quick`.
    Commit the receipt as a records-only descendant after those checks pass.
    The provisional merge is not a validated closure until its receipt and
    checks are complete.
