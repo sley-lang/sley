@@ -1,0 +1,1285 @@
+//! Protected native test plan (N4) from `NATIVE_TEST_ADMISSION_V1.md`.
+//!
+//! This owner derives the stronger native selection from one fully valid
+//! static result plus the exact validator-owned candidate, proposed state,
+//! and trusted base/policy context. It rechecks every final union member
+//! against the six principal grant ceilings, the effective validation
+//! limits, the configured native hard caps, the final count, checked
+//! aggregate sums, and the evidence cap, then binds the exact effective
+//! resource policy and plan. The full-v1 static result bytes are never
+//! modified; a non-`Valid` output refuses before any selection derives.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use sley_id::{CapabilitySummaryDigest, EntityId, TransactionId};
+use sley_mutate::{EntityObject, ProposedEntityState, full_validation_profile_id};
+use sley_state_root::AcceptedStateRoot;
+use sley_tests::{
+    ACCEPTANCE_SIGNATURE_PROFILE_V1, ADMISSION_CLEANUP_MILLIS, CANCEL_BETWEEN_REQUESTS,
+    ChangedTest, GrantCeilings, LOCK_WAIT_MILLIS, MAX_EXECUTION_REPORT_STORED,
+    MEASUREMENT_PROFILE_V1, NATIVE_WALL_CAP_MILLIS, NativeAdmissionProfileParts,
+    NativeAdmissionProfileV1, NativeAggregateLimits, NativeResourcePolicyParts,
+    NativeResourcePolicyV1, NativeTestPlanParts, NativeTestPlanV1, PREPROMOTION_WATCHDOG_MILLIS,
+    SELECTION_RULE_NATIVE_V1, SelectedEntry, ValidationLimits,
+    plan::SELECTION_MODE_CANDIDATE_AFFECTED,
+};
+use sley_vm::native_execution::{
+    NativeDeclaredLimits, NativeImplementationLimits, observation_capacity_required, profile_id,
+};
+
+use super::candidate_program::{CandidateProgram, CandidateProgramError};
+use super::candidate_validation::CandidateValidationOutput;
+use crate::{AcceptedPolicyRoot, CandidateValidationLimits};
+
+/// Canonical six-field resource order shared by per-test and aggregate checks.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NativePlanResource {
+    /// Charged VM fuel.
+    Fuel,
+    /// Supervisor-enforced memory bytes.
+    Memory,
+    /// Canonical output bytes.
+    Output,
+    /// Declared effect operations.
+    Effects,
+    /// Active call depth.
+    Depth,
+    /// Supervisor wall timeout in milliseconds.
+    Wall,
+}
+
+impl NativePlanResource {
+    /// Frozen native-v1 resource tag in canonical field order.
+    #[must_use]
+    pub const fn tag(self) -> u32 {
+        match self {
+            Self::Fuel => 1,
+            Self::Memory => 2,
+            Self::Output => 3,
+            Self::Effects => 4,
+            Self::Depth => 5,
+            Self::Wall => 6,
+        }
+    }
+
+    /// Frozen native-v1 resource symbol with the profile-local prefix.
+    #[must_use]
+    pub const fn symbol(self) -> &'static str {
+        match self {
+            Self::Fuel => "NATIVE_TEST_FUEL",
+            Self::Memory => "NATIVE_TEST_MEMORY_BYTES",
+            Self::Output => "NATIVE_TEST_OUTPUT_BYTES",
+            Self::Effects => "NATIVE_TEST_EFFECT_COUNT",
+            Self::Depth => "NATIVE_TEST_CALL_DEPTH",
+            Self::Wall => "NATIVE_TEST_WALL_TIMEOUT_MILLIS",
+        }
+    }
+}
+
+/// Profile-local native plan refusal union. This is a new native error union;
+/// no tags are added to the frozen full-v1 candidate-decision/error codec.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NativePlanErrorV1 {
+    /// Static result is not `Valid`, selection does not resolve, or a
+    /// protected required test is missing/deleted.
+    SelectionInvalid,
+    /// Final selected count exceeds `min(effective, 256)`.
+    SelectedCountExceeded,
+    /// One selected test declares over its policy ceiling.
+    DeclaredLimitExceedsPolicy {
+        /// Offending selected test in raw-ID order position.
+        test: EntityId,
+        /// Ceiling the declaration exceeded.
+        resource: NativePlanResource,
+    },
+    /// A checked aggregate sum overflowed `u64`.
+    AggregateOverflow {
+        /// Summed resource that overflowed.
+        resource: NativePlanResource,
+    },
+    /// A checked aggregate sum exceeds its aggregate ceiling.
+    AggregateLimitExceeded {
+        /// Summed resource that exceeded its ceiling.
+        resource: NativePlanResource,
+    },
+    /// Reserved evidence exceeds the per-report or aggregate evidence cap.
+    EvidenceLimitExceeded,
+}
+
+impl NativePlanErrorV1 {
+    /// Frozen native-v1 refusal tag.
+    #[must_use]
+    pub const fn tag(self) -> u32 {
+        match self {
+            Self::SelectionInvalid => 1,
+            Self::SelectedCountExceeded => 2,
+            Self::DeclaredLimitExceedsPolicy { .. } => 3,
+            Self::AggregateOverflow { .. } => 4,
+            Self::AggregateLimitExceeded { .. } => 5,
+            Self::EvidenceLimitExceeded => 6,
+        }
+    }
+
+    /// Frozen native-v1 refusal symbol with the profile-local prefix.
+    #[must_use]
+    pub const fn symbol(self) -> &'static str {
+        match self {
+            Self::SelectionInvalid => "NATIVE_TEST_SELECTION_INVALID",
+            Self::SelectedCountExceeded => "NATIVE_TEST_SELECTED_COUNT_EXCEEDED",
+            Self::DeclaredLimitExceedsPolicy { .. } => "NATIVE_TEST_DECLARED_LIMIT_EXCEEDS_POLICY",
+            Self::AggregateOverflow { .. } => "NATIVE_TEST_AGGREGATE_OVERFLOW",
+            Self::AggregateLimitExceeded { .. } => "NATIVE_TEST_AGGREGATE_LIMIT_EXCEEDED",
+            Self::EvidenceLimitExceeded => "NATIVE_TEST_EVIDENCE_LIMIT_EXCEEDED",
+        }
+    }
+}
+
+impl core::fmt::Display for NativePlanErrorV1 {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::SelectionInvalid | Self::SelectedCountExceeded | Self::EvidenceLimitExceeded => {
+                formatter.write_str(self.symbol())
+            }
+            Self::DeclaredLimitExceedsPolicy { test, resource } => write!(
+                formatter,
+                "{} test={} resource={}",
+                self.symbol(),
+                hex_id(test.as_bytes()),
+                resource.symbol()
+            ),
+            Self::AggregateOverflow { resource } | Self::AggregateLimitExceeded { resource } => {
+                write!(
+                    formatter,
+                    "{} resource={}",
+                    self.symbol(),
+                    resource.symbol()
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for NativePlanErrorV1 {}
+
+fn hex_id(bytes: &[u8; 32]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(64);
+    for byte in bytes {
+        out.push(HEX[(byte >> 4) as usize] as char);
+        out.push(HEX[(byte & 0x0f) as usize] as char);
+    }
+    out
+}
+
+/// Trusted owner inputs for native plan derivation. Every value must come
+/// from the same accepted parent context that produced the static result;
+///
+/// constructing these inputs grants no selection authority by itself.
+pub struct NativePlanInputs<'a> {
+    /// Exact accepted parent transaction the candidate was validated against.
+    pub base_transaction_id: TransactionId,
+    /// Exact accepted parent state.
+    pub base_state: &'a AcceptedStateRoot,
+    /// Exact trusted base inventory matching the parent state bindings.
+    pub base_objects: &'a [EntityObject],
+    /// Exact accepted protected policy root.
+    pub policy: &'a AcceptedPolicyRoot,
+    /// Canonical capability-summary digest of the granting context.
+    pub capability_summary: CapabilitySummaryDigest,
+    /// Requested local validation ceilings; the effective minimum applies.
+    pub limits: CandidateValidationLimits,
+    /// Configured local native implementation ceilings.
+    pub implementation_limits: NativeImplementationLimits,
+    /// Configured local aggregate ceilings within the native hard maxima.
+    pub aggregate: NativeAggregateLimits,
+}
+
+/// Derives the protected native test plan from one fully valid static result.
+///
+/// This is read-only over the validation output: result bytes are never
+/// modified and a non-`Valid` output refuses with `SelectionInvalid` before
+/// any selection derives, preserving the existing static failure.
+///
+/// # Errors
+///
+/// Returns the first refusal in fixed precedence: static validity, protected
+/// selection resolution/order, final count, per-test declared ceilings in
+/// raw-ID order across fuel/memory/output/effects/depth/wall, checked
+/// aggregate sums in the same field order, then the evidence cap.
+pub fn native_test_plan(
+    output: &CandidateValidationOutput,
+    inputs: &NativePlanInputs<'_>,
+) -> Result<NativeTestPlanV1, NativePlanErrorV1> {
+    if !output.is_valid() {
+        return Err(NativePlanErrorV1::SelectionInvalid);
+    }
+    let validated = output
+        .validated_plan()
+        .ok_or(NativePlanErrorV1::SelectionInvalid)?;
+    if !inputs.implementation_limits.within_hard_maxima() || !inputs.aggregate.within_hard_maxima()
+    {
+        return Err(NativePlanErrorV1::SelectionInvalid);
+    }
+    let effective = inputs.limits.effective();
+    let candidate = validated.candidate();
+    let proposed = validated.proposed_state();
+
+    let base_program =
+        CandidateProgram::project(inputs.base_objects).map_err(|_| selection_invalid())?;
+    let program =
+        CandidateProgram::project(proposed.entities()).map_err(|_| selection_invalid())?;
+    let affected = affected_functions(&base_program, &program, candidate)?;
+
+    let live_tests = live_test_map(&program);
+    let base_tests = live_test_map(&base_program);
+    let static_selected = static_selected(output)?;
+    for selected in &static_selected {
+        if !live_tests.contains_key(selected) {
+            return Err(selection_invalid());
+        }
+    }
+    let required = required_tests(inputs)?;
+    let changed = changed_inventory(proposed, inputs.base_objects, &live_tests, &base_tests)?;
+
+    let mut selection = BTreeSet::new();
+    selection.extend(static_selected.iter().copied());
+    selection.extend(required.iter().copied());
+    for entity in live_tests.keys() {
+        let created_or_replaced = changed
+            .iter()
+            .any(|entry: &ChangedTest| entry.test_entity == *entity && entry.after.is_some());
+        if created_or_replaced || affected.contains(entity) {
+            selection.insert(*entity);
+        }
+    }
+    let selection: Vec<EntityId> = selection.into_iter().collect();
+
+    let entries = resolve_entries(proposed, &live_tests, &selection)?;
+    let max_selected = u64::from(effective.max_selected_tests).min(256);
+    if selection.len() as u64 > max_selected {
+        return Err(NativePlanErrorV1::SelectedCountExceeded);
+    }
+    let principal = candidate.record.principal_id;
+    check_declared_limits(&entries, inputs, effective, principal)?;
+    check_aggregates(&entries, inputs)?;
+    check_evidence(&entries, &live_tests, inputs)?;
+
+    let resource_policy = resource_policy(inputs, effective, candidate)?;
+    let parts = NativeTestPlanParts {
+        selection_mode: SELECTION_MODE_CANDIDATE_AFFECTED,
+        workspace: inputs.base_state.record.workspace_id,
+        semantic_epoch: candidate.record.schema_epoch_id,
+        parent_transaction: inputs.base_transaction_id,
+        parent_root: inputs.base_state.root,
+        proposed_root: validated.candidate_root().root,
+        policy_root: inputs.policy.root(),
+        candidate_id: Some(candidate.candidate_id),
+        static_result_id: Some(output.result().candidate_result_id),
+        protected_required_ids: required,
+        selected: entries,
+        changed,
+        implementation_limits: inputs.implementation_limits,
+        static_selected_ids: static_selected,
+        resource_policy,
+    };
+    NativeTestPlanV1::build(parts).map_err(|_| selection_invalid())
+}
+
+const fn selection_invalid() -> NativePlanErrorV1 {
+    NativePlanErrorV1::SelectionInvalid
+}
+
+fn sorted_union(left: &[EntityId], right: &[EntityId]) -> Vec<EntityId> {
+    left.iter()
+        .chain(right)
+        .copied()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect()
+}
+
+fn affected_functions(
+    base_program: &CandidateProgram,
+    program: &CandidateProgram,
+    candidate: &sley_mutate::ImportedCandidate,
+) -> Result<Vec<EntityId>, NativePlanErrorV1> {
+    let mut seeds = candidate
+        .record
+        .operations
+        .iter()
+        .map(|operation| operation.target_entity)
+        .collect::<Vec<_>>();
+    seeds.sort_unstable();
+    seeds.dedup();
+    let map_error = |_: CandidateProgramError| selection_invalid();
+    let base_closure = base_program.affected_closure(&seeds).map_err(map_error)?;
+    let proposed_closure = program.affected_closure(&seeds).map_err(map_error)?;
+    let closure = sorted_union(&base_closure, &proposed_closure);
+    let base_functions = base_program.affected_functions(&closure);
+    let proposed_functions = program.affected_functions(&closure);
+    Ok(sorted_union(&base_functions, &proposed_functions))
+}
+
+fn live_test_map(program: &CandidateProgram) -> BTreeMap<EntityId, &sley_ssmc::TestCaseDefinition> {
+    program
+        .tests
+        .iter()
+        .map(|test| (test.entity_id, test))
+        .collect()
+}
+
+fn static_selected(output: &CandidateValidationOutput) -> Result<Vec<EntityId>, NativePlanErrorV1> {
+    let selected = output.result().record.selected_tests.clone();
+    if selected.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(selection_invalid());
+    }
+    Ok(selected)
+}
+
+fn required_tests(inputs: &NativePlanInputs<'_>) -> Result<Vec<EntityId>, NativePlanErrorV1> {
+    let required = inputs.policy.record().required_tests.clone();
+    if required.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(selection_invalid());
+    }
+    Ok(required)
+}
+
+/// Builds the complete created/replaced/deleted `TestCase` inventory.
+///
+/// Created tests have no base object; replaced tests have a differing
+/// proposed object; deleted tests are absent from the live proposed map.
+/// A deleted protected required test fails; deleted nonrequired tests are
+/// recorded but never executed.
+fn changed_inventory(
+    proposed: &ProposedEntityState,
+    base_objects: &[EntityObject],
+    live_tests: &BTreeMap<EntityId, &sley_ssmc::TestCaseDefinition>,
+    base_tests: &BTreeMap<EntityId, &sley_ssmc::TestCaseDefinition>,
+) -> Result<Vec<ChangedTest>, NativePlanErrorV1> {
+    let base_map = base_objects
+        .iter()
+        .map(|object| (object.record().entity_id, object))
+        .collect::<BTreeMap<_, _>>();
+    let mut changed = BTreeMap::new();
+    for entity in proposed.affected_entities() {
+        if !live_tests.contains_key(entity) {
+            continue;
+        }
+        let after = proposed
+            .entity(*entity)
+            .map(EntityObject::object_id)
+            .ok_or(selection_invalid())?;
+        match base_map.get(entity) {
+            None => {
+                changed.insert(
+                    *entity,
+                    ChangedTest {
+                        test_entity: *entity,
+                        before: None,
+                        after: Some(after),
+                    },
+                );
+            }
+            Some(base) if base.object_id() != after => {
+                changed.insert(
+                    *entity,
+                    ChangedTest {
+                        test_entity: *entity,
+                        before: Some(base.object_id()),
+                        after: Some(after),
+                    },
+                );
+            }
+            Some(_) => {}
+        }
+    }
+    for entity in proposed.deleted_entities() {
+        if !base_tests.contains_key(entity) {
+            continue;
+        }
+        let before = base_map
+            .get(entity)
+            .map(|object| object.object_id())
+            .ok_or(selection_invalid())?;
+        changed.insert(
+            *entity,
+            ChangedTest {
+                test_entity: *entity,
+                before: Some(before),
+                after: None,
+            },
+        );
+    }
+    Ok(changed.into_values().collect())
+}
+
+fn resolve_entries(
+    proposed: &ProposedEntityState,
+    live_tests: &BTreeMap<EntityId, &sley_ssmc::TestCaseDefinition>,
+    selection: &[EntityId],
+) -> Result<Vec<SelectedEntry>, NativePlanErrorV1> {
+    let mut entries = Vec::with_capacity(selection.len());
+    for entity in selection {
+        let test = live_tests.get(entity).ok_or(selection_invalid())?;
+        let test_object = proposed
+            .entity(*entity)
+            .map(EntityObject::object_id)
+            .ok_or(selection_invalid())?;
+        let target_object = proposed
+            .entity(test.target)
+            .map(EntityObject::object_id)
+            .ok_or(selection_invalid())?;
+        entries.push(SelectedEntry {
+            test_entity: *entity,
+            test_object,
+            target_function: test.target,
+            target_object,
+            declared_limits: NativeDeclaredLimits::from(test.resource_limits),
+        });
+    }
+    Ok(entries)
+}
+
+fn check_declared_limits(
+    entries: &[SelectedEntry],
+    inputs: &NativePlanInputs<'_>,
+    effective: CandidateValidationLimits,
+    principal: sley_id::PrincipalId,
+) -> Result<(), NativePlanErrorV1> {
+    let grant = inputs
+        .policy
+        .principal_grant(principal)
+        .map_err(|_| selection_invalid())?;
+    let ceilings = grant.resource_ceilings();
+    let depth_cap = effective
+        .max_test_call_depth
+        .min(inputs.implementation_limits.max_call_depth);
+    let wall_cap = effective
+        .max_test_wall_timeout_millis
+        .min(NATIVE_WALL_CAP_MILLIS);
+    for entry in entries {
+        let declared = entry.declared_limits;
+        let pairs = [
+            (declared.fuel, ceilings.max_fuel, NativePlanResource::Fuel),
+            (
+                declared.memory_bytes,
+                ceilings.max_memory_bytes,
+                NativePlanResource::Memory,
+            ),
+            (
+                declared.output_bytes,
+                ceilings.max_output_bytes,
+                NativePlanResource::Output,
+            ),
+            (
+                declared.effect_count,
+                ceilings.max_effect_count,
+                NativePlanResource::Effects,
+            ),
+            (declared.call_depth, depth_cap, NativePlanResource::Depth),
+            (
+                declared.wall_timeout_millis,
+                wall_cap,
+                NativePlanResource::Wall,
+            ),
+        ];
+        for (declared_value, ceiling, resource) in pairs {
+            if declared_value > ceiling {
+                return Err(NativePlanErrorV1::DeclaredLimitExceedsPolicy {
+                    test: entry.test_entity,
+                    resource,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn entry_values(entries: &[SelectedEntry], resource: NativePlanResource) -> Vec<u64> {
+    entries
+        .iter()
+        .map(|entry| {
+            let declared = entry.declared_limits;
+            match resource {
+                NativePlanResource::Fuel => declared.fuel,
+                NativePlanResource::Memory => declared.memory_bytes,
+                NativePlanResource::Output => declared.output_bytes,
+                NativePlanResource::Effects => declared.effect_count,
+                NativePlanResource::Depth => declared.call_depth,
+                NativePlanResource::Wall => declared.wall_timeout_millis,
+            }
+        })
+        .collect()
+}
+
+fn check_aggregates(
+    entries: &[SelectedEntry],
+    inputs: &NativePlanInputs<'_>,
+) -> Result<(), NativePlanErrorV1> {
+    let ceilings = [
+        (inputs.aggregate.max_fuel, NativePlanResource::Fuel),
+        (inputs.aggregate.max_memory_sum, NativePlanResource::Memory),
+        (inputs.aggregate.max_output_sum, NativePlanResource::Output),
+        (inputs.aggregate.max_effect_sum, NativePlanResource::Effects),
+        (inputs.aggregate.max_depth_sum, NativePlanResource::Depth),
+        (
+            inputs.aggregate.max_wall_millis_sum,
+            NativePlanResource::Wall,
+        ),
+    ];
+    for (ceiling, resource) in ceilings {
+        let sum = checked_sum(&entry_values(entries, resource), resource)?;
+        if sum > ceiling {
+            return Err(NativePlanErrorV1::AggregateLimitExceeded { resource });
+        }
+    }
+    Ok(())
+}
+
+/// Checked `u64` sum over one resource column. The policy owner caps every
+/// grant ceiling at `MAX_POLICY_RESOURCE_CEILING` and the final count at
+/// 256, so accepted sums stay far below `u64::MAX`; the check still refuses
+/// instead of wrapping if those bounds ever widen.
+fn checked_sum(values: &[u64], resource: NativePlanResource) -> Result<u64, NativePlanErrorV1> {
+    let mut sum = 0_u64;
+    for value in values {
+        sum = sum
+            .checked_add(*value)
+            .ok_or(NativePlanErrorV1::AggregateOverflow { resource })?;
+    }
+    Ok(sum)
+}
+
+fn check_evidence(
+    entries: &[SelectedEntry],
+    live_tests: &BTreeMap<EntityId, &sley_ssmc::TestCaseDefinition>,
+    inputs: &NativePlanInputs<'_>,
+) -> Result<(), NativePlanErrorV1> {
+    let mut total = 0_u64;
+    for entry in entries {
+        // Input counts come from the validator-owned proposed program, never
+        // from caller claims.
+        let test_inputs = live_tests
+            .get(&entry.test_entity)
+            .map(|test| test.inputs.len())
+            .ok_or(selection_invalid())?;
+        let required = observation_capacity_required(
+            test_inputs,
+            entry.declared_limits,
+            inputs.implementation_limits,
+        )
+        .map_err(|_| NativePlanErrorV1::EvidenceLimitExceeded)?;
+        if required > MAX_EXECUTION_REPORT_STORED as u64 {
+            return Err(NativePlanErrorV1::EvidenceLimitExceeded);
+        }
+        total = total
+            .checked_add(required)
+            .ok_or(NativePlanErrorV1::EvidenceLimitExceeded)?;
+    }
+    if total > inputs.aggregate.max_evidence_bytes {
+        return Err(NativePlanErrorV1::EvidenceLimitExceeded);
+    }
+    Ok(())
+}
+
+fn resource_policy(
+    inputs: &NativePlanInputs<'_>,
+    effective: CandidateValidationLimits,
+    candidate: &sley_mutate::ImportedCandidate,
+) -> Result<NativeResourcePolicyV1, NativePlanErrorV1> {
+    let grant = inputs
+        .policy
+        .principal_grant(candidate.record.principal_id)
+        .map_err(|_| selection_invalid())?;
+    let ceilings = grant.resource_ceilings();
+    let profile = NativeAdmissionProfileV1::build(NativeAdmissionProfileParts {
+        static_validation_profile: full_validation_profile_id().map_err(|_| selection_invalid())?,
+        execution_profile: profile_id(),
+        selection_rule: SELECTION_RULE_NATIVE_V1,
+        measurement_profile: MEASUREMENT_PROFILE_V1,
+        acceptance_signature_profile: ACCEPTANCE_SIGNATURE_PROFILE_V1,
+        aggregate_limits: NativeAggregateLimits::HARD_MAXIMA,
+        lock_wait_millis: LOCK_WAIT_MILLIS,
+        prepromotion_watchdog_millis: PREPROMOTION_WATCHDOG_MILLIS,
+        cleanup_millis: ADMISSION_CLEANUP_MILLIS,
+        cancel_profile: CANCEL_BETWEEN_REQUESTS,
+    })
+    .map_err(|_| selection_invalid())?;
+    let parts = NativeResourcePolicyParts {
+        policy_root: inputs.policy.root(),
+        principal: candidate.record.principal_id,
+        capability_summary: inputs.capability_summary,
+        grant: GrantCeilings {
+            max_fuel: ceilings.max_fuel,
+            max_memory_bytes: ceilings.max_memory_bytes,
+            max_output_bytes: ceilings.max_output_bytes,
+            max_effect_count: ceilings.max_effect_count,
+            max_mutation_count: ceilings.max_mutation_count,
+            max_adapter_calls: ceilings.max_adapter_calls,
+        },
+        validation: ValidationLimits {
+            max_operations: effective.max_operations,
+            max_preconditions: effective.max_preconditions,
+            max_candidate_bytes: effective.max_candidate_bytes,
+            max_decoded_value_bytes: effective.max_decoded_value_bytes,
+            max_graph_work: effective.max_graph_work,
+            max_selected_tests: effective.max_selected_tests,
+            max_entities: effective.max_entities,
+            max_test_call_depth: effective.max_test_call_depth,
+            max_test_wall_timeout_millis: effective.max_test_wall_timeout_millis,
+        },
+        implementation: inputs.implementation_limits,
+        aggregate: inputs.aggregate,
+        admission_profile: *profile.id().as_bytes(),
+    };
+    NativeResourcePolicyV1::build(parts).map_err(|_| selection_invalid())
+}
+
+#[cfg(test)]
+mod tests {
+    use sley_id::{CandidateNonce, CapabilitySummaryDigest, EntityId};
+    use sley_mutate::value::{
+        BlockBody, EntityBodyValue, EntityIdSet, FunctionBody, ParameterBody, TestCaseBody,
+    };
+    use sley_ssmc::{
+        ConstData, ConstValue, EffectEnvironment, ExpectedOutcome, ParameterRole, Reachability,
+        ResourceLimits, ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
+    };
+    use sley_tests::NativeAggregateLimits;
+    use sley_vm::native_execution::NativeImplementationLimits;
+
+    use super::super::candidate_validation::tests::{Fixture, fixed};
+    use super::*;
+    use crate::validate_candidate_bytes;
+
+    fn unit() -> ConstValue {
+        ConstValue {
+            value_type: TypeExpr::Unit,
+            data: ConstData::Unit,
+        }
+    }
+
+    fn ceiling_limits() -> ResourceLimits {
+        ResourceLimits {
+            fuel: 1_000,
+            memory_bytes: 1,
+            output_bytes: 1,
+            effect_count: 1,
+            call_depth: 1,
+            wall_timeout_millis: 1,
+        }
+    }
+
+    fn function_test_bodies(
+        fixture: &Fixture,
+        nonce_byte: u8,
+        limits: ResourceLimits,
+    ) -> Vec<(u16, EntityBodyValue)> {
+        let function = fixture.created_id(nonce_byte, 5, 0);
+        let parameter = fixture.created_id(nonce_byte, 6, 1);
+        let block = fixture.created_id(nonce_byte, 7, 2);
+        vec![
+            (
+                5,
+                EntityBodyValue::Function(FunctionBody {
+                    type_parameters: vec![],
+                    parameters: vec![parameter],
+                    result_type: TypeExpr::Unit,
+                    effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    entry_block: block,
+                    blocks: vec![block],
+                    contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    visibility: Visibility::Private,
+                }),
+            ),
+            (
+                6,
+                EntityBodyValue::Parameter(ParameterBody {
+                    owner: function,
+                    role: ParameterRole::Function,
+                    ordinal: 0,
+                    value_type: TypeExpr::Unit,
+                }),
+            ),
+            (
+                7,
+                EntityBodyValue::Block(BlockBody {
+                    function,
+                    parameters: vec![],
+                    operations: vec![],
+                    terminator: Terminator::Return(ReturnTerminator {
+                        value: ValueRef::Parameter(parameter),
+                    }),
+                    reachability: Reachability::Required,
+                }),
+            ),
+            (
+                14,
+                EntityBodyValue::TestCase(TestCaseBody {
+                    target: function,
+                    inputs: vec![unit()],
+                    effect_environment: EffectEnvironment::Replay(vec![]),
+                    expected: ExpectedOutcome::Value(unit()),
+                    observations: vec![],
+                    resource_limits: limits,
+                }),
+            ),
+        ]
+    }
+
+    fn inputs(fixture: &Fixture, summary: CapabilitySummaryDigest) -> NativePlanInputs<'_> {
+        NativePlanInputs {
+            base_transaction_id: fixture.transaction_id,
+            base_state: &fixture.base_state,
+            base_objects: &fixture.base_objects,
+            policy: &fixture.policy,
+            capability_summary: summary,
+            limits: crate::CandidateValidationLimits::full_v1(),
+            implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+            aggregate: NativeAggregateLimits::HARD_MAXIMA,
+        }
+    }
+
+    fn validated_plan_fixture(
+        required: &[EntityId],
+        nonce_byte: u8,
+        limits: ResourceLimits,
+    ) -> (
+        Fixture,
+        CapabilitySummaryDigest,
+        crate::CandidateValidationOutput,
+    ) {
+        let fixture = Fixture::with_policy_options_and_tests(true, false, None, required);
+        let candidate = fixture.create_candidate(
+            nonce_byte,
+            function_test_bodies(&fixture, nonce_byte, limits),
+        );
+        let context = fixture.context();
+        let summary = context.capability_summary_digest();
+        let output =
+            validate_candidate_bytes(&context, &candidate.stored_bytes).expect("output builds");
+        (fixture, summary, output)
+    }
+
+    #[test]
+    fn error_tags_and_symbols_are_frozen() {
+        assert_eq!(NativePlanErrorV1::SelectionInvalid.tag(), 1);
+        assert_eq!(NativePlanErrorV1::SelectedCountExceeded.tag(), 2);
+        assert_eq!(
+            NativePlanErrorV1::DeclaredLimitExceedsPolicy {
+                test: EntityId::from_bytes([9; 32]),
+                resource: NativePlanResource::Fuel,
+            }
+            .tag(),
+            3
+        );
+        assert_eq!(
+            NativePlanErrorV1::AggregateOverflow {
+                resource: NativePlanResource::Wall,
+            }
+            .tag(),
+            4
+        );
+        assert_eq!(
+            NativePlanErrorV1::AggregateLimitExceeded {
+                resource: NativePlanResource::Memory,
+            }
+            .tag(),
+            5
+        );
+        assert_eq!(NativePlanErrorV1::EvidenceLimitExceeded.tag(), 6);
+        assert_eq!(
+            NativePlanErrorV1::SelectionInvalid.symbol(),
+            "NATIVE_TEST_SELECTION_INVALID"
+        );
+        assert_eq!(
+            NativePlanErrorV1::SelectedCountExceeded.symbol(),
+            "NATIVE_TEST_SELECTED_COUNT_EXCEEDED"
+        );
+        assert_eq!(
+            NativePlanErrorV1::EvidenceLimitExceeded.symbol(),
+            "NATIVE_TEST_EVIDENCE_LIMIT_EXCEEDED"
+        );
+        assert_eq!(
+            [
+                NativePlanResource::Fuel.tag(),
+                NativePlanResource::Memory.tag(),
+                NativePlanResource::Output.tag(),
+                NativePlanResource::Effects.tag(),
+                NativePlanResource::Depth.tag(),
+                NativePlanResource::Wall.tag(),
+            ],
+            [1, 2, 3, 4, 5, 6]
+        );
+        assert_eq!(NativePlanResource::Fuel.symbol(), "NATIVE_TEST_FUEL");
+        assert_eq!(
+            NativePlanResource::Wall.symbol(),
+            "NATIVE_TEST_WALL_TIMEOUT_MILLIS"
+        );
+    }
+
+    #[test]
+    fn created_test_is_selected_with_exact_objects_and_limits() {
+        let test = fixed(73, CandidateNonce::from_bytes);
+        let test = EntityId::derive(fixed(1, sley_id::WorkspaceId::from_bytes), test, 14, 3);
+        let (fixture, summary, output) = validated_plan_fixture(&[test], 73, ceiling_limits());
+        assert!(output.is_valid());
+        let before = output.result().stored_bytes.clone();
+
+        let plan = native_test_plan(&output, &inputs(&fixture, summary)).expect("plan derives");
+        // The read-only API never modifies the static result bytes.
+        assert_eq!(output.result().stored_bytes, before);
+
+        let function = fixture.created_id(73, 5, 0);
+        let proposed = output
+            .validated_plan()
+            .expect("valid output carries a plan")
+            .proposed_state();
+        let test_object = proposed.entity(test).expect("test live").object_id();
+        let target_object = proposed.entity(function).expect("target live").object_id();
+        assert_eq!(plan.selected().len(), 1);
+        let entry = plan.selected()[0];
+        assert_eq!(entry.test_entity, test);
+        assert_eq!(entry.test_object, test_object);
+        assert_eq!(entry.target_function, function);
+        assert_eq!(entry.target_object, target_object);
+        assert_eq!(
+            entry.declared_limits,
+            sley_vm::native_execution::NativeDeclaredLimits::from(ceiling_limits())
+        );
+        assert_eq!(plan.static_selected_ids(), &[test]);
+        assert_eq!(plan.changed().len(), 1);
+        assert_eq!(plan.changed()[0].test_entity, test);
+        assert_eq!(plan.changed()[0].before, None);
+        assert_eq!(plan.changed()[0].after, Some(test_object));
+        // Boundary equality with the grant ceiling passes without clamping.
+        assert_eq!(plan.resource_policy().grant().max_fuel, 1_000);
+        assert_eq!(
+            plan.resource_policy().aggregate(),
+            NativeAggregateLimits::HARD_MAXIMA
+        );
+
+        let repeat =
+            native_test_plan(&output, &inputs(&fixture, summary)).expect("plan re-derives");
+        assert_eq!(plan.plan_id(), repeat.plan_id());
+        assert_eq!(plan.stored_bytes(), repeat.stored_bytes());
+    }
+
+    #[test]
+    fn empty_selection_plan_admits_test_free_candidate() {
+        let fixture = Fixture::valid();
+        let context = fixture.context();
+        let summary = context.capability_summary_digest();
+        let output = validate_candidate_bytes(&context, &fixture.candidate.stored_bytes)
+            .expect("output builds");
+        assert!(output.is_valid());
+        let plan = native_test_plan(&output, &inputs(&fixture, summary)).expect("plan derives");
+        assert!(plan.selected().is_empty());
+        assert!(plan.changed().is_empty());
+        assert!(plan.static_selected_ids().is_empty());
+    }
+
+    #[test]
+    fn static_failure_is_preserved_before_native_selection() {
+        let over = ResourceLimits {
+            fuel: 1_000_000,
+            ..ceiling_limits()
+        };
+        let (fixture, summary, output) = validated_plan_fixture(&[], 73, over);
+        assert!(!output.is_valid());
+        assert_eq!(
+            native_test_plan(&output, &inputs(&fixture, summary)).expect_err("refuses"),
+            NativePlanErrorV1::SelectionInvalid
+        );
+    }
+
+    #[test]
+    fn wall_over_native_cap_refuses_with_test_and_resource() {
+        let wall = ResourceLimits {
+            wall_timeout_millis: NATIVE_WALL_CAP_MILLIS + 1,
+            ..ceiling_limits()
+        };
+        let (fixture, summary, output) = validated_plan_fixture(&[], 73, wall);
+        assert!(output.is_valid());
+        let test = fixture.created_id(73, 14, 3);
+        assert_eq!(
+            native_test_plan(&output, &inputs(&fixture, summary)).expect_err("refuses"),
+            NativePlanErrorV1::DeclaredLimitExceedsPolicy {
+                test,
+                resource: NativePlanResource::Wall,
+            }
+        );
+    }
+
+    #[test]
+    fn depth_over_configured_implementation_cap_refuses() {
+        let (fixture, summary, output) = validated_plan_fixture(&[], 73, ceiling_limits());
+        assert!(output.is_valid());
+        let mut tight = inputs(&fixture, summary);
+        tight.implementation_limits = NativeImplementationLimits {
+            max_call_depth: 0,
+            ..NativeImplementationLimits::HARD_MAXIMA
+        };
+        let test = fixture.created_id(73, 14, 3);
+        assert_eq!(
+            native_test_plan(&output, &tight).expect_err("refuses"),
+            NativePlanErrorV1::DeclaredLimitExceedsPolicy {
+                test,
+                resource: NativePlanResource::Depth,
+            }
+        );
+    }
+
+    #[test]
+    fn tightened_aggregate_fuel_ceiling_refuses() {
+        let (fixture, summary, output) = validated_plan_fixture(&[], 73, ceiling_limits());
+        assert!(output.is_valid());
+        let mut tight = inputs(&fixture, summary);
+        tight.aggregate = NativeAggregateLimits {
+            max_fuel: 999,
+            ..NativeAggregateLimits::HARD_MAXIMA
+        };
+        assert_eq!(
+            native_test_plan(&output, &tight).expect_err("refuses"),
+            NativePlanErrorV1::AggregateLimitExceeded {
+                resource: NativePlanResource::Fuel,
+            }
+        );
+    }
+
+    #[test]
+    fn tightened_evidence_cap_refuses() {
+        let (fixture, summary, output) = validated_plan_fixture(&[], 73, ceiling_limits());
+        assert!(output.is_valid());
+        let mut tight = inputs(&fixture, summary);
+        tight.aggregate = NativeAggregateLimits {
+            max_evidence_bytes: 0,
+            ..NativeAggregateLimits::HARD_MAXIMA
+        };
+        assert_eq!(
+            native_test_plan(&output, &tight).expect_err("refuses"),
+            NativePlanErrorV1::EvidenceLimitExceeded
+        );
+    }
+
+    /// Checked-sum proof: saturating inputs refuse instead of wrapping.
+    /// Grant ceilings are capped by the policy owner and the final count at
+    /// 256, so this arm is unreachable through accepted roots today; the
+    /// arithmetic still refuses rather than assuming those bounds forever.
+    #[test]
+    fn checked_sums_refuse_overflow_instead_of_wrapping() {
+        assert_eq!(
+            checked_sum(&[u64::MAX, 1], NativePlanResource::Fuel).expect_err("overflows"),
+            NativePlanErrorV1::AggregateOverflow {
+                resource: NativePlanResource::Fuel,
+            }
+        );
+        assert_eq!(
+            checked_sum(&[u64::MAX, u64::MAX], NativePlanResource::Wall).expect_err("overflows"),
+            NativePlanErrorV1::AggregateOverflow {
+                resource: NativePlanResource::Wall,
+            }
+        );
+        assert_eq!(
+            checked_sum(&[1, 2, 3], NativePlanResource::Memory).expect("sums"),
+            6
+        );
+        assert_eq!(
+            checked_sum(&[], NativePlanResource::Effects).expect("empty sums"),
+            0
+        );
+    }
+}
+
+#[cfg(test)]
+mod deletion_tests {
+    use sley_id::{CandidateNonce, ObjectId, PrincipalId, TransactionId, WorkspaceId};
+    use sley_mutate::{
+        BoundPrecondition, CandidateExpiry, CandidateRecord, EntityObject, EntityObjectRecord,
+        ExactEntityVersion, ImportedCandidate, MutationClass, MutationOperation, MutationPayload,
+        PreconditionPayload, PreimageRequirement, build_candidate, build_entity_object,
+        full_validation_profile_id,
+        value::{
+            BlockBody, EntityBodyValue, EntityIdSet, FunctionBody, NamespaceBody, ParameterBody,
+            TestCaseBody,
+        },
+    };
+    use sley_ssmc::{
+        ConstData, ConstValue, EffectEnvironment, ExpectedOutcome, ParameterRole, Reachability,
+        ResourceLimits, ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
+    };
+    use sley_state_root::{
+        AcceptedStateRoot, StateRootBuilder, conformance_epoch_id as state_epoch_id,
+        conformance_registry as state_registry,
+    };
+    use sley_tests::NativeAggregateLimits;
+    use sley_vm::native_execution::NativeImplementationLimits;
+
+    use super::super::candidate_validation::tests::fixed;
+    use super::*;
+    use crate::{
+        AcceptedPolicyRoot, CandidateValidationContext, CandidateValidationLimits,
+        PolicyResourceCeilings, PolicyRootBuilder, PrincipalGrantBuilder,
+        build_capability_summary_projection, conformance_registry as policy_registry,
+        validate_candidate_bytes,
+    };
+
+    const NOW: u64 = 1_000;
+
+    fn unit() -> ConstValue {
+        ConstValue {
+            value_type: TypeExpr::Unit,
+            data: ConstData::Unit,
+        }
+    }
+
+    struct DeleteSetup {
+        transaction_id: TransactionId,
+        base_objects: Vec<EntityObject>,
+        base_state: AcceptedStateRoot,
+        policy: AcceptedPolicyRoot,
+        candidate: ImportedCandidate,
+        test: EntityId,
+        test_object: ObjectId,
+    }
+
+    #[allow(
+        clippy::too_many_lines,
+        reason = "delete fixture threads base/policy/candidate together; splitting hides the shared bindings"
+    )]
+    fn delete_setup(required: bool) -> DeleteSetup {
+        let workspace_id = fixed(1, WorkspaceId::from_bytes);
+        let principal_id = fixed(2, PrincipalId::from_bytes);
+        let transaction_id = fixed(3, TransactionId::from_bytes);
+        let namespace = fixed(10, EntityId::from_bytes);
+        let function = fixed(40, EntityId::from_bytes);
+        let parameter = fixed(41, EntityId::from_bytes);
+        let block = fixed(42, EntityId::from_bytes);
+        let test = fixed(43, EntityId::from_bytes);
+        let grant = PrincipalGrantBuilder::new(PolicyResourceCeilings::new(
+            1_000, 1_000, 1_000, 100, 100, 100,
+        ))
+        .mutation_class(MutationClass::DeleteEntityBinding)
+        .build()
+        .unwrap();
+        let mut policy = PolicyRootBuilder::new(workspace_id).principal_grant(principal_id, grant);
+        if required {
+            policy = policy.required_test(test);
+        }
+        let policy = policy.build(&policy_registry().unwrap()).unwrap();
+
+        let schema_epoch_id = state_epoch_id().unwrap();
+        let object = |entity_id: EntityId, body: EntityBodyValue| {
+            build_entity_object(
+                schema_epoch_id,
+                &EntityObjectRecord {
+                    entity_id,
+                    body,
+                    label: None,
+                    semantic_fingerprint: None,
+                },
+            )
+            .unwrap()
+        };
+        let base_objects = vec![
+            object(
+                namespace,
+                EntityBodyValue::Namespace(NamespaceBody {
+                    parent: None,
+                    members: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                }),
+            ),
+            object(
+                function,
+                EntityBodyValue::Function(FunctionBody {
+                    type_parameters: vec![],
+                    parameters: vec![parameter],
+                    result_type: TypeExpr::Unit,
+                    effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    entry_block: block,
+                    blocks: vec![block],
+                    contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    visibility: Visibility::Private,
+                }),
+            ),
+            object(
+                parameter,
+                EntityBodyValue::Parameter(ParameterBody {
+                    owner: function,
+                    role: ParameterRole::Function,
+                    ordinal: 0,
+                    value_type: TypeExpr::Unit,
+                }),
+            ),
+            object(
+                block,
+                EntityBodyValue::Block(BlockBody {
+                    function,
+                    parameters: vec![],
+                    operations: vec![],
+                    terminator: Terminator::Return(ReturnTerminator {
+                        value: ValueRef::Parameter(parameter),
+                    }),
+                    reachability: Reachability::Required,
+                }),
+            ),
+            object(
+                test,
+                EntityBodyValue::TestCase(TestCaseBody {
+                    target: function,
+                    inputs: vec![unit()],
+                    effect_environment: EffectEnvironment::Replay(vec![]),
+                    expected: ExpectedOutcome::Value(unit()),
+                    observations: vec![],
+                    resource_limits: ResourceLimits {
+                        fuel: 10,
+                        memory_bytes: 64,
+                        output_bytes: 64,
+                        effect_count: 0,
+                        call_depth: 2,
+                        wall_timeout_millis: 100,
+                    },
+                }),
+            ),
+        ];
+        let test_object = base_objects[4].object_id();
+        let mut state_builder = StateRootBuilder::new(
+            workspace_id,
+            fixed(20, ObjectId::from_bytes),
+            fixed(21, ObjectId::from_bytes),
+            policy.root(),
+        );
+        for object in &base_objects {
+            state_builder =
+                state_builder.entity_binding(object.record().entity_id, object.object_id());
+        }
+        let base_state = state_builder.build(&state_registry().unwrap()).unwrap();
+        let summary = build_capability_summary_projection(
+            principal_id,
+            workspace_id,
+            policy.root(),
+            base_state.root,
+            &[],
+        )
+        .unwrap();
+        let candidate = build_candidate(&CandidateRecord {
+            format_version: 1,
+            workspace_id,
+            base_transaction_id: transaction_id,
+            base_root: base_state.root,
+            schema_epoch_id,
+            policy_root_id: policy.root(),
+            principal_id,
+            capability_summary_digest: summary.digest(),
+            operations: vec![MutationOperation {
+                ordinal: 0,
+                class: MutationClass::DeleteEntityBinding,
+                target_kind: 14,
+                target_entity: test,
+                field_tag: None,
+                payload: MutationPayload::DeleteEntityBinding,
+                precondition_ordinal: 0,
+            }],
+            preconditions: vec![BoundPrecondition {
+                operation_ordinal: 0,
+                requirement: PreimageRequirement::ExactEntityVersion,
+                payload: PreconditionPayload::ExactEntityVersion(ExactEntityVersion {
+                    entity_id: test,
+                    object_id: test_object,
+                }),
+            }],
+            validation_profile_id: full_validation_profile_id().unwrap(),
+            candidate_nonce: fixed(31, CandidateNonce::from_bytes),
+            expiry: CandidateExpiry::unix_millis(NOW + 1_000),
+        })
+        .unwrap();
+        DeleteSetup {
+            transaction_id,
+            base_objects,
+            base_state,
+            policy,
+            candidate,
+            test,
+            test_object,
+        }
+    }
+
+    fn delete_inputs(setup: &DeleteSetup) -> (NativePlanInputs<'_>, CapabilitySummaryDigest) {
+        let context = CandidateValidationContext::new(
+            setup.transaction_id,
+            &setup.base_state,
+            &setup.base_objects,
+            &[],
+            &setup.policy,
+            fixed(2, PrincipalId::from_bytes),
+            &[],
+            NOW,
+            CandidateValidationLimits::full_v1(),
+        )
+        .unwrap();
+        let summary = context.capability_summary_digest();
+        let inputs = NativePlanInputs {
+            base_transaction_id: setup.transaction_id,
+            base_state: &setup.base_state,
+            base_objects: &setup.base_objects,
+            policy: &setup.policy,
+            capability_summary: summary,
+            limits: CandidateValidationLimits::full_v1(),
+            implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+            aggregate: NativeAggregateLimits::HARD_MAXIMA,
+        };
+        (inputs, summary)
+    }
+
+    #[test]
+    fn deleted_nonrequired_test_is_recorded_but_not_executed() {
+        let setup = delete_setup(false);
+        let context = CandidateValidationContext::new(
+            setup.transaction_id,
+            &setup.base_state,
+            &setup.base_objects,
+            &[],
+            &setup.policy,
+            fixed(2, PrincipalId::from_bytes),
+            &[],
+            NOW,
+            CandidateValidationLimits::full_v1(),
+        )
+        .unwrap();
+        let output = validate_candidate_bytes(&context, &setup.candidate.stored_bytes)
+            .expect("output builds");
+        assert!(output.is_valid());
+        let (inputs, _) = delete_inputs(&setup);
+        let plan = native_test_plan(&output, &inputs).expect("plan derives");
+        assert!(plan.selected().is_empty());
+        assert_eq!(plan.changed().len(), 1);
+        assert_eq!(plan.changed()[0].test_entity, setup.test);
+        assert_eq!(plan.changed()[0].before, Some(setup.test_object));
+        assert_eq!(plan.changed()[0].after, None);
+    }
+
+    #[test]
+    fn deleting_a_protected_required_test_preserves_the_static_refusal() {
+        let setup = delete_setup(true);
+        let context = CandidateValidationContext::new(
+            setup.transaction_id,
+            &setup.base_state,
+            &setup.base_objects,
+            &[],
+            &setup.policy,
+            fixed(2, PrincipalId::from_bytes),
+            &[],
+            NOW,
+            CandidateValidationLimits::full_v1(),
+        )
+        .unwrap();
+        let output = validate_candidate_bytes(&context, &setup.candidate.stored_bytes)
+            .expect("output builds");
+        assert!(!output.is_valid());
+        let (inputs, _) = delete_inputs(&setup);
+        assert_eq!(
+            native_test_plan(&output, &inputs).expect_err("refuses"),
+            NativePlanErrorV1::SelectionInvalid
+        );
+    }
+}

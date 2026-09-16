@@ -27,6 +27,7 @@ mod candidate_result;
 mod candidate_validation;
 mod capability_summary;
 pub mod complete_entities;
+pub mod native_test_plan;
 
 pub use candidate_result::{
     CandidateDecision, CandidateDiagnostic, CandidatePhaseResult, CandidateResultError,
@@ -41,6 +42,9 @@ pub use candidate_validation::{
     validate_candidate_bytes,
 };
 pub use capability_summary::{CapabilitySummaryProjection, build_capability_summary_projection};
+pub use native_test_plan::{
+    NativePlanErrorV1, NativePlanInputs, NativePlanResource, native_test_plan,
+};
 
 const MAGIC: &[u8; 8] = b"SLEYSCB1";
 const FORMAT_VERSION: u64 = 1;

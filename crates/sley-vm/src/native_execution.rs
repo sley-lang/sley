@@ -23,8 +23,8 @@ mod records;
 use records::ObservationFacts;
 pub use records::{
     NativeDeclaredLimits, NativeExecutionObservationV1, NativeImplementationLimits,
-    NativeObservedTermination, NativeResourceKind, ParsedNativeObservation, profile_id,
-    profile_record, profile_stored_bytes,
+    NativeObservedTermination, NativeResourceKind, ParsedNativeObservation,
+    observation_capacity_required, profile_id, profile_record, profile_stored_bytes,
 };
 
 /// Complete pure-owner inventories for one native execution.

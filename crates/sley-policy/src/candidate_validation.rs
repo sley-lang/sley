@@ -111,7 +111,7 @@ impl CandidateValidationLimits {
         }
     }
 
-    fn effective(self) -> Self {
+    pub(crate) fn effective(self) -> Self {
         let profile = Self::full_v1();
         Self {
             max_operations: self.max_operations.min(profile.max_operations),
@@ -2058,7 +2058,7 @@ fn candidate_result_from_candidate(error: CandidateError) -> CandidateValidation
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use sley_id::{
         CandidateNonce, ObjectId, PolicyRootId, PrincipalId, ReferenceAdapterId, SchemaEpochId,
         StateRoot, TransactionId, ValueHash, WorkspaceId,
@@ -2096,26 +2096,26 @@ mod tests {
 
     const NOW: u64 = 1_000;
 
-    fn fixed<T>(byte: u8, constructor: impl FnOnce([u8; 32]) -> T) -> T {
+    pub(crate) fn fixed<T>(byte: u8, constructor: impl FnOnce([u8; 32]) -> T) -> T {
         constructor([byte; 32])
     }
 
-    struct Fixture {
-        workspace_id: WorkspaceId,
-        transaction_id: TransactionId,
-        principal_id: PrincipalId,
-        base_objects: Vec<EntityObject>,
-        base_state: AcceptedStateRoot,
-        policy: AcceptedPolicyRoot,
-        candidate: ImportedCandidate,
+    pub(crate) struct Fixture {
+        pub(crate) workspace_id: WorkspaceId,
+        pub(crate) transaction_id: TransactionId,
+        pub(crate) principal_id: PrincipalId,
+        pub(crate) base_objects: Vec<EntityObject>,
+        pub(crate) base_state: AcceptedStateRoot,
+        pub(crate) policy: AcceptedPolicyRoot,
+        pub(crate) candidate: ImportedCandidate,
     }
 
     impl Fixture {
-        fn valid() -> Self {
+        pub(crate) fn valid() -> Self {
             Self::with_policy_options(true, false, None)
         }
 
-        fn with_policy_options(
+        pub(crate) fn with_policy_options(
             allow_create: bool,
             protect_base: bool,
             required_contract: Option<EntityId>,
@@ -2127,11 +2127,11 @@ mod tests {
         /// identity the candidate's create operation derives, so phase 4
         /// must refuse on the live-binding branch rather than the tombstone
         /// branch.
-        fn with_live_binding_collision() -> Self {
+        pub(crate) fn with_live_binding_collision() -> Self {
             Self::build(true, false, None, &[], true, None)
         }
 
-        fn with_policy_options_and_tests(
+        pub(crate) fn with_policy_options_and_tests(
             allow_create: bool,
             protect_base: bool,
             required_contract: Option<EntityId>,
@@ -2151,7 +2151,7 @@ mod tests {
             clippy::too_many_lines,
             reason = "fixture constructor threads policy/state/candidate together; splitting hides the shared bindings"
         )]
-        fn build(
+        pub(crate) fn build(
             allow_create: bool,
             protect_base: bool,
             required_contract: Option<EntityId>,
@@ -2284,7 +2284,7 @@ mod tests {
             }
         }
 
-        fn context(&self) -> CandidateValidationContext<'_> {
+        pub(crate) fn context(&self) -> CandidateValidationContext<'_> {
             CandidateValidationContext::new(
                 self.transaction_id,
                 &self.base_state,
@@ -2299,7 +2299,7 @@ mod tests {
             .unwrap()
         }
 
-        fn create_candidate(
+        pub(crate) fn create_candidate(
             &self,
             nonce_byte: u8,
             bodies: Vec<(u16, EntityBodyValue)>,
@@ -2339,7 +2339,7 @@ mod tests {
             build_candidate(&record).unwrap()
         }
 
-        fn created_id(&self, nonce_byte: u8, kind: u16, ordinal: u64) -> EntityId {
+        pub(crate) fn created_id(&self, nonce_byte: u8, kind: u16, ordinal: u64) -> EntityId {
             EntityId::derive(
                 self.workspace_id,
                 fixed(nonce_byte, CandidateNonce::from_bytes),
