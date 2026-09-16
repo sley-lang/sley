@@ -167,7 +167,7 @@ impl NativeAggregateLimits {
             && self.max_evidence_bytes <= Self::HARD_MAXIMA.max_evidence_bytes
     }
 
-    fn record(self) -> Result<Vec<u8>, ScbError> {
+    pub(crate) fn record(self) -> Result<Vec<u8>, ScbError> {
         encode_record(&[
             (1, encode_uvar(u64::from(self.max_selected_tests))),
             (2, encode_uvar(self.max_fuel)),
@@ -180,7 +180,7 @@ impl NativeAggregateLimits {
         ])
     }
 
-    fn parse(value: &[u8]) -> Result<Self, ScbError> {
+    pub(crate) fn parse(value: &[u8]) -> Result<Self, ScbError> {
         let fields = decode_fields(value)?;
         expect_tags(&fields, &[1, 2, 3, 4, 5, 6, 7, 8])?;
         let parsed = Self {

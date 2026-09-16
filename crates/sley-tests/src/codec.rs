@@ -23,6 +23,14 @@ pub const MAX_STORED_BYTES: usize = 4_194_304;
 pub const MAX_SELECTED_ENTRIES: u64 = 256;
 /// Maximum changed-test inventory entries in one native test plan.
 pub const MAX_CHANGED_ENTRIES: u64 = 65_535;
+/// Maximum canonical bundle record bytes (`SLEYNBU1` admission §5).
+///
+/// The bundle carries complete evidence inline, so it alone may approach the
+/// 48 MiB aggregate evidence ceiling; every other envelope keeps the tighter
+/// [`MAX_STORED_BYTES`] bound.
+pub const MAX_BUNDLE_RECORD_BYTES: usize = 50_331_648;
+/// Maximum stored bundle envelope bytes: record bound plus framing/trailer.
+pub const MAX_BUNDLE_STORED_BYTES: usize = MAX_BUNDLE_RECORD_BYTES + 64;
 
 fn resource_error() -> ScbError {
     ScbError::new(ScbErrorCode::ResourceLimit)
@@ -36,7 +44,22 @@ fn resource_error() -> ScbError {
 /// # Errors
 /// Returns `SCB_RESOURCE_LIMIT` when the record exceeds the stored bound.
 pub fn preimage_bytes(magic: [u8; 8], record: &[u8]) -> Result<Vec<u8>, ScbError> {
-    if record.len() > MAX_STORED_BYTES {
+    preimage_bytes_bounded(magic, record, MAX_STORED_BYTES)
+}
+
+/// Canonical preimage bytes against an explicit record-byte ceiling.
+///
+/// [`preimage_bytes`] delegates with [`MAX_STORED_BYTES`]; the evidence
+/// bundle passes [`MAX_BUNDLE_RECORD_BYTES`] per admission §5.
+///
+/// # Errors
+/// Returns `SCB_RESOURCE_LIMIT` when the record exceeds the given bound.
+pub fn preimage_bytes_bounded(
+    magic: [u8; 8],
+    record: &[u8],
+    max_record: usize,
+) -> Result<Vec<u8>, ScbError> {
+    if record.len() > max_record {
         return Err(resource_error());
     }
     let len = u64::try_from(record.len()).map_err(|_| resource_error())?;
@@ -55,7 +78,23 @@ pub fn preimage_bytes(magic: [u8; 8], record: &[u8]) -> Result<Vec<u8>, ScbError
 /// for a wrong magic, `SCB_VERSION_UNSUPPORTED` for a wrong version,
 /// `SCB_LENGTH_OVERFLOW` for truncation, or `SCB_TRAILING_BYTES` for surplus.
 pub fn decode_envelope(stored: &[u8], magic: [u8; 8]) -> Result<(Vec<u8>, [u8; 32]), ScbError> {
-    if stored.len() > MAX_STORED_BYTES {
+    decode_envelope_bounded(stored, magic, MAX_STORED_BYTES)
+}
+
+/// Strictly decodes one envelope against an explicit stored-byte ceiling.
+///
+/// [`decode_envelope`] delegates with [`MAX_STORED_BYTES`]; the evidence
+/// bundle passes [`MAX_BUNDLE_STORED_BYTES`] since admission §5 lets its
+/// record approach the aggregate evidence ceiling.
+///
+/// # Errors
+/// Same stable codes as [`decode_envelope`].
+pub fn decode_envelope_bounded(
+    stored: &[u8],
+    magic: [u8; 8],
+    max_stored: usize,
+) -> Result<(Vec<u8>, [u8; 32]), ScbError> {
+    if stored.len() > max_stored {
         return Err(resource_error());
     }
     let mut cursor = ScbValueCursor::new(stored)?;

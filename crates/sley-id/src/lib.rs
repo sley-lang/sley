@@ -48,11 +48,17 @@ enum Domain {
     NativeResourcePolicy,
     MeasuredTestAttestation,
     NativeTestApproval,
+    NativeEvidenceBundle,
+    HistoricalAdmissionContext,
+    CommitAdmissionStatement,
+    HistoricalTrustPolicy,
+    SupervisorConfig,
+    NativeAdmissionProfile,
 }
 
 impl Domain {
     #[cfg(test)]
-    const ALL: [Self; 41] = [
+    const ALL: [Self; 47] = [
         Self::Workspace,
         Self::Entity,
         Self::Object,
@@ -94,6 +100,12 @@ impl Domain {
         Self::NativeResourcePolicy,
         Self::MeasuredTestAttestation,
         Self::NativeTestApproval,
+        Self::NativeEvidenceBundle,
+        Self::HistoricalAdmissionContext,
+        Self::CommitAdmissionStatement,
+        Self::HistoricalTrustPolicy,
+        Self::SupervisorConfig,
+        Self::NativeAdmissionProfile,
     ];
 
     const fn bytes(self) -> &'static [u8] {
@@ -139,6 +151,12 @@ impl Domain {
             Self::NativeResourcePolicy => b"sley2.native-test-resource-policy.v1",
             Self::MeasuredTestAttestation => b"sley2.native-test-measurement.v1",
             Self::NativeTestApproval => b"sley2.native-test-approval.v1",
+            Self::NativeEvidenceBundle => b"sley2.native-test-evidence-bundle.v1",
+            Self::HistoricalAdmissionContext => b"sley2.native-test-historical-context.v1",
+            Self::CommitAdmissionStatement => b"sley2.native-test-admission-statement.v1",
+            Self::HistoricalTrustPolicy => b"sley2.native-test-trust-policy.v1",
+            Self::SupervisorConfig => b"sley2.native-test-supervisor-config.v1",
+            Self::NativeAdmissionProfile => b"sley2.native-test-admission-profile.v1",
         }
     }
 }
@@ -400,6 +418,30 @@ fixed_bytes_type! {
     /// Native test approval digest, binding plan, report, and decision.
     NativeTestApprovalId
 }
+fixed_bytes_type! {
+    /// Native evidence bundle digest, binding complete test evidence bytes.
+    NativeEvidenceBundleId
+}
+fixed_bytes_type! {
+    /// Historical admission context digest, binding preserved public context.
+    HistoricalAdmissionContextId
+}
+fixed_bytes_type! {
+    /// Commit admission statement digest, binding acceptance and signature.
+    CommitAdmissionStatementId
+}
+fixed_bytes_type! {
+    /// Historical trust policy digest, binding receiver trust manifest bytes.
+    HistoricalTrustPolicyId
+}
+fixed_bytes_type! {
+    /// Supervisor configuration digest, binding normalized enforcement facts.
+    SupervisorConfigId
+}
+fixed_bytes_type! {
+    /// Native admission profile digest, binding the exact admission descriptor.
+    NativeAdmissionProfileId
+}
 
 macro_rules! digest_type {
     ($name:ident, $domain:expr) => {
@@ -436,6 +478,15 @@ digest_type!(NativeTestPlanId, Domain::NativeTestPlan);
 digest_type!(NativeResourcePolicyId, Domain::NativeResourcePolicy);
 digest_type!(MeasuredTestAttestationId, Domain::MeasuredTestAttestation);
 digest_type!(NativeTestApprovalId, Domain::NativeTestApproval);
+digest_type!(NativeEvidenceBundleId, Domain::NativeEvidenceBundle);
+digest_type!(
+    HistoricalAdmissionContextId,
+    Domain::HistoricalAdmissionContext
+);
+digest_type!(CommitAdmissionStatementId, Domain::CommitAdmissionStatement);
+digest_type!(HistoricalTrustPolicyId, Domain::HistoricalTrustPolicy);
+digest_type!(SupervisorConfigId, Domain::SupervisorConfig);
+digest_type!(NativeAdmissionProfileId, Domain::NativeAdmissionProfile);
 digest_type!(ExecutionReportId, Domain::ExecutionReport);
 digest_type!(TestReportId, Domain::TestReport);
 digest_type!(RepositoryPackId, Domain::RepositoryPack);
@@ -486,7 +537,7 @@ mod tests {
     const ZERO: [u8; ID_LEN] = [0; ID_LEN];
     const ONE: [u8; ID_LEN] = [1; ID_LEN];
     const TEST_PREIMAGE: &[u8] = b"sley-id fixed vector preimage";
-    const FIXED_VECTORS: [(Domain, &str); 41] = [
+    const FIXED_VECTORS: [(Domain, &str); 47] = [
         (
             Domain::Workspace,
             "91280bdf6e8df93eafb445c63cf92f0590981d2d9e735d6b01cc9594e0b92f55",
@@ -651,6 +702,30 @@ mod tests {
             Domain::NativeTestApproval,
             "7d4a4c27657367f6c6b6181c0e2926825e81197a384c3a1834e3caff29a44699",
         ),
+        (
+            Domain::NativeEvidenceBundle,
+            "e4a6a5406082e59f16308f03d1906af6a0fad01ad791a93c0552a5ae1c7e7da7",
+        ),
+        (
+            Domain::HistoricalAdmissionContext,
+            "9f09330acfe07e41412dfeec9c8571c0fcf7e5d9e9b41c977f682388242e064f",
+        ),
+        (
+            Domain::CommitAdmissionStatement,
+            "df4500cc93f6e69cde77c56aa7566a62009986d7c73a569b26054b121329953e",
+        ),
+        (
+            Domain::HistoricalTrustPolicy,
+            "46a551df886a4364824b6a49eed20395a7716c52624cabd391043b0eeaeb29ba",
+        ),
+        (
+            Domain::SupervisorConfig,
+            "c8cc59a12ce23014ab5dd12d3774de0c57a1b6b7b59822a5bef1d22de7fb9c68",
+        ),
+        (
+            Domain::NativeAdmissionProfile,
+            "50ad44b4748118b04451089fe615f79ea3fdc4a79548113e9da90be302fcc016",
+        ),
     ];
 
     fn decode_hex_32(hex: &str) -> [u8; ID_LEN] {
@@ -709,6 +784,12 @@ mod tests {
                 b"sley2.native-test-resource-policy.v1",
                 b"sley2.native-test-measurement.v1",
                 b"sley2.native-test-approval.v1",
+                b"sley2.native-test-evidence-bundle.v1",
+                b"sley2.native-test-historical-context.v1",
+                b"sley2.native-test-admission-statement.v1",
+                b"sley2.native-test-trust-policy.v1",
+                b"sley2.native-test-supervisor-config.v1",
+                b"sley2.native-test-admission-profile.v1",
             ]
         );
     }
@@ -853,6 +934,12 @@ mod tests {
         assert_eq!(core::mem::size_of::<NativeResourcePolicyId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<MeasuredTestAttestationId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<NativeTestApprovalId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<NativeEvidenceBundleId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<HistoricalAdmissionContextId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<CommitAdmissionStatementId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<HistoricalTrustPolicyId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<SupervisorConfigId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<NativeAdmissionProfileId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<ExecutionReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<TestReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<RepositoryPackId>(), ID_LEN);

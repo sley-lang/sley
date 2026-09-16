@@ -59,6 +59,12 @@ part of the `sley-id` kernel API.
 | native resource policy | `sley2.native-test-resource-policy.v1` |
 | measured test attestation | `sley2.native-test-measurement.v1` |
 | native test approval | `sley2.native-test-approval.v1` |
+| native evidence bundle | `sley2.native-test-evidence-bundle.v1` |
+| historical admission context | `sley2.native-test-historical-context.v1` |
+| commit admission statement | `sley2.native-test-admission-statement.v1` |
+| historical trust policy | `sley2.native-test-trust-policy.v1` |
+| supervisor config | `sley2.native-test-supervisor-config.v1` |
+| native admission profile | `sley2.native-test-admission-profile.v1` |
 | repository pack leaf (S20-170) | `sley2.repository-pack-leaf.v1` |
 | repository pack node (S20-170) | `sley2.repository-pack-node.v1` |
 | repository exchange leaf (S20-540) | `sley2.repository-exchange-leaf.v1` |

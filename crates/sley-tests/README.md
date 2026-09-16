@@ -2,7 +2,11 @@
 
 Pure native test evidence owner. Encodes and strictly parses the native
 resource policy (`SLEYNRP1`), test plan (`SLEYTPL1`), execution/test reports
-and parsed approvals owned by `NATIVE_TEST_EXECUTION_V1.md` and
+(`SLEYNEX1`/`SLEYNTS1`), measured attestations (`SLEYMTA1`) and parsed
+approvals (`SLEYNAP1`), supervisor configurations (`SLEYNHC1`), historical
+trust manifests (`SLEYNTR1`), admission descriptors (`SLEYNAD1`), historical
+contexts (`SLEYNCT1`), evidence bundles (`SLEYNBU1`), and commit admission
+statements (`SLEYNSA1`) owned by `NATIVE_TEST_EXECUTION_V1.md` and
 `NATIVE_TEST_ADMISSION_V1.md`.
 
 This crate performs no host I/O, spawns no workers, reads no clock and

@@ -447,6 +447,24 @@ impl NativeTestApprovalV1 {
     pub const fn id(&self) -> NativeTestApprovalId {
         self.id
     }
+
+    /// Plan the decision covers; the bundle requires it to match.
+    #[must_use]
+    pub const fn plan_id(&self) -> NativeTestPlanId {
+        self.parts.plan_id
+    }
+
+    /// Deterministic test report the decision covers.
+    #[must_use]
+    pub const fn test_report_id(&self) -> TestReportId {
+        self.parts.test_report_id
+    }
+
+    /// Attestation bindings in strict test-ID order.
+    #[must_use]
+    pub fn attestations(&self) -> &[AttestationBinding] {
+        &self.parts.attestations
+    }
 }
 
 fn validate_parts(parts: &NativeTestApprovalParts) -> Result<(), ScbError> {

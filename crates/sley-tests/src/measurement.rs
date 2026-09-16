@@ -252,6 +252,33 @@ impl MeasuredTestAttestationV1 {
     pub const fn test_object(&self) -> ObjectId {
         self.parts.test_object
     }
+
+    /// Plan the measurement was taken under; the bundle requires agreement.
+    #[must_use]
+    pub const fn plan_id(&self) -> NativeTestPlanId {
+        self.parts.plan_id
+    }
+
+    /// Receiver trust manifest the signature claims; raw until N1d types it.
+    ///
+    /// The bundle joins these bytes against parsed trust-policy identities.
+    #[must_use]
+    pub const fn trust_policy_id(&self) -> [u8; 32] {
+        self.parts.trust_policy_id
+    }
+
+    /// Supervisor configuration the run claims; the bundle requires the
+    /// exact referenced configuration bytes to be present.
+    #[must_use]
+    pub const fn supervisor_config_id(&self) -> [u8; 32] {
+        self.parts.supervisor_config_id
+    }
+
+    /// Execution report the measurement covers, when the attempt produced one.
+    #[must_use]
+    pub const fn execution_report_id(&self) -> Option<ExecutionReportId> {
+        self.parts.execution_report_id
+    }
 }
 
 /// Canonical signature preimage for one unsigned attestation record.
