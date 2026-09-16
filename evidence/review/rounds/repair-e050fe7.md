@@ -1,6 +1,6 @@
 # Qualification repair of the e050fe7 Council round
 
-Status: implementation complete; fresh candidate and independent review pending.
+Status: implementation and fresh two-host candidate validated; independent review pending.
 The twelve archived transcripts remain authoritative for their original verdicts.
 The following groups cover all 7 P3 and 30 P4 mentions (overlaps retained in the transcripts).
 
@@ -24,3 +24,5 @@ The following groups cover all 7 P3 and 30 P4 mentions (overlaps retained in the
 The initial five targeted regression tests failed on twelve assertions for the intended defects, then passed after repair. Additional boundary coverage was added as characterization/regression tests. Final focused suites: 137 release tests and 89 review tests passed. External raw logs reside in the operator checkpoint directory sley2-repair-e050fe7; full candidate validation and independent verdicts are recorded separately after minting.
 
 No existing Council REVISE verdict is converted to PASS by this implementation record.
+
+Full validation of source `4ded93d4dda0ae97d968d40c96cec71f62a6278f`: both host builds, evidence refresh, candidate verification, lint and full quick passed. See `evidence/validation/qualification-repair-2026-09-15.json`. The scan-after-receipt ordering was exercised after correcting the runbook.

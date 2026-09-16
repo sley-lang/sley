@@ -1,0 +1,74 @@
+{
+  "kind": "QUALIFICATION_REPAIR_VALIDATION",
+  "date": "2026-09-15",
+  "source_commit": "4ded93d4dda0ae97d968d40c96cec71f62a6278f",
+  "review_base": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+  "candidate": {
+    "artifact_sha256": "a7665c691bf0b58a8e5d07feb2197c2edc275620f5c3b4f5ec5a14b55b83a1c2",
+    "artifact_size_bytes": 2190462,
+    "manifest_digest": "fc517f4a6fc6f10fc35714dad62c726a0d5d91d0275ca65a191b2b053b6f536b",
+    "member_count": 15
+  },
+  "reproducibility": {
+    "result": "MULTI_HOST_REPRODUCIBLE",
+    "hosts": 2,
+    "transport": "USB via forge-lab-connect"
+  },
+  "validation": {
+    "primary_release_candidate_build_exit": 0,
+    "secondary_release_candidate_build_exit": 0,
+    "evidence_refresh_exit": 0,
+    "release_candidate_verify_exit": 0,
+    "quick_exit": 0,
+    "lint_exit": 0,
+    "release_tests_passed": 137,
+    "review_tests_passed": 89,
+    "rust_passed": 1419,
+    "rust_failed": 0,
+    "rust_ignored": 16
+  },
+  "logs": {
+    "build-local-4ded93d.log": {
+      "sha256": "7f86bef09bf69826f190284b65477a332a7d53c8a28d7e0e84c40c5525ab6975",
+      "exit_code": 0
+    },
+    "build-lab-4ded93d.log": {
+      "sha256": "4ce5e57799f5bd89e813200385b2003c712ee87d9eacd3755297007a83a3263a",
+      "exit_code": 0
+    },
+    "lint-4ded93d.log": {
+      "sha256": "2ac864a304ee8cf68a185968082519cf0de3ddba1167b521c7799ae7ad14227b",
+      "exit_code": 0
+    },
+    "refresh-4ded93d.log": {
+      "sha256": "184b0710463e27468772f7557d2a191080e251da947df7035b9e043e82352cb8",
+      "exit_code": 0
+    },
+    "verify-4ded93d.log": {
+      "sha256": "ae59ea4f0e0de597c089cd3119896ed7a845bdd314d1e259337ebcc7372b8e73",
+      "exit_code": 0
+    },
+    "quick-4ded93d.log": {
+      "sha256": "769761cd39465591ddf35bca184c248073c68046ffaaf1c92d89108a05273117",
+      "exit_code": 0
+    },
+    "release-final.log": {
+      "sha256": "2c1eef99506ce380cd8e73b86ceade2ca5ab5bf8c1baaa54b86e7a7d7385bec1",
+      "exit_code": 0
+    },
+    "review-final.log": {
+      "sha256": "f8830470b4a86d47c267295bbdb3b860e55313c0110fad2759a2256536d42500",
+      "exit_code": 0
+    }
+  },
+  "log_directory": "/home/gfarch/Work/checkpoints/sley2-repair-e050fe7",
+  "repairs": "evidence/review/rounds/repair-e050fe7.md",
+  "lane_receipts": "evidence/release/second-host-lane-records.json",
+  "earlier_attempts": [
+    "The first 27ad8d7 lab clone had no default branch; explicit checkout fixed it before building.",
+    "27ad8d7 and cd22b0e refreshes were cancelled for runbook/ADR corrections; both host builds had succeeded.",
+    "6cee454 quick failed on T54 drift after receipt filing; the runbook was corrected to refresh after the receipt. Its intermediate retry was cancelled for that correction.",
+    "4ded93d completed both builds, refresh, candidate verification, full quick and lint with exit 0."
+  ],
+  "scope_note": "These are orchestrator-run checks, not Council verdicts or release authorization. Source and contract changes preceded this mint; subsequent validation/review records use records-only closure."
+}
