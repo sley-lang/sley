@@ -4918,3 +4918,6 @@ fn e8_bridge_program_bytes_cross_as_vectors_only() {
         assert_eq!(item.data, ConstData::UInt(u128::from(*byte)));
     }
 }
+
+#[path = "native_execution/tests.rs"]
+mod native_tests;

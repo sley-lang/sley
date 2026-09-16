@@ -14,7 +14,6 @@ sley-ssmc = { path = "../sley-ssmc" }
 sha2 = { version = "0.11.0", default-features = false, features = ["alloc"] }
 blake3 = "=1.8.2"
 
-[dev-dependencies]
 sley-scb1 = { path = "../sley-scb1" }
 
 [lints]

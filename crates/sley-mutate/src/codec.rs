@@ -41,6 +41,8 @@ use crate::value::{
 };
 use crate::{MutationClass, PreimageRequirement, mutation_operation_descriptor};
 
+mod const_encoding;
+
 type Result<T> = core::result::Result<T, ScbError>;
 
 pub(crate) trait MutationValueCodec: Sized {
@@ -65,6 +67,23 @@ trait SimpleEnumCodec: Copy + Eq {
 /// Returns the exact SCB error for a value outside the codec's limits.
 pub fn encode_const_value(value: &ConstValue) -> Result<Vec<u8>> {
     encode_exact(value)
+}
+
+/// Result of canonical constant byte admission.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ConstValueByteMeasure {
+    /// Complete canonical length within the caller cap.
+    Exact(u64),
+    /// Canonical encoding exceeds the caller cap.
+    OverLimit,
+}
+
+/// Measures a canonical constant before allocating its encoded output.
+///
+/// # Errors
+/// Returns canonical/codec hard-limit failures before applying `cap`.
+pub fn measure_const_value_bounded(value: &ConstValue, cap: u64) -> Result<ConstValueByteMeasure> {
+    const_encoding::measure_value(value, cap)
 }
 
 /// Decodes one `ConstValue` from its exact S20-350 mutation-value bytes,
@@ -762,11 +781,7 @@ impl MutationValueCodec for BuiltinFailureKind {
 
 impl MutationValueCodec for NamedType {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.definition, depth + 1)?),
-            (2, encode_at_depth(&self.arguments, depth + 1)?),
-        ])
+        const_encoding::encode(const_encoding::Node::Named(self), depth)
     }
 
     fn decode_value(
@@ -799,11 +814,10 @@ struct MapType {
 
 impl MutationValueCodec for MapType {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.key, depth + 1)?),
-            (2, encode_at_depth(&self.value, depth + 1)?),
-        ])
+        const_encoding::encode(
+            const_encoding::Node::TypePair(&self.key, &self.value),
+            depth,
+        )
     }
 
     fn decode_value(
@@ -830,11 +844,7 @@ impl MutationValueCodec for MapType {
 }
 
 fn encode_map_type(key: &TypeExpr, value: &TypeExpr, depth: usize) -> Result<Vec<u8>> {
-    check_container_depth(depth)?;
-    encode_record(&[
-        (1, encode_at_depth(key, depth + 1)?),
-        (2, encode_at_depth(value, depth + 1)?),
-    ])
+    const_encoding::encode(const_encoding::Node::TypePair(key, value), depth)
 }
 
 struct ResultType {
@@ -844,11 +854,7 @@ struct ResultType {
 
 impl MutationValueCodec for ResultType {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.ok, depth + 1)?),
-            (2, encode_at_depth(&self.error, depth + 1)?),
-        ])
+        const_encoding::encode(const_encoding::Node::TypePair(&self.ok, &self.error), depth)
     }
 
     fn decode_value(
@@ -875,11 +881,7 @@ impl MutationValueCodec for ResultType {
 }
 
 fn encode_result_type(ok: &TypeExpr, error: &TypeExpr, depth: usize) -> Result<Vec<u8>> {
-    check_container_depth(depth)?;
-    encode_record(&[
-        (1, encode_at_depth(ok, depth + 1)?),
-        (2, encode_at_depth(error, depth + 1)?),
-    ])
+    const_encoding::encode(const_encoding::Node::TypePair(ok, error), depth)
 }
 
 fn validate_entity_id_set_order(values: &[EntityId]) -> Result<()> {
@@ -949,12 +951,7 @@ fn decode_entity_id_set_vec(
 
 impl MutationValueCodec for FunctionType {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.parameters, depth + 1)?),
-            (2, encode_at_depth(&self.result, depth + 1)?),
-            (3, encode_entity_id_set_vec(&self.effects, depth + 1)?),
-        ])
+        const_encoding::encode(const_encoding::Node::Function(self), depth)
     }
 
     fn decode_value(
@@ -989,38 +986,7 @@ impl MutationValueCodec for FunctionType {
 
 impl MutationValueCodec for TypeExpr {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        match self {
-            Self::Unit | Self::Bool | Self::F32 | Self::F64 | Self::Bytes | Self::Text => {
-                encode_union(self.tag(), &[])
-            }
-            Self::SInt(value) | Self::UInt(value) => {
-                encode_union(self.tag(), &encode_at_depth(value, depth + 1)?)
-            }
-            Self::Tuple(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::Named(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::Vector(value) | Self::Option(value) | Self::LocalCell(value) => {
-                encode_union(self.tag(), &encode_at_depth(value, depth + 1)?)
-            }
-            Self::OrderedMap { key, value } => {
-                encode_union(self.tag(), &encode_map_type(key, value, depth + 1)?)
-            }
-            Self::Result { ok, error } => {
-                encode_union(self.tag(), &encode_result_type(ok, error, depth + 1)?)
-            }
-            Self::FunctionRef(value) => {
-                encode_union(self.tag(), &encode_at_depth(value, depth + 1)?)
-            }
-            Self::AdapterHandle(value) | Self::CapabilityToken(value) => {
-                encode_union(self.tag(), &encode_at_depth(value, depth + 1)?)
-            }
-            Self::TypeParameter(value) => {
-                encode_union(self.tag(), &encode_at_depth(value, depth + 1)?)
-            }
-            Self::BuiltinFailure(value) => {
-                encode_union(self.tag(), &encode_at_depth(value, depth + 1)?)
-            }
-        }
+        const_encoding::encode(const_encoding::Node::Type(self), depth)
     }
 
     fn decode_value(
@@ -1176,11 +1142,7 @@ impl MutationValueCodec for ValueRef {
 
 impl MutationValueCodec for FunctionRefValue {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.function, depth + 1)?),
-            (2, encode_at_depth(&self.type_arguments, depth + 1)?),
-        ])
+        const_encoding::encode(const_encoding::Node::FunctionRef(self), depth)
     }
 
     fn decode_value(
@@ -1821,11 +1783,7 @@ impl MutationValueCodec for TypeDefForm {
 
 impl MutationValueCodec for BuiltinFailureValue {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.kind, depth + 1)?),
-            (2, encode_at_depth(&self.code, depth + 1)?),
-        ])
+        const_encoding::encode(const_encoding::Node::Failure(self), depth)
     }
 
     fn decode_value(
@@ -1853,11 +1811,7 @@ impl MutationValueCodec for BuiltinFailureValue {
 
 impl MutationValueCodec for FieldConst {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.member_id, depth + 1)?),
-            (2, encode_at_depth(&self.value, depth + 1)?),
-        ])
+        const_encoding::encode(const_encoding::Node::Field(self), depth)
     }
 
     fn decode_value(
@@ -1885,11 +1839,7 @@ impl MutationValueCodec for FieldConst {
 
 impl MutationValueCodec for RecordConst {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.definition, depth + 1)?),
-            (2, encode_at_depth(&self.fields, depth + 1)?),
-        ])
+        const_encoding::encode(const_encoding::Node::Record(self), depth)
     }
 
     fn decode_value(
@@ -1917,12 +1867,7 @@ impl MutationValueCodec for RecordConst {
 
 impl MutationValueCodec for VariantConst {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.definition, depth + 1)?),
-            (2, encode_at_depth(&self.member_id, depth + 1)?),
-            (3, encode_at_depth(&self.payload, depth + 1)?),
-        ])
+        const_encoding::encode(const_encoding::Node::Variant(self), depth)
     }
 
     fn decode_value(
@@ -1953,11 +1898,7 @@ impl MutationValueCodec for VariantConst {
 
 impl MutationValueCodec for MapEntryConst {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.key, depth + 1)?),
-            (2, encode_at_depth(&self.value, depth + 1)?),
-        ])
+        const_encoding::encode(const_encoding::Node::Entry(self), depth)
     }
 
     fn decode_value(
@@ -1985,12 +1926,7 @@ impl MutationValueCodec for MapEntryConst {
 
 impl MutationValueCodec for ResultConst {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        match self {
-            Self::Ok(value) | Self::Err(value) => {
-                encode_union(self.tag(), &encode_at_depth(value, depth + 1)?)
-            }
-        }
+        const_encoding::encode(const_encoding::Node::Result(self), depth)
     }
 
     fn decode_value(
@@ -2009,26 +1945,10 @@ impl MutationValueCodec for ResultConst {
 }
 
 fn encode_map_entries(values: &[MapEntryConst], depth: usize) -> Result<Vec<u8>> {
-    check_container_depth(depth)?;
-    let mut previous_key: Option<Vec<u8>> = None;
-    let mut elements = Vec::with_capacity(values.len());
-    for value in values {
-        let key = encode_at_depth(&value.key, depth + 2)?;
-        if let Some(previous) = &previous_key {
-            match previous.cmp(&key) {
-                core::cmp::Ordering::Less => {}
-                core::cmp::Ordering::Equal => {
-                    return Err(ScbError::new(ScbErrorCode::MapDuplicate));
-                }
-                core::cmp::Ordering::Greater => {
-                    return Err(ScbError::new(ScbErrorCode::MapOrder));
-                }
-            }
-        }
-        previous_key = Some(key);
-        elements.push(encode_at_depth(value, depth + 1)?);
-    }
-    encode_list(&elements)
+    const_encoding::encode(
+        const_encoding::Node::Sequence(const_encoding::Sequence::Entries(values)),
+        depth,
+    )
 }
 
 fn decode_map_entries(
@@ -2070,29 +1990,7 @@ fn decode_map_entries(
 
 impl MutationValueCodec for ConstData {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        match self {
-            Self::Unit => encode_union(self.tag(), &[]),
-            Self::Bool(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::SInt(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::UInt(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::F32Bits(value) => encode_union(self.tag(), &encode_f32_value_bits(*value)?),
-            Self::F64Bits(value) => encode_union(self.tag(), &encode_f64_value_bits(*value)?),
-            Self::Bytes(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::Text(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::Sequence(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::Record(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::Variant(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::Map(value) => encode_union(self.tag(), &encode_map_entries(value, depth + 1)?),
-            Self::Option(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::Result(value) => encode_union(self.tag(), &encode_at_depth(value, depth + 1)?),
-            Self::FunctionRef(value) => {
-                encode_union(self.tag(), &encode_at_depth(value, depth + 1)?)
-            }
-            Self::BuiltinFailure(value) => {
-                encode_union(self.tag(), &encode_at_depth(value, depth + 1)?)
-            }
-        }
+        const_encoding::encode(const_encoding::Node::Data(self), depth)
     }
 
     fn decode_value(
@@ -2173,11 +2071,7 @@ impl MutationValueCodec for ConstData {
 
 impl MutationValueCodec for ConstValue {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
-        check_container_depth(depth)?;
-        encode_record(&[
-            (1, encode_at_depth(&self.value_type, depth + 1)?),
-            (2, encode_at_depth(&self.data, depth + 1)?),
-        ])
+        const_encoding::encode(const_encoding::Node::Value(self), depth)
     }
 
     fn decode_value(
@@ -4238,6 +4132,29 @@ mod tests {
         );
     }
 
+    fn assert_legacy_bytes(bytes: &[u8], hex: &str) {
+        let expected: Vec<u8> = hex
+            .as_bytes()
+            .chunks_exact(2)
+            .map(|pair| u8::from_str_radix(core::str::from_utf8(pair).unwrap(), 16).unwrap())
+            .collect();
+        assert_eq!(bytes, expected);
+    }
+
+    fn assert_measured_fixture(value: &ConstValue, type_bytes: &[u8], data_bytes: &[u8]) {
+        let frozen = encode_record(&[(1, type_bytes.to_vec()), (2, data_bytes.to_vec())]).unwrap();
+        let length = u64::try_from(frozen.len()).unwrap();
+        assert_eq!(encode_const_value(value).unwrap(), frozen);
+        for cap in [0, length - 1, length, length + 1, u64::MAX] {
+            let expected = if cap < length {
+                ConstValueByteMeasure::OverLimit
+            } else {
+                ConstValueByteMeasure::Exact(length)
+            };
+            assert_eq!(measure_const_value_bounded(value, cap).unwrap(), expected);
+        }
+    }
+
     #[test]
     fn type_expr_all_twenty_tags_round_trip_exactly() {
         let values = [
@@ -4275,9 +4192,42 @@ mod tests {
             TypeExpr::TypeParameter(3),
             TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey),
         ];
+        // Frozen from the pre-refactor encoder, before bounded measurement.
+        let legacy_hex = [
+            "0100",
+            "0200",
+            "030108",
+            "040118",
+            "0500",
+            "0600",
+            "0700",
+            "0800",
+            "090702020200020700",
+            "0a290201200a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a020401020800",
+            "0b03040110",
+            "0c09020102080002020200",
+            "0d020700",
+            "0e0a02010201000203140105",
+            "0f500301040102020002020100034302200101010101010101010101010101010101010101010101010101010101010101200202020202020202020202020202020202020202020202020202020202020202",
+            "10201010101010101010101010101010101010101010101010101010101010101010",
+            "11201111111111111111111111111111111111111111111111111111111111111111",
+            "12020800",
+            "130103",
+            "140103",
+        ];
         for (index, value) in values.iter().enumerate() {
             assert_eq!(value.tag(), u32::try_from(index + 1).unwrap());
             assert_round_trip(value);
+            let bytes = encode_exact(value).unwrap();
+            assert_legacy_bytes(&bytes, legacy_hex[index]);
+            assert_measured_fixture(
+                &ConstValue {
+                    value_type: value.clone(),
+                    data: ConstData::Unit,
+                },
+                &bytes,
+                &[1, 0],
+            );
         }
     }
 
@@ -5478,6 +5428,21 @@ mod tests {
     }
 
     #[test]
+    fn bounded_const_measure_exact_cap_and_refusal() {
+        let value = const_unit();
+        let length = encode_const_value(&value).unwrap().len() as u64;
+        assert!(length > 0);
+        assert_eq!(
+            measure_const_value_bounded(&value, length).unwrap(),
+            ConstValueByteMeasure::Exact(length)
+        );
+        assert_eq!(
+            measure_const_value_bounded(&value, length - 1).unwrap(),
+            ConstValueByteMeasure::OverLimit
+        );
+    }
+
+    #[test]
     fn const_value_family_covers_all_sixteen_data_tags_and_ordered_maps() {
         let values = vec![
             ConstData::Unit,
@@ -5516,15 +5481,47 @@ mod tests {
                 code: 9,
             }),
         ];
+        // Frozen from the pre-refactor encoder, before bounded measurement.
+        let legacy_hex = [
+            "0100",
+            "020101",
+            "0313fdffffffffffffffffffffffffffffffffff03",
+            "0413ffffffffffffffffffffffffffffffffffff03",
+            "05047fc00000",
+            "06087ff8000000000000",
+            "0704030001ff",
+            "08050474657874",
+            "091602090201020100020201000a02010202000203020100",
+            "0a550201205a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a0230012e0201205b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b5b0209020102010002020100",
+            "0b5a0301205c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c02205d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d031301110201020800020a0808077061796c6f6164",
+            "0c1a0118020109020102010002020100020a02010202000203020101",
+            "0d0c010a02010202000203020100",
+            "0e0f020d02010208000206080403657272",
+            "0f290201205e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e020401020800",
+            "100702010103020109",
+        ];
         for (index, value) in values.iter().enumerate() {
             assert_eq!(value.tag(), u32::try_from(index + 1).unwrap());
             assert_round_trip(value);
+            let bytes = encode_exact(value).unwrap();
+            assert_legacy_bytes(&bytes, legacy_hex[index]);
+            assert_measured_fixture(
+                &ConstValue {
+                    value_type: TypeExpr::Unit,
+                    data: value.clone(),
+                },
+                &[1, 0],
+                &bytes,
+            );
             assert_round_trip(&ConstValue {
                 value_type: TypeExpr::Unit,
                 data: value.clone(),
             });
         }
+    }
 
+    #[test]
+    fn const_maps_reject_duplicate_and_unordered_keys() {
         let mut entries = vec![
             MapEntryConst {
                 key: const_text("b"),

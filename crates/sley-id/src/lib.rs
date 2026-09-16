@@ -42,11 +42,13 @@ enum Domain {
     RootQuery,
     ProtocolFrame,
     Session,
+    NativeExecutionProfile,
+    NativeObservation,
 }
 
 impl Domain {
     #[cfg(test)]
-    const ALL: [Self; 35] = [
+    const ALL: [Self; 37] = [
         Self::Workspace,
         Self::Entity,
         Self::Object,
@@ -82,6 +84,8 @@ impl Domain {
         Self::RootQuery,
         Self::ProtocolFrame,
         Self::Session,
+        Self::NativeExecutionProfile,
+        Self::NativeObservation,
     ];
 
     const fn bytes(self) -> &'static [u8] {
@@ -121,6 +125,8 @@ impl Domain {
             Self::RootQuery => b"sley2.root-query.v1",
             Self::ProtocolFrame => b"sley2.protocol-frame.v1",
             Self::Session => b"sley2.session.v1",
+            Self::NativeExecutionProfile => b"sley2.native-test-execution-profile.v1",
+            Self::NativeObservation => b"sley2.native-test-observation.v1",
         }
     }
 }
@@ -358,6 +364,15 @@ impl EntityId {
     }
 }
 
+fixed_bytes_type! {
+    /// Immutable native test execution rules, distinct from old VM profiles.
+    NativeExecutionProfileId
+}
+fixed_bytes_type! {
+    /// Deterministic native test observation identity.
+    NativeObservationId
+}
+
 macro_rules! digest_type {
     ($name:ident, $domain:expr) => {
         impl $name {
@@ -387,6 +402,8 @@ digest_type!(SemanticFingerprint, Domain::SemanticFingerprint);
 digest_type!(ValueHash, Domain::ValueHash);
 digest_type!(BytecodeCacheKey, Domain::BytecodeCacheKey);
 digest_type!(ObservationId, Domain::Observation);
+digest_type!(NativeExecutionProfileId, Domain::NativeExecutionProfile);
+digest_type!(NativeObservationId, Domain::NativeObservation);
 digest_type!(ExecutionReportId, Domain::ExecutionReport);
 digest_type!(TestReportId, Domain::TestReport);
 digest_type!(RepositoryPackId, Domain::RepositoryPack);
@@ -437,7 +454,7 @@ mod tests {
     const ZERO: [u8; ID_LEN] = [0; ID_LEN];
     const ONE: [u8; ID_LEN] = [1; ID_LEN];
     const TEST_PREIMAGE: &[u8] = b"sley-id fixed vector preimage";
-    const FIXED_VECTORS: [(Domain, &str); 35] = [
+    const FIXED_VECTORS: [(Domain, &str); 37] = [
         (
             Domain::Workspace,
             "91280bdf6e8df93eafb445c63cf92f0590981d2d9e735d6b01cc9594e0b92f55",
@@ -578,6 +595,14 @@ mod tests {
             Domain::Session,
             "e6a072d2dab3a16a41d00f6017f2f7c5b7588141b121132dcf5469bd130197e6",
         ),
+        (
+            Domain::NativeExecutionProfile,
+            "a50883f21f3794fb6ea8bcd580b376aae26c8b45a88ce32dabff94732c62ce47",
+        ),
+        (
+            Domain::NativeObservation,
+            "4118add06bce0d63dee974ff40948088d4eb776a901b63ca75b7a69b86725c53",
+        ),
     ];
 
     fn decode_hex_32(hex: &str) -> [u8; ID_LEN] {
@@ -630,6 +655,8 @@ mod tests {
                 b"sley2.root-query.v1",
                 b"sley2.protocol-frame.v1",
                 b"sley2.session.v1",
+                b"sley2.native-test-execution-profile.v1",
+                b"sley2.native-test-observation.v1",
             ]
         );
     }
@@ -768,6 +795,8 @@ mod tests {
         assert_eq!(core::mem::size_of::<ValueHash>(), ID_LEN);
         assert_eq!(core::mem::size_of::<BytecodeCacheKey>(), ID_LEN);
         assert_eq!(core::mem::size_of::<ObservationId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<NativeExecutionProfileId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<NativeObservationId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<ExecutionReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<TestReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<RepositoryPackId>(), ID_LEN);

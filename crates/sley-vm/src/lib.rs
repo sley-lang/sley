@@ -18,6 +18,7 @@ pub mod extended;
 mod extended_tests;
 pub mod host_abi;
 mod lower;
+pub mod native_execution;
 pub mod raw_hash;
 
 pub use admission_authority::{

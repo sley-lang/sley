@@ -446,8 +446,8 @@ struct RuntimeFault;
 
 type RuntimeResult<T> = Result<T, RuntimeFault>;
 
-struct ValidatedInputs {
-    hashes: Vec<ValueHash>,
+pub(crate) struct ValidatedInputs {
+    pub(crate) hashes: Vec<ValueHash>,
     value_units: u64,
 }
 
@@ -482,6 +482,8 @@ struct Runtime {
     live_value_units: u64,
     peak_value_units: u64,
     cells: Vec<ConstValue>,
+    max_call_depth: usize,
+    peak_call_depth: usize,
 }
 
 /// Executes one restricted-v1 Function through the integrated lowering authority boundary.
@@ -834,6 +836,8 @@ fn execute_core_package(
         live_value_units: initial_live_total,
         peak_value_units: initial_live_total,
         cells: Vec::new(),
+        max_call_depth: MAX_CALL_DEPTH,
+        peak_call_depth: 1,
     };
     if runtime.peak_value_units > limits.max_value_units {
         return finish_package(
@@ -1110,91 +1114,127 @@ fn encode_termination_package(
     Ok(())
 }
 
-/// Runs validated inputs against one bytecode model: the single runner both
-/// execution paths share. Lowering and loading differ only in how the model
-/// and its validation arrive here.
-#[allow(clippy::too_many_lines)]
+/// Unhashed result from the shared runner. Native execution performs its output
+/// byte admission before deriving any result hash or observation.
+pub(crate) struct CoreOutcome {
+    pub(crate) termination: ExecutionTermination,
+    pub(crate) instruction_count: u64,
+    pub(crate) fuel_used: u64,
+    pub(crate) peak_value_units: u64,
+    pub(crate) peak_call_depth: usize,
+}
+
 fn execute_core(
     source: &ExecutionSource<'_>,
     lowered: &LoweredFunction,
     validated_inputs: &ValidatedInputs,
     request: ExecutionRequest,
 ) -> Result<ExecutionOutcome, ExecutionError> {
+    let limits = request.limits;
+    let result = run_core(source, lowered, validated_inputs, request, MAX_CALL_DEPTH);
+    finish(
+        source,
+        limits,
+        lowered.cache_key,
+        &validated_inputs.hashes,
+        result.termination,
+        result.instruction_count,
+        result.fuel_used,
+        result.peak_value_units,
+    )
+}
+
+pub(crate) fn execute_native_core(
+    input: &LoweringInput<'_>,
+    lowered: &LoweredFunction,
+    validated_inputs: &ValidatedInputs,
+    request: ExecutionRequest,
+    max_call_depth: usize,
+) -> CoreOutcome {
+    run_core(
+        &ExecutionSource::lowering(input),
+        lowered,
+        validated_inputs,
+        request,
+        max_call_depth,
+    )
+}
+
+fn run_core(
+    source: &ExecutionSource<'_>,
+    lowered: &LoweredFunction,
+    validated_inputs: &ValidatedInputs,
+    request: ExecutionRequest,
+    max_call_depth: usize,
+) -> CoreOutcome {
+    if max_call_depth == 0 {
+        return CoreOutcome {
+            termination: ExecutionTermination::ResourceLimit(ResourceKind::CallDepth),
+            instruction_count: 0,
+            fuel_used: 0,
+            peak_value_units: 0,
+            peak_call_depth: 0,
+        };
+    }
     let initial_live_total = initial_value_units(
         &lowered.bytecode.register_types,
         &lowered.bytes,
         validated_inputs.value_units,
     );
     let ExecutionRequest { inputs, limits } = request;
-
     let mut runtime = Runtime {
-        registers: vec![None; lowered.bytecode.register_types.len()],
+        registers: Vec::new(),
         block: usize::try_from(lowered.bytecode.entry_block).unwrap_or(usize::MAX),
         instruction_count: 0,
         fuel_used: 0,
         live_value_units: initial_live_total,
         peak_value_units: initial_live_total,
         cells: Vec::new(),
+        max_call_depth,
+        peak_call_depth: 1,
     };
-
-    if runtime.peak_value_units > limits.max_value_units {
-        return finish(
-            source,
-            limits,
-            lowered.cache_key,
-            &validated_inputs.hashes,
-            ExecutionTermination::ResourceLimit(ResourceKind::ValueUnits),
-            runtime.instruction_count,
-            runtime.fuel_used,
-            runtime.peak_value_units,
-        );
+    let termination = if runtime.peak_value_units > limits.max_value_units {
+        ExecutionTermination::ResourceLimit(ResourceKind::ValueUnits)
+    } else {
+        runtime.registers = vec![None; lowered.bytecode.register_types.len()];
+        match initialize_and_run(&mut runtime, source, lowered, inputs, limits) {
+            Ok(termination) => termination,
+            Err(RuntimeFault) => ExecutionTermination::InternalInvariant,
+        }
+    };
+    CoreOutcome {
+        termination,
+        instruction_count: runtime.instruction_count,
+        fuel_used: runtime.fuel_used,
+        peak_value_units: runtime.peak_value_units,
+        peak_call_depth: runtime.peak_call_depth,
     }
+}
 
+fn initialize_and_run(
+    runtime: &mut Runtime,
+    source: &ExecutionSource<'_>,
+    lowered: &LoweredFunction,
+    inputs: Vec<ConstValue>,
+    limits: ExecutionLimits,
+) -> RuntimeResult<ExecutionTermination> {
     for (index, value) in inputs.into_iter().enumerate() {
-        let Some(register) = lowered
+        let register = lowered
             .bytecode
             .parameter_registers
             .get(index)
             .and_then(|value| usize::try_from(*value).ok())
-        else {
-            return observed_invariant(
-                source,
-                limits,
-                lowered.cache_key,
-                &validated_inputs.hashes,
-                &runtime,
-            );
-        };
-        if write_register(&mut runtime, register, RuntimeValue::new(value)).is_err() {
-            return observed_invariant(
-                source,
-                limits,
-                lowered.cache_key,
-                &validated_inputs.hashes,
-                &runtime,
-            );
-        }
+            .ok_or(RuntimeFault)?;
+        write_register(runtime, register, RuntimeValue::new(value))?;
     }
-
-    let termination = match run(
-        &mut runtime,
+    run(
+        runtime,
         limits,
         &lowered.bytecode.blocks,
         &lowered.bytecode.result_type,
         &lowered.bytecode.register_types,
         source,
         Some(lowered),
-    ) {
-        Ok(termination) => termination,
-        Err(RuntimeFault) => ExecutionTermination::InternalInvariant,
-    };
-    finish_runtime(
-        source,
-        limits,
-        lowered.cache_key,
-        &validated_inputs.hashes,
-        &runtime,
-        termination,
     )
 }
 
@@ -1454,6 +1494,7 @@ fn adopt_frame(runtime: &mut Runtime, child: Runtime) {
     runtime.live_value_units = child.live_value_units;
     runtime.peak_value_units = child.peak_value_units;
     runtime.cells = child.cells;
+    runtime.peak_call_depth = child.peak_call_depth;
 }
 
 /// Prepares `call_direct` (contract E6): refuses a frame beyond the ceiling,
@@ -1527,7 +1568,7 @@ fn prepare_frame<'a>(
     // The ceiling counts live frames including the running one: opening a
     // frame that would make 257 live is refused, so 256 live frames (entry
     // included) is the deepest reachable stack (contract E6).
-    if frames.saturating_add(1) > MAX_CALL_DEPTH {
+    if frames.saturating_add(1) > runtime.max_call_depth {
         return Ok(CallStep::Terminated(ExecutionTermination::ResourceLimit(
             ResourceKind::CallDepth,
         )));
@@ -1566,6 +1607,8 @@ fn prepare_frame<'a>(
         live_value_units: runtime.live_value_units,
         peak_value_units: runtime.peak_value_units,
         cells: core::mem::take(&mut runtime.cells),
+        max_call_depth: runtime.max_call_depth,
+        peak_call_depth: runtime.peak_call_depth.max(frames.saturating_add(1)),
     };
     for (operand, parameter) in instruction.operands.iter().zip(&callee.parameter_registers) {
         let value = read_register(runtime, *operand)?.value()?.clone();
@@ -1714,7 +1757,7 @@ fn execute_extended(
     Ok(None)
 }
 
-fn validate_inputs(
+pub(crate) fn validate_inputs(
     input: &LoweringInput<'_>,
     request: &ExecutionRequest,
 ) -> Result<ValidatedInputs, ExecutionError> {
@@ -2067,43 +2110,6 @@ fn write_register(
     let slot = runtime.registers.get_mut(register).ok_or(RuntimeFault)?;
     *slot = Some(value);
     Ok(())
-}
-
-fn observed_invariant(
-    source: &ExecutionSource<'_>,
-    limits: ExecutionLimits,
-    cache_key: BytecodeCacheKey,
-    input_hashes: &[ValueHash],
-    runtime: &Runtime,
-) -> Result<ExecutionOutcome, ExecutionError> {
-    finish_runtime(
-        source,
-        limits,
-        cache_key,
-        input_hashes,
-        runtime,
-        ExecutionTermination::InternalInvariant,
-    )
-}
-
-fn finish_runtime(
-    source: &ExecutionSource<'_>,
-    limits: ExecutionLimits,
-    cache_key: BytecodeCacheKey,
-    input_hashes: &[ValueHash],
-    runtime: &Runtime,
-    termination: ExecutionTermination,
-) -> Result<ExecutionOutcome, ExecutionError> {
-    finish(
-        source,
-        limits,
-        cache_key,
-        input_hashes,
-        termination,
-        runtime.instruction_count,
-        runtime.fuel_used,
-        runtime.peak_value_units,
-    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -3177,6 +3183,8 @@ mod tests {
             live_value_units: 1,
             peak_value_units: 1,
             cells: Vec::new(),
+            max_call_depth: MAX_CALL_DEPTH,
+            peak_call_depth: 1,
         };
         let blocks = vec![crate::BytecodeBlock {
             slot: 0,
