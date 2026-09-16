@@ -118,7 +118,7 @@
     },
     {
       "criterion": "No undefined behavior exists in the program model",
-      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 80 PASS, 3 PENDING, 0 OTHER, 48 historical, 9 unclaimed or unclassified; lane open)",
+      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 84 PASS, 1 PENDING, 0 OTHER, 51 historical, 9 unclaimed or unclassified; lane open)",
       "group": "26.3 semantics",
       "state": "AWAITS_REVIEW"
     },
@@ -214,7 +214,7 @@
     },
     {
       "criterion": "policy is protected from the judged candidate",
-      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 76 PASS, 4 PENDING, 0 OTHER, 34 historical, 7 unclaimed or unclassified; lane open",
+      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 80 PASS, 1 PENDING, 0 OTHER, 38 historical, 7 unclaimed or unclassified; lane open",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
@@ -244,7 +244,7 @@
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 0 open P0/P1/P2 findings across 426 obligations",
+      "evidence": "finding register declares 0 open P0/P1/P2 findings across 441 obligations",
       "group": "26.6 policy and security",
       "state": "EVIDENCED"
     },
@@ -304,13 +304,13 @@
     },
     {
       "criterion": "Ariadne approves SSMC1 and semantic correctness",
-      "evidence": "finding register ariadne lane: 80 PASS, 3 PENDING, 0 OTHER, 48 historical, 9 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
+      "evidence": "finding register ariadne lane: 84 PASS, 1 PENDING, 0 OTHER, 51 historical, 9 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "Nabu approves architectural and cross-product boundaries",
-      "evidence": "finding register nabu lane: 76 PASS, 4 PENDING, 0 OTHER, 34 historical, 7 unclaimed or unclassified; lane open",
+      "evidence": "finding register nabu lane: 80 PASS, 1 PENDING, 0 OTHER, 38 historical, 7 unclaimed or unclassified; lane open",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -322,7 +322,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 12 open, 3 unclassified, and 41 unclaimed-carried obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 2 open, 3 unclassified, and 41 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -340,9 +340,9 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "3221c6deee20d1b2c40f01da28e3155e7ce55286c0c5cd874b1e0fe1942cafe8",
-  "register_digest": "9b70bc63e80e8e51157b652e4738ae8cfe1ddd87d2a6b0e8b8403c9b399f245f",
-  "report_digest": "7b86a3a7cd86d8fc8dc34f7ea3a7304fa786efd7373adf811fc86527340650a0",
+  "obligations_digest": "080c9ecade7f5efb3fd20a417c0dcf9013b7e2cd3830be67297d95e74ff35a42",
+  "register_digest": "e532e2662b2be4bc8fe6e3759a29c81fa84904a46391f8d5409c19cbe8f01246",
+  "report_digest": "de0dcc314cf4a5f558075868b9c004941b1c1776e53e5fafea18c7f022d415ef",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

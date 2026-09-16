@@ -1,0 +1,143 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "ariadne",
+      "section": "root_backed_query_profile",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/root_backed_query_profile/ariadne-97b9117.md",
+      "sha256": "1c4b5495882d0202ebf82ac0752885a2e71503b1d38378ea4d4b953b2a4aba9a",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "reproducibility_and_independent_conformance",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne-97b9117.md",
+      "sha256": "4e1b5b2c9b77b79f0efcd29bc1de3993be87072c92d4ddc550fa20482b393860",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "standards_sbom_and_provenance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne-97b9117.md",
+      "sha256": "9b442662bf3a89fc1bea9dea5afa07df8135f81efa4d02fa94ae250dc68f19a4",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "decision_dossier",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/decision_dossier/ariadne-97b9117.md",
+      "sha256": "ed6867f31a8a426b72ae909efd9c6fd3955c5b81b9cd958eb364d14daa45a441",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "release_candidate_packaging",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/release_candidate_packaging/ariadne-97b9117.md",
+      "sha256": "d004c6eb89aefff72619585df553e0b7a9ef86b9656a4e59d4e206565df126f6",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "root_backed_query_profile",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/root_backed_query_profile/nabu-97b9117.md",
+      "sha256": "c590753d2a04d5b07d4bfc4a2c5220d61152ad3ab054217a9ec6c4d5ff635a7f",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "reproducibility_and_independent_conformance",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu-97b9117.md",
+      "sha256": "706bf8191c3c9b4e280ae8b42d6148d598ca6deea5283de59ddec8ef934397a7",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "standards_sbom_and_provenance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/standards_sbom_and_provenance/nabu-97b9117.md",
+      "sha256": "e08bf8ae3f1493326fd0def27040de0cfd96da4b0cc30bf15cac1fd9e6be1bc0",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "decision_dossier",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/decision_dossier/nabu-97b9117.md",
+      "sha256": "2817b25e0a290856632852a3cfc182a89face41277164c3283dbb04d7889f893",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "release_candidate_packaging",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/release_candidate_packaging/nabu-97b9117.md",
+      "sha256": "2f85ea9fa8258ed763bf8deae5825b4f2c66e7fa5856916a265b0e90956b3f44",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "root_backed_query_profile",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/root_backed_query_profile/vulcan-97b9117.md",
+      "sha256": "73fa1e10f5a8baf9b20a98b41c5d298fae278a969831e3a21c377891aebd5c30",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "reproducibility_and_independent_conformance",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan-97b9117.md",
+      "sha256": "9d1472e4aec63ebd3f47b04b409d4f12921fd5a4ec540d7a425961cde4740523",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "standards_sbom_and_provenance",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan-97b9117.md",
+      "sha256": "3aac4f0b90483e209a76377a41e153b929f6654e7590d3c9ba711158aff28d5d",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "decision_dossier",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/decision_dossier/vulcan-97b9117.md",
+      "sha256": "b09ecc3d60b62d74b2b0ebda2dce5c290fbe976b7bbd603a07a5627d25fda38b",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "release_candidate_packaging",
+      "verdict": "PASS",
+      "scope_sha": "97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb",
+      "path": "evidence/review/verdicts/release_candidate_packaging/vulcan-97b9117.md",
+      "sha256": "5bc57900c47e6acfe1103cd66bc2d8078dff33303966e348b6105fa125b67525",
+      "process_exit_code": 0
+    }
+  ],
+  "note": "Exact independently returned dispositions. Registration does not promote package completion or release approval."
+}

@@ -2,15 +2,15 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "12 review obligations are open",
     "19 GA acceptance criteria are not evidenced",
+    "2 review obligations are open",
     "3 review dispositions are unclassified",
     "no succession trial has been executed",
     "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "291ca309390a3852ea1299c259442bc38b0e58a88f94387fef9cb8080567c222",
+  "dossier_digest": "4677348a0091b661b0f0afe36fc821c38b255039617a26fdcb650f80f9ca0e30",
   "entries": [
     {
       "evidence": [
@@ -341,21 +341,21 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 426,
-        "open_reviews": 12,
+        "obligations": 441,
+        "open_reviews": 2,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 126,
           "P1": 170,
           "P2": 187,
           "P3": 224,
-          "P4": 65
+          "P4": 67
         },
         "states": {
-          "HISTORICAL_ROUND": 128,
+          "HISTORICAL_ROUND": 139,
           "OTHER": 3,
-          "PASS": 283,
-          "PENDING": 12
+          "PASS": 297,
+          "PENDING": 2
         },
         "unclaimed_carried_findings": 41,
         "unclassified": 3
@@ -379,7 +379,7 @@
         "S20-280 is a request-owned fixture profile with no VM integration, protected capability authority, or live host confinement",
         "S20-290 emits derived in-memory envelopes only; canonical report bodies, persistence, policy/resource finality, TestCase pass, and the M2 exit remain blocked",
         "S20-300 is a restricted modeled-request conformance cache only; six entity bodies, strict root/object extraction, complete-root indexes, useful safe reuse, and root-backed S20-310 remain blocked",
-        "S20-310 exposes only four modeled-snapshot queries with hard no-partial limits; nineteen root-backed query classes, truncation/continuation, capsules, SMP1, full M3, and GA remain blocked",
+        "S20-310 implements nineteen root-backed query classes with governed truncation and continuation. The revision-7 wording amendments and current delta have three-lane Council PASS at 97b9117; broader M3 and GA acceptance remain subject to their own package and release gates.",
         "S20-320 is only a complete restricted-query evidence envelope with a distinct ID; master context capsules, verified workspace/root/session facts, lawful omission/continuation, downstream S20-330/S20-400/S20-620, M3, M5, and GA remain blocked",
         "S20-330 is deliberately unimplemented until negotiated session, verified workspace/root, and epoch authority exist; claimed roots and capsule IDs are forbidden substitutes",
         "S20-340 is immutable descriptor codegen only; later restricted packages now provide candidate construction, validation, and one fixed-head commit boundary, while full executable semantic operations, policy transitions, M3/M4, and GA remain blocked",
@@ -388,7 +388,7 @@
         "S20-390 is complete only for restricted fixed-head atomic commit with no selected tests; named refs, branches, recursive recovery, clone-equivalent transaction exchange, full semantics, runtime authority, M3/M4, and GA remain blocked",
         "S20-370 protects policy, oracle roots, and named entity bindings; S20-380 adds narrow local authenticated tokens plus exact scope/expiry/replay/budget enforcement for the in-memory reference wrapper, but policy-transition authentication, candidate/VM integration, live-host confinement, commit, and production-epoch assembly remain blocked",
         "S20-610 preserves offline injected digest claims only; no raw fixture, executable adapter, external head anchor, artifact/oracle/accounting verification, or benchmark trial exists",
-        "S20-710 local lock inventory and bounded high-confidence scan pass, but operator-approved root license text, a standards SBOM, release provenance, release-candidate re-anchoring, and final independent dispositions remain blocked",
+        "S20-710 root licensing is operator-approved; the standards SBOM and unsigned provenance are derived, and the candidate is reproduced on two hosts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and final release Council approval remain held. The reachable-anchor mapping did not advance the scan boundary.",
         "The succession corpus is frozen but no benchmark trial has executed"
       ]
     },
@@ -417,8 +417,8 @@
           "M3/M4 effectful runtime: S20-280 full host access and S20-380 full token authority own the semantics of effect_request, adapter_invoke, and capability_narrow. Slice E7a landed contract_assert, which needed neither",
           "M4 test execution: no TestCase has been executed under any authority, so sley-test-report-v1 has no corpus of produced reports",
           "M5 succession: the harness passes its three smokes and no trial has run; the six per-arm metrics need executed trials, which need model access and spend authorization",
-          "M6 release: the evidence chain is built and drift-checked (SBOM, provenance, reproducibility, finding register, GA acceptance, decision dossier). What remains is the operator's: the root license text, a second host attestation, and the release decision itself",
-          "Independent review: sixty-nine bounded requests are staged and every allowed Council lane is down",
+          "M6 release: the evidence chain is built and drift-checked (SBOM, unsigned provenance, two-host reproducibility, finding register, GA acceptance, decision dossier). Root licensing is approved and the second-host lane has been exercised with retained custody receipts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and the release decision remain held.",
+          "Independent review: the user-authorized Council qualification rounds are available and recorded under evidence/review/rounds. Current-delta verdicts are distinct from the remaining final independent release and security dispositions; broader pending review obligations remain in their owner records.",
           "Provenance/similarity audit of the Sley 1.2 source: PERFORMED 2026-09-07 (s20-780-similarity-audit-2026-09-07.md, local evidence, independent review pending). Blocks GA acceptance of the clean-room claim until independently reviewed; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
         ]
       }
@@ -457,7 +457,7 @@
       }
     }
   ],
-  "entries_digest": "4cb92d6d8b0d8b0fd9542bc4fb5f76358014444ce9f3336b65f157e4f92b0c97",
+  "entries_digest": "af553c90093721299dee85064484faf45918270b41e5067ed04159d62e562f75",
   "evidenced": 24,
   "gated": 10,
   "gates": {
