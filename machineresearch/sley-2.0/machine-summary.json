@@ -4229,11 +4229,11 @@
     "ariadne_contract_review_revision_4_note": "REVISE via harness ariadne 2026-09-15 on a809906f78f1bfdb9cde8da4c108c4d692dad297 (transcript evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-a809906.md): P3 the SPDX document carried a hasExtractedLicensingInfos entry for the listed identifier Apache-2.0 (SPDX 2.3 clause 10.1 reserves it for LicenseRef- ids); P4 section 2 shape freeze omitted emitted fields and section 1 lock-digest wording; P4 closure HEAD said to be recorded in the summary. Repaired the same day (builder drops the entry, spec sections 1/2/3/7 reworded, test renamed to its claim); prior a4b6029 P3/P4 and the 3320ca9 P3 items confirmed closed. The delta verdict at the repair commit replaces the base field.",
     "ariadne_contract_review_note": "base field held at the revision-3 PASS (4 P3, since closed) pending the delta lane over the 2026-09-15 repair; the round at a809906 returned REVISE (1 P3, 2 P4), see ariadne_contract_review_revision_4_note.",
     "current_delta_review": {
-      "ariadne": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
-      "nabu": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "ariadne": "PASS",
+      "nabu": "PASS",
       "vulcan": "PASS"
     },
-    "current_delta_review_note": "Independent Council repair review at 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb through three claude-code sessions. Exact verdicts above; transcripts: evidence/review/verdicts/standards_sbom_and_provenance/ariadne-97b9117.md, evidence/review/verdicts/standards_sbom_and_provenance/nabu-97b9117.md, evidence/review/verdicts/standards_sbom_and_provenance/vulcan-97b9117.md. Orchestrator validation is recorded separately in evidence/validation/qualification-followup-2026-09-15.json; reviewer checks and limitations are stated in each transcript. Historical 400895e reports remain preserved.",
+    "current_delta_review_note": "Independent Council repair review at a7c69f8efa2267db944929288b2d508d40838fe4 through three claude-code sessions. Exact verdicts above; transcripts: evidence/review/verdicts/standards_sbom_and_provenance/ariadne-a7c69f8.md, evidence/review/verdicts/standards_sbom_and_provenance/nabu-a7c69f8.md, evidence/review/verdicts/standards_sbom_and_provenance/vulcan-a7c69f8.md. Orchestrator validation is recorded separately in evidence/validation/qualification-followup-2026-09-15.json; reviewer checks and limitations are stated in each transcript. Historical 97b9117 reports remain preserved.",
     "ariadne_contract_review_revision_5": "REVISE_0_P0_0_P1_0_P2_1_P3_3_P4",
     "ariadne_contract_review_revision_5_note": "Historical current-delta verdict at e050fe75a86c1b2f0bf779561ac2bc70bce34289; superseded by the fresh 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47 review. Transcript: evidence/review/verdicts/standards_sbom_and_provenance/ariadne-e050fe7.md.",
     "nabu_architecture_review_revision_4": "REVISE_0_P0_0_P1_0_P2_0_P3_4_P4",
@@ -4245,7 +4245,13 @@
     "nabu_architecture_review_revision_5": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
     "nabu_architecture_review_revision_5_note": "Historical current-delta verdict at 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47; superseded by the fresh 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb review. Transcript: evidence/review/verdicts/standards_sbom_and_provenance/nabu-400895e.md.",
     "vulcan_surface_review_revision_7": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
-    "vulcan_surface_review_revision_7_note": "Historical current-delta verdict at 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47; superseded by the fresh 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb review. Transcript: evidence/review/verdicts/standards_sbom_and_provenance/vulcan-400895e.md."
+    "vulcan_surface_review_revision_7_note": "Historical current-delta verdict at 400895e623a1c8fc7b5ba3c3a5c80eed939d9c47; superseded by the fresh 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb review. Transcript: evidence/review/verdicts/standards_sbom_and_provenance/vulcan-400895e.md.",
+    "ariadne_contract_review_revision_7": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+    "ariadne_contract_review_revision_7_note": "Historical current-delta verdict at 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb; superseded by the fresh a7c69f8efa2267db944929288b2d508d40838fe4 review. Transcript: evidence/review/verdicts/standards_sbom_and_provenance/ariadne-97b9117.md.",
+    "nabu_architecture_review_revision_6": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+    "nabu_architecture_review_revision_6_note": "Historical current-delta verdict at 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb; superseded by the fresh a7c69f8efa2267db944929288b2d508d40838fe4 review. Transcript: evidence/review/verdicts/standards_sbom_and_provenance/nabu-97b9117.md.",
+    "vulcan_surface_review_revision_8": "PASS",
+    "vulcan_surface_review_revision_8_note": "Historical current-delta verdict at 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb; superseded by the fresh a7c69f8efa2267db944929288b2d508d40838fe4 review. Transcript: evidence/review/verdicts/standards_sbom_and_provenance/vulcan-97b9117.md."
   },
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
@@ -4255,8 +4261,8 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 441,
-    "open_reviews": 2,
+    "obligations": 444,
+    "open_reviews": 0,
     "deferred_reviews": 0,
     "unclassified_dispositions": 3,
     "complete_packages": 37,
@@ -4309,7 +4315,6 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "19 GA acceptance criteria are not evidenced",
-      "2 review obligations are open",
       "3 review dispositions are unclassified",
       "no succession trial has been executed",
       "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",

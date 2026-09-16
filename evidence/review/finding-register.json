@@ -101,7 +101,7 @@
       "status": "IMPLEMENTED_SCOPED_S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY"
     }
   ],
-  "obligation_count": 441,
+  "obligation_count": 444,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -5620,6 +5620,20 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "field": "ariadne_contract_review_revision_7",
+      "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "ariadne",
+      "section": "standards_sbom_and_provenance",
+      "severities": [
+        "P4"
+      ],
+      "state": "HISTORICAL_ROUND",
+      "superseded_by": "ariadne_contract_review"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "PASS",
       "field": "nabu_architecture_review",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
@@ -5691,6 +5705,20 @@
       "declares_no_open_p0_p1_p2": false,
       "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
       "field": "nabu_architecture_review_revision_5",
+      "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "nabu",
+      "section": "standards_sbom_and_provenance",
+      "severities": [
+        "P4"
+      ],
+      "state": "HISTORICAL_ROUND",
+      "superseded_by": "nabu_architecture_review"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "field": "nabu_architecture_review_revision_6",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
       "section": "standards_sbom_and_provenance",
@@ -5818,29 +5846,37 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
-      "field": "current_delta_review.ariadne",
+      "disposition": "PASS",
+      "field": "vulcan_surface_review_revision_8",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
-      "reviewer": "ariadne",
-      "section": "standards_sbom_and_provenance.current_delta_review",
-      "severities": [
-        "P4"
-      ],
-      "state": "PENDING",
+      "reviewer": "vulcan",
+      "section": "standards_sbom_and_provenance",
+      "severities": [],
+      "state": "PASS",
       "superseded_by": null
     },
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "disposition": "PASS",
+      "field": "current_delta_review.ariadne",
+      "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "ariadne",
+      "section": "standards_sbom_and_provenance.current_delta_review",
+      "severities": [],
+      "state": "PASS",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
+      "disposition": "PASS",
       "field": "current_delta_review.nabu",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
       "section": "standards_sbom_and_provenance.current_delta_review",
-      "severities": [
-        "P4"
-      ],
-      "state": "PENDING",
+      "severities": [],
+      "state": "PASS",
       "superseded_by": null
     },
     {
@@ -6437,25 +6473,8 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "obligations_digest": "080c9ecade7f5efb3fd20a417c0dcf9013b7e2cd3830be67297d95e74ff35a42",
-  "open_reviews": [
-    {
-      "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
-      "field": "current_delta_review.ariadne",
-      "section": "standards_sbom_and_provenance.current_delta_review",
-      "severities": [
-        "P4"
-      ]
-    },
-    {
-      "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
-      "field": "current_delta_review.nabu",
-      "section": "standards_sbom_and_provenance.current_delta_review",
-      "severities": [
-        "P4"
-      ]
-    }
-  ],
+  "obligations_digest": "d2df44de620177cdb625d4e35a4224c3593e426fd55a95486ae0414f0a2f619b",
+  "open_reviews": [],
   "package_open_claims": {
     "clean_room_disposition_register.p0_open": 0,
     "clean_room_disposition_register.p0_open_count": 0,
@@ -6522,7 +6541,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "e532e2662b2be4bc8fe6e3759a29c81fa84904a46391f8d5409c19cbe8f01246",
+  "register_digest": "2b2610424dea8675b7144f9529be7511873042abe211a509bb9aa9cf29eb5a4e",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
@@ -6533,10 +6552,9 @@
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
-    "HISTORICAL_ROUND": 139,
+    "HISTORICAL_ROUND": 141,
     "OTHER": 3,
-    "PASS": 297,
-    "PENDING": 2
+    "PASS": 300
   },
   "superseded_rounds": [
     {
@@ -7242,6 +7260,12 @@
       "superseded_by": "ariadne_contract_review"
     },
     {
+      "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "field": "ariadne_contract_review_revision_7",
+      "section": "standards_sbom_and_provenance",
+      "superseded_by": "ariadne_contract_review"
+    },
+    {
       "disposition": "REVISE_0_P0_2_P1_4_P2_3_P3",
       "field": "nabu_architecture_review_revision_1",
       "section": "standards_sbom_and_provenance",
@@ -7262,6 +7286,12 @@
     {
       "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
       "field": "nabu_architecture_review_revision_5",
+      "section": "standards_sbom_and_provenance",
+      "superseded_by": "nabu_architecture_review"
+    },
+    {
+      "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "field": "nabu_architecture_review_revision_6",
       "section": "standards_sbom_and_provenance",
       "superseded_by": "nabu_architecture_review"
     },

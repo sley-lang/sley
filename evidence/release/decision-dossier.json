@@ -3,14 +3,13 @@
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
     "19 GA acceptance criteria are not evidenced",
-    "2 review obligations are open",
     "3 review dispositions are unclassified",
     "no succession trial has been executed",
     "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "4677348a0091b661b0f0afe36fc821c38b255039617a26fdcb650f80f9ca0e30",
+  "dossier_digest": "922d035c56453eadc7db29cc5528d944ce3e215aa155019192ef728e8effa3d0",
   "entries": [
     {
       "evidence": [
@@ -341,8 +340,8 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 441,
-        "open_reviews": 2,
+        "obligations": 444,
+        "open_reviews": 0,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 126,
@@ -352,10 +351,9 @@
           "P4": 67
         },
         "states": {
-          "HISTORICAL_ROUND": 139,
+          "HISTORICAL_ROUND": 141,
           "OTHER": 3,
-          "PASS": 297,
-          "PENDING": 2
+          "PASS": 300
         },
         "unclaimed_carried_findings": 41,
         "unclassified": 3
@@ -457,7 +455,7 @@
       }
     }
   ],
-  "entries_digest": "af553c90093721299dee85064484faf45918270b41e5067ed04159d62e562f75",
+  "entries_digest": "32139ca59857fef9a920e9e3f7e3e740a5900d233716658e504b733366207f26",
   "evidenced": 24,
   "gated": 10,
   "gates": {
