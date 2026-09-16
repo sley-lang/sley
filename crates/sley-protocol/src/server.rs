@@ -44,7 +44,9 @@ use sley_repo::{
     prepare_verified_entity_read, read_execution_report, run_root_query, run_root_query_fresh,
     store_execution_report, transaction_ancestry,
 };
-use sley_scb1::{encode_bytes, encode_list, encode_record, encode_union, encode_uvar};
+use sley_scb1::{
+    encode_bytes, encode_list, encode_option_uvar, encode_record, encode_union, encode_uvar,
+};
 use sley_state_root::conformance_epoch_id as state_epoch_id;
 use sley_state_root::{
     AcceptedStateRoot, conformance_registry as state_registry, import_state_root,
@@ -210,6 +212,8 @@ const DIAGNOSTIC_TOKEN_TTL_MILLIS: u64 = 300_000;
 const MAX_DIAGNOSTIC_TOKENS_PER_SESSION: usize = 32;
 /// Maximum cached diagnostic report bytes per session (64 MiB).
 const MAX_DIAGNOSTIC_BYTES_PER_SESSION: u64 = 67_108_864;
+/// Maximum bytes served on one 605 report page (contract appendix C).
+const MAX_DIAGNOSTIC_PAGE_BYTES: u64 = 65_536;
 /// Maximum cached diagnostic attempts per server; the oldest goes on
 /// overflow, and a re-submitted attempt simply re-executes.
 const MAX_DIAGNOSTIC_ATTEMPTS: usize = 256;
@@ -219,9 +223,15 @@ const MAX_DIAGNOSTIC_ATTEMPTS: usize = 256;
 const DIAGNOSTIC_TOKEN_DOMAIN: &[u8] = b"sley2.diagnostic-report-token.v1";
 
 /// One minted diagnostic report token with its cached report bytes.
+///
+/// The bound report identity and root are part of the minted capability:
+/// 605 answers them back verbatim, so a token can never be rebound to a
+/// different report or root.
 struct DiagnosticToken {
     token: [u8; 32],
     session: SessionId,
+    report_id: [u8; 32],
+    bound_root: [u8; 32],
     report: Vec<u8>,
     created_millis: u64,
 }
@@ -469,13 +479,15 @@ impl Server {
     /// The hello a native-capable server offers: versions 1 through 3 with
     /// the v3 method table and the native-tests feature bit. The hello
     /// frame itself still travels at frame version 1 so older peers can
-    /// read the offer and negotiate down. The selection reads 601/602 are
-    /// offered since N7c (listable only with version 3 and the bit, so
-    /// older negotiations still refuse them byte-for-byte); 605-607 stay
-    /// reserved until N7d, so the offer carries none of those tags yet:
-    /// with the bit, a peer-offered pending tag negotiates and refuses as
-    /// reserved; without the bit, negotiation strips native tags and they
-    /// refuse as not-negotiated.
+    /// read the offer and negotiate down. The live native reads 601/602
+    /// (since N7c) and 605 (since N7d-1) are offered (listable only with
+    /// version 3 and the bit); older negotiations still refuse 601/602 as
+    /// reserved byte-for-byte, while 605 never existed in the frozen v1/v2
+    /// tables and refuses at decode as unsupported. 606-607 stay reserved
+    /// until N7d-2, so the offer carries none of those tags yet: with the
+    /// bit, a peer-offered pending tag negotiates and refuses as reserved;
+    /// without the bit, negotiation strips native tags and they refuse as
+    /// not-negotiated.
     ///
     /// # Errors
     ///
@@ -491,7 +503,7 @@ impl Server {
             methods: Method::V3_ALL
                 .iter()
                 .copied()
-                .filter(|method| !method.is_reserved() || method.is_native_selection())
+                .filter(|method| !method.is_reserved() || method.is_native_test())
                 .map(Method::tag)
                 .collect(),
             features: FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1,
@@ -553,6 +565,12 @@ impl Server {
     #[cfg(test)]
     pub(crate) fn set_entity_encode_fault(&mut self, fault: bool) {
         self.entity_encode_fault = fault;
+    }
+
+    /// Test-only wall-clock override for diagnostic token expiry.
+    #[cfg(test)]
+    pub(crate) fn set_clock_millis(&mut self, now: fn() -> u64) {
+        self.now_millis = now;
     }
 
     /// Test-only accepted-head load count through [`Server::head`].
@@ -1046,11 +1064,8 @@ impl Server {
         method: Method,
         frame: &ProtocolFrame,
     ) -> Result<(Vec<u8>, BoundedContext)> {
-        if method.is_native_selection()
-            && self.native_selection_live()
-            && self.profile.admits(method)
-        {
-            return self.tests_selection(session, method, &frame.body);
+        if method.is_native_test() && self.native_tests_live() && self.profile.admits(method) {
+            return self.tests_native(session, method, &frame.body);
         }
         if !self.profile.admits(method) || method.is_reserved() {
             if method.is_reserved() {
@@ -1123,13 +1138,12 @@ impl Server {
             Method::Report => self.report(body),
             Method::Diagnostics
             | Method::RefMoveProtected
-            | Method::TestsReportRead
             | Method::TestsReplay
             | Method::TestsAttemptStatus => Err(reserved_refusal(method)),
-            // Native selection reads never reach the generic dispatch: the
-            // gate above routes live calls to `tests_selection`, and every
-            // other version refuses them as reserved before this arm.
-            Method::TestsSelected | Method::TestsAffected => {
+            // Live native reads never reach the generic dispatch: the
+            // gate above routes them to `tests_native`, and every other
+            // version refuses them as reserved before this arm.
+            Method::TestsSelected | Method::TestsAffected | Method::TestsReportRead => {
                 protocol_failure(ProtocolErrorCode::InternalInvariant)
             }
             Method::EntityVersion | Method::EntitySignature => {
@@ -1176,22 +1190,25 @@ impl Server {
         self.plain(Vec::new())
     }
 
-    /// Whether the native selection reads dispatch on this server: explicit
+    /// Whether the live native reads dispatch on this server: explicit
     /// version-aware serving with a selected version 3 and the negotiated
     /// native-tests bit. Legacy servers keep refusing them as reserved even
     /// when a negotiated intersection retained their numerics.
-    fn native_selection_live(&self) -> bool {
+    fn native_tests_live(&self) -> bool {
         self.version_aware
             && self.profile.protocol_version == PROTOCOL_VERSION_V3
             && self.profile.features & FEATURE_NATIVE_TESTS_V1 != 0
     }
 
-    /// Routes a live native selection read after the admission gate proved
+    /// Routes a live native read after the admission gate proved
     /// version 3, the bit, and negotiation. The session root must still be
     /// the accepted head: diagnostics answer over the live binding, and a
     /// session left behind by a head advance fails stale instead of
-    /// answering over a root the head no longer names.
-    fn tests_selection(
+    /// answering over a root the head no longer names. Report paging
+    /// serves immutable cached bytes rather than head state, but the same
+    /// staleness bar keeps one session view coherent: a token minted under
+    /// a moved-past root is already dead by invalidation.
+    fn tests_native(
         &mut self,
         session: SessionId,
         method: Method,
@@ -1210,7 +1227,11 @@ impl Server {
         }
         match method {
             Method::TestsSelected => self.tests_selected(session, workspace, &head, body),
-            _ => self.tests_affected(session, workspace, &head, body),
+            Method::TestsAffected => self.tests_affected(session, workspace, &head, body),
+            Method::TestsReportRead => self.tests_report_read(session, body),
+            // Replay and attempt status join the router in N7d-2; reaching
+            // here with any other tag is an internal invariant breach.
+            _ => protocol_failure(ProtocolErrorCode::InternalInvariant),
         }
     }
 
@@ -1275,7 +1296,14 @@ impl Server {
             &executions,
         )
         .map_err(|error| owner(error.symbol(), error.numeric()))?;
-        self.store_diagnostic(session, attempt, bindings, &plan, &assembly)
+        self.store_diagnostic(
+            session,
+            attempt,
+            bindings,
+            &plan,
+            &assembly,
+            head.state_root().root,
+        )
     }
 
     /// 602 `tests.affected`: validates the candidate against the session
@@ -1369,7 +1397,66 @@ impl Server {
             &executions,
         )
         .map_err(|error| owner(error.symbol(), error.numeric()))?;
-        self.store_diagnostic(session, attempt, bindings, &plan, &assembly)
+        self.store_diagnostic(
+            session,
+            attempt,
+            bindings,
+            &plan,
+            &assembly,
+            validated.candidate_root().root,
+        )
+    }
+
+    /// 605 `tests.report_read`: serves one page of the Stored native
+    /// test report a live token names (contract appendix C, revision 4).
+    ///
+    /// Page length is `min(max_bytes, 65536, total - offset)`; the final
+    /// page answers next `None`, any earlier page `Some(offset + length)`.
+    /// A token minted for another session, an expired token, or an
+    /// unknown token refuses as `NATIVE_TOKEN_INVALID`: paging never
+    /// falls back to a semantic entity-handle lookup. Request shape
+    /// (arity, nonzero `max_bytes` fitting `UInt32`) is checked before
+    /// token lookup; the offset bound needs the bound total, so it is
+    /// checked after.
+    fn tests_report_read(
+        &self,
+        session: SessionId,
+        body: &[u8],
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 3)?;
+        let token = fixed32(fields[0])?;
+        let offset = single_uvar(fields[1])?;
+        let max_bytes = single_uvar(fields[2])?;
+        if max_bytes == 0 || u32::try_from(max_bytes).is_err() {
+            return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+        }
+        let now = (self.now_millis)();
+        let Some(entry) = self.diagnostic_tokens.iter().find(|candidate| {
+            candidate.token == token && candidate.session == session && !candidate.expired(now)
+        }) else {
+            return Err(owner("NATIVE_TOKEN_INVALID", 0));
+        };
+        let total = to_u64(entry.report.len())?;
+        if offset > total {
+            return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+        }
+        let length = max_bytes.min(MAX_DIAGNOSTIC_PAGE_BYTES).min(total - offset);
+        let end = offset + length;
+        let start = usize::try_from(offset)
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))?;
+        let stop = usize::try_from(end)
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))?;
+        let page = entry.report[start..stop].to_vec();
+        let next = (end < total).then_some(end);
+        let body = scb(encode_record(&[
+            (1, entry.report_id.to_vec()),
+            (2, entry.bound_root.to_vec()),
+            (3, encode_uvar(offset)),
+            (4, encode_uvar(total)),
+            (5, scb(encode_bytes(&page))?),
+            (6, scb(encode_option_uvar(next))?),
+        ]))?;
+        self.counted(body, 0)
     }
 
     /// Replays a completed diagnostic attempt without re-executing.
@@ -1415,6 +1502,7 @@ impl Server {
         bindings: Vec<u8>,
         plan: &NativeTestPlanV1,
         assembly: &NativeDiagnosticAssembly,
+        bound_root: StateRoot,
     ) -> Result<(Vec<u8>, BoundedContext)> {
         let report_bytes = assembly.report.stored_bytes().to_vec();
         let total = to_u64(report_bytes.len())?;
@@ -1452,6 +1540,8 @@ impl Server {
         self.diagnostic_tokens.push(DiagnosticToken {
             token,
             session,
+            report_id: *assembly.report.report_id().as_bytes(),
+            bound_root: *bound_root.as_bytes(),
             report: report_bytes,
             created_millis: now,
         });

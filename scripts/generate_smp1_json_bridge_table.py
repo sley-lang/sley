@@ -27,8 +27,9 @@ V2_SECTION_END = "## 5. Bounded context"
 # The version 3 additions live in the native draft family (still awaiting
 # owner review), not in the frozen SMP1 contract: SMP1.md stays revision 12
 # while the native contract owns the five rows below (two live selection
-# reads since N7c revision 3, three still-reserved rows).
-V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 3)"
+# reads since N7c revision 3, report paging live since N7d-1 revision 4,
+# two still-reserved rows).
+V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 4)"
 V3_SECTION_END = "## 7. Required implementation evidence"
 FAMILIES = {
     1: "session",
@@ -51,7 +52,8 @@ EXPECTED_V2_ADDITIONS = ((306, "entity.version"), (307, "entity.signature"))
 V2_OWNER = "S20-310"
 # The version 3 additions are exactly the five native rows owned by the
 # S20-620 test-selection seam: the two selection reads live since N7c
-# revision 3, the three report/replay/status rows still reserved to N7d.
+# revision 3, report paging live since N7d-1 revision 4, and the two
+# replay/status rows still reserved to N7d-2.
 EXPECTED_V3_ADDITIONS = (
     (601, "tests.selected"),
     (602, "tests.affected"),
@@ -62,12 +64,13 @@ EXPECTED_V3_ADDITIONS = (
 # Tags live at version 3 (reserved flips false); every other native row
 # stays reserved. A future semantics slice flips a row live by contract
 # revision, never by editing this set beside the contract.
-EXPECTED_V3_LIVE = (601, 602)
+EXPECTED_V3_LIVE = (601, 602, 605)
 # Live rows name their Appendix C typed records exactly; the bridge carries
 # no bodies, so this pin is the only machine check on the record names.
 EXPECTED_V3_LIVE_BODIES = {
     601: ("tests.selected.request", "tests.selected.response"),
     602: ("tests.affected.request", "tests.affected.response"),
+    605: ("tests.report_read.request", "tests.report_read.response"),
 }
 V3_OWNER = "S20-620"
 
@@ -150,11 +153,11 @@ def parse_v3_additions(native_text: str) -> list[dict]:
         bodies = (match.group(3).strip("`"), match.group(4).strip("`"))
         if method["tag"] in EXPECTED_V3_LIVE:
             if method["reserved"]:
-                raise SystemExit(f"v3 addition {method['tag']} is live since N7c and must not be reserved")
+                raise SystemExit(f"v3 addition {method['tag']} is live and must not be reserved")
             if bodies != EXPECTED_V3_LIVE_BODIES[method["tag"]]:
                 raise SystemExit(f"v3 addition {method['tag']} must name its Appendix C records, found {bodies}")
         elif not method["reserved"]:
-            raise SystemExit(f"v3 addition {method['tag']} must stay reserved until N7d")
+            raise SystemExit(f"v3 addition {method['tag']} must stay reserved until N7d-2")
     return additions
 
 
@@ -238,11 +241,17 @@ def build(protocol_version: int = 1) -> dict:
     frozen_tags = {method["tag"]: method for method in v1_methods + v2_additions}
     for method in live:
         frozen = frozen_tags.get(method["tag"])
-        if frozen is None or not frozen["reserved"] or frozen["name"] != method["name"]:
+        if frozen is None:
+            # A live row with no frozen ancestor (605 report paging) is
+            # appended fresh: nothing reserved flips under us, so only the
+            # contract-section parse above constrains it.
+            continue
+        if not frozen["reserved"] or frozen["name"] != method["name"]:
             raise SystemExit(f"v3 live row {method['tag']} is not the frozen reserved row")
     base = [method for method in v1_methods + v2_additions if method["tag"] not in EXPECTED_V3_LIVE]
     union = sorted(base + live + pending, key=lambda method: method["tag"])
-    if len(union) != EXPECTED_V1_METHODS + len(v2_additions) + len(pending):
+    fresh = [method for method in live if method["tag"] not in frozen_tags]
+    if len(union) != EXPECTED_V1_METHODS + len(v2_additions) + len(pending) + len(fresh):
         raise SystemExit("version 3 union lost rows")
     if {method["tag"] for method in pending} & set(frozen_tags):
         raise SystemExit("v3 additions overlap the frozen tables")

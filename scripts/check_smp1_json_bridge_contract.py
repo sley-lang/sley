@@ -22,7 +22,7 @@ V2_TABLE = ROOT / "conformance/smp1-json-bridge/v2/methods.json"
 # counts and union shape, while its revision lives in the native contract.
 V3_TABLE = ROOT / "conformance/smp1-json-bridge/v3/methods.json"
 NATIVE_SPEC = ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md"
-V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 3)"
+V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 4)"
 SPEC_REVISION = 10
 SMP1_REVISION = 12
 
@@ -187,10 +187,11 @@ def main() -> int:
         problems.append("methods-table-v3:missing")
     # Both static method tables and their counts: version 1 stays 41/37,
     # version 2 is the sorted union at 43/39 with the same four reserved.
-    # Version 3 overrides the frozen reserved 601/602 rows with the live
-    # native selection reads and unions the three still-reserved native
-    # rows at 46/41 with five reserved; the frozen contract text is
-    # untouched, so the native draft section below is the v3 authority.
+    # Version 3 overrides the frozen reserved 601/602/605 rows with the live
+    # native selection reads and report paging, and unions the two
+    # still-reserved native rows at 46/42 with four reserved; the frozen
+    # contract text is untouched, so the native draft section below is the
+    # v3 authority.
     tables: dict[str, dict] = {}
     for label, path in (("v1", TABLE), ("v2", V2_TABLE), ("v3", V3_TABLE)):
         if not path.exists():
@@ -212,7 +213,7 @@ def main() -> int:
         problems.append("methods-table-v2:union")
     if v2_tags and [tag for tag in v2_tags if tag in (306, 307)] != [306, 307]:
         problems.append("methods-table-v2:additions")
-    if v3_table.get("method_count") != 46 or v3_table.get("reserved_count") != 5:
+    if v3_table.get("method_count") != 46 or v3_table.get("reserved_count") != 4:
         problems.append("methods-table-v3:counts")
     v3_tags = [method.get("tag") for method in v3_table.get("methods", [])]
     if v2_tags and v3_tags and v3_tags != sorted(set(v2_tags) | {605, 606, 607}):
@@ -224,11 +225,9 @@ def main() -> int:
         for method in v3_table.get("methods", [])
         if method.get("tag") in (601, 602, 605, 606, 607)
     }
-    if v3_live and (v3_live.get(601) or v3_live.get(602)):
+    if v3_live and (v3_live.get(601) or v3_live.get(602) or v3_live.get(605)):
         problems.append("methods-table-v3:live-rows")
-    if v3_live and not (
-        v3_live.get(605) and v3_live.get(606) and v3_live.get(607)
-    ):
+    if v3_live and not (v3_live.get(606) and v3_live.get(607)):
         problems.append("methods-table-v3:reserved-rows")
     if v3_table.get("v3_source") != "docs/spec/NATIVE_TEST_ADMISSION_V1.md":
         problems.append("methods-table-v3:source")

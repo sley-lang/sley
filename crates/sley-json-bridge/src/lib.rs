@@ -63,8 +63,9 @@ pub const METHOD_TABLE_V2_JSON: &str =
 /// The generated version 3 method table, embedded verbatim from
 /// `conformance/smp1-json-bridge/v3/methods.json`: the frozen version 1 and
 /// version 2 tables plus exactly the five native rows (`tests.selected`
-/// 601 and `tests.affected` 602 live since N7c, `tests.report_read` 605,
-/// `tests.replay` 606, `tests.attempt_status` 607 still reserved) owned by
+/// 601 and `tests.affected` 602 live since N7c, `tests.report_read` 605 live
+/// since N7d-1, `tests.replay` 606 and `tests.attempt_status` 607 still
+/// reserved) owned by
 /// the native draft contract (`docs/spec/NATIVE_TEST_ADMISSION_V1.md`
 /// appendix D). Additive export for the v3-capable CLI profile; both
 /// tables above are unchanged.
@@ -275,7 +276,7 @@ fn method_tag(name: &str) -> Result<u32> {
 /// Resolves a frozen method name under an explicitly selected protocol
 /// version: the version 1 table plus exactly `entity.version` (306) and
 /// `entity.signature` (307) under version 2, plus exactly the five native
-/// rows (live 601-602, reserved 605-607) under version 3.
+/// rows (live 601-602/605, reserved 606-607) under version 3.
 fn method_tag_for_version(name: &str, version: u32) -> Result<u32> {
     if name.is_empty() {
         return Ok(NO_METHOD);
@@ -737,7 +738,7 @@ fn method_name_versioned(tag: u32) -> Result<&'static str> {
 
 /// Resolves a frozen method name under an explicitly selected protocol
 /// version: version 2 resolves exactly as above; version 3 resolves the
-/// sorted union with the five native rows (live 601-602, reserved 605-607).
+/// sorted union with the five native rows (live 601-602/605, reserved 606-607).
 /// Any other version resolves version 1, matching the legacy default.
 fn method_name_for_version(tag: u32, version: u32) -> Result<&'static str> {
     if tag == NO_METHOD {
@@ -794,7 +795,7 @@ pub fn frame_value(frame: &ProtocolFrame) -> Result<Value> {
 /// Renders the `Frame` object naming methods under an explicitly selected
 /// protocol version: the version 1 names, plus exactly `entity.version`
 /// (306) and `entity.signature` (307) under version 2, plus exactly the
-/// five native rows (live 601-602, reserved 605-607) under version 3. Every
+/// five native rows (live 601-602/605, reserved 606-607) under version 3. Every
 /// other field renders exactly as the version 1 object.
 ///
 /// # Errors
@@ -808,7 +809,7 @@ pub fn frame_value_for_version(frame: &ProtocolFrame, version: u32) -> Result<Va
 fn frame_value_with(frame: &ProtocolFrame, version: u32) -> Result<Value> {
     let method = if version == PROTOCOL_VERSION_V3 {
         // Version 3 names the sorted union with the five native rows
-        // (live 601-602, reserved 605-607); every other version resolves
+        // (live 601-602/605, reserved 606-607); every other version resolves
         // exactly as before (version 1 and below legacy, anything else
         // version 2).
         method_name_for_version(frame.method, version)?
@@ -1131,7 +1132,7 @@ pub fn hello_to_json_versioned(hello: &Hello) -> Result<String> {
 
 /// Renders a validated hello as the `Hello` object under an explicitly
 /// selected protocol version: version 1 renders frozen, version 2 names
-/// the two entity-read methods, version 3 additionally names the three
+/// the two entity-read methods, version 3 additionally names the live and
 /// reserved native rows and the `native_tests` feature bit. Additive
 /// export for version-aware endpoints; both renderings above are unchanged.
 ///

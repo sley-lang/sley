@@ -1,6 +1,6 @@
 # Native Test Admission v1
 
-Status: N0 owner-contract proposal, revision 3 (2026-09-16). Independent
+Status: N0 owner-contract proposal, revision 4 (2026-09-16). Independent
 architecture review passed; this precise contract still awaits owner review,
 vectors and implementation. Reserved wire formats are not currently admitted.
 No product completion, test execution or release claim follows from this file.
@@ -415,10 +415,13 @@ bundle bytes are obtained through receipt read/export, not an overloaded report
 page. Diagnostic detailed evidence remains in the local attempt journal. Max32 tokens and64MiB
 cached evidence per session. TTL5min or session lifetime, shorter wins.
 Renew/close/checkout/commit invalidate tokens; no implicit root rebinding.
-Offsets≤total; max_bytes>0; page length=min(max_bytes,total-offset); final page
-next=None, otherwise Some(offset+length). Each call charges decoded fields,
+Offsets≤total; max_bytes>0; page length=min(max_bytes,65536,total-offset);
+final page next=None, otherwise Some(offset+length). Each call charges decoded fields,
 returned bytes and owner work to negotiated session limits. Wrong session,
-expired token or missing bytes refuses, never a semantic entity-handle lookup.
+expired token or missing bytes refuses as `NATIVE_TOKEN_INVALID`, never a
+semantic entity-handle lookup.
+605 went live in revision 4; the token's bound report_id and bound root are
+part of the minted capability and are answered back verbatim.
 
 *606 tests.replay:* `{transaction_id:Id,expected_root:Id,execution_profile:Id,
 replay_resource_policy_id:Id,attempt_id:FixedBytes16}`. Require transaction in
@@ -453,35 +456,37 @@ JSON bridge maps these exact typed records; CLI is thin SMP routing. Typed
 record allocation, exact response fields and profile identity require N7
 independent vectors; no current bridge method is implicitly activated by N0.
 
-## Appendix D. SMP v3 additions table (machine-readable, revision 3)
+## Appendix D. SMP v3 additions table (machine-readable, revision 4)
 
 Protocol version 3 is the sorted union of the frozen SMP1 version 1 and
 version 2 tables (`docs/spec/SMP1.md`, unchanged at revision 12) and exactly
-the rows below: 46 rows total, 41 dispatched methods. No second
+the rows below: 46 rows total, 42 dispatched methods. No second
 independently maintained 46-row table exists; consumers union the SMP1 tables
 with these rows in tag order. Reserved tags under version 3 are 305, 503,
-605, 606, 607: 601 and 602 went live in revision 3 with the typed records
-named below, while the three still-reserved rows name the S20-620
-test-selection seam, so a version 3 refusal of 605-607 names
+606, 607: 601, 602 and 605 went live (revisions 3 and 4) with the typed
+records named below, while the two still-reserved rows name the S20-620
+test-selection seam, so a version 3 refusal of 606-607 names
 `SMP1-RESERVED-S20-620` exactly as versions 1 and 2 do.
 
-Rows 605-607 stay reserved until N7d (605 report paging, 607 attempt status,
-606 replay, and the v3 commit route): Appendix C above defines the pending
-records, and this table records current admission only. A row goes live by a
-later revision of this contract, never by appearing in a negotiated `methods`
-intersection. The generator
+Rows 606-607 stay reserved until N7d-2 (607 attempt status, 606 replay, and
+the v3 commit route): Appendix C above defines the pending records, and this
+table records current admission only. A row goes live by a later revision of
+this contract, never by appearing in a negotiated `methods` intersection. The
+generator
 (`scripts/generate_smp1_json_bridge_table.py --protocol-version 3`) parses
-exactly these rows: at version 3 it overrides the frozen reserved 601/602
+exactly these rows: at version 3 it overrides the frozen reserved 601/602/605
 rows with the live rows below (reserved flips false, bodies stay with the
-bridge as for every other method) and keeps 605-607 reserved; a method row
+bridge as for every other method) and keeps 606-607 reserved; a method row
 anywhere else in this file is drift. Versions 1 and 2 generate from the
-frozen tables alone and refuse 601/602 byte-for-byte as before.
+frozen tables alone: 601/602 refuse as reserved byte-for-byte as before,
+while 605 never existed in those tables and refuses at decode as
+unsupported.
 
 | Tag | Method | Request body | Response body | Owner |
 |---:|---|---|---|---|
 | 601 | `tests.selected` | `tests.selected.request` | `tests.selected.response` | S20-620 |
 | 602 | `tests.affected` | `tests.affected.request` | `tests.affected.response` | S20-620 |
-| 605 | `tests.report_read` | reserved | reserved | S20-620 |
+| 605 | `tests.report_read` | `tests.report_read.request` | `tests.report_read.response` | S20-620 |
 | 606 | `tests.replay` | reserved | reserved | S20-620 |
 | 607 | `tests.attempt_status` | reserved | reserved | S20-620 |
 

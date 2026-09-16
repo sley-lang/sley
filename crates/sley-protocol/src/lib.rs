@@ -726,10 +726,11 @@ impl Method {
     }
 
     /// Reserved methods fail `PROTOCOL_METHOD_UNSUPPORTED` at this revision.
-    /// The three v3-native methods join the reserved set until N7d;
-    /// `tests.selected` and `tests.affected` went live at v3 with the
-    /// native-tests bit in N7c, so they stay reserved in every other
-    /// version and v1/v2 refuse them byte-for-byte as before.
+    /// The two still-pending v3-native methods join the reserved set until
+    /// N7d-2; `tests.selected`, `tests.affected` and `tests.report_read`
+    /// went live at v3 with the native-tests bit in N7c/N7d-1, so they stay
+    /// reserved in every other version and v1/v2 refuse them byte-for-byte
+    /// as before.
     #[must_use]
     pub const fn is_reserved(self) -> bool {
         matches!(
@@ -751,6 +752,18 @@ impl Method {
     #[must_use]
     pub const fn is_native_selection(self) -> bool {
         matches!(self, Self::TestsSelected | Self::TestsAffected)
+    }
+
+    /// Native test reads live at v3 with the native-tests bit and only
+    /// there: the two selection reads plus report paging. Replay and
+    /// attempt status join in N7d-2; until then they stay reserved even
+    /// at v3 with the bit.
+    #[must_use]
+    pub const fn is_native_test(self) -> bool {
+        matches!(
+            self,
+            Self::TestsSelected | Self::TestsAffected | Self::TestsReportRead
+        )
     }
 
     /// Resolves a frozen tag.
@@ -862,7 +875,7 @@ impl Hello {
             || self.methods.iter().any(|tag| {
                 Method::from_tag(*tag).is_ok_and(|method| {
                     method.is_reserved()
-                        && !(method.is_native_selection()
+                        && !(method.is_native_test()
                             && self.protocol_versions.contains(&PROTOCOL_VERSION_V3)
                             && self.features & FEATURE_NATIVE_TESTS_V1 != 0)
                 })
@@ -1032,13 +1045,13 @@ pub fn negotiate(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
 /// The legacy derivation is preserved exactly, including opaque unknown
 /// numeric intersections; only the known higher-version tags are filtered
 /// from the intersection when the selected version is lower. Reserved tags
-/// remain invalid offers, except the native selection reads 601/602, which
-/// a hello offering version 3 may list exactly when it sets
+/// remain invalid offers, except the live native test reads 601/602/605,
+/// which a hello offering version 3 may list exactly when it sets
 /// `FEATURE_NATIVE_TESTS_V1`. On v3 the native tags additionally require
 /// the negotiated bit: a selected intersection that lacks the bit drops
 /// them before the profile hash, so they refuse as not-negotiated rather
-/// than reserved; with the bit 601/602 dispatch while 605-607 still refuse
-/// as reserved.
+/// than reserved; with the bit 601/602/605 dispatch while 606-607 still
+/// refuse as reserved.
 ///
 /// # Errors
 ///
@@ -3403,7 +3416,12 @@ mod tests {
         assert!(Method::TestsSelected.is_native_selection());
         assert!(Method::TestsAffected.is_native_selection());
         assert!(!Method::TestsReportRead.is_native_selection());
-        assert!(!Method::Report.is_native_selection());
+        assert!(Method::TestsSelected.is_native_test());
+        assert!(Method::TestsAffected.is_native_test());
+        assert!(Method::TestsReportRead.is_native_test());
+        assert!(!Method::TestsReplay.is_native_test());
+        assert!(!Method::TestsAttemptStatus.is_native_test());
+        assert!(!Method::Report.is_native_test());
         assert!(!Method::Report.is_reserved());
         for method in Method::V3_ALL {
             assert_eq!(

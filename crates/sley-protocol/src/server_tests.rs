@@ -3318,11 +3318,11 @@ fn v3_methods() -> Vec<u32> {
 }
 
 /// The native-capable offer: the non-reserved v3 methods plus the live
-/// selection reads 601/602 (still-reserved 605-607 stay unoffered).
+/// native reads 601/602/605 (still-reserved 606-607 stay unoffered).
 fn v3_offered_methods() -> Vec<u32> {
     Method::V3_ALL
         .iter()
-        .filter(|method| !method.is_reserved() || method.is_native_selection())
+        .filter(|method| !method.is_reserved() || method.is_native_test())
         .map(|method| method.tag())
         .collect()
 }
@@ -3413,15 +3413,15 @@ fn v3_offered_hello_names_v3_table_and_native_bit() {
         vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3]
     );
     assert_eq!(offered.methods, v3_offered_methods());
-    assert_eq!(offered.methods.len(), v3_methods().len() + 2);
-    for tag in [TESTS_SELECTED_TAG, TESTS_AFFECTED_TAG] {
+    assert_eq!(offered.methods.len(), v3_methods().len() + 3);
+    for tag in [
+        TESTS_SELECTED_TAG,
+        TESTS_AFFECTED_TAG,
+        TESTS_REPORT_READ_TAG,
+    ] {
         assert!(offered.methods.contains(&tag), "v3 offers live {tag}");
     }
-    for tag in [
-        TESTS_REPORT_READ_TAG,
-        TESTS_REPLAY_TAG,
-        TESTS_ATTEMPT_STATUS_TAG,
-    ] {
+    for tag in [TESTS_REPLAY_TAG, TESTS_ATTEMPT_STATUS_TAG] {
         assert!(
             !offered.methods.contains(&tag),
             "v3 offers no pending {tag}"
@@ -3455,15 +3455,13 @@ fn v3_offered_hello_names_v3_table_and_native_bit() {
 
 #[test]
 fn v3_native_calls_refuse_reserved_with_bit_and_unnegotiated_without() {
-    // With the bit, a peer-offered native tag negotiates and refuses as
-    // reserved; without the bit, negotiation strips it and the same call
-    // refuses as not-negotiated. Either way no native semantics run.
+    // With the bit, a peer-offered still-pending native tag negotiates
+    // and refuses as reserved; the live 605 paging tag instead reaches
+    // dispatch, where an empty body refuses as malformed. Without the
+    // bit, negotiation strips every native tag and the same calls refuse
+    // without running native semantics.
     let mut offered_native = v3_methods();
-    offered_native.extend_from_slice(&[
-        TESTS_REPORT_READ_TAG,
-        TESTS_REPLAY_TAG,
-        TESTS_ATTEMPT_STATUS_TAG,
-    ]);
+    offered_native.extend_from_slice(&[TESTS_REPLAY_TAG, TESTS_ATTEMPT_STATUS_TAG]);
     offered_native.sort_unstable();
     let bit = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1;
     let (temp, _, _) = genesis("v3-native-refusal", executable_bodies(), &[]);
@@ -3475,15 +3473,11 @@ fn v3_native_calls_refuse_reserved_with_bit_and_unnegotiated_without() {
     )
     .unwrap();
     assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V3);
-    assert!(server.profile().admits(Method::TestsReportRead));
+    assert!(server.profile().admits(Method::TestsReplay));
     let session = open_v3_session(&mut server);
-    for (request_id, tag) in [
-        TESTS_REPORT_READ_TAG,
-        TESTS_REPLAY_TAG,
-        TESTS_ATTEMPT_STATUS_TAG,
-    ]
-    .into_iter()
-    .enumerate()
+    for (request_id, tag) in [TESTS_REPLAY_TAG, TESTS_ATTEMPT_STATUS_TAG]
+        .into_iter()
+        .enumerate()
     {
         let failure = call_v3(&mut server, session, request_id as u64 + 1, tag);
         assert_eq!(failure.code, ProtocolErrorCode::MethodUnsupported.numeric());
@@ -3514,13 +3508,18 @@ fn v3_native_calls_refuse_reserved_with_bit_and_unnegotiated_without() {
 fn native_selection_refuses_reserved_on_v1_paths() {
     // v1 and v2 refuse the reserved native selections byte-for-byte as
     // before: `tests.selected`/`tests.affected` decode, then refuse as
-    // reserved with the seam detail and AfterCapability.
+    // reserved with the seam detail and AfterCapability. `tests.report_read`
+    // never existed in the frozen v1/v2 tables, so it refuses at decode as
+    // unsupported with no seam detail.
     let mut harness = Harness::new("smp1-native-v1-refusal");
     for method in [Method::TestsSelected, Method::TestsAffected] {
         let failure = harness.fail(method, Vec::new());
         assert_eq!(failure.details, RESERVED_SEAM_620_DETAIL);
         assert_eq!(failure.retryability, Retryability::AfterCapability);
     }
+    let failure = harness.fail(Method::TestsReportRead, Vec::new());
+    assert_eq!(failure.code, ProtocolErrorCode::MethodUnsupported.numeric());
+    assert!(failure.details.is_empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -3996,6 +3995,254 @@ fn affected_preserves_static_validation_failures() {
         !failure.symbol.is_empty(),
         "static failure keeps its symbol"
     );
+}
+
+// ---------------------------------------------------------------------------
+// 605 live report paging (NATIVE_TEST_ADMISSION_V1 App. C rev4)
+// ---------------------------------------------------------------------------
+
+/// One 605 `tests.report_read` request body: `token`, `offset`, `max_bytes`.
+fn report_read_body(token: &[u8], offset: u64, max_bytes: u64) -> Vec<u8> {
+    encode_record(&[
+        (1, token.to_vec()),
+        (2, encode_uvar(offset)),
+        (3, encode_uvar(max_bytes)),
+    ])
+    .unwrap()
+}
+
+/// Decodes one canonical uvar from exact bytes.
+fn uvar_of(bytes: &[u8]) -> u64 {
+    let mut value = 0_u64;
+    let mut shift = 0_u32;
+    for (index, byte) in bytes.iter().enumerate() {
+        value |= u64::from(byte & 0x7f) << shift;
+        if byte & 0x80 == 0 {
+            assert_eq!(index + 1, bytes.len(), "exact uvar bytes");
+            return value;
+        }
+        shift += 7;
+    }
+    panic!("unterminated uvar");
+}
+
+/// Decodes one sized byte string (uvar length prefix plus bytes).
+fn sized_of(bytes: &[u8]) -> Vec<u8> {
+    let mut offset = 0_usize;
+    let mut length = 0_usize;
+    let mut shift = 0_u32;
+    loop {
+        let byte = bytes[offset];
+        offset += 1;
+        length |= (usize::from(byte & 0x7f)) << shift;
+        if byte & 0x80 == 0 {
+            break;
+        }
+        shift += 7;
+    }
+    bytes[offset..offset + length].to_vec()
+}
+
+/// Runs 601 once and returns the bound report id, token, and total bytes.
+fn selected_report(
+    server: &mut Server,
+    session: SessionId,
+    root: sley_id::StateRoot,
+    attempt: [u8; 16],
+) -> (Vec<u8>, Vec<u8>, u64) {
+    let selected = call_v3_ok(
+        server,
+        session,
+        1,
+        TESTS_SELECTED_TAG,
+        selected_body(root, &[40], attempt),
+    );
+    let fields = fields_of(&selected.body, 6);
+    let total = uvar_of(&fields[5]);
+    assert!(total > 0, "report stored bytes");
+    (fields[1].clone(), fields[4].clone(), total)
+}
+
+#[test]
+fn report_read_pages_full_report_then_refuses_past_end() {
+    let (temp, mut server, session) = diagnostic_server("v3-report-paging");
+    let root = diagnostic_head_root(&temp);
+    let (report_id, token, total) = selected_report(&mut server, session, root, [0xD0; 16]);
+    // One full read: identity and root echo the minted capability, the
+    // offset echoes the request, and the final page links nowhere.
+    let page = call_v3_ok(
+        &mut server,
+        session,
+        2,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&token, 0, total),
+    );
+    let fields = fields_of(&page.body, 6);
+    assert_eq!(fields[0], report_id, "bound report id");
+    assert_eq!(fields[1], root.as_bytes().to_vec(), "bound root");
+    assert_eq!(fields[2], encode_uvar(0), "offset echo");
+    assert_eq!(fields[3], encode_uvar(total), "total echo");
+    assert_eq!(sized_of(&fields[4]).len(), total as usize, "full page");
+    assert_eq!(
+        fields[5],
+        sley_scb1::encode_option_uvar(None).unwrap(),
+        "final page links nowhere"
+    );
+    // Reading exactly at the end answers an empty final page.
+    let end = call_v3_ok(
+        &mut server,
+        session,
+        3,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&token, total, 1),
+    );
+    let end_fields = fields_of(&end.body, 6);
+    assert_eq!(end_fields[2], encode_uvar(total));
+    assert!(sized_of(&end_fields[4]).is_empty());
+    assert_eq!(end_fields[5], sley_scb1::encode_option_uvar(None).unwrap());
+    // Reading past the end is malformed, never an empty page.
+    let past = call_v3_fail(
+        &mut server,
+        session,
+        4,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&token, total + 1, 1),
+    );
+    assert_eq!(past.code, ProtocolErrorCode::PayloadInvalid.numeric());
+}
+
+#[test]
+fn report_read_slices_middle_pages_with_next_links() {
+    let (temp, mut server, session) = diagnostic_server("v3-report-slices");
+    let root = diagnostic_head_root(&temp);
+    let (report_id, token, total) = selected_report(&mut server, session, root, [0xD1; 16]);
+    // One-byte pages walk the whole report: every non-final page links
+    // its successor, and the concatenated slices equal the full page.
+    let full = call_v3_ok(
+        &mut server,
+        session,
+        2,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&token, 0, total),
+    );
+    let full_bytes = sized_of(&fields_of(&full.body, 6)[4]);
+    let mut offset = 0_u64;
+    let mut request_id = 3_u64;
+    let mut sliced = Vec::new();
+    while offset < total {
+        let page = call_v3_ok(
+            &mut server,
+            session,
+            request_id,
+            TESTS_REPORT_READ_TAG,
+            report_read_body(&token, offset, 1),
+        );
+        request_id += 1;
+        let fields = fields_of(&page.body, 6);
+        assert_eq!(fields[0], report_id);
+        assert_eq!(fields[2], encode_uvar(offset));
+        let bytes = sized_of(&fields[4]);
+        assert_eq!(bytes.len(), 1, "one-byte slice");
+        sliced.extend_from_slice(&bytes);
+        let next = offset + 1;
+        let expected = if next == total {
+            sley_scb1::encode_option_uvar(None).unwrap()
+        } else {
+            sley_scb1::encode_option_uvar(Some(next)).unwrap()
+        };
+        assert_eq!(fields[5], expected, "next link at {offset}");
+        offset = next;
+    }
+    assert_eq!(sliced, full_bytes, "slices reassemble the report");
+}
+
+#[test]
+fn report_read_refuses_unknown_foreign_and_malformed() {
+    let (temp, mut server, session) = diagnostic_server("v3-report-refusals");
+    let root = diagnostic_head_root(&temp);
+    let (_report_id, token, total) = selected_report(&mut server, session, root, [0xD2; 16]);
+    // An unknown token refuses without a lookup.
+    let unknown = call_v3_fail(
+        &mut server,
+        session,
+        2,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&[0xE0; 32], 0, total),
+    );
+    assert_eq!(unknown.symbol, "NATIVE_TOKEN_INVALID");
+    // A token minted for another session refuses there too.
+    let foreign = open_v3_session(&mut server);
+    let cross = call_v3_fail(
+        &mut server,
+        foreign,
+        3,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&token, 0, total),
+    );
+    assert_eq!(cross.symbol, "NATIVE_TOKEN_INVALID");
+    // An empty page request is malformed.
+    let empty = call_v3_fail(
+        &mut server,
+        session,
+        4,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&token, 0, 0),
+    );
+    assert_eq!(empty.code, ProtocolErrorCode::PayloadInvalid.numeric());
+    // A page that cannot fit UInt32 is malformed.
+    let wide = call_v3_fail(
+        &mut server,
+        session,
+        5,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&token, 0, u64::from(u32::MAX) + 1),
+    );
+    assert_eq!(wide.code, ProtocolErrorCode::PayloadInvalid.numeric());
+    // A short record is malformed before any token work.
+    let short = call_v3_fail(
+        &mut server,
+        session,
+        6,
+        TESTS_REPORT_READ_TAG,
+        encode_record(&[(1, token.clone()), (2, encode_uvar(0))]).unwrap(),
+    );
+    assert_eq!(short.code, ProtocolErrorCode::PayloadInvalid.numeric());
+}
+
+fn clock_zero() -> u64 {
+    0
+}
+
+fn clock_far_future() -> u64 {
+    u64::MAX
+}
+
+#[test]
+fn report_read_refuses_after_token_expiry() {
+    let (temp, mut server, session) = diagnostic_server("v3-report-expiry");
+    let root = diagnostic_head_root(&temp);
+    let (_report_id, token, total) = selected_report(&mut server, session, root, [0xD3; 16]);
+    // Past the five-minute TTL the token refuses like an unknown one.
+    server.set_clock_millis(clock_far_future);
+    let expired = call_v3_fail(
+        &mut server,
+        session,
+        2,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&token, 0, total),
+    );
+    assert_eq!(expired.symbol, "NATIVE_TOKEN_INVALID");
+    // With the clock back the same token serves again: expiry refused,
+    // it never invalidated.
+    server.set_clock_millis(clock_zero);
+    let revived = call_v3_ok(
+        &mut server,
+        session,
+        3,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&token, 0, total),
+    );
+    assert_eq!(fields_of(&revived.body, 6)[3], encode_uvar(total));
 }
 
 #[test]
