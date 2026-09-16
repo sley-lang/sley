@@ -28,26 +28,48 @@
 
 use core::fmt;
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs::{self, OpenOptions};
+use std::io::Write as _;
 use std::path::Path;
 
 use crate::refs::{BranchError, BranchRepository, MAX_BRANCHES, ResolvedBranch};
-use sley_id::{NativeExchangeProfileId, ReceiptId, RepositoryExchangeId, TransactionId};
+use sley_id::{
+    NativeExchangeProfileId, ObjectId, ReceiptId, RepositoryExchangeId, StateRoot, TransactionId,
+    WorkspaceId,
+};
 use sley_scb1::{ScbErrorCode, encode_list, encode_record, encode_union, encode_uvar};
 use sley_store::{CanonicalVerifier, ObjectStore};
+use sley_tests::{HistoricalTrustPolicyV1, MeasuredTestAttestationV1, NativeTestPlanV1};
 use sley_txn::{
-    CommitError, ImportedReceipt, RepositoryMaintenanceGuard, TransactionCodecError,
-    TransactionRepository, acquire_shared_repository_maintenance, native_receipt_trust_policy_ids,
+    CommitError, ImportedNativeTransactionReceipt, ImportedReceipt, NATIVE_RECEIPT_MAGIC,
+    NativeCommitError, RECEIPT_MAGIC, RepositoryMaintenanceGuard, TransactionCodecError,
+    TransactionKind, TransactionRepository, acquire_exclusive_repository_maintenance_nonblocking,
+    acquire_shared_repository_maintenance, import_native_transaction_receipt,
+    import_transaction_receipt, initialize_repository_maintenance, native_receipt_trust_policy_ids,
+    verify_acceptance_trust, verify_any_receipt_against_objects, verify_measurement_trust,
 };
 
 use crate::exchange::{
-    BRANCH_SECTION, ExchangeBranchEntry, ExchangeError, ExchangeErrorCode, ExchangeHeadEntry,
-    HEAD_SECTION, MAX_EMBEDDED_PACK_BYTES, MAX_EXCHANGE_ALLOCATION, MAX_EXCHANGE_BRANCHES,
-    MAX_EXCHANGE_BYTES, MAX_EXCHANGE_RECEIPTS, PACK_SECTION, RECEIPT_SECTION, branch_name_key,
-    content_leaf, encode_branch_element, encode_bytes, merkle_root, stored_head_bytes,
+    BRANCH_SECTION, EXCHANGE_DIRECTORY, EXCHANGE_VERSION_DIRECTORY, ExchangeBranchEntry,
+    ExchangeError, ExchangeErrorCode, ExchangeHeadEntry, HEAD_LEN, HEAD_SECTION, INDEX_DIRECTORY,
+    MAX_EMBEDDED_PACK_BYTES, MAX_EXCHANGE_ALLOCATION, MAX_EXCHANGE_BRANCHES, MAX_EXCHANGE_BYTES,
+    MAX_EXCHANGE_RECEIPTS, MAX_PREFLIGHT_BINDING_VISITS, MAX_PREFLIGHT_OBJECT_BYTES,
+    MAX_PREFLIGHT_OBJECT_VERIFICATIONS, MAX_PREFLIGHT_RECEIPT_BYTES, ORIGIN_SUFFIX, PACK_SECTION,
+    RECEIPT_SECTION, RECEIPT_SUFFIX, REF_SUFFIX, REPOSITORY_LAYOUT_ENTRIES, STAGE_SUFFIX,
+    STAGE_TEMPORARY_SUFFIX, branch_name_key, collect_files_with_suffix, content_leaf,
+    create_real_directory, decode_head_bytes, embedded_pack_header_is_tag_170,
+    encode_branch_element, encode_bytes, hex_id, merkle_root, read_regular_file,
+    real_directory_metadata, stored_head_bytes, sync_directory,
+};
+use crate::refs::{
+    BRANCH_STAGE_PREFIX, BranchErrorCode, BranchName, ImportedBranchRecord, ImportedBranchRef,
+    ensure_key_path, import_branch_record, import_branch_ref, persist_expected_ref,
+    persist_no_overwrite, validate_origin_ref_binding,
 };
 use crate::{
-    PackError, Reader, RecordReader, decode_absent_signature, decode_list, exact_array,
-    export_conformance_pack, read_single_uvar, scb_error,
+    PackError, PreflightedPack, Reader, RecordReader, decode_absent_signature, decode_list,
+    exact_array, export_conformance_pack, preflight_conformance_pack, promote_pack_objects,
+    read_single_uvar, scb_error,
 };
 
 const ID_LEN: usize = 32;
@@ -104,7 +126,7 @@ pub enum NativeExchangeErrorCode {
     /// `NATIVE_TEST_PROFILE_UNSUPPORTED`.
     ProfileMismatch,
     /// `NATIVE_TEST_ENCODING_INVALID`.
-    ChunkInvalid,
+    EncodingInvalid,
     /// `NATIVE_TEST_HISTORICAL_TRUST_UNAVAILABLE`.
     TrustUnavailable,
     /// `NATIVE_TEST_HISTORICAL_TRUST_REJECTED`.
@@ -121,7 +143,7 @@ impl NativeExchangeErrorCode {
     /// Every native-only code in frozen numeric order.
     pub const ALL: [Self; 7] = [
         Self::ProfileMismatch,
-        Self::ChunkInvalid,
+        Self::EncodingInvalid,
         Self::TrustUnavailable,
         Self::TrustRejected,
         Self::ReplayInconclusive,
@@ -134,7 +156,7 @@ impl NativeExchangeErrorCode {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::ProfileMismatch => "NATIVE_TEST_PROFILE_UNSUPPORTED",
-            Self::ChunkInvalid => "NATIVE_TEST_ENCODING_INVALID",
+            Self::EncodingInvalid => "NATIVE_TEST_ENCODING_INVALID",
             Self::TrustUnavailable => "NATIVE_TEST_HISTORICAL_TRUST_UNAVAILABLE",
             Self::TrustRejected => "NATIVE_TEST_HISTORICAL_TRUST_REJECTED",
             Self::ReplayInconclusive => "NATIVE_TEST_REPLAY_INCONCLUSIVE",
@@ -148,7 +170,7 @@ impl NativeExchangeErrorCode {
     pub const fn numeric(self) -> u32 {
         match self {
             Self::ProfileMismatch => 29_200,
-            Self::ChunkInvalid => 29_201,
+            Self::EncodingInvalid => 29_201,
             Self::TrustUnavailable => 29_215,
             Self::TrustRejected => 29_216,
             Self::ReplayInconclusive => 29_223,
@@ -363,13 +385,13 @@ fn decode_trust_id_set(input: &[u8]) -> Result<Vec<[u8; ID_LEN]>> {
 pub fn chunk_native_receipt(bytes: &[u8]) -> Result<Vec<Vec<u8>>> {
     if bytes.is_empty() {
         return Err(NativeExchangeError::native(
-            NativeExchangeErrorCode::ChunkInvalid,
+            NativeExchangeErrorCode::EncodingInvalid,
         ));
     }
     let count = bytes.len().div_ceil(NATIVE_CHUNK_BYTES);
     if count > MAX_NATIVE_RECEIPT_CHUNKS {
         return Err(NativeExchangeError::native(
-            NativeExchangeErrorCode::ChunkInvalid,
+            NativeExchangeErrorCode::EncodingInvalid,
         ));
     }
     Ok(bytes
@@ -387,7 +409,7 @@ pub fn chunk_native_receipt(bytes: &[u8]) -> Result<Vec<Vec<u8>>> {
 pub fn check_native_chunks(chunks: &[Vec<u8>]) -> Result<()> {
     if chunks.is_empty() || chunks.len() > MAX_NATIVE_RECEIPT_CHUNKS {
         return Err(NativeExchangeError::native(
-            NativeExchangeErrorCode::ChunkInvalid,
+            NativeExchangeErrorCode::EncodingInvalid,
         ));
     }
     let mut nonempty = false;
@@ -396,19 +418,19 @@ pub fn check_native_chunks(chunks: &[Vec<u8>]) -> Result<()> {
         if final_chunk {
             if chunk.is_empty() || chunk.len() > NATIVE_CHUNK_BYTES {
                 return Err(NativeExchangeError::native(
-                    NativeExchangeErrorCode::ChunkInvalid,
+                    NativeExchangeErrorCode::EncodingInvalid,
                 ));
             }
         } else if chunk.len() != NATIVE_CHUNK_BYTES {
             return Err(NativeExchangeError::native(
-                NativeExchangeErrorCode::ChunkInvalid,
+                NativeExchangeErrorCode::EncodingInvalid,
             ));
         }
         nonempty = nonempty || !chunk.is_empty();
     }
     if !nonempty {
         return Err(NativeExchangeError::native(
-            NativeExchangeErrorCode::ChunkInvalid,
+            NativeExchangeErrorCode::EncodingInvalid,
         ));
     }
     Ok(())
@@ -1111,6 +1133,1096 @@ pub fn export_native_exchange<V: CanonicalVerifier>(
     })
 }
 
+/// Caller-supplied trust manifests for native import preflight.
+///
+/// The manifests are read-only resolution input: every trust ID the
+/// exchange references must resolve to exactly one supplied manifest, and
+/// import never installs receiver trust.
+#[derive(Clone, Copy, Debug)]
+pub struct NativeExchangeTrust<'a> {
+    /// Trust policy manifests the receiver already holds.
+    pub manifests: &'a [HistoricalTrustPolicyV1],
+}
+
+/// Facts proven by a complete native preflight without any write.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeExchangePreflightReport {
+    /// Exchange identifier bound by the trailer.
+    pub exchange_id: RepositoryExchangeId,
+    /// Identifier of the embedded S20-170 pack.
+    pub pack_id: sley_id::RepositoryPackId,
+    /// Accepted head named by the exchange.
+    pub accepted_head: ExchangeHeadEntry,
+    /// Receipt entries.
+    pub receipts: usize,
+    /// Visible branch entries.
+    pub branches: usize,
+    /// Digest leaves.
+    pub leaves: usize,
+    /// Signature checks charged (measurements plus one acceptance each).
+    pub signatures_checked: u64,
+    /// Native test envelopes visited (executions plus measurements).
+    pub test_visits: u64,
+    /// Decoded native evidence bytes charged.
+    pub evidence_bytes: u64,
+}
+
+/// Successful native clone report.
+#[derive(Debug)]
+pub struct NativeExchangeImportReport {
+    /// Imported exchange identifier.
+    pub exchange_id: RepositoryExchangeId,
+    /// Reconstructed accepted head identities.
+    pub accepted_head: ExchangeHeadEntry,
+    /// Receipts durable after the import.
+    pub receipts: usize,
+    /// Visible branches installed.
+    pub branches: usize,
+    /// Newly promoted object count.
+    pub promoted_objects: usize,
+    /// Already-present verified object count.
+    pub present_objects: usize,
+}
+
+struct NativeVerifiedBranch {
+    name: BranchName,
+    origin: ImportedBranchRecord,
+    reference: ImportedBranchRef,
+}
+
+struct NativePreflight {
+    exchange_id: RepositoryExchangeId,
+    pack: PreflightedPack,
+    receipts: BTreeMap<TransactionId, ImportedReceipt>,
+    branches: Vec<NativeVerifiedBranch>,
+    accepted_head: ExchangeHeadEntry,
+    leaves: usize,
+    counters: NativePreflightCounters,
+}
+
+/// Appendix B preflight counters: every counter fails before exceeding its
+/// ceiling, never after. The v1 receipt/object/binding ceilings keep their
+/// exact v1 codes; only the three native evidence counters report the
+/// native resource limit.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct NativePreflightCounters {
+    signatures: u64,
+    visits: u64,
+    evidence_bytes: u64,
+}
+
+impl NativePreflightCounters {
+    fn add_signatures(&mut self, count: u64) -> Result<()> {
+        self.signatures = self
+            .signatures
+            .checked_add(count)
+            .filter(|total| *total <= MAX_NATIVE_SIGNATURE_CHECKS)
+            .ok_or_else(|| NativeExchangeError::native(NativeExchangeErrorCode::CounterLimit))?;
+        Ok(())
+    }
+
+    fn add_visits(&mut self, count: u64) -> Result<()> {
+        self.visits = self
+            .visits
+            .checked_add(count)
+            .filter(|total| *total <= MAX_NATIVE_TEST_VISITS)
+            .ok_or_else(|| NativeExchangeError::native(NativeExchangeErrorCode::CounterLimit))?;
+        Ok(())
+    }
+
+    fn add_evidence_bytes(&mut self, count: u64) -> Result<()> {
+        self.evidence_bytes = self
+            .evidence_bytes
+            .checked_add(count)
+            .filter(|total| *total <= MAX_NATIVE_EVIDENCE_BYTES)
+            .ok_or_else(|| NativeExchangeError::native(NativeExchangeErrorCode::CounterLimit))?;
+        Ok(())
+    }
+}
+
+fn native_topological_order(
+    receipts: &BTreeMap<TransactionId, ImportedReceipt>,
+) -> Result<Vec<TransactionId>> {
+    let mut order = Vec::with_capacity(receipts.len());
+    let mut placed: BTreeSet<TransactionId> = BTreeSet::new();
+    let mut pending: Vec<TransactionId> = receipts.keys().copied().collect();
+    while !pending.is_empty() {
+        let mut remaining = Vec::with_capacity(pending.len());
+        let mut progressed = false;
+        for transaction_id in pending {
+            let ready = receipts[&transaction_id]
+                .parent_transaction_ids()
+                .iter()
+                .all(|parent| placed.contains(parent));
+            if ready {
+                placed.insert(transaction_id);
+                order.push(transaction_id);
+                progressed = true;
+            } else {
+                remaining.push(transaction_id);
+            }
+        }
+        pending = remaining;
+        if !progressed && !pending.is_empty() {
+            return Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::AncestryCycle,
+            ));
+        }
+    }
+    Ok(order)
+}
+
+fn native_parent_roots(receipt: &ImportedReceipt) -> &[StateRoot] {
+    match receipt {
+        ImportedReceipt::V1(inner) => &inner.transaction.record.parent_roots,
+        ImportedReceipt::V2(inner) => &inner.transaction.record.parent_roots,
+    }
+}
+
+fn native_verify_closure_rules(
+    decoded: &DecodedNativeExchange,
+    receipts: &BTreeMap<TransactionId, ImportedReceipt>,
+    pack_roots: &[sley_state_root::AcceptedStateRoot],
+) -> Result<Vec<TransactionId>> {
+    let mut genesis = 0_usize;
+    let mut workspace: Option<WorkspaceId> = None;
+    for receipt in receipts.values() {
+        for parent in receipt.parent_transaction_ids() {
+            if !receipts.contains_key(parent) {
+                return Err(NativeExchangeError::exchange(
+                    ExchangeErrorCode::AncestryOpen,
+                ));
+            }
+        }
+        match receipt.transaction_kind() {
+            TransactionKind::TrustedGenesis => {
+                if !receipt.parent_transaction_ids().is_empty() {
+                    return Err(NativeExchangeError::exchange(
+                        ExchangeErrorCode::AncestryOpen,
+                    ));
+                }
+                genesis += 1;
+            }
+            TransactionKind::OrdinaryCandidate => {
+                // No v2 genesis is a wire state, so every native receipt
+                // carries exactly one parent like an ordinary v1 receipt.
+                if receipt.parent_transaction_ids().len() != 1
+                    || native_parent_roots(receipt).len() != 1
+                {
+                    return Err(NativeExchangeError::exchange(
+                        ExchangeErrorCode::AncestryOpen,
+                    ));
+                }
+            }
+        }
+        match workspace {
+            None => workspace = Some(receipt.workspace_id()),
+            Some(expected) if expected == receipt.workspace_id() => {}
+            Some(_) => {
+                return Err(NativeExchangeError::exchange(
+                    ExchangeErrorCode::WorkspaceMismatch,
+                ));
+            }
+        }
+    }
+    if genesis != 1 {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::AncestryOpen,
+        ));
+    }
+    let order = native_topological_order(receipts)?;
+
+    let head = decoded.accepted_head;
+    match receipts.get(&head.transaction_id) {
+        Some(receipt) if receipt.receipt_id() == head.receipt_id => {}
+        _ => {
+            return Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::HeadInvalid,
+            ));
+        }
+    }
+
+    let committed: BTreeSet<StateRoot> = receipts
+        .values()
+        .map(ImportedReceipt::committed_root)
+        .collect();
+    let by_root: BTreeMap<StateRoot, &sley_state_root::AcceptedStateRoot> =
+        pack_roots.iter().map(|root| (root.root, root)).collect();
+    let mut closure = committed;
+    loop {
+        let mut added = false;
+        for root in closure.clone() {
+            if let Some(accepted) = by_root.get(&root) {
+                for dependency in &accepted.record.dependency_roots {
+                    if closure.insert(*dependency) {
+                        added = true;
+                    }
+                }
+            }
+        }
+        if !added {
+            break;
+        }
+    }
+    let pack_set: BTreeSet<StateRoot> = by_root.keys().copied().collect();
+    if pack_set != closure {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::RootClosure,
+        ));
+    }
+    Ok(order)
+}
+
+fn native_fast_forward_reachable(
+    receipts: &BTreeMap<TransactionId, ImportedReceipt>,
+    origin: TransactionId,
+    head: TransactionId,
+) -> bool {
+    let mut cursor = Some(head);
+    let mut visited = 0_usize;
+    while let Some(transaction_id) = cursor {
+        if transaction_id == origin {
+            return true;
+        }
+        visited += 1;
+        if visited > MAX_EXCHANGE_RECEIPTS {
+            return false;
+        }
+        cursor = receipts
+            .get(&transaction_id)
+            .and_then(|receipt| receipt.parent_transaction_ids().first().copied());
+    }
+    false
+}
+
+fn native_verify_branch_entry(
+    entry: &ExchangeBranchEntry,
+    receipts: &BTreeMap<TransactionId, ImportedReceipt>,
+    workspace: WorkspaceId,
+) -> Result<NativeVerifiedBranch> {
+    let name = BranchName::parse(&entry.branch_name)
+        .map_err(|_| NativeExchangeError::exchange(ExchangeErrorCode::BranchInvalid))?;
+    let origin = import_branch_record(&entry.stored_origin).map_err(NativeExchangeError::from)?;
+    let reference = import_branch_ref(&entry.stored_ref).map_err(NativeExchangeError::from)?;
+    if origin.record.branch_name != name || reference.record.branch_name != name {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::BranchInvalid,
+        ));
+    }
+    validate_origin_ref_binding(&origin, &reference)
+        .map_err(|_| NativeExchangeError::exchange(ExchangeErrorCode::BranchInvalid))?;
+    let origin_receipt = receipts
+        .get(&origin.record.origin_transaction_id)
+        .ok_or_else(|| NativeExchangeError::exchange(ExchangeErrorCode::BranchInvalid))?;
+    let head_receipt = receipts
+        .get(&reference.record.head_transaction_id)
+        .ok_or_else(|| NativeExchangeError::exchange(ExchangeErrorCode::BranchInvalid))?;
+    if origin.record.workspace_id != workspace || reference.record.workspace_id != workspace {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::WorkspaceMismatch,
+        ));
+    }
+    let origin_facts_match = origin.record.origin_state_root == origin_receipt.committed_root()
+        && origin.record.schema_epoch_id == origin_receipt.state_root().record.schema_epoch_id
+        && origin.record.policy_root_id == origin_receipt.policy_root().root()
+        && origin.record.dependency_roots == origin_receipt.state_root().record.dependency_roots;
+    let ref_facts_match = reference.record.head_state_root == head_receipt.committed_root()
+        && reference.record.schema_epoch_id == head_receipt.state_root().record.schema_epoch_id
+        && reference.record.policy_root_id == head_receipt.policy_root().root()
+        && reference.record.dependency_roots == head_receipt.state_root().record.dependency_roots;
+    if !origin_facts_match || !ref_facts_match {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::BranchInvalid,
+        ));
+    }
+    if !native_fast_forward_reachable(
+        receipts,
+        origin.record.origin_transaction_id,
+        reference.record.head_transaction_id,
+    ) {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::BranchNotFastForward,
+        ));
+    }
+    Ok(NativeVerifiedBranch {
+        name,
+        origin,
+        reference,
+    })
+}
+
+fn native_verify_no_surplus(
+    receipts: &BTreeMap<TransactionId, ImportedReceipt>,
+    head: TransactionId,
+    branches: &[NativeVerifiedBranch],
+) -> Result<()> {
+    let mut reachable: BTreeSet<TransactionId> = BTreeSet::new();
+    let mut pending = vec![head];
+    for branch in branches {
+        pending.push(branch.reference.record.head_transaction_id);
+        pending.push(branch.origin.record.origin_transaction_id);
+    }
+    while let Some(transaction_id) = pending.pop() {
+        if !reachable.insert(transaction_id) {
+            continue;
+        }
+        if let Some(receipt) = receipts.get(&transaction_id) {
+            pending.extend(receipt.parent_transaction_ids().iter().copied());
+        }
+    }
+    if reachable.len() != receipts.len() {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::AncestrySurplus,
+        ));
+    }
+    Ok(())
+}
+
+fn map_trust_error(error: NativeCommitError) -> NativeExchangeError {
+    match error {
+        NativeCommitError::TrustUnavailable => {
+            NativeExchangeError::native(NativeExchangeErrorCode::TrustUnavailable)
+        }
+        NativeCommitError::TrustRejected => {
+            NativeExchangeError::native(NativeExchangeErrorCode::TrustRejected)
+        }
+        _ => NativeExchangeError::native(NativeExchangeErrorCode::InternalInvariant),
+    }
+}
+
+fn resolve_trust_manifest<'a>(
+    id: &[u8; 32],
+    trust: &'a NativeExchangeTrust<'a>,
+) -> Result<&'a HistoricalTrustPolicyV1> {
+    // The manifest ID binds the full manifest record (nonce plus entries),
+    // so same-ID manifests are interchangeable and the first match wins
+    // deterministically.
+    trust
+        .manifests
+        .iter()
+        .find(|manifest| manifest.id().as_bytes() == id)
+        .ok_or_else(|| NativeExchangeError::native(NativeExchangeErrorCode::TrustUnavailable))
+}
+
+/// Verifies every native receipt's acceptance and measurement trust against
+/// caller-supplied manifests while charging the Appendix B counters.
+///
+/// The wire union must equal the exact collected union first: a referenced
+/// ID without a declaration is missing trust, and a declaration no receipt
+/// references is not a valid encoding of the exchange contents. Every
+/// referenced ID must then resolve to a supplied manifest, and every
+/// statement and attestation must carry its role, scope, profile, and
+/// interval grants. Nothing here installs receiver trust.
+fn verify_native_receipt_trust(
+    receipts: &BTreeMap<TransactionId, ImportedReceipt>,
+    declared_union: &[[u8; ID_LEN]],
+    trust: &NativeExchangeTrust<'_>,
+    counters: &mut NativePreflightCounters,
+) -> Result<()> {
+    let mut collected = BTreeSet::new();
+    let mut native: Vec<&ImportedNativeTransactionReceipt> = Vec::new();
+    for receipt in receipts.values() {
+        if let ImportedReceipt::V2(inner) = receipt {
+            collected.extend(
+                native_receipt_trust_policy_ids(inner)
+                    .map_err(NativeExchangeError::from)?
+                    .into_iter(),
+            );
+            native.push(inner);
+        }
+    }
+    for id in &collected {
+        if !declared_union.contains(id) {
+            return Err(NativeExchangeError::native(
+                NativeExchangeErrorCode::TrustUnavailable,
+            ));
+        }
+    }
+    if declared_union.len() != collected.len() {
+        return Err(NativeExchangeError::native(
+            NativeExchangeErrorCode::EncodingInvalid,
+        ));
+    }
+    for receipt in native {
+        let statement = receipt.statement.parts();
+        let acceptance_manifest =
+            resolve_trust_manifest(statement.acceptance_trust_policy_id.as_bytes(), trust)?;
+        verify_acceptance_trust(
+            &statement.key_id,
+            statement.acceptance_trust_policy_id,
+            receipt.transaction.record.workspace_id,
+            statement.admission_profile,
+            statement.historical_validation_time,
+            acceptance_manifest,
+        )
+        .map_err(map_trust_error)?;
+        let plan = NativeTestPlanV1::parse(receipt.bundle.plan_stored())
+            .map_err(|error| NativeExchangeError::Pack(scb_error(&error)))?;
+        counters.add_signatures(receipt.bundle.measurements().len() as u64 + 1)?;
+        counters.add_visits(
+            (receipt.bundle.executions().len() + receipt.bundle.measurements().len()) as u64,
+        )?;
+        counters.add_evidence_bytes(receipt.stored_bytes.len() as u64)?;
+        for embedded in receipt.bundle.measurements() {
+            let attestation = MeasuredTestAttestationV1::parse(&embedded.stored)
+                .map_err(|error| NativeExchangeError::Pack(scb_error(&error)))?;
+            let measurement_manifest =
+                resolve_trust_manifest(&attestation.trust_policy_id(), trust)?;
+            verify_measurement_trust(
+                &attestation.key_id(),
+                &attestation.trust_policy_id(),
+                receipt.transaction.record.workspace_id,
+                plan.execution_profile(),
+                attestation.recorded_unix_millis(),
+                measurement_manifest,
+            )
+            .map_err(map_trust_error)?;
+        }
+    }
+    Ok(())
+}
+
+fn import_native_receipts(
+    decoded: &DecodedNativeExchange,
+) -> Result<BTreeMap<TransactionId, ImportedReceipt>> {
+    let mut receipts = BTreeMap::new();
+    for entry in &decoded.receipts {
+        let reconstructed = entry.reconstructed()?;
+        // Acceptance dispatches by exact receipt magic, never by caller
+        // assertion or position.
+        let receipt = if reconstructed.starts_with(&RECEIPT_MAGIC) {
+            let imported =
+                import_transaction_receipt(&reconstructed).map_err(NativeExchangeError::from)?;
+            if imported.transaction.transaction_id != entry.transaction_id
+                || imported.receipt_id != entry.receipt_id
+            {
+                return Err(NativeExchangeError::exchange(
+                    ExchangeErrorCode::ReceiptInvalid,
+                ));
+            }
+            ImportedReceipt::V1(Box::new(imported))
+        } else if reconstructed.starts_with(&NATIVE_RECEIPT_MAGIC) {
+            let imported = import_native_transaction_receipt(&reconstructed)
+                .map_err(NativeExchangeError::from)?;
+            if imported.transaction.transaction_id != entry.transaction_id
+                || imported.receipt_id != entry.receipt_id
+            {
+                return Err(NativeExchangeError::exchange(
+                    ExchangeErrorCode::ReceiptInvalid,
+                ));
+            }
+            ImportedReceipt::V2(Box::new(imported))
+        } else {
+            return Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::ReceiptInvalid,
+            ));
+        };
+        if receipts.insert(entry.transaction_id, receipt).is_some() {
+            return Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::DuplicateEntry,
+            ));
+        }
+    }
+    Ok(receipts)
+}
+
+#[allow(clippy::too_many_lines)]
+fn verify_native_receipts_against_pack(
+    order: &[TransactionId],
+    receipts: &BTreeMap<TransactionId, ImportedReceipt>,
+    pack: &PreflightedPack,
+) -> Result<()> {
+    let objects: BTreeMap<ObjectId, &[u8]> = pack
+        .decoded
+        .objects
+        .iter()
+        .map(|object| (object.object_id, object.stored_bytes.as_slice()))
+        .collect();
+    let mut binding_visits = 0_u64;
+    let mut receipt_bytes = 0_u64;
+    let mut verified_objects: BTreeSet<ObjectId> = BTreeSet::new();
+    let mut object_bytes = 0_u64;
+    for transaction_id in order {
+        let receipt = &receipts[transaction_id];
+        receipt_bytes = receipt_bytes
+            .checked_add(receipt.stored_bytes().len() as u64)
+            .filter(|total| *total <= MAX_PREFLIGHT_RECEIPT_BYTES)
+            .ok_or_else(|| NativeExchangeError::exchange(ExchangeErrorCode::ResourceLimit))?;
+        binding_visits = binding_visits
+            .checked_add(receipt.state_root().record.entity_bindings.len() as u64)
+            .filter(|total| *total <= MAX_PREFLIGHT_BINDING_VISITS)
+            .ok_or_else(|| NativeExchangeError::exchange(ExchangeErrorCode::ResourceLimit))?;
+        for (_, object_id) in &receipt.state_root().record.entity_bindings {
+            if verified_objects.insert(*object_id) {
+                if verified_objects.len() as u64 > MAX_PREFLIGHT_OBJECT_VERIFICATIONS {
+                    return Err(NativeExchangeError::exchange(
+                        ExchangeErrorCode::ResourceLimit,
+                    ));
+                }
+                let length = objects.get(object_id).map_or(0, |bytes| bytes.len() as u64);
+                object_bytes = object_bytes
+                    .checked_add(length)
+                    .filter(|total| *total <= MAX_PREFLIGHT_OBJECT_BYTES)
+                    .ok_or_else(|| {
+                        NativeExchangeError::exchange(ExchangeErrorCode::ResourceLimit)
+                    })?;
+            }
+        }
+        let parent = receipt
+            .parent_transaction_ids()
+            .first()
+            .and_then(|parent| receipts.get(parent));
+        verify_any_receipt_against_objects(receipt, parent, &objects)
+            .map_err(NativeExchangeError::from)?;
+    }
+    Ok(())
+}
+
+fn native_preflight<V: CanonicalVerifier>(
+    input: &[u8],
+    verifier: &V,
+    trust: &NativeExchangeTrust<'_>,
+) -> Result<NativePreflight> {
+    let (exchange_id, _, payload) = decode_native_envelope(input)?;
+    let decoded = decode_native_payload(&payload)?;
+    if !embedded_pack_header_is_tag_170(&decoded.object_pack) {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::PackInvalid,
+        ));
+    }
+    let pack = preflight_conformance_pack(&decoded.object_pack, verifier)
+        .map_err(NativeExchangeError::from)?;
+    let expected_leaves = compute_native_leaves(
+        pack.pack_id,
+        &decoded.object_pack,
+        &decoded.receipts,
+        decoded.accepted_head,
+        &decoded.branches,
+        decoded.transport_profile_id,
+        &decoded.required_trust_policy_ids,
+    )?;
+    if decoded.leaves != expected_leaves
+        || merkle_root(&expected_leaves, MAX_NATIVE_EXCHANGE_LEAVES)
+            .map_err(NativeExchangeError::from)?
+            != decoded.digest_tree_root
+    {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::DigestTreeMismatch,
+        ));
+    }
+    let receipts = import_native_receipts(&decoded)?;
+    let order = native_verify_closure_rules(&decoded, &receipts, &pack.roots)?;
+    let workspace = receipts
+        .values()
+        .next()
+        .map(ImportedReceipt::workspace_id)
+        .ok_or_else(|| NativeExchangeError::exchange(ExchangeErrorCode::AncestryOpen))?;
+    let mut branches = Vec::with_capacity(decoded.branches.len());
+    for entry in &decoded.branches {
+        branches.push(native_verify_branch_entry(entry, &receipts, workspace)?);
+    }
+    native_verify_no_surplus(&receipts, decoded.accepted_head.transaction_id, &branches)?;
+    let mut counters = NativePreflightCounters::default();
+    verify_native_receipt_trust(
+        &receipts,
+        &decoded.required_trust_policy_ids,
+        trust,
+        &mut counters,
+    )?;
+    verify_native_receipts_against_pack(&order, &receipts, &pack)?;
+    Ok(NativePreflight {
+        exchange_id,
+        pack,
+        receipts,
+        branches,
+        accepted_head: decoded.accepted_head,
+        leaves: decoded.leaves.len(),
+        counters,
+    })
+}
+
+/// Runs the complete native exchange preflight without any write.
+///
+/// Every receipt of either format imports with its declared identities
+/// bound, the mixed ancestry closes over the pack roots with the head
+/// matched, branches verify with fast-forward reachability and no surplus,
+/// the trust union matches the evidence exactly with every statement and
+/// attestation grant-checked against caller-supplied manifests, and every
+/// receipt verifies against the pack objects under the shared v1 work
+/// maxima plus the three native evidence counters. No worker runs, no
+/// trust installs, no byte is written.
+///
+/// # Errors
+///
+/// Returns the first precise structural, ancestry, trust, counter, or
+/// object failure.
+pub fn preflight_native_exchange<V: CanonicalVerifier>(
+    input: &[u8],
+    verifier: &V,
+    trust: &NativeExchangeTrust<'_>,
+) -> Result<NativeExchangePreflightReport> {
+    let preflight = native_preflight(input, verifier, trust)?;
+    Ok(NativeExchangePreflightReport {
+        exchange_id: preflight.exchange_id,
+        pack_id: preflight.pack.pack_id,
+        accepted_head: preflight.accepted_head,
+        receipts: preflight.receipts.len(),
+        branches: preflight.branches.len(),
+        leaves: preflight.leaves,
+        signatures_checked: preflight.counters.signatures,
+        test_visits: preflight.counters.visits,
+        evidence_bytes: preflight.counters.evidence_bytes,
+    })
+}
+
+enum NativeTarget {
+    Fresh,
+    IncompleteClone,
+}
+
+struct InstalledNativeMarker {
+    path: std::path::PathBuf,
+    created: bool,
+}
+
+impl InstalledNativeMarker {
+    fn sync_parent(&self) -> Result<()> {
+        let parent = self.path.parent().ok_or_else(|| {
+            NativeExchangeError::native(NativeExchangeErrorCode::InternalInvariant)
+        })?;
+        sync_directory(parent).map_err(NativeExchangeError::from)
+    }
+}
+
+/// Installs the separate native exchange marker identity.
+///
+/// The marker lives under `exchange/v2`, never under the v1 marker
+/// directory: a native import and a v1 import never share resume state.
+/// The stage, sync, link discipline mirrors the v1 marker exactly.
+fn install_native_stage_marker(
+    target: &Path,
+    exchange_id: RepositoryExchangeId,
+) -> Result<InstalledNativeMarker> {
+    create_real_directory(target).map_err(NativeExchangeError::from)?;
+    let exchange_dir = target.join(EXCHANGE_DIRECTORY);
+    create_real_directory(&exchange_dir).map_err(NativeExchangeError::from)?;
+    let versioned = exchange_dir.join(NATIVE_EXCHANGE_VERSION_DIRECTORY);
+    create_real_directory(&versioned).map_err(NativeExchangeError::from)?;
+    let hex = hex_id(exchange_id.as_bytes());
+    let marker = versioned.join(format!("{hex}{STAGE_SUFFIX}"));
+    if let Ok(metadata) = fs::symlink_metadata(&marker) {
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(NativeExchangeError::exchange(ExchangeErrorCode::Io));
+        }
+        if read_regular_file(&marker, ID_LEN).map_err(NativeExchangeError::from)?
+            == exchange_id.as_bytes()
+        {
+            return Ok(InstalledNativeMarker {
+                path: marker,
+                created: false,
+            });
+        }
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::TargetIncompleteMismatch,
+        ));
+    }
+    let temporary = versioned.join(format!("{hex}{STAGE_TEMPORARY_SUFFIX}"));
+    if fs::symlink_metadata(&temporary).is_ok() {
+        fs::remove_file(&temporary).map_err(NativeExchangeError::from)?;
+    }
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&temporary)
+        .map_err(NativeExchangeError::from)?;
+    file.write_all(exchange_id.as_bytes())
+        .map_err(NativeExchangeError::from)?;
+    file.sync_all().map_err(NativeExchangeError::from)?;
+    drop(file);
+    fs::rename(&temporary, &marker).map_err(NativeExchangeError::from)?;
+    sync_directory(&versioned).map_err(NativeExchangeError::from)?;
+    sync_directory(&exchange_dir).map_err(NativeExchangeError::from)?;
+    sync_directory(target).map_err(NativeExchangeError::from)?;
+    Ok(InstalledNativeMarker {
+        path: marker,
+        created: true,
+    })
+}
+
+/// Proves that everything already installed in a natively marked target
+/// belongs to this exchange: the head (if present), every receipt by exact
+/// file bytes, and every branch origin and ref by exact bytes.
+fn verify_native_incomplete_clone(target: &Path, preflight: &NativePreflight) -> Result<()> {
+    let head_path = target.join("heads").join("accepted");
+    match fs::symlink_metadata(&head_path) {
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_file() {
+                return Err(NativeExchangeError::exchange(ExchangeErrorCode::Io));
+            }
+            let bytes =
+                read_regular_file(&head_path, HEAD_LEN).map_err(NativeExchangeError::from)?;
+            match decode_head_bytes(&bytes) {
+                Some(head) if head == preflight.accepted_head.transaction_id => {}
+                _ => {
+                    return Err(NativeExchangeError::exchange(
+                        ExchangeErrorCode::TargetIncompleteMismatch,
+                    ));
+                }
+            }
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(NativeExchangeError::from(error)),
+    }
+
+    let receipt_bytes: BTreeMap<String, &[u8]> = preflight
+        .receipts
+        .iter()
+        .map(|(transaction_id, receipt)| {
+            (
+                format!("{}{RECEIPT_SUFFIX}", hex_id(transaction_id.as_bytes())),
+                receipt.stored_bytes(),
+            )
+        })
+        .collect();
+    for path in collect_files_with_suffix(&target.join("transactions"), RECEIPT_SUFFIX)
+        .map_err(NativeExchangeError::from)?
+    {
+        let name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned());
+        let expected = name.as_deref().and_then(|name| receipt_bytes.get(name));
+        let bytes =
+            read_regular_file(&path, MAX_EXCHANGE_BYTES).map_err(NativeExchangeError::from)?;
+        if expected.is_none_or(|expected| *expected != bytes.as_slice()) {
+            return Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::TargetIncompleteMismatch,
+            ));
+        }
+    }
+    let origin_bytes: BTreeSet<&[u8]> = preflight
+        .branches
+        .iter()
+        .map(|branch| branch.origin.stored_bytes.as_slice())
+        .collect();
+    for path in collect_files_with_suffix(&target.join("branches"), ORIGIN_SUFFIX)
+        .map_err(NativeExchangeError::from)?
+    {
+        let bytes =
+            read_regular_file(&path, MAX_EXCHANGE_BYTES).map_err(NativeExchangeError::from)?;
+        if !origin_bytes.contains(bytes.as_slice()) {
+            return Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::TargetIncompleteMismatch,
+            ));
+        }
+    }
+    let ref_bytes: BTreeSet<&[u8]> = preflight
+        .branches
+        .iter()
+        .map(|branch| branch.reference.stored_bytes.as_slice())
+        .collect();
+    for path in collect_files_with_suffix(&target.join("refs"), REF_SUFFIX)
+        .map_err(NativeExchangeError::from)?
+    {
+        let bytes =
+            read_regular_file(&path, MAX_EXCHANGE_BYTES).map_err(NativeExchangeError::from)?;
+        if !ref_bytes.contains(bytes.as_slice()) {
+            return Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::TargetIncompleteMismatch,
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Scans the native marker directory for this exchange's stage marker.
+///
+/// Returns whether the exact marker is present and durable. Any foreign,
+/// malformed, or mismatched marker state refuses; a leftover temporary
+/// from a crashed marker install is tolerated like the v1 discipline.
+fn scan_native_markers(
+    versioned: &Path,
+    marker_name: &str,
+    temporary_name: &str,
+    exchange_id: &RepositoryExchangeId,
+) -> Result<bool> {
+    let mut markers = 0_usize;
+    let mut present = false;
+    for entry in fs::read_dir(versioned).map_err(NativeExchangeError::from)? {
+        let entry = entry.map_err(NativeExchangeError::from)?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let file_type = entry.file_type().map_err(NativeExchangeError::from)?;
+        if file_type.is_symlink() {
+            return Err(NativeExchangeError::exchange(ExchangeErrorCode::Io));
+        }
+        if name == temporary_name {
+            if !file_type.is_file() {
+                return Err(NativeExchangeError::exchange(ExchangeErrorCode::Io));
+            }
+            continue;
+        }
+        if name.ends_with(STAGE_SUFFIX) {
+            if !file_type.is_file() {
+                return Err(NativeExchangeError::exchange(ExchangeErrorCode::Io));
+            }
+            markers += 1;
+            if name != marker_name {
+                return Err(NativeExchangeError::exchange(
+                    ExchangeErrorCode::TargetIncompleteMismatch,
+                ));
+            }
+            let contents =
+                read_regular_file(&entry.path(), ID_LEN).map_err(NativeExchangeError::from)?;
+            if contents != exchange_id.as_bytes() {
+                return Err(NativeExchangeError::exchange(
+                    ExchangeErrorCode::TargetIncompleteMismatch,
+                ));
+            }
+            present = true;
+            continue;
+        }
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::TargetNotEmpty,
+        ));
+    }
+    if markers > 1 {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::TargetIncompleteMismatch,
+        ));
+    }
+    Ok(present)
+}
+
+fn classify_native_target(target: &Path, preflight: &NativePreflight) -> Result<NativeTarget> {
+    let Some(_) = real_directory_metadata(target).map_err(NativeExchangeError::from)? else {
+        return Ok(NativeTarget::Fresh);
+    };
+    let hex = hex_id(preflight.exchange_id.as_bytes());
+    let marker_name = format!("{hex}{STAGE_SUFFIX}");
+    let temporary_name = format!("{hex}{STAGE_TEMPORARY_SUFFIX}");
+    let mut entries: Vec<String> = Vec::new();
+    for entry in fs::read_dir(target).map_err(NativeExchangeError::from)? {
+        let entry = entry.map_err(NativeExchangeError::from)?;
+        entries.push(entry.file_name().to_string_lossy().into_owned());
+    }
+    if entries.is_empty() {
+        return Ok(NativeTarget::Fresh);
+    }
+    let exchange_dir = target.join(EXCHANGE_DIRECTORY);
+    let mut marker_present = false;
+    if real_directory_metadata(&exchange_dir)
+        .map_err(NativeExchangeError::from)?
+        .is_some()
+    {
+        let mut exchange_entries = Vec::new();
+        for entry in fs::read_dir(&exchange_dir).map_err(NativeExchangeError::from)? {
+            exchange_entries.push(
+                entry
+                    .map_err(NativeExchangeError::from)?
+                    .file_name()
+                    .to_string_lossy()
+                    .into_owned(),
+            );
+        }
+        // A v1 marker directory beside the native one is foreign state, not
+        // resume state: the two transports never share an import.
+        if exchange_entries
+            .iter()
+            .any(|name| name != NATIVE_EXCHANGE_VERSION_DIRECTORY)
+        {
+            return Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::TargetNotEmpty,
+            ));
+        }
+        let versioned = exchange_dir.join(NATIVE_EXCHANGE_VERSION_DIRECTORY);
+        if real_directory_metadata(&versioned)
+            .map_err(NativeExchangeError::from)?
+            .is_some()
+        {
+            marker_present = scan_native_markers(
+                &versioned,
+                &marker_name,
+                &temporary_name,
+                &preflight.exchange_id,
+            )?;
+        }
+    }
+    let only_exchange = entries.iter().all(|name| name == EXCHANGE_DIRECTORY);
+    if !marker_present {
+        return if only_exchange {
+            Ok(NativeTarget::Fresh)
+        } else {
+            Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::TargetNotEmpty,
+            ))
+        };
+    }
+    if entries
+        .iter()
+        .any(|name| !REPOSITORY_LAYOUT_ENTRIES.contains(&name.as_str()))
+    {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::TargetNotEmpty,
+        ));
+    }
+    verify_native_incomplete_clone(target, preflight)?;
+    Ok(NativeTarget::IncompleteClone)
+}
+
+fn purge_native_index_cache(target: &Path) -> Result<()> {
+    let path = target.join(INDEX_DIRECTORY);
+    let metadata = match fs::symlink_metadata(&path) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(NativeExchangeError::from(error)),
+    };
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(NativeExchangeError::exchange(ExchangeErrorCode::Io));
+    }
+    fs::remove_dir_all(&path).map_err(NativeExchangeError::from)?;
+    sync_directory(target).map_err(NativeExchangeError::from)
+}
+
+/// Installs verified branch origins and refs into the shared live layout.
+///
+/// Branch records are format-agnostic S20-500 bytes, so a native import
+/// installs them under the same `branches/v1` and `refs/v1` directories a
+/// v1 import uses — never a forked layout. Only preflight-verified
+/// branches arrive here; the collision checks still compare exact bytes.
+fn install_native_branches(
+    target: &Path,
+    branches: &[NativeVerifiedBranch],
+    branch_repository: &BranchRepository,
+) -> Result<()> {
+    branch_repository
+        .ensure_layout_under_maintenance()
+        .map_err(NativeExchangeError::from)?;
+    let _refs_lock = branch_repository
+        .acquire_refs_lock()
+        .map_err(NativeExchangeError::from)?;
+    let branches_dir = target.join("branches").join(EXCHANGE_VERSION_DIRECTORY);
+    let refs_dir = target.join("refs").join(EXCHANGE_VERSION_DIRECTORY);
+    for branch in branches {
+        let origin_path = ensure_key_path(&branches_dir, &branch.name, ORIGIN_SUFFIX, 2, 3)
+            .map_err(NativeExchangeError::from)?;
+        let ref_path = ensure_key_path(&refs_dir, &branch.name, REF_SUFFIX, 0, 0)
+            .map_err(NativeExchangeError::from)?;
+        let expected_origin = branch.origin.clone();
+        persist_no_overwrite(
+            &origin_path,
+            &branch.origin.stored_bytes,
+            BRANCH_STAGE_PREFIX,
+            BranchErrorCode::BranchOriginMismatch,
+            move |bytes| {
+                if import_branch_record(bytes)? == expected_origin {
+                    Ok(())
+                } else {
+                    Err(crate::refs::BranchError::Branch(
+                        BranchErrorCode::BranchOriginMismatch,
+                    ))
+                }
+            },
+        )
+        .map_err(map_native_install_collision)?;
+        persist_expected_ref(&ref_path, &branch.reference).map_err(map_native_install_collision)?;
+    }
+    Ok(())
+}
+
+fn map_native_install_collision(error: crate::refs::BranchError) -> NativeExchangeError {
+    match &error {
+        crate::refs::BranchError::Branch(
+            BranchErrorCode::BranchOriginMismatch | BranchErrorCode::RefAlreadyExists,
+        ) => NativeExchangeError::exchange(ExchangeErrorCode::Io),
+        _ => NativeExchangeError::Exchange(crate::exchange::ExchangeError::Branch(error)),
+    }
+}
+
+/// Imports a fully preflighted native exchange into a fresh or matching
+/// incomplete target.
+///
+/// Promotion order mirrors the v1 clone exactly: stage marker, exclusive
+/// maintenance with owned reclassification, derived-cache purge, pack
+/// objects, mixed receipts, branch records, accepted head last, marker
+/// removal. Everything above was verified before the first write; the head
+/// write still lands last with the receipt-before-head durability the
+/// shared installer owns.
+///
+/// # Errors
+///
+/// Returns the first target, promotion, or durability failure; a target
+/// that changed between the advisory and owned classifications aborts
+/// without adopting foreign state.
+pub fn import_native_exchange<V: CanonicalVerifier>(
+    target: &Path,
+    input: &[u8],
+    verifier: &V,
+    trust: &NativeExchangeTrust<'_>,
+) -> Result<NativeExchangeImportReport> {
+    let preflight = native_preflight(input, verifier, trust)?;
+    let _advisory = classify_native_target(target, &preflight)?;
+    let marker = install_native_stage_marker(target, preflight.exchange_id)?;
+    initialize_repository_maintenance(target).map_err(NativeExchangeError::from)?;
+    let maintenance = acquire_exclusive_repository_maintenance_nonblocking(target)
+        .map_err(NativeExchangeError::from)?;
+    let transactions = TransactionRepository::new(target);
+    if !matches!(
+        classify_native_target(target, &preflight)?,
+        NativeTarget::IncompleteClone
+    ) {
+        if marker.created {
+            fs::remove_file(&marker.path).map_err(NativeExchangeError::from)?;
+            marker.sync_parent()?;
+        }
+        drop(maintenance);
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::TargetIncompleteMismatch,
+        ));
+    }
+    purge_native_index_cache(target)?;
+    let store = ObjectStore::new(target);
+    let (promoted_objects, present_objects) =
+        promote_pack_objects(&store, &preflight.pack.decoded.objects, verifier)
+            .map_err(NativeExchangeError::from)?;
+    let order = native_topological_order(&preflight.receipts)?;
+    let mut staged: Vec<&[u8]> = Vec::with_capacity(preflight.receipts.len());
+    for transaction_id in &order {
+        staged.push(preflight.receipts[transaction_id].stored_bytes());
+    }
+    transactions
+        .initialize_trusted_mixed_clone_receipts_with_maintenance(
+            &maintenance,
+            preflight.accepted_head.transaction_id,
+            &staged,
+        )
+        .map_err(NativeExchangeError::from)?;
+    let branch_repository = BranchRepository::new(target);
+    install_native_branches(target, &preflight.branches, &branch_repository)?;
+    let head = transactions
+        .initialize_trusted_mixed_clone_head_with_maintenance(
+            &maintenance,
+            preflight.accepted_head.transaction_id,
+        )
+        .map_err(NativeExchangeError::from)?;
+    if head.transaction_id() != preflight.accepted_head.transaction_id
+        || head.receipt_id() != preflight.accepted_head.receipt_id
+    {
+        return Err(NativeExchangeError::native(
+            NativeExchangeErrorCode::InternalInvariant,
+        ));
+    }
+    fs::remove_file(&marker.path).map_err(NativeExchangeError::from)?;
+    marker.sync_parent()?;
+    drop(maintenance);
+    Ok(NativeExchangeImportReport {
+        exchange_id: preflight.exchange_id,
+        accepted_head: preflight.accepted_head,
+        receipts: preflight.receipts.len(),
+        branches: preflight.branches.len(),
+        promoted_objects,
+        present_objects,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1274,6 +2386,7 @@ mod tests {
         v1_head: TransactionId,
         head: TransactionId,
         acceptance_id: [u8; 32],
+        trust_manifests: Vec<HistoricalTrustPolicyV1>,
     }
 
     /// Genesis plus one v1 commit with the policy, objects, and roots the
@@ -1414,6 +2527,7 @@ mod tests {
                     v1_head,
                     head: v1_head,
                     acceptance_id: [0; 32],
+                    trust_manifests: Vec::new(),
                 };
             }
             // The native commit carries a plain candidate with no TestCase:
@@ -1442,6 +2556,10 @@ mod tests {
                 panic!("empty selection must commit");
             };
             let acceptance_id = *harness.acceptance_trust.id().as_bytes();
+            let trust_manifests = vec![
+                harness.measurement_trust.clone(),
+                harness.acceptance_trust.clone(),
+            ];
             Self {
                 temp,
                 root,
@@ -1450,6 +2568,7 @@ mod tests {
                 v1_head,
                 head: output.transaction_id(),
                 acceptance_id,
+                trust_manifests,
             }
         }
 
@@ -1457,20 +2576,25 @@ mod tests {
             self.temp.child(name)
         }
 
-        /// Exact receipt file bytes for one closure transaction, through the
-        /// deterministic fanout layout both formats share.
-        fn receipt_file_bytes(&self, transaction: TransactionId) -> Vec<u8> {
-            let hex = const_hex(transaction.as_bytes());
-            fs::read(
-                self.root
-                    .join("transactions")
-                    .join("v1")
-                    .join(&hex[0..2])
-                    .join(&hex[2..4])
-                    .join(format!("{hex}.receipt.scb1")),
-            )
-            .unwrap()
+        fn trust(&self) -> NativeExchangeTrust<'_> {
+            NativeExchangeTrust {
+                manifests: &self.trust_manifests,
+            }
         }
+    }
+
+    /// Exact receipt file bytes for one transaction, through the
+    /// deterministic fanout layout both formats share.
+    fn receipt_file_bytes(root: &std::path::Path, transaction: TransactionId) -> Vec<u8> {
+        let hex = const_hex(transaction.as_bytes());
+        fs::read(
+            root.join("transactions")
+                .join("v1")
+                .join(&hex[0..2])
+                .join(&hex[2..4])
+                .join(format!("{hex}.receipt.scb1")),
+        )
+        .unwrap()
     }
 
     fn const_hex(bytes: &[u8; 32]) -> String {
@@ -1491,7 +2615,7 @@ mod tests {
                 29_200,
             ),
             (
-                NativeExchangeErrorCode::ChunkInvalid,
+                NativeExchangeErrorCode::EncodingInvalid,
                 "NATIVE_TEST_ENCODING_INVALID",
                 29_201,
             ),
@@ -2002,7 +3126,7 @@ mod tests {
         for entry in &exchange.receipts {
             assert_eq!(
                 entry.reconstructed().unwrap(),
-                source.receipt_file_bytes(entry.transaction_id)
+                receipt_file_bytes(&source.root, entry.transaction_id)
             );
         }
         // The envelope decodes to the same exchange ID and profile, and the
@@ -2062,9 +3186,417 @@ mod tests {
         for entry in &decoded.receipts {
             assert_eq!(
                 entry.reconstructed().unwrap(),
-                source.receipt_file_bytes(entry.transaction_id)
+                receipt_file_bytes(&source.root, entry.transaction_id)
             );
         }
+    }
+
+    fn branch_listing(root: &std::path::Path) -> Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> {
+        let mut listed = BranchRepository::new(root)
+            .list_branches(crate::refs::MAX_BRANCHES)
+            .unwrap()
+            .into_iter()
+            .map(|branch| {
+                (
+                    branch.origin.record.branch_name.as_bytes().to_vec(),
+                    branch.origin.stored_bytes,
+                    branch.reference.stored_bytes,
+                )
+            })
+            .collect::<Vec<_>>();
+        listed.sort();
+        listed
+    }
+
+    #[test]
+    fn counters_fail_before_exceeding_any_ceiling() {
+        let mut counters = NativePreflightCounters::default();
+        counters
+            .add_signatures(MAX_NATIVE_SIGNATURE_CHECKS)
+            .unwrap();
+        assert_eq!(
+            counters.add_signatures(1).unwrap_err().code(),
+            "NATIVE_TEST_RESOURCE_LIMIT"
+        );
+        let mut counters = NativePreflightCounters::default();
+        counters.add_visits(MAX_NATIVE_TEST_VISITS).unwrap();
+        assert_eq!(
+            counters.add_visits(1).unwrap_err().code(),
+            "NATIVE_TEST_RESOURCE_LIMIT"
+        );
+        let mut counters = NativePreflightCounters::default();
+        counters
+            .add_evidence_bytes(MAX_NATIVE_EVIDENCE_BYTES)
+            .unwrap();
+        assert_eq!(
+            counters.add_evidence_bytes(1).unwrap_err().code(),
+            "NATIVE_TEST_RESOURCE_LIMIT"
+        );
+        // Overflow without wrapping also refuses.
+        let mut counters = NativePreflightCounters::default();
+        assert_eq!(
+            counters.add_signatures(u64::MAX).unwrap_err().code(),
+            "NATIVE_TEST_RESOURCE_LIMIT"
+        );
+    }
+
+    #[test]
+    fn mixed_preflight_charges_counters_without_writing() {
+        let source = NativeSource::new("native-preflight-mixed");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let report = preflight_native_exchange(
+            &exchange.stored_bytes,
+            &verifier(source.epoch),
+            &source.trust(),
+        )
+        .expect("mixed preflight succeeds");
+        assert_eq!(report.exchange_id, exchange.exchange_id);
+        assert_eq!(report.accepted_head, exchange.accepted_head);
+        assert_eq!(report.receipts, 3);
+        assert_eq!(report.branches, 2);
+        assert_eq!(report.leaves, 3 + 3 + 2);
+        // The committed empty selection carries no measurements: one
+        // acceptance signature, zero visits, and exactly its receipt bytes.
+        assert_eq!(report.signatures_checked, 1);
+        assert_eq!(report.test_visits, 0);
+        assert_eq!(
+            report.evidence_bytes,
+            receipt_file_bytes(&source.root, source.head).len() as u64
+        );
+    }
+
+    #[test]
+    fn native_import_is_clone_equivalent_and_reexports_identically() {
+        let source = NativeSource::new("native-import-round-trip");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let target = source.target("clone");
+        let report = import_native_exchange(
+            &target,
+            &exchange.stored_bytes,
+            &verifier(source.epoch),
+            &source.trust(),
+        )
+        .expect("native import succeeds");
+        assert_eq!(report.exchange_id, exchange.exchange_id);
+        assert_eq!(report.accepted_head, exchange.accepted_head);
+        assert_eq!(report.receipts, 3);
+        assert_eq!(report.branches, 2);
+        // Receipt file bytes are identical on both sides.
+        for entry in &exchange.receipts {
+            assert_eq!(
+                receipt_file_bytes(&target, entry.transaction_id),
+                receipt_file_bytes(&source.root, entry.transaction_id)
+            );
+        }
+        // Branches resolve to the same records on both sides.
+        assert_eq!(branch_listing(&target), branch_listing(&source.root));
+        // The accepted head verifies through the mixed loader.
+        let transactions = TransactionRepository::new(&target);
+        let maintenance = sley_txn::acquire_shared_repository_maintenance(&target).unwrap();
+        let head = transactions
+            .accepted_head_any_with_maintenance(&maintenance)
+            .expect("cloned head loads");
+        assert_eq!(head.transaction_id(), source.head);
+        drop(maintenance);
+        // A re-export of the clone is byte-identical: the clone is
+        // exchange-closed with no surplus or missing state.
+        let reexported = export_native_exchange(&target, &verifier(source.epoch)).unwrap();
+        assert_eq!(reexported.stored_bytes, exchange.stored_bytes);
+        assert_eq!(reexported.exchange_id, exchange.exchange_id);
+        // The native marker is gone: a finished import leaves no resume
+        // state behind.
+        assert!(
+            !target
+                .join("exchange")
+                .join(NATIVE_EXCHANGE_VERSION_DIRECTORY)
+                .join(format!("{}.stage", hex_id(exchange.exchange_id.as_bytes())))
+                .exists()
+        );
+    }
+
+    #[test]
+    fn post_head_crash_resumes_to_the_same_clone() {
+        let source = NativeSource::new("native-import-resume");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let target = source.target("resumed");
+        import_native_exchange(
+            &target,
+            &exchange.stored_bytes,
+            &verifier(source.epoch),
+            &source.trust(),
+        )
+        .expect("first import succeeds");
+        // Simulate a crash after the head write before marker removal: the
+        // complete clone with its marker restored must converge on retry.
+        fs::create_dir_all(target.join("exchange").join("v2")).unwrap();
+        fs::write(
+            target
+                .join("exchange")
+                .join("v2")
+                .join(format!("{}.stage", hex_id(exchange.exchange_id.as_bytes()))),
+            exchange.exchange_id.as_bytes(),
+        )
+        .unwrap();
+        let report = import_native_exchange(
+            &target,
+            &exchange.stored_bytes,
+            &verifier(source.epoch),
+            &source.trust(),
+        )
+        .expect("resumed import converges");
+        assert_eq!(report.accepted_head, exchange.accepted_head);
+        assert_eq!(report.receipts, 3);
+        let reexported = export_native_exchange(&target, &verifier(source.epoch)).unwrap();
+        assert_eq!(reexported.stored_bytes, exchange.stored_bytes);
+    }
+
+    #[test]
+    fn reimport_of_a_finished_clone_is_not_empty() {
+        let source = NativeSource::new("native-import-finished");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let target = source.target("finished");
+        import_native_exchange(
+            &target,
+            &exchange.stored_bytes,
+            &verifier(source.epoch),
+            &source.trust(),
+        )
+        .expect("first import succeeds");
+        // No marker remains, so the finished clone refuses as a non-empty
+        // target rather than silently re-promoting.
+        assert_eq!(
+            import_native_exchange(
+                &target,
+                &exchange.stored_bytes,
+                &verifier(source.epoch),
+                &source.trust(),
+            )
+            .unwrap_err()
+            .code(),
+            "EXCHANGE_TARGET_NOT_EMPTY"
+        );
+    }
+
+    #[test]
+    fn import_without_manifests_refuses_before_any_write() {
+        let source = NativeSource::new("native-import-no-trust");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let empty = NativeExchangeTrust { manifests: &[] };
+        assert_eq!(
+            preflight_native_exchange(&exchange.stored_bytes, &verifier(source.epoch), &empty)
+                .unwrap_err()
+                .code(),
+            "NATIVE_TEST_HISTORICAL_TRUST_UNAVAILABLE"
+        );
+        let target = source.target("untouched");
+        assert_eq!(
+            import_native_exchange(
+                &target,
+                &exchange.stored_bytes,
+                &verifier(source.epoch),
+                &empty
+            )
+            .unwrap_err()
+            .code(),
+            "NATIVE_TEST_HISTORICAL_TRUST_UNAVAILABLE"
+        );
+        // Preflight precedes the marker: nothing was written.
+        assert!(!target.exists());
+    }
+
+    #[test]
+    fn import_with_an_unknown_key_is_unavailable_and_duplicates_tolerated() {
+        let source = NativeSource::new("native-import-untrusted");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let workspace = fixed(1, WorkspaceId::from_bytes);
+        // A manifest that never mentions the acceptance key is unavailable.
+        let stranger = test_trust(
+            [0xE1; 32],
+            ROLE_ACCEPTANCE,
+            workspace,
+            *fixed_native_admission_profile().unwrap().id().as_bytes(),
+        );
+        let trust = NativeExchangeTrust {
+            manifests: &[stranger],
+        };
+        assert_eq!(
+            preflight_native_exchange(&exchange.stored_bytes, &verifier(source.epoch), &trust)
+                .unwrap_err()
+                .code(),
+            "NATIVE_TEST_HISTORICAL_TRUST_UNAVAILABLE"
+        );
+        // A duplicated manifest resolves deterministically to the same
+        // grant: the ID binds the full record, so same-ID manifests are
+        // interchangeable.
+        let trust = NativeExchangeTrust {
+            manifests: &[
+                source.trust_manifests[0].clone(),
+                source.trust_manifests[1].clone(),
+                source.trust_manifests[1].clone(),
+            ],
+        };
+        let report =
+            preflight_native_exchange(&exchange.stored_bytes, &verifier(source.epoch), &trust)
+                .expect("duplicate manifests still preflight");
+        assert_eq!(report.receipts, 3);
+    }
+
+    #[test]
+    fn trust_checker_failures_map_to_the_reserved_symbols() {
+        // The underlying structural checkers emit these variants at commit
+        // time (N5b vectors); import maps them without collapsing.
+        assert_eq!(
+            map_trust_error(NativeCommitError::TrustUnavailable).code(),
+            "NATIVE_TEST_HISTORICAL_TRUST_UNAVAILABLE"
+        );
+        assert_eq!(
+            map_trust_error(NativeCommitError::TrustUnavailable).numeric_code(),
+            Some(29_215)
+        );
+        assert_eq!(
+            map_trust_error(NativeCommitError::TrustRejected).code(),
+            "NATIVE_TEST_HISTORICAL_TRUST_REJECTED"
+        );
+        assert_eq!(
+            map_trust_error(NativeCommitError::TrustRejected).numeric_code(),
+            Some(29_216)
+        );
+    }
+
+    /// Rebuilds an exchange with a substituted trust union, recomputing the
+    /// transport leaf, tree, record, and envelope around it.
+    fn rebuild_with_trust(
+        exchange: &AcceptedNativeExchange,
+        pack_id: sley_id::RepositoryPackId,
+        trust: &[[u8; ID_LEN]],
+    ) -> Vec<u8> {
+        let (_, _, payload) = decode_native_envelope(&exchange.stored_bytes).unwrap();
+        let decoded = decode_native_payload(&payload).unwrap();
+        let profile = NativeExchangeProfileV1::fixed();
+        let leaves = compute_native_leaves(
+            pack_id,
+            &decoded.object_pack,
+            &decoded.receipts,
+            decoded.accepted_head,
+            &decoded.branches,
+            profile.id(),
+            trust,
+        )
+        .unwrap();
+        let root = merkle_root(&leaves, MAX_NATIVE_EXCHANGE_LEAVES).unwrap();
+        let payload = encode_native_payload(
+            &decoded.object_pack,
+            &decoded.receipts,
+            decoded.accepted_head,
+            &decoded.branches,
+            &leaves,
+            root,
+            trust,
+            profile.id(),
+        )
+        .unwrap();
+        encode_native_envelope(&payload, profile.id()).unwrap().0
+    }
+
+    #[test]
+    fn trust_union_exactness_is_checked_in_both_directions() {
+        let source = NativeSource::new("native-import-union");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        // A declaration no receipt references is not a valid encoding.
+        let surplus = vec![source.acceptance_id, [0xF1; 32]];
+        let rebuilt = rebuild_with_trust(&exchange, exchange.pack_id, &surplus);
+        assert_eq!(
+            preflight_native_exchange(&rebuilt, &verifier(source.epoch), &source.trust())
+                .unwrap_err()
+                .code(),
+            "NATIVE_TEST_ENCODING_INVALID"
+        );
+        // A referenced ID without a declaration is missing trust.
+        let rebuilt = rebuild_with_trust(&exchange, exchange.pack_id, &[]);
+        assert_eq!(
+            preflight_native_exchange(&rebuilt, &verifier(source.epoch), &source.trust())
+                .unwrap_err()
+                .code(),
+            "NATIVE_TEST_HISTORICAL_TRUST_UNAVAILABLE"
+        );
+    }
+
+    #[test]
+    fn tampered_receipt_bytes_fail_preflight_before_promotion() {
+        let source = NativeSource::new("native-import-tamper");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let (_, _, payload) = decode_native_envelope(&exchange.stored_bytes).unwrap();
+        let mut decoded = decode_native_payload(&payload).unwrap();
+        // Flip one byte of the native receipt, then recompute the tree so
+        // the failure lands on the receipt itself rather than the digest.
+        let native = decoded
+            .receipts
+            .iter_mut()
+            .find(|entry| entry.transaction_id == source.head)
+            .expect("native receipt present");
+        native.chunks[0][0] ^= 1;
+        let profile = NativeExchangeProfileV1::fixed();
+        let leaves = compute_native_leaves(
+            exchange.pack_id,
+            &decoded.object_pack,
+            &decoded.receipts,
+            decoded.accepted_head,
+            &decoded.branches,
+            profile.id(),
+            &decoded.required_trust_policy_ids,
+        )
+        .unwrap();
+        let root = merkle_root(&leaves, MAX_NATIVE_EXCHANGE_LEAVES).unwrap();
+        let payload = encode_native_payload(
+            &decoded.object_pack,
+            &decoded.receipts,
+            decoded.accepted_head,
+            &decoded.branches,
+            &leaves,
+            root,
+            &decoded.required_trust_policy_ids,
+            profile.id(),
+        )
+        .unwrap();
+        let (tampered, _) = encode_native_envelope(&payload, profile.id()).unwrap();
+        assert_eq!(
+            preflight_native_exchange(&tampered, &verifier(source.epoch), &source.trust())
+                .unwrap_err()
+                .code(),
+            "EXCHANGE_RECEIPT_INVALID"
+        );
+        let target = source.target("untampered");
+        assert_eq!(
+            import_native_exchange(&target, &tampered, &verifier(source.epoch), &source.trust())
+                .unwrap_err()
+                .code(),
+            "EXCHANGE_RECEIPT_INVALID"
+        );
+        assert!(!target.exists());
+    }
+
+    #[test]
+    fn cloned_native_history_recovers_without_secrets() {
+        let source = NativeSource::new("native-import-recover");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let target = source.target("recovered");
+        import_native_exchange(
+            &target,
+            &exchange.stored_bytes,
+            &verifier(source.epoch),
+            &source.trust(),
+        )
+        .expect("import succeeds");
+        // Recovery proves the accepted state with no trust manifests, no
+        // executor, and no secret export: the evidence is self-sufficient.
+        let transactions = TransactionRepository::new(&target);
+        let report = transactions.recover().expect("clone recovers");
+        let maintenance = sley_txn::acquire_shared_repository_maintenance(&target).unwrap();
+        let head = transactions
+            .accepted_head_any_with_maintenance(&maintenance)
+            .expect("recovered head loads");
+        assert_eq!(head.transaction_id(), source.head);
+        drop((maintenance, report));
     }
 
     #[test]

@@ -4118,6 +4118,161 @@ impl TransactionRepository {
         self.load_accepted(head)
     }
 
+    /// Installs one verified mixed-history clone receipt set under the
+    /// caller's exclusive maintenance ownership.
+    ///
+    /// This mirrors `initialize_trusted_clone_receipts_with_maintenance`
+    /// receipt for receipt, except the stored bytes decide the format:
+    /// format 1 runs the frozen v1 relationship, object, inventory, and
+    /// persistence path, and format 2 the native evidence, relationship,
+    /// object, inventory, pin, and persistence path. Unknown bytes refuse
+    /// on their magic before anything is written.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first receipt, verification, persistence, ordering, or
+    /// guard failure of either format.
+    pub fn initialize_trusted_mixed_clone_receipts_with_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        expected_head: TransactionId,
+        receipts: &[&[u8]],
+    ) -> Result<usize, CommitError> {
+        self.validate_exclusive_maintenance(maintenance)?;
+        self.ensure_layout_under_maintenance()?;
+        let _lock = self.acquire_lock()?;
+        self.require_incomplete_clone()?;
+        match self.read_head()? {
+            None => {}
+            Some(head) if head == expected_head => {
+                if !path_exists(&self.receipt_path_readonly(head)?)? {
+                    return Err(txn_commit_error(TransactionErrorCode::AlreadyInitialized));
+                }
+            }
+            Some(_) => {
+                return Err(txn_commit_error(TransactionErrorCode::AlreadyInitialized));
+            }
+        }
+
+        let mut decoded: BTreeMap<TransactionId, ImportedReceipt> = BTreeMap::new();
+        for stored in receipts {
+            let receipt = import_receipt_any(stored)?;
+            let transaction_id = receipt.transaction_id();
+            match decoded.get(&transaction_id) {
+                Some(existing) if *existing == receipt => {}
+                Some(_) => {
+                    return Err(txn_commit_error(TransactionErrorCode::ReceiptConflict));
+                }
+                None => {
+                    decoded.insert(transaction_id, receipt);
+                }
+            }
+        }
+
+        let mut installed: BTreeSet<TransactionId> = BTreeSet::new();
+        let mut pending: Vec<TransactionId> = decoded.keys().copied().collect();
+        while !pending.is_empty() {
+            let mut progressed = false;
+            let mut remaining = Vec::with_capacity(pending.len());
+            for transaction_id in pending {
+                let receipt = &decoded[&transaction_id];
+                let parents_ready = receipt
+                    .parent_transaction_ids()
+                    .iter()
+                    .all(|parent| installed.contains(parent) || !decoded.contains_key(parent));
+                if !parents_ready {
+                    remaining.push(transaction_id);
+                    continue;
+                }
+                match receipt {
+                    ImportedReceipt::V1(inner) => {
+                        self.verify_transaction_relationship(inner)?;
+                        let objects = self.load_objects(&inner.state_root)?;
+                        verify_manifest_lengths(&inner.record.object_manifest, &objects)?;
+                        validate_inventory(
+                            &inner.state_root,
+                            &inner.policy_root,
+                            &objects,
+                            &inner.transaction.record.tombstoned_entities,
+                        )?;
+                        self.persist_receipt(inner)?;
+                    }
+                    ImportedReceipt::V2(inner) => {
+                        let objects = self.load_objects(&inner.state_root)?;
+                        verify_manifest_lengths(&inner.record.object_manifest, &objects)?;
+                        validate_inventory(
+                            &inner.state_root,
+                            &inner.policy_root,
+                            &objects,
+                            &inner.transaction.record.tombstoned_entities,
+                        )?;
+                        let parent = match inner.transaction.record.parent_transaction_ids.first() {
+                            Some(parent_id) => Some(self.read_receipt_any_readonly(*parent_id)?),
+                            None => None,
+                        };
+                        let by_id = objects
+                            .iter()
+                            .map(|object| (object.object_id(), object.stored_bytes()))
+                            .collect::<BTreeMap<_, _>>();
+                        verify_native_receipt_against_objects(inner, parent.as_ref(), &by_id)?;
+                        self.persist_native_receipt(inner)?;
+                    }
+                }
+                installed.insert(transaction_id);
+                progressed = true;
+            }
+            pending = remaining;
+            if !progressed && !pending.is_empty() {
+                return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+            }
+        }
+        Ok(installed.len())
+    }
+
+    /// Writes the fixed accepted head of a mixed-history incomplete clone
+    /// last under the caller's exclusive maintenance ownership.
+    ///
+    /// The ancestry walk dispatches on the stored bytes like the mixed
+    /// receipt installer; the head durability order and the
+    /// already-initialized rules match the format-1 head phase exactly.
+    /// The returned receipt is the fully verified head of either format.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TXN_ALREADY_INITIALIZED` for any other present head,
+    /// `TXN_RESOURCE_LIMIT` for a parent chain longer than the clone
+    /// ceiling, the exact receipt or verification failure of a missing or
+    /// invalid ancestor, and `TXN_IO` for a non-exclusive or foreign
+    /// maintenance guard.
+    pub fn initialize_trusted_mixed_clone_head_with_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        head: TransactionId,
+    ) -> Result<ImportedReceipt, CommitError> {
+        self.validate_exclusive_maintenance(maintenance)?;
+        self.ensure_layout_under_maintenance()?;
+        let _lock = self.acquire_lock()?;
+        self.require_incomplete_clone()?;
+        let mut cursor = Some(head);
+        let mut visited = 0_usize;
+        while let Some(transaction_id) = cursor {
+            visited += 1;
+            if visited > CLONE_HEAD_MAX_ANCESTRY {
+                return Err(txn_commit_error(TransactionErrorCode::ResourceLimit));
+            }
+            let receipt = self.read_receipt_any_readonly(transaction_id)?;
+            cursor = receipt.parent_transaction_ids().first().copied();
+        }
+        match self.read_head()? {
+            None => self.cas_head(None, head)?,
+            Some(existing) if existing == head => {}
+            Some(_) => {
+                return Err(txn_commit_error(TransactionErrorCode::AlreadyInitialized));
+            }
+        }
+        self.load_verified_revision_any(head)
+    }
+
     fn acquire_lock(&self) -> Result<File, CommitError> {
         self.acquire_lock_inner(false)
     }
@@ -4462,20 +4617,25 @@ fn reject_symlink_if_present(path: &Path) -> Result<(), CommitError> {
     }
 }
 
-/// Reports whether `root` carries an S20-540 exchange stage marker.
+/// Reports whether `root` carries a repository exchange stage marker.
 ///
-/// A marked root is an incomplete clone: `exchange/v1/` contains an entry
-/// whose name ends in `.stage`. The directory is inspected without following
-/// symlinks; a symlinked or non-directory `exchange/` or `exchange/v1/` is
-/// `TXN_IO`. Every acceptance-establishing, ref-mutating, or deleting path in
-/// `sley-txn` and `sley-repo` fails closed with `TXN_INCOMPLETE_CLONE` while
-/// the marker is present.
+/// A marked root is an incomplete clone: `exchange/v1/` or the native
+/// `exchange/v2/` contains an entry whose name ends in `.stage`. Both
+/// transport identities mark the root because the gate answers only
+/// "marked?": which exchange a marked target may resume is decided by the
+/// repository layer, whose v1 and native classifiers never share resume
+/// state. The directory is inspected without following symlinks; a
+/// symlinked or non-directory `exchange/` or version directory is `TXN_IO`.
+/// Every acceptance-establishing, ref-mutating, or deleting path in
+/// `sley-txn` and `sley-repo` fails closed with `TXN_INCOMPLETE_CLONE`
+/// while the marker is present.
 ///
 /// # Errors
 ///
 /// Returns `TXN_IO` for a symlinked or non-directory exchange component or a
 /// host I/O failure.
 pub fn incomplete_clone_marker_present(root: &Path) -> Result<bool, CommitError> {
+    const EXCHANGE_VERSION_DIRECTORIES: [&str; 2] = [EXCHANGE_VERSION_DIRECTORY, "v2"];
     let exchange = root.join(EXCHANGE_DIRECTORY);
     let metadata = match fs::symlink_metadata(&exchange) {
         Ok(metadata) => metadata,
@@ -4485,23 +4645,25 @@ pub fn incomplete_clone_marker_present(root: &Path) -> Result<bool, CommitError>
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
         return Err(txn_commit_error(TransactionErrorCode::Io));
     }
-    let versioned = exchange.join(EXCHANGE_VERSION_DIRECTORY);
-    let metadata = match fs::symlink_metadata(&versioned) {
-        Ok(metadata) => metadata,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
-        Err(error) => return Err(error.into()),
-    };
-    if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(txn_commit_error(TransactionErrorCode::Io));
-    }
-    for entry in fs::read_dir(&versioned)? {
-        let entry = entry?;
-        if entry
-            .file_name()
-            .to_str()
-            .is_some_and(|name| name.ends_with(EXCHANGE_STAGE_SUFFIX))
-        {
-            return Ok(true);
+    for version in EXCHANGE_VERSION_DIRECTORIES {
+        let versioned = exchange.join(version);
+        let metadata = match fs::symlink_metadata(&versioned) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(txn_commit_error(TransactionErrorCode::Io));
+        }
+        for entry in fs::read_dir(&versioned)? {
+            let entry = entry?;
+            if entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| name.ends_with(EXCHANGE_STAGE_SUFFIX))
+            {
+                return Ok(true);
+            }
         }
     }
     Ok(false)

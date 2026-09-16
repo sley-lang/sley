@@ -24,9 +24,9 @@ pub const fn s20_530_test_hook_feature_name() -> &'static str {
 
 pub use codec::{
     ChangedBinding, CommitMetadata, ImportedTransaction, ImportedTransactionReceipt,
-    ObjectManifestEntry, TransactionCodecError, TransactionErrorCode, TransactionKind,
-    TransactionReceiptRecord, TransactionRecord, build_transaction, build_transaction_receipt,
-    import_transaction, import_transaction_receipt,
+    ObjectManifestEntry, RECEIPT_MAGIC, TransactionCodecError, TransactionErrorCode,
+    TransactionKind, TransactionReceiptRecord, TransactionRecord, build_transaction,
+    build_transaction_receipt, import_transaction, import_transaction_receipt,
 };
 pub use maintenance::{
     RepositoryMaintenanceGuard, acquire_exclusive_repository_maintenance,
@@ -48,6 +48,7 @@ pub use native_commit::{
     NativeAcceptanceSigner, NativeAttemptId, NativeCommitError, NativeCommitInput,
     NativeCommitOutcome, NativeCommitOutput, NativeRejection, NativeTestExecutor,
     NativeVerifiedRevision, attempt_path, commit_needs_executor, native_receipt_committed_root,
+    verify_acceptance_trust, verify_measurement_trust,
 };
 pub use repository::{
     AcceptedHead, CommitError, CommitInput, CommitOutput, RecoveryAncestryError,

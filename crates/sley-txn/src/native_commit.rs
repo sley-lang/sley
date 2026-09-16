@@ -438,11 +438,15 @@ pub(crate) fn check_admission_profile_binding(
 /// the key is unavailable; a mention without role, scope, profile, or
 /// interval cover is rejected.
 ///
+/// Besides the commit owner, repository exchange import uses this check to
+/// verify every accepted statement against caller-supplied manifests
+/// without installing trust.
+///
 /// # Errors
 ///
 /// Returns `HISTORICAL_TRUST_UNAVAILABLE` or `HISTORICAL_TRUST_REJECTED`
 /// per the rule above.
-pub(crate) fn verify_acceptance_trust(
+pub fn verify_acceptance_trust(
     statement_key: &[u8; 32],
     statement_policy: sley_id::HistoricalTrustPolicyId,
     workspace: WorkspaceId,
@@ -479,11 +483,15 @@ pub(crate) fn verify_acceptance_trust(
 /// manifest must grant the attestation key the measurement role for this
 /// workspace, execution profile, and historical run time.
 ///
+/// Besides the commit owner, repository exchange import uses this check to
+/// verify every embedded attestation against caller-supplied manifests
+/// without installing trust.
+///
 /// # Errors
 ///
 /// Returns `HISTORICAL_TRUST_UNAVAILABLE` or `HISTORICAL_TRUST_REJECTED`
 /// per the acceptance rule.
-pub(crate) fn verify_measurement_trust(
+pub fn verify_measurement_trust(
     attestation_key: &[u8; 32],
     attestation_policy: &[u8; 32],
     workspace: WorkspaceId,

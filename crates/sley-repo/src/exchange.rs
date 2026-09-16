@@ -60,17 +60,17 @@ const LEAF_DOMAIN: &[u8] = b"sley2.repository-exchange-leaf.v1";
 const NODE_DOMAIN: &[u8] = b"sley2.repository-exchange-node.v1";
 const HEAD_MAGIC: &[u8; 8] = b"SLEYHD01";
 const HEAD_DOMAIN: &[u8] = b"sley2.accepted-head.v1";
-const HEAD_LEN: usize = 73;
-const EXCHANGE_DIRECTORY: &str = "exchange";
+pub(crate) const HEAD_LEN: usize = 73;
+pub(crate) const EXCHANGE_DIRECTORY: &str = "exchange";
 /// The derived index cache, which an import removes rather than adopts.
-const INDEX_DIRECTORY: &str = "index";
-const EXCHANGE_VERSION_DIRECTORY: &str = "v1";
-const STAGE_SUFFIX: &str = ".stage";
-const STAGE_TEMPORARY_SUFFIX: &str = ".stage.tmp";
-const RECEIPT_SUFFIX: &str = ".receipt.scb1";
+pub(crate) const INDEX_DIRECTORY: &str = "index";
+pub(crate) const EXCHANGE_VERSION_DIRECTORY: &str = "v1";
+pub(crate) const STAGE_SUFFIX: &str = ".stage";
+pub(crate) const STAGE_TEMPORARY_SUFFIX: &str = ".stage.tmp";
+pub(crate) const RECEIPT_SUFFIX: &str = ".receipt.scb1";
 /// The only root entries an incomplete clone may carry besides the exchange
 /// directory: the S20-390, S20-500, and S20-180 owned layout.
-const REPOSITORY_LAYOUT_ENTRIES: [&str; 8] = [
+pub(crate) const REPOSITORY_LAYOUT_ENTRIES: [&str; 8] = [
     EXCHANGE_DIRECTORY,
     "objects",
     "transactions",
@@ -80,8 +80,8 @@ const REPOSITORY_LAYOUT_ENTRIES: [&str; 8] = [
     "refs",
     INDEX_DIRECTORY,
 ];
-const ORIGIN_SUFFIX: &str = ".branch.scb1";
-const REF_SUFFIX: &str = ".ref.scb1";
+pub(crate) const ORIGIN_SUFFIX: &str = ".branch.scb1";
+pub(crate) const REF_SUFFIX: &str = ".ref.scb1";
 
 /// Maximum stored exchange bytes.
 pub const MAX_EXCHANGE_BYTES: usize = 67_108_864;
@@ -530,7 +530,7 @@ pub(crate) fn stored_head_bytes(transaction_id: TransactionId) -> Vec<u8> {
     prefix
 }
 
-fn decode_head_bytes(bytes: &[u8]) -> Option<TransactionId> {
+pub(crate) fn decode_head_bytes(bytes: &[u8]) -> Option<TransactionId> {
     if bytes.len() != HEAD_LEN || &bytes[..8] != HEAD_MAGIC || bytes[8] != 1 {
         return None;
     }
@@ -542,7 +542,7 @@ fn decode_head_bytes(bytes: &[u8]) -> Option<TransactionId> {
     }
 }
 
-fn hex_id(bytes: &[u8; ID_LEN]) -> String {
+pub(crate) fn hex_id(bytes: &[u8; ID_LEN]) -> String {
     use fmt::Write as _;
 
     let mut output = String::with_capacity(ID_LEN * 2);
@@ -927,7 +927,7 @@ pub(crate) fn merkle_root(leaves: &[[u8; ID_LEN]], maximum: usize) -> Result<[u8
     Ok(level[0])
 }
 
-fn embedded_pack_header_is_tag_170(bytes: &[u8]) -> bool {
+pub(crate) fn embedded_pack_header_is_tag_170(bytes: &[u8]) -> bool {
     let mut reader = Reader::new(bytes);
     let Ok(magic) = reader.take_exact(MAGIC.len()) else {
         return false;
@@ -1528,7 +1528,7 @@ fn fail_at(cut: ExchangeInterruption) -> Result<()> {
     Ok(())
 }
 
-fn real_directory_metadata(path: &Path) -> Result<Option<fs::Metadata>> {
+pub(crate) fn real_directory_metadata(path: &Path) -> Result<Option<fs::Metadata>> {
     match fs::symlink_metadata(path) {
         Ok(metadata) => {
             if metadata.file_type().is_symlink() || !metadata.is_dir() {
@@ -1541,7 +1541,7 @@ fn real_directory_metadata(path: &Path) -> Result<Option<fs::Metadata>> {
     }
 }
 
-fn read_regular_file(path: &Path, maximum: usize) -> Result<Vec<u8>> {
+pub(crate) fn read_regular_file(path: &Path, maximum: usize) -> Result<Vec<u8>> {
     let metadata = fs::symlink_metadata(path)?;
     if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err(exchange_error(ExchangeErrorCode::Io));
@@ -1552,7 +1552,7 @@ fn read_regular_file(path: &Path, maximum: usize) -> Result<Vec<u8>> {
     Ok(fs::read(path)?)
 }
 
-fn collect_files_with_suffix(root: &Path, suffix: &str) -> Result<Vec<PathBuf>> {
+pub(crate) fn collect_files_with_suffix(root: &Path, suffix: &str) -> Result<Vec<PathBuf>> {
     let mut found = Vec::new();
     let mut pending = vec![root.to_path_buf()];
     while let Some(directory) = pending.pop() {
@@ -1762,12 +1762,12 @@ fn verify_incomplete_clone(target: &Path, preflight: &Preflight) -> Result<()> {
     Ok(())
 }
 
-fn sync_directory(path: &Path) -> Result<()> {
+pub(crate) fn sync_directory(path: &Path) -> Result<()> {
     File::open(path)?.sync_all()?;
     Ok(())
 }
 
-fn create_real_directory(path: &Path) -> Result<()> {
+pub(crate) fn create_real_directory(path: &Path) -> Result<()> {
     match fs::create_dir(path) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
