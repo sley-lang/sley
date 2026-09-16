@@ -1122,16 +1122,20 @@ fn profile_frame_commands_report_version_mismatch_for_non_hello_frames() {
 }
 
 fn v3_request(session: Option<SessionId>, id: u64, method: Method) -> Vec<u8> {
+    v3_request_with_body(session, id, method.tag(), Vec::new())
+}
+
+fn v3_request_with_body(session: Option<SessionId>, id: u64, tag: u32, body: Vec<u8>) -> Vec<u8> {
     encode_frame_for_version(
         &ProtocolFrame {
             protocol_version: PROTOCOL_VERSION_V3,
             session,
             request_id: id,
             kind: FrameKind::Request,
-            method: method.tag(),
+            method: tag,
             flags: 0,
             bounds: BoundedContext::none(),
-            body: Vec::new(),
+            body,
         },
         PROTOCOL_VERSION_V3,
     )
@@ -1167,9 +1171,9 @@ fn response_v3(bytes: &[u8]) -> ProtocolFrame {
     }
 }
 
-/// Shared script state for the interactive v3 refusal probe: the reader
-/// serves the hello, the open, and — once the writer observes the open
-/// response — the session-bound 605 probe built from the fresh session id.
+/// Shared script state for the interactive v3 probes: the reader serves
+/// the hello, the open, and — once the writer observes the open response —
+/// the session-bound probe built from the fresh session id.
 /// Single-threaded serve alternates reads and writes, so no thread is
 /// needed.
 struct Script {
@@ -1178,6 +1182,8 @@ struct Script {
     output: Vec<u8>,
     scanned: usize,
     armed: bool,
+    probe_tag: u32,
+    probe_body: Vec<u8>,
 }
 
 struct ScriptIn(std::rc::Rc<std::cell::RefCell<Script>>);
@@ -1191,6 +1197,20 @@ impl Script {
             output: Vec::new(),
             scanned: 0,
             armed: false,
+            probe_tag: Method::TestsReportRead.tag(),
+            probe_body: Vec::new(),
+        }
+    }
+
+    fn with_probe(input: Vec<u8>, probe_tag: u32, probe_body: Vec<u8>) -> Self {
+        Self {
+            input,
+            taken: 0,
+            output: Vec::new(),
+            scanned: 0,
+            armed: false,
+            probe_tag,
+            probe_body,
         }
     }
 }
@@ -1226,10 +1246,13 @@ impl std::io::Write for ScriptOut {
             if frames.len() == 2 {
                 let opened = response_v3(&frames[1]);
                 let session = SessionId::from_bytes(opened.body.as_slice().try_into().unwrap());
-                script.input.extend_from_slice(&v3_request(
+                let probe_tag = script.probe_tag;
+                let probe_body = std::mem::take(&mut script.probe_body);
+                script.input.extend_from_slice(&v3_request_with_body(
                     Some(session),
                     2,
-                    Method::TestsReportRead,
+                    probe_tag,
+                    probe_body,
                 ));
                 script.armed = true;
             }
@@ -1259,20 +1282,25 @@ fn v3_hello_offers_three_versions_with_the_v3_methods() {
         .collect();
     assert!(methods.contains(&"entity.version"));
     assert!(methods.contains(&"entity.signature"));
-    // Reserved native rows are never offered, only negotiated against.
+    // The live selection reads are offered; the still-reserved
+    // report/replay/status rows are never offered, only negotiated against.
+    assert!(methods.contains(&"tests.selected"));
+    assert!(methods.contains(&"tests.affected"));
     assert!(!methods.contains(&"tests.report_read"));
     assert!(!methods.contains(&"tests.replay"));
     assert!(!methods.contains(&"tests.attempt_status"));
-    assert_eq!(methods.len(), 39);
+    assert_eq!(methods.len(), 41);
     assert_eq!(object["features"]["native_tests"], Value::from(true));
 
     let (status, stdout, _) = run(&["hello", "--protocol-profile", "v3-capable"], &[]);
     assert_eq!(status, 0);
     match decode_frame(&stdout, MAX_FRAME_BYTES).unwrap().0 {
         DecodedFrame::Hello(hello) => {
-            assert_eq!(hello.methods.len(), 39);
+            assert_eq!(hello.methods.len(), 41);
             assert!(hello.methods.contains(&306));
             assert!(hello.methods.contains(&307));
+            assert!(hello.methods.contains(&601));
+            assert!(hello.methods.contains(&602));
             assert!(!hello.methods.contains(&605));
             assert!(!hello.methods.contains(&606));
             assert!(!hello.methods.contains(&607));
@@ -1476,6 +1504,76 @@ fn v3_serve_refuses_reserved_native_calls_with_the_seam_named() {
         serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
     assert_eq!(report["contract"], "sley2-cli-report-v3");
     assert_eq!(report["protocol_profile"], "v3-capable");
+    assert_eq!(report["selected_protocol_version"], 3);
+    assert_eq!(report["failed_answers"], 1);
+}
+
+#[test]
+fn v3_serve_routes_live_selection_reads_past_reservation() {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    // A v3 client opens a version 3 session, then calls the live 601 with
+    // a well-formed body naming a foreign root: the call must travel past
+    // reservation into the live handler and refuse stale (33_004), never
+    // as reserved (40007). Reservation is gone for this tag; only the
+    // root binding stands in the way.
+    let (_temp, path) = repository("cli-v3-profile-selection-live");
+    let repo = path.to_str().unwrap().to_string();
+    let client = offered_v3();
+    let (_, handshake) = sley_protocol::negotiate_identity_versioned(&client, &client).unwrap();
+    let mut input = encode_hello_frame(&client).unwrap().bytes;
+    input.extend_from_slice(&v3_open(handshake.as_bytes()));
+    let profile = sley_vm::native_execution::profile_id();
+    let probe = sley_scb1::encode_record(&[
+        (1, vec![0xFF; 32]),
+        (2, sley_scb1::encode_list(&[]).unwrap()),
+        (3, profile.as_bytes().to_vec()),
+        (4, vec![0xE0; 16]),
+    ])
+    .unwrap();
+    let report_path = path
+        .parent()
+        .unwrap()
+        .join("v3-selection-live-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
+    let script = Rc::new(RefCell::new(Script::with_probe(
+        input,
+        Method::TestsSelected.tag(),
+        probe,
+    )));
+    let mut stdin = ScriptIn(Rc::clone(&script));
+    let mut stdout = ScriptOut(Rc::clone(&script));
+    let mut stderr = Vec::new();
+    let status = sley_cli::run(
+        &[
+            "serve".to_string(),
+            "--repository".to_string(),
+            repo,
+            "--protocol-profile".to_string(),
+            "v3-capable".to_string(),
+            "--report".to_string(),
+            report_path.clone(),
+        ],
+        &mut stdin,
+        &mut stdout,
+        &mut stderr,
+    );
+    assert_eq!((status, stderr.as_slice()), (0, &[] as &[u8]));
+    let script = script.borrow();
+    assert!(script.armed, "the open response never armed the probe");
+    let frames = split_frames(&script.output);
+    assert_eq!(frames.len(), 3);
+    let refused = response_v3(&frames[2]);
+    assert_eq!(refused.protocol_version, PROTOCOL_VERSION_V3);
+    let failure = ProtocolFailure::decode(&refused.body).unwrap();
+    assert_eq!(failure.code, 33_004);
+    assert_eq!(failure.symbol, "SESSION_STALE_HANDLE");
+    let report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+    assert_eq!(report["contract"], "sley2-cli-report-v3");
     assert_eq!(report["selected_protocol_version"], 3);
     assert_eq!(report["failed_answers"], 1);
 }

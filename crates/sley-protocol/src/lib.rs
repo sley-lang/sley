@@ -68,8 +68,9 @@ pub const FEATURE_EXTENDED_EXECUTE: u32 = 16;
 /// Feature bit 5: the session negotiates the native test methods (contract
 /// `docs/spec/NATIVE_TEST_ADMISSION_V1.md` Appendix C). A selected v3
 /// intersection that lacks this bit drops the native tags before the
-/// profile hash, so they refuse as not-negotiated; with the bit they stay
-/// negotiated and refuse as reserved until their semantics slices land.
+/// profile hash, so they refuse as not-negotiated; with the bit the
+/// selection reads 601/602 stay negotiated and dispatch, while 605-607
+/// refuse as reserved until N7d.
 pub const FEATURE_NATIVE_TESTS_V1: u32 = 32;
 const FEATURE_MASK: u32 = FEATURE_CANCEL
     | FEATURE_STREAM
@@ -561,9 +562,10 @@ impl Method {
 
     /// The version-3 table: the frozen v2 tags plus the three native test
     /// methods new in that scope, in tag order. The legacy `ALL` and `V2_ALL`
-    /// tables are unchanged. All five native methods stay reserved until
-    /// their semantics slices land, so v3 negotiation works while every
-    /// native call still refuses `PROTOCOL_METHOD_UNSUPPORTED`.
+    /// tables are unchanged. The selection reads 601/602 dispatch at v3
+    /// with the native-tests bit since N7c; 605-607 stay reserved until
+    /// N7d, so v3 negotiation works while those calls still refuse
+    /// `PROTOCOL_METHOD_UNSUPPORTED`.
     pub const V3_ALL: [Self; 46] = [
         Self::SessionOpen,
         Self::SessionRenew,
@@ -724,10 +726,10 @@ impl Method {
     }
 
     /// Reserved methods fail `PROTOCOL_METHOD_UNSUPPORTED` at this revision.
-    /// The three v3-native methods join the reserved set until their
-    /// semantics slices land; `tests.selected` and `tests.affected` stay
-    /// reserved in every version, so v1/v2 refuse them byte-for-byte as
-    /// before.
+    /// The three v3-native methods join the reserved set until N7d;
+    /// `tests.selected` and `tests.affected` went live at v3 with the
+    /// native-tests bit in N7c, so they stay reserved in every other
+    /// version and v1/v2 refuse them byte-for-byte as before.
     #[must_use]
     pub const fn is_reserved(self) -> bool {
         matches!(
@@ -740,6 +742,15 @@ impl Method {
                 | Self::TestsReplay
                 | Self::TestsAttemptStatus
         )
+    }
+
+    /// Selection reads live at v3 with the native-tests bit and only
+    /// there: the dispatch gate admits them exactly when the selected
+    /// version is 3, the bit negotiated, and the tag negotiated, while
+    /// every other version keeps the reserved refusal above.
+    #[must_use]
+    pub const fn is_native_selection(self) -> bool {
+        matches!(self, Self::TestsSelected | Self::TestsAffected)
     }
 
     /// Resolves a frozen tag.
@@ -848,10 +859,14 @@ impl Hello {
             || self.effects.len() > MAX_HELLO_LIST
             || !strictly_increasing(&self.effects)
             || self.features & !FEATURE_MASK != 0
-            || self
-                .methods
-                .iter()
-                .any(|tag| Method::from_tag(*tag).is_ok_and(Method::is_reserved))
+            || self.methods.iter().any(|tag| {
+                Method::from_tag(*tag).is_ok_and(|method| {
+                    method.is_reserved()
+                        && !(method.is_native_selection()
+                            && self.protocol_versions.contains(&PROTOCOL_VERSION_V3)
+                            && self.features & FEATURE_NATIVE_TESTS_V1 != 0)
+                })
+            })
         {
             return fail(ProtocolErrorCode::PayloadInvalid);
         }
@@ -1017,11 +1032,13 @@ pub fn negotiate(client: &Hello, server: &Hello) -> Result<SelectedProfile> {
 /// The legacy derivation is preserved exactly, including opaque unknown
 /// numeric intersections; only the known higher-version tags are filtered
 /// from the intersection when the selected version is lower. Reserved tags
-/// remain invalid offers in every version through `Hello::validate`. On v3
-/// the native tags additionally require the negotiated
-/// `FEATURE_NATIVE_TESTS_V1` bit: a selected intersection that lacks the
-/// bit drops them before the profile hash, so they refuse as
-/// not-negotiated rather than reserved.
+/// remain invalid offers, except the native selection reads 601/602, which
+/// a hello offering version 3 may list exactly when it sets
+/// `FEATURE_NATIVE_TESTS_V1`. On v3 the native tags additionally require
+/// the negotiated bit: a selected intersection that lacks the bit drops
+/// them before the profile hash, so they refuse as not-negotiated rather
+/// than reserved; with the bit 601/602 dispatch while 605-607 still refuse
+/// as reserved.
 ///
 /// # Errors
 ///
@@ -3383,6 +3400,10 @@ mod tests {
         assert!(Method::TestsReportRead.is_reserved());
         assert!(Method::TestsReplay.is_reserved());
         assert!(Method::TestsAttemptStatus.is_reserved());
+        assert!(Method::TestsSelected.is_native_selection());
+        assert!(Method::TestsAffected.is_native_selection());
+        assert!(!Method::TestsReportRead.is_native_selection());
+        assert!(!Method::Report.is_native_selection());
         assert!(!Method::Report.is_reserved());
         for method in Method::V3_ALL {
             assert_eq!(
@@ -3446,13 +3467,24 @@ mod tests {
             hello.methods.sort_unstable();
             hello
         }
-        // Reserved 601/602 offers stay invalid in every version through
-        // `Hello::validate`, so negotiation never sees them.
+        // Reserved 601/602 offers stay invalid without the v3 bit through
+        // `Hello::validate`, so negotiation never sees them; with version
+        // 3 offered and the bit set they validate and negotiate.
         let mut reserved_offer = v3_hello();
         reserved_offer.methods.push(TESTS_SELECTED_TAG);
         reserved_offer.methods.sort_unstable();
         assert_eq!(
             reserved_offer.validate().unwrap_err().code(),
+            ProtocolErrorCode::PayloadInvalid
+        );
+        let mut live_offer = reserved_offer.clone();
+        live_offer.features |= FEATURE_NATIVE_TESTS_V1;
+        live_offer.validate().unwrap();
+        // A v1-only hello may not list them even with the bit set.
+        let mut v1_offer = live_offer.clone();
+        v1_offer.protocol_versions = vec![PROTOCOL_VERSION];
+        assert_eq!(
+            v1_offer.validate().unwrap_err().code(),
             ProtocolErrorCode::PayloadInvalid
         );
         // The new bit validates; unknown bits still refuse.

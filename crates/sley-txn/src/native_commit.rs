@@ -406,6 +406,31 @@ pub trait NativeTestExecutor {
         let _ = (plan, objects);
         Err(NativeCommitError::ExecutorUnavailable)
     }
+
+    /// Diagnostically executes one explicit-root plan over accepted objects
+    /// for the 601 selection read: the owner supplies the stored plan and
+    /// the accepted object bytes keyed by object identity. The owner checks
+    /// coverage and builds the diagnostic report itself; no approval,
+    /// bundle, transaction, receipt, journal record, or head change
+    /// results, so this entry point can never commit.
+    ///
+    /// The default implementation refuses: executors that only serve the
+    /// commit path keep refusing diagnostics explicitly rather than
+    /// silently reusing commit evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NATIVE_EXECUTOR_UNAVAILABLE` from the default refusal, or
+    /// the first diagnostic refusal; test-level failures stay evidence
+    /// pairs with rejected content.
+    fn execute_diagnostic(
+        &self,
+        plan: &NativeTestPlanV1,
+        objects: &BTreeMap<ObjectId, &[u8]>,
+    ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+        let _ = (plan, objects);
+        Err(NativeCommitError::ExecutorUnavailable)
+    }
 }
 
 /// Returns whether the [`NativeTestExecutor`] reference is present.

@@ -15,17 +15,19 @@ use std::path::{Path, PathBuf};
 use sley_check::TypeEnvironment;
 use sley_conformance::{build_execution_report, execution_report_preimage};
 use sley_id::{
-    EntityId, ExecutionReportId, ObjectId, ProtocolHandshakeId, SchemaEpochId, StateRoot,
-    TransactionId,
+    EntityId, ExecutionReportId, NativeExecutionProfileId, ObjectId, ProtocolHandshakeId,
+    SchemaEpochId, StateRoot, TransactionId,
 };
 use sley_id::{PrincipalId, ReceiptId};
 use sley_mutate::{
     build_candidate, decode_candidate_record, decode_const_value, import_candidate,
     import_entity_object,
+    value::{EntityBodyValue, TestCaseBody},
 };
 use sley_policy::{
-    CandidateValidationContext, CandidateValidationLimits, conformance_registry as policy_registry,
-    import_policy_root, validate_candidate_bytes,
+    CandidateValidationContext, CandidateValidationLimits, NativeExplicitRootInputs,
+    NativePlanErrorV1, NativePlanInputs, conformance_registry as policy_registry,
+    import_policy_root, native_test_plan, native_test_plan_explicit_root, validate_candidate_bytes,
 };
 use sley_query::{
     Cursor, EntityReadCeilings, EntityReadError, EntityReadMethod, ImpactEdge, ImpactKind,
@@ -48,14 +50,21 @@ use sley_state_root::{
     AcceptedStateRoot, conformance_registry as state_registry, import_state_root,
 };
 use sley_store::ObjectStore;
+use sley_tests::{NativeAggregateLimits, NativeTestPlanV1};
 use sley_txn::{
-    CommitInput, RepositoryMaintenanceGuard, TransactionRepository, TrustedGenesisInput,
-    VerifiedRevision, acquire_shared_repository_maintenance, initialize_repository_maintenance,
+    CommitInput, NativeDiagnosticAssembly, NativeTestExecutor, RepositoryMaintenanceGuard,
+    TransactionRepository, TrustedGenesisInput, VerifiedRevision,
+    acquire_shared_repository_maintenance, assemble_diagnostic_report,
+    initialize_repository_maintenance,
+};
+use sley_vm::native_execution::{
+    NativeImplementationLimits, profile_id as native_execution_profile,
 };
 use sley_vm::{CacheProfile, ExecutionLimits, ExecutionRequest, LoweringInput, execute_function};
 
 use crate::session::{
-    CapsuleBindError, HeadBinding, SessionAuthority, SessionError, fresh_server_nonce,
+    CapsuleBindError, HeadBinding, SessionAuthority, SessionError, SessionErrorCode,
+    fresh_server_nonce,
 };
 use crate::{
     BoundedContext, DecodedFrame, EncodedFrame, FEATURE_CANCEL, FEATURE_EXTENDED_EXECUTE,
@@ -194,8 +203,57 @@ fn reserved_refusal(method: Method) -> ProtocolFailure {
     failure
 }
 
+/// Report-token time to live in milliseconds: five minutes, after which a
+/// minted token refuses even inside its session (contract appendix C).
+const DIAGNOSTIC_TOKEN_TTL_MILLIS: u64 = 300_000;
+/// Maximum live report tokens per session.
+const MAX_DIAGNOSTIC_TOKENS_PER_SESSION: usize = 32;
+/// Maximum cached diagnostic report bytes per session (64 MiB).
+const MAX_DIAGNOSTIC_BYTES_PER_SESSION: u64 = 67_108_864;
+/// Maximum cached diagnostic attempts per server; the oldest goes on
+/// overflow, and a re-submitted attempt simply re-executes.
+const MAX_DIAGNOSTIC_ATTEMPTS: usize = 256;
+/// Token derivation domain: the per-instance server nonce, session, and a
+/// server counter make each token unpredictable to callers while keeping
+/// one instance deterministic.
+const DIAGNOSTIC_TOKEN_DOMAIN: &[u8] = b"sley2.diagnostic-report-token.v1";
+
+/// One minted diagnostic report token with its cached report bytes.
+struct DiagnosticToken {
+    token: [u8; 32],
+    session: SessionId,
+    report: Vec<u8>,
+    created_millis: u64,
+}
+
+/// One completed diagnostic attempt with the response it produced.
+///
+/// Resubmission with identical bindings replays the cached response
+/// without re-executing; any binding divergence refuses as an attempt
+/// conflict. The attempt dies with its token: renewal, close, checkout,
+/// and commit invalidate tokens, and an attempt whose token is gone can
+/// never replay a dead capability.
+struct DiagnosticAttempt {
+    session: SessionId,
+    bindings: Vec<u8>,
+    response: Vec<u8>,
+    selected_count: u64,
+    token: [u8; 32],
+    created_millis: u64,
+}
+
+/// Reads wall-clock milliseconds for diagnostic token expiry. Response
+/// bytes stay a pure function of requests plus server state: the clock
+/// only expires cached tokens, never enters a response.
+fn system_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|elapsed| u64::try_from(elapsed.as_millis()).ok())
+        .unwrap_or(0)
+}
+
 /// The deterministic server over one repository.
-#[derive(Debug)]
 pub struct Server {
     repository: PathBuf,
     profile: SelectedProfile,
@@ -220,6 +278,44 @@ pub struct Server {
     /// the retained admitted revision supplies the entire answer.
     #[cfg(test)]
     head_loads: core::cell::Cell<u64>,
+    /// Configured diagnostic test-execution dispatch for the 601/602
+    /// selection reads: server-operator configuration, never caller
+    /// authority. `None` refuses diagnostics before any owner work.
+    executor: Option<Box<dyn NativeTestExecutor>>,
+    /// Wall-clock source for diagnostic token expiry; tests inject a
+    /// manual clock, production uses system time.
+    now_millis: fn() -> u64,
+    /// Server counter distinguishing minted diagnostic tokens.
+    diagnostic_token_counter: u64,
+    /// Live diagnostic report tokens with their cached report bytes.
+    diagnostic_tokens: Vec<DiagnosticToken>,
+    /// Completed diagnostic attempts keyed by client attempt identity.
+    diagnostic_attempts: BTreeMap<[u8; 16], DiagnosticAttempt>,
+}
+
+impl core::fmt::Debug for Server {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        formatter
+            .debug_struct("Server")
+            .field("repository", &self.repository)
+            .field("profile", &self.profile)
+            .field("handshake_id", &self.handshake_id)
+            .field("registry", &self.registry)
+            .field("authority", &self.authority)
+            .field("budgets", &self.budgets)
+            .field("version_aware", &self.version_aware)
+            .field("executor_configured", &self.executor.is_some())
+            .field("diagnostic_token_counter", &self.diagnostic_token_counter)
+            .field("diagnostic_tokens", &self.diagnostic_tokens.len())
+            .field("diagnostic_attempts", &self.diagnostic_attempts.len())
+            .finish_non_exhaustive()
+    }
+}
+
+impl DiagnosticToken {
+    fn expired(&self, now: u64) -> bool {
+        now.saturating_sub(self.created_millis) > DIAGNOSTIC_TOKEN_TTL_MILLIS
+    }
 }
 
 /// One answered frame and the request identity it belongs to.
@@ -265,6 +361,11 @@ impl Server {
             entity_encode_fault: false,
             #[cfg(test)]
             head_loads: core::cell::Cell::new(0),
+            executor: None,
+            now_millis: system_millis,
+            diagnostic_token_counter: 0,
+            diagnostic_tokens: Vec::new(),
+            diagnostic_attempts: BTreeMap::new(),
         })
     }
 
@@ -297,6 +398,11 @@ impl Server {
             entity_encode_fault: false,
             #[cfg(test)]
             head_loads: core::cell::Cell::new(0),
+            executor: None,
+            now_millis: system_millis,
+            diagnostic_token_counter: 0,
+            diagnostic_tokens: Vec::new(),
+            diagnostic_attempts: BTreeMap::new(),
         })
     }
 
@@ -363,11 +469,13 @@ impl Server {
     /// The hello a native-capable server offers: versions 1 through 3 with
     /// the v3 method table and the native-tests feature bit. The hello
     /// frame itself still travels at frame version 1 so older peers can
-    /// read the offer and negotiate down. The five native methods stay
-    /// reserved until their semantics slices land, so the offer carries no
-    /// native method tags yet: with the bit, a peer-offered native tag
-    /// negotiates and refuses as reserved; without the bit, negotiation
-    /// strips native tags and they refuse as not-negotiated.
+    /// read the offer and negotiate down. The selection reads 601/602 are
+    /// offered since N7c (listable only with version 3 and the bit, so
+    /// older negotiations still refuse them byte-for-byte); 605-607 stay
+    /// reserved until N7d, so the offer carries none of those tags yet:
+    /// with the bit, a peer-offered pending tag negotiates and refuses as
+    /// reserved; without the bit, negotiation strips native tags and they
+    /// refuse as not-negotiated.
     ///
     /// # Errors
     ///
@@ -383,7 +491,7 @@ impl Server {
             methods: Method::V3_ALL
                 .iter()
                 .copied()
-                .filter(|method| !method.is_reserved())
+                .filter(|method| !method.is_reserved() || method.is_native_selection())
                 .map(Method::tag)
                 .collect(),
             features: FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1,
@@ -407,6 +515,19 @@ impl Server {
     #[must_use]
     pub fn repository(&self) -> &Path {
         &self.repository
+    }
+
+    /// Installs the configured diagnostic test-execution dispatch serving
+    /// the 601/602 selection reads. The executor is operator configuration;
+    /// without one every selection read refuses before any owner work.
+    pub fn set_executor(&mut self, executor: Box<dyn NativeTestExecutor>) {
+        self.executor = Some(executor);
+    }
+
+    /// Overrides the wall-clock source for diagnostic token expiry. Tests
+    /// inject a manual clock to prove TTL behavior deterministically.
+    pub fn set_clock(&mut self, now: fn() -> u64) {
+        self.now_millis = now;
     }
 
     #[must_use]
@@ -925,6 +1046,12 @@ impl Server {
         method: Method,
         frame: &ProtocolFrame,
     ) -> Result<(Vec<u8>, BoundedContext)> {
+        if method.is_native_selection()
+            && self.native_selection_live()
+            && self.profile.admits(method)
+        {
+            return self.tests_selection(session, method, &frame.body);
+        }
         if !self.profile.admits(method) || method.is_reserved() {
             if method.is_reserved() {
                 return Err(reserved_refusal(method));
@@ -934,30 +1061,8 @@ impl Server {
         let body = frame.body.as_slice();
         match method {
             Method::SessionOpen => protocol_failure(ProtocolErrorCode::InternalInvariant),
-            Method::SessionRenew => {
-                // The renew body names the session being renewed; the
-                // frame's session scopes the request. They must agree
-                // (contract section 2).
-                if fixed32(body)? != *session.as_bytes() {
-                    return protocol_failure(ProtocolErrorCode::FrameInvalid);
-                }
-                let (head, binding) = self.head_binding()?;
-                let record = self
-                    .authority
-                    .renew_session(session, &binding, head.state_root())
-                    .map_err(session_failure)?;
-                self.plain(record.session_id.as_bytes().to_vec())
-            }
-            Method::SessionClose => {
-                self.registry
-                    .close(session, self.profile.limits.max_sessions)
-                    .map_err(|error| ProtocolFailure::protocol(error.code()))?;
-                self.authority
-                    .close_session(session)
-                    .map_err(session_failure)?;
-                self.budgets.remove(&session);
-                self.plain(Vec::new())
-            }
+            Method::SessionRenew => self.session_renew(session, body),
+            Method::SessionClose => self.session_close(session),
             Method::SessionCapabilities => {
                 let preimage = self
                     .profile
@@ -989,7 +1094,7 @@ impl Server {
             Method::HandleExpand => self.handle_expand(body, session),
             Method::QueryRestricted => self.query_restricted(body),
             Method::ReceiptRead => self.receipt_read(body),
-            Method::Checkout => self.checkout(body),
+            Method::Checkout => self.checkout(session, body),
             Method::Recovery => self.recovery(),
             Method::Cancel => {
                 // Every request completes before the next frame is read, so
@@ -1018,11 +1123,15 @@ impl Server {
             Method::Report => self.report(body),
             Method::Diagnostics
             | Method::RefMoveProtected
-            | Method::TestsSelected
-            | Method::TestsAffected
             | Method::TestsReportRead
             | Method::TestsReplay
             | Method::TestsAttemptStatus => Err(reserved_refusal(method)),
+            // Native selection reads never reach the generic dispatch: the
+            // gate above routes live calls to `tests_selection`, and every
+            // other version refuses them as reserved before this arm.
+            Method::TestsSelected | Method::TestsAffected => {
+                protocol_failure(ProtocolErrorCode::InternalInvariant)
+            }
             Method::EntityVersion | Method::EntitySignature => {
                 // Served only through the explicit entity-read path with
                 // its retained revision and debit table; reaching the
@@ -1030,6 +1139,386 @@ impl Server {
                 protocol_failure(ProtocolErrorCode::InternalInvariant)
             }
         }
+    }
+
+    /// Renews one session binding (contract section 2): the renew body
+    /// names the session being renewed and must agree with the frame's
+    /// session scope. Renewal rebinds the root the diagnostic tokens were
+    /// minted under, so the session's tokens and attempts die here.
+    fn session_renew(
+        &mut self,
+        session: SessionId,
+        body: &[u8],
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        if fixed32(body)? != *session.as_bytes() {
+            return protocol_failure(ProtocolErrorCode::FrameInvalid);
+        }
+        let (head, binding) = self.head_binding()?;
+        let record = self
+            .authority
+            .renew_session(session, &binding, head.state_root())
+            .map_err(session_failure)?;
+        self.invalidate_diagnostic_session(session);
+        self.plain(record.session_id.as_bytes().to_vec())
+    }
+
+    /// Closes one session, releasing its budgets, bindings, and diagnostic
+    /// tokens and attempts with it.
+    fn session_close(&mut self, session: SessionId) -> Result<(Vec<u8>, BoundedContext)> {
+        self.registry
+            .close(session, self.profile.limits.max_sessions)
+            .map_err(|error| ProtocolFailure::protocol(error.code()))?;
+        self.authority
+            .close_session(session)
+            .map_err(session_failure)?;
+        self.budgets.remove(&session);
+        self.invalidate_diagnostic_session(session);
+        self.plain(Vec::new())
+    }
+
+    /// Whether the native selection reads dispatch on this server: explicit
+    /// version-aware serving with a selected version 3 and the negotiated
+    /// native-tests bit. Legacy servers keep refusing them as reserved even
+    /// when a negotiated intersection retained their numerics.
+    fn native_selection_live(&self) -> bool {
+        self.version_aware
+            && self.profile.protocol_version == PROTOCOL_VERSION_V3
+            && self.profile.features & FEATURE_NATIVE_TESTS_V1 != 0
+    }
+
+    /// Routes a live native selection read after the admission gate proved
+    /// version 3, the bit, and negotiation. The session root must still be
+    /// the accepted head: diagnostics answer over the live binding, and a
+    /// session left behind by a head advance fails stale instead of
+    /// answering over a root the head no longer names.
+    fn tests_selection(
+        &mut self,
+        session: SessionId,
+        method: Method,
+        body: &[u8],
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let (session_root, workspace) = self
+            .authority
+            .record(session)
+            .map(|record| (record.bound_root, record.workspace_id))
+            .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        let (head, _) = self.head_binding()?;
+        if session_root != head.state_root().root {
+            return Err(session_failure(SessionError::new(
+                SessionErrorCode::RootAdvanced,
+            )));
+        }
+        match method {
+            Method::TestsSelected => self.tests_selected(session, workspace, &head, body),
+            _ => self.tests_affected(session, workspace, &head, body),
+        }
+    }
+
+    /// 601 `tests.selected`: runs the caller selection plus the owner-added
+    /// required tests over the session root state without committing
+    /// anything, stores the diagnostic report, and mints its 605 token.
+    fn tests_selected(
+        &mut self,
+        session: SessionId,
+        workspace: sley_id::WorkspaceId,
+        head: &VerifiedRevision,
+        body: &[u8],
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 4)?;
+        let root = StateRoot::from_bytes(fixed32(fields[0])?);
+        let selected = parse_id_set(fields[1])?;
+        let profile = NativeExecutionProfileId::from_bytes(fixed32(fields[2])?);
+        let attempt = fixed16(fields[3])?;
+        if profile != native_execution_profile() {
+            return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+        }
+        if root != head.state_root().root {
+            return Err(session_failure(SessionError::new(
+                SessionErrorCode::StaleHandle,
+            )));
+        }
+        let mut bindings = Vec::with_capacity(128 + selected.len() * 32);
+        bindings.extend_from_slice(&Method::TestsSelected.tag().to_be_bytes());
+        bindings.extend_from_slice(workspace.as_bytes());
+        bindings.extend_from_slice(root.as_bytes());
+        bindings.extend_from_slice(profile.as_bytes());
+        for identity in &selected {
+            bindings.extend_from_slice(identity.as_bytes());
+        }
+        if let Some(cached) = self.replay_diagnostic(session, attempt, &bindings)? {
+            return Ok(cached);
+        }
+        let executor = self
+            .executor
+            .as_ref()
+            .ok_or_else(|| owner("NATIVE_EXECUTOR_UNAVAILABLE", 0))?;
+        let plan = native_test_plan_explicit_root(&NativeExplicitRootInputs {
+            head_transaction_id: head.transaction_id(),
+            state: head.state_root(),
+            objects: head.objects(),
+            policy: head.policy_root(),
+            caller_selected: &selected,
+            limits: CandidateValidationLimits::full_v1(),
+            implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+            aggregate: NativeAggregateLimits::HARD_MAXIMA,
+        })
+        .map_err(native_plan_failure)?;
+        let (object_bytes, test_cases) = diagnostic_test_cases(head);
+        let executions = executor
+            .execute_diagnostic(&plan, &object_bytes)
+            .map_err(|error| owner(error.symbol(), 0))?;
+        let assembly = assemble_diagnostic_report(
+            &plan,
+            head.state_root().record.schema_epoch_id,
+            workspace,
+            &test_cases,
+            &executions,
+        )
+        .map_err(|error| owner(error.symbol(), error.numeric()))?;
+        self.store_diagnostic(session, attempt, bindings, &plan, &assembly)
+    }
+
+    /// 602 `tests.affected`: validates the candidate against the session
+    /// parent preserving the exact static failure, derives the ordinary
+    /// candidate-affected plan, and runs it diagnostically like 601.
+    fn tests_affected(
+        &mut self,
+        session: SessionId,
+        workspace: sley_id::WorkspaceId,
+        head: &VerifiedRevision,
+        body: &[u8],
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 3)?;
+        let profile = NativeExecutionProfileId::from_bytes(fixed32(fields[1])?);
+        let attempt = fixed16(fields[2])?;
+        if profile != native_execution_profile() {
+            return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+        }
+        let candidate = import_candidate(fields[0]).map_err(|error| owner(error.code(), 0))?;
+        let base_id = head.transaction_id();
+        let mut bindings = Vec::with_capacity(160);
+        bindings.extend_from_slice(&Method::TestsAffected.tag().to_be_bytes());
+        bindings.extend_from_slice(workspace.as_bytes());
+        bindings.extend_from_slice(base_id.as_bytes());
+        bindings.extend_from_slice(candidate.candidate_id.as_bytes());
+        bindings.extend_from_slice(profile.as_bytes());
+        if let Some(cached) = self.replay_diagnostic(session, attempt, &bindings)? {
+            return Ok(cached);
+        }
+        let executor = self
+            .executor
+            .as_ref()
+            .ok_or_else(|| owner("NATIVE_EXECUTOR_UNAVAILABLE", 0))?;
+        let context = CandidateValidationContext::new(
+            base_id,
+            head.state_root(),
+            head.objects(),
+            head.tombstoned_entities(),
+            head.policy_root(),
+            candidate.record.principal_id,
+            &[],
+            (self.now_millis)(),
+            CandidateValidationLimits::full_v1(),
+        )
+        .map_err(|error| owner(&error.to_string(), 0))?;
+        let output = validate_candidate_bytes(&context, fields[0])
+            .map_err(|error| owner(&error.to_string(), 0))?;
+        if !output.is_valid() {
+            return Err(output.result().record.diagnostics.first().map_or_else(
+                || owner("NATIVE_TEST_SELECTION_INVALID", 0),
+                |diagnostic| {
+                    owner(
+                        &diagnostic.source_symbol,
+                        diagnostic.source_numeric_code.unwrap_or(0),
+                    )
+                },
+            ));
+        }
+        let validated = output
+            .validated_plan()
+            .ok_or_else(|| owner("NATIVE_TEST_SELECTION_INVALID", 0))?;
+        let plan = native_test_plan(
+            &output,
+            &NativePlanInputs {
+                base_transaction_id: base_id,
+                base_state: head.state_root(),
+                base_objects: head.objects(),
+                policy: head.policy_root(),
+                capability_summary: context.capability_summary_digest(),
+                limits: CandidateValidationLimits::full_v1(),
+                implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+                aggregate: NativeAggregateLimits::HARD_MAXIMA,
+            },
+        )
+        .map_err(native_plan_failure)?;
+        let executions = executor
+            .execute(&plan, validated)
+            .map_err(|error| owner(error.symbol(), 0))?;
+        let proposed = validated.proposed_state();
+        let mut test_cases = BTreeMap::new();
+        for object in proposed.entities() {
+            if let EntityBodyValue::TestCase(body) = &object.record().body {
+                test_cases.insert(object.record().entity_id, body);
+            }
+        }
+        let assembly = assemble_diagnostic_report(
+            &plan,
+            validated.candidate_root().record.schema_epoch_id,
+            workspace,
+            &test_cases,
+            &executions,
+        )
+        .map_err(|error| owner(error.symbol(), error.numeric()))?;
+        self.store_diagnostic(session, attempt, bindings, &plan, &assembly)
+    }
+
+    /// Replays a completed diagnostic attempt without re-executing.
+    ///
+    /// Identical bindings return the cached response bytes; any binding
+    /// divergence refuses as an attempt conflict. A completed attempt
+    /// whose token is gone (invalidated, expired) is not replayed: the
+    /// caller re-executes fresh instead of receiving a dead capability.
+    fn replay_diagnostic(
+        &self,
+        session: SessionId,
+        attempt: [u8; 16],
+        bindings: &[u8],
+    ) -> Result<Option<(Vec<u8>, BoundedContext)>> {
+        let Some(cached) = self.diagnostic_attempts.get(&attempt) else {
+            return Ok(None);
+        };
+        if cached.session != session || cached.bindings != bindings {
+            return Err(owner("NATIVE_ATTEMPT_CONFLICT", 0));
+        }
+        let now = (self.now_millis)();
+        let live = self.diagnostic_tokens.iter().any(|token| {
+            token.token == cached.token && token.session == session && !token.expired(now)
+        });
+        if !live {
+            return Ok(None);
+        }
+        Ok(Some(
+            self.counted(cached.response.clone(), cached.selected_count)?,
+        ))
+    }
+
+    /// Stores a completed diagnostic report, mints its 605 token, and
+    /// answers the Appendix C response record.
+    ///
+    /// The per-session token count and cached-evidence bytes are enforced
+    /// before minting; the attempt cache evicts its oldest entry past its
+    /// bound, and a re-submitted attempt then simply re-executes.
+    fn store_diagnostic(
+        &mut self,
+        session: SessionId,
+        attempt: [u8; 16],
+        bindings: Vec<u8>,
+        plan: &NativeTestPlanV1,
+        assembly: &NativeDiagnosticAssembly,
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let report_bytes = assembly.report.stored_bytes().to_vec();
+        let total = to_u64(report_bytes.len())?;
+        let count = to_u64(plan.selected().len())?;
+        let now = (self.now_millis)();
+        self.prune_diagnostic_tokens(session, now);
+        let held_count = self
+            .diagnostic_tokens
+            .iter()
+            .filter(|token| token.session == session)
+            .count();
+        if held_count >= MAX_DIAGNOSTIC_TOKENS_PER_SESSION {
+            return Err(owner("NATIVE_DIAGNOSTIC_TOKEN_LIMIT", 0));
+        }
+        let mut held_bytes = 0_u64;
+        for token in &self.diagnostic_tokens {
+            if token.session == session {
+                held_bytes = held_bytes
+                    .checked_add(token.report.len() as u64)
+                    .ok_or_else(|| owner("NATIVE_DIAGNOSTIC_TOKEN_LIMIT", 0))?;
+            }
+        }
+        if held_bytes.saturating_add(total) > MAX_DIAGNOSTIC_BYTES_PER_SESSION {
+            return Err(owner("NATIVE_DIAGNOSTIC_TOKEN_LIMIT", 0));
+        }
+        let token = self.mint_diagnostic_token(session)?;
+        let body = scb(encode_record(&[
+            (1, plan.plan_id().as_bytes().to_vec()),
+            (2, assembly.report.report_id().as_bytes().to_vec()),
+            (3, encode_uvar(u64::from(assembly.status.tag()))),
+            (4, encode_uvar(count)),
+            (5, token.to_vec()),
+            (6, encode_uvar(total)),
+        ]))?;
+        self.diagnostic_tokens.push(DiagnosticToken {
+            token,
+            session,
+            report: report_bytes,
+            created_millis: now,
+        });
+        if self.diagnostic_attempts.len() >= MAX_DIAGNOSTIC_ATTEMPTS {
+            let oldest = self
+                .diagnostic_attempts
+                .iter()
+                .min_by_key(|(_, attempt)| attempt.created_millis)
+                .map(|(identity, _)| *identity);
+            if let Some(identity) = oldest {
+                self.diagnostic_attempts.remove(&identity);
+            }
+        }
+        self.diagnostic_attempts.insert(
+            attempt,
+            DiagnosticAttempt {
+                session,
+                bindings,
+                response: body.clone(),
+                selected_count: count,
+                token,
+                created_millis: now,
+            },
+        );
+        self.counted(body, count)
+    }
+
+    /// Mints one diagnostic report token, unpredictable to callers and
+    /// deterministic for one server instance.
+    fn mint_diagnostic_token(&mut self, session: SessionId) -> Result<[u8; 32]> {
+        let counter = self
+            .diagnostic_token_counter
+            .checked_add(1)
+            .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        self.diagnostic_token_counter = counter;
+        let mut preimage =
+            Vec::with_capacity(DIAGNOSTIC_TOKEN_DOMAIN.len() + 32 + session.as_bytes().len() + 8);
+        preimage.extend_from_slice(DIAGNOSTIC_TOKEN_DOMAIN);
+        preimage.extend_from_slice(self.authority.server_nonce());
+        preimage.extend_from_slice(session.as_bytes());
+        preimage.extend_from_slice(&counter.to_be_bytes());
+        Ok(*blake3::hash(&preimage).as_bytes())
+    }
+
+    /// Drops one session's expired diagnostic tokens.
+    fn prune_diagnostic_tokens(&mut self, session: SessionId, now: u64) {
+        self.diagnostic_tokens
+            .retain(|token| token.session != session || !token.expired(now));
+    }
+
+    /// Invalidates one session's diagnostic tokens and the attempts bound
+    /// to them. Renewal, close, checkout, commit, merge-commit, and
+    /// exchange import all rebind or advance the head the tokens were
+    /// minted under, so nothing they name survives.
+    fn invalidate_diagnostic_session(&mut self, session: SessionId) {
+        self.diagnostic_tokens
+            .retain(|token| token.session != session);
+        self.diagnostic_attempts
+            .retain(|_, attempt| attempt.session != session);
+    }
+
+    /// Invalidates every diagnostic token and attempt. Head-advancing
+    /// calls (commit, merge-commit, exchange import) move the binding for
+    /// all sessions at once, so per-session pruning cannot suffice.
+    fn invalidate_all_diagnostics(&mut self) {
+        self.diagnostic_tokens.clear();
+        self.diagnostic_attempts.clear();
     }
 
     /// Head-bound methods answer over the accepted head without naming it
@@ -1479,7 +1968,7 @@ impl Server {
         self.counted(revision.receipt().stored_bytes.clone(), 1)
     }
 
-    fn checkout(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+    fn checkout(&mut self, session: SessionId, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
         let revision = self.revision(TransactionId::from_bytes(fixed32(body)?))?;
         let objects: Vec<Vec<u8>> = revision
             .objects()
@@ -1492,6 +1981,9 @@ impl Server {
             (1, revision.state_root().root.as_bytes().to_vec()),
             (2, scb(encode_list(&objects))?),
         ]))?;
+        // Checkout refocuses the caller: its diagnostic tokens and
+        // attempts die even though the head itself did not move.
+        self.invalidate_diagnostic_session(session);
         self.counted(payload, count)
     }
 
@@ -1787,7 +2279,7 @@ impl Server {
         self.counted(output.result().stored_bytes.clone(), 1)
     }
 
-    fn commit(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+    fn commit(&mut self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
         let fields = record(body, 4)?;
         let parent = TransactionId::from_bytes(fixed32(fields[0])?);
         let principal = PrincipalId::from_bytes(fixed32(fields[1])?);
@@ -1814,10 +2306,12 @@ impl Server {
             ),
         ]))?;
         let _: ReceiptId = output.receipt_id();
+        // The commit advances the head every token was minted under.
+        self.invalidate_all_diagnostics();
         self.counted(record, 1)
     }
 
-    fn merge_commit(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+    fn merge_commit(&mut self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
         let fields = record(body, 7)?;
         let ancestor = MergeSide::from_revision(
             &self.revision(TransactionId::from_bytes(fixed32(fields[0])?))?,
@@ -1863,12 +2357,14 @@ impl Server {
                     },
                 )
                 .map_err(merge_failure)?;
+                // A merged commit advances the head like any commit.
+                self.invalidate_all_diagnostics();
                 self.counted(scb(encode_union(1, transaction_id.as_bytes()))?, 1)
             }
         }
     }
 
-    fn exchange_import(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+    fn exchange_import(&mut self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
         let epoch = state_epoch_id()
             .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
         let verifier =
@@ -1881,6 +2377,8 @@ impl Server {
             (3, encode_uvar(to_u64(report.receipts)?)),
             (4, encode_uvar(to_u64(report.branches)?)),
         ]))?;
+        // An import advances the accepted head past every minted token.
+        self.invalidate_all_diagnostics();
         self.counted(record, to_u64(report.receipts)?)
     }
 
@@ -2297,6 +2795,49 @@ fn fixed32(input: &[u8]) -> Result<[u8; 32]> {
     input
         .try_into()
         .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))
+}
+
+fn fixed16(input: &[u8]) -> Result<[u8; 16]> {
+    input
+        .try_into()
+        .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))
+}
+
+/// Parses a strictly increasing set of 32-byte identities from one SCB1
+/// list field. Wire order is part of the contract: an unsorted or
+/// duplicated set refuses rather than being silently canonicalized.
+fn parse_id_set(field: &[u8]) -> Result<Vec<EntityId>> {
+    let items = list(field)?;
+    let mut identities = Vec::with_capacity(items.len().min(257));
+    for item in items {
+        identities.push(EntityId::from_bytes(fixed32(item)?));
+    }
+    if identities.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+    }
+    Ok(identities)
+}
+
+/// Maps a native plan derivation refusal to its preserved owner failure.
+fn native_plan_failure(error: NativePlanErrorV1) -> ProtocolFailure {
+    owner(error.symbol(), 0)
+}
+
+/// Splits one revision's objects into executor bytes keyed by object
+/// identity and canonical test-case bodies keyed by test entity, both
+/// owner-loaded from the same revision the plan derived from.
+fn diagnostic_test_cases(
+    head: &VerifiedRevision,
+) -> (BTreeMap<ObjectId, &[u8]>, BTreeMap<EntityId, &TestCaseBody>) {
+    let mut object_bytes = BTreeMap::new();
+    let mut test_cases = BTreeMap::new();
+    for object in head.objects() {
+        object_bytes.insert(object.object_id(), object.stored_bytes());
+        if let EntityBodyValue::TestCase(body) = &object.record().body {
+            test_cases.insert(object.record().entity_id, body);
+        }
+    }
+    (object_bytes, test_cases)
 }
 
 fn single_uvar(input: &[u8]) -> Result<u64> {

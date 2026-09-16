@@ -309,6 +309,7 @@ dependencies = [
  "sley-ssmc",
  "sley-state-root",
  "sley-store",
+ "sley-tests",
  "sley-txn",
  "sley-vm",
 ]

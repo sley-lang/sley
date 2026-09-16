@@ -2,6 +2,7 @@
 #![doc = include_str!("../README.md")]
 
 mod codec;
+mod diagnostic;
 mod maintenance;
 mod native_codec;
 mod native_commit;
@@ -27,6 +28,9 @@ pub use codec::{
     ObjectManifestEntry, RECEIPT_MAGIC, TransactionCodecError, TransactionErrorCode,
     TransactionKind, TransactionReceiptRecord, TransactionRecord, build_transaction,
     build_transaction_receipt, import_transaction, import_transaction_receipt,
+};
+pub use diagnostic::{
+    NativeDiagnosticAssembly, NativeDiagnosticStatus, assemble_diagnostic_report,
 };
 pub use maintenance::{
     RepositoryMaintenanceGuard, acquire_exclusive_repository_maintenance,

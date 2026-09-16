@@ -11,7 +11,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use sley_id::{CapabilitySummaryDigest, EntityId, TransactionId};
+use sley_id::{CapabilitySummaryDigest, EntityId, PrincipalId, TransactionId};
 use sley_mutate::{EntityObject, ProposedEntityState, full_validation_profile_id};
 use sley_state_root::AcceptedStateRoot;
 use sley_tests::{
@@ -21,7 +21,7 @@ use sley_tests::{
     NativeAdmissionProfileV1, NativeAggregateLimits, NativeExpected, NativeResourcePolicyParts,
     NativeResourcePolicyV1, NativeTestPlanParts, NativeTestPlanV1, PREPROMOTION_WATCHDOG_MILLIS,
     SELECTION_RULE_NATIVE_V1, SelectedEntry, ValidationLimits,
-    plan::SELECTION_MODE_CANDIDATE_AFFECTED,
+    plan::{SELECTION_MODE_CANDIDATE_AFFECTED, SELECTION_MODE_EXPLICIT_ROOT},
 };
 use sley_vm::native_execution::{
     NativeDeclaredLimits, NativeImplementationLimits, observation_capacity_required, profile_id,
@@ -316,8 +316,13 @@ pub fn native_test_plan(
     }
     let principal = candidate.record.principal_id;
     check_declared_limits(&entries, inputs, effective, principal)?;
-    check_aggregates(&entries, inputs)?;
-    check_evidence(&entries, &live_tests, inputs)?;
+    check_aggregates(&entries, &inputs.aggregate)?;
+    check_evidence(
+        &entries,
+        &live_tests,
+        inputs.implementation_limits,
+        &inputs.aggregate,
+    )?;
 
     let resource_policy = resource_policy(inputs, effective, candidate)?;
     let parts = NativeTestPlanParts {
@@ -342,6 +347,222 @@ pub fn native_test_plan(
 
 const fn selection_invalid() -> NativePlanErrorV1 {
     NativePlanErrorV1::SelectionInvalid
+}
+
+/// Trusted owner inputs for explicit-root diagnostic plan derivation
+/// (`NATIVE_TEST_ADMISSION_V1.md` appendix C, 601 `tests.selected`).
+///
+/// Unlike [`NativePlanInputs`], there is no candidate, no static result,
+/// and no authenticated principal: the plan tests one accepted state as-is.
+/// The diagnostic resource policy marks this with a zero principal and
+/// hard-maxima-mapped grant ceilings; the commit path always re-derives
+/// under the authenticated principal and never accepts a diagnostic plan.
+pub struct NativeExplicitRootInputs<'a> {
+    /// Accepted head transaction the session root was bound from.
+    pub head_transaction_id: TransactionId,
+    /// Exact accepted state under test (equals the session root).
+    pub state: &'a AcceptedStateRoot,
+    /// Exact live entity objects of that state.
+    pub objects: &'a [EntityObject],
+    /// Exact accepted protected policy root.
+    pub policy: &'a AcceptedPolicyRoot,
+    /// Caller-named tests, strictly raw-ID sorted unique.
+    pub caller_selected: &'a [EntityId],
+    /// Requested local validation ceilings; the effective minimum applies.
+    pub limits: CandidateValidationLimits,
+    /// Configured local native implementation ceilings.
+    pub implementation_limits: NativeImplementationLimits,
+    /// Configured local aggregate ceilings within the native hard maxima.
+    pub aggregate: NativeAggregateLimits,
+}
+
+/// Derives the diagnostic explicit-root plan over one accepted state.
+///
+/// The final selection is the caller set union the protected required tests
+/// resolvable in that state; every named test must resolve live. Aside from
+/// the principal-grant ceilings (unchecked: sessions carry no authenticated
+/// principal, enforced instead at commit), every candidate-path check
+/// applies: final count, per-test depth/wall ceilings, checked aggregates,
+/// and the evidence cap, in the same fixed precedence.
+///
+/// # Errors
+///
+/// Returns `SelectionInvalid` for an unsorted caller set, an unresolvable
+/// test, or a deleted protected required test; `SelectedCountExceeded` for
+/// an over-count final set; the declared/aggregate/evidence errors per the
+/// candidate path.
+pub fn native_test_plan_explicit_root(
+    inputs: &NativeExplicitRootInputs<'_>,
+) -> Result<NativeTestPlanV1, NativePlanErrorV1> {
+    if !inputs.implementation_limits.within_hard_maxima() || !inputs.aggregate.within_hard_maxima()
+    {
+        return Err(NativePlanErrorV1::SelectionInvalid);
+    }
+    if inputs
+        .caller_selected
+        .windows(2)
+        .any(|pair| pair[0] >= pair[1])
+    {
+        return Err(NativePlanErrorV1::SelectionInvalid);
+    }
+    let effective = inputs.limits.effective();
+    let program = CandidateProgram::project(inputs.objects).map_err(|_| selection_invalid())?;
+    let live_tests = live_test_map(&program);
+    let objects = inputs
+        .objects
+        .iter()
+        .map(|object| (object.record().entity_id, object.object_id()))
+        .collect::<BTreeMap<_, _>>();
+    if objects.len() != inputs.objects.len() {
+        return Err(selection_invalid());
+    }
+    let required = required_from_policy(inputs.policy)?;
+    for test in inputs.caller_selected.iter().chain(required.iter()) {
+        if !live_tests.contains_key(test) {
+            return Err(selection_invalid());
+        }
+    }
+    let selection: Vec<EntityId> = inputs
+        .caller_selected
+        .iter()
+        .copied()
+        .chain(required.iter().copied())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    let mut entries = Vec::with_capacity(selection.len());
+    for entity in &selection {
+        let test = live_tests.get(entity).ok_or(selection_invalid())?;
+        let test_object = objects.get(entity).copied().ok_or(selection_invalid())?;
+        let target_object = objects
+            .get(&test.target)
+            .copied()
+            .ok_or(selection_invalid())?;
+        entries.push(selected_entry(test, test_object, target_object));
+    }
+    let max_selected = u64::from(effective.max_selected_tests).min(256);
+    if selection.len() as u64 > max_selected {
+        return Err(NativePlanErrorV1::SelectedCountExceeded);
+    }
+    check_diagnostic_declared_limits(&entries, effective, inputs.implementation_limits)?;
+    check_aggregates(&entries, &inputs.aggregate)?;
+    check_evidence(
+        &entries,
+        &live_tests,
+        inputs.implementation_limits,
+        &inputs.aggregate,
+    )?;
+    let resource_policy = diagnostic_resource_policy(inputs, effective)?;
+    let parts = NativeTestPlanParts {
+        selection_mode: SELECTION_MODE_EXPLICIT_ROOT,
+        workspace: inputs.state.record.workspace_id,
+        semantic_epoch: inputs.state.record.schema_epoch_id,
+        parent_transaction: inputs.head_transaction_id,
+        parent_root: inputs.state.root,
+        proposed_root: inputs.state.root,
+        policy_root: inputs.policy.root(),
+        candidate_id: None,
+        static_result_id: None,
+        protected_required_ids: required,
+        selected: entries,
+        changed: Vec::new(),
+        implementation_limits: inputs.implementation_limits,
+        static_selected_ids: Vec::new(),
+        resource_policy,
+    };
+    NativeTestPlanV1::build(parts).map_err(|_| selection_invalid())
+}
+
+/// Builds the diagnostic resource policy: zero principal, empty capability
+/// marker, and hard-maxima-mapped grant ceilings.
+///
+/// Every value is an explicit diagnostic marker, never a granted ceiling:
+/// the commit path re-derives the policy under the authenticated principal.
+/// Mutation/adapter scope is unbounded here because diagnostics grant no
+/// capability scope at all; tests still run under their declared limits
+/// through the configured executor.
+///
+/// # Errors
+///
+/// Returns `SelectionInvalid` if the fixed admission facts ever fail
+/// validation, which cannot happen for these constants.
+fn diagnostic_resource_policy(
+    inputs: &NativeExplicitRootInputs<'_>,
+    effective: CandidateValidationLimits,
+) -> Result<NativeResourcePolicyV1, NativePlanErrorV1> {
+    let profile = fixed_native_admission_profile()?;
+    let hard = NativeAggregateLimits::HARD_MAXIMA;
+    let parts = NativeResourcePolicyParts {
+        policy_root: inputs.policy.root(),
+        principal: PrincipalId::from_bytes([0; 32]),
+        capability_summary: CapabilitySummaryDigest::from_bytes([0; 32]),
+        grant: GrantCeilings {
+            max_fuel: hard.max_fuel,
+            max_memory_bytes: hard.max_memory_sum,
+            max_output_bytes: hard.max_output_sum,
+            max_effect_count: hard.max_effect_sum,
+            max_mutation_count: u64::MAX,
+            max_adapter_calls: u64::MAX,
+        },
+        validation: ValidationLimits {
+            max_operations: effective.max_operations,
+            max_preconditions: effective.max_preconditions,
+            max_candidate_bytes: effective.max_candidate_bytes,
+            max_decoded_value_bytes: effective.max_decoded_value_bytes,
+            max_graph_work: effective.max_graph_work,
+            max_selected_tests: effective.max_selected_tests,
+            max_entities: effective.max_entities,
+            max_test_call_depth: effective.max_test_call_depth,
+            max_test_wall_timeout_millis: effective.max_test_wall_timeout_millis,
+        },
+        implementation: inputs.implementation_limits,
+        aggregate: inputs.aggregate,
+        admission_profile: *profile.id().as_bytes(),
+    };
+    NativeResourcePolicyV1::build(parts).map_err(|_| selection_invalid())
+}
+
+/// Checks per-test depth and wall ceilings without a principal grant.
+///
+/// Sessions carry no authenticated principal, so the fuel/memory/output
+/// /effects grant comparisons of [`check_declared_limits`] do not apply:
+/// diagnostics enforce the principal-independent depth/wall caps and the
+/// commit path enforces the grant under the authenticated principal.
+///
+/// # Errors
+///
+/// Returns `DeclaredLimitExceedsPolicy` for the first over-ceiling test in
+/// raw-ID order.
+fn check_diagnostic_declared_limits(
+    entries: &[SelectedEntry],
+    effective: CandidateValidationLimits,
+    implementation_limits: NativeImplementationLimits,
+) -> Result<(), NativePlanErrorV1> {
+    let depth_cap = effective
+        .max_test_call_depth
+        .min(implementation_limits.max_call_depth);
+    let wall_cap = effective
+        .max_test_wall_timeout_millis
+        .min(NATIVE_WALL_CAP_MILLIS);
+    for entry in entries {
+        let declared = entry.declared_limits;
+        for (declared_value, ceiling, resource) in [
+            (declared.call_depth, depth_cap, NativePlanResource::Depth),
+            (
+                declared.wall_timeout_millis,
+                wall_cap,
+                NativePlanResource::Wall,
+            ),
+        ] {
+            if declared_value > ceiling {
+                return Err(NativePlanErrorV1::DeclaredLimitExceedsPolicy {
+                    test: entry.test_entity,
+                    resource,
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 fn sorted_union(left: &[EntityId], right: &[EntityId]) -> Vec<EntityId> {
@@ -392,7 +613,15 @@ fn static_selected(output: &CandidateValidationOutput) -> Result<Vec<EntityId>, 
 }
 
 fn required_tests(inputs: &NativePlanInputs<'_>) -> Result<Vec<EntityId>, NativePlanErrorV1> {
-    let required = inputs.policy.record().required_tests.clone();
+    required_from_policy(inputs.policy)
+}
+
+/// Reads the protected required tests from one policy root.
+///
+/// The list must already be raw-ID sorted unique; diagnostics share this
+/// check with the candidate path so a corrupt policy refuses identically.
+fn required_from_policy(policy: &AcceptedPolicyRoot) -> Result<Vec<EntityId>, NativePlanErrorV1> {
+    let required = policy.record().required_tests.clone();
     if required.windows(2).any(|pair| pair[0] >= pair[1]) {
         return Err(selection_invalid());
     }
@@ -484,15 +713,27 @@ fn resolve_entries(
             .entity(test.target)
             .map(EntityObject::object_id)
             .ok_or(selection_invalid())?;
-        entries.push(SelectedEntry {
-            test_entity: *entity,
-            test_object,
-            target_function: test.target,
-            target_object,
-            declared_limits: NativeDeclaredLimits::from(test.resource_limits),
-        });
+        entries.push(selected_entry(test, test_object, target_object));
     }
     Ok(entries)
+}
+
+/// Binds one selected test to its exact test and target objects.
+///
+/// Candidate and explicit-root resolution share this constructor so the
+/// entry shape cannot diverge between the commit and diagnostic paths.
+fn selected_entry(
+    test: &sley_ssmc::TestCaseDefinition,
+    test_object: sley_id::ObjectId,
+    target_object: sley_id::ObjectId,
+) -> SelectedEntry {
+    SelectedEntry {
+        test_entity: test.entity_id,
+        test_object,
+        target_function: test.target,
+        target_object,
+        declared_limits: NativeDeclaredLimits::from(test.resource_limits),
+    }
 }
 
 fn check_declared_limits(
@@ -569,18 +810,15 @@ fn entry_values(entries: &[SelectedEntry], resource: NativePlanResource) -> Vec<
 
 fn check_aggregates(
     entries: &[SelectedEntry],
-    inputs: &NativePlanInputs<'_>,
+    aggregate: &NativeAggregateLimits,
 ) -> Result<(), NativePlanErrorV1> {
     let ceilings = [
-        (inputs.aggregate.max_fuel, NativePlanResource::Fuel),
-        (inputs.aggregate.max_memory_sum, NativePlanResource::Memory),
-        (inputs.aggregate.max_output_sum, NativePlanResource::Output),
-        (inputs.aggregate.max_effect_sum, NativePlanResource::Effects),
-        (inputs.aggregate.max_depth_sum, NativePlanResource::Depth),
-        (
-            inputs.aggregate.max_wall_millis_sum,
-            NativePlanResource::Wall,
-        ),
+        (aggregate.max_fuel, NativePlanResource::Fuel),
+        (aggregate.max_memory_sum, NativePlanResource::Memory),
+        (aggregate.max_output_sum, NativePlanResource::Output),
+        (aggregate.max_effect_sum, NativePlanResource::Effects),
+        (aggregate.max_depth_sum, NativePlanResource::Depth),
+        (aggregate.max_wall_millis_sum, NativePlanResource::Wall),
     ];
     for (ceiling, resource) in ceilings {
         let sum = checked_sum(&entry_values(entries, resource), resource)?;
@@ -608,7 +846,8 @@ fn checked_sum(values: &[u64], resource: NativePlanResource) -> Result<u64, Nati
 fn check_evidence(
     entries: &[SelectedEntry],
     live_tests: &BTreeMap<EntityId, &sley_ssmc::TestCaseDefinition>,
-    inputs: &NativePlanInputs<'_>,
+    implementation_limits: NativeImplementationLimits,
+    aggregate: &NativeAggregateLimits,
 ) -> Result<(), NativePlanErrorV1> {
     let mut total = 0_u64;
     for entry in entries {
@@ -621,7 +860,7 @@ fn check_evidence(
         let required = observation_capacity_required(
             test_inputs,
             entry.declared_limits,
-            inputs.implementation_limits,
+            implementation_limits,
         )
         .map_err(|_| NativePlanErrorV1::EvidenceLimitExceeded)?;
         if required > MAX_EXECUTION_REPORT_STORED as u64 {
@@ -631,7 +870,7 @@ fn check_evidence(
             .checked_add(required)
             .ok_or(NativePlanErrorV1::EvidenceLimitExceeded)?;
     }
-    if total > inputs.aggregate.max_evidence_bytes {
+    if total > aggregate.max_evidence_bytes {
         return Err(NativePlanErrorV1::EvidenceLimitExceeded);
     }
     Ok(())
@@ -680,7 +919,7 @@ fn resource_policy(
 
 #[cfg(test)]
 mod tests {
-    use sley_id::{CandidateNonce, CapabilitySummaryDigest, EntityId};
+    use sley_id::{CandidateNonce, CapabilitySummaryDigest, EntityId, ObjectId};
     use sley_mutate::value::{
         BlockBody, EntityBodyValue, EntityIdSet, FunctionBody, ParameterBody, TestCaseBody,
     };
@@ -688,6 +927,7 @@ mod tests {
         ConstData, ConstValue, EffectEnvironment, ExpectedOutcome, ParameterRole, Reachability,
         ResourceLimits, ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
     };
+    use sley_state_root::{StateRootBuilder, conformance_registry as state_registry};
     use sley_tests::NativeAggregateLimits;
     use sley_vm::native_execution::NativeImplementationLimits;
 
@@ -802,6 +1042,226 @@ mod tests {
         let output =
             validate_candidate_bytes(&context, &candidate.stored_bytes).expect("output builds");
         (fixture, summary, output)
+    }
+
+    /// Builds explicit-root diagnostic inputs over the validated fixture's
+    /// proposed state, rebuilt as an accepted state the same way the
+    /// deletion tests rebuild theirs.
+    fn explicit_inputs<'a>(
+        fixture: &'a Fixture,
+        objects: &'a [sley_mutate::EntityObject],
+        state: &'a sley_state_root::AcceptedStateRoot,
+        caller_selected: &'a [EntityId],
+    ) -> NativeExplicitRootInputs<'a> {
+        NativeExplicitRootInputs {
+            head_transaction_id: fixture.transaction_id,
+            state,
+            objects,
+            policy: &fixture.policy,
+            caller_selected,
+            limits: crate::CandidateValidationLimits::full_v1(),
+            implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+            aggregate: NativeAggregateLimits::HARD_MAXIMA,
+        }
+    }
+
+    fn accepted_over(
+        fixture: &Fixture,
+        objects: &[sley_mutate::EntityObject],
+    ) -> sley_state_root::AcceptedStateRoot {
+        let mut builder = StateRootBuilder::new(
+            fixture.workspace_id,
+            fixed(20, ObjectId::from_bytes),
+            fixed(21, ObjectId::from_bytes),
+            fixture.policy.root(),
+        );
+        for object in objects {
+            builder = builder.entity_binding(object.record().entity_id, object.object_id());
+        }
+        builder.build(&state_registry().unwrap()).unwrap()
+    }
+
+    #[test]
+    fn explicit_root_derives_caller_selection_with_exact_objects() {
+        let test = fixed(73, CandidateNonce::from_bytes);
+        let test = EntityId::derive(fixed(1, sley_id::WorkspaceId::from_bytes), test, 14, 3);
+        let (fixture, _, output) = validated_plan_fixture(&[], 73, ceiling_limits());
+        assert!(output.is_valid());
+        let proposed = output
+            .validated_plan()
+            .expect("valid output carries a plan")
+            .proposed_state();
+        // Rebuild the proposed entities as the accepted session-root state.
+        let objects: Vec<sley_mutate::EntityObject> = proposed.entities().to_vec();
+        let state = accepted_over(&fixture, &objects);
+        let selected = [test];
+        let plan =
+            native_test_plan_explicit_root(&explicit_inputs(&fixture, &objects, &state, &selected))
+                .expect("plan derives");
+        assert_eq!(plan.selection_mode(), SELECTION_MODE_EXPLICIT_ROOT);
+        assert_eq!(plan.selected().len(), 1);
+        let entry = plan.selected()[0];
+        assert_eq!(entry.test_entity, test);
+        let function = fixture.created_id(73, 5, 0);
+        assert_eq!(entry.target_function, function);
+        assert_eq!(plan.candidate_id(), None);
+        assert_eq!(plan.static_result_id(), None);
+        assert!(plan.changed().is_empty());
+        assert!(plan.static_selected_ids().is_empty());
+        assert_eq!(plan.parent_root(), plan.proposed_root());
+        assert_eq!(plan.proposed_root(), state.root);
+        // The diagnostic policy marks the missing principal explicitly and
+        // maps the hard maxima; it can never authorize a commit.
+        assert_eq!(
+            plan.resource_policy().principal(),
+            sley_id::PrincipalId::from_bytes([0; 32])
+        );
+        assert_eq!(
+            plan.resource_policy().grant().max_fuel,
+            NativeAggregateLimits::HARD_MAXIMA.max_fuel
+        );
+        let repeat =
+            native_test_plan_explicit_root(&explicit_inputs(&fixture, &objects, &state, &selected))
+                .expect("plan re-derives");
+        assert_eq!(plan.plan_id(), repeat.plan_id());
+        assert_eq!(plan.stored_bytes(), repeat.stored_bytes());
+    }
+
+    #[test]
+    fn explicit_root_adds_required_tests_to_an_empty_caller_set() {
+        let test = fixed(73, CandidateNonce::from_bytes);
+        let test = EntityId::derive(fixed(1, sley_id::WorkspaceId::from_bytes), test, 14, 3);
+        let (fixture, _, output) = validated_plan_fixture(&[test], 73, ceiling_limits());
+        assert!(output.is_valid());
+        let proposed = output
+            .validated_plan()
+            .expect("valid output carries a plan")
+            .proposed_state();
+        let objects: Vec<sley_mutate::EntityObject> = proposed.entities().to_vec();
+        let state = accepted_over(&fixture, &objects);
+        let selected: [EntityId; 0] = [];
+        let plan =
+            native_test_plan_explicit_root(&explicit_inputs(&fixture, &objects, &state, &selected))
+                .expect("plan derives");
+        assert_eq!(plan.selected().len(), 1);
+        assert_eq!(plan.selected()[0].test_entity, test);
+        assert_eq!(plan.protected_required_ids(), &[test]);
+    }
+
+    #[test]
+    fn explicit_root_refuses_unknown_and_unsorted_caller_tests() {
+        let (fixture, _, output) = validated_plan_fixture(&[], 73, ceiling_limits());
+        assert!(output.is_valid());
+        let proposed = output
+            .validated_plan()
+            .expect("valid output carries a plan")
+            .proposed_state();
+        let objects: Vec<sley_mutate::EntityObject> = proposed.entities().to_vec();
+        let state = accepted_over(&fixture, &objects);
+        let unknown = [EntityId::from_bytes([0x77; 32])];
+        assert_eq!(
+            native_test_plan_explicit_root(&explicit_inputs(&fixture, &objects, &state, &unknown))
+                .expect_err("refuses"),
+            NativePlanErrorV1::SelectionInvalid
+        );
+        // An unsorted caller set refuses even when every member resolves.
+        let test = fixture.created_id(73, 14, 3);
+        let function = fixture.created_id(73, 5, 0);
+        let unsorted = [test.max(function), test.min(function)];
+        assert!(unsorted[0] > unsorted[1]);
+        assert_eq!(
+            native_test_plan_explicit_root(&explicit_inputs(&fixture, &objects, &state, &unsorted))
+                .expect_err("refuses"),
+            NativePlanErrorV1::SelectionInvalid
+        );
+    }
+
+    #[test]
+    fn explicit_root_skips_grant_ceilings_but_checks_wall() {
+        // Fuel over the fixture grant (1,000) but under the hard maxima:
+        // static validation would refuse this candidate, so the objects
+        // are built directly into the accepted state and the diagnostic
+        // admits what the candidate path cannot.
+        use sley_mutate::{EntityObjectRecord, build_entity_object};
+        use sley_state_root::conformance_epoch_id as state_epoch_id;
+        let fixture = Fixture::valid();
+        let epoch = state_epoch_id().unwrap();
+        let over_grant = ResourceLimits {
+            fuel: 1_000_000,
+            ..ceiling_limits()
+        };
+        let bodies = function_test_bodies(&fixture, 73, over_grant);
+        let ids = [
+            fixture.created_id(73, 5, 0),
+            fixture.created_id(73, 6, 1),
+            fixture.created_id(73, 7, 2),
+            fixture.created_id(73, 14, 3),
+        ];
+        let mut objects = fixture.base_objects.clone();
+        for ((_, body), entity_id) in bodies.into_iter().zip(ids) {
+            objects.push(
+                build_entity_object(
+                    epoch,
+                    &EntityObjectRecord {
+                        entity_id,
+                        body,
+                        label: None,
+                        semantic_fingerprint: None,
+                    },
+                )
+                .unwrap(),
+            );
+        }
+        objects.sort_by_key(|object| object.record().entity_id);
+        let state = accepted_over(&fixture, &objects);
+        let selected = [fixture.created_id(73, 14, 3)];
+        let plan =
+            native_test_plan_explicit_root(&explicit_inputs(&fixture, &objects, &state, &selected))
+                .expect("diagnostic admits over-grant fuel");
+        assert_eq!(plan.selected().len(), 1);
+        // Wall over the native cap still refuses with test and resource.
+        let over_wall = ResourceLimits {
+            wall_timeout_millis: NATIVE_WALL_CAP_MILLIS + 1,
+            ..ceiling_limits()
+        };
+        let (wfixture, _, woutput) = validated_plan_fixture(&[], 73, over_wall);
+        assert!(woutput.is_valid());
+        let wproposed = woutput
+            .validated_plan()
+            .expect("valid output carries a plan")
+            .proposed_state();
+        let wobjects: Vec<sley_mutate::EntityObject> = wproposed.entities().to_vec();
+        let wstate = accepted_over(&wfixture, &wobjects);
+        let wselected = [wfixture.created_id(73, 14, 3)];
+        assert_eq!(
+            native_test_plan_explicit_root(&explicit_inputs(
+                &wfixture, &wobjects, &wstate, &wselected
+            ))
+            .expect_err("refuses"),
+            NativePlanErrorV1::DeclaredLimitExceedsPolicy {
+                test: wselected[0],
+                resource: NativePlanResource::Wall,
+            }
+        );
+    }
+
+    #[test]
+    fn explicit_root_count_exceeded_refuses() {
+        let (fixture, _, output) = validated_plan_fixture(&[], 73, ceiling_limits());
+        assert!(output.is_valid());
+        let proposed = output
+            .validated_plan()
+            .expect("valid output carries a plan")
+            .proposed_state();
+        let objects: Vec<sley_mutate::EntityObject> = proposed.entities().to_vec();
+        let state = accepted_over(&fixture, &objects);
+        let selected = [fixture.created_id(73, 14, 3)];
+        let mut tight = explicit_inputs(&fixture, &objects, &state, &selected);
+        tight.limits.max_selected_tests = 0;
+        assert_eq!(
+            native_test_plan_explicit_root(&tight).expect_err("refuses"),
+            NativePlanErrorV1::SelectedCountExceeded
+        );
     }
 
     #[test]

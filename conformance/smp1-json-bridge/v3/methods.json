@@ -279,14 +279,14 @@
       "family": "runtime",
       "name": "tests.selected",
       "owner": "S20-620",
-      "reserved": true,
+      "reserved": false,
       "tag": 601
     },
     {
       "family": "runtime",
       "name": "tests.affected",
       "owner": "S20-620",
-      "reserved": true,
+      "reserved": false,
       "tag": 602
     },
     {
@@ -325,7 +325,7 @@
       "tag": 607
     }
   ],
-  "reserved_count": 7,
+  "reserved_count": 5,
   "source": "docs/spec/SMP1.md",
   "v3_source": "docs/spec/NATIVE_TEST_ADMISSION_V1.md"
 }

@@ -242,6 +242,15 @@ impl SessionAuthority {
         self.handshake_id
     }
 
+    /// Returns the per-instance server nonce for diagnostic token
+    /// derivation. The nonce never leaves the server except inside the
+    /// identities it digests; tokens derived from it are unpredictable to
+    /// callers but deterministic for one server instance.
+    #[must_use]
+    pub(crate) const fn server_nonce(&self) -> &[u8; 32] {
+        &self.server_nonce
+    }
+
     #[must_use]
     pub fn record(&self, session: SessionId) -> Option<&SessionRecord> {
         self.sessions.get(&session)

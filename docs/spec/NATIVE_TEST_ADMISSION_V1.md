@@ -1,6 +1,6 @@
 # Native Test Admission v1
 
-Status: N0 owner-contract proposal, revision 2 (2026-09-16). Independent
+Status: N0 owner-contract proposal, revision 3 (2026-09-16). Independent
 architecture review passed; this precise contract still awaits owner review,
 vectors and implementation. Reserved wire formats are not currently admitted.
 No product completion, test execution or release claim follows from this file.
@@ -361,6 +361,50 @@ attempt_id:FixedBytes16}`. Base binds session parent. Responses both:
 report_token:FixedBytes32,total_bytes:UInt64}`. Status comparison-complete1,
 mismatch2, execution-rejected3, measured-resource-refusal4. None grants commit.
 
+601 and 602 are non-committing diagnostic executions (revision 3): the owner
+derives the selection, runs it through the configured test executor, stores
+the resulting native test report, mints a report token for later 605 paging,
+and answers the response above. No approval, bundle, transaction, receipt,
+journal record, or head change results; the attempt journal is untouched, so
+607 answers `UnknownAttempt0` for diagnostic attempts. `attempt_id` binds the
+server-side diagnostic cache entry (workspace, principal scope, root or
+candidate, final selection): resubmission with identical bindings replays the
+cached response without re-executing; resubmission with different bindings
+refuses as an attempt conflict.
+
+601 derives a diagnostic explicit-root plan over the session root state with
+an empty static-selected set, an empty change list, and the caller's selected
+IDs union the protected required tests resolvable in that state; every named
+test must resolve live or selection refuses. 602 validates `candidate_bytes`
+against the session parent exactly like `candidate.validate` (candidate's own
+principal, no caller capabilities, server clock) preserving the static failure,
+then derives the ordinary candidate-affected plan. Both check final count,
+depth/wall ceilings, checked aggregates, and the evidence cap; principal-grant
+ceilings are not checked diagnostically (sessions carry no authenticated
+principal: the diagnostic resource policy binds a zero principal with
+hard-maxima-mapped grant ceilings as an explicit marker) and are enforced at
+commit under the authenticated principal instead. `execution_profile` must be
+the fixed native execution profile; anything else is a malformed request.
+
+The executor is server configuration, never caller authority: without one,
+or when it refuses the diagnostic outright, the call fails with
+`NATIVE_EXECUTOR_UNAVAILABLE` having written nothing, since a response
+without report and token cannot exist. Diagnostic
+evidence verifies plan/object/linkage/configuration bindings exactly like the
+commit path but skips measurement-trust role checks (no receiver manifests
+are configured on the diagnostic path; the executor itself is the trusted
+component) and skips the attestation principal check (no authenticated
+principal exists). The attestation workspace must still equal the session
+workspace and declared limits must equal the plan entry's, else the executor
+is broken and the call fails. Status is 1 when every comparison matches, 2
+when any comparison mismatches, 3 when every entry is execution-rejected
+with no observation at all, 4 when any attestation
+measures over its declared limits (memory peak, elapsed wall, breach events,
+over-declared installed cap). Resource 4 precedes comparison 2. Selection,
+count, static-validation, and binding failures are protocol failures with
+their preserved symbols, never statuses. Diagnostic plans, reports, and
+tokens never authorize a commit; the commit path always re-derives.
+
 *605 tests.report_read:* `{token:FixedBytes32,offset:UInt64,max_bytes:UInt32}`.
 Response `{report_id:Id,bound_root:Id,offset,total_bytes,bytes:Bytes,
 next_offset:Option<UInt64>}`. Page max65,536. Token random32 server capability
@@ -409,28 +453,34 @@ JSON bridge maps these exact typed records; CLI is thin SMP routing. Typed
 record allocation, exact response fields and profile identity require N7
 independent vectors; no current bridge method is implicitly activated by N0.
 
-## Appendix D. SMP v3 additions table (machine-readable, revision 2)
+## Appendix D. SMP v3 additions table (machine-readable, revision 3)
 
 Protocol version 3 is the sorted union of the frozen SMP1 version 1 and
 version 2 tables (`docs/spec/SMP1.md`, unchanged at revision 12) and exactly
-the three rows below: 46 rows total, 39 dispatched methods. No second
+the rows below: 46 rows total, 41 dispatched methods. No second
 independently maintained 46-row table exists; consumers union the SMP1 tables
 with these rows in tag order. Reserved tags under version 3 are 305, 503,
-601, 602, 605, 606, 607: the three new rows name the S20-620 test-selection
-seam already reserved by 601 and 602, so a version 3 refusal names
+605, 606, 607: 601 and 602 went live in revision 3 with the typed records
+named below, while the three still-reserved rows name the S20-620
+test-selection seam, so a version 3 refusal of 605-607 names
 `SMP1-RESERVED-S20-620` exactly as versions 1 and 2 do.
 
-All three rows are reserved until their semantics slices land (N7c for 601
-and 602 selection/affected reads, N7d for 605 report paging, 607 attempt
-status, 606 replay, and the v3 commit route): Appendix C above defines the
-pending records, and this table records current admission only. A row goes
-live by a later revision of this contract, never by appearing in a
-negotiated `methods` intersection. The generator
+Rows 605-607 stay reserved until N7d (605 report paging, 607 attempt status,
+606 replay, and the v3 commit route): Appendix C above defines the pending
+records, and this table records current admission only. A row goes live by a
+later revision of this contract, never by appearing in a negotiated `methods`
+intersection. The generator
 (`scripts/generate_smp1_json_bridge_table.py --protocol-version 3`) parses
-exactly these rows; a method row anywhere else in this file is drift.
+exactly these rows: at version 3 it overrides the frozen reserved 601/602
+rows with the live rows below (reserved flips false, bodies stay with the
+bridge as for every other method) and keeps 605-607 reserved; a method row
+anywhere else in this file is drift. Versions 1 and 2 generate from the
+frozen tables alone and refuse 601/602 byte-for-byte as before.
 
 | Tag | Method | Request body | Response body | Owner |
 |---:|---|---|---|---|
+| 601 | `tests.selected` | `tests.selected.request` | `tests.selected.response` | S20-620 |
+| 602 | `tests.affected` | `tests.affected.request` | `tests.affected.response` | S20-620 |
 | 605 | `tests.report_read` | reserved | reserved | S20-620 |
 | 606 | `tests.replay` | reserved | reserved | S20-620 |
 | 607 | `tests.attempt_status` | reserved | reserved | S20-620 |
@@ -445,7 +495,8 @@ N5: fresh locked execution, exact context, empty/nonempty acceptance signatures,
 staleness and full crash cuts; old selected-test guard still refuses v1.
 N6: mixed-history chunked exchange, all preflight counters, missing/untrusted
 roles/context, replay and source-free recovery without secret export.
-N7: profile/frame negotiation, old handles/refusals, paging lifetime/budgets,
+N7: profile/frame negotiation, old handles/refusals, diagnostic
+selection/execution/token bounds, paging lifetime/budgets,
 disconnect/unknown-response reconciliation and actual packaged lifecycle.
 Only after real N3 supervision and all owner verification may selected-test
 native commits accept. Full successor epoch/effect/corpus/GA tasks remain open.

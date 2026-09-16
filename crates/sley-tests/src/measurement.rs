@@ -310,6 +310,31 @@ impl MeasuredTestAttestationV1 {
         self.parts.declared_limits
     }
 
+    /// Page-floored memory cap actually installed; the diagnostic owner
+    /// requires no greater than declared.
+    #[must_use]
+    pub const fn installed_memory_cap(&self) -> u64 {
+        self.parts.installed_memory_cap
+    }
+
+    /// Daemon-measured elapsed nanoseconds, launch through confirmed exit.
+    #[must_use]
+    pub const fn elapsed_ns(&self) -> u64 {
+        self.parts.elapsed_ns
+    }
+
+    /// Daemon-measured cgroup memory peak.
+    #[must_use]
+    pub const fn measured_memory_peak(&self) -> u64 {
+        self.parts.measured_memory_peak
+    }
+
+    /// Cgroup memory telemetry; success requires zero breach events.
+    #[must_use]
+    pub const fn memory_events(&self) -> MemoryEvents {
+        self.parts.memory_events
+    }
+
     /// Supervisor-recorded historical trust time; the owner evaluates the
     /// measurement grant interval at this time, not the present clock.
     #[must_use]

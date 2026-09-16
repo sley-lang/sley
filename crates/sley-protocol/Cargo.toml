@@ -19,6 +19,7 @@ sley-scb1 = { path = "../sley-scb1" }
 sley-schema = { path = "../sley-schema" }
 sley-state-root = { path = "../sley-state-root" }
 sley-store = { path = "../sley-store" }
+sley-tests = { path = "../sley-tests" }
 sley-txn = { path = "../sley-txn" }
 sley-vm = { path = "../sley-vm" }
 

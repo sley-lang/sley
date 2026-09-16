@@ -3317,6 +3317,16 @@ fn v3_methods() -> Vec<u32> {
         .collect()
 }
 
+/// The native-capable offer: the non-reserved v3 methods plus the live
+/// selection reads 601/602 (still-reserved 605-607 stay unoffered).
+fn v3_offered_methods() -> Vec<u32> {
+    Method::V3_ALL
+        .iter()
+        .filter(|method| !method.is_reserved() || method.is_native_selection())
+        .map(|method| method.tag())
+        .collect()
+}
+
 fn v3hello(methods: Vec<u32>, features: u32) -> Hello {
     Hello {
         protocol_versions: vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3],
@@ -3402,22 +3412,20 @@ fn v3_offered_hello_names_v3_table_and_native_bit() {
         offered.protocol_versions,
         vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3]
     );
-    assert_eq!(offered.methods, v3_methods());
-    assert_eq!(
-        offered.methods.len(),
-        Method::V3_ALL
-            .iter()
-            .filter(|method| !method.is_reserved())
-            .count()
-    );
+    assert_eq!(offered.methods, v3_offered_methods());
+    assert_eq!(offered.methods.len(), v3_methods().len() + 2);
+    for tag in [TESTS_SELECTED_TAG, TESTS_AFFECTED_TAG] {
+        assert!(offered.methods.contains(&tag), "v3 offers live {tag}");
+    }
     for tag in [
-        TESTS_SELECTED_TAG,
-        TESTS_AFFECTED_TAG,
         TESTS_REPORT_READ_TAG,
         TESTS_REPLAY_TAG,
         TESTS_ATTEMPT_STATUS_TAG,
     ] {
-        assert!(!offered.methods.contains(&tag), "v3 offers no native {tag}");
+        assert!(
+            !offered.methods.contains(&tag),
+            "v3 offers no pending {tag}"
+        );
     }
     assert!(offered.features & FEATURE_NATIVE_TESTS_V1 != 0);
     // The v3 hello still travels at frame version 1 so older peers can
@@ -3513,6 +3521,481 @@ fn native_selection_refuses_reserved_on_v1_paths() {
         assert_eq!(failure.details, RESERVED_SEAM_620_DETAIL);
         assert_eq!(failure.retryability, Retryability::AfterCapability);
     }
+}
+
+// ---------------------------------------------------------------------------
+// 601/602 live selection reads (NATIVE_TEST_ADMISSION_V1 App. C rev3)
+// ---------------------------------------------------------------------------
+
+/// One live `TestCase` over the `executable_bodies` Bool function: byte 40
+/// targets byte 30 with two Bool inputs, so the explicit-root plan selects
+/// exactly it when the caller names it and the policy requires nothing.
+fn diagnostic_bodies() -> Vec<(u8, sley_mutate::value::EntityBodyValue)> {
+    use sley_mutate::value::{EntityBodyValue, TestCaseBody};
+    use sley_repo::test_support::id;
+    use sley_ssmc::{ConstData, ConstValue, EffectEnvironment, ExpectedOutcome, TypeExpr};
+    fn boolean(value: bool) -> ConstValue {
+        ConstValue {
+            value_type: TypeExpr::Bool,
+            data: ConstData::Bool(value),
+        }
+    }
+    let mut bodies = executable_bodies();
+    bodies.push((
+        40,
+        EntityBodyValue::TestCase(TestCaseBody {
+            target: id(30),
+            inputs: vec![boolean(true), boolean(false)],
+            effect_environment: EffectEnvironment::Replay(vec![]),
+            expected: ExpectedOutcome::Value(boolean(true)),
+            observations: vec![],
+            resource_limits: sley_ssmc::ResourceLimits {
+                fuel: 100,
+                memory_bytes: 1024,
+                output_bytes: 64,
+                effect_count: 0,
+                call_depth: 2,
+                wall_timeout_millis: 1000,
+            },
+        }),
+    ));
+    bodies
+}
+
+/// Test-only diagnostic executor: coherent no-result evidence per selected
+/// test (rejected report, attestation without an execution report) in the
+/// session workspace with entry-equal declared limits, so assembly reaches
+/// the all-rejected status without claiming a real run. The commit entry
+/// point stays refused: this double can never back a commit.
+struct DiagnosticRejector {
+    workspace: sley_id::WorkspaceId,
+    principal: sley_id::PrincipalId,
+    supervisor_config: Vec<u8>,
+    supervisor_config_id: [u8; 32],
+    invocations: std::cell::Cell<usize>,
+}
+
+impl DiagnosticRejector {
+    fn new(workspace: sley_id::WorkspaceId, principal: sley_id::PrincipalId) -> Self {
+        use sley_tests::{Caller, Property, SupervisorConfigParts, SupervisorConfigV1};
+        // The exact contracted supervisor property set: `build` rejects
+        // unknown properties, so diagnostics reuse the frozen shape.
+        let fixed = [
+            ("CapabilityBoundingSet", "empty"),
+            ("DynamicUser", "yes"),
+            ("KillMode", "control-group"),
+            ("MemoryAccounting", "yes"),
+            ("MemorySwapMax", "0"),
+            ("NoNewPrivileges", "yes"),
+            ("PrivateNetwork", "yes"),
+            ("PrivateTmp", "yes"),
+            ("ProtectControlGroups", "yes"),
+            ("ProtectHome", "yes"),
+            ("ProtectSystem", "strict"),
+            ("SendSIGKILL", "yes"),
+            ("TasksMax", "1"),
+            ("TimeoutStopUSec", "2000000"),
+        ];
+        let mut properties: Vec<Property> = fixed
+            .iter()
+            .map(|(name, value)| Property {
+                name: (*name).to_owned(),
+                value: (*value).to_owned(),
+            })
+            .collect();
+        properties.push(Property {
+            name: "MemoryMax".to_owned(),
+            value: "1048576".to_owned(),
+        });
+        properties.push(Property {
+            name: "RuntimeMaxUSec".to_owned(),
+            value: "1000000".to_owned(),
+        });
+        properties.sort_by(|left, right| left.name.cmp(&right.name));
+        let config = SupervisorConfigV1::build(SupervisorConfigParts {
+            worker_digest: [0x21; 32],
+            supervisor_digest: [0x22; 32],
+            properties,
+            callers: vec![Caller {
+                uid: 0,
+                workspace,
+                principal,
+            }],
+            page_size: 4096,
+            cleanup_millis: 2000,
+            launch_profile: 1,
+        })
+        .expect("diagnostic supervisor config builds");
+        let supervisor_config_id = *config.id().as_bytes();
+        Self {
+            workspace,
+            principal,
+            supervisor_config: config.stored_bytes().to_vec(),
+            supervisor_config_id,
+            invocations: std::cell::Cell::new(0),
+        }
+    }
+}
+
+impl sley_txn::NativeTestExecutor for DiagnosticRejector {
+    fn execute(
+        &self,
+        _plan: &sley_tests::NativeTestPlanV1,
+        _validated: &sley_policy::ValidatedCandidatePlan,
+    ) -> Result<Vec<sley_txn::ExecutedNativeTest>, sley_txn::NativeCommitError> {
+        Err(sley_txn::NativeCommitError::ExecutorUnavailable)
+    }
+
+    fn execute_diagnostic(
+        &self,
+        plan: &sley_tests::NativeTestPlanV1,
+        _objects: &std::collections::BTreeMap<sley_id::ObjectId, &[u8]>,
+    ) -> Result<Vec<sley_txn::ExecutedNativeTest>, sley_txn::NativeCommitError> {
+        use sley_tests::{
+            MeasuredTestAttestationParts, MeasuredTestAttestationV1, MemoryEvents,
+            NativeExecutionEvidence, NativeExecutionReportParts, NativeExecutionReportV1,
+            REJECT_PHASE_EXECUTION, RejectedEvidence, TERMINATION_PRELAUNCH_REFUSED,
+        };
+        self.invocations.set(self.invocations.get() + 1);
+        let mut out = Vec::with_capacity(plan.selected().len());
+        for entry in plan.selected() {
+            let rejected = RejectedEvidence::from_parts(
+                REJECT_PHASE_EXECUTION,
+                29211,
+                "NATIVE_TEST_EXECUTION_REJECTED",
+            )
+            .expect("synthetic rejection builds");
+            let report = NativeExecutionReportV1::build(NativeExecutionReportParts {
+                plan_id: plan.plan_id(),
+                test_entity: entry.test_entity,
+                test_object: entry.test_object,
+                target_object: entry.target_object,
+                evidence: NativeExecutionEvidence::Rejected(rejected),
+            })
+            .expect("synthetic report builds");
+            let attestation = MeasuredTestAttestationV1::build(MeasuredTestAttestationParts {
+                key_id: [0xB2; 32],
+                trust_policy_id: [0xB3; 32],
+                supervisor_config_id: self.supervisor_config_id,
+                plan_id: plan.plan_id(),
+                test_object: entry.test_object,
+                execution_report_id: None,
+                attempt_nonce: [0xC3; 32],
+                workspace: self.workspace,
+                principal: self.principal,
+                caller_uid: 0,
+                declared_limits: entry.declared_limits,
+                installed_memory_cap: entry.declared_limits.memory_bytes,
+                elapsed_ns: 0,
+                measured_memory_peak: 0,
+                memory_events: MemoryEvents {
+                    max: entry.declared_limits.memory_bytes,
+                    oom: 0,
+                    oom_kill: 0,
+                },
+                termination: TERMINATION_PRELAUNCH_REFUSED,
+                complete_output: false,
+                empty_cgroup_confirmed: true,
+                recorded_unix_millis: 1_000,
+                signature: [0xA5; 64],
+            })
+            .expect("synthetic attestation builds");
+            out.push(sley_txn::ExecutedNativeTest {
+                test_entity: entry.test_entity,
+                execution_stored: report.stored_bytes().to_vec(),
+                attestation_stored: attestation.stored_bytes().to_vec(),
+                supervisor_config_stored: self.supervisor_config.clone(),
+            });
+        }
+        Ok(out)
+    }
+}
+
+/// A v3 server over the diagnostic genesis with the rejecting executor
+/// installed, plus its session: the genesis workspace is byte 1 and its
+/// principal byte 2, matching the test-support genesis convention.
+fn diagnostic_server(label: &str) -> (sley_repo::test_support::TempDir, Server, SessionId) {
+    use sley_id::{PrincipalId, WorkspaceId};
+    let (temp, _transactions, _genesis_id) = genesis(label, diagnostic_bodies(), &[]);
+    let repository = temp.child("repo");
+    let bit = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1;
+    let methods = v3_offered_methods();
+    let mut server = Server::new_versioned(
+        &repository,
+        &v3hello(methods.clone(), bit),
+        &v3hello(methods, bit),
+    )
+    .unwrap();
+    assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V3);
+    let session = open_v3_session(&mut server);
+    server.set_executor(Box::new(DiagnosticRejector::new(
+        WorkspaceId::from_bytes([1; 32]),
+        PrincipalId::from_bytes([2; 32]),
+    )));
+    (temp, server, session)
+}
+
+/// The accepted head root behind a diagnostic server repository.
+fn diagnostic_head_root(temp: &sley_repo::test_support::TempDir) -> sley_id::StateRoot {
+    sley_txn::TransactionRepository::new(temp.child("repo"))
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .state_root()
+        .root
+}
+
+/// One 601 `tests.selected` request body: root, selected ids, profile,
+/// attempt.
+fn selected_body(root: sley_id::StateRoot, selected: &[u8], attempt: [u8; 16]) -> Vec<u8> {
+    use sley_repo::test_support::id;
+    let profile = sley_tests::native_execution_profile_id();
+    encode_record(&[
+        (1, root.as_bytes().to_vec()),
+        (
+            2,
+            sley_scb1::encode_list(
+                &selected
+                    .iter()
+                    .map(|byte| id(*byte).as_bytes().to_vec())
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap(),
+        ),
+        (3, profile.as_bytes().to_vec()),
+        (4, attempt.to_vec()),
+    ])
+    .unwrap()
+}
+
+/// Answers one v3 call, asserting success and returning the frame.
+fn call_v3_ok(
+    server: &mut Server,
+    session: SessionId,
+    request_id: u64,
+    tag: u32,
+    body: Vec<u8>,
+) -> ProtocolFrame {
+    let answer = server
+        .answer(&v3request_frame(Some(session), request_id, tag, body))
+        .unwrap();
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3)
+            .unwrap()
+    else {
+        panic!("v3 response frame");
+    };
+    assert!(
+        !answer.failed,
+        "{tag} failed: {:?}",
+        ProtocolFailure::decode(&frame.body)
+    );
+    assert_eq!(frame.method, tag);
+    frame
+}
+
+/// Answers one v3 call, asserting failure and returning the refusal.
+fn call_v3_fail(
+    server: &mut Server,
+    session: SessionId,
+    request_id: u64,
+    tag: u32,
+    body: Vec<u8>,
+) -> ProtocolFailure {
+    let answer = server
+        .answer(&v3request_frame(Some(session), request_id, tag, body))
+        .unwrap();
+    assert!(answer.failed, "{tag} unexpectedly succeeded");
+    let (DecodedFrame::Response(frame), _) =
+        decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3)
+            .unwrap()
+    else {
+        panic!("v3 response frame");
+    };
+    assert_eq!(frame.method, tag);
+    ProtocolFailure::decode(&frame.body).unwrap()
+}
+
+#[test]
+fn selected_runs_replays_and_conflicts_on_attempt_binding() {
+    let (temp, mut server, session) = diagnostic_server("v3-selected-live");
+    let root = diagnostic_head_root(&temp);
+    let attempt = [0xA0; 16];
+    let first = call_v3_ok(
+        &mut server,
+        session,
+        1,
+        TESTS_SELECTED_TAG,
+        selected_body(root, &[40], attempt),
+    );
+    let fields = fields_of(&first.body, 6);
+    assert_eq!(fields[0].len(), 32, "plan id");
+    assert_eq!(fields[1].len(), 32, "report id");
+    // Status 3: every entry execution-rejected with no observation.
+    assert_eq!(fields[2], encode_uvar(3));
+    assert_eq!(fields[3], encode_uvar(1), "exactly the named test");
+    assert_eq!(fields[4].len(), 32, "report token");
+    assert_ne!(fields[4], vec![0; 32], "token unpredictable");
+    let total = fields[5].clone();
+    assert_ne!(total, encode_uvar(0), "report stored bytes");
+    // Identical resubmission replays the cached response byte-for-byte
+    // without re-executing.
+    let replay = call_v3_ok(
+        &mut server,
+        session,
+        2,
+        TESTS_SELECTED_TAG,
+        selected_body(root, &[40], attempt),
+    );
+    assert_eq!(replay.body, first.body, "identical bindings replay");
+    // Divergent bindings under the same attempt refuse as a conflict:
+    // the attempt id keys the cache, so the same id with an emptied
+    // selection cannot replay and cannot silently re-execute either.
+    let conflict = call_v3_fail(
+        &mut server,
+        session,
+        3,
+        TESTS_SELECTED_TAG,
+        selected_body(root, &[], attempt),
+    );
+    assert_eq!(conflict.symbol, "NATIVE_ATTEMPT_CONFLICT");
+    // Unknown selections refuse through the preserved plan failure,
+    // never as a status.
+    let unknown = call_v3_fail(
+        &mut server,
+        session,
+        4,
+        TESTS_SELECTED_TAG,
+        selected_body(root, &[41], [0xA2; 16]),
+    );
+    assert_eq!(unknown.symbol, "NATIVE_TEST_SELECTION_INVALID");
+}
+
+#[test]
+fn selected_without_executor_writes_nothing() {
+    let (temp, mut server, session) = diagnostic_server("v3-selected-no-executor");
+    let root = diagnostic_head_root(&temp);
+    // Drop the executor: with no configured dispatch the call fails
+    // having stored no report, minted no token, cached no attempt.
+    server.set_executor(Box::new(NoDiagnosticExecutor));
+    let failure = call_v3_fail(
+        &mut server,
+        session,
+        1,
+        TESTS_SELECTED_TAG,
+        selected_body(root, &[40], [0xB0; 16]),
+    );
+    assert_eq!(failure.symbol, "NATIVE_EXECUTOR_UNAVAILABLE");
+}
+
+/// Test-only executor refusing every diagnostic outright, like the
+/// commit-only default: the call fails before anything is written.
+struct NoDiagnosticExecutor;
+
+impl sley_txn::NativeTestExecutor for NoDiagnosticExecutor {
+    fn execute(
+        &self,
+        _plan: &sley_tests::NativeTestPlanV1,
+        _validated: &sley_policy::ValidatedCandidatePlan,
+    ) -> Result<Vec<sley_txn::ExecutedNativeTest>, sley_txn::NativeCommitError> {
+        Err(sley_txn::NativeCommitError::ExecutorUnavailable)
+    }
+}
+
+#[test]
+fn selected_checks_profile_root_and_renewal_invalidation() {
+    let (temp, mut server, session) = diagnostic_server("v3-selected-guards");
+    let root = diagnostic_head_root(&temp);
+    // A foreign execution profile is a malformed request.
+    let profiled = call_v3_fail(
+        &mut server,
+        session,
+        1,
+        TESTS_SELECTED_TAG,
+        encode_record(&[
+            (1, root.as_bytes().to_vec()),
+            (
+                2,
+                sley_scb1::encode_list(&[sley_repo::test_support::id(40).as_bytes().to_vec()])
+                    .unwrap(),
+            ),
+            (3, vec![0x77; 32]),
+            (4, [0xC0; 16].to_vec()),
+        ])
+        .unwrap(),
+    );
+    assert_eq!(profiled.code, ProtocolErrorCode::PayloadInvalid.numeric());
+    // A root that is not the accepted head is stale, never executed.
+    let stale = call_v3_fail(
+        &mut server,
+        session,
+        2,
+        TESTS_SELECTED_TAG,
+        selected_body(
+            sley_id::StateRoot::from_bytes([0xFF; 32]),
+            &[40],
+            [0xC1; 16],
+        ),
+    );
+    assert_eq!(stale.symbol, "SESSION_STALE_HANDLE");
+    // One success, then renewal kills the token and its attempt: the
+    // same bindings re-execute fresh instead of replaying dead state.
+    let attempt = [0xC2; 16];
+    let first = call_v3_ok(
+        &mut server,
+        session,
+        3,
+        TESTS_SELECTED_TAG,
+        selected_body(root, &[40], attempt),
+    );
+    let renew = server
+        .answer(&v3request_frame(
+            Some(session),
+            4,
+            Method::SessionRenew.tag(),
+            session.as_bytes().to_vec(),
+        ))
+        .unwrap();
+    assert!(!renew.failed);
+    let second = call_v3_ok(
+        &mut server,
+        session,
+        5,
+        TESTS_SELECTED_TAG,
+        selected_body(root, &[40], attempt),
+    );
+    assert_ne!(
+        second.body, first.body,
+        "renewal invalidates the cached attempt"
+    );
+    let fields = fields_of(&second.body, 6);
+    assert_eq!(fields[2], encode_uvar(3));
+    assert_eq!(fields[3], encode_uvar(1));
+}
+
+#[test]
+fn affected_preserves_static_validation_failures() {
+    // 602 validates the candidate exactly like `candidate.validate`
+    // before deriving anything: undecodable bytes keep their static
+    // failure instead of reaching selection.
+    let (_temp, mut server, session) = diagnostic_server("v3-affected-static");
+    let profile = sley_tests::native_execution_profile_id();
+    let failure = call_v3_fail(
+        &mut server,
+        session,
+        1,
+        TESTS_AFFECTED_TAG,
+        encode_record(&[
+            (1, b"not-a-candidate".to_vec()),
+            (2, profile.as_bytes().to_vec()),
+            (3, [0xD0; 16].to_vec()),
+        ])
+        .unwrap(),
+    );
+    assert!(
+        !failure.symbol.is_empty(),
+        "static failure keeps its symbol"
+    );
 }
 
 #[test]

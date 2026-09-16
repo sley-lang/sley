@@ -26,8 +26,9 @@ V2_SECTION = "### Protocol version 2 additions"
 V2_SECTION_END = "## 5. Bounded context"
 # The version 3 additions live in the native draft family (still awaiting
 # owner review), not in the frozen SMP1 contract: SMP1.md stays revision 12
-# while the native contract owns the three reserved rows below.
-V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 2)"
+# while the native contract owns the five rows below (two live selection
+# reads since N7c revision 3, three still-reserved rows).
+V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 3)"
 V3_SECTION_END = "## 7. Required implementation evidence"
 FAMILIES = {
     1: "session",
@@ -48,13 +49,26 @@ EXPECTED_V1_TAGS = (
 )
 EXPECTED_V2_ADDITIONS = ((306, "entity.version"), (307, "entity.signature"))
 V2_OWNER = "S20-310"
-# The version 3 additions are exactly the three reserved native rows owned
-# by the S20-620 test-selection seam (the seam 601/602 already reserve).
+# The version 3 additions are exactly the five native rows owned by the
+# S20-620 test-selection seam: the two selection reads live since N7c
+# revision 3, the three report/replay/status rows still reserved to N7d.
 EXPECTED_V3_ADDITIONS = (
+    (601, "tests.selected"),
+    (602, "tests.affected"),
     (605, "tests.report_read"),
     (606, "tests.replay"),
     (607, "tests.attempt_status"),
 )
+# Tags live at version 3 (reserved flips false); every other native row
+# stays reserved. A future semantics slice flips a row live by contract
+# revision, never by editing this set beside the contract.
+EXPECTED_V3_LIVE = (601, 602)
+# Live rows name their Appendix C typed records exactly; the bridge carries
+# no bodies, so this pin is the only machine check on the record names.
+EXPECTED_V3_LIVE_BODIES = {
+    601: ("tests.selected.request", "tests.selected.response"),
+    602: ("tests.affected.request", "tests.affected.response"),
+}
 V3_OWNER = "S20-620"
 
 
@@ -116,21 +130,31 @@ def _v3_section_lines(native_text: str) -> list[str]:
 def parse_v3_additions(native_text: str) -> list[dict]:
     """Parse and validate the bounded version-3 additions rows."""
     region = _v3_section_lines(native_text)
-    additions = [_parse_row(line) for line in region if ROW.match(line)]
-    inside = sum(1 for line in region if ROW.match(line))
+    region_rows = [line for line in region if ROW.match(line)]
+    additions = [_parse_row(line) for line in region_rows]
+    inside = len(region_rows)
     total = sum(1 for line in native_text.splitlines() if ROW.match(line))
     if total != inside:
         raise SystemExit(f"native method rows outside the v3 table section: {total} != {inside}")
     if [(method["tag"], method["name"]) for method in additions] != list(EXPECTED_V3_ADDITIONS):
         raise SystemExit(
-            "v3 additions must be exactly 605 tests.report_read, 606 tests.replay, "
-            f"and 607 tests.attempt_status in order, found {[(m['tag'], m['name']) for m in additions]}"
+            "v3 additions must be exactly 601 tests.selected, 602 tests.affected, "
+            "605 tests.report_read, 606 tests.replay, and 607 tests.attempt_status "
+            f"in order, found {[(m['tag'], m['name']) for m in additions]}"
         )
-    for method in additions:
+    for method, line in zip(additions, region_rows):
         if method["owner"] != V3_OWNER:
             raise SystemExit(f"v3 addition {method['tag']} must be owned by {V3_OWNER}")
-        if not method["reserved"]:
-            raise SystemExit(f"v3 addition {method['tag']} must stay reserved until N7c/N7d")
+        match = ROW.match(line)
+        assert match is not None
+        bodies = (match.group(3).strip("`"), match.group(4).strip("`"))
+        if method["tag"] in EXPECTED_V3_LIVE:
+            if method["reserved"]:
+                raise SystemExit(f"v3 addition {method['tag']} is live since N7c and must not be reserved")
+            if bodies != EXPECTED_V3_LIVE_BODIES[method["tag"]]:
+                raise SystemExit(f"v3 addition {method['tag']} must name its Appendix C records, found {bodies}")
+        elif not method["reserved"]:
+            raise SystemExit(f"v3 addition {method['tag']} must stay reserved until N7d")
     return additions
 
 
@@ -205,12 +229,22 @@ def build(protocol_version: int = 1) -> dict:
             raise SystemExit("version 2 union lost rows")
         return _table(union)
     v3_additions = parse_v3_additions(NATIVE_SPEC.read_text(encoding="utf-8"))
-    union = sorted(v1_methods + v2_additions + v3_additions, key=lambda method: method["tag"])
-    if len(union) != EXPECTED_V1_METHODS + len(v2_additions) + len(v3_additions):
+    # The live native rows override the frozen reserved rows at version 3
+    # only: versions 1 and 2 generate from the frozen tables alone. The
+    # frozen rows must still be reserved; a frozen contract that flips them
+    # live under us is drift, never silently adopted.
+    live = [method for method in v3_additions if method["tag"] in EXPECTED_V3_LIVE]
+    pending = [method for method in v3_additions if method["tag"] not in EXPECTED_V3_LIVE]
+    frozen_tags = {method["tag"]: method for method in v1_methods + v2_additions}
+    for method in live:
+        frozen = frozen_tags.get(method["tag"])
+        if frozen is None or not frozen["reserved"] or frozen["name"] != method["name"]:
+            raise SystemExit(f"v3 live row {method['tag']} is not the frozen reserved row")
+    base = [method for method in v1_methods + v2_additions if method["tag"] not in EXPECTED_V3_LIVE]
+    union = sorted(base + live + pending, key=lambda method: method["tag"])
+    if len(union) != EXPECTED_V1_METHODS + len(v2_additions) + len(pending):
         raise SystemExit("version 3 union lost rows")
-    if {method["tag"] for method in v3_additions} & {
-        method["tag"] for method in v1_methods + v2_additions
-    }:
+    if {method["tag"] for method in pending} & set(frozen_tags):
         raise SystemExit("v3 additions overlap the frozen tables")
     union_names = [method["name"] for method in union]
     if len(set(union_names)) != len(union_names):
