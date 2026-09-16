@@ -59,3 +59,4 @@ Current records:
 - ADR-0047: the required contracts are indexed, not restated
 - ADR-0048: the hash domain registry covers every crate that hashes
 - ADR-0049: REWEAVE-1.0 scope adoption (SH2 campaign path)
+- ADR-0050: native test evidence, measured execution and authenticated admission (N0 proposal; implementation pending)

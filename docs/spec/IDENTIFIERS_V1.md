@@ -88,8 +88,21 @@ either quote style, bytes or text) is used by a script that imports or calls
 blake3, so an identity domain cannot be introduced outside the registry; its
 `--self-test` carries the evasion regressions.
 
-A domain cannot be renamed, aliased, or reused for another preimage. Adding a
-domain requires an ADR, fixtures, and registry drift validation.
+A domain cannot be renamed, aliased, reinterpreted for old bytes, or reused
+across identifier purposes. Within the **same typed identity family**, a
+reviewed format version may introduce an explicitly magic-disjoint preimage
+variant: old bytes must derive exactly their old IDs, old decoders retain their
+acceptance/refusal behavior, and new variants require explicit version dispatch.
+This narrowly permits the reserved family variants of ADR-0050 and
+`NATIVE_TEST_RESERVATIONS_V1.md`; it does not permit implicit acceptance,
+cross-purpose reuse or an alias for an existing preimage. Adding a domain or
+promoting a family variant requires an ADR, fixtures and registry drift validation.
+
+Unimplemented native-test allocations are recorded separately in
+`NATIVE_TEST_RESERVATIONS_V1.md` (ADR-0050). They are reservations, not live
+registry rows or supported decoders. Promotion requires the corresponding
+implementation, canonical fixtures and reviewed drift-check update together;
+the live domain set above continues to match the existing crate implementation.
 
 `PrincipalId` is a distinct opaque 32-byte host-supplied identity value, not a
 content-addressed identifier and not a new hash domain. It never derives from a
