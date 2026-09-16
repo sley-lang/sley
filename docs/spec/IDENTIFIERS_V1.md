@@ -57,6 +57,8 @@ part of the `sley-id` kernel API.
 | native test observation | `sley2.native-test-observation.v1` |
 | native test plan | `sley2.native-test-plan.v1` |
 | native resource policy | `sley2.native-test-resource-policy.v1` |
+| measured test attestation | `sley2.native-test-measurement.v1` |
+| native test approval | `sley2.native-test-approval.v1` |
 | repository pack leaf (S20-170) | `sley2.repository-pack-leaf.v1` |
 | repository pack node (S20-170) | `sley2.repository-pack-node.v1` |
 | repository exchange leaf (S20-540) | `sley2.repository-exchange-leaf.v1` |

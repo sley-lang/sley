@@ -46,11 +46,13 @@ enum Domain {
     NativeObservation,
     NativeTestPlan,
     NativeResourcePolicy,
+    MeasuredTestAttestation,
+    NativeTestApproval,
 }
 
 impl Domain {
     #[cfg(test)]
-    const ALL: [Self; 39] = [
+    const ALL: [Self; 41] = [
         Self::Workspace,
         Self::Entity,
         Self::Object,
@@ -90,6 +92,8 @@ impl Domain {
         Self::NativeObservation,
         Self::NativeTestPlan,
         Self::NativeResourcePolicy,
+        Self::MeasuredTestAttestation,
+        Self::NativeTestApproval,
     ];
 
     const fn bytes(self) -> &'static [u8] {
@@ -133,6 +137,8 @@ impl Domain {
             Self::NativeObservation => b"sley2.native-test-observation.v1",
             Self::NativeTestPlan => b"sley2.native-test-plan.v1",
             Self::NativeResourcePolicy => b"sley2.native-test-resource-policy.v1",
+            Self::MeasuredTestAttestation => b"sley2.native-test-measurement.v1",
+            Self::NativeTestApproval => b"sley2.native-test-approval.v1",
         }
     }
 }
@@ -386,6 +392,14 @@ fixed_bytes_type! {
     /// Native resource policy digest, binding effective ceilings.
     NativeResourcePolicyId
 }
+fixed_bytes_type! {
+    /// Measured test attestation digest, binding resource facts and signature.
+    MeasuredTestAttestationId
+}
+fixed_bytes_type! {
+    /// Native test approval digest, binding plan, report, and decision.
+    NativeTestApprovalId
+}
 
 macro_rules! digest_type {
     ($name:ident, $domain:expr) => {
@@ -420,6 +434,8 @@ digest_type!(NativeExecutionProfileId, Domain::NativeExecutionProfile);
 digest_type!(NativeObservationId, Domain::NativeObservation);
 digest_type!(NativeTestPlanId, Domain::NativeTestPlan);
 digest_type!(NativeResourcePolicyId, Domain::NativeResourcePolicy);
+digest_type!(MeasuredTestAttestationId, Domain::MeasuredTestAttestation);
+digest_type!(NativeTestApprovalId, Domain::NativeTestApproval);
 digest_type!(ExecutionReportId, Domain::ExecutionReport);
 digest_type!(TestReportId, Domain::TestReport);
 digest_type!(RepositoryPackId, Domain::RepositoryPack);
@@ -470,7 +486,7 @@ mod tests {
     const ZERO: [u8; ID_LEN] = [0; ID_LEN];
     const ONE: [u8; ID_LEN] = [1; ID_LEN];
     const TEST_PREIMAGE: &[u8] = b"sley-id fixed vector preimage";
-    const FIXED_VECTORS: [(Domain, &str); 39] = [
+    const FIXED_VECTORS: [(Domain, &str); 41] = [
         (
             Domain::Workspace,
             "91280bdf6e8df93eafb445c63cf92f0590981d2d9e735d6b01cc9594e0b92f55",
@@ -627,6 +643,14 @@ mod tests {
             Domain::NativeResourcePolicy,
             "957e5063af2f82520b59927eddcf015d0400a319dd5c9b3401128fda8523cfc0",
         ),
+        (
+            Domain::MeasuredTestAttestation,
+            "d3c705ae3a4c14d718ab1dd18a4d80f7830cc65ec1c7ef525fd59b547566c631",
+        ),
+        (
+            Domain::NativeTestApproval,
+            "7d4a4c27657367f6c6b6181c0e2926825e81197a384c3a1834e3caff29a44699",
+        ),
     ];
 
     fn decode_hex_32(hex: &str) -> [u8; ID_LEN] {
@@ -683,6 +707,8 @@ mod tests {
                 b"sley2.native-test-observation.v1",
                 b"sley2.native-test-plan.v1",
                 b"sley2.native-test-resource-policy.v1",
+                b"sley2.native-test-measurement.v1",
+                b"sley2.native-test-approval.v1",
             ]
         );
     }
@@ -825,6 +851,8 @@ mod tests {
         assert_eq!(core::mem::size_of::<NativeObservationId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<NativeTestPlanId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<NativeResourcePolicyId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<MeasuredTestAttestationId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<NativeTestApprovalId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<ExecutionReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<TestReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<RepositoryPackId>(), ID_LEN);

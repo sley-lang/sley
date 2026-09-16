@@ -466,7 +466,7 @@ fn record_parts(parts: &NativeTestPlanParts) -> Result<Vec<u8>, ScbError> {
 /// Declared-limit layout, field-for-field identical to the VM owner's private
 /// record (`sley-vm` `records.rs`): fuel, memory, output, effects, depth,
 /// wall. The cross-crate pin test there fails loudly on any reorder.
-fn declared_record(limits: NativeDeclaredLimits) -> Vec<u8> {
+pub(crate) fn declared_record(limits: NativeDeclaredLimits) -> Vec<u8> {
     encode_record(&[
         (1, encode_uvar(limits.fuel)),
         (2, encode_uvar(limits.memory_bytes)),
@@ -478,7 +478,7 @@ fn declared_record(limits: NativeDeclaredLimits) -> Vec<u8> {
     .expect("six small fields always encode")
 }
 
-fn parse_declared_limits(value: &[u8]) -> Result<NativeDeclaredLimits, ScbError> {
+pub(crate) fn parse_declared_limits(value: &[u8]) -> Result<NativeDeclaredLimits, ScbError> {
     let fields = decode_fields(value)?;
     expect_tags(&fields, &[1, 2, 3, 4, 5, 6])?;
     Ok(NativeDeclaredLimits {
