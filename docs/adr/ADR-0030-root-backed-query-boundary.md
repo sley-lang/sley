@@ -51,6 +51,13 @@ and Vulcan as soon as a lane returns.
 6. **Staging.** `scripts/check_root_backed_query_profile.py` binds the
    contract, ADR, work-package row, and summary section, and fails closed if
    the root-query module appears before the summary allows implementation.
+7. **Entity-read composition.** Section 11 of the root-backed query
+   contract composes this profile with `ENTITY_READ_PROFILE_V2.md`.
+   Entity payload projection and its independent corpus checker remain
+   owned by the entity-read profile; root-backed queries retain their
+   nineteen-class enumeration, binding and continuation authority.
+   Shared verified-root input does not make either profile's acceptance
+   evidence a substitute for the other's.
 
 ## Consequences
 

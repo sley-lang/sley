@@ -2989,6 +2989,119 @@ fn corpus_request_shape_wires_refuse_with_recorded_codes() {
     assert_eq!(covered, 16, "request_record plus request_range rows");
 }
 
+/// The owner test reproduces these bodies from stored objects. This test
+/// independently builds the response envelope from semantic input metadata
+/// and the frozen body, then compares the production encoder's bytes and
+/// identity. It does not claim to issue the corpus's synthetic session.
+#[test]
+fn accepted_corpus_response_frames_match_protocol_encoder() {
+    let accepted: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/entity-read/v2/accepted.json"
+    ))
+    .unwrap();
+    let inputs: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../conformance/entity-read/v2/inputs.json"
+    ))
+    .unwrap();
+    let limits = &inputs["selected_limits"];
+    let applied_limits = LimitProfile {
+        max_frame_bytes: limits["max_frame_bytes"].as_u64().unwrap(),
+        max_entities: limits["max_entities"].as_u64().unwrap(),
+        max_edges: limits["max_edges"].as_u64().unwrap(),
+        max_depth: u32::try_from(limits["max_depth"].as_u64().unwrap()).unwrap(),
+        max_response_bytes: limits["max_response_bytes"].as_u64().unwrap(),
+        max_work: limits["max_work"].as_u64().unwrap(),
+        max_inflight: u32::try_from(limits["max_inflight"].as_u64().unwrap()).unwrap(),
+        max_sessions: u32::try_from(limits["max_sessions"].as_u64().unwrap()).unwrap(),
+    };
+    let session = SessionId::from_bytes(
+        corpus_hex(inputs["context"]["session"].as_str().unwrap())
+            .try_into()
+            .unwrap(),
+    );
+    let cases = accepted["cases"].as_object().unwrap();
+    assert_eq!(cases.len(), 23);
+    for (id, case) in cases {
+        let authored = &inputs["cases"][id];
+        let body = corpus_hex(case["response_body_hex"].as_str().unwrap());
+        let response = decode_entity_read_response(&body).unwrap();
+        assert_eq!(
+            response.work_units,
+            case["work"].as_u64().unwrap(),
+            "{id}: work"
+        );
+        let mut frame = ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION_V2,
+            session: Some(session),
+            request_id: authored["request"]["request_id"].as_u64().unwrap(),
+            kind: FrameKind::Response,
+            method: u32::try_from(authored["method"].as_u64().unwrap()).unwrap(),
+            flags: 0,
+            bounds: BoundedContext {
+                applied_limits,
+                returned_bytes: u64::try_from(body.len()).unwrap(),
+                returned_entities: u64::try_from(response.objects.len()).unwrap(),
+                returned_edges: 0,
+                reached_depth: 0,
+                omitted: 0,
+                truncated: false,
+                continuation: false,
+            },
+            body,
+        };
+        assert_eq!(
+            frame.bounds.returned_entities,
+            case["count_k"].as_u64().unwrap(),
+            "{id}: count"
+        );
+        let encoded = encode_single_frame_direct(&frame, applied_limits.max_frame_bytes).unwrap();
+        let generic = encode_frame_for_version(&frame, PROTOCOL_VERSION_V2).unwrap();
+        assert_eq!(
+            encoded.bytes, generic.bytes,
+            "{id}: direct/generic encoders"
+        );
+        assert_eq!(
+            encoded.frame_id, generic.frame_id,
+            "{id}: direct/generic identity"
+        );
+        let expected_wire = corpus_hex(case["response_wire_hex"].as_str().unwrap());
+        let expected_id = corpus_hex(case["response_frame_id"].as_str().unwrap());
+        assert_eq!(encoded.bytes, expected_wire, "{id}: response wire");
+        assert_eq!(
+            encoded.frame_id.as_bytes().as_slice(),
+            expected_id,
+            "{id}: frame identity"
+        );
+        assert_eq!(
+            u64::try_from(encoded.bytes.len()).unwrap(),
+            case["response_wire_len"].as_u64().unwrap(),
+            "{id}: frame length"
+        );
+        let (decoded, decoded_id) = decode_frame_for_version(
+            &encoded.bytes,
+            applied_limits.max_frame_bytes,
+            PROTOCOL_VERSION_V2,
+        )
+        .unwrap();
+        assert_eq!(
+            decoded,
+            DecodedFrame::Response(frame.clone()),
+            "{id}: round trip"
+        );
+        assert_eq!(decoded_id, encoded.frame_id, "{id}: decoded identity");
+        // Negative control: another lawful request identity must not match
+        // the independently frozen response, even though its body is equal.
+        frame.request_id += 1;
+        let other = encode_frame_for_version(&frame, PROTOCOL_VERSION_V2).unwrap();
+        assert_ne!(other.bytes, expected_wire, "{id}: changed request wire");
+        assert_ne!(
+            other.frame_id.as_bytes().as_slice(),
+            expected_id,
+            "{id}: changed request identity"
+        );
+    }
+}
+
 /// Corpus helper: raw bytes from even-length lowercase hex.
 fn corpus_hex(text: &str) -> Vec<u8> {
     assert!(text.len().is_multiple_of(2), "hex length must be even");

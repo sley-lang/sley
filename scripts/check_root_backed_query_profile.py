@@ -21,6 +21,8 @@ ENTITY_READ_OWNER = ROOT / "crates/sley-query/src/entity_read.rs"
 ENTITY_READ_ADAPTER = ROOT / "crates/sley-repo/src/entity_read.rs"
 ENTITY_READ_SPEC = ROOT / "docs/spec/ENTITY_READ_PROFILE_V2.md"
 ENTITY_READ_CORPUS = ROOT / "conformance/entity-read/v2"
+ENTITY_READ_CHECKER = ROOT / "scripts/check_entity_read_vectors.py"
+ENTITY_READ_ORACLE = ROOT / "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
 ID_CRATE = ROOT / "crates/sley-id/src/lib.rs"
 FIXTURE_DIR = ROOT / "conformance/root-backed-query"
 
@@ -161,7 +163,11 @@ def main() -> int:
         ENTITY_READ_SPEC,
         ENTITY_READ_OWNER,
         ENTITY_READ_ADAPTER,
+        ENTITY_READ_CHECKER,
+        ENTITY_READ_ORACLE,
         ENTITY_READ_CORPUS / "accepted.json",
+        ENTITY_READ_CORPUS / "rejected.json",
+        ENTITY_READ_CORPUS / "inputs.json",
         ENTITY_READ_CORPUS / "SHA256SUMS",
     ):
         if not path.exists():
@@ -210,6 +216,13 @@ def main() -> int:
     if revision != CONTRACT_REVISION:
         problems.append(f"spec-revision:{revision!r}!={CONTRACT_REVISION}")
     summary_revision = section.get("contract_revision")
+    for key, path in (("entity_read_checker", ENTITY_READ_CHECKER),
+                      ("entity_read_oracle", ENTITY_READ_ORACLE)):
+        relative = path.relative_to(ROOT).as_posix()
+        if section.get(key) != relative:
+            problems.append(f"machine-summary:{key}")
+        if relative not in spec:
+            problems.append(f"entity-read-registration:{relative}")
     if summary_revision != revision:
         problems.append(f"machine-summary:contract_revision:{summary_revision!r}!=spec:{revision!r}")
     expected = {

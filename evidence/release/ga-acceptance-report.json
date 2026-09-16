@@ -118,7 +118,7 @@
     },
     {
       "criterion": "No undefined behavior exists in the program model",
-      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 85 PASS, 0 PENDING, 0 OTHER, 52 historical, 9 unclaimed or unclassified; lane open)",
+      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 85 PASS, 0 PENDING, 0 OTHER, 52 historical, 5 unclaimed or unclassified; lane open)",
       "group": "26.3 semantics",
       "state": "AWAITS_REVIEW"
     },
@@ -214,7 +214,7 @@
     },
     {
       "criterion": "policy is protected from the judged candidate",
-      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 81 PASS, 0 PENDING, 0 OTHER, 39 historical, 6 unclaimed or unclassified; lane open",
+      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 81 PASS, 0 PENDING, 0 OTHER, 39 historical, 4 unclaimed or unclassified; lane open",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
@@ -304,13 +304,13 @@
     },
     {
       "criterion": "Ariadne approves SSMC1 and semantic correctness",
-      "evidence": "finding register ariadne lane: 85 PASS, 0 PENDING, 0 OTHER, 52 historical, 9 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
+      "evidence": "finding register ariadne lane: 85 PASS, 0 PENDING, 0 OTHER, 52 historical, 5 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "Nabu approves architectural and cross-product boundaries",
-      "evidence": "finding register nabu lane: 81 PASS, 0 PENDING, 0 OTHER, 39 historical, 6 unclaimed or unclassified; lane open",
+      "evidence": "finding register nabu lane: 81 PASS, 0 PENDING, 0 OTHER, 39 historical, 4 unclaimed or unclassified; lane open",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -322,7 +322,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 1 open, 0 unclassified, and 40 unclaimed-carried obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 1 open, 0 unclassified, and 32 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -340,9 +340,9 @@
     "artifact is built from the final candidate commit"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "7eb1e8b780f2ec01645e03352be9a7dd9acbcea35649009dc62d4992a9f64429",
-  "register_digest": "fd8afff077d1d1306110183d513d3b9e0013b0a38b62fccb7254a43fb2ea79da",
-  "report_digest": "fc0494572adb80c9edee19d4fc8910696d6630db8e064f0503734d17d248eb43",
+  "obligations_digest": "9a499ad6d753edfa00615e5160a2a1efecb12e2bdcfb125f9e4b122d73aa6cd4",
+  "register_digest": "deb0046a70821fa1f5aea5b8ccf413677ac81dd8808121bcf7496db56ba70724",
+  "report_digest": "63d9348e7a7c8034be6585b52ddde4b4274c29c52b0ff430a551141840029205",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

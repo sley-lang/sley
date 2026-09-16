@@ -278,6 +278,30 @@ and SMP1 revision references together.
   25 stored objects through the production adapter projection; the
   owner-layer rejection rows by the owner refusal tests and the 16
   request-shape wires by the protocol corpus replay test.
+  `accepted_corpus_response_frames_match_protocol_encoder` builds each
+  response envelope from the semantic input session, request identity,
+  method and selected limits, plus the frozen response body, using the
+  production direct Rust protocol encoder used by the server, and checks
+  agreement with the generic encoder. It compares all 23 response wire byte
+  strings, frame identities and wire lengths, and round-trips through the
+  production decoder. Body derivation belongs to the separate Rust owner
+  test above; this envelope test does not issue the synthetic corpus
+  session through a repository server.
+  `rejected_relation_bounds_refuse_or_serve` consumes the six exact and
+  one-below K/byte/work rows, including row IDs `bound_work_exact` and
+  `bound_work_below` (relation tags `work_exact` and `work_one_below`).
+  `rejected_relation_work_recomputes` consumes the three remaining
+  work-preflight relations. Its `checked_overflow` case feeds the declared
+  `arith_k`, `arith_b`, `arith_l`, `arith_m` directly to the production work
+  arithmetic helper. Those operands exceed negotiated limits; this is
+  arithmetic-unit evidence, not an admissible request or allocation test.
+  The independent conformance owner is
+  `scripts/check_entity_read_vectors.py`, backed by
+  `oracle/scb1/src/sley2_scb1_oracle/entity_read.py`; it reconstructs accepted
+  and rejected expectations from `inputs.json`. `make conformance` invokes
+  it. S20-310 owns query/body semantics, S20-410 owns frame/session behavior,
+  and the S20-310 root profile section 11 composes the repository adapter,
+  both corpus directions and these independently owned evidence surfaces.
 - Runtime-sequence obligations (`pending_runtime_comparison`) are discharged
   by live-session server tests, mapped here so the count is auditable:
   `seq_wrong_session` by the unknown-session part of
@@ -334,3 +358,18 @@ and SMP1 revision references together.
 AT-MW-02 remains open until implementation, independent vectors, consumer
 integration and the bounded edit demonstrations pass. A contract-only
 checkpoint is not a runtime or full-query completion claim.
+
+## 8. Retained corpus provenance
+
+The accepted/rejected v2 corpus bytes are preserved. Their manifest's
+`refresh_head_revision` is `9ae09a142830a4857c553bad27433143999e6864`,
+while `encoder_sha256` is
+`63e82fc8ee66a6b6d10ca18e978ee4cbc1aebef4998f24990b616d93470d9a35`.
+The subsequent 246d5c4 review recorded that this refresh used then-uncommitted
+encoder repairs: the HEAD label alone therefore does not identify the exact
+encoder tree. The encoder hash names the bytes; it is not evidence of a clean
+checkout at the labelled HEAD. The current encoder matches that hash.
+This annotation preserves that historical limitation rather than retrospectively
+claiming a clean refresh. `SHA256SUMS` and the independent checker establish
+current byte integrity/reconstruction separately. No review verdict or corpus
+identity changes through this annotation.

@@ -2923,16 +2923,17 @@
       "superseded_by": null
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_WITH_P2_P3_FOLLOWUPS_NO_P0_P1",
+      "disposition": "PASS_P2_P3_P4_CLOSED",
       "field": "ariadne_contract_review",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P2",
-        "P3"
+        "P3",
+        "P4"
       ],
       "state": "PASS",
       "superseded_by": null
@@ -3047,9 +3048,9 @@
       "superseded_by": "ariadne_contract_review"
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_WITH_P1_P3_P4_FOLLOWUPS_NO_P0_P2",
+      "disposition": "PASS_P1_P3_P4_CLOSED",
       "field": "nabu_architecture_review",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
@@ -3781,9 +3782,9 @@
       "superseded_by": null
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
+      "disposition": "PASS_PRIOR_P3_P4_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
       "field": "ariadne_entity_read_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
@@ -3890,9 +3891,9 @@
       "superseded_by": null
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
+      "disposition": "PASS_PRIOR_P3_P4_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
       "field": "nabu_entity_read_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
@@ -3905,9 +3906,9 @@
       "superseded_by": null
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
+      "disposition": "PASS_PRIOR_P3_P4_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
       "field": "vulcan_entity_read_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
@@ -5491,9 +5492,9 @@
       "superseded_by": "ariadne_final_review"
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_4_P3",
+      "disposition": "PASS_P3_CLOSED",
       "field": "ariadne_contract_review",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
@@ -5536,9 +5537,9 @@
       "superseded_by": "ariadne_contract_review"
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_4_P3",
+      "disposition": "PASS_P3_CLOSED",
       "field": "ariadne_contract_review_revision_3",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
@@ -5763,14 +5764,15 @@
       "superseded_by": "vulcan_surface_review"
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "disposition": "PASS_P3_P4_CLOSED",
       "field": "vulcan_surface_review_revision_4",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
       "section": "standards_sbom_and_provenance",
       "severities": [
+        "P3",
         "P4"
       ],
       "state": "PASS",
@@ -6449,7 +6451,7 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "obligations_digest": "7eb1e8b780f2ec01645e03352be9a7dd9acbcea35649009dc62d4992a9f64429",
+  "obligations_digest": "9a499ad6d753edfa00615e5160a2a1efecb12e2bdcfb125f9e4b122d73aa6cd4",
   "open_reviews": [
     {
       "disposition": "PENDING",
@@ -6524,14 +6526,14 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "fd8afff077d1d1306110183d513d3b9e0013b0a38b62fccb7254a43fb2ea79da",
+  "register_digest": "deb0046a70821fa1f5aea5b8ccf413677ac81dd8808121bcf7496db56ba70724",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
     "P1": 170,
     "P2": 187,
-    "P3": 224,
-    "P4": 67
+    "P3": 225,
+    "P4": 68
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
@@ -7486,25 +7488,6 @@
       ]
     },
     {
-      "disposition": "PASS_WITH_P2_P3_FOLLOWUPS_NO_P0_P1",
-      "field": "ariadne_contract_review",
-      "section": "reproducibility_and_independent_conformance",
-      "unclaimed_severities": [
-        "P2",
-        "P3"
-      ]
-    },
-    {
-      "disposition": "PASS_WITH_P1_P3_P4_FOLLOWUPS_NO_P0_P2",
-      "field": "nabu_architecture_review",
-      "section": "reproducibility_and_independent_conformance",
-      "unclaimed_severities": [
-        "P1",
-        "P3",
-        "P4"
-      ]
-    },
-    {
       "disposition": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
       "field": "ariadne_contract_review",
       "section": "root_backed_query_profile",
@@ -7515,34 +7498,7 @@
     },
     {
       "disposition": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
-      "field": "ariadne_entity_read_review",
-      "section": "root_backed_query_profile",
-      "unclaimed_severities": [
-        "P3",
-        "P4"
-      ]
-    },
-    {
-      "disposition": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
       "field": "nabu_architecture_review",
-      "section": "root_backed_query_profile",
-      "unclaimed_severities": [
-        "P3",
-        "P4"
-      ]
-    },
-    {
-      "disposition": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
-      "field": "nabu_entity_read_review",
-      "section": "root_backed_query_profile",
-      "unclaimed_severities": [
-        "P3",
-        "P4"
-      ]
-    },
-    {
-      "disposition": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
-      "field": "vulcan_entity_read_review",
       "section": "root_backed_query_profile",
       "unclaimed_severities": [
         "P3",
@@ -7689,30 +7645,6 @@
       "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_5_P4",
       "field": "vulcan_review",
       "section": "s20_700_vm_persistent_fuzz_slice",
-      "unclaimed_severities": [
-        "P4"
-      ]
-    },
-    {
-      "disposition": "PASS_0_P0_0_P1_0_P2_4_P3",
-      "field": "ariadne_contract_review",
-      "section": "standards_sbom_and_provenance",
-      "unclaimed_severities": [
-        "P3"
-      ]
-    },
-    {
-      "disposition": "PASS_0_P0_0_P1_0_P2_4_P3",
-      "field": "ariadne_contract_review_revision_3",
-      "section": "standards_sbom_and_provenance",
-      "unclaimed_severities": [
-        "P3"
-      ]
-    },
-    {
-      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_1_P4",
-      "field": "vulcan_surface_review_revision_4",
-      "section": "standards_sbom_and_provenance",
       "unclaimed_severities": [
         "P4"
       ]

@@ -1256,7 +1256,7 @@ impl Server {
         self.head_loads.set(self.head_loads.get().saturating_add(1));
         self.transactions()
             .accepted_head()
-            .map(|head| head.verified_revision().clone())
+            .map(sley_txn::AcceptedHead::into_verified_revision)
             .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))
     }
 

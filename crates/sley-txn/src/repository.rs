@@ -323,6 +323,15 @@ impl AcceptedHead {
     pub const fn verified_revision(&self) -> &VerifiedRevision {
         &self.revision
     }
+
+    /// Consumes the accepted-head wrapper and returns its verified revision.
+    ///
+    /// Moves the already verified receipt and objects without cloning them;
+    /// this does not change the work performed when loading the head.
+    #[must_use]
+    pub fn into_verified_revision(self) -> VerifiedRevision {
+        self.revision
+    }
 }
 
 /// Explicit higher-authority genesis material.

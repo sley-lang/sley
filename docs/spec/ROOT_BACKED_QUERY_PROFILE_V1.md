@@ -86,8 +86,8 @@ arm selects the profile before binding runs, so an arm-1 snapshot fails
 `QUERY_ROOT_MISMATCH`. Every other rule below fails `QUERY_ROOT_MISMATCH`
 (precedence item 5) before any class runs:
 
-1. `snapshot.completeness = CompleteRoot(2)` and
-   `snapshot.context = (schema_epoch, Some(root))`;
+1. `snapshot.context = (schema_epoch, Some(root))` (the completeness arm
+   has already passed the profile gate above);
 2. the snapshot inventory identities equal `bindings` identities and
    `facts.bound_entities`, in order, and every inventory kind equals the
    entity's SSMC1 kind;
@@ -530,8 +530,11 @@ The S20-310 entity-read methods (`entity.version` 306,
 `docs/spec/ENTITY_READ_PROFILE_V2.md`, composed here rather than
 re-specified: the owner (`crates/sley-query/src/entity_read.rs`), the
 verified-repository adapter (`crates/sley-repo/src/entity_read.rs`), the
-corpus (`conformance/entity-read/v2` with its `SHA256SUMS`), and the
-`make conformance` entity-read vector line belong to this profile's
+corpus (`conformance/entity-read/v2` accepted/rejected records, authored
+inputs and `SHA256SUMS`), the independent checker
+`scripts/check_entity_read_vectors.py` (using
+`oracle/scb1/src/sley2_scb1_oracle/entity_read.py`), and its
+`make conformance` invocation belong to this profile's
 S20-310 surface. The owner reuses this profile's stable codes
 (`QUERY_UNRESOLVED_ENTITY` 31004, `QUERY_INTERNAL_INVARIANT` 31007,
 `QUERY_ROOT_MISMATCH` 31008, `QUERY_CLASS_NOT_APPLICABLE` 31010) with

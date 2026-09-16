@@ -160,8 +160,8 @@ fail-closed: root license text approval (operator), standards SBOM and
 provenance (S20-710 full), succession thresholds (S20-640), and the
 Council reviews. Tracked evidence requires a clean tree: the smoke passes
 `--require-clean` (opt out only with `--allow-dirty`, which no tracked
-   target uses), a dirty tree stops with `PACKAGE_TREE_DIRTY`, and the
-   manifest's `working_tree_clean` flag names what was built.
+target uses), a dirty tree stops with `PACKAGE_TREE_DIRTY`, and the
+manifest's `working_tree_clean` flag names what was built.
 
 Where the operator tree carries retained untracked material that must not
 be moved, minting uses the canonical detached linked worktree procedure
@@ -204,6 +204,29 @@ release candidate exists.
   reviews with every report-grade finding closed.
 
 ## 10. Explicit exclusions
+
+### Smoke outputs and their owners
+
+The shared Make target orchestrates several owners. An output emitted by
+`release-candidate-build` or checked by `release-candidate-verify` does not
+become an S20-720 acceptance decision merely because it runs in that target.
+
+| Output | Owning package / authority |
+|---|---|
+| Candidate archive, manifest and `evidence/runtime/s20-720-release-candidate/evidence.json` | S20-720 packaging, build and demo evidence |
+| `evidence/release/candidate-content-checks.json` | S20-720 artifact-content evidence, section 15 |
+| `evidence/release/reproducibility-report.json` and its transferred host attestations | S20-730 reproducibility and independent conformance |
+| `evidence/release/sbom/{cyclonedx-1.6,spdx-2.3}.json` and `evidence/release/provenance.json` | S20-710 standards SBOM and provenance |
+| `evidence/review/finding-register.json` | S20-740 finding disposition and clearance |
+| `evidence/release/ga-acceptance-report.json` and `evidence/release/decision-dossier.json` | S20-750 GA criteria and decision assembly; neither is itself an operator release decision |
+| `evidence/security/T52/pre-release-inventory.json` and `evidence/security/T54/secret-scan.json` | Threat-register T52/T54 supply-chain evidence, consumed by S20-710 and security review |
+
+`sync_evidence_counters.py` synchronizes derived summary counters; it grants
+no acceptance. The final supply-chain refresh accounts for generated file
+changes. `release-candidate-verify` reads these owners' evidence through
+their checkers; it does not replace their independent review obligations.
+
+### Scope limit
 
 This contract does not claim: GA or a release decision (S20-750);
 publication, push, tag, upload, or deployment; the standards SBOM,

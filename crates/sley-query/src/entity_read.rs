@@ -2389,8 +2389,10 @@ mod tests {
     /// serve with recomputed work, one-below ceilings refuse.
     ///
     /// Wire rows (`wire_exact`, `wire_below`) are frame-preflight layer and
-    /// stay with the protocol server tests; every `work_preflight` row runs
-    /// here. The `bytes_one_below` boundary is the rebuilt refusal ceiling
+    /// stay with the protocol server tests. This test consumes the six
+    /// exact/one-below rows; `rejected_relation_work_recomputes` consumes
+    /// the other three work-preflight rows, including arithmetic-only
+    /// overflow. The `bytes_one_below` boundary is the rebuilt refusal ceiling
     /// (605 for `ver_ws`), not the naive body length minus one.
     #[test]
     fn rejected_relation_bounds_refuse_or_serve() {
@@ -2398,7 +2400,7 @@ mod tests {
         let (workspace, root, epoch, session, selected) = corpus_context(&inputs);
         let entities = inputs["entities"].as_object().unwrap();
         let rejected_rows = rejected["cases"].as_array().unwrap();
-        let mut covered = 0;
+        let mut covered = Vec::new();
         for row in rejected_rows {
             if row.get("kind").and_then(|value| value.as_str()) != Some("relation") {
                 continue;
@@ -2415,8 +2417,8 @@ mod tests {
             ) {
                 continue;
             }
-            covered += 1;
             let id = row["id"].as_str().unwrap();
+            covered.push(id);
             let base_id = row["base"].as_str().unwrap();
             let base = &accepted["cases"][base_id];
             let method = match base_id.split('_').next().unwrap() {
@@ -2469,7 +2471,19 @@ mod tests {
                 name => panic!("{id}: unexpected bound relation {name}"),
             }
         }
-        assert_eq!(covered, 6, "k/bytes/work exact and one-below rows");
+        covered.sort_unstable();
+        assert_eq!(
+            covered,
+            [
+                "bound_bytes_below",
+                "bound_bytes_exact",
+                "bound_k_below",
+                "bound_k_exact",
+                "bound_work_below",
+                "bound_work_exact"
+            ],
+            "each declared exact/one-below row, including both work ceilings"
+        );
     }
 
     /// Relation work values recompute through the owner selection, and
@@ -2543,28 +2557,18 @@ mod tests {
                     covered += 1;
                 }
                 "checked_overflow" => {
-                    let huge = EntityReadCeilings {
-                        max_entities: u64::MAX,
-                        max_response_bytes: u64::MAX,
-                        max_work: u64::MAX,
-                        budget_before_dispatch: u64::MAX,
-                    };
-                    let mut over = base_request;
-                    over.max_response_bytes = u64::MAX;
-                    over.max_objects = u64::MAX;
-                    over.max_work = u64::MAX;
+                    // These declared operands exceed negotiated ceilings.
+                    // Test the production arithmetic unit, not a fabricated
+                    // admissible request or an allocation path.
                     assert_eq!(
-                        prepare_entity_read(
-                            EntityReadMethod::Version,
-                            &revision,
-                            &over,
-                            &huge,
-                            &ordered,
-                            corpus_view_at,
-                        )
-                        .unwrap_err(),
-                        EntityReadError::BudgetExceeded,
-                        "{id}: checked overflow"
+                        work_bound(
+                            row["arith_k"].as_u64().unwrap(),
+                            row["arith_b"].as_u64().unwrap(),
+                            row["arith_l"].as_u64().unwrap(),
+                            row["arith_m"].as_u64().unwrap(),
+                        ),
+                        Err(EntityReadError::BudgetExceeded),
+                        "{id}: declared checked arithmetic"
                     );
                     covered += 1;
                 }
