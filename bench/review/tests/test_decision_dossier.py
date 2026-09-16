@@ -6,6 +6,7 @@ import importlib.util
 import json
 import re
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -259,8 +260,11 @@ class SourceSeparationTests(unittest.TestCase):
         self.assertEqual(sbom["value"]["license_disposition_blocked"], 0)
         self.assertTrue(sbom["value"]["root_license_text_approved"])
 
-    def test_the_live_tree_reports_zero_blocked_licenses(self) -> None:
-        sbom = self.entry(dossier.build_dossier()["entries"], "SBOM and license inventory")
+    def test_approved_inventory_reports_zero_blocked_licenses(self) -> None:
+        sources = self.live_sources()
+        sources["inventory"] = {"packages": [{"license_disposition": "APPROVED"}],
+                                "root_license_text_approved": True}
+        sbom = self.entry(dossier.build_entries(sources), "SBOM and license inventory")
         self.assertEqual(sbom["state"], "EVIDENCED")
         self.assertEqual(sbom["value"]["license_disposition_blocked"], 0)
         self.assertTrue(sbom["value"]["root_license_text_approved"])
@@ -418,6 +422,9 @@ class RegisterBoundEntryTests(unittest.TestCase):
             self.assertEqual(item["state"], "GATED", form)
             self.assertIsNone(item["value"], form)
         sources["summary"]["threat_coverage"]["independent_security_review"] = "PASS"
+        sources["summary"]["threat_coverage"]["independent_security_review_note"] = (
+            "transcript evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md"
+        )
         row["disposition"] = "PASS"
         row["state"] = "PASS"
         row["severities"] = []
@@ -429,8 +436,16 @@ class RegisterBoundEntryTests(unittest.TestCase):
             "evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md", item["evidence"]
         )
 
-    def test_the_live_item_15_is_gated_by_its_unclaimed_follow_ups(self) -> None:
-        item = self.entry(dossier.build_dossier()["entries"], "security review result")
+    def test_item_15_is_gated_by_unclaimed_follow_ups(self) -> None:
+        sources = self.live_sources()
+        row = self.security_row(sources["register"])
+        row.update(disposition="PASS_0_P0_0_P1_0_P2_1_P3", state="PASS", severities=["P3"])
+        sources["register"]["unclaimed_carried_findings"].append(dict(row, unclaimed_severities=["P3"]))
+        sources["summary"]["threat_coverage"]["independent_security_review"] = row["disposition"]
+        sources["summary"]["threat_coverage"]["independent_security_review_note"] = (
+            "transcript evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md"
+        )
+        item = self.entry(dossier.build_entries(sources), "security review result")
         self.assertEqual(item["state"], "GATED")
         self.assertIn("unclaimed findings", item["note"])
         self.assertIn(
@@ -478,6 +493,25 @@ class RegisterBoundEntryTests(unittest.TestCase):
             {"section": "s", "field": "done", "severities": ["P2"], "state": "PASS"},
         ]
         self.assertEqual(dossier.open_p2_rows({"obligations": rows}, set()), ["s:live"])
+
+    def test_missing_binding_on_both_documents_is_not_equal_binding(self) -> None:
+        original_load = dossier.load
+        for value in (None, "", "not-a-digest"):
+            def modified_load(path, *args):
+                document = original_load(path, *args)
+                if path in (dossier.REGISTER, dossier.GA_ACCEPTANCE):
+                    if value is None:
+                        document.pop("register_digest", None)
+                    else:
+                        document["register_digest"] = value
+                    if path == dossier.GA_ACCEPTANCE:
+                        document.pop("report_digest")
+                        document["report_digest"] = dossier.digest_of(document)
+                return document
+            with self.subTest(value=value), patch.object(dossier, "load", side_effect=modified_load):
+                with self.assertRaises(dossier.DossierError) as error:
+                    dossier.build_dossier()
+                self.assertEqual(error.exception.code, dossier.DossierErrorCode.SOURCE_INVALID)
 
     def test_a_tampered_or_rebound_ga_report_fails_closed(self) -> None:
         import tempfile

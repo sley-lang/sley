@@ -1,6 +1,6 @@
 # Reproducibility and Independent Conformance v1
 
-Status: S20-730 contract draft, revision 7 (2026-09-15); Council review
+Status: S20-730 contract draft, revision 8 (2026-09-15); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the independent oracles that closed the two
 native-only families (section 5). Revision 3 carries previously merged
@@ -308,7 +308,7 @@ The second host is an operator-gated lane, so the procedure is written here
 rather than automated:
 
 1. On the second host, with the same commit checked out and a clean tree, run
-   `make release-candidate-smoke`. It builds the candidate twice and writes the
+   `make release-candidate-build`. It builds the candidate twice and writes the
    local S20-720 evidence record. When the checkout that must mint carries
    retained untracked material, use the canonical detached linked worktree
    procedure instead: `git worktree add --detach <path> <commit>`, prove the
@@ -324,7 +324,9 @@ rather than automated:
    authorizes.
 4. On the primary host run
    `python3 scripts/build_reproducibility_report.py --attest /tmp/<label>-attestation.json`,
-   then `make evidence-refresh` and `make quick`, and commit.
+   then `make evidence-refresh`, `make release-candidate-verify`, and
+   `make quick`. Commit the merged candidate records, then file the lane
+   record as a records-only descendant naming that merge commit.
 
 The merged report reads `MULTI_HOST_REPRODUCIBLE` exactly when both hosts
 attest the same commit with the same artifact digest; a disagreement is
@@ -336,7 +338,7 @@ An attestation is unsigned and carries no host binding by design, so a
 second-host attestation is indistinguishable in the report from a same-host
 relabel; the trust root is operator custody of the transfer. Each exercise
 of this runbook therefore files one row of the second-host lane record in
-`docs/audits/S20_730_REPRODUCIBILITY_CLOSEOUT.md` (date, transport lane,
+`evidence/release/second-host-lane-records.json` (date, transport lane,
 lab checkout and commit, lab-side evidence record digest, transferred
 attestation-file digest, bundle commit, merge commit), keeping identity out
 of the report while the `MULTI_HOST_REPRODUCIBLE` claim stays auditable.
@@ -391,7 +393,8 @@ to surface-only cleanliness.
   never build on, copy to, or dispatch a second host. Revision 7 records
   that the operator exercised the lane through the section 5.1 runbook
   (the tracked report carries a `secondary` attestation of the candidate
-  merged at `6a2eef7`; lane record in the closeout audit); the exclusion is
+  merged at `6a2eef7` in that historical wave; subsequent candidate records
+  live in the tracked report and records-eligible lane ledger); the exclusion is
   unchanged and names the mechanics, not the operator's lane.
 - No independent VM semantic oracle: the extended VM vectors are checked at
   `codec_and_identity` depth, and an independent lowering and execution
@@ -436,3 +439,30 @@ records why tracked siblings carry no depth: a sibling corpus (today
 but depth is claimed only for the pinned version the mapped checker
 actually runs against; promoting a sibling to pinned is a contract change,
 not a builder default.
+
+## 10. Revision 8 (2026-09-15)
+
+The section 5.1 lane-record home is records-eligible, so documenting the
+actual merge does not invalidate the candidate it attests. The historical
+7a94a4a row remains in the closeout; subsequent rows are in the JSON ledger
+with contract `sley2.second-host-lane-records.v1` and a `records` array.
+Each row names `candidate_commit`, `date`, `transport_lane`, `lab_checkout`,
+`lab_commit`, `lab_evidence_sha256`, `artifact_sha256`, `attestation_path`,
+`attestation_file_sha256`, `bundle_commit`, and `merge_commit`. Optional
+`note` explains unavailable historical transport detail without guessing.
+`attestation_path` points to the transferred JSON retained under
+`evidence/release/attestations/`; its byte digest must match the receipt.
+For each selected multi-host candidate the checker requires a row binding
+its commit/artifact, equal lab and bundle commits, a reachable merge commit,
+and an admissible retained secondary attestation with the same full identity.
+The lab evidence digest and transport details are custody receipts, not
+cryptographic host authentication. The checker does not claim remote access.
+
+The `artifact_name` field is exactly S20-720's `ARTIFACT_NAME`; a foreign or
+non-string value is `REPRO_ATTESTATION_INVALID`. Freshness tests exercise
+real isolated histories for record-only and source-changing descendants,
+uncommitted source changes, absent history and unavailable/changed toolchains.
+
+The revision-7 paragraph below its historical heading describes that wave,
+including its then-current mint. Current candidate identity is always the
+tracked report and summary, with the matching lane receipt in the ledger.

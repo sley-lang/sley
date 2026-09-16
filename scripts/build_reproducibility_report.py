@@ -19,6 +19,9 @@ from enum import IntEnum
 from pathlib import Path
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from build_release_candidate import ARTIFACT_NAME
+
 ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = ROOT / "evidence/runtime/s20-720-release-candidate/evidence.json"
 REPORT = ROOT / "evidence/release/reproducibility-report.json"
@@ -151,6 +154,8 @@ def validate_attestation(value: object) -> dict:
             ReproErrorCode.ATTESTATION_INVALID,
             f"attestation keys {sorted(set(value) ^ expected)} differ from the contract",
         )
+    if value["artifact_name"] != ARTIFACT_NAME:
+        raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "artifact_name differs from S20-720")
     if value["contract"] != ATTESTATION_CONTRACT:
         raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "wrong attestation contract")
     if not isinstance(value["host_label"], str) or not value["host_label"].strip():

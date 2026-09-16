@@ -24,6 +24,9 @@ BAD_PASS_FORMS = (
     "PASSED_TO_NEXT_ROUND",
     "PASS_2_P1",
     "PASS_WITH_OPEN_P1",
+    "PASS_0_P0",
+    "PASS_0_P0_0_P1",
+    "PASS_0_P0_0_P1_0_P2_0_P3_0_P3",
 )
 
 
@@ -76,6 +79,22 @@ class DerivationTests(Fixture):
         self.assertFalse(report["ga_claimed"])
         self.assertTrue(ga.verify_report_digest(report))
 
+    def test_missing_or_malformed_register_digests_refuse(self) -> None:
+        for key in ("register_digest", "obligations_digest"):
+            for value in (None, "", "not-a-digest"):
+                sources = self.sources()
+                sources["register"][key] = value
+                with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+                    ga.build_report(sources)
+
+    def test_missing_candidate_gates_all_packaging_facts(self) -> None:
+        sources = self.sources()
+        sources["repro"]["attestations"] = []
+        report = ga.build_report(sources)
+        for row in report["criteria"]:
+            if row["group"] == "26.8 packaging":
+                self.assertEqual(row["state"], ga.GATED, row["criterion"])
+
     def test_no_criterion_is_a_constant(self) -> None:
         def mutate(name: str):
             sources = self.sources()
@@ -103,7 +122,9 @@ class DerivationTests(Fixture):
             elif name == "crash recovery produces only old or complete new state":
                 summary["s20_530_crash_recovery"]["matrix_rows"] = None
             elif name == "opacity is not used as a security argument":
-                pass  # the anti-goal report records REVIEW_ONLY today
+                for entry in sources["anti_goals"]["anti_goals"]:
+                    if entry["anti_goal"] == "opacity as security":
+                        entry["state"] = "REVIEW_ONLY"
             elif name == f"artifact name {ga.ARTIFACT_NAME}":
                 sources["repro"]["attestations"] = []
             elif name == "artifact runs with no source-tree access":
@@ -164,6 +185,9 @@ class DerivationTests(Fixture):
 
     def test_opacity_is_evidenced_only_when_the_anti_goal_holds(self) -> None:
         sources = self.sources()
+        for entry in sources["anti_goals"]["anti_goals"]:
+            if entry["anti_goal"] == "opacity as security":
+                entry["state"] = "REVIEW_ONLY"
         report = ga.build_report(sources)
         self.assertEqual(state_of(report, "opacity is not used as a security argument"), ga.AWAITS_REVIEW)
         for entry in sources["anti_goals"]["anti_goals"]:
@@ -180,6 +204,11 @@ class RegisterPredicateTests(Fixture):
         sources = self.sources()
         report = ga.build_report(sources)
         # A mid-string COMPLETE names a restricted boundary, not completion.
+        sources["summary"]["s20_500_native_refs_branches"]["status"] = "S20_500_COMPLETE_RESTRICTED"
+        sources["register"]["complete_packages"] = [
+            name for name in sources["register"]["complete_packages"] if name != "s20_500_native_refs_branches"
+        ]
+        report = ga.build_report(sources)
         self.assertEqual(state_of(report, "refs update atomically"), ga.AWAITS_REVIEW)
         self.assertNotIn("s20_500_native_refs_branches", sources["register"]["complete_packages"])
         sources["summary"]["s20_500_native_refs_branches"]["status"] = "S20_500_COMPLETE"
@@ -234,8 +263,13 @@ class RegisterPredicateTests(Fixture):
         report = ga.build_report(sources)
         self.assertEqual(state_of(report, "all P0/P1 threats have passing tests"), ga.EVIDENCED)
 
-    def test_the_live_security_verdict_naming_follow_ups_is_not_a_complete_pass(self) -> None:
-        report = ga.build_report(self.sources())
+    def test_security_verdict_naming_follow_ups_is_not_a_complete_pass(self) -> None:
+        sources = self.sources()
+        row = security_row(sources["register"])
+        row.update(disposition="PASS_0_P0_0_P1_0_P2_1_P3", state="PASS", severities=["P3"])
+        sources["summary"]["threat_coverage"]["independent_security_review"] = row["disposition"]
+        sources["register"]["unclaimed_carried_findings"].append(dict(row, unclaimed_severities=["P3"]))
+        report = ga.build_report(sources)
         self.assertEqual(state_of(report, "all P0/P1 threats have passing tests"), ga.AWAITS_REVIEW)
         self.assertIn("unclaimed findings", evidence_of(report, "all P0/P1 threats have passing tests"))
 
@@ -288,8 +322,14 @@ class RegisterPredicateTests(Fixture):
         nabu_pass["state"] = "PENDING"
         self.assertEqual(state_of(ga.build_report(sources), criterion), ga.AWAITS_REVIEW)
 
-    def test_the_live_lanes_read_open_while_the_register_lists_unclaimed_rows(self) -> None:
-        report = ga.build_report(self.sources())
+    def test_lanes_read_open_while_the_register_lists_unclaimed_rows(self) -> None:
+        sources = self.sources()
+        for role in ("ariadne", "nabu"):
+            row = {"section": "fixture", "field": role + "_review", "reviewer": role,
+                   "state": "PASS", "disposition": "PASS_0_P0_0_P1_0_P2_1_P3"}
+            sources["register"]["obligations"].append(row)
+            sources["register"]["unclaimed_carried_findings"].append(dict(row, unclaimed_severities=["P3"]))
+        report = ga.build_report(sources)
         for criterion in (
             "Ariadne approves SSMC1 and semantic correctness",
             "Nabu approves architectural and cross-product boundaries",

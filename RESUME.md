@@ -31,15 +31,16 @@ council-lane reviews, and re-mint.
 - `make lint`, `make core`, `make conformance`, `make adversarial`, `make fuzz-smoke`
   are green at the candidate commit named in the machine summary.
 - In a fresh clone the release checkers need the gitignored candidate
-  evidence: run `make release-candidate-smoke` (clean tree required; use a
+  evidence: run `make release-candidate-build` (clean tree required; use a
   detached worktree when the checkout carries untracked material, contract
   `RELEASE_CANDIDATE_PACKAGING_V1.md` section 7) and merge the second-host
   attestation per `REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md` 5.1.
 - Second host: `greyforgelab` over `forge-lab-connect` (`ssh greyforgelab`),
   toolchain pinned by `rust-toolchain.toml` (1.93.0 on both hosts). Copy a
   `git bundle` of `main`, clone detached at the candidate commit, run the
-  smoke, emit the attestation with `--host-label secondary`, copy the JSON
-  back, merge with `--attest`.
+  build target, emit the attestation with `--host-label secondary`, copy the JSON
+  back, merge with `--attest`, file the records-eligible lane receipt, and run
+  `make release-candidate-verify` after the merge.
 
 ## ZJX transport readiness amendment (2026-09-15)
 

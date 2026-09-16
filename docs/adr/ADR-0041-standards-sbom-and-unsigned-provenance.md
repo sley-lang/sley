@@ -1,13 +1,15 @@
 # ADR-0041: standards SBOM and unsigned provenance derived from local evidence
 
-Status: proposed; the S20-710 full-audit contract is a draft at revision 3
-(2026-09-05) with Council review pending; mechanics implemented with
+Status: proposed; the S20-710 full-audit contract is a draft at revision 6
+(2026-09-15) with Council review pending; mechanics implemented with
 deterministic CycloneDX 1.6 and SPDX 2.3 documents, an unsigned in-toto
 statement, and the S20-710 audit still blocked. Revision 3 normalizes
 Cargo-style `/` license separators to `OR` chains, validates every emitted
 expression, binds the SPDX namespace to the candidate artifact as well as the
 inventory, and fails `--check` closed where candidate evidence is missing
 instead of passing open.
+
+Note (revision 6, 2026-09-15): provenance identifies the build-equivalent `release-candidate-build` recipe; the second-host blocker is derived from matching admissible attestations. Summary mirrors are checker-bound. The contract also records the previously unbumped shape and licensing corrections.
 
 Date: 2026-09-03
 

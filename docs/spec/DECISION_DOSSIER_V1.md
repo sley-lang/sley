@@ -1,6 +1,6 @@
 # Decision Dossier v1
 
-Status: S20-750 contract draft, revision 7 (2026-09-15); Council review
+Status: S20-750 contract draft, revision 8 (2026-09-15); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review; the a809906 round read REVISE in all three lanes and revision 7
 closes it). Revision 2 adds the tracked test inventory as a source, which
@@ -182,7 +182,8 @@ rule 5's gate), so it is bound by the same rules as the dossier:
 - **A recorded verdict evidences only as a complete PASS.** The register's
   token classifier (`build_finding_register.classify_token`, loaded as a
   module) must read the disposition `PASS`, the form must be the bare `PASS`
-  token or an enumerated count form whose every count is zero, and the
+  token or an ordered all-zero enumeration of P0 through P3 (optionally
+  followed by P4), and the
   register row must be neither unclaimed nor unclassified.
   `PASS_PENDING_CONFIRMATION_2_P0_OPEN`, `PASSED_TO_NEXT_ROUND`, `PASS_2_P1`,
   `PASS_WITH_OPEN_P1`, and a `PASS` naming follow-ups evidence nothing.
@@ -212,7 +213,8 @@ rule 5's gate), so it is bound by the same rules as the dossier:
   `obligations_digest` of the register it was derived from and its own
   `report_digest`. The dossier verifies `report_digest` against the report
   body and `register_digest` against the register it loads; a mismatch is
-  `DOSSIER_SOURCE_INVALID`. A hand-edited or stale report cannot remove a
+  `DOSSIER_SOURCE_INVALID`. Missing, null, empty or malformed register
+  digests are structural failures even if absent on both sides. A hand-edited or stale report cannot remove a
   `BLOCKED` reason.
 - **Pipeline order.** Register, then GA report, then dossier, both before
   and after the counter sync (`make evidence-refresh` and
@@ -384,3 +386,13 @@ unit-test counts for property-test counts evidences a different fact under
 the item's name. It also records why the SBOM and license entry reads the
 license inventory and cites it: an entry that cites a source it never reads
 is the same substitution with the evidence list as the substituted fact.
+
+## 9. Revision 8 (2026-09-15)
+
+The e050fe7 Council repair pins complete zero-count verdicts, requires
+nonempty hexadecimal register digests, and gates every packaging fact when
+no unique admissible candidate exists. S20-720 section 15 owns the content
+report and its execution prerequisites. The unused T54 input is removed.
+Regression fixtures explicitly construct contrary qualification facts;
+legitimate records-only review or license advances do not require changing
+tests or re-minting a candidate merely to update an assertion.

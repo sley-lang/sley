@@ -768,7 +768,11 @@ def build_dossier() -> dict:
             DossierErrorCode.SOURCE_INVALID,
             "ga-acceptance-report.json: report_digest does not verify against the report body",
         )
-    if acceptance.get("register_digest") != sources["register"].get("register_digest"):
+    register_digest = required(sources["register"], "register_digest", "finding-register")
+    acceptance_digest = required(acceptance, "register_digest", "ga-acceptance-report")
+    if not isinstance(register_digest, str) or not shared.HEX_64.fullmatch(register_digest):
+        raise DossierError(DossierErrorCode.SOURCE_INVALID, "finding-register: invalid register_digest")
+    if acceptance_digest != register_digest:
         raise DossierError(
             DossierErrorCode.SOURCE_INVALID,
             "ga-acceptance-report.json: register_digest differs from the finding register read "

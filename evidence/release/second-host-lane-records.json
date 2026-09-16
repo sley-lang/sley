@@ -1,0 +1,19 @@
+{
+  "contract": "sley2.second-host-lane-records.v1",
+  "records": [
+    {
+      "candidate_commit": "9b4f0648c9e226b0852d7a83b10ac6f550ecf45b",
+      "date": "2026-09-15",
+      "transport_lane": "SSH greyforgelab via forge-lab-connect; selected physical lane was not retained",
+      "lab_checkout": "/home/greyforgelab/sley2-recovery-20260915-9b4f064",
+      "lab_commit": "9b4f0648c9e226b0852d7a83b10ac6f550ecf45b",
+      "lab_evidence_sha256": "70aa40835767dba9bb32abb58a09e9073d922fa16b0890ef4942c355098bcd1f",
+      "artifact_sha256": "18ee1ecfb9d24fa6f5f4b08e0eddb3ee740552524a1dcab6072ac3d3b6717d57",
+      "attestation_path": "evidence/release/attestations/9b4f064-secondary.json",
+      "attestation_file_sha256": "9416b7d45abbbb8aa3e589999b56d346d66ab63aef7d962f3fd8ec38e22dc960",
+      "bundle_commit": "9b4f0648c9e226b0852d7a83b10ac6f550ecf45b",
+      "merge_commit": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "note": "Recovered from the preserved lab evidence and transferred JSON; remote HEAD and byte digests were rechecked. The preserved bundle names this candidate at refs/heads/main. Physical USB/LAN/Tail selection was not logged and is not inferred."
+    }
+  ]
+}

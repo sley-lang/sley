@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import io
+from contextlib import redirect_stdout
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -409,9 +412,21 @@ class ProvenanceTests(unittest.TestCase):
             error.exception.code, provenance.ProvenanceErrorCode.EVIDENCE_INVALID
         )
 
+    def test_host_blocker_tracks_matching_admissible_hosts_only(self) -> None:
+        candidate = attested_test_candidate()
+        original = json.loads(provenance.REPRO_REPORT.read_text())
+        primary = provenance.repro.select_attestation(original, candidate=candidate)
+        primary = dict(primary, host_label="primary")
+        secondary = dict(primary, host_label="secondary")
+        for attestations, blocked in (([primary], True), ([primary, secondary], False),
+                ([primary, dict(secondary, commit="f" * 40)], True),
+                ([primary, dict(secondary, working_tree_clean=False)], True)):
+            result = provenance.blockers_for_candidate({"attestations": attestations}, candidate)
+            self.assertEqual("second_host_attestation_operator_lane" in result, blocked)
+
     def test_make_target_derives_from_the_recorded_invocation(self) -> None:
         external = self.statement["predicate"]["buildDefinition"]["externalParameters"]
-        self.assertEqual(external["make_target"], "release-candidate-smoke")
+        self.assertEqual(external["make_target"], "release-candidate-build")
         candidate = attested_test_candidate()
         candidate["invocation"] = "build_release_candidate.py --timeout-seconds=60 --require-clean --no-keep"
         original = provenance.load_candidate
@@ -471,7 +486,11 @@ class ProvenanceTests(unittest.TestCase):
         self.assertIsNone(attestation["transparency_log"])
         self.assertFalse(attestation["publication_authorized"])
         self.assertIn("final_argus_and_vulcan_dispositions", attestation["blockers"])
-        self.assertIn("second_host_attestation_operator_lane", attestation["blockers"])
+        candidate = attested_test_candidate()
+        report = json.loads(provenance.REPRO_REPORT.read_text())
+        hosts = {a["host_label"] for a in provenance.repro.admissible_attestations(report)
+                 if provenance.repro.binds_candidate(a, candidate)}
+        self.assertEqual("second_host_attestation_operator_lane" in attestation["blockers"], len(hosts) < 2)
         self.assertNotIn("root_license_text_operator_approval", attestation["blockers"])
         self.assertEqual(
             self.document["statement_digest"], provenance.digest_of(self.statement)
@@ -562,6 +581,16 @@ class ValidateTrackedTests(unittest.TestCase):
     def test_the_current_pair_validates(self) -> None:
         self.assertEqual(sbom.validate_tracked(), [])
         self.assertEqual(provenance.validate_tracked(), [])
+
+    def test_dirty_or_malformed_attestations_cannot_bind_tracked_documents(self) -> None:
+        original = json.loads(provenance.REPRO_REPORT.read_text())
+        for changes in ({"working_tree_clean": False}, {"toolchain": None}, {"artifact_name": None}):
+            report = dict(original, attestations=[dict(a, **changes) for a in original["attestations"]])
+            path = Path(self.work.name) / "repro.json"
+            path.write_text(json.dumps(report))
+            with self.subTest(changes=changes), patch.object(sbom, "REPRO_REPORT", path), patch.object(provenance, "REPRO_REPORT", path):
+                self.assertIn("namespace-not-attestation-bound", sbom.validate_tracked())
+                self.assertIn("subject-not-attestation-bound", provenance.validate_tracked())
 
     def test_a_rewritten_namespace_fails_the_sbom_validation(self) -> None:
         document = self.tracked("build_standards_sbom.SPDX")
@@ -802,6 +831,27 @@ class RecordsClosureTests(unittest.TestCase):
 
 
 checker = load("check_standards_sbom_and_provenance")
+
+
+class CurrentCandidateBindingTests(unittest.TestCase):
+    def test_hermetic_checks_refuse_a_superseded_document_and_a_tie(self):
+        checker = load("check_standards_sbom_and_provenance")
+        original = json.loads(provenance.REPRO_REPORT.read_text())
+        old = dict(original["attestations"][0], host_label="archive")
+        new = dict(old, host_label="primary", commit="f" * 40, artifact_sha256="e" * 64)
+        secondary = dict(new, host_label="secondary")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "repro.json"
+            for attestations in ([old, new, secondary], [old, new]):
+                report = provenance.repro.build_report(attestations)
+                path.write_text(json.dumps(report))
+                output = io.StringIO()
+                completed = subprocess.CompletedProcess([], 0, '{"result":"PASS"}', '')
+                with patch.object(checker, "REPRO_REPORT", path), patch.object(checker, "run", return_value=completed), redirect_stdout(output):
+                    self.assertEqual(checker.main(), 1)
+                problems = json.loads(output.getvalue())["problems"]
+                self.assertIn("spdx:namespace-not-candidate-bound", problems)
+                self.assertIn("provenance:subject-attestation-mismatch", problems)
 
 
 class CheckerFoldTests(unittest.TestCase):

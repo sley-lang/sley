@@ -24,7 +24,7 @@ DOSSIER = ROOT / "evidence/release/decision-dossier.json"
 TEST_INVENTORY = ROOT / "evidence/validation/test-inventory.json"
 LICENSE_INVENTORY = ROOT / "evidence/security/T52/pre-release-inventory.json"
 
-SPEC_REVISION = 7
+SPEC_REVISION = 8
 
 DRAFT_STATUS = "S20_750_CONTRACT_DRAFT_REVIEW_PENDING"
 IN_PROGRESS_STATUS = "S20_750_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"

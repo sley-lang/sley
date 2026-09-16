@@ -82,6 +82,12 @@ class ReproducibilityTests(unittest.TestCase):
             set(),
         )
 
+    def test_attestation_refuses_foreign_or_non_string_artifact_name(self) -> None:
+        valid = repro.local_attestation("primary", self.write_evidence())
+        for name in (None, "foreign.tar.gz", 42):
+            with self.subTest(name=name), self.assertRaises(repro.ReproError):
+                repro.validate_attestation(dict(valid, artifact_name=name))
+
     def test_missing_failed_or_nonreproducible_evidence_fails_closed(self) -> None:
         with self.assertRaises(repro.ReproError) as missing:
             repro.local_attestation("primary", self.root / "absent.json")

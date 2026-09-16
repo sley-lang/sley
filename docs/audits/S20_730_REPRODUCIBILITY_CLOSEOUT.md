@@ -62,9 +62,12 @@ row per lab mint, verified facts only.
 |---|---|---|---|---|---|---|---|---|
 | `7a94a4a31272a6dc7588aff902dcde81f7d10a4e` | 2026-09-14 (lab checkout created 23:58) | `forge-lab-connect` (`ssh greyforgelab`) | `~/sley2-repro-7a94a4a`, detached at `7a94a4a31272a6dc7588aff902dcde81f7d10a4e` | `00b28ee070b7139ea85e33f088d312ebf2a120e941dba6df305792bf56172842` | `6d970bf4d5da78b034a837109348e3d1e373c6566cfae67a4fd84b447160e159` | not retained (the file was consumed by the `--attest` merge before this record existed) | not recorded for this mint | `6a2eef7` (label `secondary`, `MULTI_HOST_REPRODUCIBLE`) |
 
-The next mint fills its row completely: the operator records the
-attestation-file sha256 and the bundle commit before running the `--attest`
-merge on the primary, then adds the merge commit.
+Subsequent mints use `evidence/release/second-host-lane-records.json` under
+revision 8 section 5.1. The historical row above is preserved. The 9b4f064
+receipt was reconstructed from the retained bundle, transferred attestation,
+and the lab's original evidence bytes; later receipts are filed at the merge.
+This records-eligible location avoids requiring a new mint merely to record
+the previous mint's merge commit.
 
 ## Reconciliation
 

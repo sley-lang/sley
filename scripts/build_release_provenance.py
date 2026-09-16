@@ -51,7 +51,6 @@ REMAPS = (
 BLOCKERS = (
     "signing_key_and_transparency_log_unauthorized",
     "final_argus_and_vulcan_dispositions",
-    "second_host_attestation_operator_lane",
     "council_reviews",
 )
 
@@ -258,14 +257,14 @@ def build_statement() -> dict:
             "rebuild the candidate before deriving provenance",
         )
     # make_target is derived from the recorded invocation, never inferred
-    # from cleanliness: the Makefile smoke rendering (900 seconds,
-    # require-clean, no-keep) names the smoke target; anything else,
+    # from cleanliness: the Makefile build rendering (900 seconds,
+    # require-clean, no-keep) names the build target; anything else,
     # including the --keep rendering the Makefile never produces, is a
     # direct script invocation. The label therefore means
-    # smoke-equivalent invocation only where the Makefile produced it.
+    # build-equivalent invocation; it does not claim the verify target ran.
     invocation = candidate["invocation"]
     make_target = (
-        "release-candidate-smoke"
+        "release-candidate-build"
         if invocation
         == "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep"
         else "build_release_candidate.py direct"
@@ -405,10 +404,7 @@ def validate_tracked() -> list[str]:
                     attestation.get("manifest_digest"),
                     attestation.get("artifact_size_bytes"),
                 )
-                for attestation in report.get("attestations", [])
-                if isinstance(attestation, dict)
-                and attestation.get("reproducibility") == "REPRODUCIBLE"
-                and attestation.get("working_tree_clean") is True
+                for attestation in repro.admissible_attestations(report)
             }
         except (OSError, json.JSONDecodeError):
             attested = set()
@@ -426,6 +422,19 @@ def validate_tracked() -> list[str]:
     return problems
 
 
+def blockers_for_candidate(report: dict, candidate: dict) -> list[str]:
+    """Release decisions remain held; host coverage is a candidate-bound fact."""
+    hosts = {
+        attestation["host_label"]
+        for attestation in repro.admissible_attestations(report)
+        if repro.binds_candidate(attestation, candidate)
+    }
+    blockers = list(BLOCKERS)
+    if len(hosts) < repro.REQUIRED_HOSTS:
+        blockers.append("second_host_attestation_operator_lane")
+    return blockers
+
+
 def build_file() -> dict:
     statement = build_statement()
     return {
@@ -436,7 +445,9 @@ def build_file() -> dict:
             "signature_algorithm": None,
             "transparency_log": None,
             "publication_authorized": False,
-            "blockers": list(BLOCKERS),
+            "blockers": blockers_for_candidate(
+                json.loads(REPRO_REPORT.read_text(encoding="utf-8")), load_candidate()
+            ),
         },
         "statement_digest": digest_of(statement),
     }

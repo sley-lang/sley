@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
+import hashlib
 import subprocess
 import sys
 from pathlib import Path
@@ -30,7 +32,7 @@ IMPLEMENTATION_STATUSES = (IN_PROGRESS_STATUS, REVIEW_PENDING_STATUS, COMPLETE_S
 # The contract revision the spec header, ADR-0040, and the summary pointer
 # must all name: one constant instead of three hand-synchronised copies
 # (Ariadne P4 carried from 0bcc9c6, closed at revision 7).
-CONTRACT_REVISION = 7
+CONTRACT_REVISION = 8
 
 CODES = (
     (73000, "REPRO_EVIDENCE_MISSING"),
@@ -196,6 +198,73 @@ def history_problems(report: dict, surface: tuple[str, ...]) -> list[str]:
     return problems
 
 
+def lane_record_problems(report: dict) -> list[str]:
+    """Validate retained custody receipts, without claiming remote authentication."""
+    if report.get("result") != "MULTI_HOST_REPRODUCIBLE":
+        return []
+    owner = load_module("build_reproducibility_report")
+    selected = owner.select_attestation(report)
+    if selected is None:
+        return ["second-host-lane:no-selected-candidate"]
+    try:
+        ledger = json.loads((ROOT / "evidence/release/second-host-lane-records.json").read_text())
+        if not isinstance(ledger, dict) or ledger.get("contract") != "sley2.second-host-lane-records.v1" or not isinstance(ledger.get("records"), list):
+            raise ValueError("ledger shape")
+        rows = [row for row in ledger["records"] if isinstance(row, dict)
+                and row.get("candidate_commit") == selected["commit"]]
+        if not rows:
+            raise ValueError("current candidate has no receipt")
+        for row in rows:
+            for key in ("date", "transport_lane", "lab_checkout"):
+                if not isinstance(row.get(key), str) or not row[key]:
+                    raise ValueError(f"missing {key}")
+            if row.get("lab_commit") != selected["commit"] or row.get("bundle_commit") != selected["commit"]:
+                raise ValueError("lab or bundle commit differs")
+            if row.get("artifact_sha256") != selected["artifact_sha256"]:
+                raise ValueError("artifact differs")
+            for key in ("lab_evidence_sha256", "attestation_file_sha256"):
+                if not isinstance(row.get(key), str) or not re.fullmatch(r"[0-9a-f]{64}", row[key]):
+                    raise ValueError(f"invalid {key}")
+            merge = row.get("merge_commit")
+            if not isinstance(merge, str) or not re.fullmatch(r"[0-9a-f]{40}", merge):
+                raise ValueError("invalid merge commit")
+            if git_text(["merge-base", "--is-ancestor", merge, "HEAD"]) is None:
+                raise ValueError("merge commit not in filing history")
+            path = ROOT / row["attestation_path"]
+            if not path.resolve().is_relative_to((ROOT / "evidence/release/attestations").resolve()):
+                raise ValueError("attestation path outside retained receipt directory")
+            payload = path.read_bytes()
+            if hashlib.sha256(payload).hexdigest() != row["attestation_file_sha256"]:
+                raise ValueError("transferred attestation digest differs")
+            attestation = owner.validate_attestation(json.loads(payload))
+            if (attestation["host_label"] == "primary"
+                    or not owner.binds_candidate(attestation, selected)
+                    or attestation not in owner.admissible_attestations(report)):
+                raise ValueError("retained secondary does not bind candidate report")
+            merged_text = git_text(["show", f"{merge}:evidence/release/reproducibility-report.json"])
+            merged = json.loads(merged_text) if merged_text is not None else {}
+            if attestation not in owner.admissible_attestations(merged):
+                raise ValueError("merge commit does not contain the retained attestation")
+    except (OSError, KeyError, TypeError, ValueError, owner.ReproError) as error:
+        return [f"second-host-lane:invalid:{error}"]
+    return []
+
+
+def toolchain_problems(report: dict, current: dict | None) -> list[str]:
+    """Compare valid attestations with the toolchain available to this checker."""
+    if current is None:
+        return ["reproducibility-report:toolchain-unavailable"]
+    selected = (current.get("cargo"), current.get("rustc"))
+    recorded = {
+        (a["toolchain"]["cargo"], a["toolchain"]["rustc"])
+        for a in load_module("build_reproducibility_report").admissible_attestations(report)
+    }
+    return [
+        f"reproducibility-report:toolchain-changed:attested-{cargo}-plus-{rustc}"
+        for cargo, rustc in sorted(recorded) if (cargo, rustc) != selected
+    ]
+
+
 def main() -> int:
     problems: list[str] = []
     for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES):
@@ -344,6 +413,7 @@ def main() -> int:
             # the tracked report in the same pattern as the conformance
             # counts above; the attested commit is the builder's own
             # candidate selection, never attestations[0].
+            problems.extend(lane_record_problems(report))
             selected = repro.select_attestation(report)
             for summary_key, report_value in (
                 ("reproducibility_result", report.get("result")),
@@ -364,34 +434,13 @@ def main() -> int:
                 surface = ()
             if surface:
                 problems.extend(history_problems(report, surface))
-            attested_toolchains = {
-                (
-                    (attestation.get("toolchain") or {}).get("cargo"),
-                    (attestation.get("toolchain") or {}).get("rustc"),
-                )
-                for attestation in report.get("attestations", [])
-                if isinstance(attestation, dict)
-                # A null toolchain object must not compare: align with
-                # the packaging checker's non-empty-string rule so both
-                # checkers fail the same way instead of one crashing.
-                and isinstance((attestation.get("toolchain") or {}).get("cargo"), str)
-                and isinstance((attestation.get("toolchain") or {}).get("rustc"), str)
-            }
             try:
                 if candidate is None:
                     candidate = load_module("build_release_candidate")
                 current_toolchain = candidate.toolchain_versions()
-                current = (current_toolchain.get("cargo"), current_toolchain.get("rustc"))
             except Exception:
-                current = None
-                problems.append("reproducibility-report:toolchain-unavailable")
-            if current is not None:
-                for cargo, rustc in sorted(attested_toolchains):
-                    if (cargo, rustc) != current:
-                        problems.append(
-                            "reproducibility-report:toolchain-changed:"
-                            f"attested-{cargo}-plus-{rustc}"
-                        )
+                current_toolchain = None
+            problems.extend(toolchain_problems(report, current_toolchain))
 
         if CONFORMANCE_REPORT.exists():
             conformance = json.loads(read(CONFORMANCE_REPORT))

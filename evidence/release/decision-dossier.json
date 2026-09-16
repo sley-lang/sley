@@ -2,15 +2,15 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "12 review obligations are open",
-    "18 GA acceptance criteria are not evidenced",
+    "15 review obligations are open",
+    "19 GA acceptance criteria are not evidenced",
     "3 review dispositions are unclassified",
     "no succession trial has been executed",
     "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "fa1d37fa6b6e9309d9130e2f871b6a0b7f17665e2f728bc41b2ae558aa24fac5",
+  "dossier_digest": "b4b7623ca4b0da508c76405e1d95e8bfbf41b2d9e3e35d45d4e64eab83f90bed",
   "entries": [
     {
       "evidence": [
@@ -146,7 +146,7 @@
           "scanned_manifests": 20
         },
         "property_tests": 0,
-        "python_tests": 402,
+        "python_tests": 418,
         "rust_ignored_emitters": 16,
         "rust_unit_tests": 1435
       }
@@ -341,21 +341,21 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 402,
-        "open_reviews": 12,
+        "obligations": 414,
+        "open_reviews": 15,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 126,
-          "P1": 171,
-          "P2": 183,
-          "P3": 217,
-          "P4": 47
+          "P1": 170,
+          "P2": 187,
+          "P3": 224,
+          "P4": 54
         },
         "states": {
-          "HISTORICAL_ROUND": 109,
+          "HISTORICAL_ROUND": 117,
           "OTHER": 3,
-          "PASS": 278,
-          "PENDING": 12
+          "PASS": 279,
+          "PENDING": 15
         },
         "unclaimed_carried_findings": 41,
         "unclassified": 3
@@ -433,7 +433,7 @@
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 34 evidenced, 16 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 33 evidenced, 17 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -457,7 +457,7 @@
       }
     }
   ],
-  "entries_digest": "66d98ab393abf943e9334b0d47cac134846351f7cc2627f91dd11c63003fc32f",
+  "entries_digest": "8dcf20b16bd4aea7a204c3da5e9c638fd0207193f465f68bd501a12049ad3466",
   "evidenced": 24,
   "gated": 10,
   "gates": {

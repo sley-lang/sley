@@ -178,7 +178,7 @@
   "conformance_rejections": 276,
   "conformance_vectors": 477,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "47d049bf2c1b941b14cf779955fa53a9043791fe62fcf2c15d52a09e3f25a8da",
+  "inventory_digest": "4ce4ddeb90067cf5b343c445d8612c6e4737c343d64faf7267dfcf7c41702bbb",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -233,13 +233,13 @@
     },
     {
       "directory": "bench/release/tests",
-      "files": 6,
-      "tests": 124
+      "files": 7,
+      "tests": 137
     },
     {
       "directory": "bench/review/tests",
       "files": 3,
-      "tests": 86
+      "tests": 89
     },
     {
       "directory": "bench/sley2/tests",
@@ -252,7 +252,7 @@
       "tests": 120
     }
   ],
-  "python_tests": 402,
+  "python_tests": 418,
   "rust_crates": [
     {
       "crate": "sley-adapter",

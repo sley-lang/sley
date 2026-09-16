@@ -61,6 +61,9 @@ SPEC_MARKERS = (
     "canonical detached linked worktree",
     "candidate-attestation-mismatch",
     "## 10. Explicit exclusions",
+    "## 15. Artifact-content evidence",
+    "sley2.candidate-content-checks.v1",
+    "expected_artifact_members",
 )
 ADR_MARKERS = (
     "# ADR-0038: release candidate mechanics without a release",
@@ -175,6 +178,18 @@ def main() -> int:
             problems.append(f"machine-summary:{key}")
     if status not in (DRAFT_STATUS, FROZEN_STATUS) + IMPLEMENTATION_STATUSES:
         problems.append("machine-summary:status")
+    for key, expected in (
+        ("contract_revision", 5),
+        ("candidate_content_report", "evidence/release/candidate-content-checks.json"),
+        ("candidate_content_checker", "scripts/build_candidate_content_report.py"),
+    ):
+        if section.get(key) != expected:
+            problems.append(f"machine-summary:{key}")
+    if "revision 5 (2026-09-15)" not in spec:
+        problems.append("spec-revision")
+    content_script = ROOT / "scripts/build_candidate_content_report.py"
+    if not content_script.exists() or "sley2.candidate-content-checks.v1" not in read(content_script):
+        problems.append("candidate-content:missing-owner-script")
     artifact = summary.get("artifact", {})
     if any(artifact.get(key) is not None for key in ("path", "sha256", "size_bytes", "reproducibility")):
         problems.append("machine-summary:artifact-not-null")

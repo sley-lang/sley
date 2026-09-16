@@ -221,6 +221,8 @@ def main() -> int:
             )
         )
         return 1
+    if section.get("contract_revision") != 6 or "revision 6 (2026-09-15)" not in spec:
+        problems.append("contract-revision")
     status = section.get("status")
     if status not in (DRAFT_STATUS, *IMPLEMENTATION_STATUSES):
         problems.append("machine-summary:status")
@@ -303,10 +305,8 @@ def main() -> int:
             else:
                 inventory_digest = hashlib.sha256(INVENTORY.read_bytes()).hexdigest()
                 repro = json.loads(read(REPRO_REPORT))
-                attested = {
-                    attestation["artifact_sha256"]
-                    for attestation in load_repro().admissible_attestations(repro)
-                }
+                selected = load_repro().select_attestation(repro)
+                attested = {selected["artifact_sha256"]} if selected else set()
                 expected = {
                     f"urn:sley2:spdx:{inventory_digest}:{digest}" for digest in attested
                 }
@@ -382,12 +382,21 @@ def main() -> int:
                 problems.append("provenance:attestation-unbound")
             else:
                 repro = json.loads(read(REPRO_REPORT))
-                attested = {
-                    (attestation["artifact_sha256"], attestation["commit"])
-                    for attestation in load_repro().admissible_attestations(repro)
-                }
+                selected = load_repro().select_attestation(repro)
+                attested = {(selected["artifact_sha256"], selected["commit"])} if selected else set()
                 if (subject, external.get("commit")) not in attested:
                     problems.append("provenance:subject-attestation-mismatch")
+
+        if CYCLONEDX.exists() and PROVENANCE.exists():
+            try:
+                mirrors = load_builder().recorded_summary_facts(
+                    json.loads(read(CYCLONEDX)), json.loads(read(PROVENANCE))
+                )
+                for key, value in mirrors.items():
+                    if section.get(key) != value:
+                        problems.append(f"machine-summary:{key}:document-mismatch")
+            except (KeyError, TypeError, ValueError):
+                problems.append("standards-documents:invalid-summary-facts")
 
         drift_problems = []
         for argv, label in (

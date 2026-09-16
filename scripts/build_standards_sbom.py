@@ -531,6 +531,18 @@ def tracked_candidate_facts() -> tuple[str, str] | None:
         return None
 
 
+def recorded_summary_facts(bom: dict, provenance: dict) -> dict:
+    """Summary mirrors of the emitted S20-710 documents, with required shape."""
+    properties = {item["name"]: item["value"] for item in bom["metadata"]["properties"]}
+    blocked = properties["sley2:license-disposition-blocked"]
+    blockers = provenance["attestation"]["blockers"]
+    if not isinstance(blocked, str) or not re.fullmatch(r"[0-9]+", blocked):
+        raise ValueError("invalid blocked-license count")
+    if not isinstance(blockers, list) or not all(isinstance(item, str) for item in blockers):
+        raise ValueError("invalid provenance blockers")
+    return {"license_disposition_blocked_components": int(blocked), "blockers": blockers}
+
+
 def validate_tracked() -> list[str]:
     """Internal consistency of the tracked pair, checked even when the
     untracked candidate evidence disagrees with the tracked documents
@@ -561,8 +573,7 @@ def validate_tracked() -> list[str]:
         report = json.loads(REPRO_REPORT.read_text(encoding="utf-8"))
         attested = {
             attestation.get("artifact_sha256")
-            for attestation in report.get("attestations", [])
-            if isinstance(attestation, dict)
+            for attestation in repro.admissible_attestations(report)
         }
     except (OSError, json.JSONDecodeError):
         attested = set()

@@ -52,7 +52,6 @@ SYMBOLS = ROOT / "evidence/security/error-symbol-registration.json"
 ANTI_GOALS = ROOT / "evidence/validation/anti-goal-conformance.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 REPRO = ROOT / "evidence/release/reproducibility-report.json"
-SECRET_SCAN = ROOT / "evidence/security/T54/secret-scan.json"
 CANDIDATE_CONTENT = ROOT / "evidence/release/candidate-content-checks.json"
 CYCLONEDX = ROOT / "evidence/release/sbom/cyclonedx-1.6.json"
 SPDX = ROOT / "evidence/release/sbom/spdx-2.3.json"
@@ -79,7 +78,7 @@ HEX_40 = re.compile(r"^[0-9a-f]{40}$")
 HEX_64 = re.compile(r"^[0-9a-f]{64}$")
 # The only PASS forms a recorded verdict field may evidence with: the bare
 # token, or an enumerated count form whose every count is zero.
-ZERO_COUNT_FORM = re.compile(r"^PASS(?:_0_P[0-4])+$")
+ZERO_COUNT_FORM = re.compile(r"^PASS_0_P0_0_P1_0_P2_0_P3(?:_0_P4)?$")
 TRANSCRIPT = re.compile(r"evidence/review/verdicts/[A-Za-z0-9_./-]+\.md")
 
 
@@ -255,7 +254,6 @@ def load_sources() -> dict:
         "anti_goals": load(ANTI_GOALS),
         "register": load(REGISTER),
         "repro": load(REPRO),
-        "secret_scan": optional(SECRET_SCAN),
         "candidate_content": optional(CANDIDATE_CONTENT),
         "cyclonedx": optional(CYCLONEDX),
         "spdx": optional(SPDX),
@@ -431,7 +429,7 @@ def derive_criteria(sources: dict) -> list[dict]:
     )
     packaging = section("release_candidate_packaging")
     demo = str(packaging.get("candidate_demo", ""))
-    demo_passed = complete("release_candidate_packaging") and re.fullmatch(r"PASS_\d+_STEPS", demo) is not None
+    demo_passed = bool(selected) and complete("release_candidate_packaging") and re.fullmatch(r"PASS_\d+_STEPS", demo) is not None
     content = sources.get("candidate_content") or {}
     scan_clean = (
         bool(selected)
@@ -597,10 +595,10 @@ def derive_criteria(sources: dict) -> list[dict]:
         ("26.8 packaging", "artifact is built from the final candidate commit", state(final_commit_fixed, GATED),
          f"attested commit {attestation.get('commit', 'none')}; the final commit is fixed by a recorded release decision "
          f"(machine summary release_decision), state {release.get('state', 'none')}"),
-        ("26.8 packaging", "artifact runs with no source-tree access", state(demo_passed),
+        ("26.8 packaging", "artifact runs with no source-tree access", state(demo_passed, GATED if selected is None else AWAITS_REVIEW),
          f"the S20-720 unpacked demo runs the packaged binary outside the tree: candidate_demo {demo or 'absent'}, "
          f"packaging status {status('release_candidate_packaging')}"),
-        ("26.8 packaging", "artifact contains no secrets, local paths, caches, or debug files", state(scan_clean),
+        ("26.8 packaging", "artifact contains no secrets, local paths, caches, or debug files", state(scan_clean, GATED if selected is None else AWAITS_REVIEW),
          f"S20-720 artifact checks ({display(CANDIDATE_CONTENT)}) result {content.get('result', 'absent')}; "
          f"manifest/member and forbidden-content checks {content.get('checks', {})}; "
          f"bound to selected candidate {scan_clean}"),
@@ -641,6 +639,10 @@ def derive_criteria(sources: dict) -> list[dict]:
 def build_report(sources: dict | None = None) -> dict:
     if sources is None:
         sources = load_sources()
+    for key in ("register_digest", "obligations_digest"):
+        value = sources["register"].get(key)
+        if not isinstance(value, str) or not HEX_64.fullmatch(value):
+            raise ValueError(f"finding register: missing or invalid {key}")
     entries = derive_criteria(sources)
     states: dict[str, int] = {}
     for entry in entries:
@@ -656,8 +658,8 @@ def build_report(sources: dict | None = None) -> dict:
         "criteria": entries,
         # The register whose dispositions the review criteria were derived
         # from; the dossier refuses a report bound to a different register.
-        "register_digest": register.get("register_digest"),
-        "obligations_digest": register.get("obligations_digest"),
+        "register_digest": register["register_digest"],
+        "obligations_digest": register["obligations_digest"],
         "thresholds_source": sources["thresholds"].get("source"),
         "ga_claimed": False,
         "interpretation": (

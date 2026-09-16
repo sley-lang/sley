@@ -72,7 +72,17 @@ ARTIFACT_INPUT_PATHS = (
     *EMBEDDED_INPUT_PATHS,
     *CONFORMANCE_SUBSET,
 )
+FIXED_ARTIFACT_MEMBERS = frozenset({
+    "bin/sley", "MANIFEST.json", "SBOM.json", "LICENSES.json",
+    "LICENSE", "NOTICE", "demo/run_demo.py",
+})
 EXECUTABLE_MEMBERS = {"bin/sley", "demo/run_demo.py"}
+
+
+def expected_artifact_members(fixture_paths: list[str]) -> set[str]:
+    """S20-720 owns the fixed contents; fixtures are enumerated at the candidate."""
+    return set(FIXED_ARTIFACT_MEMBERS).union(fixture_paths)
+
 SECRET_PATTERNS = (b"-----BEGIN ", b"AKIA", b"ghp_", b"xoxb-", b"xoxp-", b"sk-ant-", b"sk-proj-")
 # The operator-approved root license set (S20-710 license decision
 # 2026-09-14): the staged artifact ships the installed files, never a
@@ -475,6 +485,13 @@ def stage_artifact(
         blockers=blockers,
     )
     (stage / "MANIFEST.json").write_bytes(canonical(manifest) + b"\n")
+    fixtures = [
+        path.relative_to(stage).as_posix()
+        for relative in CONFORMANCE_SUBSET
+        for path in (stage / relative).rglob("*") if path.is_file()
+    ]
+    if {path.relative_to(stage).as_posix() for path in member_paths(stage)} != expected_artifact_members(fixtures):
+        raise PackageError(PackageErrorCode.INTERNAL_INVARIANT, "staging differs from the owned member set")
     return manifest
 
 

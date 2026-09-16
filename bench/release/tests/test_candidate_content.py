@@ -1,6 +1,10 @@
 """Artifact checks use actual archive bytes and the selected candidate identity."""
 
 import copy
+import io
+import tarfile
+from contextlib import redirect_stdout
+from unittest.mock import patch
 import importlib.util
 import json
 import shutil
@@ -64,6 +68,50 @@ class ContentTests(unittest.TestCase):
             artifact, attestation = self.fixture(Path(directory), extra=True)
             with self.assertRaisesRegex(ValueError, "member set"):
                 content.build_report(artifact, attestation)
+
+    def test_manifest_from_another_commit_refuses_after_byte_and_digest_match(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact, attestation = self.fixture(root)
+            stage = packaging.unpack(artifact, root / "unpacked")
+            manifest = packaging.build_manifest(stage, commit="f" * 40,
+                toolchain=attestation["toolchain"], working_tree_clean=True, blockers=[])
+            (stage / "MANIFEST.json").write_bytes(packaging.canonical(manifest) + b"\n")
+            data = packaging.deterministic_tar(stage, artifact)
+            attestation.update(artifact_sha256=packaging.sha256_bytes(data),
+                artifact_size_bytes=len(data), manifest_digest=manifest["manifest_digest"])
+            with self.assertRaisesRegex(ValueError, "manifest differs"):
+                content.build_report(artifact, attestation)
+
+    def test_extra_directory_and_special_member_refuse_with_matching_bytes(self):
+        for kind, expected in ((tarfile.DIRTYPE, "directory set"), (tarfile.SYMTYPE, "non-file")):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                artifact, attestation = self.fixture(root)
+                with tarfile.open(artifact, "r:gz") as source:
+                    members = [(m, source.extractfile(m).read() if m.isfile() else None) for m in source]
+                with tarfile.open(artifact, "w:gz") as dest:
+                    for member, data in members:
+                        dest.addfile(member, io.BytesIO(data) if data is not None else None)
+                    extra = tarfile.TarInfo(packaging.ARTIFACT_STEM + "/extra")
+                    extra.type = kind
+                    if kind == tarfile.SYMTYPE:
+                        extra.linkname = "bin/sley"
+                    dest.addfile(extra)
+                attestation.update(artifact_sha256=packaging.sha256_file(artifact), artifact_size_bytes=artifact.stat().st_size)
+                with self.assertRaisesRegex(ValueError, expected):
+                    content.build_report(artifact, attestation)
+
+    def test_cli_failures_use_the_packaging_error_codes(self):
+        for exception, expected in ((ValueError("bad binding"), 72001), (None, 72002)):
+            output = io.StringIO()
+            with patch.object(content, "build_for_candidate", side_effect=exception,
+                    return_value={"result": "FAIL"}), patch.object(content.sys, "argv", ["content", "--check"]), \
+                    patch.object(content.Path, "read_text", return_value='{}'), \
+                    patch.object(content, "canonical", return_value='{}'), \
+                    patch.object(content.Path, "exists", return_value=True), redirect_stdout(output):
+                self.assertEqual(content.main(), 1)
+            self.assertEqual(json.loads(output.getvalue())["code"], expected)
 
     def test_new_primary_selects_build_despite_carried_old_secondary(self):
         with tempfile.TemporaryDirectory() as directory:

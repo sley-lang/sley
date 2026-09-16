@@ -1,6 +1,6 @@
 # Standards SBOM and Release Provenance v1
 
-Status: S20-710 full-audit contract draft, revision 5 (2026-09-13); Council
+Status: S20-710 full-audit contract draft, revision 6 (2026-09-15); Council
 review pending (Ariadne contract review, Nabu architecture review, Vulcan
 surface review, plus Council review of the revision 5 records-closure
 model before any standards review row closes on a closure HEAD). Revision 2 records the clarifications found while wiring the
@@ -162,7 +162,7 @@ The statement is:
   `urn:sley2:buildtype:release-candidate/v1`;
 - `predicate.buildDefinition.externalParameters`: the commit, the artifact
   name, the make target (derived from the recorded invocation:
-  `release-candidate-smoke` exactly for the single Makefile smoke
+  `release-candidate-build` exactly for the Makefile build
   rendering, `build_release_candidate.py direct` otherwise), the recorded candidate
   invocation copied verbatim from the candidate evidence (ADR-0041
   principle 1: derive, never restate; a candidate without a recorded
@@ -353,3 +353,37 @@ which stand as `FAIL` history:
   codes where none exists; the old claim that Tier 1 stayed hermetic over
   tracked files was false, since all fifteen release tests derive from that
   evidence.
+
+## 10. Revision 6 (2026-09-15)
+
+This revision records the normative SPDX clause 10.1 and frozen-shape edits
+made at `40dbbd0` (previously carrying the revision-5 label), and the Council
+repairs following `e050fe7`. Existing section 5 records-closure rules remain.
+
+The section 4 make-target label means build-equivalent invocation, not proof
+that the verify target ran. The separate `release-candidate-build` recipe
+owns the 900-second, require-clean, no-keep rendering. All other renderings
+remain `build_release_candidate.py direct`.
+
+Provenance `attestation.blockers` retains the three held decisions:
+`signing_key_and_transparency_log_unauthorized`,
+`final_argus_and_vulcan_dispositions`, and `council_reviews`.
+It appends `second_host_attestation_operator_lane` exactly when fewer than
+two distinct admissible host labels bind the candidate's full four-field
+identity. Historical hosts for another candidate do not discharge it.
+The summary's `blockers` mirrors this emitted list; its
+`license_disposition_blocked_components` mirrors CycloneDX metadata
+`sley2:license-disposition-blocked`. Counter sync writes both and the
+section checker rejects drift. These mirrors grant no signing or review
+approval.
+
+Hermetic namespace and provenance-subject checks bind the selected current
+candidate, refusing a tie or absence. Mismatch-state validators may verify
+historical documents only against S20-730's complete admissibility predicate;
+they never substitute a weaker locally copied predicate.
+
+S20-720 section 15 owns the artifact-content report, its shape, codes and
+archive/member checks. The dossier is its consumer. Tier 1 `make quick`
+and candidate verification require the matching local archive and build
+record in addition to tracked release evidence. Those prerequisites are
+not supplied by a repository-only T54 scan.

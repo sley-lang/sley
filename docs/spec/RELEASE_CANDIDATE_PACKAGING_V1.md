@@ -1,6 +1,6 @@
 # Release Candidate Packaging v1
 
-Status: S20-720 contract draft, revision 4 (2026-09-14), with round-7
+Status: S20-720 contract draft, revision 5 (2026-09-15), with round-7
 clarifications (2026-09-11, section 13); Council review pending (Ariadne
 contract review, Nabu architecture review, Vulcan surface review). Revision
 2 records the clarifications found while implementing
@@ -285,3 +285,46 @@ provenance, and root license (S20-710 full); independent conformance
   SPDX identifier and member digests instead of the pending blocker.
 - The mint blockers drop `root_license_text_operator_approval`; the
   remaining blockers still ride inside the manifest digest.
+
+## 15. Artifact-content evidence (revision 5, 2026-09-15)
+
+S20-720 owns `scripts/build_candidate_content_report.py` and the tracked
+`evidence/release/candidate-content-checks.json`. The report contract is
+`sley2.candidate-content-checks.v1`. It has exactly these fields:
+
+- `contract`: the tag above;
+- `commit`, `artifact_sha256`, `manifest_digest`, `artifact_size_bytes`: the
+  selected admissible attestation's candidate identity;
+- `checks`: exactly `manifest` and `forbidden_content`, both booleans;
+- `result`: `PASS` iff both checks are true, otherwise `FAIL`;
+- `report_digest`: SHA-256 of the JSON body excluding this field, serialized
+  with sorted keys, two-space indentation and a trailing newline.
+
+Selection binds the S20-730 owner predicate to the local S20-720 build
+record, including during the old-secondary/new-primary handoff. The
+archive's SHA-256 and size must match. The exact regular-file set is the
+packaging module's `expected_artifact_members`: its owned fixed files plus
+all tracked files under the section 3 subset at the candidate's Git commit.
+Staging and inspection consume this same owner. Duplicate regular files,
+unexpected/missing directory entries, and any special member (including
+symlinks and hardlinks) refuse before extraction. The unpacked manifest
+must verify all members and bind the same commit and manifest digest.
+Section 5's forbidden-content scan runs on the unpacked bytes.
+
+Input, archive-shape, manifest/binding and tracked-report-drift failures
+return exit 1 and `72001 PACKAGE_MANIFEST_INVALID`, without replacing the
+tracked report. A completed scan with forbidden content records `FAIL`,
+returns exit 1 and `72002 PACKAGE_CONTENT_FORBIDDEN`. Both CLI failure
+forms include `contract`, `result`, numeric `code`, and `symbol`; input
+failures also include `error`. Success returns exit 0. No new codes are
+reserved. A failed or stale report cannot evidence the GA content criterion.
+
+`make release-candidate-build` creates the archive and report.
+`make release-candidate-verify` and Tier 1 `make quick` run the report's
+`--check`: both require the matching local `dist/` archive, the gitignored
+S20-720 build evidence, and the tracked S20-730 report. A clean clone first
+builds the candidate and completes the second-host merge before final
+verification. The split preserves build-before-verify ordering even under
+parallel make. The machine summary's `candidate_content_report` and
+`candidate_content_checker` point to the owned files; the packaging checker
+binds those pointers and this contract section.

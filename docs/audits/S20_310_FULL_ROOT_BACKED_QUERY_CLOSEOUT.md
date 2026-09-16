@@ -174,3 +174,12 @@ reviewed under REQ-04/REQ-05 against `docs/spec/ENTITY_READ_PROFILE_V2.md`;
 its verdicts are recorded on entity-read-scoped fields and never supersede
 the root-query lane dispositions. Sessions and verdicts are recorded here
 when they land.
+
+## Recovery comment edit (2026-09-15)
+
+Commit `a10d871` shortened the explanatory comment on the paging walk test
+in `crates/sley-query/src/root_query.rs` after the development review. The
+S20-310 owner records that editorial change here: revision-7 section 9
+remains the evidence rule; the engine, fixture obligations and test behavior
+were unchanged. The `c1d4177` review round and its `ede5ef0` closeout repair
+are now registered explicitly in the machine summary.

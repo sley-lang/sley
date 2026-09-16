@@ -28,7 +28,7 @@ def canonical(value: object) -> str:
 
 
 def build_for_candidate(artifact: Path, candidate: dict, repro: dict) -> dict:
-    if candidate.get("contract") != "s20-720-release-candidate-v1" or candidate.get("result") != "PASS":
+    if not isinstance(candidate, dict) or candidate.get("contract") != "s20-720-release-candidate-v1" or candidate.get("result") != "PASS":
         raise ValueError("candidate build evidence is absent or failed")
     attestation = reproducibility.select_attestation(repro, candidate=candidate)
     if attestation is None:
@@ -54,7 +54,7 @@ def build_report(artifact: Path, attestation: dict) -> dict:
     if listing.returncode:
         raise ValueError("selected candidate commit is unavailable")
     fixtures = listing.stdout.splitlines()
-    expected = {"bin/sley", "MANIFEST.json", "SBOM.json", "LICENSES.json", "LICENSE", "NOTICE", "demo/run_demo.py", *fixtures}
+    expected = packaging.expected_artifact_members(fixtures)
     with tarfile.open(artifact, "r:gz") as archive:
         members = [member.name for member in archive.getmembers() if member.isfile()]
         if len(members) != len(set(members)) or set(members) != {f"{packaging.ARTIFACT_STEM}/{path}" for path in expected}:
@@ -104,10 +104,16 @@ def main() -> int:
         else:
             REPORT.parent.mkdir(parents=True, exist_ok=True)
             REPORT.write_text(text, encoding="utf-8")
-        print(json.dumps({"contract": CONTRACT, "result": report["result"]}))
+        result = {"contract": CONTRACT, "result": report["result"]}
+        if report["result"] != "PASS":
+            code = packaging.PackageErrorCode.CONTENT_FORBIDDEN
+            result.update(code=int(code), symbol=packaging.SYMBOLS[code])
+        print(json.dumps(result))
         return 0 if report["result"] == "PASS" else 1
-    except (OSError, ValueError, KeyError, subprocess.CalledProcessError, tarfile.TarError, packaging.PackageError, reproducibility.ReproError) as error:
-        print(json.dumps({"contract": CONTRACT, "result": "FAIL", "error": str(error)}))
+    except (OSError, TypeError, ValueError, KeyError, subprocess.CalledProcessError, tarfile.TarError, packaging.PackageError, reproducibility.ReproError) as error:
+        code = packaging.PackageErrorCode.MANIFEST_INVALID
+        print(json.dumps({"contract": CONTRACT, "result": "FAIL", "code": int(code),
+                          "symbol": packaging.SYMBOLS[code], "error": str(error)}))
         return 1
 
 

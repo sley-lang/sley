@@ -17,6 +17,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import build_reproducibility_report as reproducibility
+import build_standards_sbom as standards
 
 ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
@@ -24,6 +25,8 @@ REGISTER = ROOT / "evidence/review/finding-register.json"
 DOSSIER = ROOT / "evidence/release/decision-dossier.json"
 GA_ACCEPTANCE = ROOT / "evidence/release/ga-acceptance-report.json"
 REPRO = ROOT / "evidence/release/reproducibility-report.json"
+CYCLONEDX = ROOT / "evidence/release/sbom/cyclonedx-1.6.json"
+PROVENANCE = ROOT / "evidence/release/provenance.json"
 
 
 def main() -> int:
@@ -49,6 +52,16 @@ def main() -> int:
             if section.get(key) != value:
                 section[key] = value
                 changed.append(f"reproducibility_and_independent_conformance.{key}")
+
+    section = summary.get("standards_sbom_and_provenance")
+    if isinstance(section, dict):
+        updates = standards.recorded_summary_facts(
+            json.loads(CYCLONEDX.read_text()), json.loads(PROVENANCE.read_text())
+        )
+        for key, value in updates.items():
+            if section.get(key) != value:
+                section[key] = value
+                changed.append(f"standards_sbom_and_provenance.{key}")
 
     if REGISTER.exists() and isinstance(summary.get("finding_register"), dict):
         register = json.loads(REGISTER.read_text(encoding="utf-8"))
