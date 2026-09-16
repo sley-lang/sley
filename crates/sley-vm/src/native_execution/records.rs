@@ -662,6 +662,43 @@ mod tests {
     }
 
     #[test]
+    fn limit_record_layouts_are_frozen_for_test_owner() {
+        // The test-evidence owner re-encodes these exact layouts from public
+        // fields; any reorder here must fail loudly in both crates.
+        fn hex_of(bytes: &[u8]) -> String {
+            let mut out = String::with_capacity(bytes.len() * 2);
+            for byte in bytes {
+                use core::fmt::Write as _;
+                write!(out, "{byte:02x}").expect("hex formatting never fails");
+            }
+            out
+        }
+        assert_eq!(
+            hex_of(
+                &NativeImplementationLimits::HARD_MAXIMA
+                    .record()
+                    .expect("hard maxima encode")
+            ),
+            "05010480ade204020480808020030480808020040280020503808010"
+        );
+        assert_eq!(
+            hex_of(
+                &NativeDeclaredLimits {
+                    fuel: 100,
+                    memory_bytes: 4_096,
+                    output_bytes: 64,
+                    effect_count: 0,
+                    call_depth: 8,
+                    wall_timeout_millis: 1_000,
+                }
+                .record()
+                .expect("declared encode")
+            ),
+            "06010164020280200301400401000501080602e807"
+        );
+    }
+
+    #[test]
     fn resource_kind_tags_and_hard_maxima_are_frozen() {
         assert_eq!(
             [

@@ -17,6 +17,7 @@ members = [
     "crates/sley-ssmc",
     "crates/sley-state-root",
     "crates/sley-store",
+    "crates/sley-tests",
     "crates/sley-txn",
     "crates/sley-vm",
 ]

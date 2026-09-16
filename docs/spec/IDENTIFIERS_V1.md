@@ -53,6 +53,10 @@ part of the `sley-id` kernel API.
 | protocol frame (S20-410) | `sley2.protocol-frame.v1` |
 | root-backed query (S20-310 full) | `sley2.root-query.v1` |
 | negotiated session (S20-330) | `sley2.session.v1` |
+| native test execution profile | `sley2.native-test-execution-profile.v1` |
+| native test observation | `sley2.native-test-observation.v1` |
+| native test plan | `sley2.native-test-plan.v1` |
+| native resource policy | `sley2.native-test-resource-policy.v1` |
 | repository pack leaf (S20-170) | `sley2.repository-pack-leaf.v1` |
 | repository pack node (S20-170) | `sley2.repository-pack-node.v1` |
 | repository exchange leaf (S20-540) | `sley2.repository-exchange-leaf.v1` |

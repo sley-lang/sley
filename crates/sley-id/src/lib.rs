@@ -44,11 +44,13 @@ enum Domain {
     Session,
     NativeExecutionProfile,
     NativeObservation,
+    NativeTestPlan,
+    NativeResourcePolicy,
 }
 
 impl Domain {
     #[cfg(test)]
-    const ALL: [Self; 37] = [
+    const ALL: [Self; 39] = [
         Self::Workspace,
         Self::Entity,
         Self::Object,
@@ -86,6 +88,8 @@ impl Domain {
         Self::Session,
         Self::NativeExecutionProfile,
         Self::NativeObservation,
+        Self::NativeTestPlan,
+        Self::NativeResourcePolicy,
     ];
 
     const fn bytes(self) -> &'static [u8] {
@@ -127,6 +131,8 @@ impl Domain {
             Self::Session => b"sley2.session.v1",
             Self::NativeExecutionProfile => b"sley2.native-test-execution-profile.v1",
             Self::NativeObservation => b"sley2.native-test-observation.v1",
+            Self::NativeTestPlan => b"sley2.native-test-plan.v1",
+            Self::NativeResourcePolicy => b"sley2.native-test-resource-policy.v1",
         }
     }
 }
@@ -372,6 +378,14 @@ fixed_bytes_type! {
     /// Deterministic native test observation identity.
     NativeObservationId
 }
+fixed_bytes_type! {
+    /// Native test plan digest, binding selection and resource policy.
+    NativeTestPlanId
+}
+fixed_bytes_type! {
+    /// Native resource policy digest, binding effective ceilings.
+    NativeResourcePolicyId
+}
 
 macro_rules! digest_type {
     ($name:ident, $domain:expr) => {
@@ -404,6 +418,8 @@ digest_type!(BytecodeCacheKey, Domain::BytecodeCacheKey);
 digest_type!(ObservationId, Domain::Observation);
 digest_type!(NativeExecutionProfileId, Domain::NativeExecutionProfile);
 digest_type!(NativeObservationId, Domain::NativeObservation);
+digest_type!(NativeTestPlanId, Domain::NativeTestPlan);
+digest_type!(NativeResourcePolicyId, Domain::NativeResourcePolicy);
 digest_type!(ExecutionReportId, Domain::ExecutionReport);
 digest_type!(TestReportId, Domain::TestReport);
 digest_type!(RepositoryPackId, Domain::RepositoryPack);
@@ -454,7 +470,7 @@ mod tests {
     const ZERO: [u8; ID_LEN] = [0; ID_LEN];
     const ONE: [u8; ID_LEN] = [1; ID_LEN];
     const TEST_PREIMAGE: &[u8] = b"sley-id fixed vector preimage";
-    const FIXED_VECTORS: [(Domain, &str); 37] = [
+    const FIXED_VECTORS: [(Domain, &str); 39] = [
         (
             Domain::Workspace,
             "91280bdf6e8df93eafb445c63cf92f0590981d2d9e735d6b01cc9594e0b92f55",
@@ -603,6 +619,14 @@ mod tests {
             Domain::NativeObservation,
             "4118add06bce0d63dee974ff40948088d4eb776a901b63ca75b7a69b86725c53",
         ),
+        (
+            Domain::NativeTestPlan,
+            "3f060c08426ed3a9f05044da5add7d330cc5044961f715e7952586e15ecd0b44",
+        ),
+        (
+            Domain::NativeResourcePolicy,
+            "957e5063af2f82520b59927eddcf015d0400a319dd5c9b3401128fda8523cfc0",
+        ),
     ];
 
     fn decode_hex_32(hex: &str) -> [u8; ID_LEN] {
@@ -657,6 +681,8 @@ mod tests {
                 b"sley2.session.v1",
                 b"sley2.native-test-execution-profile.v1",
                 b"sley2.native-test-observation.v1",
+                b"sley2.native-test-plan.v1",
+                b"sley2.native-test-resource-policy.v1",
             ]
         );
     }
@@ -797,6 +823,8 @@ mod tests {
         assert_eq!(core::mem::size_of::<ObservationId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<NativeExecutionProfileId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<NativeObservationId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<NativeTestPlanId>(), ID_LEN);
+        assert_eq!(core::mem::size_of::<NativeResourcePolicyId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<ExecutionReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<TestReportId>(), ID_LEN);
         assert_eq!(core::mem::size_of::<RepositoryPackId>(), ID_LEN);
