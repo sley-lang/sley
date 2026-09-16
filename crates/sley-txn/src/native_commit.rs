@@ -26,14 +26,14 @@
 //! supervisor-backed executor, and [`commit_needs_executor`] refuses without
 //! one before any worker or accepted-state write.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 use sley_id::{
-    CandidateId, NativeAdmissionProfileId, PrincipalId, ReceiptId, StateRoot, TransactionId,
-    WorkspaceId,
+    CandidateId, NativeAdmissionProfileId, ObjectId, PrincipalId, ReceiptId, StateRoot,
+    TransactionId, WorkspaceId,
 };
 use sley_policy::ValidatedCandidatePlan;
 use sley_tests::{
@@ -379,6 +379,33 @@ pub trait NativeTestExecutor {
         plan: &NativeTestPlanV1,
         validated: &ValidatedCandidatePlan,
     ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError>;
+
+    /// Re-executes every selected test in plan order for explicit replay.
+    ///
+    /// Replay rebuilds observations without secrets: the owner supplies the
+    /// stored plan and the pinned object bytes, never the original evidence
+    /// (an executor that cannot see the originals cannot echo them) and
+    /// never a live validation context. The owner checks coverage and
+    /// compares exact bytes itself; no accepted transaction and no
+    /// replacement attestation is created here.
+    ///
+    /// The default implementation refuses: executors that only serve the
+    /// commit path keep refusing replay explicitly rather than silently
+    /// reusing commit evidence.
+    ///
+    /// # Errors
+    ///
+    /// Returns `NATIVE_EXECUTOR_UNAVAILABLE` from the default refusal, or
+    /// the first re-execution refusal; test-level failures stay evidence
+    /// pairs with rejected content.
+    fn execute_replay(
+        &self,
+        plan: &NativeTestPlanV1,
+        objects: &BTreeMap<ObjectId, &[u8]>,
+    ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+        let _ = (plan, objects);
+        Err(NativeCommitError::ExecutorUnavailable)
+    }
 }
 
 /// Returns whether the [`NativeTestExecutor`] reference is present.
@@ -531,11 +558,14 @@ pub fn verify_measurement_trust(
 /// it pairs only with rejected execution evidence, never with an observed
 /// run.
 ///
+/// The commit and replay owners share this check: replay coverage carries
+/// no live validation context, only the stored plan.
+///
 /// # Errors
 ///
 /// Returns `TXN_RECEIPT_BINDING_MISMATCH` for count, order, identity, plan
 /// binding, report linkage, configuration, or duplicate-cover divergence.
-pub(crate) fn check_execution_coverage(
+pub fn check_execution_coverage(
     plan: &NativeTestPlanV1,
     executions: &[ExecutedNativeTest],
 ) -> Result<(), TransactionErrorCode> {

@@ -47,8 +47,8 @@ pub use native_commit::{
     JOURNAL_MAGIC, JOURNAL_VERSION, MAX_COMMIT_WALL_MILLIS, MAX_JOURNAL_BYTES,
     NativeAcceptanceSigner, NativeAttemptId, NativeCommitError, NativeCommitInput,
     NativeCommitOutcome, NativeCommitOutput, NativeRejection, NativeTestExecutor,
-    NativeVerifiedRevision, attempt_path, commit_needs_executor, native_receipt_committed_root,
-    verify_acceptance_trust, verify_measurement_trust,
+    NativeVerifiedRevision, attempt_path, check_execution_coverage, commit_needs_executor,
+    native_receipt_committed_root, verify_acceptance_trust, verify_measurement_trust,
 };
 pub use repository::{
     AcceptedHead, CommitError, CommitInput, CommitOutput, RecoveryAncestryError,

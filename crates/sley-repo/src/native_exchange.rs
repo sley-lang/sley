@@ -34,19 +34,22 @@ use std::path::Path;
 
 use crate::refs::{BranchError, BranchRepository, MAX_BRANCHES, ResolvedBranch};
 use sley_id::{
-    NativeExchangeProfileId, ObjectId, ReceiptId, RepositoryExchangeId, StateRoot, TransactionId,
-    WorkspaceId,
+    EntityId, NativeExchangeProfileId, ObjectId, ReceiptId, RepositoryExchangeId, StateRoot,
+    TestReportId, TransactionId, WorkspaceId,
 };
 use sley_scb1::{ScbErrorCode, encode_list, encode_record, encode_union, encode_uvar};
 use sley_store::{CanonicalVerifier, ObjectStore};
-use sley_tests::{HistoricalTrustPolicyV1, MeasuredTestAttestationV1, NativeTestPlanV1};
+use sley_tests::{
+    HistoricalTrustPolicyV1, MeasuredTestAttestationV1, NativeTestPlanV1, NativeTestReportV1,
+};
 use sley_txn::{
     CommitError, ImportedNativeTransactionReceipt, ImportedReceipt, NATIVE_RECEIPT_MAGIC,
-    NativeCommitError, RECEIPT_MAGIC, RepositoryMaintenanceGuard, TransactionCodecError,
-    TransactionKind, TransactionRepository, acquire_exclusive_repository_maintenance_nonblocking,
-    acquire_shared_repository_maintenance, import_native_transaction_receipt,
-    import_transaction_receipt, initialize_repository_maintenance, native_receipt_trust_policy_ids,
-    verify_acceptance_trust, verify_any_receipt_against_objects, verify_measurement_trust,
+    NativeCommitError, NativeTestExecutor, RECEIPT_MAGIC, RepositoryMaintenanceGuard,
+    TransactionCodecError, TransactionKind, TransactionRepository,
+    acquire_exclusive_repository_maintenance_nonblocking, acquire_shared_repository_maintenance,
+    check_execution_coverage, import_native_transaction_receipt, import_transaction_receipt,
+    initialize_repository_maintenance, native_receipt_trust_policy_ids, verify_acceptance_trust,
+    verify_any_receipt_against_objects, verify_measurement_trust,
 };
 
 use crate::exchange::{
@@ -127,6 +130,8 @@ pub enum NativeExchangeErrorCode {
     ProfileMismatch,
     /// `NATIVE_TEST_ENCODING_INVALID`.
     EncodingInvalid,
+    /// `NATIVE_TEST_ENFORCER_UNAVAILABLE`.
+    ExecutorUnavailable,
     /// `NATIVE_TEST_HISTORICAL_TRUST_UNAVAILABLE`.
     TrustUnavailable,
     /// `NATIVE_TEST_HISTORICAL_TRUST_REJECTED`.
@@ -141,9 +146,10 @@ pub enum NativeExchangeErrorCode {
 
 impl NativeExchangeErrorCode {
     /// Every native-only code in frozen numeric order.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::ProfileMismatch,
         Self::EncodingInvalid,
+        Self::ExecutorUnavailable,
         Self::TrustUnavailable,
         Self::TrustRejected,
         Self::ReplayInconclusive,
@@ -157,6 +163,7 @@ impl NativeExchangeErrorCode {
         match self {
             Self::ProfileMismatch => "NATIVE_TEST_PROFILE_UNSUPPORTED",
             Self::EncodingInvalid => "NATIVE_TEST_ENCODING_INVALID",
+            Self::ExecutorUnavailable => "NATIVE_TEST_ENFORCER_UNAVAILABLE",
             Self::TrustUnavailable => "NATIVE_TEST_HISTORICAL_TRUST_UNAVAILABLE",
             Self::TrustRejected => "NATIVE_TEST_HISTORICAL_TRUST_REJECTED",
             Self::ReplayInconclusive => "NATIVE_TEST_REPLAY_INCONCLUSIVE",
@@ -171,6 +178,7 @@ impl NativeExchangeErrorCode {
         match self {
             Self::ProfileMismatch => 29_200,
             Self::EncodingInvalid => 29_201,
+            Self::ExecutorUnavailable => 29_212,
             Self::TrustUnavailable => 29_215,
             Self::TrustRejected => 29_216,
             Self::ReplayInconclusive => 29_223,
@@ -1504,15 +1512,71 @@ fn resolve_trust_manifest<'a>(
         .ok_or_else(|| NativeExchangeError::native(NativeExchangeErrorCode::TrustUnavailable))
 }
 
+/// Grant checks proven for one native receipt: every statement and
+/// attestation carries its role, scope, profile, and interval grants from
+/// the resolved caller-supplied manifests.
+struct TrustGrantCounts {
+    signatures: u64,
+    visits: u64,
+}
+
+/// Checks one native receipt's acceptance and measurement grants without
+/// charging counters or touching the union.
+///
+/// Preflight and explicit replay share this: both resolve the receipt's
+/// own referenced manifests and grant-check every statement and
+/// attestation, and neither installs receiver trust.
+///
+/// # Errors
+///
+/// Returns `NATIVE_TEST_HISTORICAL_TRUST_UNAVAILABLE` for an unresolvable
+/// manifest, `NATIVE_TEST_HISTORICAL_TRUST_REJECTED` for a failed grant,
+/// or the exact nested parse failure.
+fn check_receipt_trust_grants(
+    receipt: &ImportedNativeTransactionReceipt,
+    trust: &NativeExchangeTrust<'_>,
+) -> Result<TrustGrantCounts> {
+    let statement = receipt.statement.parts();
+    let acceptance_manifest =
+        resolve_trust_manifest(statement.acceptance_trust_policy_id.as_bytes(), trust)?;
+    verify_acceptance_trust(
+        &statement.key_id,
+        statement.acceptance_trust_policy_id,
+        receipt.transaction.record.workspace_id,
+        statement.admission_profile,
+        statement.historical_validation_time,
+        acceptance_manifest,
+    )
+    .map_err(map_trust_error)?;
+    let plan = NativeTestPlanV1::parse(receipt.bundle.plan_stored())
+        .map_err(|error| NativeExchangeError::Pack(scb_error(&error)))?;
+    for embedded in receipt.bundle.measurements() {
+        let attestation = MeasuredTestAttestationV1::parse(&embedded.stored)
+            .map_err(|error| NativeExchangeError::Pack(scb_error(&error)))?;
+        let measurement_manifest = resolve_trust_manifest(&attestation.trust_policy_id(), trust)?;
+        verify_measurement_trust(
+            &attestation.key_id(),
+            &attestation.trust_policy_id(),
+            receipt.transaction.record.workspace_id,
+            plan.execution_profile(),
+            attestation.recorded_unix_millis(),
+            measurement_manifest,
+        )
+        .map_err(map_trust_error)?;
+    }
+    Ok(TrustGrantCounts {
+        signatures: receipt.bundle.measurements().len() as u64 + 1,
+        visits: (receipt.bundle.executions().len() + receipt.bundle.measurements().len()) as u64,
+    })
+}
+
 /// Verifies every native receipt's acceptance and measurement trust against
 /// caller-supplied manifests while charging the Appendix B counters.
 ///
 /// The wire union must equal the exact collected union first: a referenced
 /// ID without a declaration is missing trust, and a declaration no receipt
-/// references is not a valid encoding of the exchange contents. Every
-/// referenced ID must then resolve to a supplied manifest, and every
-/// statement and attestation must carry its role, scope, profile, and
-/// interval grants. Nothing here installs receiver trust.
+/// references is not a valid encoding of the exchange contents. Nothing
+/// here installs receiver trust.
 fn verify_native_receipt_trust(
     receipts: &BTreeMap<TransactionId, ImportedReceipt>,
     declared_union: &[[u8; ID_LEN]],
@@ -1544,40 +1608,10 @@ fn verify_native_receipt_trust(
         ));
     }
     for receipt in native {
-        let statement = receipt.statement.parts();
-        let acceptance_manifest =
-            resolve_trust_manifest(statement.acceptance_trust_policy_id.as_bytes(), trust)?;
-        verify_acceptance_trust(
-            &statement.key_id,
-            statement.acceptance_trust_policy_id,
-            receipt.transaction.record.workspace_id,
-            statement.admission_profile,
-            statement.historical_validation_time,
-            acceptance_manifest,
-        )
-        .map_err(map_trust_error)?;
-        let plan = NativeTestPlanV1::parse(receipt.bundle.plan_stored())
-            .map_err(|error| NativeExchangeError::Pack(scb_error(&error)))?;
-        counters.add_signatures(receipt.bundle.measurements().len() as u64 + 1)?;
-        counters.add_visits(
-            (receipt.bundle.executions().len() + receipt.bundle.measurements().len()) as u64,
-        )?;
+        let counts = check_receipt_trust_grants(receipt, trust)?;
+        counters.add_signatures(counts.signatures)?;
+        counters.add_visits(counts.visits)?;
         counters.add_evidence_bytes(receipt.stored_bytes.len() as u64)?;
-        for embedded in receipt.bundle.measurements() {
-            let attestation = MeasuredTestAttestationV1::parse(&embedded.stored)
-                .map_err(|error| NativeExchangeError::Pack(scb_error(&error)))?;
-            let measurement_manifest =
-                resolve_trust_manifest(&attestation.trust_policy_id(), trust)?;
-            verify_measurement_trust(
-                &attestation.key_id(),
-                &attestation.trust_policy_id(),
-                receipt.transaction.record.workspace_id,
-                plan.execution_profile(),
-                attestation.recorded_unix_millis(),
-                measurement_manifest,
-            )
-            .map_err(map_trust_error)?;
-        }
     }
     Ok(())
 }
@@ -2223,6 +2257,330 @@ pub fn import_native_exchange<V: CanonicalVerifier>(
     })
 }
 
+/// Explicit replay outcome: local wire tags mirroring the 606 response
+/// statuses, not global error codes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum NativeReplayStatus {
+    /// Re-execution reproduces the exact evidence bytes and counters.
+    Matched,
+    /// Re-execution diverges from the recorded evidence.
+    Mismatch,
+    /// The executor, host, or replay ceilings could not complete the run.
+    InconclusiveResource,
+    /// The named history does not verify or its trust does not grant.
+    UntrustedHistory,
+}
+
+impl NativeReplayStatus {
+    /// Returns the 606 response status tag.
+    #[must_use]
+    pub const fn tag(self) -> u32 {
+        match self {
+            Self::Matched => 1,
+            Self::Mismatch => 2,
+            Self::InconclusiveResource => 3,
+            Self::UntrustedHistory => 4,
+        }
+    }
+}
+
+/// Explicit replay request over pinned repository history.
+#[derive(Clone, Copy)]
+pub struct NativeReplayRequest<'a> {
+    /// Native transaction to replay.
+    pub transaction_id: TransactionId,
+    /// Exact committed root the replay must reproduce.
+    pub expected_root: StateRoot,
+    /// Re-execution backend; `None` refuses before any work.
+    pub executor: Option<&'a dyn NativeTestExecutor>,
+    /// Trust manifests the replayed history must grant against.
+    pub trust: NativeExchangeTrust<'a>,
+}
+
+/// Explicit replay report. No accepted transaction and no replacement
+/// historical attestation is created; `replay_report_id` stays `None`
+/// locally (a future session layer may serve replayed bytes under its own
+/// capabilities without persisting them).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeReplayReport {
+    /// Replayed transaction.
+    pub transaction_id: TransactionId,
+    /// Committed root the replay ran against.
+    pub root: StateRoot,
+    /// Replay outcome.
+    pub status: NativeReplayStatus,
+    /// Original deterministic test report.
+    pub original_report_id: TestReportId,
+    /// Never populated by the local service.
+    pub replay_report_id: Option<TestReportId>,
+}
+
+/// Compares original and replayed execution evidence by test entity.
+///
+/// Both sides must name the same test entities with byte-identical
+/// execution reports. Order-independent: coverage already binds the
+/// replayed side to plan order, and the original side is keyed by entity.
+fn replay_executions_match(
+    original: &[(EntityId, Vec<u8>)],
+    replayed: &[(EntityId, Vec<u8>)],
+) -> bool {
+    if original.len() != replayed.len() {
+        return false;
+    }
+    let mut expected = original.to_vec();
+    expected.sort_by(|left, right| left.0.cmp(&right.0));
+    let mut actual = replayed.to_vec();
+    actual.sort_by(|left, right| left.0.cmp(&right.0));
+    expected == actual
+}
+
+/// Replays one native transaction against its pinned history.
+///
+/// The shared maintenance guard pins the history for the whole call: the
+/// receipt imports, re-verifies against the live store, and re-checks its
+/// trust grants before any re-execution. The stored plan re-executes under
+/// the recorded execution profile through the supplied executor, which
+/// sees the plan and the pinned object bytes but never the original
+/// evidence and never a live validation context (replay is secret-free by
+/// construction). Coverage binds the returned evidence to the plan, and
+/// exact byte equality per test entity decides matched versus mismatch.
+/// Executor, host, coverage, or ceiling failures are inconclusive, never
+/// historical verdicts.
+///
+/// # Errors
+///
+/// Returns the first host, configuration, or malformed-history failure:
+/// maintenance acquisition, a missing executor, a non-native or
+/// codec-malformed named transaction. Unverifiable, mismatched-root,
+/// untrusted, divergent, and inconclusive histories arrive as statuses.
+/// A replay history failure: either a verdict about the named history or
+/// a host/configuration error that aborts the call.
+enum ReplayFailure {
+    Status(NativeReplayStatus),
+    Error(NativeExchangeError),
+}
+
+impl From<NativeExchangeError> for ReplayFailure {
+    fn from(error: NativeExchangeError) -> Self {
+        Self::Error(error)
+    }
+}
+
+/// Verified replay inputs: the pinned objects and the stored plan.
+struct VerifiedReplayHistory {
+    objects: Vec<(ObjectId, Vec<u8>)>,
+    plan: NativeTestPlanV1,
+}
+
+fn host_unreadable(message: &'static str) -> ReplayFailure {
+    ReplayFailure::Error(NativeExchangeError::Exchange(ExchangeError::Io(
+        std::io::Error::other(message),
+    )))
+}
+
+/// Loads the objects a replay verification binds, straight from the live
+/// store with identity checks on read.
+///
+/// A host I/O failure aborts the call; any other store failure means the
+/// pinned history does not verify.
+fn load_replay_objects<V: CanonicalVerifier>(
+    store: &ObjectStore,
+    verifier: &V,
+    bindings: &[(sley_id::EntityId, ObjectId)],
+) -> core::result::Result<Vec<(ObjectId, Vec<u8>)>, ReplayFailure> {
+    let mut objects: Vec<(ObjectId, Vec<u8>)> = Vec::new();
+    for (_, object_id) in bindings {
+        match store.read(*object_id, verifier) {
+            Ok(bytes) => objects.push((*object_id, bytes)),
+            Err(error) if error.code() == sley_store::StoreErrorCode::StoreIo => {
+                return Err(host_unreadable(error.symbol()));
+            }
+            Err(_) => {
+                return Err(ReplayFailure::Status(NativeReplayStatus::UntrustedHistory));
+            }
+        }
+    }
+    Ok(objects)
+}
+
+/// Verifies the named native history against the live store and its trust
+/// grants without executing anything.
+///
+/// Every history verdict (untrusted root, object, or grant) arrives as a
+/// status; only host I/O aborts as an error. The original report must
+/// already have parsed: this runs after the caller holds its identity.
+#[allow(clippy::too_many_arguments)]
+fn verify_replay_history<V: CanonicalVerifier>(
+    transactions: &TransactionRepository,
+    maintenance: &RepositoryMaintenanceGuard,
+    store: &ObjectStore,
+    verifier: &V,
+    receipt: &ImportedReceipt,
+    native: &ImportedNativeTransactionReceipt,
+    expected_root: StateRoot,
+    trust: &NativeExchangeTrust<'_>,
+) -> core::result::Result<VerifiedReplayHistory, ReplayFailure> {
+    if native.transaction.record.committed_root != expected_root {
+        return Err(ReplayFailure::Status(NativeReplayStatus::UntrustedHistory));
+    }
+    let objects = load_replay_objects(store, verifier, &native.state_root.record.entity_bindings)?;
+    let by_id: BTreeMap<ObjectId, &[u8]> = objects
+        .iter()
+        .map(|(id, bytes)| (*id, bytes.as_slice()))
+        .collect();
+    let parent = match native.transaction.record.parent_transaction_ids.first() {
+        Some(parent_id) => {
+            match transactions.imported_receipt_any_with_maintenance(maintenance, *parent_id) {
+                Ok(parent) => Some(parent),
+                Err(CommitError::Io(_)) => {
+                    return Err(host_unreadable("replay parent history unreadable"));
+                }
+                Err(_) => {
+                    return Err(ReplayFailure::Status(NativeReplayStatus::UntrustedHistory));
+                }
+            }
+        }
+        None => None,
+    };
+    if let Err(error) = verify_any_receipt_against_objects(receipt, parent.as_ref(), &by_id) {
+        match error {
+            CommitError::Io(_) => {
+                return Err(host_unreadable("replay history unreadable"));
+            }
+            _ => {
+                return Err(ReplayFailure::Status(NativeReplayStatus::UntrustedHistory));
+            }
+        }
+    }
+    let counts = match check_receipt_trust_grants(native, trust) {
+        Ok(counts) => counts,
+        Err(
+            NativeExchangeError::Native(
+                NativeExchangeErrorCode::TrustUnavailable | NativeExchangeErrorCode::TrustRejected,
+            )
+            | NativeExchangeError::Pack(_),
+        ) => {
+            return Err(ReplayFailure::Status(NativeReplayStatus::UntrustedHistory));
+        }
+        Err(error) => return Err(ReplayFailure::Error(error)),
+    };
+    let mut counters = NativePreflightCounters::default();
+    for step in [
+        counters.add_signatures(counts.signatures),
+        counters.add_visits(counts.visits),
+        counters.add_evidence_bytes(native.stored_bytes.len() as u64),
+    ] {
+        if let Err(error) = step {
+            match error {
+                NativeExchangeError::Native(NativeExchangeErrorCode::CounterLimit) => {
+                    return Err(ReplayFailure::Status(
+                        NativeReplayStatus::InconclusiveResource,
+                    ));
+                }
+                _ => return Err(ReplayFailure::Error(error)),
+            }
+        }
+    }
+    // The stored plan must parse for re-execution; a native receipt whose
+    // plan no longer parses is untrusted history, never a malformed
+    // request: the outer receipt already imported.
+    let Ok(plan) = NativeTestPlanV1::parse(native.bundle.plan_stored()) else {
+        return Err(ReplayFailure::Status(NativeReplayStatus::UntrustedHistory));
+    };
+    Ok(VerifiedReplayHistory { objects, plan })
+}
+
+/// Replays one native transaction against its pinned history.
+///
+/// The shared maintenance guard pins the history for the whole call: the
+/// receipt imports, re-verifies against the live store, and re-checks its
+/// trust grants before any re-execution. The stored plan re-executes under
+/// the recorded execution profile through the supplied executor, which
+/// sees the plan and the pinned object bytes but never the original
+/// evidence and never a live validation context (replay is secret-free by
+/// construction). Coverage binds the returned evidence to the plan, and
+/// exact byte equality per test entity decides matched versus mismatch.
+/// Executor, host, coverage, or ceiling failures are inconclusive, never
+/// historical verdicts.
+///
+/// # Errors
+///
+/// Returns the first host, configuration, or malformed-history failure:
+/// maintenance acquisition, a missing executor, a non-native or
+/// codec-malformed named transaction. Unverifiable, mismatched-root,
+/// untrusted, divergent, and inconclusive histories arrive as statuses.
+pub fn replay_native_commit<V: CanonicalVerifier>(
+    root: &Path,
+    request: &NativeReplayRequest<'_>,
+    verifier: &V,
+) -> Result<NativeReplayReport> {
+    let maintenance = acquire_shared_repository_maintenance(root)?;
+    let transactions = TransactionRepository::new(root);
+    let receipt =
+        transactions.imported_receipt_any_with_maintenance(&maintenance, request.transaction_id)?;
+    let ImportedReceipt::V2(native) = &receipt else {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::ReceiptInvalid,
+        ));
+    };
+    // Malformed nested bytes are a request error; every later history
+    // verdict carries the parsed report identity.
+    let original_report_id = NativeTestReportV1::parse(native.bundle.test_report_stored())
+        .map_err(|error| NativeExchangeError::Pack(scb_error(&error)))?
+        .report_id();
+    let report_with = |status| NativeReplayReport {
+        transaction_id: request.transaction_id,
+        root: native.transaction.record.committed_root,
+        status,
+        original_report_id,
+        replay_report_id: None,
+    };
+    let store = ObjectStore::new(root);
+    let history = match verify_replay_history(
+        &transactions,
+        &maintenance,
+        &store,
+        verifier,
+        &receipt,
+        native,
+        request.expected_root,
+        &request.trust,
+    ) {
+        Ok(history) => history,
+        Err(ReplayFailure::Status(status)) => return Ok(report_with(status)),
+        Err(ReplayFailure::Error(error)) => return Err(error),
+    };
+    let by_id: BTreeMap<ObjectId, &[u8]> = history
+        .objects
+        .iter()
+        .map(|(id, bytes)| (*id, bytes.as_slice()))
+        .collect();
+    let executor = request
+        .executor
+        .ok_or_else(|| NativeExchangeError::native(NativeExchangeErrorCode::ExecutorUnavailable))?;
+    let Ok(executions) = executor.execute_replay(&history.plan, &by_id) else {
+        return Ok(report_with(NativeReplayStatus::InconclusiveResource));
+    };
+    if check_execution_coverage(&history.plan, &executions).is_err() {
+        return Ok(report_with(NativeReplayStatus::InconclusiveResource));
+    }
+    let original: Vec<(EntityId, Vec<u8>)> = native
+        .bundle
+        .executions()
+        .iter()
+        .map(|embedded| (embedded.test_entity, embedded.stored.clone()))
+        .collect();
+    let replayed: Vec<(EntityId, Vec<u8>)> = executions
+        .iter()
+        .map(|execution| (execution.test_entity, execution.execution_stored.clone()))
+        .collect();
+    if replay_executions_match(&original, &replayed) {
+        Ok(report_with(NativeReplayStatus::Matched))
+    } else {
+        Ok(report_with(NativeReplayStatus::Mismatch))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2254,7 +2612,6 @@ mod tests {
         NativeCommitError, NativeCommitInput, NativeCommitOutcome, NativeTestExecutor,
         TransactionRepository, TrustedGenesisInput,
     };
-
     const NOW: u64 = 1_000;
     const MEASUREMENT_KEY: [u8; 32] = [0xB2; 32];
     const ACCEPTANCE_KEY: [u8; 32] = [0xA1; 32];
@@ -2618,6 +2975,11 @@ mod tests {
                 NativeExchangeErrorCode::EncodingInvalid,
                 "NATIVE_TEST_ENCODING_INVALID",
                 29_201,
+            ),
+            (
+                NativeExchangeErrorCode::ExecutorUnavailable,
+                "NATIVE_TEST_ENFORCER_UNAVAILABLE",
+                29_212,
             ),
             (
                 NativeExchangeErrorCode::TrustUnavailable,
@@ -3597,6 +3959,247 @@ mod tests {
             .expect("recovered head loads");
         assert_eq!(head.transaction_id(), source.head);
         drop((maintenance, report));
+    }
+
+    #[test]
+    fn replay_status_tags_match_the_606_contract() {
+        assert_eq!(NativeReplayStatus::Matched.tag(), 1);
+        assert_eq!(NativeReplayStatus::Mismatch.tag(), 2);
+        assert_eq!(NativeReplayStatus::InconclusiveResource.tag(), 3);
+        assert_eq!(NativeReplayStatus::UntrustedHistory.tag(), 4);
+    }
+
+    #[test]
+    fn replay_pairing_compares_entities_not_positions() {
+        let left = vec![(EntityId::from_bytes([1; 32]), vec![0x0a])];
+        assert!(replay_executions_match(&left, &left));
+        assert!(!replay_executions_match(&left, &[]));
+        assert!(!replay_executions_match(&[], &left));
+        let divergent = vec![(EntityId::from_bytes([1; 32]), vec![0x0b])];
+        assert!(!replay_executions_match(&left, &divergent));
+        let renamed = vec![(EntityId::from_bytes([2; 32]), vec![0x0a])];
+        assert!(!replay_executions_match(&left, &renamed));
+        // Order-independent: coverage already binds positions to the plan.
+        let two = vec![
+            (EntityId::from_bytes([1; 32]), vec![0x0a]),
+            (EntityId::from_bytes([2; 32]), vec![0x0b]),
+        ];
+        let swapped = vec![
+            (EntityId::from_bytes([2; 32]), vec![0x0b]),
+            (EntityId::from_bytes([1; 32]), vec![0x0a]),
+        ];
+        assert!(replay_executions_match(&two, &swapped));
+    }
+
+    use sley_id::ObjectId as ReplayObjectId;
+    use std::collections::BTreeMap as ReplayMap;
+
+    /// Test-only replay executor reproducing the empty selection exactly.
+    struct EmptyReplayExecutor;
+
+    impl NativeTestExecutor for EmptyReplayExecutor {
+        fn execute(
+            &self,
+            _plan: &sley_tests::NativeTestPlanV1,
+            _validated: &ValidatedCandidatePlan,
+        ) -> core::result::Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            Ok(Vec::new())
+        }
+
+        fn execute_replay(
+            &self,
+            _plan: &sley_tests::NativeTestPlanV1,
+            _objects: &ReplayMap<ReplayObjectId, &[u8]>,
+        ) -> core::result::Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Test-only replay executor whose host run fails outright.
+    struct FailingReplayExecutor;
+
+    impl NativeTestExecutor for FailingReplayExecutor {
+        fn execute(
+            &self,
+            _plan: &sley_tests::NativeTestPlanV1,
+            _validated: &ValidatedCandidatePlan,
+        ) -> core::result::Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            Err(NativeCommitError::ExecutorUnavailable)
+        }
+
+        fn execute_replay(
+            &self,
+            _plan: &sley_tests::NativeTestPlanV1,
+            _objects: &ReplayMap<ReplayObjectId, &[u8]>,
+        ) -> core::result::Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            Err(NativeCommitError::ExecutorUnavailable)
+        }
+    }
+    fn committed_root_of(root: &std::path::Path, transaction: TransactionId) -> StateRoot {
+        let transactions = TransactionRepository::new(root);
+        let maintenance = sley_txn::acquire_shared_repository_maintenance(root).unwrap();
+        let receipt = transactions
+            .verified_revision_any_with_maintenance(&maintenance, transaction)
+            .unwrap();
+        receipt.committed_root()
+    }
+
+    /// Every regular file under a root as sorted relative path and length.
+    fn file_tree(root: &std::path::Path) -> Vec<(String, u64)> {
+        let mut out = Vec::new();
+        let mut stack = vec![root.to_path_buf()];
+        while let Some(path) = stack.pop() {
+            for entry in fs::read_dir(&path).unwrap() {
+                let entry = entry.unwrap();
+                let file_type = entry.file_type().unwrap();
+                if file_type.is_dir() {
+                    stack.push(entry.path());
+                } else {
+                    out.push((
+                        entry
+                            .path()
+                            .strip_prefix(root)
+                            .unwrap()
+                            .to_string_lossy()
+                            .into_owned(),
+                        entry.metadata().unwrap().len(),
+                    ));
+                }
+            }
+        }
+        out.sort();
+        out
+    }
+
+    #[test]
+    fn replay_of_the_empty_selection_matches_without_writing() {
+        let source = NativeSource::new("native-replay-matched");
+        let before = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let executor = EmptyReplayExecutor;
+        let request = NativeReplayRequest {
+            transaction_id: source.head,
+            expected_root: committed_root_of(&source.root, source.head),
+            executor: Some(&executor),
+            trust: source.trust(),
+        };
+        let report = replay_native_commit(&source.root, &request, &verifier(source.epoch))
+            .expect("replay runs");
+        assert_eq!(report.transaction_id, source.head);
+        assert_eq!(report.status, NativeReplayStatus::Matched);
+        assert_eq!(report.status.tag(), 1);
+        assert!(report.replay_report_id.is_none());
+        // Replay writes nothing: the re-export is byte-identical and the
+        // file tree is unchanged (the attempt journal below predates the
+        // replay: the fixture's commit left it).
+        let before_tree = file_tree(&source.root);
+        let after = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        assert_eq!(after.stored_bytes, before.stored_bytes);
+        assert_eq!(file_tree(&source.root), before_tree);
+    }
+
+    #[test]
+    fn replay_without_an_executor_is_an_honest_refusal() {
+        let source = NativeSource::new("native-replay-no-executor");
+        let request = NativeReplayRequest {
+            transaction_id: source.head,
+            expected_root: committed_root_of(&source.root, source.head),
+            executor: None,
+            trust: source.trust(),
+        };
+        assert_eq!(
+            replay_native_commit(&source.root, &request, &verifier(source.epoch))
+                .unwrap_err()
+                .code(),
+            "NATIVE_TEST_ENFORCER_UNAVAILABLE"
+        );
+    }
+
+    #[test]
+    fn replay_refuses_a_format_1_transaction() {
+        let source = NativeSource::new("native-replay-v1");
+        let request = NativeReplayRequest {
+            transaction_id: source.v1_head,
+            expected_root: committed_root_of(&source.root, source.v1_head),
+            executor: None,
+            trust: source.trust(),
+        };
+        // Replay applies to native history only; a format-1 receipt is a
+        // request error, never a history verdict.
+        assert_eq!(
+            replay_native_commit(&source.root, &request, &verifier(source.epoch))
+                .unwrap_err()
+                .code(),
+            "EXCHANGE_RECEIPT_INVALID"
+        );
+    }
+
+    #[test]
+    fn replay_of_a_wrong_root_is_untrusted_history() {
+        let source = NativeSource::new("native-replay-root");
+        let executor = EmptyReplayExecutor;
+        let request = NativeReplayRequest {
+            transaction_id: source.head,
+            expected_root: StateRoot::from_bytes([0xFF; 32]),
+            executor: Some(&executor),
+            trust: source.trust(),
+        };
+        let report = replay_native_commit(&source.root, &request, &verifier(source.epoch))
+            .expect("replay reports");
+        assert_eq!(report.status, NativeReplayStatus::UntrustedHistory);
+        assert_eq!(report.status.tag(), 4);
+    }
+
+    #[test]
+    fn replay_without_manifests_is_untrusted_history() {
+        let source = NativeSource::new("native-replay-untrusted");
+        let executor = EmptyReplayExecutor;
+        let empty = NativeExchangeTrust { manifests: &[] };
+        let request = NativeReplayRequest {
+            transaction_id: source.head,
+            expected_root: committed_root_of(&source.root, source.head),
+            executor: Some(&executor),
+            trust: empty,
+        };
+        let report = replay_native_commit(&source.root, &request, &verifier(source.epoch))
+            .expect("replay reports");
+        assert_eq!(report.status, NativeReplayStatus::UntrustedHistory);
+    }
+
+    #[test]
+    fn replay_with_a_failing_host_is_inconclusive_not_mismatch() {
+        let source = NativeSource::new("native-replay-inconclusive");
+        let executor = FailingReplayExecutor;
+        let request = NativeReplayRequest {
+            transaction_id: source.head,
+            expected_root: committed_root_of(&source.root, source.head),
+            executor: Some(&executor),
+            trust: source.trust(),
+        };
+        let report = replay_native_commit(&source.root, &request, &verifier(source.epoch))
+            .expect("replay reports");
+        // A host/executor failure is inconclusive, never a historical
+        // failure or success verdict.
+        assert_eq!(report.status, NativeReplayStatus::InconclusiveResource);
+        assert_eq!(report.status.tag(), 3);
+    }
+
+    #[test]
+    fn replay_with_a_commit_only_executor_is_inconclusive() {
+        let source = NativeSource::new("native-replay-default-refusal");
+        // CountingExecutor never implemented replay: the default refusal is
+        // explicit and maps to inconclusive, proving the default is wired.
+        let executor = CountingExecutor {
+            invocations: Cell::new(0),
+        };
+        let request = NativeReplayRequest {
+            transaction_id: source.head,
+            expected_root: committed_root_of(&source.root, source.head),
+            executor: Some(&executor),
+            trust: source.trust(),
+        };
+        let report = replay_native_commit(&source.root, &request, &verifier(source.epoch))
+            .expect("replay reports");
+        assert_eq!(report.status, NativeReplayStatus::InconclusiveResource);
     }
 
     #[test]

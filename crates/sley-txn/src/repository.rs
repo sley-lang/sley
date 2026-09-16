@@ -939,6 +939,31 @@ impl TransactionRepository {
         self.load_verified_revision(transaction_id)
     }
 
+    /// Imports one stored receipt of either format without object or
+    /// relationship verification while a composite caller holds
+    /// repository-maintenance ownership.
+    ///
+    /// The bytes still digest-verify with their declared identities bound;
+    /// only the store-backed checks are deferred to the caller's verifier
+    /// (exchange preflight and explicit replay verify against their own
+    /// object sets, so those paths can report untrusted history with the
+    /// receipt identities already in hand).
+    ///
+    /// # Errors
+    ///
+    /// Returns `TXN_IO` for a mismatched guard or invalid layout, or the
+    /// first exact receipt codec or binding failure of either format.
+    pub fn imported_receipt_any_with_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        transaction_id: TransactionId,
+    ) -> Result<ImportedReceipt, CommitError> {
+        self.validate_maintenance(maintenance)?;
+        self.ensure_read_layout()?;
+        let _lock = self.acquire_existing_lock()?;
+        self.read_receipt_any_readonly(transaction_id)
+    }
+
     /// Loads and verifies an arbitrary revision of either receipt format
     /// while a composite caller holds repository-maintenance ownership.
     ///
