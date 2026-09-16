@@ -15,14 +15,15 @@ use std::path::PathBuf;
 use serde_json::{Map, Value};
 use sley_json_bridge::{
     BridgeError, JsonBridgeErrorCode, MAX_JSON_TEXT_BYTES, METHOD_TABLE_JSON, METHOD_TABLE_V2_JSON,
-    frame_from_json, frame_from_json_for_version, frame_to_json, frame_to_json_for_version,
-    hello_to_json, hello_to_json_versioned,
+    METHOD_TABLE_V3_JSON, frame_from_json, frame_from_json_for_version, frame_to_json,
+    frame_to_json_for_version, hello_to_json, hello_to_json_for_version, hello_to_json_versioned,
 };
 use sley_protocol::{
     Answer, BoundedContext, DecodedFrame, EncodedFrame, FLAG_FAILED, FrameKind, Hello,
-    MAX_FRAME_BYTES, PROTOCOL_VERSION, PROTOCOL_VERSION_V2, ProtocolError, ProtocolErrorCode,
-    ProtocolFailure, ProtocolFrame, Server, decode_frame, decode_frame_for_version,
-    encode_frame_for_version, encode_hello_frame, frame_length, negotiate, negotiate_versioned,
+    MAX_FRAME_BYTES, PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3, ProtocolError,
+    ProtocolErrorCode, ProtocolFailure, ProtocolFrame, Server, decode_frame,
+    decode_frame_for_version, encode_frame_for_version, encode_hello_frame, frame_length,
+    negotiate, negotiate_versioned,
 };
 /// The CLI contract name written by `sley version`.
 pub const CLI_CONTRACT: &str = "sley2-cli-v1";
@@ -31,12 +32,20 @@ pub const CLI_VERSION: &str = "1";
 /// The capable CLI contract name written by `sley version` under the
 /// version-aware profile (contract section 9).
 pub const CLI_CONTRACT_V2: &str = "sley2-cli-v2";
+/// The v3-capable CLI contract name written by `sley version` under the
+/// v3-capable profile (native draft contract appendix D): the endpoint
+/// offers protocol versions 1 through 3 with the v3 table.
+pub const CLI_CONTRACT_V3: &str = "sley2-cli-v3";
 /// The only protocol profile the endpoint accepts (contract section 9).
 pub const PROFILE_V2_CAPABLE: &str = "v2-capable";
+/// The v3-capable protocol profile (native draft contract appendix D).
+pub const PROFILE_V3_CAPABLE: &str = "v3-capable";
 /// The report contract name (contract section 3).
 pub const REPORT_CONTRACT: &str = "sley2-cli-report-v1";
 /// The capable report contract name (contract section 9).
 pub const REPORT_CONTRACT_V2: &str = "sley2-cli-report-v2";
+/// The v3-capable report contract name (native draft contract appendix D).
+pub const REPORT_CONTRACT_V3: &str = "sley2-cli-report-v3";
 const LENGTH_PREFIX: usize = 8;
 
 // ---------------------------------------------------------------------------
@@ -167,31 +176,41 @@ pub struct ServeOptions {
     pub report: Option<PathBuf>,
 }
 
-/// The protocol profile selected on the command line (contract section 9).
+/// The protocol profile selected on the command line (contract section 9,
+/// plus the native draft contract appendix D for the v3 profile).
 /// Legacy is the frozen version 1 behavior; the capable profile offers
-/// protocol versions 1 and 2 without forcing selection 2.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// protocol versions 1 and 2 without forcing selection 2; the v3-capable
+/// profile offers versions 1 through 3 with the v3 table without forcing
+/// selection 3.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ProtocolProfile {
     /// Frozen version 1 behavior (the default).
+    #[default]
     Legacy,
     /// `--protocol-profile v2-capable`.
     V2Capable,
+    /// `--protocol-profile v3-capable`.
+    V3Capable,
 }
 
-/// Resolves a `--protocol-profile` value; anything but the one capable
-/// profile is a usage failure naming the offending value.
+/// Resolves a `--protocol-profile` value; anything but the two capable
+/// profiles is a usage failure naming the offending value.
 fn profile_value(value: &str) -> Result<ProtocolProfile> {
     match value {
         PROFILE_V2_CAPABLE => Ok(ProtocolProfile::V2Capable),
+        PROFILE_V3_CAPABLE => Ok(ProtocolProfile::V3Capable),
         _ => Err(CliFailure::with_cause(CliErrorCode::UsageInvalid, value)),
     }
 }
 
-/// Resolves an `--expected-version` value; only versions 1 and 2 exist.
+/// Resolves an `--expected-version` value; only versions 1, 2, and 3 exist.
+/// Whether a version fits the selected profile is judged at pairing time,
+/// so flag order on the command line never matters.
 fn expected_value(value: &str) -> Result<u32> {
     match value {
         "1" => Ok(PROTOCOL_VERSION),
         "2" => Ok(PROTOCOL_VERSION_V2),
+        "3" => Ok(PROTOCOL_VERSION_V3),
         _ => Err(CliFailure::with_cause(CliErrorCode::UsageInvalid, value)),
     }
 }
@@ -257,9 +276,11 @@ pub enum Command {
 }
 
 /// Parses the flag tail of `frame decode` / `frame encode`: at most one
-/// `--protocol-profile v2-capable` and at most one `--expected-version
-/// 1|2`, in any order. The expected version requires the profile and the
-/// profile requires it; anything else is a usage failure.
+/// `--protocol-profile v2-capable|v3-capable` and at most one
+/// `--expected-version 1|2|3`, in any order. The expected version requires
+/// the profile and the profile requires it; a version outside the
+/// profile's offer (3 under v2-capable) is a usage failure naming the
+/// flag. Anything else is a usage failure.
 fn parse_frame_flags(words: &[String]) -> Result<(ProtocolProfile, Option<u32>)> {
     let failure = |word: &str| CliFailure::with_cause(CliErrorCode::UsageInvalid, word);
     let mut profile = ProtocolProfile::Legacy;
@@ -281,16 +302,20 @@ fn parse_frame_flags(words: &[String]) -> Result<(ProtocolProfile, Option<u32>)>
         }
     }
     match (profile, expected_version) {
-        (ProtocolProfile::Legacy, None) | (ProtocolProfile::V2Capable, Some(_)) => {
-            Ok((profile, expected_version))
+        (ProtocolProfile::Legacy, None)
+        | (ProtocolProfile::V2Capable, Some(PROTOCOL_VERSION | PROTOCOL_VERSION_V2))
+        | (ProtocolProfile::V3Capable, Some(_)) => Ok((profile, expected_version)),
+        (ProtocolProfile::V2Capable | ProtocolProfile::V3Capable, None) => {
+            Err(failure("--protocol-profile"))
         }
-        (ProtocolProfile::Legacy, Some(_)) => Err(failure("--expected-version")),
-        (ProtocolProfile::V2Capable, None) => Err(failure("--protocol-profile")),
+        (ProtocolProfile::Legacy | ProtocolProfile::V2Capable, Some(_)) => {
+            Err(failure("--expected-version"))
+        }
     }
 }
 
 /// Parses the flag tail of `methods` / `version`: at most one
-/// `--protocol-profile v2-capable` and nothing else.
+/// `--protocol-profile v2-capable|v3-capable` and nothing else.
 fn parse_profile_only(words: &[String]) -> Result<ProtocolProfile> {
     let failure = |word: &str| CliFailure::with_cause(CliErrorCode::UsageInvalid, word);
     let mut profile = ProtocolProfile::Legacy;
@@ -464,12 +489,14 @@ pub fn run(
 }
 
 /// The method table the endpoint prints: the frozen version 1 table by
-/// default, the additive version 2 table under the capable profile
-/// (contract section 9).
+/// default, the additive version 2 table under the capable profile, the
+/// additive version 3 table under the v3-capable profile (contract
+/// section 9 plus the native draft contract appendix D).
 fn method_table(profile: ProtocolProfile) -> &'static str {
     match profile {
         ProtocolProfile::Legacy => METHOD_TABLE_JSON,
         ProtocolProfile::V2Capable => METHOD_TABLE_V2_JSON,
+        ProtocolProfile::V3Capable => METHOD_TABLE_V3_JSON,
     }
 }
 
@@ -481,6 +508,7 @@ fn offered_hello(profile: ProtocolProfile) -> Result<Hello> {
     match profile {
         ProtocolProfile::Legacy => Server::offered_hello(),
         ProtocolProfile::V2Capable => Server::offered_hello_versioned(),
+        ProtocolProfile::V3Capable => Server::offered_hello_v3(),
     }
     .map_err(endpoint_failure)
 }
@@ -495,6 +523,8 @@ fn hello(json: bool, profile: ProtocolProfile, stdout: &mut dyn Write) -> Result
             ProtocolProfile::V2Capable => {
                 hello_to_json_versioned(&offered).map_err(|error| render_failure(&error))
             }
+            ProtocolProfile::V3Capable => hello_to_json_for_version(&offered, PROTOCOL_VERSION_V3)
+                .map_err(|error| render_failure(&error)),
         }?;
         writeln!(stdout, "{text}").map_err(stream_failure)
     } else {
@@ -519,6 +549,18 @@ fn version(profile: ProtocolProfile, stdout: &mut dyn Write) -> Result<()> {
                 Value::from(vec![
                     Value::from(PROTOCOL_VERSION),
                     Value::from(PROTOCOL_VERSION_V2),
+                ]),
+            );
+        }
+        ProtocolProfile::V3Capable => {
+            map.insert("contract".into(), Value::from(CLI_CONTRACT_V3));
+            map.insert("protocol_profile".into(), Value::from(PROFILE_V3_CAPABLE));
+            map.insert(
+                "protocol_versions".into(),
+                Value::from(vec![
+                    Value::from(PROTOCOL_VERSION),
+                    Value::from(PROTOCOL_VERSION_V2),
+                    Value::from(PROTOCOL_VERSION_V3),
                 ]),
             );
         }
@@ -804,10 +846,12 @@ pub struct Report {
     pub cli_failure: Option<CliFailure>,
     /// The exit status.
     pub exit_code: i32,
-    /// Whether the invocation ran under the version-aware profile.
-    pub capable: bool,
-    /// The negotiated protocol version under the capable profile: null
-    /// before a successful negotiation, otherwise the actual 1 or 2.
+    /// The selected protocol profile (legacy default): the report contract
+    /// and profile name derive from it, so a capable invocation can never
+    /// report the legacy contract.
+    pub profile: ProtocolProfile,
+    /// The negotiated protocol version under a capable profile: null
+    /// before a successful negotiation, otherwise the actual 1, 2, or 3.
     pub selected_protocol_version: Option<u32>,
 }
 
@@ -818,10 +862,10 @@ impl Report {
         let mut map = Map::new();
         map.insert(
             "contract".into(),
-            Value::from(if self.capable {
-                REPORT_CONTRACT_V2
-            } else {
-                REPORT_CONTRACT
+            Value::from(match self.profile {
+                ProtocolProfile::Legacy => REPORT_CONTRACT,
+                ProtocolProfile::V2Capable => REPORT_CONTRACT_V2,
+                ProtocolProfile::V3Capable => REPORT_CONTRACT_V3,
             }),
         );
         map.insert("command".into(), Value::from("serve"));
@@ -853,8 +897,15 @@ impl Report {
                 .map_or(Value::Null, CliFailure::value),
         );
         map.insert("exit_code".into(), Value::from(self.exit_code));
-        if self.capable {
-            map.insert("protocol_profile".into(), Value::from(PROFILE_V2_CAPABLE));
+        if self.profile != ProtocolProfile::Legacy {
+            map.insert(
+                "protocol_profile".into(),
+                Value::from(match self.profile {
+                    ProtocolProfile::V2Capable => PROFILE_V2_CAPABLE,
+                    ProtocolProfile::V3Capable => PROFILE_V3_CAPABLE,
+                    ProtocolProfile::Legacy => unreachable!("guarded by the legacy check above"),
+                }),
+            );
             map.insert(
                 "selected_protocol_version".into(),
                 self.selected_protocol_version
@@ -897,7 +948,7 @@ pub fn serve_profile(
     let mut report = Report {
         mode_json: options.json,
         batch: options.batch,
-        capable: profile == ProtocolProfile::V2Capable,
+        profile,
         ..Report::default()
     };
     let outcome = serve_frames(options, profile, stdin, stdout, &mut report);
@@ -1039,7 +1090,7 @@ fn serve_frames(
     report: &mut Report,
 ) -> Result<()> {
     let json = options.json;
-    let capable = profile == ProtocolProfile::V2Capable;
+    let capable = profile != ProtocolProfile::Legacy;
     let offered = offered_hello(profile)?;
     let mut source = if json {
         Source::Text(BufReader::new(stdin), None)

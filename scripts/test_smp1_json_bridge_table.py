@@ -62,6 +62,31 @@ def main() -> int:
         return 1
     print(json.dumps({"case": "explicit-v2-counts", "result": "PASS"}))
 
+    # The explicit version 3 table is the frozen union plus the three
+    # reserved native rows, with the native provenance in the header; the
+    # frozen v3 bytes on disk match the render exactly.
+    native_spec = (ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md").read_text(encoding="utf-8")
+    v3 = gen.build(3)
+    if v3["method_count"] != 46 or v3["reserved_count"] != 7:
+        print(json.dumps({"case": "explicit-v3-counts", "result": "FAIL"}))
+        return 1
+    v3_tags = [method["tag"] for method in v3["methods"]]
+    v2_tags = [method["tag"] for method in explicit["methods"]]
+    if v3_tags != sorted(set(v2_tags) | {605, 606, 607}):
+        print(json.dumps({"case": "explicit-v3-union", "result": "FAIL"}))
+        return 1
+    if [tag for tag in v3_tags if tag in (605, 606, 607)] != [605, 606, 607]:
+        print(json.dumps({"case": "explicit-v3-additions", "result": "FAIL"}))
+        return 1
+    if v3.get("v3_source") != "docs/spec/NATIVE_TEST_ADMISSION_V1.md":
+        print(json.dumps({"case": "explicit-v3-source", "result": "FAIL"}))
+        return 1
+    frozen_v3 = (ROOT / "conformance/smp1-json-bridge/v3/methods.json").read_text(encoding="utf-8")
+    if gen.render(v3) != frozen_v3:
+        print(json.dumps({"case": "explicit-v3-frozen-bytes", "result": "FAIL"}))
+        return 1
+    print(json.dumps({"case": "explicit-v3-counts", "result": "PASS"}))
+
     # Missing sections fail.
     expect_fail(
         "missing-v1-section",
@@ -113,7 +138,37 @@ def main() -> int:
         gen.parse_tables,
         spec.replace(v1_row + "\n", "", 1),
     )
-    print(json.dumps({"cases": 9, "result": "PASS"}))
+    # A missing native v3 section fails.
+    expect_fail(
+        "missing-v3-section",
+        gen.parse_v3_additions,
+        native_spec.replace(
+            "## Appendix D. SMP v3 additions table (machine-readable, revision 2)\n", ""
+        ),
+    )
+    # A method row outside the native v3 section fails.
+    expect_fail(
+        "out-of-v3-section-row",
+        gen.parse_v3_additions,
+        native_spec + "\n" + v1_row + "\n",
+    )
+    # A wrong v3 tag fails.
+    expect_fail(
+        "wrong-v3-tag",
+        gen.parse_v3_additions,
+        native_spec.replace("| 605 | `tests.report_read` |", "| 608 | `tests.report_read` |", 1),
+    )
+    # A live (non-reserved) v3 row fails: the rows stay reserved to N7c/N7d.
+    expect_fail(
+        "live-v3-row",
+        gen.parse_v3_additions,
+        native_spec.replace(
+            "| 605 | `tests.report_read` | reserved | reserved | S20-620 |",
+            "| 605 | `tests.report_read` | report token | report page | S20-620 |",
+            1,
+        ),
+    )
+    print(json.dumps({"cases": 13, "result": "PASS"}))
     return 0
 
 

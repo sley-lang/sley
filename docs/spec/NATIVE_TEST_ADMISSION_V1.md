@@ -1,6 +1,6 @@
 # Native Test Admission v1
 
-Status: N0 owner-contract proposal, revision 1 (2026-09-15). Independent
+Status: N0 owner-contract proposal, revision 2 (2026-09-16). Independent
 architecture review passed; this precise contract still awaits owner review,
 vectors and implementation. Reserved wire formats are not currently admitted.
 No product completion, test execution or release claim follows from this file.
@@ -408,6 +408,32 @@ grant bypasses or arbitrary supervisor configs.
 JSON bridge maps these exact typed records; CLI is thin SMP routing. Typed
 record allocation, exact response fields and profile identity require N7
 independent vectors; no current bridge method is implicitly activated by N0.
+
+## Appendix D. SMP v3 additions table (machine-readable, revision 2)
+
+Protocol version 3 is the sorted union of the frozen SMP1 version 1 and
+version 2 tables (`docs/spec/SMP1.md`, unchanged at revision 12) and exactly
+the three rows below: 46 rows total, 39 dispatched methods. No second
+independently maintained 46-row table exists; consumers union the SMP1 tables
+with these rows in tag order. Reserved tags under version 3 are 305, 503,
+601, 602, 605, 606, 607: the three new rows name the S20-620 test-selection
+seam already reserved by 601 and 602, so a version 3 refusal names
+`SMP1-RESERVED-S20-620` exactly as versions 1 and 2 do.
+
+All three rows are reserved until their semantics slices land (N7c for 601
+and 602 selection/affected reads, N7d for 605 report paging, 607 attempt
+status, 606 replay, and the v3 commit route): Appendix C above defines the
+pending records, and this table records current admission only. A row goes
+live by a later revision of this contract, never by appearing in a
+negotiated `methods` intersection. The generator
+(`scripts/generate_smp1_json_bridge_table.py --protocol-version 3`) parses
+exactly these rows; a method row anywhere else in this file is drift.
+
+| Tag | Method | Request body | Response body | Owner |
+|---:|---|---|---|---|
+| 605 | `tests.report_read` | reserved | reserved | S20-620 |
+| 606 | `tests.replay` | reserved | reserved | S20-620 |
+| 607 | `tests.attempt_status` | reserved | reserved | S20-620 |
 
 ## 7. Required implementation evidence
 

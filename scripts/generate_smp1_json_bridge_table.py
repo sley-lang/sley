@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Generate the S20-420 JSON bridge method tables from the frozen SMP1 method tables."""
+"""Generate the S20-420 JSON bridge method tables from the frozen SMP1 method tables.
+
+Versions 1 and 2 come from `docs/spec/SMP1.md` alone; version 3 unions those
+frozen tables with the bounded additions in the native draft contract
+(`docs/spec/NATIVE_TEST_ADMISSION_V1.md` appendix D)."""
 
 from __future__ import annotations
 
@@ -12,12 +16,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = ROOT / "docs/spec/SMP1.md"
+NATIVE_SPEC = ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md"
 V1_TABLE = ROOT / "conformance/smp1-json-bridge/v1/methods.json"
 V2_TABLE = ROOT / "conformance/smp1-json-bridge/v2/methods.json"
+V3_TABLE = ROOT / "conformance/smp1-json-bridge/v3/methods.json"
 ROW = re.compile(r"^\| (\d{3}) \| `([a-z._]+)` \| (.*?) \| (.*?) \| (.*?) \|$")
 V1_SECTION = "### Protocol version 1"
 V2_SECTION = "### Protocol version 2 additions"
 V2_SECTION_END = "## 5. Bounded context"
+# The version 3 additions live in the native draft family (still awaiting
+# owner review), not in the frozen SMP1 contract: SMP1.md stays revision 12
+# while the native contract owns the three reserved rows below.
+V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 2)"
+V3_SECTION_END = "## 7. Required implementation evidence"
 FAMILIES = {
     1: "session",
     2: "repository",
@@ -37,6 +48,14 @@ EXPECTED_V1_TAGS = (
 )
 EXPECTED_V2_ADDITIONS = ((306, "entity.version"), (307, "entity.signature"))
 V2_OWNER = "S20-310"
+# The version 3 additions are exactly the three reserved native rows owned
+# by the S20-620 test-selection seam (the seam 601/602 already reserve).
+EXPECTED_V3_ADDITIONS = (
+    (605, "tests.report_read"),
+    (606, "tests.replay"),
+    (607, "tests.attempt_status"),
+)
+V3_OWNER = "S20-620"
 
 
 def _section_lines(spec_text: str) -> tuple[list[str], list[str]]:
@@ -73,6 +92,46 @@ def _parse_row(line: str) -> dict:
         "reserved": request == "reserved" and response == "reserved",
         "owner": owner,
     }
+
+
+def _v3_section_lines(native_text: str) -> list[str]:
+    """The bounded version-3 additions region in the native draft contract.
+
+    The region lives under exactly one unique heading and ends at the next
+    section; a method row outside it is a drift failure, never silently
+    absorbed.
+    """
+    lines = native_text.splitlines()
+    start_at = [index for index, line in enumerate(lines) if line == V3_SECTION]
+    end_at = [index for index, line in enumerate(lines) if line == V3_SECTION_END]
+    if len(start_at) != 1:
+        raise SystemExit(f"expected exactly one {V3_SECTION!r} section, found {len(start_at)}")
+    if len(end_at) != 1:
+        raise SystemExit(f"expected exactly one {V3_SECTION_END!r} anchor, found {len(end_at)}")
+    if not start_at[0] < end_at[0]:
+        raise SystemExit("native v3 table sections are out of order")
+    return lines[start_at[0] + 1 : end_at[0]]
+
+
+def parse_v3_additions(native_text: str) -> list[dict]:
+    """Parse and validate the bounded version-3 additions rows."""
+    region = _v3_section_lines(native_text)
+    additions = [_parse_row(line) for line in region if ROW.match(line)]
+    inside = sum(1 for line in region if ROW.match(line))
+    total = sum(1 for line in native_text.splitlines() if ROW.match(line))
+    if total != inside:
+        raise SystemExit(f"native method rows outside the v3 table section: {total} != {inside}")
+    if [(method["tag"], method["name"]) for method in additions] != list(EXPECTED_V3_ADDITIONS):
+        raise SystemExit(
+            "v3 additions must be exactly 605 tests.report_read, 606 tests.replay, "
+            f"and 607 tests.attempt_status in order, found {[(m['tag'], m['name']) for m in additions]}"
+        )
+    for method in additions:
+        if method["owner"] != V3_OWNER:
+            raise SystemExit(f"v3 addition {method['tag']} must be owned by {V3_OWNER}")
+        if not method["reserved"]:
+            raise SystemExit(f"v3 addition {method['tag']} must stay reserved until N7c/N7d")
+    return additions
 
 
 def parse_tables(spec_text: str) -> tuple[list[dict], list[dict]]:
@@ -112,14 +171,17 @@ def parse_tables(spec_text: str) -> tuple[list[dict], list[dict]]:
     return v1_methods, v2_additions
 
 
-def _table(methods: list[dict]) -> dict:
-    return {
+def _table(methods: list[dict], v3_source: str | None = None) -> dict:
+    table = {
         "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
         "source": "docs/spec/SMP1.md",
         "method_count": len(methods),
         "reserved_count": sum(1 for method in methods if method["reserved"]),
         "methods": methods,
     }
+    if v3_source is not None:
+        table["v3_source"] = v3_source
+    return table
 
 
 def build(protocol_version: int = 1) -> dict:
@@ -127,21 +189,41 @@ def build(protocol_version: int = 1) -> dict:
 
     The default stays the frozen version 1 table exactly; version 2 is the
     sorted union of version 1 and the bounded additions, emitted only on
-    explicit selection.
+    explicit selection. Version 3 unions the frozen SMP1 tables with the
+    bounded native-contract additions, emitted only on explicit selection;
+    the native rows' provenance rides the `v3_source` header beside the
+    shared schema.
     """
-    if protocol_version not in (1, 2):
+    if protocol_version not in (1, 2, 3):
         raise SystemExit(f"unsupported protocol version: {protocol_version}")
     v1_methods, v2_additions = parse_tables(SPEC.read_text(encoding="utf-8"))
     if protocol_version == 1:
         return _table(v1_methods)
-    union = sorted(v1_methods + v2_additions, key=lambda method: method["tag"])
-    if len(union) != EXPECTED_V1_METHODS + len(v2_additions):
-        raise SystemExit("version 2 union lost rows")
-    return _table(union)
+    if protocol_version == 2:
+        union = sorted(v1_methods + v2_additions, key=lambda method: method["tag"])
+        if len(union) != EXPECTED_V1_METHODS + len(v2_additions):
+            raise SystemExit("version 2 union lost rows")
+        return _table(union)
+    v3_additions = parse_v3_additions(NATIVE_SPEC.read_text(encoding="utf-8"))
+    union = sorted(v1_methods + v2_additions + v3_additions, key=lambda method: method["tag"])
+    if len(union) != EXPECTED_V1_METHODS + len(v2_additions) + len(v3_additions):
+        raise SystemExit("version 3 union lost rows")
+    if {method["tag"] for method in v3_additions} & {
+        method["tag"] for method in v1_methods + v2_additions
+    }:
+        raise SystemExit("v3 additions overlap the frozen tables")
+    union_names = [method["name"] for method in union]
+    if len(set(union_names)) != len(union_names):
+        raise SystemExit("method names are not unique across the v1 plus v2 plus v3 union")
+    return _table(union, v3_source=str(NATIVE_SPEC.relative_to(ROOT)))
 
 
 def table_path(protocol_version: int) -> Path:
-    return V1_TABLE if protocol_version == 1 else V2_TABLE
+    if protocol_version == 1:
+        return V1_TABLE
+    if protocol_version == 2:
+        return V2_TABLE
+    return V3_TABLE
 
 
 def render(table: dict) -> str:
@@ -173,7 +255,7 @@ def main() -> int:
     parser.add_argument(
         "--protocol-version",
         type=int,
-        choices=(1, 2),
+        choices=(1, 2, 3),
         default=1,
         help="exact contract table to write or check (default: 1)",
     )

@@ -10,12 +10,13 @@ use std::process::{Command, Stdio};
 use serde_json::Value;
 use sley_id::SessionId;
 use sley_json_bridge::{
-    MAX_JSON_ELEMENTS, METHOD_TABLE_JSON, METHOD_TABLE_V2_JSON, frame_from_json, frame_to_json,
-    hello_to_json,
+    MAX_JSON_ELEMENTS, METHOD_TABLE_JSON, METHOD_TABLE_V2_JSON, METHOD_TABLE_V3_JSON,
+    frame_from_json, frame_to_json, hello_to_json,
 };
 use sley_protocol::{
     BoundedContext, DecodedFrame, FrameKind, Hello, MAX_FRAME_BYTES, Method, PROTOCOL_VERSION,
-    ProtocolFailure, ProtocolFrame, Server, decode_frame, encode_frame, encode_hello_frame,
+    PROTOCOL_VERSION_V3, ProtocolFailure, ProtocolFrame, Server, decode_frame,
+    decode_frame_for_version, encode_frame, encode_frame_for_version, encode_hello_frame,
     frame_length, negotiate_identity,
 };
 use sley_repo::test_support::{TempDir, complete_bodies, complete_dependency_root, genesis};
@@ -786,6 +787,10 @@ fn offered_v2() -> Hello {
     Server::offered_hello_versioned().unwrap()
 }
 
+fn offered_v3() -> Hello {
+    Server::offered_hello_v3().unwrap()
+}
+
 #[test]
 fn profile_hello_offers_both_versions_with_the_v2_methods() {
     let (status, stdout, stderr) = run(
@@ -1114,6 +1119,547 @@ fn profile_frame_commands_report_version_mismatch_for_non_hello_frames() {
     );
     assert_eq!(status, 3);
     assert!(stderr.contains("VERSION_MISMATCH"));
+}
+
+fn v3_request(session: Option<SessionId>, id: u64, method: Method) -> Vec<u8> {
+    encode_frame_for_version(
+        &ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION_V3,
+            session,
+            request_id: id,
+            kind: FrameKind::Request,
+            method: method.tag(),
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: Vec::new(),
+        },
+        PROTOCOL_VERSION_V3,
+    )
+    .unwrap()
+    .bytes
+}
+
+fn v3_open(handshake: &[u8]) -> Vec<u8> {
+    encode_frame_for_version(
+        &ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION_V3,
+            session: None,
+            request_id: 0,
+            kind: FrameKind::Request,
+            method: Method::SessionOpen.tag(),
+            flags: 0,
+            bounds: BoundedContext::none(),
+            body: handshake.to_vec(),
+        },
+        PROTOCOL_VERSION_V3,
+    )
+    .unwrap()
+    .bytes
+}
+
+fn response_v3(bytes: &[u8]) -> ProtocolFrame {
+    match decode_frame_for_version(bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3)
+        .unwrap()
+        .0
+    {
+        DecodedFrame::Response(frame) => frame,
+        other => panic!("not a v3 response: {other:?}"),
+    }
+}
+
+/// Shared script state for the interactive v3 refusal probe: the reader
+/// serves the hello, the open, and — once the writer observes the open
+/// response — the session-bound 605 probe built from the fresh session id.
+/// Single-threaded serve alternates reads and writes, so no thread is
+/// needed.
+struct Script {
+    input: Vec<u8>,
+    taken: usize,
+    output: Vec<u8>,
+    scanned: usize,
+    armed: bool,
+}
+
+struct ScriptIn(std::rc::Rc<std::cell::RefCell<Script>>);
+struct ScriptOut(std::rc::Rc<std::cell::RefCell<Script>>);
+
+impl Script {
+    fn new(input: Vec<u8>) -> Self {
+        Self {
+            input,
+            taken: 0,
+            output: Vec::new(),
+            scanned: 0,
+            armed: false,
+        }
+    }
+}
+
+impl std::io::Read for ScriptIn {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        let mut script = self.0.borrow_mut();
+        let rest = &script.input[script.taken..];
+        let count = rest.len().min(buffer.len());
+        buffer[..count].copy_from_slice(&rest[..count]);
+        script.taken += count;
+        Ok(count)
+    }
+}
+
+impl std::io::Write for ScriptOut {
+    fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
+        let mut script = self.0.borrow_mut();
+        script.output.extend_from_slice(buffer);
+        while !script.armed && script.output.len() >= script.scanned + 8 {
+            let length = frame_length(
+                &script.output[script.scanned..script.scanned + 8],
+                MAX_FRAME_BYTES,
+            )
+            .unwrap() as usize;
+            if script.output.len() < script.scanned + 8 + length {
+                break;
+            }
+            script.scanned += 8 + length;
+            // The second frame out is the open response: arm the
+            // session-bound probe from its fresh session id.
+            let frames = split_frames(&script.output);
+            if frames.len() == 2 {
+                let opened = response_v3(&frames[1]);
+                let session = SessionId::from_bytes(opened.body.as_slice().try_into().unwrap());
+                script.input.extend_from_slice(&v3_request(
+                    Some(session),
+                    2,
+                    Method::TestsReportRead,
+                ));
+                script.armed = true;
+            }
+        }
+        Ok(buffer.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[test]
+fn v3_hello_offers_three_versions_with_the_v3_methods() {
+    let (status, stdout, stderr) = run(
+        &["hello", "--json", "--protocol-profile", "v3-capable"],
+        &[],
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let object: Value = serde_json::from_str(&String::from_utf8(stdout).unwrap()).unwrap();
+    assert_eq!(object["protocol_versions"], Value::from(vec![1, 2, 3]));
+    let methods: Vec<&str> = object["methods"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|name| name.as_str().unwrap())
+        .collect();
+    assert!(methods.contains(&"entity.version"));
+    assert!(methods.contains(&"entity.signature"));
+    // Reserved native rows are never offered, only negotiated against.
+    assert!(!methods.contains(&"tests.report_read"));
+    assert!(!methods.contains(&"tests.replay"));
+    assert!(!methods.contains(&"tests.attempt_status"));
+    assert_eq!(methods.len(), 39);
+    assert_eq!(object["features"]["native_tests"], Value::from(true));
+
+    let (status, stdout, _) = run(&["hello", "--protocol-profile", "v3-capable"], &[]);
+    assert_eq!(status, 0);
+    match decode_frame(&stdout, MAX_FRAME_BYTES).unwrap().0 {
+        DecodedFrame::Hello(hello) => {
+            assert_eq!(hello.methods.len(), 39);
+            assert!(hello.methods.contains(&306));
+            assert!(hello.methods.contains(&307));
+            assert!(!hello.methods.contains(&605));
+            assert!(!hello.methods.contains(&606));
+            assert!(!hello.methods.contains(&607));
+        }
+        _ => panic!("profile hello is not a hello frame"),
+    }
+}
+
+#[test]
+fn v3_methods_prints_the_v3_table_verbatim() {
+    let (status, stdout, stderr) = run(&["methods", "--protocol-profile", "v3-capable"], &[]);
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    assert_eq!(String::from_utf8(stdout).unwrap(), METHOD_TABLE_V3_JSON);
+    assert!(METHOD_TABLE_V3_JSON.contains("tests.report_read"));
+    assert!(METHOD_TABLE_V3_JSON.contains("tests.replay"));
+    assert!(METHOD_TABLE_V3_JSON.contains("tests.attempt_status"));
+}
+
+#[test]
+fn v3_version_reports_the_v3_contract() {
+    let (status, stdout, stderr) = run(&["version", "--protocol-profile", "v3-capable"], &[]);
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    assert_eq!(
+        String::from_utf8(stdout).unwrap(),
+        "{\"cli\":\"1\",\"contract\":\"sley2-cli-v3\",\"protocol_profile\":\"v3-capable\",\"protocol_versions\":[1,2,3]}\n"
+    );
+}
+
+#[test]
+fn v3_serve_reports_the_actual_selected_version() {
+    let (_temp, path) = repository("cli-v3-profile-serve");
+    let repo = path.to_str().unwrap();
+    let report = path
+        .parent()
+        .unwrap()
+        .join("v3-profile-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
+    // A version-aware client hello negotiates version 3 under the profile.
+    let input = encode_hello_frame(&offered_v3()).unwrap().bytes;
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v3-capable",
+            "--report",
+            &report,
+        ],
+        &input,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let frames = split_frames(&stdout);
+    assert_eq!(frames.len(), 1);
+    assert_eq!(frames[0], input);
+    let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    assert_eq!(report["contract"], "sley2-cli-report-v3");
+    assert_eq!(report["protocol_profile"], "v3-capable");
+    assert_eq!(report["selected_protocol_version"], 3);
+}
+
+#[test]
+fn v3_serve_reports_legacy_selection_and_native_refusal() {
+    let (_temp, path) = repository("cli-v3-profile-serve-legacy");
+    let repo = path.to_str().unwrap();
+    // A legacy client hello against the v3-capable server still selects 1,
+    // opens a version 1 session, and is refused the reserved native rows
+    // with the S20-620 seam named: exit 0 alone would also satisfy a
+    // NO_COMMON_PROFILE rejection, so the selection, the open, and the 605
+    // refusal are all asserted.
+    let legacy_report = path
+        .parent()
+        .unwrap()
+        .join("v3-profile-legacy-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
+    let legacy = encode_hello_frame(&offered()).unwrap().bytes;
+    let open_body = {
+        // The capable server re-derives with version-aware negotiation;
+        // the identity below is the one the server derives for this exact
+        // client/server hello pair.
+        let (_, capable_identity) =
+            sley_protocol::negotiate_identity_versioned(&offered(), &offered_v3()).unwrap();
+        capable_identity.as_bytes().to_vec()
+    };
+    let open = encode_frame(&ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION,
+        session: None,
+        request_id: 0,
+        kind: FrameKind::Request,
+        method: Method::SessionOpen.tag(),
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: open_body,
+    })
+    .unwrap()
+    .bytes;
+    let probe_605 = encode_frame(&ProtocolFrame {
+        protocol_version: PROTOCOL_VERSION,
+        session: None,
+        request_id: 0,
+        kind: FrameKind::Request,
+        method: Method::TestsReportRead.tag(),
+        flags: 0,
+        bounds: BoundedContext::none(),
+        body: Vec::new(),
+    })
+    .unwrap()
+    .bytes;
+    let mut legacy_input = legacy.clone();
+    legacy_input.extend_from_slice(&open);
+    legacy_input.extend_from_slice(&probe_605);
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v3-capable",
+            "--report",
+            &legacy_report,
+        ],
+        &legacy_input,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let frames = split_frames(&stdout);
+    assert_eq!(frames.len(), 3);
+    let report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&legacy_report).unwrap()).unwrap();
+    assert_eq!(report["contract"], "sley2-cli-report-v3");
+    assert_eq!(report["protocol_profile"], "v3-capable");
+    assert_eq!(report["selected_protocol_version"], 1);
+    let opened = response(&frames[1]);
+    assert_eq!(opened.protocol_version, PROTOCOL_VERSION);
+    assert_eq!(opened.body.len(), 32);
+    let refused = response(&frames[2]);
+    assert_eq!(refused.protocol_version, PROTOCOL_VERSION);
+    let failure = ProtocolFailure::decode(&refused.body).unwrap();
+    assert_eq!(failure.code, 40007);
+    // Below the version that introduces the tag, validity fails with empty
+    // details (SMP1 section 4): the seam is named only where the tag is
+    // admitted, pinned by the v3-selection probe below.
+    assert!(failure.details.is_empty());
+    assert_eq!(report["failed_answers"], 1);
+}
+
+#[test]
+fn v3_serve_refuses_reserved_native_calls_with_the_seam_named() {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    let (_temp, path) = repository("cli-v3-profile-native-refusal");
+    let repo = path.to_str().unwrap().to_string();
+    // A v3 client opens a version 3 session, then calls the reserved 605:
+    // the tag is admitted at v3, so dispatch refuses with the S20-620 seam
+    // named, never a silent success.
+    let client = offered_v3();
+    let (_, handshake) = sley_protocol::negotiate_identity_versioned(&client, &client).unwrap();
+    let mut input = encode_hello_frame(&client).unwrap().bytes;
+    input.extend_from_slice(&v3_open(handshake.as_bytes()));
+    let report_path = path
+        .parent()
+        .unwrap()
+        .join("v3-native-refusal-report.json")
+        .to_str()
+        .unwrap()
+        .to_string();
+    let script = Rc::new(RefCell::new(Script::new(input)));
+    let mut stdin = ScriptIn(Rc::clone(&script));
+    let mut stdout = ScriptOut(Rc::clone(&script));
+    let mut stderr = Vec::new();
+    let status = sley_cli::run(
+        &[
+            "serve".to_string(),
+            "--repository".to_string(),
+            repo,
+            "--protocol-profile".to_string(),
+            "v3-capable".to_string(),
+            "--report".to_string(),
+            report_path.clone(),
+        ],
+        &mut stdin,
+        &mut stdout,
+        &mut stderr,
+    );
+    assert_eq!((status, stderr.as_slice()), (0, &[] as &[u8]));
+    let script = script.borrow();
+    assert!(script.armed, "the open response never armed the probe");
+    let frames = split_frames(&script.output);
+    assert_eq!(frames.len(), 3);
+    let refused = response_v3(&frames[2]);
+    assert_eq!(refused.protocol_version, PROTOCOL_VERSION_V3);
+    let failure = ProtocolFailure::decode(&refused.body).unwrap();
+    assert_eq!(failure.code, 40007);
+    assert_eq!(failure.symbol, "PROTOCOL_METHOD_UNSUPPORTED");
+    assert_eq!(failure.details, b"SMP1-RESERVED-S20-620".to_vec());
+    let report: Value =
+        serde_json::from_str(&std::fs::read_to_string(&report_path).unwrap()).unwrap();
+    assert_eq!(report["contract"], "sley2-cli-report-v3");
+    assert_eq!(report["protocol_profile"], "v3-capable");
+    assert_eq!(report["selected_protocol_version"], 3);
+    assert_eq!(report["failed_answers"], 1);
+}
+
+#[test]
+fn v3_frame_commands_enforce_the_expected_version() {
+    // A version 3 request converts under expected 3, including a reserved
+    // native tag (conversion names, dispatch refuses): naming is not
+    // admission.
+    let session_open_v3 = v3_request(None, 0, Method::SessionOpen);
+    let (status, stdout, stderr) = run(
+        &[
+            "frame",
+            "decode",
+            "--protocol-profile",
+            "v3-capable",
+            "--expected-version",
+            "3",
+        ],
+        &session_open_v3,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let text = String::from_utf8(stdout).unwrap();
+    let object: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(object["protocol_version"], 3);
+    assert_eq!(object["method"], "session.open");
+    let native_request = v3_request(None, 0, Method::TestsReplay);
+    let (status, stdout, stderr) = run(
+        &[
+            "frame",
+            "decode",
+            "--protocol-profile",
+            "v3-capable",
+            "--expected-version",
+            "3",
+        ],
+        &native_request,
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let native: Value = serde_json::from_str(&String::from_utf8(stdout).unwrap()).unwrap();
+    assert_eq!(native["method"], "tests.replay");
+    // A version 3 frame under expected 2 never reaches naming: the codec
+    // gate refuses the whole frame as a version mismatch.
+    let (status, _, stderr) = run(
+        &[
+            "frame",
+            "decode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "2",
+        ],
+        &native_request,
+    );
+    assert_eq!(status, 3);
+    assert!(stderr.contains("VERSION_MISMATCH"));
+    // A version 1 request under expected 3, and a hello under expected 3
+    // (hellos travel at frame version 1), are version mismatches.
+    let v1_request = request(None, 0, Method::SessionOpen, 0, Vec::new());
+    let (status, _, stderr) = run(
+        &[
+            "frame",
+            "decode",
+            "--protocol-profile",
+            "v3-capable",
+            "--expected-version",
+            "3",
+        ],
+        &v1_request,
+    );
+    assert_eq!(status, 3);
+    assert!(stderr.contains("VERSION_MISMATCH"));
+    let hello_bytes = encode_hello_frame(&offered()).unwrap().bytes;
+    let (status, _, stderr) = run(
+        &[
+            "frame",
+            "encode",
+            "--protocol-profile",
+            "v3-capable",
+            "--expected-version",
+            "3",
+        ],
+        frame_to_json(&hello_bytes).unwrap().as_bytes(),
+    );
+    assert_eq!(status, 3);
+    assert!(stderr.contains("VERSION_MISMATCH"));
+}
+
+#[test]
+fn v3_serve_json_converts_post_hello_lines_under_the_selection() {
+    // A version 3-stamped open converts version-aware past the handshake
+    // under the v3-capable profile, proving the selection drives JSON
+    // conversion at version 3 exactly as at version 2.
+    let (_temp, path) = repository("cli-v3-profile-json-open");
+    let repo = path.to_str().unwrap();
+    let server_hello = Server::offered_hello_v3().unwrap();
+    let handshake = sley_protocol::negotiate_identity_versioned(&server_hello, &server_hello)
+        .unwrap()
+        .1;
+    let handshake_hex = handshake
+        .as_bytes()
+        .iter()
+        .fold(String::new(), |mut text, byte| {
+            let _ = write!(text, "{byte:02x}");
+            text
+        });
+    let (status, hello_out, _) = run(&["hello", "--protocol-profile", "v3-capable"], &[]);
+    assert_eq!(status, 0);
+    let hello_line = frame_to_json(&hello_out).unwrap();
+    let hello_object: Value = serde_json::from_str(&hello_line).unwrap();
+    let bounds = hello_object["bounds"].clone();
+    let open = serde_json::json!({
+        "body": handshake_hex,
+        "bounds": bounds,
+        "flags": {"cancel": false, "failed": false, "stream": false},
+        "kind": "request",
+        "method": "session.open",
+        "protocol_version": 3,
+        "request_id": 0,
+        "session": null,
+    });
+    let input = format!("{hello_line}\n{open}\n");
+    let (status, stdout, stderr) = run(
+        &[
+            "serve",
+            "--repository",
+            repo,
+            "--protocol-profile",
+            "v3-capable",
+            "--json",
+        ],
+        input.as_bytes(),
+    );
+    assert_eq!((status, stderr.as_str()), (0, ""));
+    let mut lines = String::from_utf8(stdout)
+        .unwrap()
+        .lines()
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    assert_eq!(lines.len(), 2);
+    let answer: Value = serde_json::from_str(&lines.pop().unwrap()).unwrap();
+    assert_eq!(answer["kind"], "response");
+    assert_eq!(answer["protocol_version"], 3);
+    assert_eq!(answer["flags"]["failed"], false);
+    assert_eq!(answer["body"].as_str().unwrap().len(), 64);
+}
+
+#[test]
+fn v3_profile_flag_misuse_is_a_usage_failure() {
+    // The v3-capable profile without --expected-version on a frame command.
+    let (status, _, _) = run(
+        &["frame", "decode", "--protocol-profile", "v3-capable"],
+        &[],
+    );
+    assert_eq!(status, 2);
+    // --expected-version 3 without the profile.
+    let (status, _, _) = run(&["frame", "decode", "--expected-version", "3"], &[]);
+    assert_eq!(status, 2);
+    // --expected-version 3 under v2-capable: 3 is a real version but
+    // outside that profile's offer.
+    let (status, _, _) = run(
+        &[
+            "frame",
+            "decode",
+            "--protocol-profile",
+            "v2-capable",
+            "--expected-version",
+            "3",
+        ],
+        &[],
+    );
+    assert_eq!(status, 2);
+    // Repeat profile flags are rejected.
+    let (status, _, _) = run(
+        &[
+            "hello",
+            "--protocol-profile",
+            "v3-capable",
+            "--protocol-profile",
+            "v3-capable",
+        ],
+        &[],
+    );
+    assert_eq!(status, 2);
 }
 
 #[test]

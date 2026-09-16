@@ -1176,6 +1176,7 @@
       "integer field widths were undeclared: section 2 typed every field 'integer' while readers demote six fields to u32 with NUMBER_INVALID above 2^32-1, making the u32-overflow vector unreproducible from the contract; raised by vulcan. Widths are declared per field (the six named fields plus max_sessions and method tags), and the matrix gains max_sessions overflow plus failure code/phase unit pins"
     ],
     "method_table_v2": "conformance/smp1-json-bridge/v2/methods.json",
+    "method_table_v3": "conformance/smp1-json-bridge/v3/methods.json",
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",

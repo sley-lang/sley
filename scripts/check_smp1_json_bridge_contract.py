@@ -17,6 +17,12 @@ ERROR_CODES = ROOT / "docs/spec/ERROR_CODES_V1.md"
 CRATE = ROOT / "crates/sley-json-bridge"
 TABLE = ROOT / "conformance/smp1-json-bridge/v1/methods.json"
 V2_TABLE = ROOT / "conformance/smp1-json-bridge/v2/methods.json"
+# The version 3 table is owned by the native draft family (still awaiting
+# owner review), not by this frozen contract: it is checked here for exact
+# counts and union shape, while its revision lives in the native contract.
+V3_TABLE = ROOT / "conformance/smp1-json-bridge/v3/methods.json"
+NATIVE_SPEC = ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md"
+V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 2)"
 SPEC_REVISION = 10
 SMP1_REVISION = 12
 
@@ -100,6 +106,8 @@ CRATE_MARKERS = (
     "Self::ResourceLimit => 42_004,",
     "validate_header",
     "is_sign_negative",
+    "METHOD_TABLE_V3_JSON",
+    "hello_to_json_for_version",
 )
 
 
@@ -175,10 +183,15 @@ def main() -> int:
         problems.append("methods-table:missing")
     if not V2_TABLE.exists():
         problems.append("methods-table-v2:missing")
+    if not V3_TABLE.exists():
+        problems.append("methods-table-v3:missing")
     # Both static method tables and their counts: version 1 stays 41/37,
     # version 2 is the sorted union at 43/39 with the same four reserved.
+    # Version 3 unions those frozen tables with the three reserved native
+    # rows at 46/39 with seven reserved; the frozen contract text is
+    # untouched, so the native draft section below is the v3 authority.
     tables: dict[str, dict] = {}
-    for label, path in (("v1", TABLE), ("v2", V2_TABLE)):
+    for label, path in (("v1", TABLE), ("v2", V2_TABLE), ("v3", V3_TABLE)):
         if not path.exists():
             continue
         try:
@@ -187,6 +200,7 @@ def main() -> int:
             problems.append(f"methods-table-{label}:unparsable")
     v1_table = tables.get("v1", {})
     v2_table = tables.get("v2", {})
+    v3_table = tables.get("v3", {})
     if v1_table.get("method_count") != 41:
         problems.append("methods-table-v1:count")
     if v2_table.get("method_count") != 43 or v2_table.get("reserved_count") != 4:
@@ -197,6 +211,17 @@ def main() -> int:
         problems.append("methods-table-v2:union")
     if v2_tags and [tag for tag in v2_tags if tag in (306, 307)] != [306, 307]:
         problems.append("methods-table-v2:additions")
+    if v3_table.get("method_count") != 46 or v3_table.get("reserved_count") != 7:
+        problems.append("methods-table-v3:counts")
+    v3_tags = [method.get("tag") for method in v3_table.get("methods", [])]
+    if v2_tags and v3_tags and v3_tags != sorted(set(v2_tags) | {605, 606, 607}):
+        problems.append("methods-table-v3:union")
+    if v3_tags and [tag for tag in v3_tags if tag in (605, 606, 607)] != [605, 606, 607]:
+        problems.append("methods-table-v3:additions")
+    if v3_table.get("v3_source") != "docs/spec/NATIVE_TEST_ADMISSION_V1.md":
+        problems.append("methods-table-v3:source")
+    if V3_SECTION not in read(NATIVE_SPEC):
+        problems.append("methods-table-v3:native-section")
 
     summary = json.loads(read(SUMMARY))
     section = summary.get("json_bridge")
@@ -210,6 +235,7 @@ def main() -> int:
         "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
         "method_table": "conformance/smp1-json-bridge/v1/methods.json",
         "method_table_v2": "conformance/smp1-json-bridge/v2/methods.json",
+        "method_table_v3": "conformance/smp1-json-bridge/v3/methods.json",
         "new_stable_error_codes": len(CODES),
         "canonical_form": "SMP1_BYTES_ONLY",
         "implementation_complete": status == COMPLETE_STATUS,
