@@ -390,8 +390,11 @@ dependencies = [
 name = "sley-tests"
 version = "2.0.0-alpha.0"
 dependencies = [
+ "sley-check",
+ "sley-conformance",
  "sley-id",
  "sley-scb1",
+ "sley-ssmc",
  "sley-vm",
 ]
 

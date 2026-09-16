@@ -865,6 +865,35 @@ fn project_expected(
     }
 }
 
+/// Shared pure comparison kernel, used one-way by native test evidence.
+///
+/// `observed_success` carries the observed value hash when the run returned
+/// one; `observed_trap_tag` carries the explicit observed trap tag, if any.
+/// `observed` is false when execution was rejected before any observation
+/// existed. Exact value-hash equality or exact trap-tag equality matches;
+/// every other shape (resource refusal, cancellation, internal failure,
+/// wrong result, or no observation) never matches.
+#[must_use]
+pub fn compare_expected_evidence(
+    expected: ExpectedEvidence,
+    observed_success: Option<ValueHash>,
+    observed_trap_tag: Option<u32>,
+    observed: bool,
+) -> RestrictedComparison {
+    if !observed {
+        return RestrictedComparison::ExecutionRejected;
+    }
+    let matches = match expected {
+        ExpectedEvidence::Value(want) => observed_success == Some(want),
+        ExpectedEvidence::FailureCode(want) => observed_trap_tag == Some(want),
+    };
+    if matches {
+        RestrictedComparison::Match
+    } else {
+        RestrictedComparison::Mismatch
+    }
+}
+
 fn compare_expected(
     expected: ExpectedEvidence,
     observed: &ExecutionReportResult,
@@ -872,23 +901,14 @@ fn compare_expected(
     let ExecutionReportResult::Observed { termination, .. } = observed else {
         return RestrictedComparison::ExecutionRejected;
     };
-    let matches = match (expected, termination) {
-        (ExpectedEvidence::Value(expected), ObservedTermination::Success(actual)) => {
-            expected == *actual
-        }
-        (
-            ExpectedEvidence::FailureCode(expected),
-            ObservedTermination::Trap {
-                trap_tag: actual, ..
-            },
-        ) => expected == *actual,
-        _ => false,
+    let (success, trap_tag) = match termination {
+        ObservedTermination::Success(hash) => (Some(*hash), None),
+        ObservedTermination::Trap { trap_tag, .. } => (None, Some(*trap_tag)),
+        ObservedTermination::ResourceLimit(_)
+        | ObservedTermination::Cancelled
+        | ObservedTermination::InternalInvariant => (None, None),
     };
-    if matches {
-        RestrictedComparison::Match
-    } else {
-        RestrictedComparison::Mismatch
-    }
+    compare_expected_evidence(expected, success, trap_tag, true)
 }
 
 fn increment(value: &mut u64) -> Result<()> {

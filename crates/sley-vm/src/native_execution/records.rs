@@ -4,7 +4,9 @@ use sley_id::{
     BytecodeCacheKey, EntityId, NativeExecutionProfileId, NativeObservationId, SchemaEpochId,
     StateRoot, ValueHash,
 };
-use sley_scb1::{ScbError, ScbErrorCode, encode_list, encode_record, encode_union, encode_uvar};
+use sley_scb1::{
+    ScbError, ScbErrorCode, ScbValueCursor, encode_list, encode_record, encode_union, encode_uvar,
+};
 
 /// Exact literal `TestCase` resource limits, without policy clamping.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -126,6 +128,21 @@ impl NativeResourceKind {
             Self::CallDepth => 5,
             Self::OutputBytes => 6,
             Self::OutputEncoding => 7,
+        }
+    }
+
+    /// Inverse of [`tag`](Self::tag); unknown tags refuse at parse.
+    #[must_use]
+    pub const fn from_tag(tag: u32) -> Option<Self> {
+        match tag {
+            1 => Some(Self::Instructions),
+            2 => Some(Self::Fuel),
+            3 => Some(Self::ValueUnits),
+            4 => Some(Self::OutputUnits),
+            5 => Some(Self::CallDepth),
+            6 => Some(Self::OutputBytes),
+            7 => Some(Self::OutputEncoding),
+            _ => None,
         }
     }
 }
@@ -330,6 +347,248 @@ impl NativeExecutionObservationV1 {
     pub const fn effect_count(&self) -> u64 {
         0
     }
+
+    /// Strictly parses one stored observation envelope.
+    ///
+    /// Checks the report size bound, magic, version, digest, exact 18-field
+    /// shape, the immutable profile binding, hard-maxima limits, termination
+    /// ranges, and the literal zero effect count, in that order. Parsing
+    /// proves bytes for test comparison; it never constructs a runtime
+    /// outcome, which only VM execution builds.
+    ///
+    /// # Errors
+    /// Returns the first stable SCB1 failure encountered while decoding the
+    /// envelope, verifying its digest, or validating fields in tag order.
+    pub fn parse_stored(stored: &[u8]) -> Result<ParsedNativeObservation, ScbError> {
+        if u64::try_from(stored.len()).map_err(|_| resource_error())?
+            > NativeImplementationLimits::HARD_MAXIMA.max_report_bytes
+        {
+            return Err(resource_error());
+        }
+        let mut cursor = ScbValueCursor::new(stored)?;
+        if cursor.read_exact_bytes(8)? != *b"SLEYNOB1" {
+            return Err(ScbError::new(ScbErrorCode::MagicInvalid));
+        }
+        if cursor.read_uvar(64)? != 1 {
+            return Err(ScbError::new(ScbErrorCode::VersionUnsupported));
+        }
+        let record = cursor.read_bytes()?.to_vec();
+        let trailer = cursor.read_exact_bytes(32)?;
+        cursor.check_finished()?;
+        let id = NativeObservationId::derive(preimage(*b"SLEYNOB1", &record));
+        if trailer != id.as_bytes() {
+            return Err(ScbError::new(ScbErrorCode::DigestMismatch));
+        }
+        let fields = decode_record_fields(&record)?;
+        expect_record_tags(
+            &fields,
+            &[
+                1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+            ],
+        )?;
+        if read_field_uvar(&fields[0].1, 32)? != 1 {
+            return Err(ScbError::new(ScbErrorCode::VersionUnsupported));
+        }
+        let _schema_epoch = SchemaEpochId::from_bytes(read_field_id(&fields[1].1)?);
+        let _field_schema_hash = read_field_id(&fields[2].1)?;
+        let _decoder_limits_hash = read_field_id(&fields[3].1)?;
+        let _state_root = StateRoot::from_bytes(read_field_id(&fields[4].1)?);
+        let _function = EntityId::from_bytes(read_field_id(&fields[5].1)?);
+        let _cache_key = BytecodeCacheKey::from_bytes(read_field_id(&fields[6].1)?);
+        if read_field_id(&fields[7].1)? != *profile_id().as_bytes() {
+            return Err(ScbError::new(ScbErrorCode::ContractUnknown));
+        }
+        let _input_hashes = read_hash_list(&fields[8].1)?;
+        let _declared = parse_declared_record(&fields[9].1)?;
+        let implementation = parse_implementation_record(&fields[10].1)?;
+        if !implementation.within_hard_maxima() {
+            return Err(resource_error());
+        }
+        let termination = parse_termination(&fields[11].1)?;
+        let _instruction_count = read_field_uvar(&fields[12].1, 64)?;
+        let _fuel_used = read_field_uvar(&fields[13].1, 64)?;
+        let _peak_value_units = read_field_uvar(&fields[14].1, 64)?;
+        let _output_bytes_counted = read_field_uvar(&fields[15].1, 64)?;
+        let _peak_call_depth = read_field_uvar(&fields[16].1, 64)?;
+        if read_field_uvar(&fields[17].1, 64)? != 0 {
+            return Err(ScbError::new(ScbErrorCode::ContractUnknown));
+        }
+        Ok(ParsedNativeObservation { termination, id })
+    }
+}
+
+/// Strictly parsed native observation; proves bytes, never runtime execution.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ParsedNativeObservation {
+    termination: NativeObservedTermination,
+    id: NativeObservationId,
+}
+
+impl ParsedNativeObservation {
+    /// Validated hash-only termination projection for test comparison.
+    #[must_use]
+    pub const fn termination(&self) -> &NativeObservedTermination {
+        &self.termination
+    }
+
+    /// Observation identity verified against the envelope trailer.
+    #[must_use]
+    pub const fn observation_id(&self) -> NativeObservationId {
+        self.id
+    }
+}
+
+/// Record field loop shared with the test owner shape checks. The VM cannot
+/// depend on `sley-tests`, so this mirrors that owner's strict loop instead
+/// of importing it; any divergence fails the cross-crate pin test.
+fn decode_record_fields(record: &[u8]) -> Result<Vec<(u32, Vec<u8>)>, ScbError> {
+    let mut cursor = ScbValueCursor::new(record)?;
+    let count = cursor.read_record_field_count()?;
+    let mut fields = Vec::new();
+    let mut previous: Option<u32> = None;
+    for _ in 0..count {
+        let tag = cursor.read_uvar(32)?;
+        let tag = u32::try_from(tag).map_err(|_| ScbError::new(ScbErrorCode::IntegerOverflow))?;
+        if let Some(previous) = previous {
+            if tag == previous {
+                return Err(ScbError::new(ScbErrorCode::FieldDuplicate));
+            }
+            if tag < previous {
+                return Err(ScbError::new(ScbErrorCode::FieldOrder));
+            }
+        }
+        let value = cursor.read_sized_payload()?.to_vec();
+        previous = Some(tag);
+        fields.push((tag, value));
+    }
+    cursor.check_finished()?;
+    Ok(fields)
+}
+
+fn expect_record_tags(fields: &[(u32, Vec<u8>)], expected: &[u32]) -> Result<(), ScbError> {
+    let mut index = 0;
+    for (tag, _) in fields {
+        match expected.get(index) {
+            Some(want) if want == tag => index += 1,
+            Some(want) if want < tag => {
+                return Err(ScbError::new(ScbErrorCode::FieldMissing));
+            }
+            _ => return Err(ScbError::new(ScbErrorCode::FieldUnknown)),
+        }
+    }
+    if index == expected.len() {
+        Ok(())
+    } else {
+        Err(ScbError::new(ScbErrorCode::FieldMissing))
+    }
+}
+
+fn read_field_id(value: &[u8]) -> Result<[u8; 32], ScbError> {
+    <[u8; 32]>::try_from(value).map_err(|_| ScbError::new(ScbErrorCode::LengthOverflow))
+}
+
+fn read_field_uvar(value: &[u8], width: u8) -> Result<u64, ScbError> {
+    let mut cursor = ScbValueCursor::new(value)?;
+    let parsed = cursor.read_uvar(width)?;
+    cursor.check_finished()?;
+    Ok(parsed)
+}
+
+fn read_hash_list(value: &[u8]) -> Result<Vec<ValueHash>, ScbError> {
+    let mut cursor = ScbValueCursor::new(value)?;
+    let count = cursor.read_list_count()?;
+    if count > 65_535 {
+        return Err(resource_error());
+    }
+    let mut hashes = Vec::new();
+    for _ in 0..count {
+        hashes.push(ValueHash::from_bytes(read_field_id(cursor.read_bytes()?)?));
+    }
+    cursor.check_finished()?;
+    Ok(hashes)
+}
+
+fn parse_declared_record(value: &[u8]) -> Result<NativeDeclaredLimits, ScbError> {
+    let fields = decode_record_fields(value)?;
+    expect_record_tags(&fields, &[1, 2, 3, 4, 5, 6])?;
+    Ok(NativeDeclaredLimits {
+        fuel: read_field_uvar(&fields[0].1, 64)?,
+        memory_bytes: read_field_uvar(&fields[1].1, 64)?,
+        output_bytes: read_field_uvar(&fields[2].1, 64)?,
+        effect_count: read_field_uvar(&fields[3].1, 64)?,
+        call_depth: read_field_uvar(&fields[4].1, 64)?,
+        wall_timeout_millis: read_field_uvar(&fields[5].1, 64)?,
+    })
+}
+
+fn parse_implementation_record(value: &[u8]) -> Result<NativeImplementationLimits, ScbError> {
+    let fields = decode_record_fields(value)?;
+    expect_record_tags(&fields, &[1, 2, 3, 4, 5])?;
+    Ok(NativeImplementationLimits {
+        max_instructions: read_field_uvar(&fields[0].1, 64)?,
+        max_value_units: read_field_uvar(&fields[1].1, 64)?,
+        max_output_units: read_field_uvar(&fields[2].1, 64)?,
+        max_call_depth: read_field_uvar(&fields[3].1, 64)?,
+        max_report_bytes: read_field_uvar(&fields[4].1, 64)?,
+    })
+}
+
+fn parse_termination(value: &[u8]) -> Result<NativeObservedTermination, ScbError> {
+    let mut cursor = ScbValueCursor::new(value)?;
+    let (tag, payload) = cursor.read_union()?;
+    cursor.check_finished()?;
+    match tag {
+        1 => Ok(NativeObservedTermination::Success(ValueHash::from_bytes(
+            read_field_id(payload)?,
+        ))),
+        2 => {
+            let raw = read_union_uvar(payload, 32)?;
+            let tag =
+                u32::try_from(raw).map_err(|_| ScbError::new(ScbErrorCode::IntegerOverflow))?;
+            let kind = NativeResourceKind::from_tag(tag)
+                .ok_or_else(|| ScbError::new(ScbErrorCode::UnionInvalid))?;
+            Ok(NativeObservedTermination::ResourceLimit(kind))
+        }
+        3 => {
+            let fields = decode_record_fields(payload)?;
+            expect_record_tags(&fields, &[1, 2])?;
+            let trap_tag = u32::try_from(read_field_uvar(&fields[0].1, 32)?)
+                .map_err(|_| ScbError::new(ScbErrorCode::IntegerOverflow))?;
+            if !(1..=4).contains(&trap_tag) {
+                return Err(ScbError::new(ScbErrorCode::UnionInvalid));
+            }
+            let mut option = ScbValueCursor::new(&fields[1].1)?;
+            let (present, bytes) = option.read_union()?;
+            option.check_finished()?;
+            let payload = match present {
+                0 => {
+                    if bytes.is_empty() {
+                        None
+                    } else {
+                        return Err(ScbError::new(ScbErrorCode::UnionInvalid));
+                    }
+                }
+                1 => Some(ValueHash::from_bytes(read_field_id(bytes)?)),
+                _ => return Err(ScbError::new(ScbErrorCode::UnionInvalid)),
+            };
+            Ok(NativeObservedTermination::Trap { trap_tag, payload })
+        }
+        4 => {
+            if payload.is_empty() {
+                Ok(NativeObservedTermination::InternalInvariant)
+            } else {
+                Err(ScbError::new(ScbErrorCode::UnionInvalid))
+            }
+        }
+        _ => Err(ScbError::new(ScbErrorCode::UnionInvalid)),
+    }
+}
+
+fn read_union_uvar(payload: &[u8], width: u8) -> Result<u64, ScbError> {
+    let mut cursor = ScbValueCursor::new(payload)?;
+    let parsed = cursor.read_uvar(width)?;
+    cursor.check_finished()?;
+    Ok(parsed)
 }
 
 /// Conservative stored-observation reservation before any VM execution.
@@ -610,6 +869,104 @@ mod tests {
                 first.implementation_limits()
             )
             .is_err()
+        );
+    }
+
+    // Independent report golden from `native-report-golden.py`: one input
+    // hash, Success(value 0x65), counters 11..15. The report owner embeds
+    // these exact stored bytes; parsing here proves the termination view.
+    const REPORT_GOLDEN_STORED: &str = "534c45594e4f4231018103120101010220545454545454545454545454545454545454545454545454545454545454545403206161616161616161616161616161616161616161616161616161616161616161042062626262626262626262626262626262626262626262626262626262626262620520555555555555555555555555555555555555555555555555555555555555555506205151515151515151515151515151515151515151515151515151515151515151072063636363636363636363636363636363636363636363636363636363636363630820392927d6c948b9a03a27b87f26ebfe08c65ddf4e831a18e1d82f02dc4abb0bf40922012064646464646464646464646464646464646464646464646464646464646464640a1506010164020280200301400401000501080602e8070b1c05010480ade2040204808080200304808080200402800205038080100c22012065656565656565656565656565656565656565656565656565656565656565650d010b0e010c0f010d10010e11010f12010057510a52bb567b20f6c36e56e4fecfb44071a593df7b1395b6a98bf2f8c2fe44";
+    const REPORT_GOLDEN_ID: &str =
+        "57510a52bb567b20f6c36e56e4fecfb44071a593df7b1395b6a98bf2f8c2fe44";
+
+    fn re_envelope_observation(record: &[u8]) -> Vec<u8> {
+        let image = preimage(*b"SLEYNOB1", record);
+        let id = NativeObservationId::derive(&image);
+        let mut stored = image;
+        stored.extend_from_slice(id.as_bytes());
+        stored
+    }
+
+    #[test]
+    fn parse_stored_accepts_independent_report_golden() {
+        let stored = decode_hex(REPORT_GOLDEN_STORED);
+        let parsed = NativeExecutionObservationV1::parse_stored(&stored).expect("golden parses");
+        assert_eq!(
+            parsed.termination(),
+            &NativeObservedTermination::Success(ValueHash::from_bytes([0x65; 32]))
+        );
+        assert_eq!(
+            parsed.observation_id().as_bytes(),
+            decode_hex(REPORT_GOLDEN_ID).as_slice()
+        );
+    }
+
+    #[test]
+    fn parse_stored_refuses_tampered_profile_effect_and_termination() {
+        let stored = decode_hex(REPORT_GOLDEN_STORED);
+        let record_start = 8 + 1 + 2;
+        let record_end = stored.len() - 32;
+        let fields = decode_record_fields(&stored[record_start..record_end]).expect("fields");
+        assert_eq!(fields.len(), 18);
+        let tamper = |tag: u32, value: Vec<u8>| {
+            let mut edited = fields.clone();
+            for (field_tag, field_value) in &mut edited {
+                if *field_tag == tag {
+                    *field_value = value.clone();
+                }
+            }
+            NativeExecutionObservationV1::parse_stored(&re_envelope_observation(
+                &encode_record(&edited).expect("edited encodes"),
+            ))
+        };
+        assert_eq!(
+            tamper(8, vec![0x00; 32]).expect_err("profile").code(),
+            ScbErrorCode::ContractUnknown
+        );
+        assert_eq!(
+            tamper(18, encode_uvar(1)).expect_err("effects").code(),
+            ScbErrorCode::ContractUnknown
+        );
+        assert_eq!(
+            tamper(
+                12,
+                encode_union(2, &encode_uvar(8)).expect("resource encodes")
+            )
+            .expect_err("resource tag")
+            .code(),
+            ScbErrorCode::UnionInvalid
+        );
+        assert_eq!(
+            tamper(
+                12,
+                encode_union(
+                    3,
+                    &encode_record(&[
+                        (1, encode_uvar(5)),
+                        (2, encode_union(0, &[]).expect("none"))
+                    ])
+                    .expect("trap encodes"),
+                )
+                .expect("union encodes"),
+            )
+            .expect_err("trap tag")
+            .code(),
+            ScbErrorCode::UnionInvalid
+        );
+        let mut digest = stored.clone();
+        let last = digest.len() - 1;
+        digest[last] ^= 0x01;
+        assert_eq!(
+            NativeExecutionObservationV1::parse_stored(&digest)
+                .expect_err("digest")
+                .code(),
+            ScbErrorCode::DigestMismatch
+        );
+        assert_eq!(
+            NativeExecutionObservationV1::parse_stored(&stored[..stored.len() - 1])
+                .expect_err("truncated")
+                .code(),
+            ScbErrorCode::LengthOverflow
         );
     }
 
