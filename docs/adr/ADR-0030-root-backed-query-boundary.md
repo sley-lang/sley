@@ -1,8 +1,10 @@
 # ADR-0030: Root-backed query classes and continuation boundary
 
-Status: proposed; the S20-310 full contract is a draft at revision 1 with
+Status: proposed; the S20-310 full contract is a draft at revision 7 with
 Council review pending; implemented under the draft
 (`docs/audits/S20_310_FULL_ROOT_BACKED_QUERY_CLOSEOUT.md`)
+
+Note (2026-09-15): Revision 7 records the section 9 evidence boundary and the unit-walk query. The closeout and current contract record subsequent revisions; the context below preserves the original decision rationale.
 
 Date: 2026-09-03
 

@@ -1,9 +1,11 @@
 # ADR-0038: release candidate mechanics without a release
 
-Status: proposed; the S20-720 contract is a draft at revision 3 with
+Status: proposed; the S20-720 contract is a draft at revision 5 with
 Council review pending; mechanics implemented (2026-09-03, revised
 2026-09-05) with a reproducible artifact, an unpacked demo, and
 `release-check` still fail-closed
+
+Note (2026-09-15): Revision 5 adds the owned artifact-content evidence surface, shared member enumeration, coded failures, and local verification prerequisites. The current contract and machine summary are authoritative for staging; the context below records the original boundary.
 
 Date: 2026-09-03
 

@@ -28,6 +28,20 @@
       "bundle_commit": "27ad8d7e4717a72a74ff1c63c27d9f24c92b012a",
       "merge_commit": "53033d17037aab873ab1600130618f25454ff5a3",
       "note": "Both host builds succeeded and archive bytes matched. Superseded by the runbook-ordering correction before final qualification."
+    },
+    {
+      "candidate_commit": "cd22b0ea30c58bdfdc710e634dd65325f7047bbc",
+      "date": "2026-09-15",
+      "transport_lane": "USB 10.10.10.1 to 10.10.10.2 via forge-lab-connect; verified SSH_CONNECTION",
+      "lab_checkout": "/home/greyforgelab/sley2-repair-cd22b0e",
+      "lab_commit": "cd22b0ea30c58bdfdc710e634dd65325f7047bbc",
+      "lab_evidence_sha256": "e1dbc67cc3eba51bb050cbb5e971879686db26a2bc91bb41139924a1e029e371",
+      "artifact_sha256": "d36d9a0165c25e27f20405d03fb9e5849b960af8ed5369edc69aed88b13906c7",
+      "attestation_path": "evidence/release/attestations/cd22b0e-secondary.json",
+      "attestation_file_sha256": "e30c02df229f1553ff6e356455ba36e98474cb4ae54db62b30acf7f7e827999d",
+      "bundle_commit": "cd22b0ea30c58bdfdc710e634dd65325f7047bbc",
+      "merge_commit": "8f7ed0332b94a4bfb890f122963a62591a28cec5",
+      "note": "Both host builds succeeded and archive bytes matched. Superseded by ADR revision-reference alignment before final qualification."
     }
   ]
 }
