@@ -6,10 +6,11 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 use sley_id::{
-    EntityId, ObjectId, PolicyRootId, PrincipalId, ReceiptId, SchemaEpochId, StateRoot,
-    TransactionId, WorkspaceId,
+    CapabilitySummaryDigest, ContextCapsuleId, EntityId, ObjectId, PolicyRootId, PrincipalId,
+    ReceiptId, SchemaEpochId, StateRoot, TransactionId, WorkspaceId,
 };
 use sley_mutate::{EntityObject, ImportedCandidate, import_entity_object};
 
@@ -25,28 +26,52 @@ fn carries_operations(entities: &[EntityObject]) -> bool {
 use sley_policy::{
     AcceptedPolicyRoot, CandidateDecision, CandidateValidationContext, CandidateValidationError,
     CandidateValidationLimits, CandidateValidationOutput, ImportedCandidateResult,
-    TrustedCandidateCapability, validate_candidate_bytes,
+    NativePlanInputs, TrustedCandidateCapability, ValidatedCandidatePlan,
+    fixed_native_admission_profile, native_expected_outcome, native_test_plan,
+    validate_candidate_bytes, validation_context_digest,
 };
 use sley_scb1::{MAX_STANDALONE_BYTES, ScbError, encode_uvar};
 use sley_state_root::AcceptedStateRoot;
 use sley_store::{ObjectStore, StoreError};
 
 use crate::codec::{
-    ChangedBinding, CommitMetadata, ImportedTransactionReceipt, ObjectManifestEntry,
-    TransactionCodecError, TransactionErrorCode, TransactionKind, TransactionReceiptRecord,
-    TransactionRecord, build_transaction, build_transaction_receipt, import_transaction_receipt,
+    ChangedBinding, CommitMetadata, DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1,
+    ImportedTransactionReceipt, ObjectManifestEntry, TransactionCodecError, TransactionErrorCode,
+    TransactionKind, TransactionReceiptRecord, TransactionRecord, build_transaction,
+    build_transaction_receipt, import_transaction_receipt,
 };
 use crate::maintenance::{
     RepositoryMaintenanceGuard, acquire_exclusive_repository_maintenance,
-    acquire_shared_repository_maintenance, initialize_repository_maintenance,
+    acquire_shared_repository_maintenance, acquire_shared_repository_maintenance_nonblocking,
+    initialize_repository_maintenance,
 };
 use crate::native_codec::{
-    ImportedNativeTransactionReceipt, ImportedReceipt, verify_native_evidence_bindings,
+    ImportedNativeTransactionReceipt, ImportedReceipt, NATIVE_FORMAT_VERSION, NATIVE_RECEIPT_MAGIC,
+    NativeTransactionReceiptRecord, NativeTransactionRecord, build_native_transaction,
+    build_native_transaction_receipt, import_native_transaction_receipt, import_receipt_any,
+    verify_native_evidence_bindings,
+};
+use crate::native_commit::{
+    AttemptRecord, AttemptState, AttemptStatus, ExecutedNativeTest, NativeAttemptId,
+    NativeCommitError, NativeCommitInput, NativeCommitOutcome, NativeCommitOutput, NativeRejection,
+    NativeVerifiedRevision, check_admission_profile_binding, check_execution_coverage,
+    check_native_wall_budget, commit_needs_executor, read_attempt_record, verify_acceptance_trust,
+    verify_measurement_trust, write_attempt_record,
 };
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 use crate::recovery_ancestry_test_hook;
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 use crate::recovery_path_read_test_hook::{self, RecoveryPathReadKind};
+use sley_tests::{
+    ApprovalDecision, AttestationBinding, CommitAdmissionStatementParts,
+    CommitAdmissionStatementV1, HistoricalAdmissionContextParts, HistoricalAdmissionContextV1,
+    HistoricalTrustPolicyV1, IdMismatchDetail, LOCK_WAIT_MILLIS, MeasuredTestAttestationV1,
+    NativeAdmissionProfileV1, NativeDetail, NativeEvidenceBundleParts, NativeEvidenceBundleV1,
+    NativeExecutionEvidence, NativeExecutionReportV1, NativeExpected, NativeFailureRecord,
+    NativeObservedTermination, NativeTestApprovalParts, NativeTestApprovalV1, NativeTestEntry,
+    NativeTestPlanV1, NativeTestReportV1, REJECT_PHASE_EXECUTION, TestComparison, TestEmbedded,
+    admission_signature_preimage, compare_native_expected, unsigned_statement_prefix,
+};
 
 const HEAD_MAGIC: &[u8; 8] = b"SLEYHD01";
 const EXCHANGE_DIRECTORY: &str = "exchange";
@@ -675,6 +700,8 @@ pub enum CommitError {
     },
     /// S20-390-owned semantic or durability failure.
     Transaction(TransactionErrorCode),
+    /// Native commit-boundary failure with a stable operator symbol.
+    Native(crate::native_commit::NativeCommitError),
     /// Local host I/O failure.
     Io(io::Error),
 }
@@ -690,6 +717,7 @@ impl CommitError {
             Self::CandidateRejected(output) => output.result().record.decision.symbol(),
             Self::StaleRoot { .. } => "STALE_ROOT",
             Self::Transaction(code) => code.symbol(),
+            Self::Native(error) => error.symbol(),
             Self::Io(_) => TransactionErrorCode::Io.symbol(),
         }
     }
@@ -702,7 +730,7 @@ impl CommitError {
             Self::CandidateRejected(output) => output.result().record.decision.numeric_code(),
             Self::StaleRoot { .. } => CandidateDecision::StaleRoot.numeric_code(),
             Self::Transaction(code) => Some(code.numeric()),
-            Self::Store(_) | Self::Validation(_) | Self::Io(_) => None,
+            Self::Store(_) | Self::Validation(_) | Self::Native(_) | Self::Io(_) => None,
         }
     }
 }
@@ -719,6 +747,7 @@ impl std::error::Error for CommitError {
             Self::Codec(error) => Some(error),
             Self::Store(error) => Some(error),
             Self::Validation(error) => Some(error),
+            Self::Native(error) => Some(error),
             Self::Io(error) => Some(error),
             Self::CandidateRejected(_) | Self::StaleRoot { .. } | Self::Transaction(_) => None,
         }
@@ -728,6 +757,12 @@ impl std::error::Error for CommitError {
 impl From<TransactionCodecError> for CommitError {
     fn from(value: TransactionCodecError) -> Self {
         Self::Codec(value)
+    }
+}
+
+impl From<crate::native_commit::NativeCommitError> for CommitError {
+    fn from(value: crate::native_commit::NativeCommitError) -> Self {
+        Self::Native(value)
     }
 }
 
@@ -1061,6 +1096,11 @@ impl TransactionRepository {
         let (accepted_transaction_id, verified_ancestry_transactions) =
             self.verify_accepted_recovery_ancestry(maintenance, &accepted_lock, accepted_limits)?;
         let _ = final_receipts;
+        // Reconcile attempt hints against the verified head: promotion
+        // claims the head confirms become committed records, claims without
+        // verifiable receipts become unknown. Recovery never promotes an
+        // orphan receipt to finish an attempt.
+        self.reconcile_attempt_journal(accepted_transaction_id)?;
 
         let object_events = self.object_store.recover_staged()?;
         receipt_removal_plan.sort();
@@ -1116,6 +1156,13 @@ impl TransactionRepository {
         limits: RecoveryWorkLimits,
     ) -> Result<u64, CommitError> {
         self.validate_exclusive_maintenance(maintenance)?;
+        // A v2 head verifies through the native mixed-ancestry walk below;
+        // the frozen v1 walk keeps its exact checks for v1 heads. A v1 head
+        // never has v2 ancestors through the commit APIs, and v2 bytes on
+        // the v1 walk refuse as wrong-magic exactly as before.
+        if self.head_receipt_is_native(head_transaction_id)? {
+            return self.verify_native_recovery_ancestry(maintenance, head_transaction_id, limits);
+        }
         #[cfg(any(test, feature = "s20-530-test-hooks"))]
         recovery_ancestry_test_hook::activate_ancestry_epoch(self, maintenance);
         let mut usage = AncestryWorkUsage::default();
@@ -1241,6 +1288,217 @@ impl TransactionRepository {
             }
         }
         Ok(usage.ancestry_transactions)
+    }
+
+    /// Reads the head receipt magic without trusting any receipt bytes.
+    ///
+    /// Missing or short receipts refuse exactly like the receipt-read path;
+    /// only the eight magic bytes are charged.
+    fn head_receipt_is_native(
+        &self,
+        head_transaction_id: TransactionId,
+    ) -> Result<bool, CommitError> {
+        let path = self.receipt_path_readonly(head_transaction_id)?;
+        if !path_exists(&path)? {
+            return Err(txn_commit_error(
+                TransactionErrorCode::RecoveryReceiptIncomplete,
+            ));
+        }
+        reject_symlink_if_present(&path)?;
+        let mut magic = [0_u8; 8];
+        File::open(&path)?.read_exact(&mut magic)?;
+        Ok(magic == NATIVE_RECEIPT_MAGIC)
+    }
+
+    /// Verifies a native-anchored accepted ancestry through trusted genesis.
+    ///
+    /// Every link reads through format dispatch and verifies through the
+    /// shared versioned preflight with store-loaded object bytes: evidence
+    /// bindings, ordinary relationship, objects, inventory, and pins for
+    /// native links; the frozen v1 checks for v1 links. A missing or
+    /// invalid v2 receipt refuses; complete but unreferenced receipts are
+    /// never visited, so orphans can never be promoted.
+    fn verify_native_recovery_ancestry(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        head_transaction_id: TransactionId,
+        limits: RecoveryWorkLimits,
+    ) -> Result<u64, CommitError> {
+        self.validate_exclusive_maintenance(maintenance)?;
+        #[cfg(any(test, feature = "s20-530-test-hooks"))]
+        recovery_ancestry_test_hook::activate_ancestry_epoch(self, maintenance);
+        let mut usage = AncestryWorkUsage::default();
+        let mut seen: BTreeSet<TransactionId> = BTreeSet::new();
+        let mut pending = Some(head_transaction_id);
+        while let Some(transaction_id) = pending.take() {
+            if !seen.insert(transaction_id) {
+                return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+            }
+            let one = 1_u64;
+            usage.ancestry_transactions = usage
+                .ancestry_transactions
+                .checked_add(one)
+                .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+            ensure_transaction_recovery_limit(
+                usage.ancestry_transactions,
+                limits.ancestry_transactions,
+            )?;
+            let receipt_path = self.receipt_path_readonly(transaction_id)?;
+            let metadata = recovery_receipt_metadata(&receipt_path)?;
+            usage.receipt_bytes = usage
+                .receipt_bytes
+                .checked_add(metadata.len())
+                .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+            ensure_transaction_recovery_limit(usage.receipt_bytes, limits.receipt_bytes)?;
+            let receipt = self.read_recovery_receipt_any(&receipt_path)?;
+            if receipt.transaction_id() != transaction_id {
+                return Err(txn_commit_error(
+                    TransactionErrorCode::ReceiptBindingMismatch,
+                ));
+            }
+            let bindings: &[(EntityId, ObjectId)] = match &receipt {
+                ImportedReceipt::V1(inner) => &inner.state_root.record.entity_bindings,
+                ImportedReceipt::V2(inner) => &inner.state_root.record.entity_bindings,
+            };
+            let epoch = match &receipt {
+                ImportedReceipt::V1(inner) => inner.state_root.record.schema_epoch_id,
+                ImportedReceipt::V2(inner) => inner.state_root.record.schema_epoch_id,
+            };
+            let verifier = entity_verifier(epoch);
+            let mut owned: Vec<Vec<u8>> = Vec::with_capacity(bindings.len());
+            for binding in bindings {
+                inspect_recovery_binding(binding)?;
+                usage.binding_visits = usage
+                    .binding_visits
+                    .checked_add(one)
+                    .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                ensure_transaction_recovery_limit(usage.binding_visits, limits.binding_visits)?;
+                let object_bytes = self.object_store.bounded_object_len(binding.1)?;
+                usage.object_verifications = usage
+                    .object_verifications
+                    .checked_add(one)
+                    .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                usage.object_bytes = usage
+                    .object_bytes
+                    .checked_add(object_bytes)
+                    .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                ensure_transaction_recovery_limit(
+                    usage.object_verifications,
+                    limits.object_verifications,
+                )?;
+                ensure_transaction_recovery_limit(usage.object_bytes, limits.object_bytes)?;
+                #[cfg(any(test, feature = "s20-530-test-hooks"))]
+                recovery_path_read_test_hook::inject(
+                    RecoveryPathReadKind::Object,
+                    &self.object_store.object_path(binding.1),
+                )
+                .map_err(StoreError::io)?;
+                owned.push(self.object_store.read(binding.1, &verifier)?);
+            }
+            let by_id = bindings
+                .iter()
+                .zip(owned.iter())
+                .map(|(binding, bytes)| (binding.1, bytes.as_slice()))
+                .collect::<BTreeMap<_, _>>();
+            let parent = match receipt.parent_transaction_ids().first() {
+                Some(parent_id) => {
+                    let parent_path = self.receipt_path_readonly(*parent_id)?;
+                    let parent_metadata = recovery_receipt_metadata(&parent_path)?;
+                    usage.receipt_bytes = usage
+                        .receipt_bytes
+                        .checked_add(parent_metadata.len())
+                        .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+                    ensure_transaction_recovery_limit(usage.receipt_bytes, limits.receipt_bytes)?;
+                    Some(self.read_recovery_receipt_any(&parent_path)?)
+                }
+                None => None,
+            };
+            verify_any_receipt_against_objects(&receipt, parent.as_ref(), &by_id)?;
+            pending = receipt.parent_transaction_ids().first().copied();
+        }
+        Ok(usage.ancestry_transactions)
+    }
+
+    /// Reads and imports one recovery receipt of either format.
+    ///
+    /// The same test-hook injection, byte ceiling, and identity agreement
+    /// apply as the v1 read; unknown magics refuse without interpretation.
+    #[allow(clippy::unused_self)]
+    fn read_recovery_receipt_any(&self, path: &Path) -> Result<ImportedReceipt, CommitError> {
+        #[cfg(any(test, feature = "s20-530-test-hooks"))]
+        recovery_path_read_test_hook::inject(RecoveryPathReadKind::Receipt, path)?;
+        let bytes = bounded_read(path, MAX_STANDALONE_BYTES)?;
+        import_receipt_any(&bytes).map_err(CommitError::from)
+    }
+
+    /// Maximum journal files reconciled per recovery pass.
+    const MAX_JOURNAL_RECONCILE_FILES: u64 = 4_096;
+
+    /// Reconciles attempt hints against verified receipt and head bytes.
+    ///
+    /// `PromotionStarted` claims whose receipt verifies and whose
+    /// transaction the accepted head names become `Committed` records from
+    /// verified history. Claims without a verifiable receipt become
+    /// `OutcomeUnknown`. Every other state is untouched, unreferenced
+    /// receipts are never visited, and a corrupt journal file fails closed.
+    fn reconcile_attempt_journal(
+        &self,
+        accepted_transaction_id: Option<TransactionId>,
+    ) -> Result<(), CommitError> {
+        let directory = self.root.join(crate::native_commit::ATTEMPTS_DIR);
+        let entries = match fs::read_dir(&directory) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(error.into()),
+        };
+        let mut files = 0_u64;
+        for entry in entries {
+            let entry = entry?;
+            files = files
+                .checked_add(1)
+                .ok_or_else(|| txn_commit_error(TransactionErrorCode::ResourceLimit))?;
+            if files > Self::MAX_JOURNAL_RECONCILE_FILES {
+                return Err(txn_commit_error(TransactionErrorCode::ResourceLimit));
+            }
+            let path = entry.path();
+            let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if !file_name.ends_with(crate::native_commit::ATTEMPT_SUFFIX) {
+                continue;
+            }
+            let attempt_id = parse_attempt_file_name(file_name)?;
+            let mut record = read_attempt_record(&self.root, attempt_id)?
+                .ok_or(CommitError::Native(NativeCommitError::JournalCorrupt))?;
+            if record.attempt_id != attempt_id {
+                return Err(CommitError::Native(NativeCommitError::JournalCorrupt));
+            }
+            match record.state {
+                AttemptState::PromotionStarted | AttemptState::Committed => {}
+                _ => continue,
+            }
+            let (Some(transaction_id), Some(receipt_id)) =
+                (record.transaction_id, record.receipt_id)
+            else {
+                return Err(CommitError::Native(NativeCommitError::JournalCorrupt));
+            };
+            let verified = matches!(
+                self.read_receipt_any_readonly(transaction_id),
+                Ok(ImportedReceipt::V2(receipt)) if receipt.receipt_id == receipt_id
+            );
+            if !verified {
+                record.state = AttemptState::OutcomeUnknown;
+                record.transaction_id = None;
+                record.receipt_id = None;
+                write_attempt_record(&self.root, &record).map_err(CommitError::Io)?;
+            } else if accepted_transaction_id == Some(transaction_id)
+                && record.state == AttemptState::PromotionStarted
+            {
+                record.state = AttemptState::Committed;
+                write_attempt_record(&self.root, &record).map_err(CommitError::Io)?;
+            }
+        }
+        Ok(())
     }
 
     /// Verifies claimed branch-recovery pointer ancestries under the frozen
@@ -2336,7 +2594,963 @@ fn verify_native_pins(
     Ok(())
 }
 
+/// Assembled native evidence: accepted evidence carries the closed bundle,
+/// rejected evidence carries only the report and approval for diagnostics.
+enum AssembledEvidence {
+    Accepted(Box<AcceptedEvidence>),
+    Rejected(Box<NativeRejection>),
+}
+
+/// Closed native evidence for one accepted commit.
+struct AcceptedEvidence {
+    report: NativeTestReportV1,
+    approval: NativeTestApprovalV1,
+    bundle: NativeEvidenceBundleV1,
+    historical_context: HistoricalAdmissionContextV1,
+}
+
+/// Parses one journal filename into its attempt identity.
+///
+/// Filenames are the lowercase hex attempt identity plus the journal
+/// suffix; anything else fails closed as journal corruption.
+fn parse_attempt_file_name(file_name: &str) -> Result<NativeAttemptId, CommitError> {
+    let corrupt = || CommitError::Native(NativeCommitError::JournalCorrupt);
+    let hex = file_name
+        .strip_suffix(crate::native_commit::ATTEMPT_SUFFIX)
+        .ok_or_else(corrupt)?;
+    if hex.len() != 32 {
+        return Err(corrupt());
+    }
+    let mut bytes = [0_u8; 16];
+    for (index, chunk) in hex.as_bytes().chunks(2).enumerate() {
+        let text = core::str::from_utf8(chunk).map_err(|_| corrupt())?;
+        bytes[index] = u8::from_str_radix(text, 16).map_err(|_| corrupt())?;
+    }
+    Ok(NativeAttemptId(bytes))
+}
+
+/// Acquires shared maintenance ownership within the fixed admission bound.
+///
+/// Expiry returns `NATIVE_COMMIT_BUSY_RETRY_SAFE` before any worker or
+/// accepted-state write; there is no unbounded in-process queue.
+fn acquire_shared_maintenance_bounded(
+    root: &Path,
+) -> Result<RepositoryMaintenanceGuard, CommitError> {
+    initialize_repository_maintenance(root)?;
+    let deadline = Duration::from_millis(LOCK_WAIT_MILLIS);
+    let start = Instant::now();
+    loop {
+        match acquire_shared_repository_maintenance_nonblocking(root) {
+            Ok(guard) => return Ok(guard),
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                if start.elapsed() < deadline {
+                    std::thread::sleep(Duration::from_millis(2));
+                    continue;
+                }
+                return Err(CommitError::Native(NativeCommitError::BusyRetrySafe));
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
 impl TransactionRepository {
+    /// Freshly validates and atomically commits one ordinary candidate with
+    /// native test evidence.
+    ///
+    /// The commit reselects and executes the native plan afresh under the
+    /// writer lock: caller reports, keys, and executor objects are never
+    /// authority. A stale parent refuses before any execution; missing
+    /// execution dispatch refuses before any journal or accepted-state
+    /// write; test failures return rejected evidence with the accepted head
+    /// unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns a typed stale or validation result before any write, the
+    /// exact native admission, trust, journal, or execution failure, or the
+    /// first object, receipt, CAS, recovery, or I/O failure.
+    pub fn commit_native(
+        &self,
+        input: &NativeCommitInput<'_>,
+    ) -> Result<NativeCommitOutcome, CommitError> {
+        let maintenance = acquire_shared_maintenance_bounded(&self.root)?;
+        self.commit_native_inner(input, &maintenance)
+    }
+
+    /// Loads and verifies an arbitrary durable native revision without
+    /// consulting the accepted-head pointer.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first exact receipt, evidence, relationship, object, pin,
+    /// or ancestry failure for the requested transaction.
+    pub fn verified_native_revision(
+        &self,
+        transaction_id: TransactionId,
+    ) -> Result<NativeVerifiedRevision, CommitError> {
+        self.ensure_read_layout()?;
+        let maintenance = acquire_shared_repository_maintenance(&self.root)?;
+        self.validate_maintenance(&maintenance)?;
+        let _lock = self.acquire_existing_lock()?;
+        self.load_verified_native_revision(transaction_id)
+    }
+
+    /// Resolves one attempt against journal, receipt, and head bytes.
+    ///
+    /// Journal states are hints: `Committed` identities come from verified
+    /// history, never from a journal assertion, and `OutcomeUnknown` carries
+    /// the observed head so the operator queries history instead of
+    /// resubmitting blindly.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TXN_IO` for invalid layout, `NATIVE_JOURNAL_CORRUPT` for an
+    /// unreadable journal record, or the first receipt verification failure
+    /// while reconciling a promotion claim.
+    pub fn native_attempt_status(
+        &self,
+        attempt_id: NativeAttemptId,
+    ) -> Result<AttemptStatus, CommitError> {
+        self.ensure_read_layout()?;
+        let maintenance = acquire_shared_repository_maintenance(&self.root)?;
+        self.validate_maintenance(&maintenance)?;
+        let _lock = self.acquire_existing_lock()?;
+        let Some(record) = read_attempt_record(&self.root, attempt_id)? else {
+            return Ok(AttemptStatus::Unknown);
+        };
+        match record.state {
+            AttemptState::Admitted => Ok(AttemptStatus::Admitted),
+            AttemptState::Running => Ok(AttemptStatus::Running),
+            AttemptState::AbortedBeforePromotion => Ok(AttemptStatus::AbortedBeforePromotion),
+            AttemptState::PromotionStarted => self.reconcile_promotion_claim(&record),
+            AttemptState::Committed => {
+                let (Some(transaction_id), Some(receipt_id)) =
+                    (record.transaction_id, record.receipt_id)
+                else {
+                    return Err(CommitError::Native(NativeCommitError::JournalCorrupt));
+                };
+                match self.read_receipt_any_readonly(transaction_id)? {
+                    ImportedReceipt::V2(receipt) if receipt.receipt_id == receipt_id => {
+                        Ok(AttemptStatus::Committed {
+                            transaction_id,
+                            receipt_id,
+                            at_head: self.read_head()? == Some(transaction_id),
+                        })
+                    }
+                    _ => Ok(AttemptStatus::OutcomeUnknown {
+                        head: self.read_head()?,
+                    }),
+                }
+            }
+            AttemptState::OutcomeUnknown => Ok(AttemptStatus::OutcomeUnknown {
+                head: self.read_head()?,
+            }),
+        }
+    }
+
+    /// Reconciles one unconfirmed promotion claim against actual bytes.
+    ///
+    /// A claim whose receipt verifies and whose transaction the accepted
+    /// head names is a commit whose journal update was lost: report it
+    /// committed from verified history. Any other claim stays unconfirmed
+    /// or becomes unknown; reconciliation never promotes an orphan.
+    fn reconcile_promotion_claim(
+        &self,
+        record: &AttemptRecord,
+    ) -> Result<AttemptStatus, CommitError> {
+        let (Some(transaction_id), Some(receipt_id)) = (record.transaction_id, record.receipt_id)
+        else {
+            return Ok(AttemptStatus::PromotionStarted);
+        };
+        match self.read_receipt_any_readonly(transaction_id) {
+            Ok(ImportedReceipt::V2(receipt)) if receipt.receipt_id == receipt_id => {
+                if self.read_head()? == Some(transaction_id) {
+                    Ok(AttemptStatus::Committed {
+                        transaction_id,
+                        receipt_id,
+                        at_head: true,
+                    })
+                } else {
+                    Ok(AttemptStatus::PromotionStarted)
+                }
+            }
+            _ => Ok(AttemptStatus::OutcomeUnknown {
+                head: self.read_head()?,
+            }),
+        }
+    }
+
+    /// Reads one durable receipt of either format with identity agreement.
+    fn read_receipt_any_readonly(
+        &self,
+        transaction_id: TransactionId,
+    ) -> Result<ImportedReceipt, CommitError> {
+        let path = self.receipt_path_readonly(transaction_id)?;
+        if !path_exists(&path)? {
+            return Err(txn_commit_error(
+                TransactionErrorCode::RecoveryReceiptIncomplete,
+            ));
+        }
+        let bytes = bounded_read(&path, MAX_STANDALONE_BYTES)?;
+        let receipt = import_receipt_any(&bytes)?;
+        if receipt.transaction_id() == transaction_id {
+            Ok(receipt)
+        } else {
+            Err(txn_commit_error(
+                TransactionErrorCode::ReceiptBindingMismatch,
+            ))
+        }
+    }
+
+    /// Loads and fully verifies one durable native revision: evidence
+    /// bindings, ordinary parent relationship through the versioned parent
+    /// view, shared object and inventory checks, and pin resolution.
+    fn load_verified_native_revision(
+        &self,
+        transaction_id: TransactionId,
+    ) -> Result<NativeVerifiedRevision, CommitError> {
+        let ImportedReceipt::V2(receipt) = self.read_receipt_any_readonly(transaction_id)? else {
+            return Err(txn_commit_error(TransactionErrorCode::FormatVersion));
+        };
+        let objects = self.load_objects(&receipt.state_root)?;
+        verify_manifest_lengths(&receipt.record.object_manifest, &objects)?;
+        validate_inventory(
+            &receipt.state_root,
+            &receipt.policy_root,
+            &objects,
+            &receipt.transaction.record.tombstoned_entities,
+        )?;
+        let parent = match receipt.transaction.record.parent_transaction_ids.first() {
+            Some(parent_id) => Some(self.read_receipt_any_readonly(*parent_id)?),
+            None => None,
+        };
+        let by_id = objects
+            .iter()
+            .map(|object| (object.object_id(), object.stored_bytes()))
+            .collect::<BTreeMap<_, _>>();
+        verify_native_receipt_against_objects(&receipt, parent.as_ref(), &by_id)?;
+        Ok(NativeVerifiedRevision::verified(
+            transaction_id,
+            *receipt,
+            objects,
+        ))
+    }
+
+    /// Persists one verified native receipt through the same stage, sync,
+    /// link, and re-read discipline as format 1.
+    ///
+    /// Native crash-cut instrumentation mirrors the v1 matrix in N8
+    /// qualification; the objects, receipt, head order is shared today.
+    fn persist_native_receipt(
+        &self,
+        receipt: &ImportedNativeTransactionReceipt,
+    ) -> Result<(), CommitError> {
+        let final_path = self.receipt_path(receipt.transaction.transaction_id)?;
+        let final_dir = final_path
+            .parent()
+            .ok_or_else(|| txn_commit_error(TransactionErrorCode::Io))?;
+        if path_exists(&final_path)? {
+            return Self::verify_existing_native_receipt(&final_path, receipt);
+        }
+        let (stage_path, mut stage) = reserve_stage(final_dir, RECEIPT_STAGE_PREFIX)?;
+        stage.write_all(&receipt.stored_bytes)?;
+        stage.flush()?;
+        stage.sync_all()?;
+        drop(stage);
+        let staged = bounded_read(&stage_path, MAX_STANDALONE_BYTES)?;
+        let imported = import_native_transaction_receipt(&staged)?;
+        if imported != *receipt {
+            return Err(txn_commit_error(
+                TransactionErrorCode::ReceiptBindingMismatch,
+            ));
+        }
+        match fs::hard_link(&stage_path, &final_path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                Self::verify_existing_native_receipt(&final_path, receipt)?;
+                remove_file_if_exists(&stage_path)?;
+                sync_dir(final_dir)?;
+                return Ok(());
+            }
+            Err(error) => return Err(error.into()),
+        }
+        sync_dir(final_dir)?;
+        remove_file_if_exists(&stage_path)?;
+        sync_dir(final_dir)?;
+        let final_bytes = bounded_read(&final_path, MAX_STANDALONE_BYTES)?;
+        if import_native_transaction_receipt(&final_bytes)? != *receipt {
+            return Err(txn_commit_error(
+                TransactionErrorCode::ReceiptBindingMismatch,
+            ));
+        }
+        Ok(())
+    }
+
+    fn verify_existing_native_receipt(
+        path: &Path,
+        expected: &ImportedNativeTransactionReceipt,
+    ) -> Result<(), CommitError> {
+        let bytes = bounded_read(path, MAX_STANDALONE_BYTES)?;
+        let existing = import_native_transaction_receipt(&bytes)?;
+        if existing == *expected {
+            File::open(path)?.sync_all()?;
+            let parent = path
+                .parent()
+                .ok_or_else(|| txn_commit_error(TransactionErrorCode::Io))?;
+            sync_dir(parent)?;
+            Ok(())
+        } else {
+            Err(txn_commit_error(TransactionErrorCode::ReceiptConflict))
+        }
+    }
+
+    /// Acquires the writer lock within the fixed admission bound.
+    ///
+    /// Expiry returns `NATIVE_COMMIT_BUSY_RETRY_SAFE` before any worker or
+    /// accepted-state write; there is no unbounded in-process queue.
+    fn acquire_writer_lock_bounded(&self) -> Result<File, CommitError> {
+        let path = self.root.join("locks").join("accepted.lock");
+        reject_symlink_if_present(&path)?;
+        let file = match OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                reject_symlink_if_present(&path)?;
+                OpenOptions::new().read(true).write(true).open(&path)?
+            }
+            Err(error) => return Err(error.into()),
+        };
+        if !file.metadata()?.is_file() {
+            return Err(txn_commit_error(TransactionErrorCode::Io));
+        }
+        file.sync_all()?;
+        sync_dir(
+            path.parent()
+                .ok_or_else(|| txn_commit_error(TransactionErrorCode::Io))?,
+        )?;
+        let deadline = Duration::from_millis(LOCK_WAIT_MILLIS);
+        let start = Instant::now();
+        loop {
+            match File::try_lock(&file) {
+                Ok(()) => return Ok(file),
+                Err(std::fs::TryLockError::WouldBlock) => {
+                    if start.elapsed() < deadline {
+                        std::thread::sleep(Duration::from_millis(2));
+                        continue;
+                    }
+                    return Err(CommitError::Native(NativeCommitError::BusyRetrySafe));
+                }
+                Err(std::fs::TryLockError::Error(error)) => return Err(error.into()),
+            }
+        }
+    }
+
+    // The native commit ordering (validate, plan, admit, journal, execute,
+    // assemble, sign, verify, persist, head) is the contract's own durability
+    // sequence and stays in one place.
+    #[allow(clippy::too_many_lines)]
+    fn commit_native_inner(
+        &self,
+        input: &NativeCommitInput<'_>,
+        maintenance: &RepositoryMaintenanceGuard,
+    ) -> Result<NativeCommitOutcome, CommitError> {
+        self.validate_maintenance(maintenance)?;
+        self.ensure_layout_under_maintenance()?;
+        let _writer = self.acquire_writer_lock_bounded()?;
+        self.require_not_incomplete_clone()?;
+        let actual = self
+            .read_head()?
+            .ok_or_else(|| txn_commit_error(TransactionErrorCode::HeadMissing))?;
+        // Validation runs against the expected parent so a committed
+        // attempt replays with complete bindings regardless of head
+        // movement. Freshness gates writes below, before any execution.
+        let parent_any = match self.read_receipt_any_readonly(input.expected_parent) {
+            Ok(receipt) => receipt,
+            Err(_) if input.expected_parent != actual => {
+                return Err(CommitError::StaleRoot {
+                    expected: input.expected_parent,
+                    actual,
+                });
+            }
+            Err(error) => return Err(error),
+        };
+        // Load and verify the exact expected parent behind the versioned
+        // view: a native commit builds on either format without contagion.
+        let (base_state, base_objects, base_policy, base_tombstones) = match &parent_any {
+            ImportedReceipt::V1(_) => {
+                let head = self.load_accepted(input.expected_parent)?;
+                (
+                    head.state_root().clone(),
+                    head.objects().to_vec(),
+                    head.policy_root().clone(),
+                    head.tombstoned_entities().to_vec(),
+                )
+            }
+            ImportedReceipt::V2(_) => {
+                let revision = self.load_verified_native_revision(input.expected_parent)?;
+                (
+                    revision.state_root().clone(),
+                    revision.objects().to_vec(),
+                    revision.policy_root().clone(),
+                    revision.tombstoned_entities().to_vec(),
+                )
+            }
+        };
+        let context = CandidateValidationContext::new(
+            input.expected_parent,
+            &base_state,
+            &base_objects,
+            &base_tombstones,
+            &base_policy,
+            input.principal_id,
+            input.capabilities,
+            input.now_unix_millis,
+            input.limits,
+        )?;
+        let validation = validate_candidate_bytes(&context, input.stored_candidate)?;
+        if !validation.is_valid() {
+            return Err(CommitError::CandidateRejected(Box::new(validation)));
+        }
+        let validated = validation
+            .validated_plan()
+            .ok_or_else(|| txn_commit_error(TransactionErrorCode::InternalInvariant))?;
+        let plan = native_test_plan(
+            &validation,
+            &NativePlanInputs {
+                base_transaction_id: input.expected_parent,
+                base_state: &base_state,
+                base_objects: &base_objects,
+                policy: &base_policy,
+                capability_summary: context.capability_summary_digest(),
+                limits: input.limits,
+                implementation_limits: input.implementation_limits,
+                aggregate: input.aggregate,
+            },
+        )
+        .map_err(NativeCommitError::Plan)
+        .map_err(CommitError::Native)?;
+        let fixed_profile = fixed_native_admission_profile().map_err(NativeCommitError::Plan)?;
+        check_admission_profile_binding(input.admission_profile_id, &fixed_profile, &plan)
+            .map_err(txn_commit_error)?;
+        check_native_wall_budget(&plan).map_err(txn_commit_error)?;
+        // Independently recompute the public digests from the preserved
+        // projection bytes before they enter the historical context.
+        let static_context_digest =
+            validation_context_digest(context.context_projection_bytes())
+                .map_err(|_| txn_commit_error(TransactionErrorCode::InternalInvariant))?;
+        if static_context_digest != validation.result().record.validation_context_digest {
+            return Err(txn_commit_error(
+                TransactionErrorCode::ReceiptBindingMismatch,
+            ));
+        }
+        if CapabilitySummaryDigest::derive(context.capability_summary_projection_bytes())
+            != context.capability_summary_digest()
+        {
+            return Err(txn_commit_error(
+                TransactionErrorCode::ReceiptBindingMismatch,
+            ));
+        }
+        // Journal admission is idempotent on identical bindings so a
+        // retry-safe resubmission reconciles instead of forking an attempt.
+        let admitted = AttemptRecord {
+            attempt_id: input.attempt_id,
+            workspace: base_state.record.workspace_id,
+            principal: input.principal_id,
+            candidate_id: validated.candidate().candidate_id,
+            expected_parent: input.expected_parent,
+            state: AttemptState::Admitted,
+            transaction_id: None,
+            receipt_id: None,
+        };
+        match read_attempt_record(&self.root, input.attempt_id)? {
+            None => {
+                write_attempt_record(&self.root, &admitted).map_err(CommitError::Io)?;
+            }
+            Some(existing) => {
+                if !existing.same_bindings(&admitted) {
+                    return Err(CommitError::Native(NativeCommitError::AttemptConflict));
+                }
+                match existing.state {
+                    AttemptState::Admitted
+                    | AttemptState::Running
+                    | AttemptState::AbortedBeforePromotion => {
+                        write_attempt_record(&self.root, &admitted).map_err(CommitError::Io)?;
+                    }
+                    AttemptState::PromotionStarted | AttemptState::OutcomeUnknown => {
+                        return Err(CommitError::Native(NativeCommitError::OutcomeUnknown));
+                    }
+                    AttemptState::Committed => {
+                        return self.replay_committed_attempt(&existing);
+                    }
+                }
+            }
+        }
+        // Freshness gates writes: a parent that moved since admission
+        // refuses before any worker starts. The attempt stays journaled as
+        // aborted so the trail shows the stale resubmission.
+        if actual != input.expected_parent {
+            let _ = self.transition_attempt(&admitted, AttemptState::AbortedBeforePromotion);
+            return Err(CommitError::StaleRoot {
+                expected: input.expected_parent,
+                actual,
+            });
+        }
+        // No executor configured is an honest refusal before any worker,
+        // journal promotion, or accepted-state write.
+        if commit_needs_executor(input.executor) {
+            let _ = self.transition_attempt(&admitted, AttemptState::AbortedBeforePromotion);
+            return Err(CommitError::Native(NativeCommitError::ExecutorUnavailable));
+        }
+        let executor = input
+            .executor
+            .ok_or(CommitError::Native(NativeCommitError::ExecutorUnavailable))?;
+        self.transition_attempt(&admitted, AttemptState::Running)?;
+        let executions = match executor.execute(&plan, validated) {
+            Ok(executions) => executions,
+            Err(error) => {
+                let _ = self.transition_attempt(&admitted, AttemptState::AbortedBeforePromotion);
+                return Err(CommitError::Native(error));
+            }
+        };
+        if let Err(code) = check_execution_coverage(&plan, &executions) {
+            let _ = self.transition_attempt(&admitted, AttemptState::AbortedBeforePromotion);
+            return Err(txn_commit_error(code));
+        }
+        let evidence = match Self::assemble_native_evidence(
+            &plan,
+            validated,
+            &validation,
+            &executions,
+            context.context_projection_bytes(),
+            context.capability_summary_projection_bytes(),
+            &fixed_profile,
+            input.measurement_trust,
+            input,
+        ) {
+            Ok(evidence) => evidence,
+            Err(error) => {
+                let _ = self.transition_attempt(&admitted, AttemptState::AbortedBeforePromotion);
+                return Err(error);
+            }
+        };
+        let (report, approval, bundle, context_record) = match evidence {
+            AssembledEvidence::Accepted(accepted) => (
+                accepted.report,
+                accepted.approval,
+                accepted.bundle,
+                accepted.historical_context,
+            ),
+            AssembledEvidence::Rejected(rejection) => {
+                let _ = self.transition_attempt(&admitted, AttemptState::AbortedBeforePromotion);
+                return Ok(NativeCommitOutcome::Rejected(*rejection));
+            }
+        };
+        let candidate = validated.candidate();
+        let result = validation.result().clone();
+        let candidate_root = validated.candidate_root();
+        let changed_entity_bindings = derive_binding_diff(
+            &base_state.record.entity_bindings,
+            &candidate_root.record.entity_bindings,
+            Some(&candidate.record.operations),
+        )?;
+        let manifest = manifest_for_changed(
+            &changed_entity_bindings,
+            validated.proposed_state().entities(),
+        )?;
+        let tombstones = next_tombstones(
+            &base_tombstones,
+            &changed_entity_bindings,
+            validated.proposed_state().entities(),
+        )?;
+        let core = build_native_transaction(&NativeTransactionRecord {
+            format_version: NATIVE_FORMAT_VERSION,
+            transaction_kind: TransactionKind::OrdinaryCandidate,
+            workspace_id: candidate_root.record.workspace_id,
+            parent_transaction_ids: vec![input.expected_parent],
+            parent_roots: vec![base_state.root],
+            schema_epoch_id: candidate_root.record.schema_epoch_id,
+            policy_root_id: base_policy.root(),
+            principal_id: Some(input.principal_id),
+            candidate_id: Some(candidate.candidate_id),
+            candidate_result_id: Some(result.candidate_result_id),
+            validation_context_digest: Some(result.record.validation_context_digest),
+            validation_profile_id: Some(result.record.validation_profile_id),
+            committed_root: candidate_root.root,
+            changed_entity_bindings,
+            capability_summary_digest: Some(candidate.record.capability_summary_digest),
+            selected_tests: plan
+                .selected()
+                .iter()
+                .map(|entry| entry.test_entity)
+                .collect(),
+            test_result_refs: vec![report.report_id()],
+            tombstoned_entities: tombstones,
+            commit_metadata: CommitMetadata::native_v1(),
+            native_approval_id: approval.id(),
+        })?;
+        let unsigned = CommitAdmissionStatementParts {
+            admission_profile: fixed_profile.id(),
+            key_id: input.acceptance_signer.key_id(),
+            workspace: candidate_root.record.workspace_id,
+            principal: input.principal_id,
+            parent_transaction: input.expected_parent,
+            parent_root: base_state.root,
+            candidate: candidate.candidate_id,
+            static_result: result.candidate_result_id,
+            historical_context_id: context_record.id(),
+            static_context_digest: *static_context_digest.as_bytes(),
+            resource_policy_id: plan.resource_policy().policy_id(),
+            native_approval_id: approval.id(),
+            committed_root: candidate_root.root,
+            bundle_id: bundle.id(),
+            transaction_id: core.transaction_id,
+            historical_validation_time: input.now_unix_millis,
+            acceptance_trust_policy_id: input.acceptance_trust.id(),
+            signature: [0_u8; 64],
+        };
+        let preimage = admission_signature_preimage(
+            &unsigned_statement_prefix(&unsigned)
+                .map_err(|error| CommitError::Codec(error.into()))?,
+        )
+        .map_err(|error| CommitError::Codec(error.into()))?;
+        let signature = input.acceptance_signer.sign(&preimage);
+        let statement = CommitAdmissionStatementV1::build(CommitAdmissionStatementParts {
+            signature,
+            ..unsigned
+        })
+        .map_err(|error| CommitError::Codec(error.into()))?;
+        // Re-verify the statement through the shared parse path and check
+        // the acceptance signer's structural trust before persisting.
+        let parsed_statement = CommitAdmissionStatementV1::parse(statement.stored_bytes())
+            .map_err(|error| CommitError::Codec(error.into()))?;
+        verify_acceptance_trust(
+            &parsed_statement.parts().key_id,
+            parsed_statement.parts().acceptance_trust_policy_id,
+            candidate_root.record.workspace_id,
+            fixed_profile.id(),
+            input.now_unix_millis,
+            input.acceptance_trust,
+        )
+        .map_err(CommitError::Native)?;
+        let receipt = build_native_transaction_receipt(&NativeTransactionReceiptRecord {
+            format_version: NATIVE_FORMAT_VERSION,
+            transaction_id: core.transaction_id,
+            stored_transaction: core.stored_bytes.clone(),
+            stored_candidate: Some(candidate.stored_bytes.clone()),
+            stored_candidate_result: Some(result.stored_bytes.clone()),
+            stored_state_root: candidate_root.stored_bytes.clone(),
+            stored_policy_root: base_policy.stored_bytes().to_vec(),
+            object_manifest: manifest.clone(),
+            durability_profile: DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1,
+            stored_evidence_bundle: bundle.stored_bytes().to_vec(),
+            stored_admission_context: context_record.stored_bytes().to_vec(),
+            stored_commit_statement: statement.stored_bytes().to_vec(),
+        })?;
+        // Live verification against the exact accepted parent and proposed
+        // objects through the versioned preflight before persisting.
+        let by_id = validated
+            .proposed_state()
+            .entities()
+            .iter()
+            .map(|object| (object.object_id(), object.stored_bytes()))
+            .collect::<BTreeMap<_, _>>();
+        verify_native_receipt_against_objects(&receipt, Some(&parent_any), &by_id)?;
+        // Durability: promotion starts here. Any failure from this point is
+        // `OutcomeUnknown`, never a silent retry-safe refusal, because
+        // receipt or head bytes may already have moved.
+        let unknown = || CommitError::Native(NativeCommitError::OutcomeUnknown);
+        let mut promoting = admitted;
+        promoting.state = AttemptState::PromotionStarted;
+        promoting.transaction_id = Some(core.transaction_id);
+        promoting.receipt_id = Some(receipt.receipt_id);
+        write_attempt_record(&self.root, &promoting).map_err(|_| unknown())?;
+        self.persist_objects(&manifest, validated.proposed_state().entities())
+            .map_err(|_| unknown())?;
+        self.persist_native_receipt(&receipt)
+            .map_err(|_| unknown())?;
+        match self.cas_head(Some(actual), core.transaction_id) {
+            Ok(()) => {}
+            Err(CommitError::Transaction(TransactionErrorCode::RefCasStale)) => {
+                // A concurrent commit won: this candidate definitely did not
+                // promote. The orphan receipt is never promoted later.
+                let _ = self.transition_attempt(&promoting, AttemptState::AbortedBeforePromotion);
+                let actual = self.read_head()?.ok_or_else(unknown)?;
+                return Err(CommitError::StaleRoot {
+                    expected: input.expected_parent,
+                    actual,
+                });
+            }
+            Err(_) => return Err(unknown()),
+        }
+        let mut committed = promoting;
+        committed.state = AttemptState::Committed;
+        write_attempt_record(&self.root, &committed).map_err(|_| unknown())?;
+        Ok(NativeCommitOutcome::Committed(NativeCommitOutput::new(
+            core.transaction_id,
+            receipt.receipt_id,
+            candidate_root.clone(),
+            result,
+            approval.id(),
+            report.report_id(),
+            input.attempt_id,
+        )))
+    }
+
+    /// Replays a committed attempt from verified history without writing.
+    ///
+    /// A retry-safe resubmission of an already-committed attempt returns the
+    /// recorded identities after re-verifying the durable receipt; the
+    /// journal assertion alone never suffices.
+    fn replay_committed_attempt(
+        &self,
+        record: &AttemptRecord,
+    ) -> Result<NativeCommitOutcome, CommitError> {
+        let (Some(transaction_id), Some(receipt_id)) = (record.transaction_id, record.receipt_id)
+        else {
+            return Err(CommitError::Native(NativeCommitError::JournalCorrupt));
+        };
+        let revision = self.load_verified_native_revision(transaction_id)?;
+        if revision.receipt().receipt_id != receipt_id {
+            return Err(CommitError::Native(NativeCommitError::JournalCorrupt));
+        }
+        let approval = NativeTestApprovalV1::parse(revision.receipt().bundle.approval_stored())
+            .map_err(|error| CommitError::Codec(error.into()))?;
+        let report = NativeTestReportV1::parse(revision.receipt().bundle.test_report_stored())
+            .map_err(|error| CommitError::Codec(error.into()))?;
+        Ok(NativeCommitOutcome::Committed(NativeCommitOutput::new(
+            transaction_id,
+            receipt_id,
+            revision.state_root().clone(),
+            revision.receipt().candidate_result.clone(),
+            approval.id(),
+            report.report_id(),
+            record.attempt_id,
+        )))
+    }
+
+    /// Records one journal state transition for the bound attempt.
+    fn transition_attempt(
+        &self,
+        record: &AttemptRecord,
+        state: AttemptState,
+    ) -> Result<(), CommitError> {
+        let mut next = *record;
+        next.state = state;
+        write_attempt_record(&self.root, &next).map_err(CommitError::Io)
+    }
+
+    /// Assembles native evidence from executor-returned pairs.
+    ///
+    /// Every execution report and attestation re-parses; measurement trust
+    /// is checked structurally per attestation; expectations derive
+    /// independently from the canonical proposed `TestCase` bytes and the
+    /// comparison recomputes through the shared kernel. The historical
+    /// context preserves the validator-owned projection bytes verbatim, the
+    /// approval binds the real context identity, and the bundle closes over
+    /// all three. A non-matching test yields a rejected approval for
+    /// diagnostics without a bundle; nothing is persisted on that path.
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_lines)]
+    fn assemble_native_evidence(
+        plan: &NativeTestPlanV1,
+        validated: &ValidatedCandidatePlan,
+        validation: &CandidateValidationOutput,
+        executions: &[ExecutedNativeTest],
+        context_projection: &[u8],
+        capability_projection: &[u8],
+        fixed_profile: &NativeAdmissionProfileV1,
+        measurement_trust: &HistoricalTrustPolicyV1,
+        input: &NativeCommitInput<'_>,
+    ) -> Result<AssembledEvidence, CommitError> {
+        use sley_mutate::value::EntityBodyValue;
+        let codec_error = |error| CommitError::Codec(TransactionCodecError::Scb(error));
+        let proposed = validated.proposed_state();
+        let schema_epoch = validated.candidate_root().record.schema_epoch_id;
+        let mut entries = Vec::with_capacity(plan.selected().len());
+        let mut bindings = Vec::with_capacity(plan.selected().len());
+        let mut first_rejected: Option<NativeFailureRecord> = None;
+        for (plan_entry, execution) in plan.selected().iter().zip(executions) {
+            let execution_report =
+                NativeExecutionReportV1::parse(&execution.execution_stored).map_err(codec_error)?;
+            let attestation = MeasuredTestAttestationV1::parse(&execution.attestation_stored)
+                .map_err(codec_error)?;
+            verify_measurement_trust(
+                &attestation.key_id(),
+                &attestation.trust_policy_id(),
+                validated.candidate_root().record.workspace_id,
+                plan.execution_profile(),
+                attestation.recorded_unix_millis(),
+                measurement_trust,
+            )
+            .map_err(CommitError::Native)?;
+            if attestation.workspace() != validated.candidate_root().record.workspace_id
+                || attestation.principal() != input.principal_id
+                || attestation.declared_limits() != plan_entry.declared_limits
+            {
+                return Err(txn_commit_error(
+                    TransactionErrorCode::ReceiptBindingMismatch,
+                ));
+            }
+            let test_case = proposed
+                .entities()
+                .iter()
+                .find(|object| object.record().entity_id == plan_entry.test_entity)
+                .and_then(|object| match &object.record().body {
+                    EntityBodyValue::TestCase(body) => Some(body),
+                    _ => None,
+                })
+                .ok_or_else(|| txn_commit_error(TransactionErrorCode::ReceiptBindingMismatch))?;
+            let expected = native_expected_outcome(schema_epoch, &test_case.expected)
+                .map_err(NativeCommitError::Plan)
+                .map_err(CommitError::Native)?;
+            let (comparison, observed) = match execution_report.evidence() {
+                NativeExecutionEvidence::Observed { termination, .. } => (
+                    compare_native_expected(expected, termination),
+                    Some(termination),
+                ),
+                NativeExecutionEvidence::Rejected(_) => (TestComparison::ExecutionRejected, None),
+            };
+            if first_rejected.is_none() {
+                first_rejected = match (&comparison, observed, &expected) {
+                    (TestComparison::Match, _, _) => None,
+                    (TestComparison::ExecutionRejected, _, _) => {
+                        let phase = match execution_report.evidence() {
+                            NativeExecutionEvidence::Rejected(rejected) => rejected.phase(),
+                            NativeExecutionEvidence::Observed { .. } => {
+                                return Err(txn_commit_error(
+                                    TransactionErrorCode::InternalInvariant,
+                                ));
+                            }
+                        };
+                        Some(
+                            NativeFailureRecord::from_parts(
+                                29211,
+                                "NATIVE_TEST_EXECUTION_REJECTED",
+                                NativeDetail::Phase(phase),
+                            )
+                            .map_err(codec_error)?,
+                        )
+                    }
+                    (
+                        TestComparison::Mismatch,
+                        Some(NativeObservedTermination::Success(observed_hash)),
+                        NativeExpected::Value(expected_hash),
+                    ) => Some(
+                        NativeFailureRecord::from_parts(
+                            29210,
+                            "NATIVE_TEST_OUTCOME_MISMATCH",
+                            NativeDetail::IdMismatch(IdMismatchDetail {
+                                expected: *expected_hash.as_bytes(),
+                                actual: *observed_hash.as_bytes(),
+                            }),
+                        )
+                        .map_err(codec_error)?,
+                    ),
+                    (TestComparison::Mismatch, _, _) => Some(
+                        NativeFailureRecord::from_parts(
+                            29210,
+                            "NATIVE_TEST_OUTCOME_MISMATCH",
+                            NativeDetail::Phase(REJECT_PHASE_EXECUTION),
+                        )
+                        .map_err(codec_error)?,
+                    ),
+                };
+            }
+            entries.push(NativeTestEntry {
+                test_entity: plan_entry.test_entity,
+                test_object: plan_entry.test_object,
+                execution_report_id: execution_report.report_id(),
+                expected,
+                comparison,
+            });
+            bindings.push(AttestationBinding {
+                test_entity: plan_entry.test_entity,
+                attestation_id: attestation.id(),
+            });
+        }
+        let report = NativeTestReportV1::build(plan, entries).map_err(codec_error)?;
+        let historical_context =
+            HistoricalAdmissionContextV1::build(HistoricalAdmissionContextParts {
+                static_context_projection: context_projection.to_vec(),
+                capability_summary_projection: capability_projection.to_vec(),
+                resource_policy: *plan.resource_policy(),
+                authorization_profile: fixed_profile.id(),
+            })
+            .map_err(codec_error)?;
+        let decision = match &first_rejected {
+            None => ApprovalDecision::Accepted,
+            Some(record) => ApprovalDecision::Rejected(record.clone()),
+        };
+        let approval = NativeTestApprovalV1::build(NativeTestApprovalParts {
+            candidate: validated.candidate().candidate_id,
+            static_result: validation.result().candidate_result_id,
+            validation_context: ContextCapsuleId::from_bytes(
+                *validation
+                    .result()
+                    .record
+                    .validation_context_digest
+                    .as_bytes(),
+            ),
+            parent_transaction: input.expected_parent,
+            parent_root: validated.candidate_root().root,
+            proposed_root: plan.proposed_root(),
+            policy_root: validated.candidate_root().record.policy_root,
+            plan_id: plan.plan_id(),
+            test_report_id: report.report_id(),
+            attestations: bindings,
+            measurement_trust_policy: *measurement_trust.id().as_bytes(),
+            resource_policy_id: plan.resource_policy().policy_id(),
+            historical_context_id: *historical_context.id().as_bytes(),
+            decision,
+        })
+        .map_err(codec_error)?;
+        if first_rejected.is_some() {
+            return Ok(AssembledEvidence::Rejected(Box::new(NativeRejection {
+                approval,
+                report,
+                attempt_id: input.attempt_id,
+            })));
+        }
+        let mut configs = executions
+            .iter()
+            .map(|execution| execution.supervisor_config_stored.clone())
+            .collect::<Vec<_>>();
+        configs.sort();
+        configs.dedup();
+        let bundle = NativeEvidenceBundleV1::build(NativeEvidenceBundleParts {
+            plan_stored: plan.stored_bytes().to_vec(),
+            approval_stored: approval.stored_bytes().to_vec(),
+            test_report_stored: report.stored_bytes().to_vec(),
+            executions: executions
+                .iter()
+                .map(|execution| TestEmbedded {
+                    test_entity: execution.test_entity,
+                    stored: execution.execution_stored.clone(),
+                })
+                .collect(),
+            measurements: executions
+                .iter()
+                .map(|execution| TestEmbedded {
+                    test_entity: execution.test_entity,
+                    stored: execution.attestation_stored.clone(),
+                })
+                .collect(),
+            supervisor_configs: configs,
+        })
+        .map_err(codec_error)?;
+        Ok(AssembledEvidence::Accepted(Box::new(AcceptedEvidence {
+            report,
+            approval,
+            bundle,
+            historical_context,
+        })))
+    }
+
     fn load_objects(&self, root: &AcceptedStateRoot) -> Result<Vec<EntityObject>, CommitError> {
         let verifier = entity_verifier(root.record.schema_epoch_id);
         root.record
@@ -22137,7 +23351,6 @@ mod clone_tests {
     }
 
     fn synthetic_native_core() -> NativeTransactionRecord {
-        use crate::codec::{COMMIT_PROFILE_RESTRICTED_V1, SEMANTIC_PROFILE_OPERATION_FREE_V1};
         use sley_id::{
             CandidateId, CandidateResultId, CapabilitySummaryDigest, NativeTestApprovalId,
             PolicyRootId, PrincipalId, SchemaEpochId, StateRoot, TestReportId, ValidationProfileId,
@@ -22163,11 +23376,7 @@ mod clone_tests {
             selected_tests: Vec::new(),
             test_result_refs: vec![TestReportId::from_bytes([16; 32])],
             tombstoned_entities: Vec::new(),
-            commit_metadata: CommitMetadata {
-                commit_profile: COMMIT_PROFILE_RESTRICTED_V1,
-                semantic_profile: SEMANTIC_PROFILE_OPERATION_FREE_V1,
-                durability_profile: crate::codec::DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1,
-            },
+            commit_metadata: CommitMetadata::native_v1(),
             native_approval_id: NativeTestApprovalId::from_bytes([17; 32]),
         }
     }
@@ -22195,5 +23404,931 @@ mod clone_tests {
             .step_by(2)
             .map(|i| u8::from_str_radix(&text[start..end][i..i + 2], 16).expect("hex decodes"))
             .collect()
+    }
+}
+
+/// Native commit-boundary tests (N5b): live empty-selection positive,
+/// rejected-evidence positive, admission/journal/trust refusals, and the
+/// v2 recovery matrix.
+///
+/// The test-only executor below produces explicitly synthetic diagnostic
+/// evidence: it never claims a real VM run or a real supervisor
+/// measurement. Real measured execution requires the qualified supervisor
+/// (N3 daemon); per-entry `Match` positives with live observations arrive
+/// with the supervisor-backed executor. The empty-selection positive is a
+/// complete receipt positive: all twelve fields, persisted, headed, and
+/// recovered.
+#[cfg(test)]
+mod native_commit_tests {
+    use std::cell::Cell;
+
+    use sley_id::NativeAdmissionProfileId;
+    use sley_mutate::value::{ParameterBody, TestCaseBody};
+    use sley_policy::ValidatedCandidatePlan;
+    use sley_ssmc::{
+        ConstData, ConstValue, EffectEnvironment, ExpectedOutcome, ParameterRole, Reachability,
+        ResourceLimits, ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
+    };
+    use sley_tests::{
+        Caller, HistoricalTrustPolicyParts, HistoricalTrustPolicyV1, MeasuredTestAttestationParts,
+        MeasuredTestAttestationV1, MemoryEvents, NativeAggregateLimits, NativeExecutionEvidence,
+        NativeExecutionReportParts, NativeExecutionReportV1, NativeImplementationLimits,
+        NativeTestPlanV1, Property, REJECT_PHASE_EXECUTION, ROLE_ACCEPTANCE, ROLE_MEASUREMENT,
+        RejectedEvidence, SupervisorConfigParts, SupervisorConfigV1, TERMINATION_PRELAUNCH_REFUSED,
+        TrustEntry, native_execution_profile_id,
+    };
+
+    use super::tests::{Fixture, fixed};
+    use super::*;
+    use crate::native_commit::{NativeAcceptanceSigner, NativeTestExecutor, attempt_path};
+
+    const NOW: u64 = 1_000;
+
+    const MEASUREMENT_KEY: [u8; 32] = [0xB2; 32];
+    const ACCEPTANCE_KEY: [u8; 32] = [0xA1; 32];
+
+    /// Test-only acceptance signer with fixed structural signature bytes.
+    ///
+    /// The signature is opaque shape-checked bytes, never a curve claim.
+    struct TestSigner {
+        key: [u8; 32],
+    }
+
+    impl NativeAcceptanceSigner for TestSigner {
+        fn key_id(&self) -> [u8; 32] {
+            self.key
+        }
+
+        fn sign(&self, _preimage: &[u8]) -> [u8; 64] {
+            [0x5A; 64]
+        }
+    }
+
+    /// Test-only executor returning empty evidence while counting calls.
+    struct CountingExecutor {
+        invocations: Cell<usize>,
+    }
+
+    impl NativeTestExecutor for CountingExecutor {
+        fn execute(
+            &self,
+            _plan: &NativeTestPlanV1,
+            _validated: &ValidatedCandidatePlan,
+        ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            self.invocations.set(self.invocations.get() + 1);
+            Ok(Vec::new())
+        }
+    }
+
+    /// Test-only executor producing synthetic rejected diagnostics per
+    /// selected test: coherent no-result pairs (rejected report, attestation
+    /// without an execution report) that never claim a real run.
+    struct RejectingExecutor {
+        invocations: Cell<usize>,
+        workspace: WorkspaceId,
+        principal: PrincipalId,
+        measurement_policy: [u8; 32],
+        supervisor_config: Vec<u8>,
+        supervisor_config_id: [u8; 32],
+        recorded_millis: u64,
+    }
+
+    impl NativeTestExecutor for RejectingExecutor {
+        fn execute(
+            &self,
+            plan: &NativeTestPlanV1,
+            _validated: &ValidatedCandidatePlan,
+        ) -> Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            self.invocations.set(self.invocations.get() + 1);
+            let mut out = Vec::with_capacity(plan.selected().len());
+            for entry in plan.selected() {
+                let rejected = RejectedEvidence::from_parts(
+                    REJECT_PHASE_EXECUTION,
+                    29211,
+                    "NATIVE_TEST_EXECUTION_REJECTED",
+                )
+                .expect("synthetic rejection builds");
+                let report = NativeExecutionReportV1::build(NativeExecutionReportParts {
+                    plan_id: plan.plan_id(),
+                    test_entity: entry.test_entity,
+                    test_object: entry.test_object,
+                    target_object: entry.target_object,
+                    evidence: NativeExecutionEvidence::Rejected(rejected),
+                })
+                .expect("synthetic report builds");
+                let attestation = MeasuredTestAttestationV1::build(MeasuredTestAttestationParts {
+                    key_id: MEASUREMENT_KEY,
+                    trust_policy_id: self.measurement_policy,
+                    supervisor_config_id: self.supervisor_config_id,
+                    plan_id: plan.plan_id(),
+                    test_object: entry.test_object,
+                    execution_report_id: None,
+                    attempt_nonce: [0xC3; 32],
+                    workspace: self.workspace,
+                    principal: self.principal,
+                    caller_uid: 0,
+                    declared_limits: entry.declared_limits,
+                    installed_memory_cap: entry.declared_limits.memory_bytes,
+                    elapsed_ns: 0,
+                    measured_memory_peak: 0,
+                    memory_events: MemoryEvents {
+                        max: entry.declared_limits.memory_bytes,
+                        oom: 0,
+                        oom_kill: 0,
+                    },
+                    termination: TERMINATION_PRELAUNCH_REFUSED,
+                    complete_output: false,
+                    empty_cgroup_confirmed: true,
+                    recorded_unix_millis: self.recorded_millis,
+                    signature: [0xA5; 64],
+                })
+                .expect("synthetic attestation builds");
+                out.push(ExecutedNativeTest {
+                    test_entity: entry.test_entity,
+                    execution_stored: report.stored_bytes().to_vec(),
+                    attestation_stored: attestation.stored_bytes().to_vec(),
+                    supervisor_config_stored: self.supervisor_config.clone(),
+                });
+            }
+            Ok(out)
+        }
+    }
+
+    fn test_trust(
+        key: [u8; 32],
+        role: u32,
+        workspace: WorkspaceId,
+        profile: [u8; 32],
+    ) -> HistoricalTrustPolicyV1 {
+        HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
+            policy_nonce: [0x11; 32],
+            entries: vec![TrustEntry {
+                key_id: key,
+                role,
+                workspaces: vec![*workspace.as_bytes()],
+                profiles: vec![profile],
+                valid_from_unix_millis: 0,
+                valid_until_unix_millis: u64::MAX,
+            }],
+        })
+        .expect("test trust builds")
+    }
+
+    fn test_supervisor_config(
+        workspace: WorkspaceId,
+        principal: PrincipalId,
+    ) -> SupervisorConfigV1 {
+        let fixed = [
+            ("CapabilityBoundingSet", "empty"),
+            ("DynamicUser", "yes"),
+            ("KillMode", "control-group"),
+            ("MemoryAccounting", "yes"),
+            ("MemorySwapMax", "0"),
+            ("NoNewPrivileges", "yes"),
+            ("PrivateNetwork", "yes"),
+            ("PrivateTmp", "yes"),
+            ("ProtectControlGroups", "yes"),
+            ("ProtectHome", "yes"),
+            ("ProtectSystem", "strict"),
+            ("SendSIGKILL", "yes"),
+            ("TasksMax", "1"),
+            ("TimeoutStopUSec", "2000000"),
+        ];
+        let mut properties: Vec<Property> = fixed
+            .iter()
+            .map(|(name, value)| Property {
+                name: (*name).to_owned(),
+                value: (*value).to_owned(),
+            })
+            .collect();
+        properties.push(Property {
+            name: "MemoryMax".to_owned(),
+            value: "1048576".to_owned(),
+        });
+        properties.push(Property {
+            name: "RuntimeMaxUSec".to_owned(),
+            value: "1000000".to_owned(),
+        });
+        properties.sort_by(|left, right| left.name.cmp(&right.name));
+        SupervisorConfigV1::build(SupervisorConfigParts {
+            worker_digest: [0x21; 32],
+            supervisor_digest: [0x22; 32],
+            properties,
+            callers: vec![Caller {
+                uid: 0,
+                workspace,
+                principal,
+            }],
+            page_size: 4096,
+            cleanup_millis: 2000,
+            launch_profile: 1,
+        })
+        .expect("test supervisor config builds")
+    }
+
+    /// A candidate creating one pure identity function plus one `TestCase`
+    /// targeting it: the epoch-1 admitted shape (monomorphic pure target,
+    /// empty replay environment, no observations, exact value expectation).
+    // One fixture builder for the TestCase-carrying candidate, kept whole
+    // like the other candidate helpers above.
+    #[allow(clippy::too_many_lines)]
+    fn testcase_candidate_for(
+        workspace_id: WorkspaceId,
+        principal_id: PrincipalId,
+        base_transaction_id: TransactionId,
+        base_state: &AcceptedStateRoot,
+        policy: &AcceptedPolicyRoot,
+        nonce_byte: u8,
+    ) -> ImportedCandidate {
+        use sley_id::CandidateNonce;
+        use sley_mutate::value::{BlockBody, EntityBodyValue, EntityIdSet, FunctionBody};
+        use sley_mutate::{
+            BoundPrecondition, CandidateExpiry, CandidateRecord, ExpectedIdentityAbsent,
+            MutationClass, MutationOperation, MutationPayload, PreconditionPayload,
+            PreimageRequirement, build_candidate, full_validation_profile_id,
+        };
+        use sley_policy::build_capability_summary_projection;
+        let nonce = fixed(nonce_byte, CandidateNonce::from_bytes);
+        let entity = |kind: u16, ordinal: u64| {
+            EntityId::derive(workspace_id, nonce, u32::from(kind), ordinal)
+        };
+        let function = entity(5, 0);
+        let parameter = entity(6, 1);
+        let block = entity(7, 2);
+        let test = entity(14, 3);
+        let unit = || ConstValue {
+            value_type: TypeExpr::Unit,
+            data: ConstData::Unit,
+        };
+        let bodies = [
+            (
+                5_u16,
+                function,
+                EntityBodyValue::Function(FunctionBody {
+                    type_parameters: vec![],
+                    parameters: vec![parameter],
+                    result_type: TypeExpr::Unit,
+                    effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    entry_block: block,
+                    blocks: vec![block],
+                    contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    visibility: Visibility::Private,
+                }),
+            ),
+            (
+                6,
+                parameter,
+                EntityBodyValue::Parameter(ParameterBody {
+                    owner: function,
+                    role: ParameterRole::Function,
+                    ordinal: 0,
+                    value_type: TypeExpr::Unit,
+                }),
+            ),
+            (
+                7,
+                block,
+                EntityBodyValue::Block(BlockBody {
+                    function,
+                    parameters: vec![],
+                    operations: vec![],
+                    terminator: Terminator::Return(ReturnTerminator {
+                        value: ValueRef::Parameter(parameter),
+                    }),
+                    reachability: Reachability::Required,
+                }),
+            ),
+            (
+                14,
+                test,
+                EntityBodyValue::TestCase(TestCaseBody {
+                    target: function,
+                    inputs: vec![unit()],
+                    effect_environment: EffectEnvironment::Replay(vec![]),
+                    expected: ExpectedOutcome::Value(unit()),
+                    observations: vec![],
+                    resource_limits: ResourceLimits {
+                        fuel: 100,
+                        memory_bytes: 100,
+                        output_bytes: 100,
+                        effect_count: 0,
+                        call_depth: 4,
+                        wall_timeout_millis: 1000,
+                    },
+                }),
+            ),
+        ];
+        let summary = build_capability_summary_projection(
+            principal_id,
+            workspace_id,
+            policy.root(),
+            base_state.root,
+            &[],
+        )
+        .unwrap();
+        build_candidate(&CandidateRecord {
+            format_version: 1,
+            workspace_id,
+            base_transaction_id,
+            base_root: base_state.root,
+            schema_epoch_id: base_state.record.schema_epoch_id,
+            policy_root_id: policy.root(),
+            principal_id,
+            capability_summary_digest: summary.digest(),
+            operations: bodies
+                .iter()
+                .enumerate()
+                .map(|(index, (kind, target, body))| MutationOperation {
+                    ordinal: u32::try_from(index).unwrap(),
+                    class: MutationClass::CreateEntity,
+                    target_kind: *kind,
+                    target_entity: *target,
+                    field_tag: None,
+                    payload: MutationPayload::CreateEntity(body.clone()),
+                    precondition_ordinal: u32::try_from(index).unwrap(),
+                })
+                .collect(),
+            preconditions: bodies
+                .iter()
+                .enumerate()
+                .map(|(index, (_, target, _))| BoundPrecondition {
+                    operation_ordinal: u32::try_from(index).unwrap(),
+                    requirement: PreimageRequirement::ExpectedIdentityAbsent,
+                    payload: PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
+                        entity_id: *target,
+                    }),
+                })
+                .collect(),
+            validation_profile_id: full_validation_profile_id().unwrap(),
+            candidate_nonce: nonce,
+            expiry: CandidateExpiry::unix_millis(NOW + 1_000),
+        })
+        .unwrap()
+    }
+
+    struct NativeHarness {
+        workspace: WorkspaceId,
+        measurement_trust: HistoricalTrustPolicyV1,
+        acceptance_trust: HistoricalTrustPolicyV1,
+        signer: TestSigner,
+        admission_profile: NativeAdmissionProfileId,
+    }
+
+    impl NativeHarness {
+        fn new(workspace: WorkspaceId) -> Self {
+            let admission_profile = fixed_native_admission_profile()
+                .expect("fixed descriptor builds")
+                .id();
+            let measurement_trust = test_trust(
+                MEASUREMENT_KEY,
+                ROLE_MEASUREMENT,
+                workspace,
+                *native_execution_profile_id().as_bytes(),
+            );
+            let acceptance_trust = test_trust(
+                ACCEPTANCE_KEY,
+                ROLE_ACCEPTANCE,
+                workspace,
+                *admission_profile.as_bytes(),
+            );
+            Self {
+                workspace,
+                measurement_trust,
+                acceptance_trust,
+                signer: TestSigner {
+                    key: ACCEPTANCE_KEY,
+                },
+                admission_profile,
+            }
+        }
+
+        fn input<'a>(
+            &'a self,
+            expected_parent: TransactionId,
+            candidate: &'a [u8],
+            principal: PrincipalId,
+            attempt: NativeAttemptId,
+            executor: Option<&'a dyn NativeTestExecutor>,
+        ) -> NativeCommitInput<'a> {
+            NativeCommitInput {
+                expected_parent,
+                stored_candidate: candidate,
+                principal_id: principal,
+                capabilities: &[],
+                now_unix_millis: NOW,
+                limits: CandidateValidationLimits::full_v1(),
+                attempt_id: attempt,
+                admission_profile_id: self.admission_profile,
+                implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+                aggregate: NativeAggregateLimits::HARD_MAXIMA,
+                executor,
+                acceptance_signer: &self.signer,
+                measurement_trust: &self.measurement_trust,
+                acceptance_trust: &self.acceptance_trust,
+            }
+        }
+    }
+
+    fn attempt(byte: u8) -> NativeAttemptId {
+        NativeAttemptId([byte; 16])
+    }
+
+    #[test]
+    fn native_commit_empty_selection_is_a_complete_live_positive() {
+        let fixture = Fixture::new("native-empty-positive");
+        let harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
+        let executor = CountingExecutor {
+            invocations: Cell::new(0),
+        };
+        let outcome = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(1),
+                Some(&executor),
+            ))
+            .expect("empty native commit succeeds");
+        // The empty selection still executes zero workers and commits.
+        assert_eq!(executor.invocations.get(), 1);
+        let NativeCommitOutcome::Committed(output) = outcome else {
+            panic!("empty selection must commit");
+        };
+        assert_eq!(output.attempt_id(), attempt(1));
+        // The receipt on disk carries the native magic and verifies.
+        let stored = std::fs::read(
+            fixture
+                .repository
+                .receipt_path_readonly(output.transaction_id())
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(&stored[..8], NATIVE_RECEIPT_MAGIC);
+        let revision = fixture
+            .repository
+            .verified_native_revision(output.transaction_id())
+            .expect("native revision loads");
+        assert_eq!(revision.receipt().receipt_id, output.receipt_id());
+        assert!(
+            revision
+                .receipt()
+                .transaction
+                .record
+                .selected_tests
+                .is_empty()
+        );
+        // The journal records the committed promotion claim exactly.
+        let journal = std::fs::read(attempt_path(fixture.repository.root(), attempt(1))).unwrap();
+        let record = AttemptRecord::parse(&journal).expect("journal parses");
+        assert_eq!(record.state, AttemptState::Committed);
+        assert_eq!(record.transaction_id, Some(output.transaction_id()));
+        assert_eq!(record.receipt_id, Some(output.receipt_id()));
+        // Status resolves from verified history, and recovery confirms.
+        match fixture
+            .repository
+            .native_attempt_status(attempt(1))
+            .unwrap()
+        {
+            AttemptStatus::Committed {
+                transaction_id,
+                receipt_id,
+                at_head,
+            } => {
+                assert_eq!(transaction_id, output.transaction_id());
+                assert_eq!(receipt_id, output.receipt_id());
+                assert!(at_head);
+            }
+            status => panic!("unexpected status {status:?}"),
+        }
+        let report = fixture.repository.recover().expect("recovery succeeds");
+        assert_eq!(
+            report.accepted_transaction_id,
+            Some(output.transaction_id())
+        );
+        // Retry-safe resubmission of the same attempt replays the recorded
+        // identities without writing.
+        let replayed = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(1),
+                Some(&executor),
+            ))
+            .expect("committed attempt replays");
+        let NativeCommitOutcome::Committed(replayed) = replayed else {
+            panic!("replay must commit");
+        };
+        assert_eq!(replayed.transaction_id(), output.transaction_id());
+        assert_eq!(replayed.receipt_id(), output.receipt_id());
+        assert_eq!(executor.invocations.get(), 1);
+    }
+
+    #[test]
+    fn native_commit_rejected_evidence_returns_rejection_without_writes() {
+        let fixture = Fixture::new("native-rejected-positive");
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = testcase_candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            40,
+        );
+        let harness = NativeHarness::new(head.state_root().record.workspace_id);
+        let config =
+            test_supervisor_config(head.state_root().record.workspace_id, fixture.principal_id);
+        let executor = RejectingExecutor {
+            invocations: Cell::new(0),
+            workspace: head.state_root().record.workspace_id,
+            principal: fixture.principal_id,
+            measurement_policy: *harness.measurement_trust.id().as_bytes(),
+            supervisor_config: config.stored_bytes().to_vec(),
+            supervisor_config_id: *config.id().as_bytes(),
+            recorded_millis: NOW,
+        };
+        let outcome = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(2),
+                Some(&executor),
+            ))
+            .expect("rejected commit returns evidence");
+        assert_eq!(executor.invocations.get(), 1);
+        let NativeCommitOutcome::Rejected(rejection) = outcome else {
+            panic!("failed tests must reject");
+        };
+        assert_eq!(rejection.attempt_id, attempt(2));
+        assert_eq!(rejection.report.entries().len(), 1);
+        match &rejection.approval.parts().decision {
+            ApprovalDecision::Rejected(record) => {
+                assert_eq!(record.numeric_code(), 29211);
+                assert_eq!(record.symbol(), "NATIVE_TEST_EXECUTION_REJECTED");
+            }
+            ApprovalDecision::Accepted => panic!("rejection must reject"),
+        }
+        // Nothing promoted: head unchanged, journal aborted, status aborted.
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
+        let journal = std::fs::read(attempt_path(fixture.repository.root(), attempt(2))).unwrap();
+        assert_eq!(
+            AttemptRecord::parse(&journal).unwrap().state,
+            AttemptState::AbortedBeforePromotion
+        );
+        assert!(matches!(
+            fixture
+                .repository
+                .native_attempt_status(attempt(2))
+                .unwrap(),
+            AttemptStatus::AbortedBeforePromotion
+        ));
+    }
+
+    #[test]
+    fn native_commit_without_executor_refuses_before_any_write() {
+        let fixture = Fixture::new("native-no-executor");
+        let harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(3),
+                None,
+            ))
+            .expect_err("unconfigured executor refuses");
+        assert_eq!(error.code(), "NATIVE_EXECUTOR_UNAVAILABLE");
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
+        let journal = std::fs::read(attempt_path(fixture.repository.root(), attempt(3))).unwrap();
+        assert_eq!(
+            AttemptRecord::parse(&journal).unwrap().state,
+            AttemptState::AbortedBeforePromotion
+        );
+    }
+
+    #[test]
+    fn native_commit_duplicate_attempt_with_other_bindings_conflicts() {
+        let fixture = Fixture::new("native-attempt-conflict");
+        let harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
+        let executor = CountingExecutor {
+            invocations: Cell::new(0),
+        };
+        let head = fixture.repository.accepted_head().unwrap();
+        let other = testcase_candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            31,
+        );
+        fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(4),
+                Some(&executor),
+            ))
+            .expect("first commit succeeds");
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &other.stored_bytes,
+                fixture.principal_id,
+                attempt(4),
+                Some(&executor),
+            ))
+            .expect_err("binding fork refuses");
+        assert_eq!(error.code(), "NATIVE_ATTEMPT_CONFLICT");
+    }
+
+    #[test]
+    fn native_commit_stale_parent_refuses_before_execution() {
+        let fixture = Fixture::new("native-stale-parent");
+        let harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
+        let executor = CountingExecutor {
+            invocations: Cell::new(0),
+        };
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                TransactionId::from_bytes([0x77; 32]),
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(5),
+                Some(&executor),
+            ))
+            .expect_err("stale parent refuses");
+        assert!(matches!(error, CommitError::StaleRoot { .. }));
+        assert_eq!(executor.invocations.get(), 0);
+        assert!(std::fs::read(attempt_path(fixture.repository.root(), attempt(5))).is_err());
+    }
+
+    #[test]
+    fn native_commit_busy_writer_lock_is_retry_safe() {
+        let fixture = Fixture::new("native-busy-lock");
+        // Settle the lock file, then hold the writer lock from a second
+        // file description: flock conflicts across descriptions even in the
+        // same process.
+        fixture
+            .repository
+            .commit(CommitInput::new(
+                fixture.genesis_transaction_id,
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                &[],
+                NOW,
+                CandidateValidationLimits::full_v1(),
+            ))
+            .expect("v1 commit settles layout");
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = testcase_candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            head.transaction_id(),
+            head.state_root(),
+            head.policy_root(),
+            33,
+        );
+        let lock_path = fixture
+            .repository
+            .root()
+            .join("locks")
+            .join("accepted.lock");
+        let lock_file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+            .unwrap();
+        std::fs::File::lock(&lock_file).unwrap();
+        let harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
+        let executor = CountingExecutor {
+            invocations: Cell::new(0),
+        };
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                head.transaction_id(),
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(6),
+                Some(&executor),
+            ))
+            .expect_err("busy lock refuses");
+        assert_eq!(error.code(), "NATIVE_COMMIT_BUSY_RETRY_SAFE");
+        assert_eq!(executor.invocations.get(), 0);
+        drop(lock_file);
+    }
+
+    #[test]
+    fn native_commit_untrusted_acceptance_signer_is_rejected() {
+        let fixture = Fixture::new("native-trust-acceptance");
+        let mut harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
+        // The manifest never mentions the signer key: unavailable.
+        harness.acceptance_trust = test_trust(
+            [0x99; 32],
+            ROLE_ACCEPTANCE,
+            harness.workspace,
+            *harness.admission_profile.as_bytes(),
+        );
+        let executor = CountingExecutor {
+            invocations: Cell::new(0),
+        };
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(7),
+                Some(&executor),
+            ))
+            .expect_err("unknown acceptance key is unavailable");
+        assert_eq!(error.code(), "HISTORICAL_TRUST_UNAVAILABLE");
+        // The manifest mentions the key with the wrong role: rejected.
+        harness.acceptance_trust = test_trust(
+            ACCEPTANCE_KEY,
+            ROLE_MEASUREMENT,
+            harness.workspace,
+            *harness.admission_profile.as_bytes(),
+        );
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(8),
+                Some(&executor),
+            ))
+            .expect_err("wrong-role acceptance key is rejected");
+        assert_eq!(error.code(), "HISTORICAL_TRUST_REJECTED");
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
+    }
+
+    #[test]
+    fn native_commit_untrusted_measurement_is_refused_before_decision() {
+        let fixture = Fixture::new("native-trust-measurement");
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = testcase_candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            41,
+        );
+        let mut harness = NativeHarness::new(head.state_root().record.workspace_id);
+        // The measurement manifest grants a different key: the double's
+        // attestations are untrusted before any approval decision forms.
+        harness.measurement_trust = test_trust(
+            [0x98; 32],
+            ROLE_MEASUREMENT,
+            harness.workspace,
+            *native_execution_profile_id().as_bytes(),
+        );
+        let config =
+            test_supervisor_config(head.state_root().record.workspace_id, fixture.principal_id);
+        let executor = RejectingExecutor {
+            invocations: Cell::new(0),
+            workspace: head.state_root().record.workspace_id,
+            principal: fixture.principal_id,
+            measurement_policy: *harness.measurement_trust.id().as_bytes(),
+            supervisor_config: config.stored_bytes().to_vec(),
+            supervisor_config_id: *config.id().as_bytes(),
+            recorded_millis: NOW,
+        };
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(9),
+                Some(&executor),
+            ))
+            .expect_err("untrusted measurement refuses");
+        assert_eq!(error.code(), "HISTORICAL_TRUST_UNAVAILABLE");
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
+    }
+
+    #[test]
+    fn native_recovery_refuses_a_damaged_v2_head() {
+        let fixture = Fixture::new("native-recovery-damage");
+        let harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
+        let executor = CountingExecutor {
+            invocations: Cell::new(0),
+        };
+        let NativeCommitOutcome::Committed(output) = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(10),
+                Some(&executor),
+            ))
+            .expect("commit succeeds")
+        else {
+            panic!("must commit");
+        };
+        let path = fixture
+            .repository
+            .receipt_path_readonly(output.transaction_id())
+            .unwrap();
+        let mut damaged = std::fs::read(&path).unwrap();
+        damaged[64] ^= 1;
+        std::fs::write(&path, &damaged).unwrap();
+        assert!(fixture.repository.recover().is_err());
+        assert!(fixture.repository.accepted_head().is_err());
+    }
+
+    #[test]
+    fn native_recovery_ignores_an_orphan_v2_receipt() {
+        let fixture = Fixture::new("native-recovery-orphan");
+        let harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
+        let executor = CountingExecutor {
+            invocations: Cell::new(0),
+        };
+        let NativeCommitOutcome::Committed(output) = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(11),
+                Some(&executor),
+            ))
+            .expect("commit succeeds")
+        else {
+            panic!("must commit");
+        };
+        // A complete receipt no head references is never visited: plant the
+        // committed bytes under an unrelated valid-shaped leaf name.
+        let orphan_hex = "00".repeat(32);
+        let orphan_dir = fixture
+            .repository
+            .root()
+            .join("transactions")
+            .join("v1")
+            .join(&orphan_hex[0..2])
+            .join(&orphan_hex[2..4]);
+        std::fs::create_dir_all(&orphan_dir).unwrap();
+        let committed_bytes = std::fs::read(
+            fixture
+                .repository
+                .receipt_path_readonly(output.transaction_id())
+                .unwrap(),
+        )
+        .unwrap();
+        let orphan_path = orphan_dir.join(format!("{orphan_hex}.receipt.scb1"));
+        std::fs::write(&orphan_path, &committed_bytes).unwrap();
+        let report = fixture.repository.recover().expect("recovery succeeds");
+        assert_eq!(
+            report.accepted_transaction_id,
+            Some(output.transaction_id())
+        );
+        assert!(orphan_path.exists());
+        assert_eq!(
+            fixture
+                .repository
+                .verified_native_revision(output.transaction_id())
+                .unwrap()
+                .transaction_id(),
+            output.transaction_id()
+        );
+    }
+
+    #[test]
+    fn native_attempt_status_is_unknown_without_a_record() {
+        let fixture = Fixture::new("native-status-unknown");
+        assert!(matches!(
+            fixture
+                .repository
+                .native_attempt_status(attempt(12))
+                .unwrap(),
+            AttemptStatus::Unknown
+        ));
     }
 }

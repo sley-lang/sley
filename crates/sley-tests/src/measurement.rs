@@ -253,6 +253,16 @@ impl MeasuredTestAttestationV1 {
         self.parts.test_object
     }
 
+    /// Raw measurement public key identifying the daemon signer.
+    ///
+    /// The transaction owner checks this key against the receiver-provisioned
+    /// measurement trust manifest; curve verification waits on vendored
+    /// Ed25519 crypto.
+    #[must_use]
+    pub const fn key_id(&self) -> [u8; 32] {
+        self.parts.key_id
+    }
+
     /// Plan the measurement was taken under; the bundle requires agreement.
     #[must_use]
     pub const fn plan_id(&self) -> NativeTestPlanId {
@@ -278,6 +288,33 @@ impl MeasuredTestAttestationV1 {
     #[must_use]
     pub const fn execution_report_id(&self) -> Option<ExecutionReportId> {
         self.parts.execution_report_id
+    }
+
+    /// Workspace the run was bound to; the owner requires agreement.
+    #[must_use]
+    pub const fn workspace(&self) -> WorkspaceId {
+        self.parts.workspace
+    }
+
+    /// Authenticated principal the run was bound to; the owner requires
+    /// agreement.
+    #[must_use]
+    pub const fn principal(&self) -> PrincipalId {
+        self.parts.principal
+    }
+
+    /// Exact declared limits the run was admitted under; the owner requires
+    /// agreement with the plan entry.
+    #[must_use]
+    pub const fn declared_limits(&self) -> NativeDeclaredLimits {
+        self.parts.declared_limits
+    }
+
+    /// Supervisor-recorded historical trust time; the owner evaluates the
+    /// measurement grant interval at this time, not the present clock.
+    #[must_use]
+    pub const fn recorded_unix_millis(&self) -> u64 {
+        self.parts.recorded_unix_millis
     }
 }
 

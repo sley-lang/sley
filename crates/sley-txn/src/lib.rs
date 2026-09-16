@@ -4,6 +4,7 @@
 mod codec;
 mod maintenance;
 mod native_codec;
+mod native_commit;
 mod repository;
 
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
@@ -30,7 +31,7 @@ pub use codec::{
 pub use maintenance::{
     RepositoryMaintenanceGuard, acquire_exclusive_repository_maintenance,
     acquire_exclusive_repository_maintenance_nonblocking, acquire_shared_repository_maintenance,
-    initialize_repository_maintenance,
+    acquire_shared_repository_maintenance_nonblocking, initialize_repository_maintenance,
 };
 pub use native_codec::{
     ImportedNativeTransaction, ImportedNativeTransactionReceipt, ImportedReceipt,
@@ -40,6 +41,13 @@ pub use native_codec::{
     NativeTransactionReceiptRecord, NativeTransactionRecord, build_native_transaction,
     build_native_transaction_receipt, check_native_evidence_bounds, import_native_transaction,
     import_native_transaction_receipt, import_receipt_any,
+};
+pub use native_commit::{
+    ATTEMPT_SUFFIX, ATTEMPTS_DIR, AttemptRecord, AttemptState, AttemptStatus, ExecutedNativeTest,
+    JOURNAL_MAGIC, JOURNAL_VERSION, MAX_COMMIT_WALL_MILLIS, MAX_JOURNAL_BYTES,
+    NativeAcceptanceSigner, NativeAttemptId, NativeCommitError, NativeCommitInput,
+    NativeCommitOutcome, NativeCommitOutput, NativeRejection, NativeTestExecutor,
+    NativeVerifiedRevision, attempt_path, commit_needs_executor, native_receipt_committed_root,
 };
 pub use repository::{
     AcceptedHead, CommitError, CommitInput, CommitOutput, RecoveryAncestryError,

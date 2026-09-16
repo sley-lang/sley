@@ -18,7 +18,7 @@ use sley_tests::{
     ACCEPTANCE_SIGNATURE_PROFILE_V1, ADMISSION_CLEANUP_MILLIS, CANCEL_BETWEEN_REQUESTS,
     ChangedTest, GrantCeilings, LOCK_WAIT_MILLIS, MAX_EXECUTION_REPORT_STORED,
     MEASUREMENT_PROFILE_V1, NATIVE_WALL_CAP_MILLIS, NativeAdmissionProfileParts,
-    NativeAdmissionProfileV1, NativeAggregateLimits, NativeResourcePolicyParts,
+    NativeAdmissionProfileV1, NativeAggregateLimits, NativeExpected, NativeResourcePolicyParts,
     NativeResourcePolicyV1, NativeTestPlanParts, NativeTestPlanV1, PREPROMOTION_WATCHDOG_MILLIS,
     SELECTION_RULE_NATIVE_V1, SelectedEntry, ValidationLimits,
     plan::SELECTION_MODE_CANDIDATE_AFFECTED,
@@ -192,6 +192,61 @@ pub struct NativePlanInputs<'a> {
     pub implementation_limits: NativeImplementationLimits,
     /// Configured local aggregate ceilings within the native hard maxima.
     pub aggregate: NativeAggregateLimits,
+}
+
+/// Returns the exact fixed native admission descriptor every plan binds.
+///
+/// The descriptor is constant: full-v1 static validation profile, native
+/// execution profile, the three accepted rule tags, hard-maximum aggregates,
+/// and the fixed lock-wait, watchdog, cleanup, and cancel bounds. The
+/// transaction owner rebuilds this descriptor to check the caller's claimed
+/// profile identity without accepting caller-chosen authority facts.
+///
+/// # Errors
+///
+/// Returns `SelectionInvalid` if the fixed facts ever fail validation, which
+/// cannot happen for these constants.
+pub fn fixed_native_admission_profile() -> Result<NativeAdmissionProfileV1, NativePlanErrorV1> {
+    NativeAdmissionProfileV1::build(NativeAdmissionProfileParts {
+        static_validation_profile: full_validation_profile_id()
+            .map_err(|_| NativePlanErrorV1::SelectionInvalid)?,
+        execution_profile: profile_id(),
+        selection_rule: SELECTION_RULE_NATIVE_V1,
+        measurement_profile: MEASUREMENT_PROFILE_V1,
+        acceptance_signature_profile: ACCEPTANCE_SIGNATURE_PROFILE_V1,
+        aggregate_limits: NativeAggregateLimits::HARD_MAXIMA,
+        lock_wait_millis: LOCK_WAIT_MILLIS,
+        prepromotion_watchdog_millis: PREPROMOTION_WATCHDOG_MILLIS,
+        cleanup_millis: ADMISSION_CLEANUP_MILLIS,
+        cancel_profile: CANCEL_BETWEEN_REQUESTS,
+    })
+    .map_err(|_| NativePlanErrorV1::SelectionInvalid)
+}
+
+/// Derives the hash-only native expectation for one canonical `TestCase`.
+///
+/// The transaction owner derives every report expectation itself from the
+/// canonical proposed `TestCase` bytes; the test executor never supplies
+/// one. An expected value hashes through the shared validated-value
+/// fingerprint, and an expected trap code passes through with its frozen
+/// 1..=4 range enforced by the report codec at entry build.
+///
+/// # Errors
+///
+/// Returns `SelectionInvalid` when the expected value does not fingerprint,
+/// which cannot happen for a validated `TestCase`.
+pub fn native_expected_outcome(
+    schema_epoch: sley_id::SchemaEpochId,
+    expected: &sley_ssmc::ExpectedOutcome,
+) -> Result<NativeExpected, NativePlanErrorV1> {
+    match expected {
+        sley_ssmc::ExpectedOutcome::Value(value) => {
+            sley_ssmc::fingerprint::hash_validated_value(schema_epoch, value)
+                .map(NativeExpected::Value)
+                .map_err(|_| NativePlanErrorV1::SelectionInvalid)
+        }
+        sley_ssmc::ExpectedOutcome::FailureCode(code) => Ok(NativeExpected::FailureCode(*code)),
+    }
 }
 
 /// Derives the protected native test plan from one fully valid static result.
@@ -592,19 +647,7 @@ fn resource_policy(
         .principal_grant(candidate.record.principal_id)
         .map_err(|_| selection_invalid())?;
     let ceilings = grant.resource_ceilings();
-    let profile = NativeAdmissionProfileV1::build(NativeAdmissionProfileParts {
-        static_validation_profile: full_validation_profile_id().map_err(|_| selection_invalid())?,
-        execution_profile: profile_id(),
-        selection_rule: SELECTION_RULE_NATIVE_V1,
-        measurement_profile: MEASUREMENT_PROFILE_V1,
-        acceptance_signature_profile: ACCEPTANCE_SIGNATURE_PROFILE_V1,
-        aggregate_limits: NativeAggregateLimits::HARD_MAXIMA,
-        lock_wait_millis: LOCK_WAIT_MILLIS,
-        prepromotion_watchdog_millis: PREPROMOTION_WATCHDOG_MILLIS,
-        cleanup_millis: ADMISSION_CLEANUP_MILLIS,
-        cancel_profile: CANCEL_BETWEEN_REQUESTS,
-    })
-    .map_err(|_| selection_invalid())?;
+    let profile = fixed_native_admission_profile()?;
     let parts = NativeResourcePolicyParts {
         policy_root: inputs.policy.root(),
         principal: candidate.record.principal_id,

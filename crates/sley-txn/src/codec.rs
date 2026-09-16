@@ -37,6 +37,11 @@ pub const SEMANTIC_PROFILE_OPERATION_FREE_V1: u32 = 1;
 /// and an ordinary commit of a program without operations ran the analysis and
 /// judged none (transaction model revision 3).
 pub const SEMANTIC_PROFILE_EXTENDED_OPERATIONS_V1: u32 = 2;
+/// Exact native commit profile tag: native additional admission atop a fresh
+/// full-v1 judgment (`NATIVE_TEST_ADMISSION_V1.md` Appendix A).
+pub const COMMIT_PROFILE_NATIVE_V1: u32 = 2;
+/// Exact native semantic profile tag: native evidence bound to the v1 result.
+pub const SEMANTIC_PROFILE_NATIVE_V1: u32 = 3;
 /// Exact receipt-before-head durability profile tag.
 pub const DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1: u32 = 1;
 
@@ -118,6 +123,19 @@ impl CommitMetadata {
             Self::extended_operations_v1()
         } else {
             Self::restricted_v1()
+        }
+    }
+
+    /// Returns the exact native metadata identifying native additional
+    /// admission atop a fresh full-v1 judgment: commit profile 2, semantic
+    /// profile 3, receipt-before-head durability 1. Only v2 records carry
+    /// this; v1 builders never mint it and v1 decoders never accept it.
+    #[must_use]
+    pub const fn native_v1() -> Self {
+        Self {
+            commit_profile: COMMIT_PROFILE_NATIVE_V1,
+            semantic_profile: SEMANTIC_PROFILE_NATIVE_V1,
+            durability_profile: DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1,
         }
     }
 }

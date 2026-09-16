@@ -158,6 +158,11 @@ impl<'a> TrustedCandidateCapability<'a> {
 
 /// Closed validator-owned context. The digest is computed internally from a
 /// canonical public projection; callers cannot supply or replace it.
+///
+/// The exact already-hashed projection bytes are retained so the native
+/// transaction owner can preserve them in the historical admission context
+/// without reimplementing the encoder; MAC keys, private signing keys, and
+/// capability secrets never enter either projection.
 pub struct CandidateValidationContext<'a> {
     base_transaction_id: TransactionId,
     base_state: &'a AcceptedStateRoot,
@@ -167,6 +172,8 @@ pub struct CandidateValidationContext<'a> {
     principal_id: PrincipalId,
     capabilities: &'a [TrustedCandidateCapability<'a>],
     capability_summary_digest: CapabilitySummaryDigest,
+    capability_summary_projection: Vec<u8>,
+    context_projection: Vec<u8>,
     now_unix_millis: u64,
     limits: CandidateValidationLimits,
     context_digest: ValidationContextDigest,
@@ -230,6 +237,8 @@ impl<'a> CandidateValidationContext<'a> {
             principal_id,
             capabilities,
             capability_summary_digest: summary.digest(),
+            capability_summary_projection: summary.preimage().to_vec(),
+            context_projection: public_projection,
             now_unix_millis,
             limits,
             context_digest,
@@ -240,6 +249,24 @@ impl<'a> CandidateValidationContext<'a> {
     #[must_use]
     pub const fn context_digest(&self) -> ValidationContextDigest {
         self.context_digest
+    }
+
+    /// Returns the exact already-hashed static context projection bytes.
+    ///
+    /// The transaction owner preserves these bytes verbatim in the native
+    /// historical admission context; the digest above recomputes from them.
+    #[must_use]
+    pub fn context_projection_bytes(&self) -> &[u8] {
+        &self.context_projection
+    }
+
+    /// Returns the exact nonsecret capability-summary projection bytes.
+    ///
+    /// The transaction owner preserves these bytes verbatim so the summary
+    /// digest recomputes independently; secrets never enter the projection.
+    #[must_use]
+    pub fn capability_summary_projection_bytes(&self) -> &[u8] {
+        &self.capability_summary_projection
     }
 
     /// Returns the independently projected capability-summary digest.

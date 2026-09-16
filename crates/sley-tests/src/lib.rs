@@ -35,6 +35,18 @@ pub use measurement::{
     TERMINATION_ENFORCER_ERROR, TERMINATION_KILLED, TERMINATION_PRELAUNCH_REFUSED,
     TERMINATION_TIMEOUT, measurement_signature_preimage, unsigned_record_prefix,
 };
+/// Re-exported native execution profile identity constructor.
+///
+/// Receiver trust configuration names the execution profile scope without
+/// the transaction owner depending on the VM owner.
+pub use sley_vm::native_execution::profile_id as native_execution_profile_id;
+/// Re-exported native execution ceiling types owned by the VM crate.
+///
+/// The transaction owner names these ceiling types in commit inputs without
+/// depending on the VM owner; all execution semantics stay in `sley-vm`.
+pub use sley_vm::native_execution::{
+    NativeDeclaredLimits, NativeImplementationLimits, NativeObservedTermination,
+};
 
 pub use plan::{ChangedTest, NativeTestPlanParts, NativeTestPlanV1, SelectedEntry};
 pub use policy::{

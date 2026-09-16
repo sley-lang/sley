@@ -726,9 +726,11 @@ fn validate_native_transaction_record(
     if record.transaction_kind != TransactionKind::OrdinaryCandidate {
         return Err(txn_error(TransactionErrorCode::FieldShape));
     }
-    if record.commit_metadata != CommitMetadata::restricted_v1()
-        && record.commit_metadata != CommitMetadata::extended_operations_v1()
-    {
+    // The native record carries exactly the spec-fixed native metadata:
+    // commit profile 2, semantic profile 3, receipt-before-head durability 1.
+    // v1 triples are not v2 wire states, and v1 decoders already refuse the
+    // native triple, so neither format partially interprets the other.
+    if record.commit_metadata != CommitMetadata::native_v1() {
         return Err(txn_error(TransactionErrorCode::FieldShape));
     }
     if record.parent_transaction_ids.len() != 1
@@ -1006,10 +1008,7 @@ fn decode_native_receipt_record(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::codec::{
-        COMMIT_PROFILE_RESTRICTED_V1, DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1,
-        SEMANTIC_PROFILE_OPERATION_FREE_V1,
-    };
+    use crate::codec::DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1;
 
     fn id<T>(byte: u8, constructor: impl FnOnce([u8; 32]) -> T) -> T {
         constructor([byte; 32])
@@ -1040,11 +1039,7 @@ mod tests {
             selected_tests: vec![id(15, EntityId::from_bytes)],
             test_result_refs: vec![id(16, TestReportId::from_bytes)],
             tombstoned_entities: Vec::new(),
-            commit_metadata: CommitMetadata {
-                commit_profile: COMMIT_PROFILE_RESTRICTED_V1,
-                semantic_profile: SEMANTIC_PROFILE_OPERATION_FREE_V1,
-                durability_profile: DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1,
-            },
+            commit_metadata: CommitMetadata::native_v1(),
             native_approval_id: id(17, NativeTestApprovalId::from_bytes),
         }
     }
@@ -1199,6 +1194,48 @@ mod tests {
         let mut empty = ordinary_record();
         empty.selected_tests = Vec::new();
         build_native_transaction(&empty).expect("empty selection is a core shape");
+    }
+
+    #[test]
+    fn native_transaction_requires_the_spec_fixed_native_metadata() {
+        // Appendix A fixes the v2 metadata to commit profile 2, semantic
+        // profile 3, durability 1: v1 triples are not v2 wire states.
+        let mut restricted = ordinary_record();
+        restricted.commit_metadata = CommitMetadata::restricted_v1();
+        assert_eq!(
+            build_native_transaction(&restricted).unwrap_err().code(),
+            "TXN_FIELD_SHAPE"
+        );
+        let mut extended = ordinary_record();
+        extended.commit_metadata = CommitMetadata::extended_operations_v1();
+        assert_eq!(
+            build_native_transaction(&extended).unwrap_err().code(),
+            "TXN_FIELD_SHAPE"
+        );
+        // And the v1 path refuses the native triple in turn: neither format
+        // partially interprets the other.
+        let legacy = crate::codec::build_transaction(&crate::codec::TransactionRecord {
+            format_version: 1,
+            transaction_kind: TransactionKind::OrdinaryCandidate,
+            workspace_id: id(1, WorkspaceId::from_bytes),
+            parent_transaction_ids: vec![id(7, TransactionId::from_bytes)],
+            parent_roots: vec![id(8, StateRoot::from_bytes)],
+            schema_epoch_id: id(2, SchemaEpochId::from_bytes),
+            policy_root_id: id(3, PolicyRootId::from_bytes),
+            principal_id: Some(id(9, PrincipalId::from_bytes)),
+            candidate_id: Some(id(10, CandidateId::from_bytes)),
+            candidate_result_id: Some(id(11, CandidateResultId::from_bytes)),
+            validation_context_digest: Some(id(12, ValidationContextDigest::from_bytes)),
+            validation_profile_id: Some(id(13, ValidationProfileId::from_bytes)),
+            committed_root: id(4, StateRoot::from_bytes),
+            changed_entity_bindings: Vec::new(),
+            capability_summary_digest: Some(id(14, CapabilitySummaryDigest::from_bytes)),
+            selected_tests: Vec::new(),
+            test_result_refs: Vec::new(),
+            tombstoned_entities: Vec::new(),
+            commit_metadata: CommitMetadata::native_v1(),
+        });
+        assert_eq!(legacy.unwrap_err().code(), "TXN_FIELD_SHAPE");
     }
 
     #[test]

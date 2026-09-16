@@ -43,7 +43,8 @@ pub use candidate_validation::{
 };
 pub use capability_summary::{CapabilitySummaryProjection, build_capability_summary_projection};
 pub use native_test_plan::{
-    NativePlanErrorV1, NativePlanInputs, NativePlanResource, native_test_plan,
+    NativePlanErrorV1, NativePlanInputs, NativePlanResource, fixed_native_admission_profile,
+    native_expected_outcome, native_test_plan,
 };
 
 const MAGIC: &[u8; 8] = b"SLEYSCB1";

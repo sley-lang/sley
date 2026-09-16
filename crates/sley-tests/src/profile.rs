@@ -144,6 +144,12 @@ impl NativeAdmissionProfileV1 {
     pub const fn id(&self) -> NativeAdmissionProfileId {
         self.id
     }
+
+    /// Validated descriptor facts; constructing these admits nothing.
+    #[must_use]
+    pub const fn parts(&self) -> &NativeAdmissionProfileParts {
+        &self.parts
+    }
 }
 
 fn validate_parts(parts: &NativeAdmissionProfileParts) -> Result<(), ScbError> {

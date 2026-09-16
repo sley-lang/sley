@@ -133,6 +133,18 @@ pub fn acquire_exclusive_repository_maintenance_nonblocking(
     acquire_repository_maintenance(root, true, false)
 }
 
+/// Acquires shared maintenance ownership without waiting.
+///
+/// # Errors
+///
+/// Returns an I/O error of kind `WouldBlock` when another owner holds the
+/// boundary exclusively, and the same errors as the blocking form otherwise.
+pub fn acquire_shared_repository_maintenance_nonblocking(
+    root: &Path,
+) -> io::Result<RepositoryMaintenanceGuard> {
+    acquire_repository_maintenance(root, false, false)
+}
+
 fn acquire_repository_maintenance(
     root: &Path,
     exclusive: bool,
@@ -162,8 +174,16 @@ fn acquire_repository_maintenance(
         })?;
     } else if exclusive {
         ::std::fs::File::lock(&file)?;
-    } else {
+    } else if wait {
         ::std::fs::File::lock_shared(&file)?;
+    } else {
+        ::std::fs::File::try_lock_shared(&file).map_err(|error| match error {
+            ::std::fs::TryLockError::WouldBlock => ::std::io::Error::new(
+                ::std::io::ErrorKind::WouldBlock,
+                "repository maintenance boundary is held by another owner",
+            ),
+            ::std::fs::TryLockError::Error(error) => error,
+        })?;
     }
     Ok(RepositoryMaintenanceGuard {
         repository_root,
