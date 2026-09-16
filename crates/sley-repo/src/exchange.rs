@@ -2063,7 +2063,7 @@ pub(crate) mod tests {
         move |bytes| import_entity_object(epoch, bytes).map(|object| object.object_id())
     }
 
-    fn candidate_for(
+    pub(crate) fn candidate_for(
         workspace_id: WorkspaceId,
         principal_id: PrincipalId,
         base_transaction_id: TransactionId,

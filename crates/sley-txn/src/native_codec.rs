@@ -249,6 +249,35 @@ pub struct NativeEvidenceBudget {
     pub selected_count: usize,
 }
 
+/// Returns the exact sorted trust policy IDs referenced by one native
+/// receipt: the acceptance statement's manifest plus every embedded
+/// measurement attestation's manifest, deduplicated.
+///
+/// This is the receipt's contribution to the repository exchange trust
+/// union. It authorizes nothing by itself; importers match it exactly
+/// against caller-supplied manifests without installing trust.
+///
+/// # Errors
+///
+/// Returns the first nested attestation envelope failure.
+pub fn native_receipt_trust_policy_ids(
+    receipt: &ImportedNativeTransactionReceipt,
+) -> Result<Vec<[u8; 32]>, TransactionCodecError> {
+    let mut ids = BTreeSet::new();
+    ids.insert(
+        *receipt
+            .statement
+            .parts()
+            .acceptance_trust_policy_id
+            .as_bytes(),
+    );
+    for embedded in receipt.bundle.measurements() {
+        let attestation = sley_tests::MeasuredTestAttestationV1::parse(&embedded.stored)?;
+        ids.insert(attestation.trust_policy_id());
+    }
+    Ok(ids.into_iter().collect())
+}
+
 /// Versioned imported receipt behind common relationship accessors.
 ///
 /// Mixed v1/v2 ancestry verifies through these accessors without format
@@ -351,6 +380,25 @@ impl ImportedReceipt {
         match self {
             Self::V1(receipt) => &receipt.transaction.record.tombstoned_entities,
             Self::V2(receipt) => &receipt.transaction.record.tombstoned_entities,
+        }
+    }
+
+    /// Returns the exact workspace this receipt was accepted in.
+    #[must_use]
+    pub const fn workspace_id(&self) -> WorkspaceId {
+        match self {
+            Self::V1(receipt) => receipt.transaction.record.workspace_id,
+            Self::V2(receipt) => receipt.transaction.record.workspace_id,
+        }
+    }
+
+    /// Returns the transaction kind (genesis exists only in format 1:
+    /// no v2 genesis is a wire state).
+    #[must_use]
+    pub const fn transaction_kind(&self) -> TransactionKind {
+        match self {
+            Self::V1(receipt) => receipt.transaction.record.transaction_kind,
+            Self::V2(receipt) => receipt.transaction.record.transaction_kind,
         }
     }
 }

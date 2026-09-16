@@ -278,6 +278,12 @@ impl VerifiedRevision {
         &self.receipt
     }
 
+    /// Consumes the revision and returns its complete receipt.
+    #[must_use]
+    pub fn into_receipt(self) -> ImportedTransactionReceipt {
+        self.receipt
+    }
+
     /// Returns the registry-authorized accepted semantic root.
     #[must_use]
     pub const fn state_root(&self) -> &AcceptedStateRoot {
@@ -931,6 +937,52 @@ impl TransactionRepository {
         self.ensure_read_layout()?;
         let _lock = self.acquire_existing_lock()?;
         self.load_verified_revision(transaction_id)
+    }
+
+    /// Loads and verifies an arbitrary revision of either receipt format
+    /// while a composite caller holds repository-maintenance ownership.
+    ///
+    /// Format 1 revisions verify through the frozen v1 loader; native
+    /// revisions verify through the native loader with its evidence,
+    /// relationship, object, inventory, and pin checks. The format
+    /// dispatches on the stored bytes, never on caller assertion.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TXN_IO` for a mismatched guard or invalid layout, or the
+    /// first exact revision verification failure of either format.
+    pub fn verified_revision_any_with_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+        transaction_id: TransactionId,
+    ) -> Result<ImportedReceipt, CommitError> {
+        self.validate_maintenance(maintenance)?;
+        self.ensure_read_layout()?;
+        let _lock = self.acquire_existing_lock()?;
+        self.load_verified_revision_any(transaction_id)
+    }
+
+    /// Loads and verifies the currently accepted head of either receipt
+    /// format while a composite caller holds repository-maintenance
+    /// ownership.
+    ///
+    /// # Errors
+    ///
+    /// Returns `REF_HEAD_MISSING` when uninitialized or the first exact
+    /// head, receipt, root, policy, object, or ancestry failure of either
+    /// format.
+    pub fn accepted_head_any_with_maintenance(
+        &self,
+        maintenance: &RepositoryMaintenanceGuard,
+    ) -> Result<ImportedReceipt, CommitError> {
+        self.validate_maintenance(maintenance)?;
+        self.ensure_read_layout()?;
+        let _lock = self.acquire_existing_lock()?;
+        self.require_not_incomplete_clone()?;
+        let transaction_id = self
+            .read_head()?
+            .ok_or_else(|| txn_commit_error(TransactionErrorCode::HeadMissing))?;
+        self.load_verified_revision_any(transaction_id)
     }
 
     /// Removes owned staging remnants and verifies the surviving accepted
@@ -2266,6 +2318,28 @@ impl TransactionRepository {
             receipt,
             objects,
         })
+    }
+
+    /// Loads and fully verifies one revision of either receipt format.
+    ///
+    /// The stored bytes decide the format: format 1 runs the frozen loader
+    /// above, format 2 the native loader with its evidence and pin checks.
+    /// Both re-read under the caller's held lock, so the dispatch read and
+    /// the verifying read see the same durable bytes.
+    fn load_verified_revision_any(
+        &self,
+        transaction_id: TransactionId,
+    ) -> Result<ImportedReceipt, CommitError> {
+        let format = self
+            .read_receipt_any_readonly(transaction_id)?
+            .format_version();
+        if format == 1 {
+            let revision = self.load_verified_revision(transaction_id)?;
+            Ok(ImportedReceipt::V1(Box::new(revision.into_receipt())))
+        } else {
+            let revision = self.load_verified_native_revision(transaction_id)?;
+            Ok(ImportedReceipt::V2(Box::new(revision.receipt().clone())))
+        }
     }
 
     fn verify_transaction_relationship(

@@ -27,19 +27,27 @@
 //! the Appendix B counters, promotion, and replay arrive in later N6 slices.
 
 use core::fmt;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
+use crate::refs::{BranchError, BranchRepository, MAX_BRANCHES, ResolvedBranch};
 use sley_id::{NativeExchangeProfileId, ReceiptId, RepositoryExchangeId, TransactionId};
 use sley_scb1::{ScbErrorCode, encode_list, encode_record, encode_union, encode_uvar};
+use sley_store::{CanonicalVerifier, ObjectStore};
+use sley_txn::{
+    CommitError, ImportedReceipt, RepositoryMaintenanceGuard, TransactionCodecError,
+    TransactionRepository, acquire_shared_repository_maintenance, native_receipt_trust_policy_ids,
+};
 
 use crate::exchange::{
     BRANCH_SECTION, ExchangeBranchEntry, ExchangeError, ExchangeErrorCode, ExchangeHeadEntry,
-    HEAD_SECTION, MAX_EXCHANGE_ALLOCATION, MAX_EXCHANGE_BRANCHES, MAX_EXCHANGE_BYTES,
-    MAX_EXCHANGE_RECEIPTS, PACK_SECTION, RECEIPT_SECTION, branch_name_key, content_leaf,
-    encode_branch_element, encode_bytes, stored_head_bytes,
+    HEAD_SECTION, MAX_EMBEDDED_PACK_BYTES, MAX_EXCHANGE_ALLOCATION, MAX_EXCHANGE_BRANCHES,
+    MAX_EXCHANGE_BYTES, MAX_EXCHANGE_RECEIPTS, PACK_SECTION, RECEIPT_SECTION, branch_name_key,
+    content_leaf, encode_branch_element, encode_bytes, merkle_root, stored_head_bytes,
 };
 use crate::{
     PackError, Reader, RecordReader, decode_absent_signature, decode_list, exact_array,
-    read_single_uvar, scb_error,
+    export_conformance_pack, read_single_uvar, scb_error,
 };
 
 const ID_LEN: usize = 32;
@@ -208,6 +216,30 @@ impl From<ExchangeError> for NativeExchangeError {
 impl From<PackError> for NativeExchangeError {
     fn from(error: PackError) -> Self {
         Self::Pack(error)
+    }
+}
+
+impl From<CommitError> for NativeExchangeError {
+    fn from(error: CommitError) -> Self {
+        Self::Exchange(ExchangeError::from(error))
+    }
+}
+
+impl From<BranchError> for NativeExchangeError {
+    fn from(error: BranchError) -> Self {
+        Self::Exchange(ExchangeError::from(error))
+    }
+}
+
+impl From<TransactionCodecError> for NativeExchangeError {
+    fn from(error: TransactionCodecError) -> Self {
+        Self::Exchange(ExchangeError::from(error))
+    }
+}
+
+impl From<std::io::Error> for NativeExchangeError {
+    fn from(error: std::io::Error) -> Self {
+        Self::Exchange(ExchangeError::from(error))
     }
 }
 
@@ -897,13 +929,557 @@ pub fn decode_native_envelope(
     Ok((exchange_id, transport_profile_id, payload))
 }
 
+/// Walks the mixed-history closure from the accepted head and every
+/// visible branch head, verifying each revision of either receipt format
+/// before trusting its bytes.
+///
+/// # Errors
+///
+/// Returns the first revision verification failure or
+/// `EXCHANGE_RESOURCE_LIMIT` for a closure beyond 4,096 receipts.
+fn collect_native_receipts(
+    transactions: &TransactionRepository,
+    maintenance: &RepositoryMaintenanceGuard,
+    head: &ImportedReceipt,
+    visible: &[ResolvedBranch],
+) -> Result<BTreeMap<TransactionId, ImportedReceipt>> {
+    let mut receipts: BTreeMap<TransactionId, ImportedReceipt> = BTreeMap::new();
+    let mut pending: Vec<TransactionId> = vec![head.transaction_id()];
+    pending.extend(
+        visible
+            .iter()
+            .map(|branch| branch.reference.record.head_transaction_id),
+    );
+    while let Some(transaction_id) = pending.pop() {
+        if receipts.contains_key(&transaction_id) {
+            continue;
+        }
+        if receipts.len() >= MAX_EXCHANGE_RECEIPTS {
+            return Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::ResourceLimit,
+            ));
+        }
+        let revision =
+            transactions.verified_revision_any_with_maintenance(maintenance, transaction_id)?;
+        pending.extend(revision.parent_transaction_ids().iter().copied());
+        receipts.insert(transaction_id, revision);
+    }
+    Ok(receipts)
+}
+
+/// Canonical accepted native repository exchange.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AcceptedNativeExchange {
+    /// Derived exchange identifier.
+    pub exchange_id: RepositoryExchangeId,
+    /// Exact standalone exchange bytes.
+    pub stored_bytes: Vec<u8>,
+    /// Identifier of the embedded S20-170 pack.
+    pub pack_id: sley_id::RepositoryPackId,
+    /// Exact embedded S20-170 pack bytes.
+    pub object_pack: Vec<u8>,
+    /// Exact ordered chunked receipt entries.
+    pub receipts: Vec<NativeExchangeReceiptEntry>,
+    /// The accepted head.
+    pub accepted_head: ExchangeHeadEntry,
+    /// Exact ordered branch entries.
+    pub branches: Vec<ExchangeBranchEntry>,
+    /// Exact sorted trust-ID union referenced by native evidence.
+    pub required_trust_policy_ids: Vec<[u8; ID_LEN]>,
+    /// Verified digest-tree root.
+    pub digest_tree_root: [u8; ID_LEN],
+}
+
+/// Exports the complete mixed-history repository as a native exchange.
+///
+/// The walk holds shared repository maintenance and verifies every
+/// revision of either receipt format before trusting its bytes: format 1
+/// through the frozen v1 loader, native receipts through the native loader
+/// with its evidence, relationship, object, inventory, and pin checks.
+/// Receipt bytes are exact stored bytes (reconstructed identically from
+/// canonical chunks at decode), branch records are exact stored bytes, and
+/// the trust union collects every native receipt's acceptance and
+/// measurement manifests without installing any receiver trust.
+///
+/// # Errors
+///
+/// Returns the first maintenance, verification, pack, chunking, or
+/// encoding failure; `EXCHANGE_RESOURCE_LIMIT` for over-limit closures,
+/// packs, or envelopes.
+pub fn export_native_exchange<V: CanonicalVerifier>(
+    root: &Path,
+    verifier: &V,
+) -> Result<AcceptedNativeExchange> {
+    let maintenance = acquire_shared_repository_maintenance(root)?;
+    let transactions = TransactionRepository::new(root);
+    let head = transactions.accepted_head_any_with_maintenance(&maintenance)?;
+    let branch_repository = BranchRepository::new(root);
+    let visible = {
+        let _refs_lock = branch_repository.acquire_refs_lock()?;
+        branch_repository.list_branches_locked(&maintenance, MAX_BRANCHES)?
+    };
+    if visible.len() > MAX_EXCHANGE_BRANCHES {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::ResourceLimit,
+        ));
+    }
+
+    let receipts = collect_native_receipts(&transactions, &maintenance, &head, &visible)?;
+
+    let roots = receipts
+        .values()
+        .map(|receipt| receipt.state_root().clone())
+        .collect::<Vec<sley_state_root::AcceptedStateRoot>>();
+    let store = ObjectStore::new(root);
+    let pack = export_conformance_pack(&store, &roots, verifier)?;
+    if pack.stored_bytes.len() > MAX_EMBEDDED_PACK_BYTES {
+        return Err(NativeExchangeError::exchange(
+            ExchangeErrorCode::ResourceLimit,
+        ));
+    }
+
+    let mut trust_ids = BTreeSet::new();
+    let mut receipt_entries = Vec::with_capacity(receipts.len());
+    for (transaction_id, receipt) in &receipts {
+        if let ImportedReceipt::V2(native) = receipt {
+            trust_ids.extend(native_receipt_trust_policy_ids(native)?);
+        }
+        receipt_entries.push(NativeExchangeReceiptEntry {
+            transaction_id: *transaction_id,
+            receipt_id: receipt.receipt_id(),
+            chunks: chunk_native_receipt(receipt.stored_bytes())?,
+        });
+    }
+    let required_trust_policy_ids = trust_ids.into_iter().collect::<Vec<_>>();
+    let accepted_head = ExchangeHeadEntry {
+        transaction_id: head.transaction_id(),
+        receipt_id: head.receipt_id(),
+    };
+    let mut branch_entries = visible
+        .iter()
+        .map(|branch| ExchangeBranchEntry {
+            branch_name: branch.origin.record.branch_name.as_bytes().to_vec(),
+            stored_origin: branch.origin.stored_bytes.clone(),
+            stored_ref: branch.reference.stored_bytes.clone(),
+        })
+        .collect::<Vec<_>>();
+    let mut keyed = branch_entries
+        .drain(..)
+        .map(|entry| encode_branch_element(&entry).map(|encoded| (encoded, entry)))
+        .collect::<core::result::Result<Vec<_>, ExchangeError>>()
+        .map_err(NativeExchangeError::from)?;
+    keyed.sort_by(|left, right| left.0.cmp(&right.0));
+    keyed.dedup_by(|left, right| left.0 == right.0);
+    let branch_entries = keyed
+        .into_iter()
+        .map(|(_, entry)| entry)
+        .collect::<Vec<_>>();
+    drop(maintenance);
+    let profile = NativeExchangeProfileV1::fixed();
+    let leaves = compute_native_leaves(
+        pack.pack_id,
+        &pack.stored_bytes,
+        &receipt_entries,
+        accepted_head,
+        &branch_entries,
+        profile.id(),
+        &required_trust_policy_ids,
+    )?;
+    let digest_tree_root =
+        merkle_root(&leaves, MAX_NATIVE_EXCHANGE_LEAVES).map_err(NativeExchangeError::from)?;
+    let payload = encode_native_payload(
+        &pack.stored_bytes,
+        &receipt_entries,
+        accepted_head,
+        &branch_entries,
+        &leaves,
+        digest_tree_root,
+        &required_trust_policy_ids,
+        profile.id(),
+    )?;
+    let (stored_bytes, exchange_id) = encode_native_envelope(&payload, profile.id())?;
+    Ok(AcceptedNativeExchange {
+        exchange_id,
+        stored_bytes,
+        pack_id: pack.pack_id,
+        object_pack: pack.stored_bytes,
+        receipts: receipt_entries,
+        accepted_head,
+        branches: branch_entries,
+        required_trust_policy_ids,
+        digest_tree_root,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::exchange::merkle_root;
+    use crate::exchange::tests::{TempDir, candidate_for, fixed, namespace_body, verifier};
+    use crate::refs::BranchRepository;
+
+    use std::cell::Cell;
+    use std::fs;
+
+    use sley_id::{EntityId, NativeAdmissionProfileId, PrincipalId, SchemaEpochId, WorkspaceId};
+    use sley_mutate::{EntityObjectRecord, MutationClass, build_entity_object};
+    use sley_policy::{
+        CandidateValidationLimits, PolicyResourceCeilings, PolicyRootBuilder,
+        PrincipalGrantBuilder, ValidatedCandidatePlan, conformance_registry as policy_registry,
+        fixed_native_admission_profile,
+    };
+    use sley_state_root::{
+        StateRootBuilder, conformance_epoch_id as state_epoch_id,
+        conformance_registry as state_registry,
+    };
+    use sley_store::ObjectStore;
+    use sley_tests::{
+        HistoricalTrustPolicyParts, HistoricalTrustPolicyV1, NativeAggregateLimits,
+        NativeImplementationLimits, ROLE_ACCEPTANCE, ROLE_MEASUREMENT, TrustEntry,
+        native_execution_profile_id,
+    };
+    use sley_txn::{
+        CommitInput, ExecutedNativeTest, NativeAcceptanceSigner, NativeAttemptId,
+        NativeCommitError, NativeCommitInput, NativeCommitOutcome, NativeTestExecutor,
+        TransactionRepository, TrustedGenesisInput,
+    };
+
+    const NOW: u64 = 1_000;
+    const MEASUREMENT_KEY: [u8; 32] = [0xB2; 32];
+    const ACCEPTANCE_KEY: [u8; 32] = [0xA1; 32];
+
+    struct TestSigner {
+        key: [u8; 32],
+    }
+
+    impl NativeAcceptanceSigner for TestSigner {
+        fn key_id(&self) -> [u8; 32] {
+            self.key
+        }
+
+        fn sign(&self, _preimage: &[u8]) -> [u8; 64] {
+            [0x5A; 64]
+        }
+    }
+
+    struct CountingExecutor {
+        invocations: Cell<usize>,
+    }
+
+    impl NativeTestExecutor for CountingExecutor {
+        fn execute(
+            &self,
+            _plan: &sley_tests::NativeTestPlanV1,
+            _validated: &ValidatedCandidatePlan,
+        ) -> core::result::Result<Vec<ExecutedNativeTest>, NativeCommitError> {
+            self.invocations.set(self.invocations.get() + 1);
+            Ok(Vec::new())
+        }
+    }
+
+    fn test_trust(
+        key: [u8; 32],
+        role: u32,
+        workspace: WorkspaceId,
+        profile: [u8; 32],
+    ) -> HistoricalTrustPolicyV1 {
+        HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
+            policy_nonce: [0x11; 32],
+            entries: vec![TrustEntry {
+                key_id: key,
+                role,
+                workspaces: vec![*workspace.as_bytes()],
+                profiles: vec![profile],
+                valid_from_unix_millis: 0,
+                valid_until_unix_millis: u64::MAX,
+            }],
+        })
+        .expect("test trust builds")
+    }
+
+    struct NativeHarness {
+        measurement_trust: HistoricalTrustPolicyV1,
+        acceptance_trust: HistoricalTrustPolicyV1,
+        signer: TestSigner,
+        admission_profile: NativeAdmissionProfileId,
+    }
+
+    impl NativeHarness {
+        fn new(workspace: WorkspaceId) -> Self {
+            let admission_profile = fixed_native_admission_profile()
+                .expect("fixed descriptor builds")
+                .id();
+            let measurement_trust = test_trust(
+                MEASUREMENT_KEY,
+                ROLE_MEASUREMENT,
+                workspace,
+                *native_execution_profile_id().as_bytes(),
+            );
+            let acceptance_trust = test_trust(
+                ACCEPTANCE_KEY,
+                ROLE_ACCEPTANCE,
+                workspace,
+                *admission_profile.as_bytes(),
+            );
+            Self {
+                measurement_trust,
+                acceptance_trust,
+                signer: TestSigner {
+                    key: ACCEPTANCE_KEY,
+                },
+                admission_profile,
+            }
+        }
+
+        fn input<'a>(
+            &'a self,
+            expected_parent: TransactionId,
+            candidate: &'a [u8],
+            principal: PrincipalId,
+            attempt: NativeAttemptId,
+            executor: Option<&'a dyn NativeTestExecutor>,
+        ) -> NativeCommitInput<'a> {
+            NativeCommitInput {
+                expected_parent,
+                stored_candidate: candidate,
+                principal_id: principal,
+                capabilities: &[],
+                now_unix_millis: NOW,
+                limits: CandidateValidationLimits::full_v1(),
+                attempt_id: attempt,
+                admission_profile_id: self.admission_profile,
+                implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+                aggregate: NativeAggregateLimits::HARD_MAXIMA,
+                executor,
+                acceptance_signer: &self.signer,
+                measurement_trust: &self.measurement_trust,
+                acceptance_trust: &self.acceptance_trust,
+            }
+        }
+    }
 
     fn id(byte: u8) -> [u8; ID_LEN] {
         [byte; ID_LEN]
+    }
+
+    /// A mixed-history source: genesis, one v1 commit, one empty-selection
+    /// native commit, branch `main` at the v1 commit and branch `aux` at the
+    /// v1 commit. Branches stay on format-1 heads (branch advance to native
+    /// heads is N6c); the native head enters the closure through the head
+    /// seed, exactly like an unbranched tip.
+    struct NativeSource {
+        temp: TempDir,
+        root: std::path::PathBuf,
+        epoch: SchemaEpochId,
+        genesis: TransactionId,
+        v1_head: TransactionId,
+        head: TransactionId,
+        acceptance_id: [u8; 32],
+    }
+
+    /// Genesis plus one v1 commit with the policy, objects, and roots the
+    /// native commit builds on.
+    struct V1Base {
+        temp: TempDir,
+        root: std::path::PathBuf,
+        epoch: SchemaEpochId,
+        genesis: TransactionId,
+        v1_head: TransactionId,
+        workspace_id: WorkspaceId,
+        principal_id: PrincipalId,
+        policy: sley_policy::AcceptedPolicyRoot,
+    }
+
+    impl NativeSource {
+        fn new(label: &str) -> Self {
+            Self::build(label, true)
+        }
+
+        fn v1_only(label: &str) -> Self {
+            Self::build(label, false)
+        }
+
+        fn v1_base(label: &str) -> V1Base {
+            let temp = TempDir::new(label);
+            let root = temp.child("source");
+            fs::create_dir(&root).unwrap();
+            let transactions = TransactionRepository::new(&root);
+            let workspace_id = fixed(1, WorkspaceId::from_bytes);
+            let principal_id = fixed(2, PrincipalId::from_bytes);
+            let base_entity = fixed(10, EntityId::from_bytes);
+            let grant = PrincipalGrantBuilder::new(PolicyResourceCeilings::new(
+                1_000, 1_000, 1_000, 100, 100, 100,
+            ))
+            .mutation_class(MutationClass::CreateEntity)
+            .build()
+            .unwrap();
+            let policy = PolicyRootBuilder::new(workspace_id)
+                .principal_grant(principal_id, grant)
+                .build(&policy_registry().unwrap())
+                .unwrap();
+            let epoch = state_epoch_id().unwrap();
+            let base_object = build_entity_object(
+                epoch,
+                &EntityObjectRecord {
+                    entity_id: base_entity,
+                    body: namespace_body(),
+                    label: None,
+                    semantic_fingerprint: None,
+                },
+            )
+            .unwrap();
+            let store = ObjectStore::new(&root);
+            let anchors = [20_u8, 21_u8].map(|byte| {
+                let object = build_entity_object(
+                    epoch,
+                    &EntityObjectRecord {
+                        entity_id: fixed(byte, EntityId::from_bytes),
+                        body: namespace_body(),
+                        label: None,
+                        semantic_fingerprint: None,
+                    },
+                )
+                .unwrap();
+                store
+                    .put(object.object_id(), object.stored_bytes(), &verifier(epoch))
+                    .unwrap();
+                object.object_id()
+            });
+            let base_state =
+                StateRootBuilder::new(workspace_id, anchors[0], anchors[1], policy.root())
+                    .entity_binding(base_entity, base_object.object_id())
+                    .build(&state_registry().unwrap())
+                    .unwrap();
+            let genesis = transactions
+                .initialize_trusted_genesis(TrustedGenesisInput::new(
+                    &base_state,
+                    &policy,
+                    core::slice::from_ref(&base_object),
+                    &[],
+                ))
+                .unwrap()
+                .transaction_id();
+            let candidate = candidate_for(
+                workspace_id,
+                principal_id,
+                genesis,
+                &base_state,
+                &policy,
+                30,
+            );
+            let v1_head = transactions
+                .commit(CommitInput::new(
+                    genesis,
+                    &candidate.stored_bytes,
+                    principal_id,
+                    &[],
+                    NOW,
+                    CandidateValidationLimits::full_v1(),
+                ))
+                .unwrap()
+                .transaction_id();
+            V1Base {
+                temp,
+                root,
+                epoch,
+                genesis,
+                v1_head,
+                workspace_id,
+                principal_id,
+                policy,
+            }
+        }
+
+        fn build(label: &str, with_native: bool) -> Self {
+            let V1Base {
+                temp,
+                root,
+                epoch,
+                genesis,
+                v1_head,
+                workspace_id,
+                principal_id,
+                policy,
+            } = Self::v1_base(label);
+            let transactions = TransactionRepository::new(&root);
+            let branches = BranchRepository::new(&root);
+            branches.create_branch("main", genesis).unwrap();
+            branches.advance_branch("main", genesis, v1_head).unwrap();
+            branches.create_branch("aux", v1_head).unwrap();
+            if !with_native {
+                return Self {
+                    temp,
+                    root,
+                    epoch,
+                    genesis,
+                    v1_head,
+                    head: v1_head,
+                    acceptance_id: [0; 32],
+                };
+            }
+            // The native commit carries a plain candidate with no TestCase:
+            // the empty selection commits live through the test executor.
+            let harness = NativeHarness::new(workspace_id);
+            let executor = CountingExecutor {
+                invocations: Cell::new(0),
+            };
+            let v1_state = transactions
+                .verified_revision(v1_head)
+                .unwrap()
+                .state_root()
+                .clone();
+            let native_candidate =
+                candidate_for(workspace_id, principal_id, v1_head, &v1_state, &policy, 31);
+            let outcome = transactions
+                .commit_native(&harness.input(
+                    v1_head,
+                    &native_candidate.stored_bytes,
+                    principal_id,
+                    NativeAttemptId([0xC1; 16]),
+                    Some(&executor),
+                ))
+                .expect("empty native commit succeeds");
+            let NativeCommitOutcome::Committed(output) = outcome else {
+                panic!("empty selection must commit");
+            };
+            let acceptance_id = *harness.acceptance_trust.id().as_bytes();
+            Self {
+                temp,
+                root,
+                epoch,
+                genesis,
+                v1_head,
+                head: output.transaction_id(),
+                acceptance_id,
+            }
+        }
+
+        fn target(&self, name: &str) -> std::path::PathBuf {
+            self.temp.child(name)
+        }
+
+        /// Exact receipt file bytes for one closure transaction, through the
+        /// deterministic fanout layout both formats share.
+        fn receipt_file_bytes(&self, transaction: TransactionId) -> Vec<u8> {
+            let hex = const_hex(transaction.as_bytes());
+            fs::read(
+                self.root
+                    .join("transactions")
+                    .join("v1")
+                    .join(&hex[0..2])
+                    .join(&hex[2..4])
+                    .join(format!("{hex}.receipt.scb1")),
+            )
+            .unwrap()
+        }
+    }
+
+    fn const_hex(bytes: &[u8; 32]) -> String {
+        let mut out = String::with_capacity(64);
+        for byte in bytes {
+            out.push(char::from_digit(u32::from(byte >> 4), 16).unwrap());
+            out.push(char::from_digit(u32::from(byte & 0x0f), 16).unwrap());
+        }
+        out
     }
 
     #[test]
@@ -1310,10 +1886,7 @@ mod tests {
         assert_eq!(
             decode_build(
                 2,
-                &[
-                    fixture.good_element.clone(),
-                    fixture.good_element.clone()
-                ],
+                &[fixture.good_element.clone(), fixture.good_element.clone()],
                 trust_set.clone(),
                 None
             ),
@@ -1399,6 +1972,99 @@ mod tests {
         let mut surplus = intact();
         surplus.extend_from_slice(&[0x99]);
         assert!(decode_native_payload(&surplus).is_err());
+    }
+
+    #[test]
+    fn mixed_history_export_round_trips_through_the_codecs() {
+        let source = NativeSource::new("native-export-mixed");
+        let exchange =
+            export_native_exchange(&source.root, &verifier(source.epoch)).expect("export succeeds");
+        // The closure holds genesis, the v1 commit, and the native commit
+        // in canonical transaction-ID order under the native head.
+        assert_eq!(exchange.receipts.len(), 3);
+        let mut expected = vec![source.genesis, source.v1_head, source.head];
+        expected.sort_by(|left, right| left.as_bytes().cmp(right.as_bytes()));
+        let ordered = exchange
+            .receipts
+            .iter()
+            .map(|entry| entry.transaction_id)
+            .collect::<Vec<_>>();
+        assert_eq!(ordered, expected);
+        assert_eq!(exchange.accepted_head.transaction_id, source.head);
+        assert_eq!(exchange.branches.len(), 2);
+        // The trust union is exactly the acceptance manifest: the committed
+        // empty selection carries no measurement attestations.
+        assert_eq!(
+            exchange.required_trust_policy_ids,
+            vec![source.acceptance_id]
+        );
+        // Every entry reassembles to the exact receipt file bytes.
+        for entry in &exchange.receipts {
+            assert_eq!(
+                entry.reconstructed().unwrap(),
+                source.receipt_file_bytes(entry.transaction_id)
+            );
+        }
+        // The envelope decodes to the same exchange ID and profile, and the
+        // record decodes with a leaf set that recomputes to the same root.
+        let (exchange_id, profile_id, payload) =
+            decode_native_envelope(&exchange.stored_bytes).expect("envelope decodes");
+        assert_eq!(exchange_id, exchange.exchange_id);
+        assert_eq!(profile_id, NativeExchangeProfileV1::fixed().id());
+        let decoded = decode_native_payload(&payload).expect("record decodes");
+        assert_eq!(decoded.receipts, exchange.receipts);
+        assert_eq!(
+            decoded.required_trust_policy_ids,
+            vec![source.acceptance_id]
+        );
+        let recomputed = compute_native_leaves(
+            exchange.pack_id,
+            &exchange.object_pack,
+            &decoded.receipts,
+            decoded.accepted_head,
+            &decoded.branches,
+            decoded.transport_profile_id,
+            &decoded.required_trust_policy_ids,
+        )
+        .unwrap();
+        assert_eq!(
+            merkle_root(&recomputed, MAX_NATIVE_EXCHANGE_LEAVES).unwrap(),
+            exchange.digest_tree_root
+        );
+        assert_eq!(decoded.digest_tree_root, exchange.digest_tree_root);
+        let _ = source.target("unused");
+    }
+
+    #[test]
+    fn native_export_is_byte_deterministic() {
+        let source = NativeSource::new("native-export-deterministic");
+        let first = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let second = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        assert_eq!(first.stored_bytes, second.stored_bytes);
+        assert_eq!(first.exchange_id, second.exchange_id);
+    }
+
+    #[test]
+    fn v1_history_exports_with_an_empty_trust_union() {
+        let source = NativeSource::v1_only("native-export-v1-only");
+        let exchange =
+            export_native_exchange(&source.root, &verifier(source.epoch)).expect("export succeeds");
+        assert_eq!(exchange.receipts.len(), 2);
+        assert_eq!(exchange.accepted_head.transaction_id, source.v1_head);
+        assert!(exchange.required_trust_policy_ids.is_empty());
+        let (exchange_id, profile_id, payload) =
+            decode_native_envelope(&exchange.stored_bytes).expect("envelope decodes");
+        assert_eq!(exchange_id, exchange.exchange_id);
+        assert_eq!(profile_id, NativeExchangeProfileV1::fixed().id());
+        let decoded = decode_native_payload(&payload).unwrap();
+        assert_eq!(decoded.receipts, exchange.receipts);
+        assert!(decoded.required_trust_policy_ids.is_empty());
+        for entry in &decoded.receipts {
+            assert_eq!(
+                entry.reconstructed().unwrap(),
+                source.receipt_file_bytes(entry.transaction_id)
+            );
+        }
     }
 
     #[test]

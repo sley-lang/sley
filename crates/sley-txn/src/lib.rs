@@ -40,7 +40,7 @@ pub use native_codec::{
     NATIVE_TRANSACTION_MAGIC, NativeEvidenceBudget, NativeEvidencePin, NativeEvidenceSummary,
     NativeTransactionReceiptRecord, NativeTransactionRecord, build_native_transaction,
     build_native_transaction_receipt, check_native_evidence_bounds, import_native_transaction,
-    import_native_transaction_receipt, import_receipt_any,
+    import_native_transaction_receipt, import_receipt_any, native_receipt_trust_policy_ids,
 };
 pub use native_commit::{
     ATTEMPT_SUFFIX, ATTEMPTS_DIR, AttemptRecord, AttemptState, AttemptStatus, ExecutedNativeTest,
