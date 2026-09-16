@@ -1,0 +1,74 @@
+{
+  "kind": "QUALIFICATION_FOLLOWUP_VALIDATION",
+  "date": "2026-09-15",
+  "source_commit": "5313437afb5df66b5fa48b82c374746467d0a1ca",
+  "review_base": "400895e623a1c8fc7b5ba3c3a5c80eed939d9c47",
+  "candidate": {
+    "artifact_sha256": "7da77f1b41b18845076ba1694e1163ed77301385417305f5eab00faf9be1ea3a",
+    "artifact_size_bytes": 2190465,
+    "manifest_digest": "e3904edcae19475e52e36c473884b5dbd61bb42ae8d445966ad065ed57bf6702",
+    "member_count": 15
+  },
+  "reproducibility": {
+    "result": "MULTI_HOST_REPRODUCIBLE",
+    "hosts": 2,
+    "transport": "USB via forge-lab-connect"
+  },
+  "validation": {
+    "primary_release_candidate_build_exit": 0,
+    "secondary_release_candidate_build_exit": 0,
+    "evidence_refresh_exit": 0,
+    "release_candidate_verify_exit": 0,
+    "quick_exit": 0,
+    "lint_exit": 0,
+    "release_tests_passed": 139,
+    "review_tests_passed": 90,
+    "rust_passed": 1419,
+    "rust_failed": 0,
+    "rust_ignored": 16
+  },
+  "logs": {
+    "build-local-5313437.log": {
+      "sha256": "d9d219fbc72bc0a649f30413584f8f63aee2935dbccd5b4b4c131c850ba56570",
+      "exit_code": 0
+    },
+    "build-lab-5313437.log": {
+      "sha256": "a8a49922866e880518da8d174b06213361b85ea1144dcc4b90773576b266920b",
+      "exit_code": 0
+    },
+    "lint-5313437.log": {
+      "sha256": "a7361eb0a89d92a9381143c981f43c2921de59f5e1dc79b2b37719c5d0286f90",
+      "exit_code": 0
+    },
+    "refresh-5313437.log": {
+      "sha256": "cd11f75872f3075b0d9c0771e8da7f43ff27bfea1da980ca43d04e22c466e323",
+      "exit_code": 0
+    },
+    "verify-5313437.log": {
+      "sha256": "8f5382c7c3da023e09915365bdf43d52415b8139a5d04c3240bbd1f7fdcad820",
+      "exit_code": 0
+    },
+    "quick-5313437.log": {
+      "sha256": "f0c66132554fa8a17252c90433591364ebcb12289ad623d425eddb57924c391e",
+      "exit_code": 0
+    },
+    "followup-release.log": {
+      "sha256": "5268c24553742071be623456ce6dc1318cc5e468821e12277f5a6a3d95a8f9cc",
+      "exit_code": 0
+    },
+    "followup-review.log": {
+      "sha256": "9e842df1fdfc1efc736e28da667f5a2c0262d3874fd17c49c9aaab5f55cdc171",
+      "exit_code": 0
+    },
+    "followup-green.log": {
+      "sha256": "65e5db7630fc6b067dabaa4bc230b32c0066062fc413d0872b15997affbc3492",
+      "exit_code": 0
+    }
+  },
+  "log_directory": "/home/gfarch/Work/checkpoints/sley2-repair-e050fe7",
+  "repair_map": "evidence/review/rounds/qualification-400895e.md",
+  "lane_receipts": "evidence/release/second-host-lane-records.json",
+  "sequence": "Both host builds -> merge report and retain secondary -> commit only report and secondary at 694b29b9 -> file receipt naming that commit -> evidence-refresh -> candidate verification -> quick. Final validation record is a records-only addition followed by the supply-chain and candidate checks.",
+  "regression_note": "The new GA CLI test first failed with the uncaught ValueError; the coded refusal fixed it. Staging tests exercise the real staging function with controlled extra/missing files.",
+  "scope_note": "Orchestrator-run validation; independent review is separate. No release authorization or held decision inferred."
+}
