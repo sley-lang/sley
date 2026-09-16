@@ -3,6 +3,7 @@
 
 mod codec;
 mod maintenance;
+mod native_codec;
 mod repository;
 
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
@@ -31,9 +32,19 @@ pub use maintenance::{
     acquire_exclusive_repository_maintenance_nonblocking, acquire_shared_repository_maintenance,
     initialize_repository_maintenance,
 };
+pub use native_codec::{
+    ImportedNativeTransaction, ImportedNativeTransactionReceipt, ImportedReceipt,
+    MAX_NATIVE_EVIDENCE_BYTES, MAX_NATIVE_SELECTED_TESTS, NATIVE_FORMAT_VERSION,
+    NATIVE_RECEIPT_FIELD_COUNT, NATIVE_RECEIPT_MAGIC, NATIVE_TRANSACTION_FIELD_COUNT,
+    NATIVE_TRANSACTION_MAGIC, NativeEvidenceBudget, NativeEvidencePin, NativeEvidenceSummary,
+    NativeTransactionReceiptRecord, NativeTransactionRecord, build_native_transaction,
+    build_native_transaction_receipt, check_native_evidence_bounds, import_native_transaction,
+    import_native_transaction_receipt, import_receipt_any,
+};
 pub use repository::{
     AcceptedHead, CommitError, CommitInput, CommitOutput, RecoveryAncestryError,
     RecoveryAncestryHeadReport, RecoveryAncestryReport, RecoveryAncestryRequest, RecoveryReport,
     RecoveryRevisionClaim, RecoveryWorkUsage, TransactionRepository, TrustedGenesisInput,
-    VerifiedRevision, incomplete_clone_marker_present, verify_receipt_against_objects,
+    VerifiedRevision, incomplete_clone_marker_present, verify_any_receipt_against_objects,
+    verify_native_receipt_against_objects, verify_receipt_against_objects,
 };

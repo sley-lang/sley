@@ -465,6 +465,21 @@ impl NativeTestApprovalV1 {
     pub fn attestations(&self) -> &[AttestationBinding] {
         &self.parts.attestations
     }
+
+    /// Historical admission context binding the original authorization, as
+    /// raw bytes until the `SLEYNCT1` domain promotes to a typed identity.
+    /// The transaction owner compares these against the context digest.
+    #[must_use]
+    pub const fn historical_context_id(&self) -> &[u8; 32] {
+        &self.parts.historical_context_id
+    }
+
+    /// Validated facts; verifiers clone-modify-rebuild these to prove
+    /// refusal vectors, never to forge acceptance.
+    #[must_use]
+    pub const fn parts(&self) -> &NativeTestApprovalParts {
+        &self.parts
+    }
 }
 
 fn validate_parts(parts: &NativeTestApprovalParts) -> Result<(), ScbError> {

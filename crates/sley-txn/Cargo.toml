@@ -16,6 +16,7 @@ sley-mutate = { path = "../sley-mutate" }
 sley-policy = { path = "../sley-policy" }
 sley-scb1 = { path = "../sley-scb1" }
 sley-state-root = { path = "../sley-state-root" }
+sley-tests = { path = "../sley-tests" }
 sley-store = { path = "../sley-store" }
 
 [dev-dependencies]

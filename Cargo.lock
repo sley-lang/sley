@@ -424,6 +424,7 @@ dependencies = [
  "sley-ssmc",
  "sley-state-root",
  "sley-store",
+ "sley-tests",
 ]
 
 [[package]]

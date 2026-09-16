@@ -197,6 +197,25 @@ impl CommitAdmissionStatementV1 {
     pub const fn bundle_id(&self) -> NativeEvidenceBundleId {
         self.parts.bundle_id
     }
+
+    /// Transaction core this statement was signed over.
+    #[must_use]
+    pub const fn transaction_id(&self) -> TransactionId {
+        self.parts.transaction_id
+    }
+
+    /// Historical admission context this statement preserves.
+    #[must_use]
+    pub const fn historical_context_id(&self) -> HistoricalAdmissionContextId {
+        self.parts.historical_context_id
+    }
+
+    /// Validated facts; verifiers clone-modify-rebuild these to prove
+    /// refusal vectors, never to forge acceptance.
+    #[must_use]
+    pub const fn parts(&self) -> &CommitAdmissionStatementParts {
+        &self.parts
+    }
 }
 
 /// Canonical unsigned statement record: fields 1..18 without the signature.

@@ -42,11 +42,11 @@ pub const DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1: u32 = 1;
 
 const ENVELOPE_VERSION: u64 = 1;
 const TRANSACTION_FIELD_COUNT: u64 = 19;
-const CHANGED_BINDING_FIELD_COUNT: u64 = 4;
-const COMMIT_METADATA_FIELD_COUNT: u64 = 3;
+pub(crate) const CHANGED_BINDING_FIELD_COUNT: u64 = 4;
+pub(crate) const COMMIT_METADATA_FIELD_COUNT: u64 = 3;
 const RECEIPT_FIELD_COUNT: u64 = 9;
-const MANIFEST_FIELD_COUNT: u64 = 2;
-const MAX_TRANSACTION_ITEMS: usize = 65_535;
+pub(crate) const MANIFEST_FIELD_COUNT: u64 = 2;
+pub(crate) const MAX_TRANSACTION_ITEMS: usize = 65_535;
 
 /// Closed transaction kind.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -627,7 +627,7 @@ fn validate_receipt_record(
     })
 }
 
-fn validate_ordinary_nested(
+pub(crate) fn validate_ordinary_nested(
     transaction: &TransactionRecord,
     candidate: &ImportedCandidate,
     result: &ImportedCandidateResult,
@@ -666,7 +666,7 @@ fn validate_ordinary_nested(
     Ok(())
 }
 
-fn validate_manifest_binding(
+pub(crate) fn validate_manifest_binding(
     transaction: &TransactionRecord,
     manifest: &[ObjectManifestEntry],
 ) -> Result<(), TransactionCodecError> {
@@ -752,7 +752,7 @@ fn validate_transaction_record(record: &TransactionRecord) -> Result<(), Transac
     Ok(())
 }
 
-fn validate_changed_bindings(
+pub(crate) fn validate_changed_bindings(
     bindings: &[ChangedBinding],
     kind: TransactionKind,
 ) -> Result<(), TransactionCodecError> {
@@ -783,7 +783,9 @@ fn validate_changed_bindings(
     Ok(())
 }
 
-fn validate_manifest(entries: &[ObjectManifestEntry]) -> Result<(), TransactionCodecError> {
+pub(crate) fn validate_manifest(
+    entries: &[ObjectManifestEntry],
+) -> Result<(), TransactionCodecError> {
     if entries.len() > MAX_TRANSACTION_ITEMS
         || entries
             .windows(2)
@@ -798,7 +800,7 @@ fn validate_manifest(entries: &[ObjectManifestEntry]) -> Result<(), TransactionC
     }
 }
 
-fn validate_sorted_ids<T: Ord>(
+pub(crate) fn validate_sorted_ids<T: Ord>(
     values: &[T],
     code: TransactionErrorCode,
 ) -> Result<(), TransactionCodecError> {
@@ -886,7 +888,7 @@ pub(crate) fn encode_transaction_record(record: &TransactionRecord) -> Result<Ve
     ])
 }
 
-fn encode_changed_binding(binding: &ChangedBinding) -> Result<Vec<u8>, ScbError> {
+pub(crate) fn encode_changed_binding(binding: &ChangedBinding) -> Result<Vec<u8>, ScbError> {
     let ordinals = binding
         .mutation_ordinals
         .iter()
@@ -906,7 +908,7 @@ fn encode_changed_binding(binding: &ChangedBinding) -> Result<Vec<u8>, ScbError>
     ])
 }
 
-fn encode_commit_metadata(metadata: CommitMetadata) -> Result<Vec<u8>, ScbError> {
+pub(crate) fn encode_commit_metadata(metadata: CommitMetadata) -> Result<Vec<u8>, ScbError> {
     encode_record(&[
         (1, encode_uvar(u64::from(metadata.commit_profile))),
         (2, encode_uvar(u64::from(metadata.semantic_profile))),
@@ -985,7 +987,9 @@ fn decode_transaction_record(input: &[u8]) -> Result<TransactionRecord, Transact
     })
 }
 
-fn decode_changed_bindings(input: &[u8]) -> Result<Vec<ChangedBinding>, TransactionCodecError> {
+pub(crate) fn decode_changed_bindings(
+    input: &[u8],
+) -> Result<Vec<ChangedBinding>, TransactionCodecError> {
     decode_list_payloads(input)?
         .into_iter()
         .map(|payload| {
@@ -1003,7 +1007,9 @@ fn decode_changed_bindings(input: &[u8]) -> Result<Vec<ChangedBinding>, Transact
         .collect()
 }
 
-fn decode_commit_metadata(input: &[u8]) -> Result<CommitMetadata, TransactionCodecError> {
+pub(crate) fn decode_commit_metadata(
+    input: &[u8],
+) -> Result<CommitMetadata, TransactionCodecError> {
     let fields = decode_required_record(input, COMMIT_METADATA_FIELD_COUNT)?;
     Ok(CommitMetadata {
         commit_profile: read_u32(fields[0])?,
@@ -1061,13 +1067,13 @@ pub(crate) fn append_digest(preimage: &[u8], digest: &[u8; 32]) -> Result<Vec<u8
     Ok(stored)
 }
 
-struct DecodedEnvelope<'a> {
-    preimage: &'a [u8],
-    trailer: &'a [u8],
-    payload: &'a [u8],
+pub(crate) struct DecodedEnvelope<'a> {
+    pub(crate) preimage: &'a [u8],
+    pub(crate) trailer: &'a [u8],
+    pub(crate) payload: &'a [u8],
 }
 
-fn decode_envelope(
+pub(crate) fn decode_envelope(
     input: &[u8],
     expected_magic: [u8; 8],
 ) -> Result<DecodedEnvelope<'_>, TransactionCodecError> {
@@ -1094,7 +1100,7 @@ fn decode_envelope(
     })
 }
 
-fn encode_fixed_list<'a, I>(values: I) -> Result<Vec<u8>, ScbError>
+pub(crate) fn encode_fixed_list<'a, I>(values: I) -> Result<Vec<u8>, ScbError>
 where
     I: IntoIterator<Item = &'a [u8; 32]>,
 {
@@ -1106,21 +1112,21 @@ where
     )
 }
 
-fn encode_option_fixed(value: Option<&[u8; 32]>) -> Result<Vec<u8>, ScbError> {
+pub(crate) fn encode_option_fixed(value: Option<&[u8; 32]>) -> Result<Vec<u8>, ScbError> {
     match value {
         None => encode_union(0, &[]),
         Some(value) => encode_union(1, value),
     }
 }
 
-fn encode_option_bytes(value: Option<&[u8]>) -> Result<Vec<u8>, ScbError> {
+pub(crate) fn encode_option_bytes(value: Option<&[u8]>) -> Result<Vec<u8>, ScbError> {
     match value {
         None => encode_union(0, &[]),
         Some(value) => encode_union(1, &encode_bytes(value)?),
     }
 }
 
-fn decode_required_record(
+pub(crate) fn decode_required_record(
     input: &[u8],
     expected_count: u64,
 ) -> Result<Vec<&[u8]>, TransactionCodecError> {
@@ -1153,7 +1159,7 @@ fn decode_required_record(
     Ok(fields)
 }
 
-fn decode_list_payloads(input: &[u8]) -> Result<Vec<&[u8]>, TransactionCodecError> {
+pub(crate) fn decode_list_payloads(input: &[u8]) -> Result<Vec<&[u8]>, TransactionCodecError> {
     let mut cursor = ScbValueCursor::new(input)?;
     let count = usize::try_from(cursor.read_list_count()?)
         .map_err(|_| ScbError::new(ScbErrorCode::ResourceLimit))?;
@@ -1168,21 +1174,21 @@ fn decode_list_payloads(input: &[u8]) -> Result<Vec<&[u8]>, TransactionCodecErro
     Ok(values)
 }
 
-fn decode_fixed_list(input: &[u8]) -> Result<Vec<[u8; 32]>, TransactionCodecError> {
+pub(crate) fn decode_fixed_list(input: &[u8]) -> Result<Vec<[u8; 32]>, TransactionCodecError> {
     decode_list_payloads(input)?
         .into_iter()
         .map(read_fixed)
         .collect()
 }
 
-fn read_fixed(input: &[u8]) -> Result<[u8; 32], TransactionCodecError> {
+pub(crate) fn read_fixed(input: &[u8]) -> Result<[u8; 32], TransactionCodecError> {
     let mut cursor = ScbValueCursor::new(input)?;
     let value = cursor.read_fixed_bytes()?;
     cursor.check_finished()?;
     Ok(value)
 }
 
-fn read_u32(input: &[u8]) -> Result<u32, TransactionCodecError> {
+pub(crate) fn read_u32(input: &[u8]) -> Result<u32, TransactionCodecError> {
     let mut cursor = ScbValueCursor::new(input)?;
     let value = u32::try_from(cursor.read_uvar(32)?)
         .map_err(|_| ScbError::new(ScbErrorCode::IntegerOverflow))?;
@@ -1190,21 +1196,21 @@ fn read_u32(input: &[u8]) -> Result<u32, TransactionCodecError> {
     Ok(value)
 }
 
-fn read_u64(input: &[u8]) -> Result<u64, TransactionCodecError> {
+pub(crate) fn read_u64(input: &[u8]) -> Result<u64, TransactionCodecError> {
     let mut cursor = ScbValueCursor::new(input)?;
     let value = cursor.read_uvar(64)?;
     cursor.check_finished()?;
     Ok(value)
 }
 
-fn read_bytes(input: &[u8]) -> Result<Vec<u8>, TransactionCodecError> {
+pub(crate) fn read_bytes(input: &[u8]) -> Result<Vec<u8>, TransactionCodecError> {
     let mut cursor = ScbValueCursor::new(input)?;
     let value = cursor.read_bytes()?.to_vec();
     cursor.check_finished()?;
     Ok(value)
 }
 
-fn decode_option_fixed(input: &[u8]) -> Result<Option<[u8; 32]>, TransactionCodecError> {
+pub(crate) fn decode_option_fixed(input: &[u8]) -> Result<Option<[u8; 32]>, TransactionCodecError> {
     let mut cursor = ScbValueCursor::new(input)?;
     let (tag, payload) = cursor.read_union()?;
     cursor.check_finished()?;
@@ -1215,7 +1221,7 @@ fn decode_option_fixed(input: &[u8]) -> Result<Option<[u8; 32]>, TransactionCode
     }
 }
 
-fn decode_option_bytes(input: &[u8]) -> Result<Option<Vec<u8>>, TransactionCodecError> {
+pub(crate) fn decode_option_bytes(input: &[u8]) -> Result<Option<Vec<u8>>, TransactionCodecError> {
     let mut cursor = ScbValueCursor::new(input)?;
     let (tag, payload) = cursor.read_union()?;
     cursor.check_finished()?;
@@ -1226,7 +1232,7 @@ fn decode_option_bytes(input: &[u8]) -> Result<Option<Vec<u8>>, TransactionCodec
     }
 }
 
-fn txn_error(code: TransactionErrorCode) -> TransactionCodecError {
+pub(crate) fn txn_error(code: TransactionErrorCode) -> TransactionCodecError {
     TransactionCodecError::Transaction(code)
 }
 

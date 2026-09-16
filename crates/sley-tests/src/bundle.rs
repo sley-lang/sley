@@ -184,6 +184,25 @@ impl NativeEvidenceBundleV1 {
     pub fn supervisor_configs(&self) -> &[Vec<u8>] {
         &self.parts.supervisor_configs
     }
+
+    /// Exact stored plan envelope the bundle cross-bound; the transaction
+    /// owner parses it through the plan codec to check receipt bindings.
+    #[must_use]
+    pub fn plan_stored(&self) -> &[u8] {
+        &self.parts.plan_stored
+    }
+
+    /// Exact stored approval envelope the bundle cross-bound.
+    #[must_use]
+    pub fn approval_stored(&self) -> &[u8] {
+        &self.parts.approval_stored
+    }
+
+    /// Exact stored deterministic test-report envelope the bundle cross-bound.
+    #[must_use]
+    pub fn test_report_stored(&self) -> &[u8] {
+        &self.parts.test_report_stored
+    }
 }
 
 /// Decodes the bundle record shape, verifies every embedded envelope, and

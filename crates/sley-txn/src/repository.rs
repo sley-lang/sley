@@ -11,7 +11,7 @@ use sley_id::{
     EntityId, ObjectId, PolicyRootId, PrincipalId, ReceiptId, SchemaEpochId, StateRoot,
     TransactionId, WorkspaceId,
 };
-use sley_mutate::{EntityObject, import_entity_object};
+use sley_mutate::{EntityObject, ImportedCandidate, import_entity_object};
 
 /// SSMC1 kind tag of a semantic `Operation` entity.
 const OPERATION_ENTITY_KIND_TAG: u16 = 8;
@@ -39,6 +39,9 @@ use crate::codec::{
 use crate::maintenance::{
     RepositoryMaintenanceGuard, acquire_exclusive_repository_maintenance,
     acquire_shared_repository_maintenance, initialize_repository_maintenance,
+};
+use crate::native_codec::{
+    ImportedNativeTransactionReceipt, ImportedReceipt, verify_native_evidence_bindings,
 };
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 use crate::recovery_ancestry_test_hook;
@@ -2042,42 +2045,105 @@ fn verify_transaction_relationship_with_parent(
                 }
             }
             TransactionKind::OrdinaryCandidate => {
-                let parent_id = record.parent_transaction_ids[0];
-                let parent =
-                    parent.ok_or_else(|| txn_commit_error(TransactionErrorCode::ParentShape))?;
-                if parent.transaction.transaction_id != parent_id
-                    || parent.state_root.root != record.parent_roots[0]
-                    || parent.state_root.record.workspace_id != record.workspace_id
-                    || parent.state_root.record.schema_epoch_id != record.schema_epoch_id
-                    || parent.policy_root.root() != record.policy_root_id
-                {
-                    return Err(txn_commit_error(TransactionErrorCode::ParentShape));
-                }
-                let candidate = receipt.candidate.as_ref().ok_or_else(|| {
-                    txn_commit_error(TransactionErrorCode::ReceiptBindingMismatch)
-                })?;
-                let expected = derive_binding_diff(
-                    &parent.state_root.record.entity_bindings,
-                    &receipt.state_root.record.entity_bindings,
-                    Some(&candidate.record.operations),
-                )?;
-                if expected != record.changed_entity_bindings {
-                    return Err(txn_commit_error(
-                        TransactionErrorCode::ChangedBindingInvalid,
-                    ));
-                }
-                let expected_tombstones = next_tombstones_from_records(
-                    &parent.transaction.record.tombstoned_entities,
+                let parent_view = parent.map(AnyParent::of_v1);
+                verify_ordinary_relationship(
+                    &record.parent_transaction_ids,
+                    &record.parent_roots,
+                    record.workspace_id,
+                    record.schema_epoch_id,
+                    record.policy_root_id,
                     &record.changed_entity_bindings,
+                    &record.tombstoned_entities,
+                    receipt.candidate.as_ref(),
                     &receipt.state_root.record.entity_bindings,
+                    parent_view,
                 )?;
-                if expected_tombstones != record.tombstoned_entities {
-                    return Err(txn_commit_error(TransactionErrorCode::TombstoneInvalid));
-                }
             }
         }
         Ok(())
     }
+}
+
+/// Format-agnostic accepted parent view behind the common receipt accessors.
+///
+/// A parent link only requires identity agreement, never format equality, so
+/// v1 children verify against native parents and native children against v1
+/// parents through these same checks without format contagion.
+struct AnyParent<'a> {
+    transaction_id: TransactionId,
+    state_root: &'a AcceptedStateRoot,
+    policy_root: &'a AcceptedPolicyRoot,
+    tombstoned_entities: &'a [EntityId],
+}
+
+impl<'a> AnyParent<'a> {
+    fn of_v1(receipt: &'a ImportedTransactionReceipt) -> Self {
+        Self {
+            transaction_id: receipt.transaction.transaction_id,
+            state_root: &receipt.state_root,
+            policy_root: &receipt.policy_root,
+            tombstoned_entities: &receipt.transaction.record.tombstoned_entities,
+        }
+    }
+
+    fn of_any(receipt: &'a ImportedReceipt) -> Self {
+        Self {
+            transaction_id: receipt.transaction_id(),
+            state_root: receipt.state_root(),
+            policy_root: receipt.policy_root(),
+            tombstoned_entities: receipt.tombstoned_entities(),
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn verify_ordinary_relationship(
+    parent_ids: &[TransactionId],
+    parent_roots: &[StateRoot],
+    workspace_id: WorkspaceId,
+    schema_epoch_id: SchemaEpochId,
+    policy_root_id: PolicyRootId,
+    changed: &[ChangedBinding],
+    tombstones: &[EntityId],
+    candidate: Option<&ImportedCandidate>,
+    own_bindings: &[(EntityId, ObjectId)],
+    parent: Option<AnyParent<'_>>,
+) -> Result<(), CommitError> {
+    let Some(parent_id) = parent_ids.first() else {
+        return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+    };
+    let Some(parent_root) = parent_roots.first() else {
+        return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+    };
+    let Some(parent) = parent else {
+        return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+    };
+    if parent.transaction_id != *parent_id
+        || parent.state_root.root != *parent_root
+        || parent.state_root.record.workspace_id != workspace_id
+        || parent.state_root.record.schema_epoch_id != schema_epoch_id
+        || parent.policy_root.root() != policy_root_id
+    {
+        return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+    }
+    let candidate =
+        candidate.ok_or_else(|| txn_commit_error(TransactionErrorCode::ReceiptBindingMismatch))?;
+    let expected = derive_binding_diff(
+        &parent.state_root.record.entity_bindings,
+        own_bindings,
+        Some(&candidate.record.operations),
+    )?;
+    if expected != changed {
+        return Err(txn_commit_error(
+            TransactionErrorCode::ChangedBindingInvalid,
+        ));
+    }
+    let expected_tombstones =
+        next_tombstones_from_records(parent.tombstoned_entities, changed, own_bindings)?;
+    if expected_tombstones != tombstones {
+        return Err(txn_commit_error(TransactionErrorCode::TombstoneInvalid));
+    }
+    Ok(())
 }
 
 /// Verifies a decoded receipt against its supplied parent receipt and a set
@@ -2100,10 +2166,137 @@ pub fn verify_receipt_against_objects(
     by_id: &BTreeMap<ObjectId, &[u8]>,
 ) -> Result<(), CommitError> {
     verify_transaction_relationship_with_parent(receipt, parent)?;
-    let epoch = receipt.state_root.record.schema_epoch_id;
+    verify_bound_objects(
+        &receipt.state_root,
+        &receipt.policy_root,
+        &receipt.record.object_manifest,
+        &receipt.transaction.record.tombstoned_entities,
+        by_id,
+    )
+}
+
+/// Verifies a versioned receipt of either format against its supplied parent
+/// receipt and a set of candidate object bytes (S20-540 exchange preflight
+/// with native ancestry).
+///
+/// Format-1 pairs take the frozen v1 path unchanged. Native receipts recompute
+/// the embedded evidence bindings, run the same ordinary relationship checks
+/// through the common parent view, run the same object and inventory checks,
+/// and additionally require every pinned native test and target to resolve
+/// against the committed root's entity bindings with bytes present. A v1
+/// child of a native parent verifies through the same relationship and
+/// object checks; no path promotes an orphan receipt.
+///
+/// # Errors
+///
+/// Returns the exact `TXN_*` or SCB1 failure that the verified revision
+/// lookup would return, with `TXN_OBJECT_INVENTORY_MISMATCH` for a bound
+/// object that is absent from `objects`, that does not derive its declared
+/// identity, or that a native pin names without a root binding.
+pub fn verify_any_receipt_against_objects(
+    receipt: &ImportedReceipt,
+    parent: Option<&ImportedReceipt>,
+    by_id: &BTreeMap<ObjectId, &[u8]>,
+) -> Result<(), CommitError> {
+    match receipt {
+        ImportedReceipt::V1(inner) => match parent {
+            Some(ImportedReceipt::V2(_)) => {
+                let record = &inner.transaction.record;
+                verify_ordinary_relationship(
+                    &record.parent_transaction_ids,
+                    &record.parent_roots,
+                    record.workspace_id,
+                    record.schema_epoch_id,
+                    record.policy_root_id,
+                    &record.changed_entity_bindings,
+                    &record.tombstoned_entities,
+                    inner.candidate.as_ref(),
+                    &inner.state_root.record.entity_bindings,
+                    parent.map(AnyParent::of_any),
+                )?;
+                verify_bound_objects(
+                    &inner.state_root,
+                    &inner.policy_root,
+                    &inner.record.object_manifest,
+                    &record.tombstoned_entities,
+                    by_id,
+                )
+            }
+            None => verify_receipt_against_objects(inner, None, by_id),
+            Some(ImportedReceipt::V1(parent)) => {
+                verify_receipt_against_objects(inner, Some(parent), by_id)
+            }
+        },
+        ImportedReceipt::V2(inner) => verify_native_receipt_against_objects(inner, parent, by_id),
+    }
+}
+
+/// Verifies a native v2 receipt against its parent and object bytes.
+///
+/// Recomputes the embedded evidence bindings from the stored bytes (no
+/// trusted history, no sidecar), then enforces the ordinary parent
+/// relationship, the shared object and inventory checks, and the native pin
+/// bindings: every selected test entity and target function must resolve to
+/// its exact proposed object in the committed root, with bytes present.
+///
+/// # Errors
+///
+/// Returns the first evidence, relationship, object, inventory, or pin
+/// failure.
+pub fn verify_native_receipt_against_objects(
+    receipt: &ImportedNativeTransactionReceipt,
+    parent: Option<&ImportedReceipt>,
+    by_id: &BTreeMap<ObjectId, &[u8]>,
+) -> Result<(), CommitError> {
+    let record = &receipt.transaction.record;
+    // No v2 genesis exists: a native receipt always has exactly one parent.
+    if record.transaction_kind != TransactionKind::OrdinaryCandidate {
+        return Err(txn_commit_error(TransactionErrorCode::ParentShape));
+    }
+    let summary = verify_native_evidence_bindings(
+        receipt.transaction.transaction_id,
+        record,
+        &receipt.record.stored_evidence_bundle,
+        &receipt.record.stored_admission_context,
+        &receipt.record.stored_commit_statement,
+    )?;
+    verify_ordinary_relationship(
+        &record.parent_transaction_ids,
+        &record.parent_roots,
+        record.workspace_id,
+        record.schema_epoch_id,
+        record.policy_root_id,
+        &record.changed_entity_bindings,
+        &record.tombstoned_entities,
+        Some(&receipt.candidate),
+        &receipt.state_root.record.entity_bindings,
+        parent.map(AnyParent::of_any),
+    )?;
+    verify_bound_objects(
+        &receipt.state_root,
+        &receipt.policy_root,
+        &receipt.record.object_manifest,
+        &record.tombstoned_entities,
+        by_id,
+    )?;
+    verify_native_pins(
+        &receipt.state_root.record.entity_bindings,
+        &summary.pins,
+        by_id,
+    )
+}
+
+fn verify_bound_objects(
+    state_root: &AcceptedStateRoot,
+    policy_root: &AcceptedPolicyRoot,
+    manifest: &[ObjectManifestEntry],
+    tombstones: &[EntityId],
+    by_id: &BTreeMap<ObjectId, &[u8]>,
+) -> Result<(), CommitError> {
+    let epoch = state_root.record.schema_epoch_id;
     let verifier = entity_verifier(epoch);
-    let mut bound = Vec::with_capacity(receipt.state_root.record.entity_bindings.len());
-    for (entity_id, object_id) in &receipt.state_root.record.entity_bindings {
+    let mut bound = Vec::with_capacity(state_root.record.entity_bindings.len());
+    for (entity_id, object_id) in &state_root.record.entity_bindings {
         let bytes = by_id
             .get(object_id)
             .ok_or_else(|| txn_commit_error(TransactionErrorCode::ObjectInventoryMismatch))?;
@@ -2119,13 +2312,28 @@ pub fn verify_receipt_against_objects(
         }
         bound.push(object);
     }
-    verify_manifest_lengths(&receipt.record.object_manifest, &bound)?;
-    validate_inventory(
-        &receipt.state_root,
-        &receipt.policy_root,
-        &bound,
-        &receipt.transaction.record.tombstoned_entities,
-    )
+    verify_manifest_lengths(manifest, &bound)?;
+    validate_inventory(state_root, policy_root, &bound, tombstones)
+}
+
+fn verify_native_pins(
+    bindings: &[(EntityId, ObjectId)],
+    pins: &[crate::native_codec::NativeEvidencePin],
+    by_id: &BTreeMap<ObjectId, &[u8]>,
+) -> Result<(), CommitError> {
+    let bound = bindings.iter().copied().collect::<BTreeMap<_, _>>();
+    for pin in pins {
+        if bound.get(&pin.test_entity) != Some(&pin.test_object)
+            || bound.get(&pin.target_function) != Some(&pin.target_object)
+            || !by_id.contains_key(&pin.test_object)
+            || !by_id.contains_key(&pin.target_object)
+        {
+            return Err(txn_commit_error(
+                TransactionErrorCode::ObjectInventoryMismatch,
+            ));
+        }
+    }
+    Ok(())
 }
 
 impl TransactionRepository {
@@ -21818,5 +22026,174 @@ mod clone_tests {
             .unwrap_err();
         assert_ne!(head.code(), "TXN_INCOMPLETE_CLONE");
         assert!(target.read_head().unwrap().is_none());
+    }
+
+    use std::collections::BTreeMap;
+
+    use sley_id::ObjectId;
+
+    use crate::native_codec::{
+        ImportedNativeTransactionReceipt, ImportedReceipt, NATIVE_FORMAT_VERSION,
+        NativeTransactionReceiptRecord, NativeTransactionRecord, build_native_transaction,
+    };
+
+    #[test]
+    fn any_dispatch_verifies_a_real_v1_receipt_against_its_parent() {
+        let fixture = Fixture::new("n5a-any-v1-positive");
+        let output = fixture.repository.commit(fixture.input()).unwrap();
+        let accepted = fixture.repository.accepted_head().unwrap();
+        let receipt = accepted.receipt().clone();
+        let parent = fixture
+            .repository
+            .read_receipt_readonly(fixture.genesis_transaction_id)
+            .unwrap();
+        let by_id = accepted
+            .objects()
+            .iter()
+            .map(|object| (object.object_id(), object.stored_bytes()))
+            .collect::<BTreeMap<ObjectId, &[u8]>>();
+        verify_any_receipt_against_objects(
+            &ImportedReceipt::V1(Box::new(receipt)),
+            Some(&ImportedReceipt::V1(Box::new(parent))),
+            &by_id,
+        )
+        .expect("real v1 receipt verifies through dispatch");
+        assert_eq!(
+            output.candidate_result().record.decision,
+            CandidateDecision::Valid
+        );
+    }
+
+    #[test]
+    fn any_dispatch_runs_relationship_checks_for_parentless_ordinary() {
+        let fixture = Fixture::new("n5a-any-v1-no-parent");
+        fixture.repository.commit(fixture.input()).unwrap();
+        let accepted = fixture.repository.accepted_head().unwrap();
+        let receipt = accepted.receipt().clone();
+        let by_id = accepted
+            .objects()
+            .iter()
+            .map(|object| (object.object_id(), object.stored_bytes()))
+            .collect::<BTreeMap<ObjectId, &[u8]>>();
+        assert_eq!(
+            verify_any_receipt_against_objects(
+                &ImportedReceipt::V1(Box::new(receipt)),
+                None,
+                &by_id
+            )
+            .unwrap_err()
+            .code(),
+            "TXN_PARENT_SHAPE"
+        );
+    }
+
+    #[test]
+    fn native_path_checks_evidence_before_any_nested_trust() {
+        let fixture = Fixture::new("n5a-native-evidence-first");
+        let output = fixture.repository.commit(fixture.input()).unwrap();
+        let accepted = fixture.repository.accepted_head().unwrap();
+        let core = build_native_transaction(&synthetic_native_core()).unwrap();
+        let receipt = ImportedNativeTransactionReceipt {
+            record: NativeTransactionReceiptRecord {
+                format_version: NATIVE_FORMAT_VERSION,
+                transaction_id: core.transaction_id,
+                stored_transaction: core.stored_bytes.clone(),
+                stored_candidate: Some(fixture.candidate.stored_bytes.clone()),
+                stored_candidate_result: Some(output.candidate_result().stored_bytes.clone()),
+                stored_state_root: accepted.state_root().stored_bytes.clone(),
+                stored_policy_root: accepted.policy_root().stored_bytes().to_vec(),
+                object_manifest: Vec::new(),
+                durability_profile: crate::codec::DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1,
+                stored_evidence_bundle: vec![7_u8; 64],
+                stored_admission_context: vec![8_u8; 64],
+                stored_commit_statement: vec![9_u8; 64],
+            },
+            receipt_id: ReceiptId::from_bytes([0xA5; 32]),
+            preimage: Vec::new(),
+            stored_bytes: Vec::new(),
+            transaction: core,
+            candidate: fixture.candidate.clone(),
+            candidate_result: output.candidate_result().clone(),
+            state_root: accepted.state_root().clone(),
+            policy_root: accepted.policy_root().clone(),
+            bundle: sley_tests::NativeEvidenceBundleV1::parse(&golden_bundle_bytes_for_dispatch())
+                .expect("test bundle parses"),
+            context: sley_tests::HistoricalAdmissionContextV1::parse(
+                &golden_context_bytes_for_dispatch(),
+            )
+            .expect("test context parses"),
+            statement: sley_tests::CommitAdmissionStatementV1::parse(
+                &golden_statement_bytes_for_dispatch(),
+            )
+            .expect("test statement parses"),
+        };
+        // Garbage evidence refuses in the SCB namespace: the native path
+        // parses evidence before trusting any nested registry bytes, and a
+        // hand-assembled receipt never verifies.
+        let refusal = verify_native_receipt_against_objects(&receipt, None, &BTreeMap::new())
+            .expect_err("garbage evidence refuses")
+            .code();
+        assert!(refusal.starts_with("SCB_"), "unexpected code {refusal}");
+    }
+
+    fn synthetic_native_core() -> NativeTransactionRecord {
+        use crate::codec::{COMMIT_PROFILE_RESTRICTED_V1, SEMANTIC_PROFILE_OPERATION_FREE_V1};
+        use sley_id::{
+            CandidateId, CandidateResultId, CapabilitySummaryDigest, NativeTestApprovalId,
+            PolicyRootId, PrincipalId, SchemaEpochId, StateRoot, TestReportId, ValidationProfileId,
+            WorkspaceId,
+        };
+        use sley_policy::ValidationContextDigest;
+        NativeTransactionRecord {
+            format_version: NATIVE_FORMAT_VERSION,
+            transaction_kind: TransactionKind::OrdinaryCandidate,
+            workspace_id: WorkspaceId::from_bytes([1; 32]),
+            parent_transaction_ids: vec![TransactionId::from_bytes([7; 32])],
+            parent_roots: vec![StateRoot::from_bytes([8; 32])],
+            schema_epoch_id: SchemaEpochId::from_bytes([2; 32]),
+            policy_root_id: PolicyRootId::from_bytes([3; 32]),
+            principal_id: Some(PrincipalId::from_bytes([9; 32])),
+            candidate_id: Some(CandidateId::from_bytes([10; 32])),
+            candidate_result_id: Some(CandidateResultId::from_bytes([11; 32])),
+            validation_context_digest: Some(ValidationContextDigest::from_bytes([12; 32])),
+            validation_profile_id: Some(ValidationProfileId::from_bytes([13; 32])),
+            committed_root: StateRoot::from_bytes([4; 32]),
+            changed_entity_bindings: Vec::new(),
+            capability_summary_digest: Some(CapabilitySummaryDigest::from_bytes([14; 32])),
+            selected_tests: Vec::new(),
+            test_result_refs: vec![TestReportId::from_bytes([16; 32])],
+            tombstoned_entities: Vec::new(),
+            commit_metadata: CommitMetadata {
+                commit_profile: COMMIT_PROFILE_RESTRICTED_V1,
+                semantic_profile: SEMANTIC_PROFILE_OPERATION_FREE_V1,
+                durability_profile: crate::codec::DURABILITY_PROFILE_RECEIPT_BEFORE_HEAD_V1,
+            },
+            native_approval_id: NativeTestApprovalId::from_bytes([17; 32]),
+        }
+    }
+
+    fn golden_bundle_bytes_for_dispatch() -> Vec<u8> {
+        golden_hex_field_for_dispatch("bundle_stored")
+    }
+
+    fn golden_context_bytes_for_dispatch() -> Vec<u8> {
+        golden_hex_field_for_dispatch("context_stored")
+    }
+
+    fn golden_statement_bytes_for_dispatch() -> Vec<u8> {
+        golden_hex_field_for_dispatch("statement_stored")
+    }
+
+    fn golden_hex_field_for_dispatch(field: &str) -> Vec<u8> {
+        let text = include_str!(
+            "/home/gfarch/Work/checkpoints/sley2-finish-20260915/native-final-golden.json"
+        );
+        let marker = format!("\"{field}\": \"");
+        let start = text.find(&marker).expect("golden field present") + marker.len();
+        let end = text[start..].find('"').expect("golden field ends") + start;
+        (0..text[start..end].len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&text[start..end][i..i + 2], 16).expect("hex decodes"))
+            .collect()
     }
 }
