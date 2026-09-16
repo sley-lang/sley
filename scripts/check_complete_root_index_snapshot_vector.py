@@ -65,8 +65,15 @@ def u64(value: int) -> bytes:
     return struct.pack(">Q", value)
 
 
-def build_record(epoch: bytes, root: bytes, request: dict, edges: list[list]) -> bytes:
+def build_record(
+    epoch: bytes, root: bytes, request: dict, edges: list[list], *, completeness_arm: int = COMPLETE_ROOT_ARM
+) -> bytes:
+    """Encode an independently supplied closed inventory; arm 2 stays default."""
+    if completeness_arm not in (1, COMPLETE_ROOT_ARM):
+        raise Failure("INDEX_SNAPSHOT_COMPLETENESS_UNSUPPORTED")
     inventory = [(bytes.fromhex(entity["id"]), entity["kind"]) for entity in request["entities"]]
+    if completeness_arm == 1 and any(not 4 <= kind <= 15 for _, kind in inventory):
+        raise Failure("INDEX_SNAPSHOT_COMPLETENESS_UNSUPPORTED")
     if [entry[0] for entry in inventory] != sorted(entry[0] for entry in inventory):
         raise Failure("inventory-not-raw-identity-order")
     direct = [(bytes.fromhex(a), bytes.fromhex(b), kind) for a, b, kind in edges]
@@ -79,7 +86,7 @@ def build_record(epoch: bytes, root: bytes, request: dict, edges: list[list]) ->
     preimage += MAGIC + u32(FORMAT_VERSION) + u32(PROFILE_VERSION)
     preimage += epoch + FIELD_SCHEMA_HASH + u32(LIMITS_PROFILE)
     preimage += u32(OPTION_SOME) + root
-    preimage += u32(COMPLETE_ROOT_ARM)
+    preimage += u32(completeness_arm)
     preimage += u64(len(inventory))
     for entity, kind in inventory:
         preimage += entity + u32(kind)

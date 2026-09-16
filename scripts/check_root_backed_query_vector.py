@@ -18,6 +18,14 @@ from pathlib import Path
 
 import blake3
 
+from check_complete_entity_impact_vector import direct_edges
+from check_complete_root_index_snapshot_vector import (
+    Cursor as SnapshotCursor,
+    FIELD_SCHEMA_HASH,
+    build_record as build_snapshot_record,
+)
+from sley2_scb1_oracle.codec import encode_record, encode_sized, encode_uvar
+
 
 ROOT = Path(__file__).resolve().parents[1]
 ACCEPTED = ROOT / "conformance/root-backed-query/v1/accepted.json"
@@ -99,7 +107,11 @@ class Root:
         self.entities = request["entities"]
         self.by_id = {entity["id"]: entity for entity in self.entities}
         self.inventory = [(entity["id"], entity["kind"]) for entity in self.entities]
-        self.edges = [tuple(edge) for edge in source["expected"]["direct_edges"]]
+        self.edges = direct_edges(self.entities, {entity: body["kind"] for entity, body in self.by_id.items()})
+        if self.edges != [tuple(edge) for edge in source["expected"]["direct_edges"]]:
+            raise ValueError("frozen-source-edge-drift")
+        self.context = context
+        self.snapshot_record = self.snapshot_for_arm(2)
         self.facts = request["facts"]
         self.bindings = {entity: obj for entity, obj in context["bindings"]}
         self.fingerprints = {entity: fp for entity, fp in context["fingerprints"]}
@@ -109,9 +121,78 @@ class Root:
             self.reverse.setdefault(dependency, []).append((dependent, kind))
             self.forward.setdefault(dependent, []).append((dependency, kind))
 
+    def snapshot_for_arm(self, arm: int) -> bytes:
+        entities = self.entities if arm == 2 else [e for e in self.entities if 4 <= e["kind"] <= 15]
+        edges = direct_edges(entities, {e["id"]: e["kind"] for e in entities})
+        return build_snapshot_record(
+            h(self.context["schema_epoch_hex"]), h(self.context["root_hex"]),
+            {"entities": entities}, edges, completeness_arm=arm,
+        )
+
+    def recomputed_root(self) -> str:
+        """Recompute the nine root-committed facts with the independent SCB codec."""
+        context = self.context
+        def sequence(values):
+            return encode_uvar(len(values)) + b"".join(encode_sized(value) for value in values)
+        bindings = context["bindings"]
+        encoded_bindings = encode_uvar(len(bindings)) + b"".join(
+            encode_sized(h(entity)) + encode_sized(h(obj)) for entity, obj in bindings
+        )
+        payload = encode_record([
+            (1, h(context["workspace_id"])), (2, h(context["schema_epoch_hex"])),
+            (3, encoded_bindings), (4, sequence([h(x) for x in self.facts["entry_points"]])),
+            (5, sequence([h(x) for x in self.facts["dependency_roots"]])),
+            (6, h(context["contract_root"])), (7, h(context["test_root"])),
+            (8, h(context["policy_root"])),
+            (9, sequence([encode_uvar(x) for x in context["interpretation_flags"]])),
+        ])
+        root_epoch = context["schema_epoch_hex"]
+        preimage = b"SLEYSCB1" + encode_uvar(1) + encode_uvar(160) + h(root_epoch) + encode_sized(payload)
+        return blake3.blake3(b"sley2.state-root.v1" + preimage).hexdigest()
+
     def kind(self, entity: str) -> int | None:
         body = self.by_id.get(entity)
         return None if body is None else body["kind"]
+
+
+def validated_input_context(root: Root, emitted: dict | None) -> tuple[int, str]:
+    """Rebuild actual emitted snapshot bytes before applying query arm rules.
+
+    A Rust query receives a constructor-owned snapshot. Invalid emitted bytes
+    therefore invalidate the fixture evidence; they are not a query refusal
+    that can be manufactured by an arm descriptor or expected-code label.
+    """
+    if emitted is None:
+        emitted = {
+            "snapshot_record_hex": root.snapshot_record.hex(),
+            "snapshot_id": root.context["snapshot_id"],
+            "root_hex": root.context["root_hex"],
+        }
+    if set(emitted) != {"snapshot_record_hex", "snapshot_id", "root_hex"}:
+        raise ValueError("input-context-shape")
+    record = h(emitted["snapshot_record_hex"])
+    if not 180 <= len(record) <= MAX_RESPONSE_BYTES:
+        raise ValueError("input-snapshot-size")
+    cursor = SnapshotCursor(record[:-32])
+    if cursor.take(8) != b"SLEYIDX1" or cursor.u32() != 1 or cursor.u32() != 1:
+        raise ValueError("input-snapshot-header")
+    if cursor.take(32) != h(root.context["schema_epoch_hex"]) or cursor.take(32) != FIELD_SCHEMA_HASH:
+        raise ValueError("input-snapshot-epoch")
+    if cursor.u32() != 1 or cursor.u32() != OPTION_SOME:
+        raise ValueError("input-snapshot-context")
+    if cursor.take(32) != h(root.context["root_hex"]):
+        raise ValueError("input-snapshot-claimed-root")
+    arm = cursor.u32()
+    if arm not in (1, 2):
+        raise ValueError("input-snapshot-arm")
+    # Complete equality covers inventory, edges, reverse inversion and digest;
+    # a self-consistent digest over a truncated/altered graph is insufficient.
+    expected = root.snapshot_for_arm(arm)
+    if record != expected or record[-32:].hex() != emitted["snapshot_id"]:
+        raise ValueError("input-snapshot-rebuild")
+    if len(h(emitted["root_hex"])) != 32:
+        raise ValueError("input-root-shape")
+    return arm, emitted["root_hex"]
 
 
 def encode_cursor(cursor: dict | None) -> bytes:
@@ -456,12 +537,17 @@ def encode_payload(kind: str, items: list, context: dict, root: Root) -> bytes:
     return bytes(out)
 
 
-def answer(root: Root, context: dict, vector: dict) -> tuple[bytes, bytes, dict | None]:
+def answer(root: Root, context: dict, vector: dict, input_context: dict | None = None) -> tuple[bytes, bytes, dict | None]:
     query, limits = vector["query"], vector["limits"]
     allow, after = vector["allow_continuation"], vector["after"]
+    arm, supplied_root = validated_input_context(root, input_context)
     validate_limits(limits)
+    if arm != 2:
+        raise Failure("QUERY_PROFILE_UNSUPPORTED")
     validate_shape(query)
     validate_cursor(query, after)
+    if supplied_root != context["root_hex"] or supplied_root != root.recomputed_root():
+        raise Failure("QUERY_ROOT_MISMATCH")
     request = preimage(context, limits, allow, after, query)
     query_id = blake3.blake3(DOMAIN + request).digest()
     for entity in named_entities(query):
@@ -493,6 +579,38 @@ def answer(root: Root, context: dict, vector: dict) -> tuple[bytes, bytes, dict 
     if len(record) != response_bytes:
         raise Failure("QUERY_INTERNAL_INVARIANT")
     return query_id, bytes(record), next_after
+
+
+def contiguous_walk_problem(root: Root, first: dict, second: dict) -> str | None:
+    """Prove the intended two-page walk, including its empty terminal probe.
+
+    Arbitrary independently chosen cursors may overlap; only an identical-query
+    walk starting at None and using the exact preceding final key has the
+    disjoint-complete concatenation property checked here.
+    """
+    if first["query"] != second["query"] or first["limits"] != second["limits"]:
+        return "query-or-limits"
+    if first["after"] is not None or not first["allow_continuation"] or not second["allow_continuation"]:
+        return "walk-origin"
+    kind, items, _ = compute(root, first["query"], Work(first["limits"]["max_work"]))
+    selected_first, total_first, _, truncated, next_first, _ = page(
+        kind, items, first["limits"], True, None
+    )
+    if not selected_first:
+        return "empty-first-page"
+    expected_after = next_first if truncated else cursor_for(kind, selected_first[-1])
+    if second["after"] != expected_after or first["next_after"] != next_first:
+        return "cursor-chain"
+    selected_second, total_second, _, truncated_second, next_second, _ = page(
+        kind, items, second["limits"], True, second["after"]
+    )
+    if truncated_second or next_second is not None or second["next_after"] is not None:
+        return "terminal-page"
+    if total_first != len(items) or total_second != len(items):
+        return "total"
+    if selected_first + selected_second != items:
+        return "ordered-disjoint-union"
+    return None
 
 
 def main() -> int:
@@ -530,93 +648,44 @@ def main() -> int:
     classes = sorted({vector["query"]["class"] for vector in accepted.get("vectors", [])})
     if classes != list(range(1, 20)):
         problems.append("vectors:class-coverage")
-    # Paged vectors must union to the complete result of the same class.
+    # Check the actual same-query contiguous walks, not arbitrary cursor sets.
     pages = {vector["id"]: vector for vector in accepted.get("vectors", [])}
-    for prefix, complete_id in (("page-namespaces", "class-04"), ("page-edges", None)):
+    for prefix in ("page-namespaces", "page-edges", "page-roots", "page-entry-points"):
         first, second = pages.get(f"{prefix}-1"), pages.get(f"{prefix}-2")
         if first is None or second is None:
             problems.append(f"{prefix}:missing")
             continue
-        if not first["next_after"] or second["after"] != first["next_after"] or second["next_after"] is not None:
-            problems.append(f"{prefix}:chain")
-    # Single-item-class walks (rev-5): the first page is complete, and the
-    # second page carries the typed after-cursor; the oracle re-derives
-    # both pages and requires the exact total on each and a disjoint,
-    # complete union, so no page can hide a fact.
-    for prefix, tag in (("page-roots", 3), ("page-entry-points", 1)):
-        first, second = pages.get(f"{prefix}-1"), pages.get(f"{prefix}-2")
-        if first is None or second is None:
-            problems.append(f"{prefix}:missing")
-            continue
-        after = second["after"] or {}
-        if after.get("tag") != tag:
-            problems.append(f"{prefix}:cursor-tag")
-        if second["next_after"] is not None:
-            problems.append(f"{prefix}:chain")
         try:
-            kind_f, items_f, _ = compute(root, first["query"], Work(first["limits"]["max_work"]))
-            kind_s, items_s, _ = compute(root, second["query"], Work(second["limits"]["max_work"]))
-            sel_f, total_f, _, _, _, _ = page(
-                kind_f, items_f, first["limits"], True, first["after"]
-            )
-            sel_s, total_s, _, _, _, _ = page(
-                kind_s, items_s, second["limits"], True, second["after"]
-            )
-        except (Failure, KeyError) as error:
+            problem = contiguous_walk_problem(root, first, second)
+        except (Failure, KeyError, ValueError) as error:
             problems.append(f"{prefix}:oracle:{error}")
             continue
-        if total_f != len(items_f) or total_s != len(items_f):
-            problems.append(f"{prefix}:total")
-        if sorted(map(repr, sel_f + sel_s)) != sorted(map(repr, items_f)):
-            problems.append(f"{prefix}:union")
+        if problem:
+            problems.append(f"{prefix}:{problem}")
     for mutation in rejected.get("mutations", []):
-        # Tamper-described mutations (rev-5 binding matrix): the row names
-        # the tamper the engine emitter applied, and the oracle proves the
-        # tamper is load-bearing by first running the honest request to
-        # acceptance. A tamper that masks an already-failing request, or
-        # names no real substitution, is a problem, not a pin. Rows
-        # without tamper keep the original rule: the honest request must
-        # refuse with the expected code.
-        tamper = mutation.get("tamper") or {}
-        if not tamper:
+        if "tamper" in mutation:
+            problems.append(f"{mutation['id']}:legacy-descriptor-without-grounded-context")
+            continue
+        input_context = mutation.get("input_context")
+        # The honest request must succeed before a different emitted input
+        # context can establish a load-bearing profile/binding rejection.
+        if input_context is not None:
             try:
                 answer(root, context, mutation)
-            except Failure as failure:
-                if failure.code != mutation["expected_code"]:
-                    problems.append(f"{mutation['id']}:code:{failure.code}")
-                elif CODES[failure.code] != mutation["expected_numeric"]:
-                    problems.append(f"{mutation['id']}:numeric")
-            except KeyError:
-                problems.append(f"{mutation['id']}:oracle-key-error")
-            else:
-                problems.append(f"{mutation['id']}:accepted")
-            continue
+            except (Failure, KeyError, ValueError) as error:
+                problems.append(f"{mutation['id']}:context-masks:{error}")
+                continue
         try:
-            answer(root, context, mutation)
-        except Failure as failure:
-            problems.append(f"{mutation['id']}:tamper-masks:{failure.code}")
-            continue
-        except KeyError:
-            problems.append(f"{mutation['id']}:oracle-key-error")
-            continue
-        try:
-            if tamper.get("arm") == 1:
-                raise Failure("QUERY_PROFILE_UNSUPPORTED")
-            substituted = tamper.get("substituted_root")
-            if substituted is not None:
-                if substituted == context["root_hex"]:
-                    problems.append(f"{mutation['id']}:tamper-not-substituted")
-                    continue
-                raise Failure("QUERY_ROOT_MISMATCH")
-            problems.append(f"{mutation['id']}:tamper-empty")
-            continue
+            answer(root, context, mutation, input_context)
         except Failure as failure:
             if failure.code != mutation["expected_code"]:
                 problems.append(f"{mutation['id']}:code:{failure.code}")
             elif CODES[failure.code] != mutation["expected_numeric"]:
                 problems.append(f"{mutation['id']}:numeric")
-        except KeyError:
-            problems.append(f"{mutation['id']}:oracle-key-error")
+        except (KeyError, ValueError, TypeError, struct.error) as error:
+            problems.append(f"{mutation['id']}:invalid-input-evidence:{error}")
+        else:
+            problems.append(f"{mutation['id']}:accepted")
     print(
         json.dumps(
             {

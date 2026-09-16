@@ -1,0 +1,23 @@
+{
+  "scope": "Root query frozen conformance provenance and contiguous page evidence correction",
+  "status": "PASS",
+  "independent_review": "evidence/review/root-query-oracle-correction-review-2026-09-15.md",
+  "accepted_vectors_unchanged": 27,
+  "rejected_vectors": 10,
+  "focused_tests": 13,
+  "independent_python_tests": 133,
+  "rust_query_tests": 104,
+  "limitations": [
+    "Frozen corpus verification only; no native execution or release acceptance claim."
+  ],
+  "files_sha256": {
+    "crates/sley-query/src/root_query.rs": "103c1aa52f6026a74a098829ef206a4d881b7ba3e94b91d8367b583ae6ee49a8",
+    "scripts/generate_root_backed_query_fixtures.py": "0f4b7ca2ae4ef6a81734912870c218dd84284126fddbc708baf3425e725f742b",
+    "scripts/check_root_backed_query_vector.py": "ce6e98f2595a0e3c0bde5d861c1629f8798f4c0700e5d288a86ed67ed1684d63",
+    "scripts/check_complete_root_index_snapshot_vector.py": "22b666abed03a5aedb17b8598837fb71ca88ccd83ea4603e001e4c67a3f0c0f7",
+    "oracle/scb1/tests/test_root_query_oracle.py": "80f796ee8a73bd84581302ae75d78f8496e7bdbebc50e6229753a79ad0e9ee1f",
+    "conformance/root-backed-query/v1/accepted.json": "6cb756ebd96cb6d501656c6ca0f70bce57d8a4671bddd4c887286413e752ac05",
+    "conformance/root-backed-query/v1/rejected.json": "59291ac4be72c9eb289e3b13de9df2c95b4368d5262649f7d4afd12e2cc2f691"
+  },
+  "logs_directory": "/home/gfarch/Work/checkpoints/sley2-finish-20260915"
+}

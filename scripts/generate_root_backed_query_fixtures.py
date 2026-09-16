@@ -112,14 +112,15 @@ def main() -> int:
                 "limits": json.loads(parts[3]),
                 "query": json.loads(parts[2]),
             }
-            # The tamper the emitter applied, so the independent oracle
-            # can prove it load-bearing: a substituted root that matches
-            # StateRoot::from_bytes([0x09; 32]), and the arm-1 snapshot
-            # built from the fixture's restricted-kind subset.
-            if parts[1] == "binding-substituted-fact":
-                rejection["tamper"] = {"substituted_root": "09" * 32}
-            elif parts[1] == "arm-1-snapshot-profile":
-                rejection["tamper"] = {"arm": 1}
+            # Preserve the actual context passed to the Rust entry point.
+            # Row labels never manufacture a snapshot arm or substituted root.
+            if len(parts) == 9:
+                input_context = json.loads(parts[8])
+                if set(input_context) != {"root_hex", "snapshot_id", "snapshot_record_hex"}:
+                    raise RuntimeError("invalid emitted root-query input context")
+                rejection["input_context"] = input_context
+            elif len(parts) != 8:
+                raise RuntimeError("invalid root-query rejection field count")
             rejections.append(rejection)
     if context is None:
         raise RuntimeError("no root-query context line")

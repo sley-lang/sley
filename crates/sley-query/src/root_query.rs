@@ -3352,12 +3352,13 @@ pub(crate) mod tests {
             };
         assert_eq!(tampered_code.numeric(), 31_008);
         println!(
-            "ROOT_QUERY_REJECT|binding-substituted-fact|{}|{}|false|{}|{}|{}",
+            "ROOT_QUERY_REJECT|binding-substituted-fact|{}|{}|false|{}|{}|{}|{}",
             describe(&RootQuery::GetRootSummary),
             describe_limits(full),
             describe_cursor(None),
             tampered_code.as_str(),
-            tampered_code.numeric()
+            tampered_code.numeric(),
+            describe_input_context(&tampered)
         );
         // P2-7 and section 9: the restricted arm-1 snapshot is not a
         // binding failure; the arm selects the profile first, so the
@@ -3394,12 +3395,22 @@ pub(crate) mod tests {
         };
         assert_eq!(arm1_code.numeric(), 31_000);
         println!(
-            "ROOT_QUERY_REJECT|arm-1-snapshot-profile|{}|{}|false|{}|{}|{}",
+            "ROOT_QUERY_REJECT|arm-1-snapshot-profile|{}|{}|false|{}|{}|{}|{}",
             describe(&RootQuery::GetRootSummary),
             describe_limits(full),
             describe_cursor(None),
             arm1_code.as_str(),
-            arm1_code.numeric()
+            arm1_code.numeric(),
+            describe_input_context(&arm1_input)
         );
+    }
+
+    fn describe_input_context(input: &RootQueryInput<'_>) -> String {
+        format!(
+            "{{\"root_hex\":\"{}\",\"snapshot_id\":\"{}\",\"snapshot_record_hex\":\"{}\"}}",
+            hex(input.root.as_bytes()),
+            hex(input.snapshot.snapshot_id().as_bytes()),
+            hex(input.snapshot.record())
+        )
     }
 }
