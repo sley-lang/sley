@@ -14,6 +14,20 @@
       "bundle_commit": "9b4f0648c9e226b0852d7a83b10ac6f550ecf45b",
       "merge_commit": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
       "note": "Recovered from the preserved lab evidence and transferred JSON; remote HEAD and byte digests were rechecked. The preserved bundle names this candidate at refs/heads/main. Physical USB/LAN/Tail selection was not logged and is not inferred."
+    },
+    {
+      "candidate_commit": "27ad8d7e4717a72a74ff1c63c27d9f24c92b012a",
+      "date": "2026-09-15",
+      "transport_lane": "USB 10.10.10.1 to 10.10.10.2 via forge-lab-connect; observed build relay and SSH_CONNECTION",
+      "lab_checkout": "/home/greyforgelab/sley2-repair-27ad8d7",
+      "lab_commit": "27ad8d7e4717a72a74ff1c63c27d9f24c92b012a",
+      "lab_evidence_sha256": "e2f4067721deb14555bffac616494a56787d9896f0312144bb1a14e96aa5a7fc",
+      "artifact_sha256": "9ee3971caddb5ef47859bb67a2a4ffb3c6d7d5ce529d69fbafbdd215fb09cf2e",
+      "attestation_path": "evidence/release/attestations/27ad8d7-secondary.json",
+      "attestation_file_sha256": "b18e5f4f04d7c42d000a4aebbbbf19f1a5dd83141a4886f4a07230e298189333",
+      "bundle_commit": "27ad8d7e4717a72a74ff1c63c27d9f24c92b012a",
+      "merge_commit": "53033d17037aab873ab1600130618f25454ff5a3",
+      "note": "Both host builds succeeded and archive bytes matched. Superseded by the runbook-ordering correction before final qualification."
     }
   ]
 }

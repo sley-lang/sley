@@ -39,7 +39,8 @@ council-lane reviews, and re-mint.
   toolchain pinned by `rust-toolchain.toml` (1.93.0 on both hosts). Copy a
   `git bundle` of `main`, clone detached at the candidate commit, run the
   build target, emit the attestation with `--host-label secondary`, copy the JSON
-  back, merge with `--attest`, file the records-eligible lane receipt, and run
+  back, merge with `--attest`, commit the merged records locally, file the
+  records-eligible lane receipt naming that commit, and run
   `make release-candidate-verify` after the merge.
 
 ## ZJX transport readiness amendment (2026-09-15)
@@ -81,7 +82,8 @@ queued re-mint.
    drift-gate ownership fork (N-P1-4).
 4. **Re-attest after any attestation-bound change** (anything outside
    `evidence/` and `machineresearch/`): mint in a detached worktree, attest
-   on the lab, merge, `make evidence-refresh`, `make quick`, commit, push.
+   on the lab, merge, `make evidence-refresh`, commit a provisional local merge,
+   file its lane receipt, verify and run `make quick`, commit the receipt, push.
 
 ## Held decisions (operator or council authority, not machine-doable)
 

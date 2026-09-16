@@ -324,9 +324,12 @@ rather than automated:
    authorizes.
 4. On the primary host run
    `python3 scripts/build_reproducibility_report.py --attest /tmp/<label>-attestation.json`,
-   then `make evidence-refresh`, `make release-candidate-verify`, and
-   `make quick`. Commit the merged candidate records, then file the lane
-   record as a records-only descendant naming that merge commit.
+   then `make evidence-refresh`. Commit the merged candidate records as a
+   provisional local checkpoint. File the lane record naming that actual
+   merge commit, then run `make release-candidate-verify` and `make quick`.
+   Commit the receipt as a records-only descendant after those checks pass.
+   The provisional merge is not a validated closure until its receipt and
+   checks are complete.
 
 The merged report reads `MULTI_HOST_REPRODUCIBLE` exactly when both hosts
 attest the same commit with the same artifact digest; a disagreement is
