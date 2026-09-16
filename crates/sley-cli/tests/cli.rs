@@ -1566,3 +1566,42 @@ fn frame_decode_keeps_partial_stdout_before_failure() {
     let converted: Value = serde_json::from_str(text.trim()).unwrap();
     assert_eq!(converted["kind"], "request");
 }
+
+#[test]
+fn native_test_worker_entry_passes_refusal_words_through_unwrapped() {
+    use sley_test_runner::worker::WorkerRequest;
+    use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits};
+
+    let frame = WorkerRequest {
+        program_bytes: vec![0x01, 0x02, 0x03],
+        input_hashes: vec![[0x11; 32]],
+        declared_limits: NativeDeclaredLimits {
+            fuel: 100,
+            memory_bytes: 4_096,
+            output_bytes: 64,
+            effect_count: 0,
+            call_depth: 8,
+            wall_timeout_millis: 1_000,
+        },
+        implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+    }
+    .encode_frame()
+    .unwrap();
+    // Well-formed envelope reaches the unwired dispatch refusal: exit 2
+    // with raw refusal words on stdout and no CLI JSON failure.
+    let (status, stdout, stderr) = run(&["__native-test-worker"], &frame);
+    assert_eq!(status, 2);
+    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 2);
+    assert_eq!(&stdout[4..], b"NATIVE_WORKER_EXECUTION_NOT_WIRED");
+    assert!(stderr.is_empty());
+    // Malformed input refuses with exit 1 and the stable SCB string.
+    let (status, stdout, stderr) = run(&["__native-test-worker"], b"junk");
+    assert_eq!(status, 1);
+    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 1);
+    assert!(stderr.is_empty());
+    // Extra words stay a usage refusal, never a worker run.
+    let (status, _, stderr) = run(&["__native-test-worker", "extra"], &frame);
+    assert_eq!(status, 2);
+    let failure: Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(failure["code"], 43000);
+}

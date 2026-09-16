@@ -247,6 +247,13 @@ pub enum Command {
         /// The protocol profile (legacy default).
         profile: ProtocolProfile,
     },
+    /// Private fixed native-test worker IPC entry.
+    ///
+    /// This is not a protocol method and never appears in the method
+    /// table: the root supervisor spawns exactly this argv over a
+    /// daemon-owned input binding. Raw refusal words go to stdout and the
+    /// worker exit code passes through unwrapped.
+    NativeTestWorker,
 }
 
 /// Parses the flag tail of `frame decode` / `frame encode`: at most one
@@ -369,6 +376,7 @@ pub fn parse(args: &[String]) -> Result<Command> {
         "version" => Ok(Command::Version {
             profile: parse_profile_only(rest)?,
         }),
+        "__native-test-worker" if rest.is_empty() => Ok(Command::NativeTestWorker),
         "hello" => {
             let mut json = false;
             let mut profile = ProtocolProfile::Legacy;
@@ -401,7 +409,27 @@ pub fn run(
     stdout: &mut dyn Write,
     stderr: &mut dyn Write,
 ) -> i32 {
-    let outcome = parse(args).and_then(|command| match command {
+    let command = match parse(args) {
+        Ok(command) => command,
+        Err(failure) => {
+            let _ = writeln!(stderr, "{}", failure.value());
+            return failure.code.exit_status();
+        }
+    };
+    // Private fixed worker IPC entry: raw refusal words on stdout and the
+    // worker exit code passes through unwrapped, never as a CLI JSON
+    // failure. Every other command keeps the exact contract below.
+    if matches!(command, Command::NativeTestWorker) {
+        let status = sley_test_runner::worker::run_stdio(stdin, stdout);
+        if let Err(error) = stdout.flush() {
+            let failure = stream_failure(error);
+            let _ = writeln!(stderr, "{}", failure.value());
+            return failure.code.exit_status();
+        }
+        return status;
+    }
+    let outcome = match command {
+        Command::NativeTestWorker => unreachable!("worker entry returns above"),
         Command::Serve { options, profile } => serve_profile(&options, profile, stdin, stdout),
         Command::FrameDecode {
             expected_version, ..
@@ -414,7 +442,7 @@ pub fn run(
             .map_err(stream_failure),
         Command::Hello { json, profile } => hello(json, profile, stdout),
         Command::Version { profile } => version(profile, stdout),
-    });
+    };
     match outcome {
         Ok(()) => {
             // Every write path flushes (contract section 2), and this
