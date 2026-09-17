@@ -28,7 +28,8 @@
 //! opcodes, the unary/binary floating family, value constructors, local-cell
 //! operations, and value hashing to the same traversal.
 //! A second runtime-vector path walks arbitrary operand lists for FMA, tuple/
-//! vector construction and access, and ordered-map access/update operations.
+//! vector construction and access, and ordered-map construction/access/update
+//! operations.
 //! The terminator slices lower return, branch, conditional branch, trap, and
 //! built-in variant-switch models. They walk every edge or case argument and
 //! every runtime switch case in Sley.
@@ -41,6 +42,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-floating.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-values-cells.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-variadic.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-map-construction.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
@@ -2280,6 +2282,7 @@ fn variadic_operation_lowerer() -> LowerScaffold {
     let opcode_vector_len = assembler.block_id();
     let opcode_vector_get = assembler.block_id();
     let opcode_vector_set = assembler.block_id();
+    let opcode_map_new = assembler.block_id();
     let opcode_map_get = assembler.block_id();
     let opcode_map_contains = assembler.block_id();
     let opcode_map_insert = assembler.block_id();
@@ -2287,6 +2290,8 @@ fn variadic_operation_lowerer() -> LowerScaffold {
     let count_one = assembler.block_id();
     let count_two = assembler.block_id();
     let count_three = assembler.block_id();
+    let map_new_count = assembler.block_id();
+    let map_new_remainder = assembler.block_id();
     let validate = assembler.block_id();
     let emit = assembler.block_id();
     let success = assembler.block_id();
@@ -2302,12 +2307,14 @@ fn variadic_operation_lowerer() -> LowerScaffold {
         Opcode::VectorLen,
         Opcode::VectorGet,
         Opcode::VectorSet,
+        Opcode::MapNew,
         Opcode::MapGet,
         Opcode::MapContains,
         Opcode::MapInsert,
         Opcode::MapRemove,
     ]
     .map(|value| assembler.constant(u32_value(u128::from(value.tag()))));
+    let zero_u64 = assembler.constant(u64_value(0));
     let one_u64 = assembler.constant(u64_value(1));
     let two_u64 = assembler.constant(u64_value(2));
     let three_u64 = assembler.constant(u64_value(3));
@@ -2389,33 +2396,40 @@ fn variadic_operation_lowerer() -> LowerScaffold {
         opcode_vector_set,
         tags[5],
         count_three,
-        opcode_map_get,
+        opcode_map_new,
     );
     dispatch(
         &mut assembler,
-        opcode_map_get,
+        opcode_map_new,
         tags[6],
-        count_two,
-        opcode_map_contains,
+        map_new_count,
+        opcode_map_get,
     );
     dispatch(
         &mut assembler,
-        opcode_map_contains,
+        opcode_map_get,
         tags[7],
         count_two,
+        opcode_map_contains,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_map_contains,
+        tags[8],
+        count_two,
         opcode_map_insert,
     );
     dispatch(
         &mut assembler,
         opcode_map_insert,
-        tags[8],
+        tags[9],
         count_three,
         opcode_map_remove,
     );
     dispatch(
         &mut assembler,
         opcode_map_remove,
-        tags[9],
+        tags[10],
         count_two,
         opcode_error,
     );
@@ -2453,6 +2467,65 @@ fn variadic_operation_lowerer() -> LowerScaffold {
     count_check(&mut assembler, count_one, one_u64);
     count_check(&mut assembler, count_two, two_u64);
     count_check(&mut assembler, count_three, three_u64);
+
+    let map_length = assembler.operation(
+        map_new_count,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(operands)],
+        u64_type(),
+        Immediate::None,
+    );
+    let map_two = assembler.constant_ref(map_new_count, two_u64, u64_type());
+    let remainder = assembler.operation(
+        map_new_count,
+        Opcode::IntRemChecked,
+        vec![operation_value(map_length), operation_value(map_two)],
+        arithmetic_result_type(u64_type()),
+        Immediate::None,
+    );
+    assembler.push_block(
+        map_new_count,
+        function,
+        Vec::new(),
+        vec![map_length, map_two, remainder],
+        inventory_switch(
+            operation_value(remainder),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    map_new_remainder,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+    let found_remainder =
+        assembler.parameter(map_new_remainder, ParameterRole::Block, 0, u64_type());
+    let map_zero = assembler.constant_ref(map_new_remainder, zero_u64, u64_type());
+    let even = assembler.operation(
+        map_new_remainder,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(found_remainder),
+            operation_value(map_zero),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        map_new_remainder,
+        function,
+        vec![found_remainder],
+        vec![map_zero, even],
+        inventory_cond(
+            operation_value(even),
+            validate,
+            Vec::new(),
+            signature_error,
+            Vec::new(),
+        ),
+    );
 
     let validation = assembler.operation(
         validate,
@@ -4655,6 +4728,13 @@ fn native_variadic_instruction(opcode: Opcode) -> sley_vm::Instruction {
                 error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)),
             },
         ),
+        Opcode::MapNew => (
+            vec![TypeExpr::Bool, u32_type(), TypeExpr::Bool, u32_type()],
+            TypeExpr::Result {
+                ok: Box::new(map.clone()),
+                error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+            },
+        ),
         Opcode::MapGet => (
             vec![map.clone(), TypeExpr::Bool],
             TypeExpr::Option(Box::new(u32_type())),
@@ -5513,6 +5593,7 @@ fn lower_variadic_operation_families_match_native_dense_models() {
         Opcode::VectorLen,
         Opcode::VectorGet,
         Opcode::VectorSet,
+        Opcode::MapNew,
         Opcode::MapGet,
         Opcode::MapContains,
         Opcode::MapInsert,
@@ -5550,6 +5631,10 @@ fn lower_variadic_operation_families_preserve_failure_order() {
         ),
         (
             execute_variadic_operation(&package, &approved, Opcode::VectorLen, &[0, 1], 2),
+            sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
+        ),
+        (
+            execute_variadic_operation(&package, &approved, Opcode::MapNew, &[0, 1, 2], 3),
             sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
         ),
         (

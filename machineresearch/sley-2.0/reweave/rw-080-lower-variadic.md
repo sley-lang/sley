@@ -4,6 +4,10 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real Sley lowering algorithm
 under the operator development override. It is not RW-110 completion, C1,
 self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-map-construction.md` adds `MapNew` with a
+Sley-owned even-arity judgment; this record preserves the initial variadic
+family and its evidence.
+
 ## Scope and behavior
 
 `variadic_operation_lowerer` accepts an opcode tag, the complete runtime
