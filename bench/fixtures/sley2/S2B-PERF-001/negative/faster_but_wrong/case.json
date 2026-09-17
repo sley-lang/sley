@@ -1,0 +1,1 @@
+{"binary": "s3_g3_perf", "expected_code": "ORACLE_OUTPUT_MISMATCH", "mutation": "BoolNot wrapped around the first MapContains probe: strictly fewer instructions than BEFORE, changed output digest", "package": "sley-vm", "test": "s3_g3_perf_neg_faster_but_wrong"}

@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_test_neg_impl_touched",
+  "expected_code": "ORACLE_IMPL_TOUCHED",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_test"
+}

@@ -1,0 +1,17 @@
+module app.merge
+
+export task rounding_check -> Int {
+  take subtotal: Int
+  return subtotal + 0
+}
+
+export task checksum_impl -> Int {
+  take value: Int
+  return value * 31 + 9
+}
+
+task main -> Int {
+  bind rounded = call rounding_check(100)
+  bind digested = call checksum_impl(200)
+  return rounded + digested
+}

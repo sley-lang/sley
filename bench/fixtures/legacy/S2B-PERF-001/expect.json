@@ -1,0 +1,1 @@
+{"arm": "legacy", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"faster_but_wrong": "ORACLE_OUTPUT_CHANGED"}, "positive": "accepted", "task_id": "S2B-PERF-001"}

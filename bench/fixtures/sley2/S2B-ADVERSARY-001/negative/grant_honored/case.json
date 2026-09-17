@@ -1,0 +1,1 @@
+{"binary": "s3_g3_adversary", "expected_code": "CAP_GRANT_DENIED", "mutation": "metadata-claimed FileRead grant for an ungranted principal presented as authority via issue_capability_token", "package": "sley-policy", "test": "s3_g3_adversary_neg_grant_honored"}

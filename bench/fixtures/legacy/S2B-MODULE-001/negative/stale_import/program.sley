@@ -1,0 +1,56 @@
+module app.integrity
+
+export task checksum -> Int {
+  take value: Int
+  return value * 31 + 7
+}
+
+module app.shop
+
+import app.integrity as integrity
+
+import app.util as util
+
+export task price_one -> Int {
+  take value: Int
+  return call integrity.checksum(value)
+}
+
+export task price_two -> Int {
+  take value: Int
+  return call integrity.checksum(value)
+}
+
+export task price_three -> Int {
+  take value: Int
+  return call integrity.checksum(value)
+}
+
+export task price_four -> Int {
+  take value: Int
+  return call integrity.checksum(value)
+}
+
+export task price_five -> Int {
+  take value: Int
+  return call integrity.checksum(value)
+}
+
+export task price_six -> Int {
+  take value: Int
+  return call util.checksum(value)
+}
+
+task main -> Int {
+  bind a = call price_one(1)
+  bind b = call price_two(2)
+  bind c = call price_three(3)
+  bind d = call price_four(4)
+  bind e = call price_five(5)
+  bind f = call price_six(6)
+  bind ab = a + b
+  bind cd = c + d
+  bind ef = e + f
+  bind abcd = ab + cd
+  return abcd + ef
+}

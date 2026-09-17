@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_repair_neg_upper_returns_low",
+  "expected_code": "ORACLE_CLAMP_MISMATCH",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_repair"
+}

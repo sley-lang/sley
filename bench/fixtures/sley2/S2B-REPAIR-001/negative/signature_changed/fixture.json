@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-REPAIR-001",
+  "arm": "sley2",
+  "negative": "signature_changed",
+  "expected_code": "VM_EXEC_INPUT_COUNT_MISMATCH",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

@@ -1,0 +1,1 @@
+{"arm": "raw", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"overlapping_change": "ORACLE_MERGE_CONFLICT"}, "positive": "accepted", "task_id": "S2B-MERGE-001"}

@@ -1,4 +1,4 @@
-.PHONY: remote-consistency evidence-refresh quick lint persistent-fuzz-all core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
+.PHONY: remote-consistency evidence-refresh quick lint persistent-fuzz-all core conformance adversarial fuzz-smoke legacy-runner-smoke sley2-runner-smoke fixtures-check accounting-smoke release-candidate-smoke scb1-persistent-fuzz-smoke schema-persistent-fuzz-smoke pack-persistent-fuzz-smoke semantic-checkers-persistent-fuzz-smoke query-persistent-fuzz-smoke vm-persistent-fuzz-smoke adapter-responses-persistent-fuzz-smoke mutation-candidate-persistent-fuzz-smoke candidate-result-persistent-fuzz-smoke transaction-receipt-persistent-fuzz-smoke v2 release-check check-changed
 
 quick:
 	python3 scripts/check_m0.py
@@ -188,6 +188,13 @@ sley2-runner-smoke:
 accounting-smoke:
 	python3 -m bench.accounting.report smoke --sley2-evidence evidence/runtime/s20-620-sley2-smoke/evidence.json --output-dir evidence/runtime/s20-630-accounting-smoke
 	python3 scripts/check_succession_accounting.py
+
+# S3 owner-oracle gate (S20-640 input): runs all 45 task x arm oracles
+# (positive + negative controls). Full pass takes tens of minutes (legacy
+# cold-stages, sley2 cargo tests); use --arm/--task filters to iterate.
+# Deliberately outside `quick`: duration, not importance.
+fixtures-check:
+	python3 scripts/check_benchmark_fixtures.py --jobs 4
 
 # Every builder runs before every checker: the release checkers run the shared
 # bench/release test suite, whose S20-710/S20-730 tests read the evidence a

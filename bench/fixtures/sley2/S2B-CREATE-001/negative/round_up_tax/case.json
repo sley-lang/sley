@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_create_neg_round_up_tax",
+  "expected_code": "ORACLE_WRONG_CENTS",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_create"
+}

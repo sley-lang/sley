@@ -1,0 +1,24 @@
+module app.clamp
+
+export task clamp -> Int {
+  take value: Int
+  take low: Int
+  take high: Int
+  if value < low {
+    return low
+  } else {
+    if value > high {
+      return low
+    } else {
+      return value
+    }
+  }
+}
+
+task main -> Int {
+  bind first = call clamp(-1, 0, 10)
+  bind second = call clamp(7, 0, 10)
+  bind third = call clamp(11, 0, 10)
+  bind partial = first + second
+  return partial + third
+}

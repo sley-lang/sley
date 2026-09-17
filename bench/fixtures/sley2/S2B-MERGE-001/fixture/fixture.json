@@ -1,0 +1,18 @@
+{
+  "arm": "sley2",
+  "conformance_test": "s3_merge_fixture_conformance",
+  "evidence": {
+    "ancestor_root": "3232323232323232323232323232323232323232323232323232323232323232",
+    "conflicts": 0,
+    "merged_objects": 8,
+    "merged_root": "f71a0ba3f15f36a27d3d255078549a0b4a4a7f7765fa562fea5b42e3a50cff7d",
+    "neg_conflict_id": "867d381d397faae03e2158c668ba91eb9823a2a5831f4e3ffe29a60f49344f93",
+    "neg_reason": "FieldEdit",
+    "neg_reason_tag": 3,
+    "ours_root": "3333333333333333333333333333333333333333333333333333333333333333",
+    "theirs_root": "3434343434343434343434343434343434343434343434343434343434343434"
+  },
+  "evidence_sha256": "1955e7c199df7b7dcfc5374c0d749b0907f1ecc557db43c9b68a1d635ab6d3ae",
+  "task_id": "S2B-MERGE-001",
+  "test_binary": "s3_g2_merge"
+}

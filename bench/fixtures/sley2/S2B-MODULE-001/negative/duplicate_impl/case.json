@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_module_neg_duplicate_impl",
+  "expected_code": "ORACLE_DUPLICATE_IMPL",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_module"
+}

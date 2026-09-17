@@ -1,0 +1,6 @@
+module app.ovfprobe
+
+task main -> Int {
+  bind ratio = -9223372036854775808 / -1
+  return ratio
+}

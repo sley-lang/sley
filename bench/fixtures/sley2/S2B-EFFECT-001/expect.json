@@ -1,0 +1,1 @@
+{"arm": "sley2", "contract": "sley2.benchmark-task-oracle.v1", "exclusion": true, "negatives": {}, "positive": "rejected", "task_id": "S2B-EFFECT-001"}

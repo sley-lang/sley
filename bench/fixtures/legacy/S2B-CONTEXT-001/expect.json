@@ -1,0 +1,1 @@
+{"arm": "legacy", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"unbounded_read": "ORACLE_UNBOUNDED_READ"}, "positive": "accepted", "task_id": "S2B-CONTEXT-001"}

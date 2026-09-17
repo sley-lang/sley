@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_dead_neg_reachable_changed",
+  "expected_code": "ORACLE_REACHABLE_CHANGED",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_dead"
+}

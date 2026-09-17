@@ -1,0 +1,6 @@
+module app.divzero
+
+task main -> Int {
+  bind quotient = 1 / 0
+  return quotient
+}

@@ -1,0 +1,12 @@
+module app.stale
+
+export task commit_if_fresh -> Result<Int, Text> {
+  take stored_version: Int
+  take base_version: Int
+  take value: Int
+  return Ok(value)
+}
+
+task main -> Result<Int, Text> {
+  return call commit_if_fresh(1, 1, 100)
+}

@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-DEAD-001",
+  "arm": "sley2",
+  "negative": "public_deleted",
+  "expected_code": "ORACLE_PUBLIC_DELETED",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

@@ -1,0 +1,50 @@
+module app.jobs
+
+type JobState = {
+  slot state: Text
+  slot code: Int
+}
+
+export task queued -> JobState {
+  return JobState { state: "queued", code: 0 }
+}
+
+export task running -> JobState {
+  return JobState { state: "running", code: 0 }
+}
+
+export task succeeded -> JobState {
+  return JobState { state: "succeeded", code: 0 }
+}
+
+export task failed -> JobState {
+  take code: Int
+  return JobState { state: "failed", code: code }
+}
+
+export task describe -> Text {
+  take job: JobState
+  if job.state == "queued" {
+    return "queued"
+  } else {
+    if job.state == "running" {
+      return "running"
+    } else {
+      if job.state == "succeeded" {
+        return "succeeded"
+      } else {
+        if job.state == "failed" {
+          return "failed:" + job.code
+        } else {
+          return "unknown"
+        }
+      }
+    }
+  }
+}
+
+task main -> Text {
+  bind first = call queued()
+  bind label = call describe(first)
+  return label
+}

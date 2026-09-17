@@ -1,0 +1,52 @@
+module app.create
+
+type Money = {
+  slot cents: Int
+}
+
+type LineItem = {
+  slot quantity: Int
+  slot unit_cents: Int
+}
+
+export task line_total -> Int {
+  take quantity: Int
+  take unit_cents: Int
+  return quantity * unit_cents
+}
+
+export task subtotal_pair -> Int {
+  take q1: Int
+  take u1: Int
+  take q2: Int
+  take u2: Int
+  bind first = call line_total(q1, u1)
+  bind second = call line_total(q2, u2)
+  return first + second
+}
+
+export task tax_numerator -> Int {
+  take subtotal_cents: Int
+  take basis_points: Int
+  return subtotal_cents * basis_points + 1
+}
+
+task main -> Int {
+  bind empty_total = call subtotal_pair(0, 0, 0, 0)
+  bind one_line = call line_total(2, 1250)
+  bind numerator = call tax_numerator(one_line, 725)
+  bind big = call line_total(9223372036854775807, 2)
+  if empty_total == 0 {
+    if one_line == 2500 {
+      if numerator == 1812500 {
+        return big
+      } else {
+        return numerator
+      }
+    } else {
+      return one_line
+    }
+  } else {
+    return empty_total
+  }
+}

@@ -1,0 +1,1 @@
+{"arm": "legacy", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"ambient_default": "ORACLE_AMBIENT_DEFAULT", "missing_caller": "CALL_ARITY_MISMATCH"}, "positive": "accepted", "task_id": "S2B-SIG-001"}

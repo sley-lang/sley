@@ -1,0 +1,24 @@
+module app.prune
+
+task retry_once -> Int {
+  take value: Int
+  return value + 1
+}
+
+task orphan_probe -> Int {
+  take value: Int
+  return value + 2
+}
+
+export task scale -> Int {
+  take value: Int
+  bind doubled = value + value
+  return doubled
+}
+
+task main -> Int {
+  bind result = call scale(21)
+  return result
+  bind retry = call retry_once(result)
+  return retry
+}

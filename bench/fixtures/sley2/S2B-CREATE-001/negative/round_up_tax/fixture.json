@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-CREATE-001",
+  "arm": "sley2",
+  "negative": "round_up_tax",
+  "expected_code": "ORACLE_WRONG_CENTS",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-SIG-001",
+  "arm": "sley2",
+  "negative": "ambient_default",
+  "expected_code": "ORACLE_AMBIENT_DEFAULT",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

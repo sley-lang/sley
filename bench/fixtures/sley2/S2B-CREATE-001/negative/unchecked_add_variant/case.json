@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_create_neg_unchecked_add_variant",
+  "expected_code": "ORACLE_UNCHECKED_ARITHMETIC",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_create"
+}

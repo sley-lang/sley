@@ -1,0 +1,28 @@
+module app.totals
+
+export task net_total -> Int {
+  take subtotal: Int
+  take tax_basis_points: Int
+  bind scaled = subtotal * tax_basis_points
+  return subtotal + scaled
+}
+
+export task invoice_a -> Int {
+  return call net_total(2500, 725)
+}
+
+export task invoice_b -> Int {
+  return call net_total(1000, 500)
+}
+
+export task invoice_c -> Int {
+  return call net_total(300)
+}
+
+task main -> Int {
+  bind a = call invoice_a()
+  bind b = call invoice_b()
+  bind total = a + b
+  bind c = call invoice_c()
+  return total + c
+}

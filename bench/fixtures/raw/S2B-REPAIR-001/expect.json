@@ -1,0 +1,1 @@
+{"arm": "raw", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"signature_changed": "ORACLE_SIGNATURE_CHANGED", "upper_returns_low": "ORACLE_CLAMP_UPPER"}, "positive": "accepted", "task_id": "S2B-REPAIR-001"}

@@ -4013,7 +4013,10 @@
     "invalid_committed_states": null,
     "stale_candidates_accepted": null,
     "s20_620_sley2_runner": "ENDPOINT_ONLY_TRACE_COMPLETE_SCRIPTED_SMOKE_ONLY",
-    "s20_630_accounting": "EXACT_DERIVATION_MECHANICS_NO_TRIALS"
+    "s20_630_accounting": "EXACT_DERIVATION_MECHANICS_NO_TRIALS",
+    "s3_task_fixtures": "S3_COMPLETE_45_CELLS_GREEN",
+    "s3_task_fixtures_note": "S3 2026-09-17 (S20-640 input, operator-authorized): all 15 frozen corpus tasks x 3 arms carry executable owner oracles under bench/fixtures/<arm>/<TASK>/ (oracle.py + expect.json + fixture + negative controls); sley2 EFFECT/CAP excluded with reason (E7 epoch decision, refusal VM_LOWER_OPCODE_UNSUPPORTED); raw arm on stdlib unittest (no pytest offline); legacy CAP/CORRUPT/STALE/TEST halves filed as arm_limitation.json with engine facts; checker scripts/check_benchmark_fixtures.py PASS 45/45 with manifest bench/fixtures/manifest.json; gate `make fixtures-check` (outside quick: duration)",
+    "s20_640_fixtures": "S3_ORACLES_GREEN_NO_TRIALS"
   },
   "artifact": {
     "path": null,

@@ -1,0 +1,1 @@
+{"contract": "sley2.benchmark-task-oracle.v1", "task_id": "S2B-STALE-001", "arm": "sley2", "positive": "accepted", "negatives": {"guard_disabled": "ORACLE_LAST_WRITE_WINS"}}
