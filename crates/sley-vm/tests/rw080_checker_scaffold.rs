@@ -22,13 +22,16 @@
 //! case, payload, and argument judgments for an `Option<Bool>` projection.
 //! The bounded `single_effect_closure_checker` resolves one optional declared
 //! and requested effect identity before comparing the computed closure.
+//! `effect_set_inventory_checker` advances that phase over runtime vectors
+//! with Sley-owned strict-order and nested membership walks.
 //! Construction provenance:
 //! machineresearch/sley-2.0/reweave/rw-080-checker-scaffold.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-single-cfg.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-option-switch.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-operation-inventory.md,
-//! machineresearch/sley-2.0/reweave/rw-080-checker-type-chain.md, and
-//! machineresearch/sley-2.0/reweave/rw-080-checker-single-effect.md.
+//! machineresearch/sley-2.0/reweave/rw-080-checker-type-chain.md,
+//! machineresearch/sley-2.0/reweave/rw-080-checker-single-effect.md, and
+//! machineresearch/sley-2.0/reweave/rw-080-checker-effect-inventory.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
@@ -115,7 +118,7 @@ fn type_chain_result_type() -> TypeExpr {
 }
 
 fn effect_summary_type() -> TypeExpr {
-    TypeExpr::Tuple(vec![u32_type(), u32_type(), u32_type(), u64_type()])
+    TypeExpr::Tuple(vec![u64_type(), u32_type(), u32_type(), u64_type()])
 }
 
 fn effect_result_type() -> TypeExpr {
@@ -595,6 +598,611 @@ fn inventory_switch(
             })
             .collect(),
     })
+}
+
+/// Appends a real Sley loop that requires a runtime `Vector<UInt(64)>` to
+/// be strictly increasing. The returned block is the loop entry.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn append_sorted_u64_vector_check(
+    assembler: &mut InventoryCheckAssembler,
+    function: EntityId,
+    values: EntityId,
+    zero: EntityId,
+    one: EntityId,
+    success: EntityId,
+    noncanonical: EntityId,
+    resource_error: EntityId,
+    invariant_trap: EntityId,
+) -> EntityId {
+    let entry = assembler.block_id();
+    let first_get = assembler.block_id();
+    let first_unpack = assembler.block_id();
+    let check = assembler.block_id();
+    let get = assembler.block_id();
+    let unpack = assembler.block_id();
+    let compare = assembler.block_id();
+    let advance = assembler.block_id();
+
+    let start = assembler.constant_ref(entry, zero, u64_type());
+    let length = assembler.operation(
+        entry,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(values)],
+        u64_type(),
+        Immediate::None,
+    );
+    let has_first = assembler.operation(
+        entry,
+        Opcode::LessThan,
+        vec![
+            inventory_operation_value(start),
+            inventory_operation_value(length),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![start, length, has_first],
+        inventory_cond(
+            inventory_operation_value(has_first),
+            first_get,
+            vec![inventory_operation_value(start)],
+            success,
+            Vec::new(),
+        ),
+    );
+
+    let first_index = assembler.parameter(first_get, ParameterRole::Block, 0, u64_type());
+    let first = assembler.operation(
+        first_get,
+        Opcode::VectorGet,
+        vec![
+            ValueRef::Parameter(values),
+            ValueRef::Parameter(first_index),
+        ],
+        TypeExpr::Option(Box::new(u64_type())),
+        Immediate::None,
+    );
+    assembler.push_block(
+        first_get,
+        function,
+        vec![first_index],
+        vec![first],
+        inventory_switch(
+            inventory_operation_value(first),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    first_unpack,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(first_index)),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let first_value = assembler.parameter(first_unpack, ParameterRole::Block, 0, u64_type());
+    let unpacked_first_index =
+        assembler.parameter(first_unpack, ParameterRole::Block, 1, u64_type());
+    let first_one = assembler.constant_ref(first_unpack, one, u64_type());
+    let after_first = assembler.operation(
+        first_unpack,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(unpacked_first_index),
+            inventory_operation_value(first_one),
+        ],
+        arithmetic_u64_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        first_unpack,
+        function,
+        vec![first_value, unpacked_first_index],
+        vec![first_one, after_first],
+        inventory_switch(
+            inventory_operation_value(after_first),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    check,
+                    vec![
+                        SwitchArgument::Value(ValueRef::Parameter(first_value)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let previous = assembler.parameter(check, ParameterRole::Block, 0, u64_type());
+    let index = assembler.parameter(check, ParameterRole::Block, 1, u64_type());
+    let check_length = assembler.operation(
+        check,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(values)],
+        u64_type(),
+        Immediate::None,
+    );
+    let has_value = assembler.operation(
+        check,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(index),
+            inventory_operation_value(check_length),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        check,
+        function,
+        vec![previous, index],
+        vec![check_length, has_value],
+        inventory_cond(
+            inventory_operation_value(has_value),
+            get,
+            vec![ValueRef::Parameter(previous), ValueRef::Parameter(index)],
+            success,
+            Vec::new(),
+        ),
+    );
+
+    let get_previous = assembler.parameter(get, ParameterRole::Block, 0, u64_type());
+    let get_index = assembler.parameter(get, ParameterRole::Block, 1, u64_type());
+    let value = assembler.operation(
+        get,
+        Opcode::VectorGet,
+        vec![ValueRef::Parameter(values), ValueRef::Parameter(get_index)],
+        TypeExpr::Option(Box::new(u64_type())),
+        Immediate::None,
+    );
+    assembler.push_block(
+        get,
+        function,
+        vec![get_previous, get_index],
+        vec![value],
+        inventory_switch(
+            inventory_operation_value(value),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    unpack,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(get_previous)),
+                        SwitchArgument::Value(ValueRef::Parameter(get_index)),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let current = assembler.parameter(unpack, ParameterRole::Block, 0, u64_type());
+    let unpack_previous = assembler.parameter(unpack, ParameterRole::Block, 1, u64_type());
+    let unpack_index = assembler.parameter(unpack, ParameterRole::Block, 2, u64_type());
+    assembler.push_block(
+        unpack,
+        function,
+        vec![current, unpack_previous, unpack_index],
+        Vec::new(),
+        inventory_branch(
+            compare,
+            vec![
+                ValueRef::Parameter(unpack_previous),
+                ValueRef::Parameter(current),
+                ValueRef::Parameter(unpack_index),
+            ],
+        ),
+    );
+
+    let compare_previous = assembler.parameter(compare, ParameterRole::Block, 0, u64_type());
+    let compare_current = assembler.parameter(compare, ParameterRole::Block, 1, u64_type());
+    let compare_index = assembler.parameter(compare, ParameterRole::Block, 2, u64_type());
+    let ordered = assembler.operation(
+        compare,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(compare_previous),
+            ValueRef::Parameter(compare_current),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        compare,
+        function,
+        vec![compare_previous, compare_current, compare_index],
+        vec![ordered],
+        inventory_cond(
+            inventory_operation_value(ordered),
+            advance,
+            vec![
+                ValueRef::Parameter(compare_current),
+                ValueRef::Parameter(compare_index),
+            ],
+            noncanonical,
+            Vec::new(),
+        ),
+    );
+
+    let advance_current = assembler.parameter(advance, ParameterRole::Block, 0, u64_type());
+    let advance_index = assembler.parameter(advance, ParameterRole::Block, 1, u64_type());
+    let advance_one = assembler.constant_ref(advance, one, u64_type());
+    let next = assembler.operation(
+        advance,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(advance_index),
+            inventory_operation_value(advance_one),
+        ],
+        arithmetic_u64_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        advance,
+        function,
+        vec![advance_current, advance_index],
+        vec![advance_one, next],
+        inventory_switch(
+            inventory_operation_value(next),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    check,
+                    vec![
+                        SwitchArgument::Value(ValueRef::Parameter(advance_current)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+    entry
+}
+
+/// Appends a nested Sley walk that resolves every needle against the runtime
+/// haystack. The returned block is the outer-loop entry.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn append_u64_membership_check(
+    assembler: &mut InventoryCheckAssembler,
+    function: EntityId,
+    needles: EntityId,
+    haystack: EntityId,
+    zero: EntityId,
+    one: EntityId,
+    success: EntityId,
+    unresolved: EntityId,
+    resource_error: EntityId,
+    invariant_trap: EntityId,
+) -> EntityId {
+    let entry = assembler.block_id();
+    let needle_check = assembler.block_id();
+    let needle_get = assembler.block_id();
+    let needle_unpack = assembler.block_id();
+    let search_check = assembler.block_id();
+    let search_get = assembler.block_id();
+    let search_unpack = assembler.block_id();
+    let compare = assembler.block_id();
+    let needle_advance = assembler.block_id();
+    let search_advance = assembler.block_id();
+
+    let start = assembler.constant_ref(entry, zero, u64_type());
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![start],
+        inventory_branch(needle_check, vec![inventory_operation_value(start)]),
+    );
+
+    let needle_index = assembler.parameter(needle_check, ParameterRole::Block, 0, u64_type());
+    let needle_length = assembler.operation(
+        needle_check,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(needles)],
+        u64_type(),
+        Immediate::None,
+    );
+    let has_needle = assembler.operation(
+        needle_check,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(needle_index),
+            inventory_operation_value(needle_length),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        needle_check,
+        function,
+        vec![needle_index],
+        vec![needle_length, has_needle],
+        inventory_cond(
+            inventory_operation_value(has_needle),
+            needle_get,
+            vec![ValueRef::Parameter(needle_index)],
+            success,
+            Vec::new(),
+        ),
+    );
+
+    let get_needle_index = assembler.parameter(needle_get, ParameterRole::Block, 0, u64_type());
+    let needle = assembler.operation(
+        needle_get,
+        Opcode::VectorGet,
+        vec![
+            ValueRef::Parameter(needles),
+            ValueRef::Parameter(get_needle_index),
+        ],
+        TypeExpr::Option(Box::new(u64_type())),
+        Immediate::None,
+    );
+    assembler.push_block(
+        needle_get,
+        function,
+        vec![get_needle_index],
+        vec![needle],
+        inventory_switch(
+            inventory_operation_value(needle),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    needle_unpack,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(get_needle_index)),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let needle_value = assembler.parameter(needle_unpack, ParameterRole::Block, 0, u64_type());
+    let unpack_needle_index =
+        assembler.parameter(needle_unpack, ParameterRole::Block, 1, u64_type());
+    let search_zero = assembler.constant_ref(needle_unpack, zero, u64_type());
+    assembler.push_block(
+        needle_unpack,
+        function,
+        vec![needle_value, unpack_needle_index],
+        vec![search_zero],
+        inventory_branch(
+            search_check,
+            vec![
+                ValueRef::Parameter(needle_value),
+                ValueRef::Parameter(unpack_needle_index),
+                inventory_operation_value(search_zero),
+            ],
+        ),
+    );
+
+    let search_needle = assembler.parameter(search_check, ParameterRole::Block, 0, u64_type());
+    let search_needle_index =
+        assembler.parameter(search_check, ParameterRole::Block, 1, u64_type());
+    let search_index = assembler.parameter(search_check, ParameterRole::Block, 2, u64_type());
+    let haystack_length = assembler.operation(
+        search_check,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(haystack)],
+        u64_type(),
+        Immediate::None,
+    );
+    let has_candidate = assembler.operation(
+        search_check,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(search_index),
+            inventory_operation_value(haystack_length),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        search_check,
+        function,
+        vec![search_needle, search_needle_index, search_index],
+        vec![haystack_length, has_candidate],
+        inventory_cond(
+            inventory_operation_value(has_candidate),
+            search_get,
+            vec![
+                ValueRef::Parameter(search_needle),
+                ValueRef::Parameter(search_needle_index),
+                ValueRef::Parameter(search_index),
+            ],
+            unresolved,
+            Vec::new(),
+        ),
+    );
+
+    let get_search_needle = assembler.parameter(search_get, ParameterRole::Block, 0, u64_type());
+    let get_search_needle_index =
+        assembler.parameter(search_get, ParameterRole::Block, 1, u64_type());
+    let get_search_index = assembler.parameter(search_get, ParameterRole::Block, 2, u64_type());
+    let candidate = assembler.operation(
+        search_get,
+        Opcode::VectorGet,
+        vec![
+            ValueRef::Parameter(haystack),
+            ValueRef::Parameter(get_search_index),
+        ],
+        TypeExpr::Option(Box::new(u64_type())),
+        Immediate::None,
+    );
+    assembler.push_block(
+        search_get,
+        function,
+        vec![get_search_needle, get_search_needle_index, get_search_index],
+        vec![candidate],
+        inventory_switch(
+            inventory_operation_value(candidate),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    search_unpack,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(get_search_needle)),
+                        SwitchArgument::Value(ValueRef::Parameter(get_search_needle_index)),
+                        SwitchArgument::Value(ValueRef::Parameter(get_search_index)),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let unpack_candidate = assembler.parameter(search_unpack, ParameterRole::Block, 0, u64_type());
+    let unpack_search_needle =
+        assembler.parameter(search_unpack, ParameterRole::Block, 1, u64_type());
+    let unpack_search_needle_index =
+        assembler.parameter(search_unpack, ParameterRole::Block, 2, u64_type());
+    let unpack_search_index =
+        assembler.parameter(search_unpack, ParameterRole::Block, 3, u64_type());
+    assembler.push_block(
+        search_unpack,
+        function,
+        vec![
+            unpack_candidate,
+            unpack_search_needle,
+            unpack_search_needle_index,
+            unpack_search_index,
+        ],
+        Vec::new(),
+        inventory_branch(
+            compare,
+            vec![
+                ValueRef::Parameter(unpack_candidate),
+                ValueRef::Parameter(unpack_search_needle),
+                ValueRef::Parameter(unpack_search_needle_index),
+                ValueRef::Parameter(unpack_search_index),
+            ],
+        ),
+    );
+
+    let compare_candidate = assembler.parameter(compare, ParameterRole::Block, 0, u64_type());
+    let compare_needle = assembler.parameter(compare, ParameterRole::Block, 1, u64_type());
+    let compare_needle_index = assembler.parameter(compare, ParameterRole::Block, 2, u64_type());
+    let compare_search_index = assembler.parameter(compare, ParameterRole::Block, 3, u64_type());
+    let matches = assembler.operation(
+        compare,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(compare_candidate),
+            ValueRef::Parameter(compare_needle),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        compare,
+        function,
+        vec![
+            compare_candidate,
+            compare_needle,
+            compare_needle_index,
+            compare_search_index,
+        ],
+        vec![matches],
+        inventory_cond(
+            inventory_operation_value(matches),
+            needle_advance,
+            vec![ValueRef::Parameter(compare_needle_index)],
+            search_advance,
+            vec![
+                ValueRef::Parameter(compare_needle),
+                ValueRef::Parameter(compare_needle_index),
+                ValueRef::Parameter(compare_search_index),
+            ],
+        ),
+    );
+
+    let advance_needle_index =
+        assembler.parameter(needle_advance, ParameterRole::Block, 0, u64_type());
+    let needle_one = assembler.constant_ref(needle_advance, one, u64_type());
+    let next_needle = assembler.operation(
+        needle_advance,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(advance_needle_index),
+            inventory_operation_value(needle_one),
+        ],
+        arithmetic_u64_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        needle_advance,
+        function,
+        vec![advance_needle_index],
+        vec![needle_one, next_needle],
+        inventory_switch(
+            inventory_operation_value(next_needle),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    needle_check,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let advance_search_needle =
+        assembler.parameter(search_advance, ParameterRole::Block, 0, u64_type());
+    let advance_search_needle_index =
+        assembler.parameter(search_advance, ParameterRole::Block, 1, u64_type());
+    let advance_search_index =
+        assembler.parameter(search_advance, ParameterRole::Block, 2, u64_type());
+    let search_one = assembler.constant_ref(search_advance, one, u64_type());
+    let next_search = assembler.operation(
+        search_advance,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(advance_search_index),
+            inventory_operation_value(search_one),
+        ],
+        arithmetic_u64_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        search_advance,
+        function,
+        vec![
+            advance_search_needle,
+            advance_search_needle_index,
+            advance_search_index,
+        ],
+        vec![search_one, next_search],
+        inventory_switch(
+            inventory_operation_value(next_search),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    search_check,
+                    vec![
+                        SwitchArgument::Value(ValueRef::Parameter(advance_search_needle)),
+                        SwitchArgument::Value(ValueRef::Parameter(advance_search_needle_index)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+    entry
 }
 
 fn checker_scaffold() -> CheckerScaffold {
@@ -2619,7 +3227,7 @@ fn single_effect_closure_checker() -> CheckerScaffold {
                          block: EntityId,
                          count: EntityId,
                          work: EntityId| {
-        let count_value = assembler.constant_ref(block, count, u32_type());
+        let count_value = assembler.constant_ref(block, count, u64_type());
         let edges = assembler.constant_ref(block, zero_u32, u32_type());
         let rounds = assembler.constant_ref(block, one_u32, u32_type());
         let work_value = assembler.constant_ref(block, work, u64_type());
@@ -2652,8 +3260,8 @@ fn single_effect_closure_checker() -> CheckerScaffold {
             }),
         );
     };
-    success_block(&mut assembler, success_empty, zero_u32, zero_u64);
-    success_block(&mut assembler, success_one, one_u32, one_u64);
+    success_block(&mut assembler, success_empty, zero_u64, zero_u64);
+    success_block(&mut assembler, success_one, one_u64, one_u64);
 
     for (block, code) in [
         (unresolved_error, unresolved_code),
@@ -2689,6 +3297,237 @@ fn single_effect_closure_checker() -> CheckerScaffold {
             request_present,
             request_id,
         ],
+        result_type: effect_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    CheckerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+    }
+}
+
+/// Walks arbitrary runtime effect-definition, declaration, and local-closure
+/// inventories. The local-closure vector is the sorted/unique projection of
+/// effect requests after operation scanning.
+#[allow(clippy::too_many_lines)]
+fn effect_set_inventory_checker() -> CheckerScaffold {
+    let function = checker_inventory_id(5, 4);
+    let mut assembler = InventoryCheckAssembler::new();
+    let definitions = assembler.parameter(function, ParameterRole::Function, 0, u64vec_type());
+    let declared = assembler.parameter(function, ParameterRole::Function, 1, u64vec_type());
+    let local_closure = assembler.parameter(function, ParameterRole::Function, 2, u64vec_type());
+
+    let success = assembler.block_id();
+    let closure_compare = assembler.block_id();
+    let definition_order_error = assembler.block_id();
+    let declaration_order_error = assembler.block_id();
+    let unresolved_error = assembler.block_id();
+    let closure_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+    let invariant_trap = assembler.block_id();
+
+    let zero_u64 = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(0),
+    });
+    let one_u64 = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(1),
+    });
+    let zero_u32 = assembler.constant(u32_value(0));
+    let one_u32 = assembler.constant(u32_value(1));
+    let definition_order_code = assembler.constant(u32_value(u128::from(
+        sley_check::effects::EffectErrorCode::SetNotCanonical.numeric(),
+    )));
+    let declaration_order_code = assembler.constant(u32_value(u128::from(
+        sley_check::cfg::CfgErrorCode::GraphInventoryMismatch.numeric(),
+    )));
+    let unresolved_code = assembler.constant(u32_value(u128::from(
+        sley_check::effects::EffectErrorCode::UnresolvedEntity.numeric(),
+    )));
+    let closure_code = assembler.constant(u32_value(u128::from(
+        sley_check::effects::EffectErrorCode::ClosureMismatch.numeric(),
+    )));
+    let resource_code = assembler.constant(u32_value(u128::from(
+        sley_check::effects::EffectErrorCode::ResourceLimit.numeric(),
+    )));
+
+    let request_membership = append_u64_membership_check(
+        &mut assembler,
+        function,
+        local_closure,
+        definitions,
+        zero_u64,
+        one_u64,
+        closure_compare,
+        unresolved_error,
+        resource_error,
+        invariant_trap,
+    );
+    let declared_membership = append_u64_membership_check(
+        &mut assembler,
+        function,
+        declared,
+        definitions,
+        zero_u64,
+        one_u64,
+        request_membership,
+        unresolved_error,
+        resource_error,
+        invariant_trap,
+    );
+    let declaration_order = append_sorted_u64_vector_check(
+        &mut assembler,
+        function,
+        declared,
+        zero_u64,
+        one_u64,
+        declared_membership,
+        declaration_order_error,
+        resource_error,
+        invariant_trap,
+    );
+    let entry = append_sorted_u64_vector_check(
+        &mut assembler,
+        function,
+        definitions,
+        zero_u64,
+        one_u64,
+        declaration_order,
+        definition_order_error,
+        resource_error,
+        invariant_trap,
+    );
+
+    let closures_match = assembler.operation(
+        closure_compare,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(declared),
+            ValueRef::Parameter(local_closure),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        closure_compare,
+        function,
+        Vec::new(),
+        vec![closures_match],
+        inventory_cond(
+            inventory_operation_value(closures_match),
+            success,
+            Vec::new(),
+            closure_error,
+            Vec::new(),
+        ),
+    );
+
+    let closure_count = assembler.operation(
+        success,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(local_closure)],
+        u64_type(),
+        Immediate::None,
+    );
+    let edges = assembler.constant_ref(success, zero_u32, u32_type());
+    let rounds = assembler.constant_ref(success, one_u32, u32_type());
+    let closure_work = assembler.operation(
+        success,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(local_closure)],
+        u64_type(),
+        Immediate::None,
+    );
+    let summary = assembler.operation(
+        success,
+        Opcode::TupleNew,
+        vec![
+            inventory_operation_value(closure_count),
+            inventory_operation_value(edges),
+            inventory_operation_value(rounds),
+            inventory_operation_value(closure_work),
+        ],
+        effect_summary_type(),
+        Immediate::None,
+    );
+    let accepted = assembler.operation(
+        success,
+        Opcode::ResultOk,
+        vec![inventory_operation_value(summary)],
+        effect_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        success,
+        function,
+        Vec::new(),
+        vec![
+            closure_count,
+            edges,
+            rounds,
+            closure_work,
+            summary,
+            accepted,
+        ],
+        Terminator::Return(ReturnTerminator {
+            value: inventory_operation_value(accepted),
+        }),
+    );
+
+    for (block, code) in [
+        (definition_order_error, definition_order_code),
+        (declaration_order_error, declaration_order_code),
+        (unresolved_error, unresolved_code),
+        (closure_error, closure_code),
+        (resource_error, resource_code),
+    ] {
+        let code_value = assembler.constant_ref(block, code, u32_type());
+        let rejected = assembler.operation(
+            block,
+            Opcode::ResultErr,
+            vec![inventory_operation_value(code_value)],
+            effect_result_type(),
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![code_value, rejected],
+            Terminator::Return(ReturnTerminator {
+                value: inventory_operation_value(rejected),
+            }),
+        );
+    }
+    assembler.push_block(
+        invariant_trap,
+        function,
+        Vec::new(),
+        Vec::new(),
+        Terminator::Trap(TrapTerminator {
+            code: TrapCode::InternalInvariant,
+            payload: None,
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![definitions, declared, local_closure],
         result_type: effect_result_type(),
         effects: Vec::new(),
         entry_block: entry,
@@ -2917,6 +3756,8 @@ impl SingleEffectFacts {
     };
 }
 
+type EffectSetCase<'a> = (&'a [u64], &'a [u64], &'a [u64], u32);
+
 fn execute_single_cfg(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
@@ -3054,6 +3895,28 @@ fn execute_single_effect(
         },
     )
     .expect("v2 executes single-effect closure checker")
+}
+
+fn execute_effect_set_inventory(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    definitions: &[u64],
+    declared: &[u64],
+    local_closure: &[u64],
+) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                u64vec_value(definitions),
+                u64vec_value(declared),
+                u64vec_value(local_closure),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes effect-set inventory checker")
 }
 
 fn native_single_cfg(
@@ -3607,6 +4470,108 @@ fn native_single_effect_closure(
     })
 }
 
+fn native_effect_set_inventory(
+    definitions: &[u64],
+    declared: &[u64],
+    local_closure: &[u64],
+) -> Result<sley_check::effects::EffectReport, u32> {
+    use sley_check::{
+        cfg::CfgValidationError,
+        effects::{EffectValidationError, FunctionUnit, validate_effect_program},
+    };
+
+    let function_id = id(1);
+    let block_id = id(2);
+    let scope = id(3);
+    let request = id(4);
+    let function = FunctionGraph {
+        entity_id: function_id,
+        type_parameters: Vec::new(),
+        parameters: vec![scope, request],
+        result_type: TypeExpr::Unit,
+        effects: declared.iter().copied().map(effect_entity_id).collect(),
+        entry_block: block_id,
+        blocks: vec![block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameters = vec![
+        Parameter {
+            entity_id: scope,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 0,
+            value_type: TypeExpr::Unit,
+        },
+        Parameter {
+            entity_id: request,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 1,
+            value_type: TypeExpr::Unit,
+        },
+    ];
+    let operations = local_closure
+        .iter()
+        .copied()
+        .enumerate()
+        .map(|(ordinal, effect)| Operation {
+            entity_id: checker_inventory_id(
+                9,
+                u16::try_from(ordinal + 1).expect("bounded effect operation identity"),
+            ),
+            block: block_id,
+            ordinal: u32::try_from(ordinal).expect("bounded effect operation ordinal"),
+            opcode: Opcode::EffectRequest,
+            operands: vec![ValueRef::Parameter(scope), ValueRef::Parameter(request)],
+            result_types: vec![TypeExpr::Result {
+                ok: Box::new(TypeExpr::Unit),
+                error: Box::new(TypeExpr::Unit),
+            }],
+            immediate: Immediate::Entity(effect_entity_id(effect)),
+        })
+        .collect::<Vec<_>>();
+    let block = Block {
+        entity_id: block_id,
+        function: function_id,
+        parameters: Vec::new(),
+        operations: operations
+            .iter()
+            .map(|operation| operation.entity_id)
+            .collect(),
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::Parameter(scope),
+        }),
+        reachability: Reachability::Required,
+    };
+    let effects = definitions
+        .iter()
+        .copied()
+        .map(|effect| EffectDefinition {
+            entity_id: effect_entity_id(effect),
+            effect_kind: EffectKind::StdoutWrite,
+            scope_type: TypeExpr::Unit,
+            request_type: TypeExpr::Unit,
+            response_type: TypeExpr::Unit,
+            failure_type: TypeExpr::Unit,
+            visibility: Visibility::Private,
+        })
+        .collect::<Vec<_>>();
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    let unit = FunctionUnit {
+        function: &function,
+        parameters: &parameters,
+        blocks: std::slice::from_ref(&block),
+        operations: &operations,
+    };
+    validate_effect_program(&types, &[unit], &effects, &[], &[], &[]).map_err(|error| match error {
+        EffectValidationError::Type(error)
+        | EffectValidationError::Cfg(CfgValidationError::Type(error)) => error.code().numeric(),
+        EffectValidationError::Cfg(CfgValidationError::Cfg(error)) => error.code().numeric(),
+        EffectValidationError::Effect(error) => error.code().numeric(),
+    })
+}
+
 fn assert_effect_ok(
     outcome: &sley_vm::ExecutionOutcome,
     report: &sley_check::effects::EffectReport,
@@ -3641,6 +4606,10 @@ fn assert_effect_error(
     outcome: &sley_vm::ExecutionOutcome,
     expected: sley_check::effects::EffectErrorCode,
 ) {
+    assert_effect_numeric_error(outcome, expected.numeric());
+}
+
+fn assert_effect_numeric_error(outcome: &sley_vm::ExecutionOutcome, expected: u32) {
     use sley_ssmc::ResultConst;
     let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
         panic!("effect checker must terminate with a value")
@@ -3648,7 +4617,7 @@ fn assert_effect_error(
     let ConstData::Result(ResultConst::Err(code)) = &value.data else {
         panic!("effect checker must return Err, got {:?}", value.data)
     };
-    assert_eq!(code.data, ConstData::UInt(u128::from(expected.numeric())));
+    assert_eq!(code.data, ConstData::UInt(u128::from(expected)));
 }
 
 fn assert_cfg_ok(outcome: &sley_vm::ExecutionOutcome, report: &sley_check::cfg::CfgReport) {
@@ -4157,6 +5126,103 @@ fn checker_single_effect_closures_preserve_resolution_precedence() {
             "native single-effect oracle"
         );
         assert_effect_error(&execute_single_effect(&package, &approved, facts), expected);
+    }
+}
+
+#[test]
+fn checker_effect_set_inventories_match_native_report() {
+    let (package, approved) = admit_checker_program(&effect_set_inventory_checker());
+    for (definitions, declared, local_closure) in [
+        (Vec::new(), Vec::new(), Vec::new()),
+        (vec![10, 20, 30], vec![10, 30], vec![10, 30]),
+        (vec![7, 9, 11, 13], vec![9, 11, 13], vec![9, 11, 13]),
+    ] {
+        let native = native_effect_set_inventory(&definitions, &declared, &local_closure)
+            .expect("native effect-set checker accepts fixture");
+        let first = execute_effect_set_inventory(
+            &package,
+            &approved,
+            &definitions,
+            &declared,
+            &local_closure,
+        );
+        let second = execute_effect_set_inventory(
+            &package,
+            &approved,
+            &definitions,
+            &declared,
+            &local_closure,
+        );
+        assert_effect_ok(&first, &native);
+        assert_eq!(first.termination, second.termination);
+    }
+}
+
+#[test]
+fn checker_effect_set_inventories_preserve_native_precedence() {
+    use sley_check::{cfg::CfgErrorCode, effects::EffectErrorCode};
+
+    let (package, approved) = admit_checker_program(&effect_set_inventory_checker());
+    let cases: &[EffectSetCase<'_>] = &[
+        (
+            &[20, 10],
+            &[20, 10],
+            &[40],
+            EffectErrorCode::SetNotCanonical.numeric(),
+        ),
+        (
+            &[10, 10],
+            &[],
+            &[],
+            EffectErrorCode::SetNotCanonical.numeric(),
+        ),
+        (
+            &[10, 20],
+            &[20, 10],
+            &[10, 20],
+            CfgErrorCode::GraphInventoryMismatch.numeric(),
+        ),
+        (
+            &[10, 20],
+            &[10, 40],
+            &[50],
+            EffectErrorCode::UnresolvedEntity.numeric(),
+        ),
+        (
+            &[10, 20],
+            &[10],
+            &[40],
+            EffectErrorCode::UnresolvedEntity.numeric(),
+        ),
+        (
+            &[10, 20],
+            &[10],
+            &[],
+            EffectErrorCode::ClosureMismatch.numeric(),
+        ),
+        (
+            &[10, 20],
+            &[],
+            &[20],
+            EffectErrorCode::ClosureMismatch.numeric(),
+        ),
+    ];
+    for (definitions, declared, local_closure, expected) in cases {
+        assert_eq!(
+            native_effect_set_inventory(definitions, declared, local_closure),
+            Err(*expected),
+            "native effect-set oracle"
+        );
+        assert_effect_numeric_error(
+            &execute_effect_set_inventory(
+                &package,
+                &approved,
+                definitions,
+                declared,
+                local_closure,
+            ),
+            *expected,
+        );
     }
 }
 
