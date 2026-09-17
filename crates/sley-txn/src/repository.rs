@@ -2777,6 +2777,20 @@ impl TransactionRepository {
         self.commit_native_inner(input, &maintenance)
     }
 
+    /// Test-only native commit with one injected durability cut installed.
+    ///
+    /// The selection is one-shot and thread-local like the v1 cut wrappers;
+    /// no production API accepts a fault selector.
+    #[cfg(test)]
+    fn commit_native_with_commit_durability_cut(
+        &self,
+        input: &NativeCommitInput<'_>,
+        cut: NativeCommitDurabilityCut,
+    ) -> Result<NativeCommitOutcome, CommitError> {
+        let _selection = NativeCommitCutSelection::install(cut);
+        self.commit_native(input)
+    }
+
     /// Loads and verifies an arbitrary durable native revision without
     /// consulting the accepted-head pointer.
     ///
@@ -2982,6 +2996,8 @@ impl TransactionRepository {
             return Self::verify_existing_native_receipt(&final_path, receipt);
         }
         let (stage_path, mut stage) = reserve_stage(final_dir, RECEIPT_STAGE_PREFIX)?;
+        #[cfg(test)]
+        fail_selected_native_receipt_stage_write_cut(&mut stage, &receipt.stored_bytes)?;
         stage.write_all(&receipt.stored_bytes)?;
         stage.flush()?;
         stage.sync_all()?;
@@ -2993,6 +3009,13 @@ impl TransactionRepository {
                 TransactionErrorCode::ReceiptBindingMismatch,
             ));
         }
+        #[cfg(test)]
+        fail_selected_native_commit_cut(|cut| {
+            matches!(
+                cut,
+                NativeCommitDurabilityCut::Ntxn02VerifiedNativeReceiptStageBeforeFinalLink
+            )
+        })?;
         match fs::hard_link(&stage_path, &final_path) {
             Ok(()) => {}
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
@@ -3003,8 +3026,29 @@ impl TransactionRepository {
             }
             Err(error) => return Err(error.into()),
         }
+        #[cfg(test)]
+        fail_selected_native_commit_cut(|cut| {
+            matches!(
+                cut,
+                NativeCommitDurabilityCut::Ntxn03FinalNativeReceiptLinkBeforeFirstLeafSync
+            )
+        })?;
         sync_dir(final_dir)?;
+        #[cfg(test)]
+        fail_selected_native_commit_cut(|cut| {
+            matches!(
+                cut,
+                NativeCommitDurabilityCut::Ntxn04FirstNativeReceiptLeafSyncBeforeStageUnlink
+            )
+        })?;
         remove_file_if_exists(&stage_path)?;
+        #[cfg(test)]
+        fail_selected_native_commit_cut(|cut| {
+            matches!(
+                cut,
+                NativeCommitDurabilityCut::Ntxn05NativeReceiptStageUnlinkBeforeSecondLeafSync
+            )
+        })?;
         sync_dir(final_dir)?;
         let final_bytes = bounded_read(&final_path, MAX_STANDALONE_BYTES)?;
         if import_native_transaction_receipt(&final_bytes)? != *receipt {
@@ -3197,6 +3241,13 @@ impl TransactionRepository {
         };
         match read_attempt_record(&self.root, input.attempt_id)? {
             None => {
+                #[cfg(test)]
+                fail_selected_native_commit_cut(|cut| {
+                    matches!(
+                        cut,
+                        NativeCommitDurabilityCut::Njrnl01AdmittedJournalWriteFails
+                    )
+                })?;
                 write_attempt_record(&self.root, &admitted).map_err(CommitError::Io)?;
             }
             Some(existing) => {
@@ -3237,6 +3288,13 @@ impl TransactionRepository {
         let executor = input
             .executor
             .ok_or(CommitError::Native(NativeCommitError::ExecutorUnavailable))?;
+        #[cfg(test)]
+        fail_selected_native_commit_cut(|cut| {
+            matches!(
+                cut,
+                NativeCommitDurabilityCut::Njrnl02RunningTransitionWriteFails
+            )
+        })?;
         self.transition_attempt(&admitted, AttemptState::Running)?;
         let executions = match executor.execute(&plan, validated) {
             Ok(executions) => executions,
@@ -3396,11 +3454,27 @@ impl TransactionRepository {
         promoting.state = AttemptState::PromotionStarted;
         promoting.transaction_id = Some(core.transaction_id);
         promoting.receipt_id = Some(receipt.receipt_id);
+        #[cfg(test)]
+        fail_selected_native_commit_cut(|cut| {
+            matches!(
+                cut,
+                NativeCommitDurabilityCut::Njrnl03PromotionStartedWriteFails
+            )
+        })
+        .map_err(|_| unknown())?;
         write_attempt_record(&self.root, &promoting).map_err(|_| unknown())?;
         self.persist_objects(&manifest, validated.proposed_state().entities())
             .map_err(|_| unknown())?;
         self.persist_native_receipt(&receipt)
             .map_err(|_| unknown())?;
+        #[cfg(test)]
+        fail_selected_native_commit_cut(|cut| {
+            matches!(
+                cut,
+                NativeCommitDurabilityCut::Ntxn06SecondNativeReceiptLeafSyncBeforeHeadWork
+            )
+        })
+        .map_err(|_| unknown())?;
         match self.cas_head(Some(actual), core.transaction_id) {
             Ok(()) => {}
             Err(CommitError::Transaction(TransactionErrorCode::RefCasStale)) => {
@@ -3417,6 +3491,11 @@ impl TransactionRepository {
         }
         let mut committed = promoting;
         committed.state = AttemptState::Committed;
+        #[cfg(test)]
+        fail_selected_native_commit_cut(|cut| {
+            matches!(cut, NativeCommitDurabilityCut::Njrnl04CommittedWriteFails)
+        })
+        .map_err(|_| unknown())?;
         write_attempt_record(&self.root, &committed).map_err(|_| unknown())?;
         Ok(NativeCommitOutcome::Committed(NativeCommitOutput::new(
             core.transaction_id,
@@ -5363,6 +5442,103 @@ fn fail_selected_head_recovery_stage_cut() -> Result<(), CommitError> {
             TransactionDurabilityCut::Rcv05HeadRecoveryStageUnlinkBeforeHeadSync
         )
     })
+}
+
+// Native commit durability cuts mirror the v1 S20-530 matrix for the N8
+// qualification slice. The v1 `TransactionDurabilityCut` enum and its rows
+// are frozen contract material; native rows live in this separate enum so
+// no frozen variant, probe, or row-encoded name changes. The selector is
+// the same one-shot thread-local discipline: probes are `#[cfg(test)]`
+// only, never a production fault-selector API.
+#[cfg(test)]
+enum NativeCommitDurabilityCut {
+    Ntxn01DuringNativeReceiptStageWrite,
+    Ntxn02VerifiedNativeReceiptStageBeforeFinalLink,
+    Ntxn03FinalNativeReceiptLinkBeforeFirstLeafSync,
+    Ntxn04FirstNativeReceiptLeafSyncBeforeStageUnlink,
+    Ntxn05NativeReceiptStageUnlinkBeforeSecondLeafSync,
+    Ntxn06SecondNativeReceiptLeafSyncBeforeHeadWork,
+    Njrnl01AdmittedJournalWriteFails,
+    Njrnl02RunningTransitionWriteFails,
+    Njrnl03PromotionStartedWriteFails,
+    Njrnl04CommittedWriteFails,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static SELECTED_NATIVE_COMMIT_CUT: std::cell::RefCell<Option<NativeCommitDurabilityCut>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+struct NativeCommitCutSelection;
+
+#[cfg(test)]
+impl NativeCommitCutSelection {
+    fn install(cut: NativeCommitDurabilityCut) -> Self {
+        SELECTED_NATIVE_COMMIT_CUT.with(|selected| {
+            let previous = selected.replace(Some(cut));
+            assert!(
+                previous.is_none(),
+                "native commit durability selection is not nested"
+            );
+        });
+        Self
+    }
+}
+
+#[cfg(test)]
+impl Drop for NativeCommitCutSelection {
+    fn drop(&mut self) {
+        SELECTED_NATIVE_COMMIT_CUT.with(|selected| {
+            selected.replace(None);
+        });
+    }
+}
+
+#[cfg(test)]
+fn take_selected_native_commit_cut(
+    predicate: impl FnOnce(&NativeCommitDurabilityCut) -> bool,
+) -> bool {
+    SELECTED_NATIVE_COMMIT_CUT.with(|selected| {
+        let take = selected.borrow().as_ref().is_some_and(predicate);
+        if take {
+            selected.borrow_mut().take();
+        }
+        take
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_native_commit_cut(
+    predicate: impl FnOnce(&NativeCommitDurabilityCut) -> bool,
+) -> Result<(), CommitError> {
+    if take_selected_native_commit_cut(predicate) {
+        return Err(txn_commit_error(TransactionErrorCode::Io));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+fn fail_selected_native_receipt_stage_write_cut(
+    stage: &mut File,
+    stored_bytes: &[u8],
+) -> Result<(), CommitError> {
+    if take_selected_native_commit_cut(|cut| {
+        matches!(
+            cut,
+            NativeCommitDurabilityCut::Ntxn01DuringNativeReceiptStageWrite
+        )
+    }) {
+        let split = stored_bytes.len() / 2;
+        stage.write_all(&stored_bytes[..split])?;
+        stage.flush()?;
+        stage.sync_all()?;
+        return Err(txn_commit_error(
+            TransactionErrorCode::RecoveryReceiptIncomplete,
+        ));
+    }
+    Ok(())
 }
 
 // The S20-530 mapped-test module below is frozen, reviewed contract material
@@ -24608,6 +24784,488 @@ mod native_commit_tests {
                 .transaction_id(),
             output.transaction_id()
         );
+    }
+
+    /// One native commit harness shared by the N8 crash-cut rows: each
+    /// test owns its fixture directory, so attempt bytes repeat across
+    /// tests but never within one commit sequence.
+    struct NativeCutSetup {
+        fixture: Fixture,
+        harness: NativeHarness,
+        executor: CountingExecutor,
+    }
+
+    impl NativeCutSetup {
+        fn new(label: &str) -> Self {
+            Self {
+                fixture: Fixture::new(label),
+                harness: NativeHarness::new(fixed(1, WorkspaceId::from_bytes)),
+                executor: CountingExecutor {
+                    invocations: Cell::new(0),
+                },
+            }
+        }
+
+        fn commit(
+            &self,
+            attempt_byte: u8,
+            cut: Option<NativeCommitDurabilityCut>,
+        ) -> Result<NativeCommitOutcome, CommitError> {
+            let input = self.harness.input(
+                self.fixture.genesis_transaction_id,
+                &self.fixture.candidate.stored_bytes,
+                self.fixture.principal_id,
+                attempt(attempt_byte),
+                Some(&self.executor),
+            );
+            match cut {
+                Some(cut) => self
+                    .fixture
+                    .repository
+                    .commit_native_with_commit_durability_cut(&input, cut),
+                None => self.fixture.repository.commit_native(&input),
+            }
+        }
+
+        fn journal(&self, attempt_byte: u8) -> Option<AttemptRecord> {
+            let bytes = std::fs::read(attempt_path(
+                self.fixture.repository.root(),
+                attempt(attempt_byte),
+            ))
+            .ok()?;
+            AttemptRecord::parse(&bytes).ok()
+        }
+
+        /// Reads the accepted head through the mixed-format loader: after
+        /// a native commit the head is a format-2 receipt, which the v1-only
+        /// `accepted_head` loader honestly refuses.
+        fn accepted(&self) -> TransactionId {
+            let maintenance =
+                acquire_shared_repository_maintenance(self.fixture.repository.root()).unwrap();
+            self.fixture
+                .repository
+                .accepted_head_any_with_maintenance(&maintenance)
+                .unwrap()
+                .transaction_id()
+        }
+    }
+
+    #[test]
+    fn ntxn01_during_native_receipt_stage_write_removes_stage() {
+        let setup = NativeCutSetup::new("ntxn01");
+        let error = setup
+            .commit(
+                21,
+                Some(NativeCommitDurabilityCut::Ntxn01DuringNativeReceiptStageWrite),
+            )
+            .expect_err("stage-write cut must fail");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        // Execution ran: promotion started before the receipt persist, so
+        // the journal holds the promotion claim while the head stays put.
+        assert_eq!(setup.executor.invocations.get(), 1);
+        let journal = setup.journal(21).expect("promotion claim journaled");
+        assert_eq!(journal.state, AttemptState::PromotionStarted);
+        assert_eq!(setup.accepted(), setup.fixture.genesis_transaction_id);
+        let report = setup
+            .fixture
+            .repository
+            .recover()
+            .expect("recovery succeeds");
+        assert_eq!(report.removed_receipt_stages, 1);
+        assert_eq!(
+            report.accepted_transaction_id,
+            Some(setup.fixture.genesis_transaction_id)
+        );
+        // The torn receipt never verifies: the attempt reconciles to
+        // outcome-unknown with its claim cleared, and a fresh attempt
+        // commits clean on the same parent.
+        let journal = setup.journal(21).expect("journal survives recovery");
+        assert_eq!(journal.state, AttemptState::OutcomeUnknown);
+        assert_eq!(journal.transaction_id, None);
+        assert_eq!(journal.receipt_id, None);
+        let NativeCommitOutcome::Committed(output) =
+            setup.commit(22, None).expect("fresh attempt commits")
+        else {
+            panic!("fresh attempt must commit");
+        };
+        assert_eq!(setup.accepted(), output.transaction_id());
+    }
+
+    #[test]
+    fn ntxn02_verified_native_stage_before_link_removes_stage() {
+        let setup = NativeCutSetup::new("ntxn02");
+        let error = setup
+            .commit(
+                21,
+                Some(NativeCommitDurabilityCut::Ntxn02VerifiedNativeReceiptStageBeforeFinalLink),
+            )
+            .expect_err("pre-link cut must fail");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        assert_eq!(setup.executor.invocations.get(), 1);
+        let journal = setup.journal(21).expect("promotion claim journaled");
+        assert_eq!(journal.state, AttemptState::PromotionStarted);
+        assert_eq!(setup.accepted(), setup.fixture.genesis_transaction_id);
+        let report = setup
+            .fixture
+            .repository
+            .recover()
+            .expect("recovery succeeds");
+        assert_eq!(report.removed_receipt_stages, 1);
+        assert_eq!(
+            report.accepted_transaction_id,
+            Some(setup.fixture.genesis_transaction_id)
+        );
+        let journal = setup.journal(21).expect("journal survives recovery");
+        assert_eq!(journal.state, AttemptState::OutcomeUnknown);
+        let NativeCommitOutcome::Committed(output) =
+            setup.commit(22, None).expect("fresh attempt commits")
+        else {
+            panic!("fresh attempt must commit");
+        };
+        assert_eq!(setup.accepted(), output.transaction_id());
+    }
+
+    #[test]
+    fn ntxn03_native_link_before_sync_retries_clean() {
+        let setup = NativeCutSetup::new("ntxn03");
+        let error = setup
+            .commit(
+                21,
+                Some(NativeCommitDurabilityCut::Ntxn03FinalNativeReceiptLinkBeforeFirstLeafSync),
+            )
+            .expect_err("pre-sync cut must fail");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        let journal = setup.journal(21).expect("promotion claim journaled");
+        assert_eq!(journal.state, AttemptState::PromotionStarted);
+        assert_eq!(setup.accepted(), setup.fixture.genesis_transaction_id);
+        let report = setup
+            .fixture
+            .repository
+            .recover()
+            .expect("recovery succeeds");
+        assert_eq!(report.removed_receipt_stages, 1);
+        assert_eq!(
+            report.accepted_transaction_id,
+            Some(setup.fixture.genesis_transaction_id)
+        );
+        // The linked receipt is complete and verifies, but the head never
+        // moved to it: reconciliation keeps the promotion claim instead of
+        // clearing it, and the stuck attempt can never double-commit.
+        let journal = setup.journal(21).expect("journal survives recovery");
+        assert_eq!(journal.state, AttemptState::PromotionStarted);
+        assert!(journal.transaction_id.is_some());
+        let error = setup
+            .commit(21, None)
+            .expect_err("stuck promotion claim refuses");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        let NativeCommitOutcome::Committed(output) =
+            setup.commit(22, None).expect("fresh attempt commits")
+        else {
+            panic!("fresh attempt must commit");
+        };
+        assert_eq!(setup.accepted(), output.transaction_id());
+    }
+
+    #[test]
+    fn ntxn04_native_sync_before_unlink_keeps_old_head() {
+        let setup = NativeCutSetup::new("ntxn04");
+        let error = setup
+            .commit(
+                21,
+                Some(NativeCommitDurabilityCut::Ntxn04FirstNativeReceiptLeafSyncBeforeStageUnlink),
+            )
+            .expect_err("pre-unlink cut must fail");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        let journal = setup.journal(21).expect("promotion claim journaled");
+        assert_eq!(journal.state, AttemptState::PromotionStarted);
+        // The linked receipt is durable, but the head never advanced: the
+        // old head remains the only complete accepted revision.
+        assert_eq!(setup.accepted(), setup.fixture.genesis_transaction_id);
+        let report = setup
+            .fixture
+            .repository
+            .recover()
+            .expect("recovery succeeds");
+        assert_eq!(report.removed_receipt_stages, 1);
+        assert_eq!(
+            report.accepted_transaction_id,
+            Some(setup.fixture.genesis_transaction_id)
+        );
+        // The durable receipt verifies against the old head, so the claim
+        // stays promoting; resubmitting it refuses instead of forking.
+        let journal = setup.journal(21).expect("journal survives recovery");
+        assert_eq!(journal.state, AttemptState::PromotionStarted);
+        assert!(journal.transaction_id.is_some());
+        let error = setup
+            .commit(21, None)
+            .expect_err("stuck promotion claim refuses");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        let NativeCommitOutcome::Committed(output) =
+            setup.commit(22, None).expect("fresh attempt commits")
+        else {
+            panic!("fresh attempt must commit");
+        };
+        assert_eq!(setup.accepted(), output.transaction_id());
+    }
+
+    #[test]
+    fn ntxn05_native_unlink_before_resync_leaves_zero_removals() {
+        let setup = NativeCutSetup::new("ntxn05");
+        let error = setup
+            .commit(
+                21,
+                Some(NativeCommitDurabilityCut::Ntxn05NativeReceiptStageUnlinkBeforeSecondLeafSync),
+            )
+            .expect_err("pre-resync cut must fail");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        assert_eq!(setup.accepted(), setup.fixture.genesis_transaction_id);
+        let report = setup
+            .fixture
+            .repository
+            .recover()
+            .expect("recovery succeeds");
+        // The stage is already gone: recovery resyncs the leaf with zero
+        // removals and the head stays on genesis.
+        assert_eq!(report.removed_receipt_stages, 0);
+        assert_eq!(
+            report.accepted_transaction_id,
+            Some(setup.fixture.genesis_transaction_id)
+        );
+        // The complete receipt verifies, so the claim stays promoting and
+        // resubmission refuses with outcome-unknown rather than recommitting.
+        let journal = setup.journal(21).expect("journal survives recovery");
+        assert_eq!(journal.state, AttemptState::PromotionStarted);
+        assert!(journal.transaction_id.is_some());
+        let error = setup
+            .commit(21, None)
+            .expect_err("stuck promotion claim refuses");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        let NativeCommitOutcome::Committed(output) =
+            setup.commit(22, None).expect("fresh attempt commits")
+        else {
+            panic!("fresh attempt must commit");
+        };
+        assert_eq!(setup.accepted(), output.transaction_id());
+    }
+
+    #[test]
+    fn ntxn06_native_receipt_before_head_work_stays_promoting() {
+        let setup = NativeCutSetup::new("ntxn06");
+        let error = setup
+            .commit(
+                21,
+                Some(NativeCommitDurabilityCut::Ntxn06SecondNativeReceiptLeafSyncBeforeHeadWork),
+            )
+            .expect_err("pre-head cut must fail");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        assert_eq!(setup.accepted(), setup.fixture.genesis_transaction_id);
+        let report = setup
+            .fixture
+            .repository
+            .recover()
+            .expect("recovery succeeds");
+        assert_eq!(report.removed_receipt_stages, 0);
+        assert_eq!(
+            report.accepted_transaction_id,
+            Some(setup.fixture.genesis_transaction_id)
+        );
+        // The orphan receipt is complete and verifies, but the head never
+        // moved to it: reconciliation leaves the promotion claim intact
+        // rather than committing or clearing it.
+        let journal = setup.journal(21).expect("journal survives recovery");
+        assert_eq!(journal.state, AttemptState::PromotionStarted);
+        assert!(journal.transaction_id.is_some());
+        assert!(journal.receipt_id.is_some());
+        let NativeCommitOutcome::Committed(output) =
+            setup.commit(22, None).expect("fresh attempt commits")
+        else {
+            panic!("fresh attempt must commit");
+        };
+        assert_eq!(setup.accepted(), output.transaction_id());
+    }
+
+    #[test]
+    fn njrnl01_admitted_journal_write_fails_before_any_state() {
+        let setup = NativeCutSetup::new("njrnl01");
+        let error = setup
+            .commit(
+                31,
+                Some(NativeCommitDurabilityCut::Njrnl01AdmittedJournalWriteFails),
+            )
+            .expect_err("admission write cut must fail");
+        assert_eq!(error.code(), "TXN_IO");
+        // No worker ran and no journal record exists: the attempt never
+        // started, so the identical resubmission commits clean.
+        assert_eq!(setup.executor.invocations.get(), 0);
+        assert!(setup.journal(31).is_none());
+        assert_eq!(setup.accepted(), setup.fixture.genesis_transaction_id);
+        let NativeCommitOutcome::Committed(output) = setup
+            .commit(31, None)
+            .expect("identical resubmission commits")
+        else {
+            panic!("resubmission must commit");
+        };
+        assert_eq!(output.attempt_id(), attempt(31));
+        assert_eq!(setup.accepted(), output.transaction_id());
+        let journal = setup.journal(31).expect("journal records commit");
+        assert_eq!(journal.state, AttemptState::Committed);
+    }
+
+    #[test]
+    fn njrnl02_running_transition_write_fails_before_execution() {
+        let setup = NativeCutSetup::new("njrnl02");
+        let error = setup
+            .commit(
+                32,
+                Some(NativeCommitDurabilityCut::Njrnl02RunningTransitionWriteFails),
+            )
+            .expect_err("running transition cut must fail");
+        assert_eq!(error.code(), "TXN_IO");
+        // Admission journaled, but the worker never started: the retry is
+        // the same admitted attempt and commits clean.
+        assert_eq!(setup.executor.invocations.get(), 0);
+        let journal = setup.journal(32).expect("admission journaled");
+        assert_eq!(journal.state, AttemptState::Admitted);
+        let NativeCommitOutcome::Committed(output) = setup
+            .commit(32, None)
+            .expect("identical resubmission commits")
+        else {
+            panic!("resubmission must commit");
+        };
+        assert_eq!(setup.executor.invocations.get(), 1);
+        assert_eq!(setup.accepted(), output.transaction_id());
+    }
+
+    #[test]
+    fn njrnl03_promotion_write_fails_but_attempt_retries() {
+        let setup = NativeCutSetup::new("njrnl03");
+        let error = setup
+            .commit(
+                33,
+                Some(NativeCommitDurabilityCut::Njrnl03PromotionStartedWriteFails),
+            )
+            .expect_err("promotion write cut must fail");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        // Execution ran, but the promotion claim never journaled: the
+        // journal still shows the running attempt with no identities.
+        assert_eq!(setup.executor.invocations.get(), 1);
+        let journal = setup.journal(33).expect("running attempt journaled");
+        assert_eq!(journal.state, AttemptState::Running);
+        assert_eq!(journal.transaction_id, None);
+        assert_eq!(setup.accepted(), setup.fixture.genesis_transaction_id);
+        let report = setup
+            .fixture
+            .repository
+            .recover()
+            .expect("recovery succeeds");
+        assert_eq!(
+            report.accepted_transaction_id,
+            Some(setup.fixture.genesis_transaction_id)
+        );
+        // Recovery skips non-promoting records, so the same attempt
+        // resubmits through admission and commits clean.
+        let NativeCommitOutcome::Committed(output) =
+            setup.commit(33, None).expect("same attempt retries clean")
+        else {
+            panic!("retry must commit");
+        };
+        assert_eq!(setup.accepted(), output.transaction_id());
+        let journal = setup.journal(33).expect("journal records commit");
+        assert_eq!(journal.state, AttemptState::Committed);
+    }
+
+    #[test]
+    fn njrnl04_committed_write_fails_but_recovery_proves_commit() {
+        let setup = NativeCutSetup::new("njrnl04");
+        let error = setup
+            .commit(
+                34,
+                Some(NativeCommitDurabilityCut::Njrnl04CommittedWriteFails),
+            )
+            .expect_err("commit-record cut must fail");
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        // The head already advanced under the promotion claim: the commit
+        // happened, only its journal confirmation is missing.
+        let journal = setup.journal(34).expect("promotion claim journaled");
+        assert_eq!(journal.state, AttemptState::PromotionStarted);
+        let transaction_id = journal.transaction_id.expect("claim names receipt");
+        assert_eq!(setup.accepted(), transaction_id);
+        let report = setup
+            .fixture
+            .repository
+            .recover()
+            .expect("recovery succeeds");
+        assert_eq!(report.accepted_transaction_id, Some(transaction_id));
+        // Reconciliation promotes the verified claim: the attempt whose
+        // commit answered unknown is now journaled committed.
+        let journal = setup.journal(34).expect("journal survives recovery");
+        assert_eq!(journal.state, AttemptState::Committed);
+        assert_eq!(journal.transaction_id, Some(transaction_id));
+        match setup
+            .fixture
+            .repository
+            .native_attempt_status(attempt(34))
+            .unwrap()
+        {
+            AttemptStatus::Committed {
+                transaction_id: status_tx,
+                ..
+            } => assert_eq!(status_tx, transaction_id),
+            status => panic!("unexpected status {status:?}"),
+        }
+    }
+
+    #[test]
+    fn nhead04_native_head_rename_before_sync_accepts_new() {
+        let setup = NativeCutSetup::new("nhead04");
+        // The shared v1 head CAS hook fires for native head advances too:
+        // install it directly around a native commit.
+        let error = {
+            let _selection = TransactionCutSelection::install(
+                TransactionDurabilityCut::Head04AcceptedHeadRenameBeforeHeadSync,
+            );
+            let input = setup.harness.input(
+                setup.fixture.genesis_transaction_id,
+                &setup.fixture.candidate.stored_bytes,
+                setup.fixture.principal_id,
+                attempt(35),
+                Some(&setup.executor),
+            );
+            setup
+                .fixture
+                .repository
+                .commit_native(&input)
+                .expect_err("head rename cut must fail")
+        };
+        assert_eq!(error.code(), "NATIVE_COMMIT_OUTCOME_UNKNOWN");
+        // The rename already happened: like v1 HEAD-04 the head reads new
+        // even though the caller only learns outcome-unknown.
+        let journal = setup.journal(35).expect("promotion claim journaled");
+        assert_eq!(journal.state, AttemptState::PromotionStarted);
+        let transaction_id = journal.transaction_id.expect("claim names receipt");
+        assert_eq!(setup.accepted(), transaction_id);
+        // Recovery redurabilizes the cleanup boundary and reconciles the
+        // verified claim against the moved head: the attempt commits.
+        let report = setup
+            .fixture
+            .repository
+            .recover()
+            .expect("recovery succeeds");
+        assert_eq!(report.accepted_transaction_id, Some(transaction_id));
+        let journal = setup.journal(35).expect("journal survives recovery");
+        assert_eq!(journal.state, AttemptState::Committed);
+        match setup
+            .fixture
+            .repository
+            .native_attempt_status(attempt(35))
+            .unwrap()
+        {
+            AttemptStatus::Committed {
+                transaction_id: status_tx,
+                ..
+            } => assert_eq!(status_tx, transaction_id),
+            status => panic!("unexpected status {status:?}"),
+        }
     }
 
     #[test]

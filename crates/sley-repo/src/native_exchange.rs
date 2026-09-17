@@ -1833,6 +1833,71 @@ impl InstalledNativeMarker {
 /// The marker lives under `exchange/v2`, never under the v1 marker
 /// directory: a native import and a v1 import never share resume state.
 /// The stage, sync, link discipline mirrors the v1 marker exactly.
+//
+// Native clone durability cuts mirror the v1 marker rows for the N8
+// qualification slice: same one-shot thread-local discipline, `#[cfg(test)]`
+// only, never a production fault-selector API.
+#[cfg(test)]
+enum NativeCloneDurabilityCut {
+    Nclone01DuringMarkerTempWrite,
+    Nclone02VerifiedMarkerTempBeforeRename,
+    Nclone03MarkerRenameBeforeFirstSync,
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static SELECTED_NATIVE_CLONE_CUT: std::cell::RefCell<Option<NativeCloneDurabilityCut>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+struct NativeCloneCutSelection;
+
+#[cfg(test)]
+impl NativeCloneCutSelection {
+    fn install(cut: NativeCloneDurabilityCut) -> Self {
+        SELECTED_NATIVE_CLONE_CUT.with(|selected| {
+            let previous = selected.replace(Some(cut));
+            assert!(
+                previous.is_none(),
+                "native clone durability selection is not nested"
+            );
+        });
+        Self
+    }
+}
+
+#[cfg(test)]
+impl Drop for NativeCloneCutSelection {
+    fn drop(&mut self) {
+        SELECTED_NATIVE_CLONE_CUT.with(|selected| {
+            selected.replace(None);
+        });
+    }
+}
+
+#[cfg(test)]
+fn take_selected_native_clone_cut(
+    predicate: impl FnOnce(&NativeCloneDurabilityCut) -> bool,
+) -> bool {
+    SELECTED_NATIVE_CLONE_CUT.with(|selected| {
+        let take = selected.borrow().as_ref().is_some_and(predicate);
+        if take {
+            selected.borrow_mut().take();
+        }
+        take
+    })
+}
+
+#[cfg(test)]
+fn fail_selected_native_clone_cut(
+    predicate: impl FnOnce(&NativeCloneDurabilityCut) -> bool,
+) -> Result<()> {
+    if take_selected_native_clone_cut(predicate) {
+        return Err(NativeExchangeError::exchange(ExchangeErrorCode::Io));
+    }
+    Ok(())
+}
 fn install_native_stage_marker(
     target: &Path,
     exchange_id: RepositoryExchangeId,
@@ -1869,11 +1934,37 @@ fn install_native_stage_marker(
         .create_new(true)
         .open(&temporary)
         .map_err(NativeExchangeError::from)?;
+    #[cfg(test)]
+    if take_selected_native_clone_cut(|cut| {
+        matches!(cut, NativeCloneDurabilityCut::Nclone01DuringMarkerTempWrite)
+    }) {
+        let half = exchange_id.as_bytes().len() / 2;
+        file.write_all(&exchange_id.as_bytes()[..half])
+            .map_err(NativeExchangeError::from)?;
+        file.flush().map_err(NativeExchangeError::from)?;
+        file.sync_all().map_err(NativeExchangeError::from)?;
+        drop(file);
+        return Err(NativeExchangeError::exchange(ExchangeErrorCode::Io));
+    }
     file.write_all(exchange_id.as_bytes())
         .map_err(NativeExchangeError::from)?;
     file.sync_all().map_err(NativeExchangeError::from)?;
     drop(file);
+    #[cfg(test)]
+    fail_selected_native_clone_cut(|cut| {
+        matches!(
+            cut,
+            NativeCloneDurabilityCut::Nclone02VerifiedMarkerTempBeforeRename
+        )
+    })?;
     fs::rename(&temporary, &marker).map_err(NativeExchangeError::from)?;
+    #[cfg(test)]
+    fail_selected_native_clone_cut(|cut| {
+        matches!(
+            cut,
+            NativeCloneDurabilityCut::Nclone03MarkerRenameBeforeFirstSync
+        )
+    })?;
     sync_directory(&versioned).map_err(NativeExchangeError::from)?;
     sync_directory(&exchange_dir).map_err(NativeExchangeError::from)?;
     sync_directory(target).map_err(NativeExchangeError::from)?;
@@ -3706,6 +3797,105 @@ mod tests {
             &source.trust(),
         )
         .expect("resumed import converges");
+        assert_eq!(report.accepted_head, exchange.accepted_head);
+        assert_eq!(report.receipts, 3);
+        let reexported = export_native_exchange(&target, &verifier(source.epoch)).unwrap();
+        assert_eq!(reexported.stored_bytes, exchange.stored_bytes);
+    }
+
+    #[test]
+    fn nclone01_marker_temp_write_fails_retry_converges() {
+        let source = NativeSource::new("native-clone-cut-01");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let target = source.target("cut01");
+        let error = {
+            let _selection = NativeCloneCutSelection::install(
+                NativeCloneDurabilityCut::Nclone01DuringMarkerTempWrite,
+            );
+            import_native_exchange(
+                &target,
+                &exchange.stored_bytes,
+                &verifier(source.epoch),
+                &source.trust(),
+            )
+            .expect_err("marker temp-write cut must fail")
+        };
+        assert_eq!(error.code(), "EXCHANGE_IO");
+        // Retry removes the torn temporary and converges to the same
+        // clone an uninterrupted import would produce.
+        let report = import_native_exchange(
+            &target,
+            &exchange.stored_bytes,
+            &verifier(source.epoch),
+            &source.trust(),
+        )
+        .expect("retry converges");
+        assert_eq!(report.accepted_head, exchange.accepted_head);
+        assert_eq!(report.receipts, 3);
+        assert_eq!(report.branches, 2);
+        let reexported = export_native_exchange(&target, &verifier(source.epoch)).unwrap();
+        assert_eq!(reexported.stored_bytes, exchange.stored_bytes);
+    }
+
+    #[test]
+    fn nclone02_marker_temp_before_rename_fails_retry_converges() {
+        let source = NativeSource::new("native-clone-cut-02");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let target = source.target("cut02");
+        let error = {
+            let _selection = NativeCloneCutSelection::install(
+                NativeCloneDurabilityCut::Nclone02VerifiedMarkerTempBeforeRename,
+            );
+            import_native_exchange(
+                &target,
+                &exchange.stored_bytes,
+                &verifier(source.epoch),
+                &source.trust(),
+            )
+            .expect_err("pre-rename cut must fail")
+        };
+        assert_eq!(error.code(), "EXCHANGE_IO");
+        // No marker was promoted: the retry starts clean and converges.
+        let report = import_native_exchange(
+            &target,
+            &exchange.stored_bytes,
+            &verifier(source.epoch),
+            &source.trust(),
+        )
+        .expect("retry converges");
+        assert_eq!(report.accepted_head, exchange.accepted_head);
+        assert_eq!(report.receipts, 3);
+        let reexported = export_native_exchange(&target, &verifier(source.epoch)).unwrap();
+        assert_eq!(reexported.stored_bytes, exchange.stored_bytes);
+    }
+
+    #[test]
+    fn nclone03_marker_rename_before_sync_fails_retry_converges() {
+        let source = NativeSource::new("native-clone-cut-03");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let target = source.target("cut03");
+        let error = {
+            let _selection = NativeCloneCutSelection::install(
+                NativeCloneDurabilityCut::Nclone03MarkerRenameBeforeFirstSync,
+            );
+            import_native_exchange(
+                &target,
+                &exchange.stored_bytes,
+                &verifier(source.epoch),
+                &source.trust(),
+            )
+            .expect_err("post-rename cut must fail")
+        };
+        assert_eq!(error.code(), "EXCHANGE_IO");
+        // The marker renamed but never synced: the retry reuses the
+        // matching marker identity and converges to the same clone.
+        let report = import_native_exchange(
+            &target,
+            &exchange.stored_bytes,
+            &verifier(source.epoch),
+            &source.trust(),
+        )
+        .expect("retry converges");
         assert_eq!(report.accepted_head, exchange.accepted_head);
         assert_eq!(report.receipts, 3);
         let reexported = export_native_exchange(&target, &verifier(source.epoch)).unwrap();
