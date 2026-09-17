@@ -23,13 +23,14 @@
 //! Construction provenance:
 //! machineresearch/sley-2.0/reweave/rw-080-checker-scaffold.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-single-cfg.md,
-//! machineresearch/sley-2.0/reweave/rw-080-checker-option-switch.md, and
-//! machineresearch/sley-2.0/reweave/rw-080-checker-operation-inventory.md.
+//! machineresearch/sley-2.0/reweave/rw-080-checker-option-switch.md,
+//! machineresearch/sley-2.0/reweave/rw-080-checker-operation-inventory.md, and
+//! machineresearch/sley-2.0/reweave/rw-080-checker-type-chain.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     Block, BuiltinCase, BuiltinFailureKind, CaseKey, CondBranchTerminator, ConstData, ConstValue,
-    ConstantDefinition, FunctionGraph, Immediate, IntegerWidth, Opcode, Operation,
+    ConstantDefinition, FunctionGraph, Immediate, IntegerWidth, MAX_TYPE_DEPTH, Opcode, Operation,
     OperationResultRef, Parameter, ParameterRole, Reachability, ReturnTerminator, SwitchArgument,
     SwitchCase, SwitchEdge, TargetEdge, Terminator, TrapCode, TrapTerminator, TypeExpr, ValueRef,
     VariantSwitchTerminator, Visibility,
@@ -66,6 +67,10 @@ fn u64_type() -> TypeExpr {
     TypeExpr::UInt(IntegerWidth::from_bits(64))
 }
 
+fn u64vec_type() -> TypeExpr {
+    TypeExpr::Vector(Box::new(u64_type()))
+}
+
 fn u32_value(n: u128) -> ConstValue {
     ConstValue {
         value_type: u32_type(),
@@ -99,6 +104,13 @@ fn arithmetic_u64_result_type() -> TypeExpr {
     }
 }
 
+fn type_chain_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(u64_type()),
+        error: Box::new(u32_type()),
+    }
+}
+
 fn bytes_value(bytes: &[u8]) -> ConstValue {
     ConstValue {
         value_type: TypeExpr::Bytes,
@@ -124,6 +136,21 @@ fn cfg_inventory_value(rows: &[CfgInventoryRow]) -> ConstValue {
                         value(*reference_kind),
                         value(*reference_index),
                     ]),
+                })
+                .collect(),
+        ),
+    }
+}
+
+fn u64vec_value(values: &[u64]) -> ConstValue {
+    ConstValue {
+        value_type: u64vec_type(),
+        data: ConstData::Sequence(
+            values
+                .iter()
+                .map(|value| ConstValue {
+                    value_type: u64_type(),
+                    data: ConstData::UInt(u128::from(*value)),
                 })
                 .collect(),
         ),
@@ -1895,6 +1922,499 @@ fn ordered_operation_inventory_checker() -> CheckerScaffold {
     }
 }
 
+/// Validates a runtime unary type-expression chain. Wrapper nodes are walked
+/// with a CFG backedge; the leaf owns width or type-parameter judgments.
+#[allow(clippy::too_many_lines)]
+fn unary_type_chain_checker() -> CheckerScaffold {
+    let function = checker_inventory_id(5, 2);
+    let mut assembler = InventoryCheckAssembler::new();
+    let wrappers = assembler.parameter(function, ParameterRole::Function, 0, u64vec_type());
+    let leaf_tag = assembler.parameter(function, ParameterRole::Function, 1, u64_type());
+    let leaf_payload = assembler.parameter(function, ParameterRole::Function, 2, u64_type());
+    let parameter_count = assembler.parameter(function, ParameterRole::Function, 3, u64_type());
+
+    let entry = assembler.block_id();
+    let wrapper_check = assembler.block_id();
+    let wrapper_get = assembler.block_id();
+    let wrapper_unpack = assembler.block_id();
+    let wrapper_vector = assembler.block_id();
+    let wrapper_option = assembler.block_id();
+    let wrapper_cell = assembler.block_id();
+    let wrapper_advance = assembler.block_id();
+    let leaf_bool = assembler.block_id();
+    let leaf_uint = assembler.block_id();
+    let leaf_parameter = assembler.block_id();
+    let width_8 = assembler.block_id();
+    let width_16 = assembler.block_id();
+    let width_32 = assembler.block_id();
+    let width_64 = assembler.block_id();
+    let width_128 = assembler.block_id();
+    let parameter_scope = assembler.block_id();
+    let success_add = assembler.block_id();
+    let success_emit = assembler.block_id();
+    let depth_error = assembler.block_id();
+    let width_error = assembler.block_id();
+    let parameter_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+    let invariant_trap = assembler.block_id();
+
+    let zero = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(0),
+    });
+    let one = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(1),
+    });
+    let max_depth = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::try_from(MAX_TYPE_DEPTH).expect("type depth fits u128")),
+    });
+    let vector_tag = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::from(TypeExpr::Vector(Box::new(TypeExpr::Bool)).tag())),
+    });
+    let option_tag = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::from(TypeExpr::Option(Box::new(TypeExpr::Bool)).tag())),
+    });
+    let cell_tag = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::from(
+            TypeExpr::LocalCell(Box::new(TypeExpr::Bool)).tag(),
+        )),
+    });
+    let bool_tag = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::from(TypeExpr::Bool.tag())),
+    });
+    let uint_tag = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::from(u32_type().tag())),
+    });
+    let parameter_tag = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::from(TypeExpr::TypeParameter(0).tag())),
+    });
+    let width_constants = [8_u64, 16, 32, 64, 128].map(|width| {
+        assembler.constant(ConstValue {
+            value_type: u64_type(),
+            data: ConstData::UInt(u128::from(width)),
+        })
+    });
+    let depth_code = assembler.constant(u32_value(u128::from(
+        sley_check::TypeErrorCode::DepthLimit.numeric(),
+    )));
+    let width_code = assembler.constant(u32_value(u128::from(
+        sley_check::TypeErrorCode::WidthInvalid.numeric(),
+    )));
+    let parameter_code = assembler.constant(u32_value(u128::from(
+        sley_check::TypeErrorCode::ParameterOutOfScope.numeric(),
+    )));
+    let resource_code = assembler.constant(u32_value(u128::from(
+        sley_check::TypeErrorCode::ResourceLimit.numeric(),
+    )));
+
+    let length = assembler.operation(
+        entry,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(wrappers)],
+        u64_type(),
+        Immediate::None,
+    );
+    let maximum = assembler.constant_ref(entry, max_depth, u64_type());
+    let depth_valid = assembler.operation(
+        entry,
+        Opcode::LessThan,
+        vec![
+            inventory_operation_value(length),
+            inventory_operation_value(maximum),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    let start = assembler.constant_ref(entry, zero, u64_type());
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![length, maximum, depth_valid, start],
+        inventory_cond(
+            inventory_operation_value(depth_valid),
+            wrapper_check,
+            vec![inventory_operation_value(start)],
+            depth_error,
+            Vec::new(),
+        ),
+    );
+
+    let check_index = assembler.parameter(wrapper_check, ParameterRole::Block, 0, u64_type());
+    let check_length = assembler.operation(
+        wrapper_check,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(wrappers)],
+        u64_type(),
+        Immediate::None,
+    );
+    let has_wrapper = assembler.operation(
+        wrapper_check,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(check_index),
+            inventory_operation_value(check_length),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        wrapper_check,
+        function,
+        vec![check_index],
+        vec![check_length, has_wrapper],
+        inventory_cond(
+            inventory_operation_value(has_wrapper),
+            wrapper_get,
+            vec![ValueRef::Parameter(check_index)],
+            leaf_bool,
+            vec![inventory_operation_value(check_length)],
+        ),
+    );
+
+    let get_index = assembler.parameter(wrapper_get, ParameterRole::Block, 0, u64_type());
+    let wrapper = assembler.operation(
+        wrapper_get,
+        Opcode::VectorGet,
+        vec![
+            ValueRef::Parameter(wrappers),
+            ValueRef::Parameter(get_index),
+        ],
+        TypeExpr::Option(Box::new(u64_type())),
+        Immediate::None,
+    );
+    assembler.push_block(
+        wrapper_get,
+        function,
+        vec![get_index],
+        vec![wrapper],
+        inventory_switch(
+            inventory_operation_value(wrapper),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    wrapper_unpack,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(get_index)),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let found_wrapper = assembler.parameter(wrapper_unpack, ParameterRole::Block, 0, u64_type());
+    let found_index = assembler.parameter(wrapper_unpack, ParameterRole::Block, 1, u64_type());
+    assembler.push_block(
+        wrapper_unpack,
+        function,
+        vec![found_wrapper, found_index],
+        Vec::new(),
+        inventory_branch(
+            wrapper_vector,
+            vec![
+                ValueRef::Parameter(found_wrapper),
+                ValueRef::Parameter(found_index),
+            ],
+        ),
+    );
+
+    let wrapper_tag_block = |assembler: &mut InventoryCheckAssembler,
+                             block: EntityId,
+                             expected: EntityId,
+                             unmatched: EntityId| {
+        let found = assembler.parameter(block, ParameterRole::Block, 0, u64_type());
+        let index = assembler.parameter(block, ParameterRole::Block, 1, u64_type());
+        let expected_value = assembler.constant_ref(block, expected, u64_type());
+        let matches = assembler.operation(
+            block,
+            Opcode::Equal,
+            vec![
+                ValueRef::Parameter(found),
+                inventory_operation_value(expected_value),
+            ],
+            TypeExpr::Bool,
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            vec![found, index],
+            vec![expected_value, matches],
+            inventory_cond(
+                inventory_operation_value(matches),
+                wrapper_advance,
+                vec![ValueRef::Parameter(index)],
+                unmatched,
+                if unmatched == invariant_trap {
+                    Vec::new()
+                } else {
+                    vec![ValueRef::Parameter(found), ValueRef::Parameter(index)]
+                },
+            ),
+        );
+    };
+    wrapper_tag_block(&mut assembler, wrapper_vector, vector_tag, wrapper_option);
+    wrapper_tag_block(&mut assembler, wrapper_option, option_tag, wrapper_cell);
+    wrapper_tag_block(&mut assembler, wrapper_cell, cell_tag, invariant_trap);
+
+    let advance_index = assembler.parameter(wrapper_advance, ParameterRole::Block, 0, u64_type());
+    let advance_one = assembler.constant_ref(wrapper_advance, one, u64_type());
+    let next_index = assembler.operation(
+        wrapper_advance,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(advance_index),
+            inventory_operation_value(advance_one),
+        ],
+        arithmetic_u64_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        wrapper_advance,
+        function,
+        vec![advance_index],
+        vec![advance_one, next_index],
+        inventory_switch(
+            inventory_operation_value(next_index),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    wrapper_check,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let leaf_tag_block = |assembler: &mut InventoryCheckAssembler,
+                          block: EntityId,
+                          expected: EntityId,
+                          matched: EntityId,
+                          unmatched: EntityId| {
+        let wrappers_length = assembler.parameter(block, ParameterRole::Block, 0, u64_type());
+        let expected_value = assembler.constant_ref(block, expected, u64_type());
+        let matches = assembler.operation(
+            block,
+            Opcode::Equal,
+            vec![
+                ValueRef::Parameter(leaf_tag),
+                inventory_operation_value(expected_value),
+            ],
+            TypeExpr::Bool,
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            vec![wrappers_length],
+            vec![expected_value, matches],
+            inventory_cond(
+                inventory_operation_value(matches),
+                matched,
+                vec![ValueRef::Parameter(wrappers_length)],
+                unmatched,
+                if unmatched == invariant_trap {
+                    Vec::new()
+                } else {
+                    vec![ValueRef::Parameter(wrappers_length)]
+                },
+            ),
+        );
+    };
+    leaf_tag_block(&mut assembler, leaf_bool, bool_tag, success_add, leaf_uint);
+    leaf_tag_block(&mut assembler, leaf_uint, uint_tag, width_8, leaf_parameter);
+    leaf_tag_block(
+        &mut assembler,
+        leaf_parameter,
+        parameter_tag,
+        parameter_scope,
+        invariant_trap,
+    );
+
+    let width_block = |assembler: &mut InventoryCheckAssembler,
+                       block: EntityId,
+                       expected: EntityId,
+                       unmatched: EntityId| {
+        let wrappers_length = assembler.parameter(block, ParameterRole::Block, 0, u64_type());
+        let expected_value = assembler.constant_ref(block, expected, u64_type());
+        let matches = assembler.operation(
+            block,
+            Opcode::Equal,
+            vec![
+                ValueRef::Parameter(leaf_payload),
+                inventory_operation_value(expected_value),
+            ],
+            TypeExpr::Bool,
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            vec![wrappers_length],
+            vec![expected_value, matches],
+            inventory_cond(
+                inventory_operation_value(matches),
+                success_add,
+                vec![ValueRef::Parameter(wrappers_length)],
+                unmatched,
+                if unmatched == width_error {
+                    Vec::new()
+                } else {
+                    vec![ValueRef::Parameter(wrappers_length)]
+                },
+            ),
+        );
+    };
+    width_block(&mut assembler, width_8, width_constants[0], width_16);
+    width_block(&mut assembler, width_16, width_constants[1], width_32);
+    width_block(&mut assembler, width_32, width_constants[2], width_64);
+    width_block(&mut assembler, width_64, width_constants[3], width_128);
+    width_block(&mut assembler, width_128, width_constants[4], width_error);
+
+    let scope_length = assembler.parameter(parameter_scope, ParameterRole::Block, 0, u64_type());
+    let parameter_in_scope = assembler.operation(
+        parameter_scope,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(leaf_payload),
+            ValueRef::Parameter(parameter_count),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        parameter_scope,
+        function,
+        vec![scope_length],
+        vec![parameter_in_scope],
+        inventory_cond(
+            inventory_operation_value(parameter_in_scope),
+            success_add,
+            vec![ValueRef::Parameter(scope_length)],
+            parameter_error,
+            Vec::new(),
+        ),
+    );
+
+    let success_length = assembler.parameter(success_add, ParameterRole::Block, 0, u64_type());
+    let success_one = assembler.constant_ref(success_add, one, u64_type());
+    let node_count = assembler.operation(
+        success_add,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(success_length),
+            inventory_operation_value(success_one),
+        ],
+        arithmetic_u64_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        success_add,
+        function,
+        vec![success_length],
+        vec![success_one, node_count],
+        inventory_switch(
+            inventory_operation_value(node_count),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    success_emit,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+    let emitted_count = assembler.parameter(success_emit, ParameterRole::Block, 0, u64_type());
+    let accepted = assembler.operation(
+        success_emit,
+        Opcode::ResultOk,
+        vec![ValueRef::Parameter(emitted_count)],
+        type_chain_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        success_emit,
+        function,
+        vec![emitted_count],
+        vec![accepted],
+        Terminator::Return(ReturnTerminator {
+            value: inventory_operation_value(accepted),
+        }),
+    );
+
+    for (block, code) in [
+        (depth_error, depth_code),
+        (width_error, width_code),
+        (parameter_error, parameter_code),
+        (resource_error, resource_code),
+    ] {
+        let code_value = assembler.constant_ref(block, code, u32_type());
+        let rejected = assembler.operation(
+            block,
+            Opcode::ResultErr,
+            vec![inventory_operation_value(code_value)],
+            type_chain_result_type(),
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![code_value, rejected],
+            Terminator::Return(ReturnTerminator {
+                value: inventory_operation_value(rejected),
+            }),
+        );
+    }
+    assembler.push_block(
+        invariant_trap,
+        function,
+        Vec::new(),
+        Vec::new(),
+        Terminator::Trap(TrapTerminator {
+            code: TrapCode::InternalInvariant,
+            payload: None,
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![wrappers, leaf_tag, leaf_payload, parameter_count],
+        result_type: type_chain_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    CheckerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+    }
+}
+
 fn generous_limits() -> sley_vm::ExecutionLimits {
     sley_vm::ExecutionLimits {
         max_instructions: 10_000,
@@ -2149,6 +2669,34 @@ fn execute_operation_inventory(
         },
     )
     .expect("v2 executes ordered operation-inventory checker")
+}
+
+fn execute_type_chain(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    wrappers: &[u64],
+    leaf_tag: u64,
+    leaf_payload: u64,
+    parameter_count: u64,
+) -> sley_vm::ExecutionOutcome {
+    let u64_value = |value| ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::from(value)),
+    };
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                u64vec_value(wrappers),
+                u64_value(leaf_tag),
+                u64_value(leaf_payload),
+                u64_value(parameter_count),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes unary type-chain checker")
 }
 
 fn native_single_cfg(
@@ -2534,6 +3082,71 @@ fn native_operation_inventory_cfg(
     )
 }
 
+fn native_unary_type_chain(
+    wrappers: &[u64],
+    leaf_tag: u64,
+    leaf_payload: u64,
+    parameter_count: u64,
+) -> Result<u64, sley_check::TypeErrorCode> {
+    let mut value = match u32::try_from(leaf_tag).expect("bounded leaf tag") {
+        tag if tag == TypeExpr::Bool.tag() => TypeExpr::Bool,
+        tag if tag == u32_type().tag() => TypeExpr::UInt(IntegerWidth::from_bits(
+            u16::try_from(leaf_payload).expect("bounded width payload"),
+        )),
+        tag if tag == TypeExpr::TypeParameter(0).tag() => {
+            TypeExpr::TypeParameter(u32::try_from(leaf_payload).expect("bounded parameter payload"))
+        }
+        other => panic!("bounded type-chain leaf tag is unsupported: {other}"),
+    };
+    for wrapper in wrappers.iter().rev() {
+        value = match u32::try_from(*wrapper).expect("bounded wrapper tag") {
+            tag if tag == TypeExpr::Vector(Box::new(TypeExpr::Bool)).tag() => {
+                TypeExpr::Vector(Box::new(value))
+            }
+            tag if tag == TypeExpr::Option(Box::new(TypeExpr::Bool)).tag() => {
+                TypeExpr::Option(Box::new(value))
+            }
+            tag if tag == TypeExpr::LocalCell(Box::new(TypeExpr::Bool)).tag() => {
+                TypeExpr::LocalCell(Box::new(value))
+            }
+            other => panic!("bounded type-chain wrapper tag is unsupported: {other}"),
+        };
+    }
+    let environment = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    environment
+        .check_type(
+            &value,
+            u32::try_from(parameter_count).expect("bounded parameter count"),
+        )
+        .map(|()| u64::try_from(wrappers.len() + 1).expect("bounded node count"))
+        .map_err(|error| error.code())
+}
+
+fn assert_type_chain_ok(outcome: &sley_vm::ExecutionOutcome, expected_nodes: u64) {
+    use sley_ssmc::ResultConst;
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!("type-chain checker must terminate with a value")
+    };
+    let ConstData::Result(ResultConst::Ok(nodes)) = &value.data else {
+        panic!("type-chain checker must return Ok, got {:?}", value.data)
+    };
+    assert_eq!(nodes.data, ConstData::UInt(u128::from(expected_nodes)));
+}
+
+fn assert_type_chain_error(
+    outcome: &sley_vm::ExecutionOutcome,
+    expected: sley_check::TypeErrorCode,
+) {
+    use sley_ssmc::ResultConst;
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!("type-chain checker must terminate with a value")
+    };
+    let ConstData::Result(ResultConst::Err(code)) = &value.data else {
+        panic!("type-chain checker must return Err, got {:?}", value.data)
+    };
+    assert_eq!(code.data, ConstData::UInt(u128::from(expected.numeric())));
+}
+
 fn assert_cfg_ok(outcome: &sley_vm::ExecutionOutcome, report: &sley_check::cfg::CfgReport) {
     use sley_ssmc::ResultConst;
     match &outcome.termination {
@@ -2882,6 +3495,82 @@ fn checker_operation_inventory_preserves_two_pass_precedence() {
         assert_cfg_error(
             &execute_operation_inventory(&package, &approved, rows, 2),
             *expected,
+        );
+    }
+}
+
+#[test]
+fn checker_unary_type_chains_match_native_type_judgment() {
+    let vector_tag = u64::from(TypeExpr::Vector(Box::new(TypeExpr::Bool)).tag());
+    let option_tag = u64::from(TypeExpr::Option(Box::new(TypeExpr::Bool)).tag());
+    let cell_tag = u64::from(TypeExpr::LocalCell(Box::new(TypeExpr::Bool)).tag());
+    let uint_tag = u64::from(u32_type().tag());
+    let bool_tag = u64::from(TypeExpr::Bool.tag());
+    let parameter_tag = u64::from(TypeExpr::TypeParameter(0).tag());
+    let (package, approved) = admit_checker_program(&unary_type_chain_checker());
+
+    for (wrappers, leaf_tag, payload, parameters) in [
+        (vec![vector_tag, option_tag, cell_tag], uint_tag, 32, 0),
+        (Vec::new(), bool_tag, 0, 0),
+        (vec![option_tag], parameter_tag, 1, 2),
+    ] {
+        let native = native_unary_type_chain(&wrappers, leaf_tag, payload, parameters)
+            .expect("native type checker accepts chain");
+        let first = execute_type_chain(
+            &package, &approved, &wrappers, leaf_tag, payload, parameters,
+        );
+        let second = execute_type_chain(
+            &package, &approved, &wrappers, leaf_tag, payload, parameters,
+        );
+        assert_type_chain_ok(&first, native);
+        assert_eq!(first.termination, second.termination);
+    }
+
+    let boundary = vec![vector_tag; MAX_TYPE_DEPTH - 1];
+    let native = native_unary_type_chain(&boundary, bool_tag, 0, 0)
+        .expect("maximum legal type depth accepts");
+    assert_type_chain_ok(
+        &execute_type_chain(&package, &approved, &boundary, bool_tag, 0, 0),
+        native,
+    );
+}
+
+#[test]
+fn checker_unary_type_chains_preserve_depth_and_leaf_errors() {
+    use sley_check::TypeErrorCode;
+
+    let vector_tag = u64::from(TypeExpr::Vector(Box::new(TypeExpr::Bool)).tag());
+    let uint_tag = u64::from(u32_type().tag());
+    let parameter_tag = u64::from(TypeExpr::TypeParameter(0).tag());
+    let (package, approved) = admit_checker_program(&unary_type_chain_checker());
+    let cases = [
+        (Vec::new(), uint_tag, 24, 0, TypeErrorCode::WidthInvalid),
+        (
+            Vec::new(),
+            parameter_tag,
+            2,
+            2,
+            TypeErrorCode::ParameterOutOfScope,
+        ),
+        (
+            vec![vector_tag; MAX_TYPE_DEPTH],
+            uint_tag,
+            24,
+            0,
+            TypeErrorCode::DepthLimit,
+        ),
+    ];
+    for (wrappers, leaf_tag, payload, parameters, expected) in cases {
+        assert_eq!(
+            native_unary_type_chain(&wrappers, leaf_tag, payload, parameters),
+            Err(expected),
+            "native unary type-chain oracle"
+        );
+        assert_type_chain_error(
+            &execute_type_chain(
+                &package, &approved, &wrappers, leaf_tag, payload, parameters,
+            ),
+            expected,
         );
     }
 }
