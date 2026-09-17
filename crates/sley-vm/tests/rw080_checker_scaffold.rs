@@ -17,15 +17,21 @@
 //! inputs describe a two-block, one-operation Boolean CFG projection; Sley
 //! checks inventory, entry, ordinal, reachability, operand resolution,
 //! result index, and return type in native first-failure order. It returns
-//! either the native CFG code or a compact deterministic report. Construction
-//! provenance: machineresearch/sley-2.0/reweave/rw-080-checker-scaffold.md.
+//! either the native CFG code or a compact deterministic report. The later
+//! `option_switch_cfg_checker` covers the switch-specific target, selector,
+//! case, payload, and argument judgments for an `Option<Bool>` projection.
+//! Construction provenance:
+//! machineresearch/sley-2.0/reweave/rw-080-checker-scaffold.md,
+//! machineresearch/sley-2.0/reweave/rw-080-checker-single-cfg.md, and
+//! machineresearch/sley-2.0/reweave/rw-080-checker-option-switch.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
-    Block, CondBranchTerminator, ConstData, ConstValue, ConstantDefinition, FunctionGraph,
-    Immediate, IntegerWidth, Opcode, Operation, OperationResultRef, Parameter, ParameterRole,
-    Reachability, ReturnTerminator, TargetEdge, Terminator, TrapCode, TrapTerminator, TypeExpr,
-    ValueRef, Visibility,
+    Block, BuiltinCase, CaseKey, CondBranchTerminator, ConstData, ConstValue, ConstantDefinition,
+    FunctionGraph, Immediate, IntegerWidth, Opcode, Operation, OperationResultRef, Parameter,
+    ParameterRole, Reachability, ReturnTerminator, SwitchArgument, SwitchCase, SwitchEdge,
+    TargetEdge, Terminator, TrapCode, TrapTerminator, TypeExpr, ValueRef, VariantSwitchTerminator,
+    Visibility,
 };
 
 fn id(byte: u8) -> EntityId {
@@ -729,6 +735,296 @@ fn single_bool_cfg_checker() -> CheckerScaffold {
     }
 }
 
+/// Real bounded §1.2 judgment for the switch-specific CFG rules of an
+/// `Option<Bool>` selector. Runtime facts select the native failure surface;
+/// the Sley image owns the frozen first-failure ordering and report.
+#[allow(clippy::too_many_lines)]
+fn option_switch_cfg_checker() -> CheckerScaffold {
+    const FUNCTION_ID: u8 = 101;
+    const TARGET_VALID_PARAM: u8 = 102;
+    const SELECTOR_TYPE_PARAM: u8 = 103;
+    const CASE_COUNT_PARAM: u8 = 104;
+    const FIRST_KEY_PARAM: u8 = 105;
+    const SECOND_KEY_PARAM: u8 = 106;
+    const NONE_PAYLOAD_PARAM: u8 = 107;
+    const ARGUMENT_TYPES_PARAM: u8 = 108;
+
+    const TARGET_CHECK: u8 = 150;
+    const SELECTOR_CHECK: u8 = 151;
+    const CASE_COUNT_CHECK: u8 = 152;
+    const FIRST_KEY_CHECK: u8 = 153;
+    const SECOND_KEY_CHECK: u8 = 154;
+    const NONE_PAYLOAD_CHECK: u8 = 155;
+    const ARGUMENT_TYPES_CHECK: u8 = 156;
+    const SUCCESS: u8 = 157;
+    const TARGET_ERROR: u8 = 158;
+    const SWITCH_TYPE_ERROR: u8 = 159;
+    const SWITCH_CASES_ERROR: u8 = 160;
+    const SWITCH_PAYLOAD_ERROR: u8 = 161;
+    const TARGET_ARGUMENTS_ERROR: u8 = 162;
+
+    const K_OPTION_TAG: u8 = 170;
+    const K_TWO_U32: u8 = 171;
+    const K_NONE_TAG: u8 = 172;
+    const K_SOME_TAG: u8 = 173;
+    const K_THREE_U32: u8 = 174;
+    const K_TWO_EDGES: u8 = 175;
+    const K_EIGHT_WORK: u8 = 176;
+    const K_TARGET_ERROR: u8 = 177;
+    const K_SWITCH_TYPE_ERROR: u8 = 178;
+    const K_SWITCH_CASES_ERROR: u8 = 179;
+    const K_SWITCH_PAYLOAD_ERROR: u8 = 180;
+    const K_TARGET_ARGUMENTS_ERROR: u8 = 181;
+
+    let function = id(FUNCTION_ID);
+    let target_valid = id(TARGET_VALID_PARAM);
+    let selector_type = id(SELECTOR_TYPE_PARAM);
+    let case_count = id(CASE_COUNT_PARAM);
+    let first_key = id(FIRST_KEY_PARAM);
+    let second_key = id(SECOND_KEY_PARAM);
+    let none_payload = id(NONE_PAYLOAD_PARAM);
+    let argument_types = id(ARGUMENT_TYPES_PARAM);
+    let constants = vec![
+        ConstantDefinition {
+            entity_id: id(K_OPTION_TAG),
+            value: u32_value(u128::from(TypeExpr::Option(Box::new(TypeExpr::Bool)).tag())),
+        },
+        ConstantDefinition {
+            entity_id: id(K_TWO_U32),
+            value: u32_value(2),
+        },
+        ConstantDefinition {
+            entity_id: id(K_NONE_TAG),
+            value: u32_value(u128::from(BuiltinCase::None.tag())),
+        },
+        ConstantDefinition {
+            entity_id: id(K_SOME_TAG),
+            value: u32_value(u128::from(BuiltinCase::Some.tag())),
+        },
+        ConstantDefinition {
+            entity_id: id(K_THREE_U32),
+            value: u32_value(3),
+        },
+        ConstantDefinition {
+            entity_id: id(K_TWO_EDGES),
+            value: u32_value(2),
+        },
+        ConstantDefinition {
+            entity_id: id(K_EIGHT_WORK),
+            value: ConstValue {
+                value_type: u64_type(),
+                data: ConstData::UInt(8),
+            },
+        },
+        ConstantDefinition {
+            entity_id: id(K_TARGET_ERROR),
+            value: u32_value(u128::from(
+                sley_check::cfg::CfgErrorCode::TargetInvalid.numeric(),
+            )),
+        },
+        ConstantDefinition {
+            entity_id: id(K_SWITCH_TYPE_ERROR),
+            value: u32_value(u128::from(
+                sley_check::cfg::CfgErrorCode::SwitchType.numeric(),
+            )),
+        },
+        ConstantDefinition {
+            entity_id: id(K_SWITCH_CASES_ERROR),
+            value: u32_value(u128::from(
+                sley_check::cfg::CfgErrorCode::SwitchCases.numeric(),
+            )),
+        },
+        ConstantDefinition {
+            entity_id: id(K_SWITCH_PAYLOAD_ERROR),
+            value: u32_value(u128::from(
+                sley_check::cfg::CfgErrorCode::SwitchPayload.numeric(),
+            )),
+        },
+        ConstantDefinition {
+            entity_id: id(K_TARGET_ARGUMENTS_ERROR),
+            value: u32_value(u128::from(
+                sley_check::cfg::CfgErrorCode::TargetArguments.numeric(),
+            )),
+        },
+    ];
+
+    let mut builder = ScaffoldBuilder::new(function, selector_type);
+    builder.bool_branch(TARGET_CHECK, target_valid, SELECTOR_CHECK, TARGET_ERROR);
+    builder.equal_branch(
+        SELECTOR_CHECK,
+        selector_type,
+        id(K_OPTION_TAG),
+        CASE_COUNT_CHECK,
+        SWITCH_TYPE_ERROR,
+    );
+    builder.equal_branch(
+        CASE_COUNT_CHECK,
+        case_count,
+        id(K_TWO_U32),
+        FIRST_KEY_CHECK,
+        SWITCH_CASES_ERROR,
+    );
+    builder.equal_branch(
+        FIRST_KEY_CHECK,
+        first_key,
+        id(K_NONE_TAG),
+        SECOND_KEY_CHECK,
+        SWITCH_CASES_ERROR,
+    );
+    builder.equal_branch(
+        SECOND_KEY_CHECK,
+        second_key,
+        id(K_SOME_TAG),
+        NONE_PAYLOAD_CHECK,
+        SWITCH_CASES_ERROR,
+    );
+    builder.bool_branch(
+        NONE_PAYLOAD_CHECK,
+        none_payload,
+        SWITCH_PAYLOAD_ERROR,
+        ARGUMENT_TYPES_CHECK,
+    );
+    builder.bool_branch(
+        ARGUMENT_TYPES_CHECK,
+        argument_types,
+        SUCCESS,
+        TARGET_ARGUMENTS_ERROR,
+    );
+
+    let success_block = id(SUCCESS);
+    let reachable = builder.const_ref_as(success_block, 0, id(K_THREE_U32), u32_type());
+    let edges = builder.const_ref_as(success_block, 1, id(K_TWO_EDGES), u32_type());
+    let dominator_work = builder.const_ref_as(success_block, 2, id(K_EIGHT_WORK), u64_type());
+    let plan = builder.take_op();
+    builder.operations.push(Operation {
+        entity_id: plan,
+        block: success_block,
+        ordinal: 3,
+        opcode: Opcode::TupleNew,
+        operands: vec![
+            ValueRef::OperationResult(OperationResultRef {
+                operation: reachable,
+                result_index: 0,
+            }),
+            ValueRef::OperationResult(OperationResultRef {
+                operation: edges,
+                result_index: 0,
+            }),
+            ValueRef::OperationResult(OperationResultRef {
+                operation: dominator_work,
+                result_index: 0,
+            }),
+        ],
+        result_types: vec![check_plan_type()],
+        immediate: Immediate::None,
+    });
+    let ok = builder.take_op();
+    builder.operations.push(Operation {
+        entity_id: ok,
+        block: success_block,
+        ordinal: 4,
+        opcode: Opcode::ResultOk,
+        operands: vec![ValueRef::OperationResult(OperationResultRef {
+            operation: plan,
+            result_index: 0,
+        })],
+        result_types: vec![check_result_type()],
+        immediate: Immediate::None,
+    });
+    builder.blocks.push(Block {
+        entity_id: success_block,
+        function,
+        parameters: Vec::new(),
+        operations: vec![reachable, edges, dominator_work, plan, ok],
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::OperationResult(OperationResultRef {
+                operation: ok,
+                result_index: 0,
+            }),
+        }),
+        reachability: Reachability::Required,
+    });
+
+    for (block_id, constant_id) in [
+        (TARGET_ERROR, K_TARGET_ERROR),
+        (SWITCH_TYPE_ERROR, K_SWITCH_TYPE_ERROR),
+        (SWITCH_CASES_ERROR, K_SWITCH_CASES_ERROR),
+        (SWITCH_PAYLOAD_ERROR, K_SWITCH_PAYLOAD_ERROR),
+        (TARGET_ARGUMENTS_ERROR, K_TARGET_ARGUMENTS_ERROR),
+    ] {
+        let block = id(block_id);
+        let code = builder.const_ref_as(block, 0, id(constant_id), u32_type());
+        let failure = builder.take_op();
+        builder.operations.push(Operation {
+            entity_id: failure,
+            block,
+            ordinal: 1,
+            opcode: Opcode::ResultErr,
+            operands: vec![ValueRef::OperationResult(OperationResultRef {
+                operation: code,
+                result_index: 0,
+            })],
+            result_types: vec![check_result_type()],
+            immediate: Immediate::None,
+        });
+        builder.blocks.push(Block {
+            entity_id: block,
+            function,
+            parameters: Vec::new(),
+            operations: vec![code, failure],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::OperationResult(OperationResultRef {
+                    operation: failure,
+                    result_index: 0,
+                }),
+            }),
+            reachability: Reachability::Required,
+        });
+    }
+
+    let (blocks, operations) = builder.finish();
+    let parameter_specs = [
+        (target_valid, TypeExpr::Bool),
+        (selector_type, u32_type()),
+        (case_count, u32_type()),
+        (first_key, u32_type()),
+        (second_key, u32_type()),
+        (none_payload, TypeExpr::Bool),
+        (argument_types, TypeExpr::Bool),
+    ];
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: parameter_specs.iter().map(|(entity, _)| *entity).collect(),
+        result_type: check_result_type(),
+        effects: Vec::new(),
+        entry_block: id(TARGET_CHECK),
+        blocks: blocks.iter().map(|block| block.entity_id).collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameters = parameter_specs
+        .into_iter()
+        .enumerate()
+        .map(|(ordinal, (entity_id, value_type))| Parameter {
+            entity_id,
+            owner: function,
+            role: ParameterRole::Function,
+            ordinal: u32::try_from(ordinal).expect("bounded checker parameter ordinal"),
+            value_type,
+        })
+        .collect();
+    CheckerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph],
+        parameters,
+        blocks,
+        operations,
+        constants,
+    }
+}
+
 fn generous_limits() -> sley_vm::ExecutionLimits {
     sley_vm::ExecutionLimits {
         max_instructions: 10_000,
@@ -880,6 +1176,31 @@ impl SingleCfgFacts {
     };
 }
 
+#[derive(Clone, Copy, Debug)]
+struct OptionSwitchFacts {
+    target_valid: FactState,
+    selector_type: u32,
+    case_count: u32,
+    first_key: u32,
+    second_key: u32,
+    none_uses_payload: FactState,
+    argument_types_match: FactState,
+}
+
+impl OptionSwitchFacts {
+    fn valid() -> Self {
+        Self {
+            target_valid: FactState::Valid,
+            selector_type: TypeExpr::Option(Box::new(TypeExpr::Bool)).tag(),
+            case_count: 2,
+            first_key: BuiltinCase::None.tag(),
+            second_key: BuiltinCase::Some.tag(),
+            none_uses_payload: FactState::Invalid,
+            argument_types_match: FactState::Valid,
+        }
+    }
+}
+
 fn execute_single_cfg(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
@@ -907,6 +1228,34 @@ fn execute_single_cfg(
         },
     )
     .expect("v2 executes single-CFG checker")
+}
+
+fn execute_option_switch_cfg(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    facts: OptionSwitchFacts,
+) -> sley_vm::ExecutionOutcome {
+    let bool_value = |value| ConstValue {
+        value_type: TypeExpr::Bool,
+        data: ConstData::Bool(value),
+    };
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                bool_value(facts.target_valid.is_valid()),
+                u32_value(u128::from(facts.selector_type)),
+                u32_value(u128::from(facts.case_count)),
+                u32_value(u128::from(facts.first_key)),
+                u32_value(u128::from(facts.second_key)),
+                bool_value(facts.none_uses_payload.is_valid()),
+                bool_value(facts.argument_types_match.is_valid()),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes Option-switch CFG checker")
 }
 
 fn native_single_cfg(
@@ -1010,6 +1359,176 @@ fn native_single_cfg(
             panic!("single-CFG reference must not reach type error: {error}")
         }
     })
+}
+
+#[allow(clippy::too_many_lines)]
+fn native_option_switch_cfg(
+    facts: OptionSwitchFacts,
+) -> Result<sley_check::cfg::CfgReport, sley_check::cfg::CfgErrorCode> {
+    use sley_check::cfg::{CfgValidationError, validate_function_graph};
+
+    let function_id = id(1);
+    let entry_id = id(2);
+    let operation_id = id(3);
+    let none_target = id(4);
+    let some_target = id(5);
+    let missing_target = id(99);
+    let left = id(10);
+    let right = id(11);
+    let none_parameter = id(12);
+    let some_parameter = id(13);
+    let selector_is_option =
+        facts.selector_type == TypeExpr::Option(Box::new(TypeExpr::Bool)).tag();
+    let selector = ValueRef::OperationResult(OperationResultRef {
+        operation: operation_id,
+        result_index: 0,
+    });
+    let function = FunctionGraph {
+        entity_id: function_id,
+        type_parameters: Vec::new(),
+        parameters: vec![left, right],
+        result_type: TypeExpr::Bool,
+        effects: Vec::new(),
+        entry_block: entry_id,
+        blocks: vec![entry_id, none_target, some_target],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameters = vec![
+        Parameter {
+            entity_id: left,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 0,
+            value_type: TypeExpr::Bool,
+        },
+        Parameter {
+            entity_id: right,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 1,
+            value_type: TypeExpr::Bool,
+        },
+        Parameter {
+            entity_id: none_parameter,
+            owner: none_target,
+            role: ParameterRole::Block,
+            ordinal: 0,
+            value_type: if facts.argument_types_match.is_valid() {
+                TypeExpr::Bool
+            } else {
+                u32_type()
+            },
+        },
+        Parameter {
+            entity_id: some_parameter,
+            owner: some_target,
+            role: ParameterRole::Block,
+            ordinal: 0,
+            value_type: TypeExpr::Bool,
+        },
+    ];
+    let operation = Operation {
+        entity_id: operation_id,
+        block: entry_id,
+        ordinal: 0,
+        opcode: if selector_is_option {
+            Opcode::OptionSome
+        } else {
+            Opcode::BoolNot
+        },
+        operands: vec![ValueRef::Parameter(left)],
+        result_types: vec![if selector_is_option {
+            TypeExpr::Option(Box::new(TypeExpr::Bool))
+        } else {
+            TypeExpr::Bool
+        }],
+        immediate: Immediate::None,
+    };
+    let key = |tag| match tag {
+        1 => CaseKey::Builtin(BuiltinCase::None),
+        2 => CaseKey::Builtin(BuiltinCase::Some),
+        3 => CaseKey::Builtin(BuiltinCase::Ok),
+        4 => CaseKey::Builtin(BuiltinCase::Err),
+        other => panic!("Option-switch fixture key tag must be frozen, got {other}"),
+    };
+    let mut cases = vec![
+        SwitchCase {
+            case_key: key(facts.first_key),
+            edge: SwitchEdge {
+                target: none_target,
+                arguments: vec![if facts.none_uses_payload.is_valid() {
+                    SwitchArgument::CasePayload
+                } else {
+                    SwitchArgument::Value(ValueRef::Parameter(right))
+                }],
+            },
+        },
+        SwitchCase {
+            case_key: key(facts.second_key),
+            edge: SwitchEdge {
+                target: if facts.target_valid.is_valid() {
+                    some_target
+                } else {
+                    missing_target
+                },
+                arguments: vec![SwitchArgument::CasePayload],
+            },
+        },
+    ];
+    if facts.case_count == 3 {
+        cases.push(SwitchCase {
+            case_key: CaseKey::Builtin(BuiltinCase::Some),
+            edge: SwitchEdge {
+                target: some_target,
+                arguments: vec![SwitchArgument::CasePayload],
+            },
+        });
+    } else if facts.case_count != 2 {
+        panic!("bounded Option-switch fixture supports two or three cases")
+    }
+    let blocks = vec![
+        Block {
+            entity_id: entry_id,
+            function: function_id,
+            parameters: Vec::new(),
+            operations: vec![operation_id],
+            terminator: Terminator::VariantSwitch(VariantSwitchTerminator {
+                value: selector,
+                cases,
+            }),
+            reachability: Reachability::Required,
+        },
+        Block {
+            entity_id: none_target,
+            function: function_id,
+            parameters: vec![none_parameter],
+            operations: Vec::new(),
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::Parameter(none_parameter),
+            }),
+            reachability: Reachability::Required,
+        },
+        Block {
+            entity_id: some_target,
+            function: function_id,
+            parameters: vec![some_parameter],
+            operations: Vec::new(),
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::Parameter(some_parameter),
+            }),
+            reachability: Reachability::Required,
+        },
+    ];
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    validate_function_graph(&types, &function, &parameters, &blocks, &[operation]).map_err(
+        |error| match error {
+            CfgValidationError::Cfg(error) => error.code(),
+            CfgValidationError::Type(error) => {
+                panic!("Option-switch reference must not reach type error: {error}")
+            }
+        },
+    )
 }
 
 fn assert_cfg_ok(outcome: &sley_vm::ExecutionOutcome, report: &sley_check::cfg::CfgReport) {
@@ -1198,6 +1717,122 @@ fn checker_single_boolean_cfg_preserves_native_first_failure_codes() {
     for (facts, expected) in cases {
         assert_eq!(native_single_cfg(facts), Err(expected), "native oracle");
         assert_cfg_error(&execute_single_cfg(&package, &approved, facts), expected);
+    }
+}
+
+#[test]
+fn checker_option_switch_cfg_matches_native_report() {
+    let facts = OptionSwitchFacts::valid();
+    let (package, approved) = admit_checker_program(&option_switch_cfg_checker());
+    let native = native_option_switch_cfg(facts).expect("native checker accepts Option switch");
+    let first = execute_option_switch_cfg(&package, &approved, facts);
+    let second = execute_option_switch_cfg(&package, &approved, facts);
+    assert_cfg_ok(&first, &native);
+    assert_eq!(first.termination, second.termination);
+}
+
+#[test]
+fn checker_option_switch_cfg_preserves_native_first_failure_codes() {
+    use sley_check::cfg::CfgErrorCode;
+
+    let valid = OptionSwitchFacts::valid();
+    let (package, approved) = admit_checker_program(&option_switch_cfg_checker());
+    let cases = [
+        (
+            OptionSwitchFacts {
+                target_valid: FactState::Invalid,
+                ..valid
+            },
+            CfgErrorCode::TargetInvalid,
+        ),
+        (
+            OptionSwitchFacts {
+                selector_type: TypeExpr::Bool.tag(),
+                ..valid
+            },
+            CfgErrorCode::SwitchType,
+        ),
+        (
+            OptionSwitchFacts {
+                case_count: 3,
+                ..valid
+            },
+            CfgErrorCode::SwitchCases,
+        ),
+        (
+            OptionSwitchFacts {
+                first_key: BuiltinCase::Some.tag(),
+                ..valid
+            },
+            CfgErrorCode::SwitchCases,
+        ),
+        (
+            OptionSwitchFacts {
+                second_key: BuiltinCase::None.tag(),
+                ..valid
+            },
+            CfgErrorCode::SwitchCases,
+        ),
+        (
+            OptionSwitchFacts {
+                none_uses_payload: FactState::Valid,
+                ..valid
+            },
+            CfgErrorCode::SwitchPayload,
+        ),
+        (
+            OptionSwitchFacts {
+                argument_types_match: FactState::Invalid,
+                ..valid
+            },
+            CfgErrorCode::TargetArguments,
+        ),
+        (
+            OptionSwitchFacts {
+                target_valid: FactState::Invalid,
+                selector_type: TypeExpr::Bool.tag(),
+                case_count: 3,
+                ..valid
+            },
+            CfgErrorCode::TargetInvalid,
+        ),
+        (
+            OptionSwitchFacts {
+                selector_type: TypeExpr::Bool.tag(),
+                case_count: 3,
+                none_uses_payload: FactState::Valid,
+                ..valid
+            },
+            CfgErrorCode::SwitchType,
+        ),
+        (
+            OptionSwitchFacts {
+                case_count: 3,
+                none_uses_payload: FactState::Valid,
+                argument_types_match: FactState::Invalid,
+                ..valid
+            },
+            CfgErrorCode::SwitchCases,
+        ),
+        (
+            OptionSwitchFacts {
+                none_uses_payload: FactState::Valid,
+                argument_types_match: FactState::Invalid,
+                ..valid
+            },
+            CfgErrorCode::SwitchPayload,
+        ),
+    ];
+    for (facts, expected) in cases {
+        assert_eq!(
+            native_option_switch_cfg(facts),
+            Err(expected),
+            "native Option-switch oracle"
+        );
+        assert_cfg_error(
+            &execute_option_switch_cfg(&package, &approved, facts),
+            expected,
+        );
     }
 }
 
