@@ -123,10 +123,11 @@
         "machineresearch/sley-2.0/reweave/rw-080-lower-scaffold.md",
         "machineresearch/sley-2.0/reweave/rw-080-lower-single-op.md",
         "machineresearch/sley-2.0/reweave/rw-080-lower-inventory.md",
-        "machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md"
+        "machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-variant-switch.md"
       ],
       "status": "PROVISIONAL_BLOCKED_NOT_AUTHORITY",
-      "title": "Codec construction contract plus provisional C0 construction slices 1 to 11 under the 2026-09-07 operator development override"
+      "title": "Codec construction contract plus provisional C0 construction slices 1 to 12 under the 2026-09-07 operator development override"
   }
  ],
  "note": "Campaign-declaration registry read by scripts/build_anti_goal_conformance.py evaluate_campaign_declarations (RW-030 charter section 1, C-01/C-02 rule). A declaration is a citation of the authorized boundary record by exact path and raw-byte SHA-256 plus a staged gate from host-boundary.json gate_set; the checker verifies citation only. Semantic authorization of every item below is the operator decision ADOPT-REWEAVE-2026-09-06 recorded in docs/adr/ADR-0049-reweave-scope-adoption.md and the per-package review transcripts under machineresearch/sley-2.0/reviews/. Created by the architecture-tightening campaign (finding AT-NA-04) so the check no longer holds vacuously over landed SH2 work; items are appended, never rewritten."

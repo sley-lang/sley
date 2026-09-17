@@ -30,9 +30,10 @@ algorithm does not inspect only the first argument.
 Dense value registers and block slots must be below their supplied inventory
 counts. Trap tags must be in the frozen range 1 through 4, and an optional trap
 payload must name an allocated register. These failures return
-`VM_LOWER_LOCAL_REFERENCE_INVALID` (`26004`). The not-yet-implemented variant
-switch tag 4 returns `VM_LOWER_OPCODE_UNSUPPORTED` (`26001`) rather than being
-accepted partially. Arithmetic overflow inside the helper returns
+`VM_LOWER_LOCAL_REFERENCE_INVALID` (`26004`). This program continues to return
+`VM_LOWER_OPCODE_UNSUPPORTED` (`26001`) for variant-switch tag 4; the distinct
+runtime-inventory program recorded in `rw-080-lower-variant-switch.md` now owns
+that form. Arithmetic overflow inside the helper returns
 `VM_LOWER_RESOURCE_LIMIT` (`26006`). The in-bounds `VectorGet` absence path
 traps `InternalInvariant` and is unreachable for a conforming VM.
 
@@ -42,15 +43,16 @@ traps `InternalInvariant` and is unreachable for a conforming VM.
 forms and repeats every execution for determinism.
 `lower_simple_terminators_reject_invalid_dense_references` covers invalid
 return registers, targets, late edge arguments, trap codes, trap payloads, and
-the explicitly unsupported variant-switch form. All eleven tests in
-`rw080_lower_scaffold` pass; focused Clippy, formatting, and diff checks are
-clean; the anti-goal gate remains PASS.
+the explicitly delegated variant-switch form. The complete lower-scaffold test
+target now contains thirteen passing tests, including the later variant-switch
+slice; focused Clippy, formatting, and diff checks are clean; the anti-goal gate
+remains PASS.
 
 ## Explicit remainder
 
-Variant-switch cases, case keys, and case-payload arguments remain to be
-lowered. This slice consumes admitted compact facts rather than decoded
-checked SSMC closure objects. Block/function inventory traversal, complete
-register-type construction, callee-table construction, `SLEYBC02` emission,
-`EXEC_PACKAGE_V2` assembly, and `BuildError` remain RW-110 work. RW-080 and R2
-statuses stay provisional pending the recorded independent acceptance debt.
+Named-member variant keys remain outside the later built-in-switch slice. Both
+terminator programs consume admitted compact facts rather than decoded checked
+SSMC closure objects. Block/function inventory traversal, complete register-type
+construction, callee-table construction, `SLEYBC02` emission, `EXEC_PACKAGE_V2`
+assembly, and `BuildError` remain RW-110 work. RW-080 and R2 statuses stay
+provisional pending the recorded independent acceptance debt.
