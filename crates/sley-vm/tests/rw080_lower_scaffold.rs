@@ -60,6 +60,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-instruction-map-bytes.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-simple-terminator-bytes.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-switch-terminator-bytes.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-complete-terminator-bytes.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -11843,6 +11844,229 @@ fn builtin_switch_terminator_byte_encoder() -> LowerScaffold {
     }
 }
 
+fn build_complete_terminator_byte_appender(
+    assembler: &mut InventoryAssembler,
+    function: EntityId,
+    append_simple: EntityId,
+    append_switch: EntityId,
+) -> FunctionGraph {
+    let terminator = assembler.parameter(
+        function,
+        ParameterRole::Function,
+        0,
+        complete_terminator_model_type(),
+    );
+    let accumulator = assembler.parameter(function, ParameterRole::Function, 1, u8vec_type());
+    let entry = assembler.block_id();
+    let encode_simple = assembler.block_id();
+    let encode_switch = assembler.block_id();
+    let switch_kind = assembler.constant(u32_value(4));
+    let kind = assembler.operation(
+        entry,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(terminator)],
+        u32_type(),
+        Immediate::Index(0),
+    );
+    let simple = assembler.operation(
+        entry,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(terminator)],
+        terminator_model_type(),
+        Immediate::Index(1),
+    );
+    let switch = assembler.operation(
+        entry,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(terminator)],
+        builtin_switch_model_type(),
+        Immediate::Index(2),
+    );
+    let switch_tag = assembler.constant_ref(entry, switch_kind, u32_type());
+    let is_switch = assembler.operation(
+        entry,
+        Opcode::Equal,
+        vec![operation_value(kind), operation_value(switch_tag)],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![kind, simple, switch, switch_tag, is_switch],
+        inventory_cond(
+            operation_value(is_switch),
+            encode_switch,
+            vec![operation_value(switch), ValueRef::Parameter(accumulator)],
+            encode_simple,
+            vec![operation_value(simple), ValueRef::Parameter(accumulator)],
+        ),
+    );
+    for (block, model_type, callee) in [
+        (encode_simple, terminator_model_type(), append_simple),
+        (encode_switch, builtin_switch_model_type(), append_switch),
+    ] {
+        let model = assembler.parameter(block, ParameterRole::Block, 0, model_type);
+        let bytes = assembler.parameter(block, ParameterRole::Block, 1, u8vec_type());
+        let encoded = assembler.operation(
+            block,
+            Opcode::CallDirect,
+            vec![ValueRef::Parameter(model), ValueRef::Parameter(bytes)],
+            byte_vector_lower_result_type(),
+            Immediate::Function(FunctionRefValue {
+                function: callee,
+                type_arguments: Vec::new(),
+            }),
+        );
+        assembler.push_block(
+            block,
+            function,
+            vec![model, bytes],
+            vec![encoded],
+            Terminator::Return(ReturnTerminator {
+                value: operation_value(encoded),
+            }),
+        );
+    }
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![terminator, accumulator],
+        result_type: byte_vector_lower_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn complete_terminator_byte_encoder() -> LowerScaffold {
+    let narrow_u32 = inventory_id(5, 19);
+    let append_u32 = inventory_id(5, 20);
+    let narrow_u64 = inventory_id(5, 21);
+    let append_u64 = inventory_id(5, 22);
+    let append_u32_vector = inventory_id(5, 26);
+    let append_edge = inventory_id(5, 31);
+    let append_simple = inventory_id(5, 32);
+    let append_arguments = inventory_id(5, 33);
+    let append_cases = inventory_id(5, 34);
+    let append_switch = inventory_id(5, 35);
+    let function = inventory_id(5, 36);
+    let mut assembler = InventoryAssembler::new();
+    let narrow_u32_graph =
+        build_unsigned_octet_narrower(&mut assembler, narrow_u32, &u32_type(), u32_value);
+    let append_u32_graph = build_fixed_width_appender(
+        &mut assembler,
+        append_u32,
+        narrow_u32,
+        &u32_type(),
+        u32_value,
+        &[1_u128 << 24, 1_u128 << 16, 1_u128 << 8, 1],
+    );
+    let narrow_u64_graph =
+        build_unsigned_octet_narrower(&mut assembler, narrow_u64, &u64_type(), u64_value);
+    let append_u64_graph = build_fixed_width_appender(
+        &mut assembler,
+        append_u64,
+        narrow_u64,
+        &u64_type(),
+        u64_value,
+        &[
+            1_u128 << 56,
+            1_u128 << 48,
+            1_u128 << 40,
+            1_u128 << 32,
+            1_u128 << 24,
+            1_u128 << 16,
+            1_u128 << 8,
+            1,
+        ],
+    );
+    let append_u32_vector_graph = build_vector_byte_appender(
+        &mut assembler,
+        append_u32_vector,
+        append_u64,
+        append_u32,
+        &u32vec_type(),
+        &u32_type(),
+        true,
+    );
+    let append_edge_graph =
+        build_target_edge_byte_appender(&mut assembler, append_edge, append_u32, append_u32_vector);
+    let append_simple_graph = build_simple_terminator_byte_appender(
+        &mut assembler,
+        append_simple,
+        append_u32,
+        append_edge,
+    );
+    let append_arguments_graph = build_switch_arguments_byte_appender(
+        &mut assembler,
+        append_arguments,
+        append_u32,
+        append_u64,
+    );
+    let append_cases_graph = build_switch_cases_byte_appender(
+        &mut assembler,
+        append_cases,
+        append_u32,
+        append_u64,
+        append_arguments,
+    );
+    let append_switch_graph = build_builtin_switch_terminator_byte_appender(
+        &mut assembler,
+        append_switch,
+        append_u32,
+        append_cases,
+    );
+    let graph = build_complete_terminator_byte_appender(
+        &mut assembler,
+        function,
+        append_simple,
+        append_switch,
+    );
+    let adapter = AdapterImport {
+        entity_id: EntityId::from_bytes(sley_vm::host_abi::bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_PSH1,
+        )),
+        adapter_id: sley_vm::host_abi::bridge_identity(sley_vm::host_abi::BRIDGE_CODE_PSH1),
+        abi_version: sley_vm::host_abi::BRIDGE_ABI_VERSION,
+        request_type: u8_type(),
+        response_type: u8vec_type(),
+        failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+        effects: Vec::new(),
+    };
+    LowerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![
+            graph,
+            narrow_u32_graph,
+            append_u32_graph,
+            narrow_u64_graph,
+            append_u64_graph,
+            append_u32_vector_graph,
+            append_edge_graph,
+            append_simple_graph,
+            append_arguments_graph,
+            append_cases_graph,
+            append_switch_graph,
+        ],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+        adapters: vec![adapter],
+    }
+}
+
 /// Composes complete semantic lowering with exact SLEYBC02 function-body
 /// metadata emission. The returned bytes end after the canonical block count;
 /// ordered block bodies are the next serializer layer.
@@ -14430,6 +14654,26 @@ fn execute_builtin_switch_terminator_byte_encoder(
         },
     )
     .expect("v2 executes built-in-switch terminator byte encoder")
+}
+
+fn execute_complete_terminator_byte_encoder(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    terminator: &sley_vm::BytecodeTerminator,
+    prefix: &[u8],
+) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                complete_terminator_model_value(terminator),
+                u8vec_value(prefix),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes complete-terminator byte encoder")
 }
 
 fn execute_builtin_switch(
@@ -17213,6 +17457,49 @@ fn lower_complete_block_preserves_operation_before_switch_failures() {
         ),
         sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
     );
+}
+
+#[test]
+fn complete_terminator_byte_encoder_dispatches_every_family() {
+    use sley_ssmc::ResultConst;
+
+    let mut terminators = [1, 2, 3, 5]
+        .into_iter()
+        .map(|kind| native_simple_terminator(kind).0)
+        .collect::<Vec<_>>();
+    terminators.push(native_builtin_switch_terminator().0);
+    let scaffold = complete_terminator_byte_encoder();
+    let (package, approved) = admit_lower_program(&scaffold);
+    for (index, terminator) in terminators.iter().enumerate() {
+        let prefix = vec![0xC0, u8::try_from(index).expect("fixture index fits u8")];
+        let outcome =
+            execute_complete_terminator_byte_encoder(&package, &approved, terminator, &prefix);
+        let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+            panic!(
+                "complete-terminator encoder must terminate with a value, got {:?}",
+                outcome.termination
+            )
+        };
+        let ConstData::Result(ResultConst::Ok(encoded)) = &value.data else {
+            panic!(
+                "complete-terminator encoder must return Ok, got {:?}",
+                value.data
+            )
+        };
+        let ConstData::Sequence(found) = &encoded.data else {
+            panic!("complete-terminator encoder result must be an octet vector")
+        };
+        let found = found
+            .iter()
+            .map(|octet| match octet.data {
+                ConstData::UInt(value) => u8::try_from(value).expect("encoded octet fits u8"),
+                ref other => panic!("encoded octet must be UInt8, got {other:?}"),
+            })
+            .collect::<Vec<_>>();
+        let mut expected = prefix;
+        expected.extend_from_slice(&encoded_terminator(terminator));
+        assert_eq!(found, expected);
+    }
 }
 
 #[test]
