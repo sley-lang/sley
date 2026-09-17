@@ -42,6 +42,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-floating.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-values-cells.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-variadic.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-immediate-free.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-map-construction.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-bootstrap-immediates.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-immediate-inventory.md and
@@ -2400,11 +2401,11 @@ fn build_register_vector_validator(
     }
 }
 
-/// Lowers one runtime immediate-free operation whose complete operand vector
-/// is supplied after checking. A Sley helper walks every register before the
-/// main function derives the dense result frontier.
-#[allow(clippy::too_many_lines)]
-fn variadic_operation_lowerer() -> LowerScaffold {
+/// Lowers one runtime immediate-free bootstrap operation whose complete
+/// operand vector is supplied after checking. A Sley helper walks every
+/// register before the main function derives the dense result frontier.
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn immediate_free_operation_lowerer() -> LowerScaffold {
     let function = inventory_id(5, 6);
     let validator = inventory_id(5, 7);
     let mut assembler = InventoryAssembler::new();
@@ -2415,6 +2416,36 @@ fn variadic_operation_lowerer() -> LowerScaffold {
     let next_register = assembler.parameter(function, ParameterRole::Function, 2, u32_type());
 
     let entry = assembler.block_id();
+    let opcode_bool_and = assembler.block_id();
+    let opcode_bool_or = assembler.block_id();
+    let opcode_equal = assembler.block_id();
+    let opcode_not_equal = assembler.block_id();
+    let opcode_less = assembler.block_id();
+    let opcode_less_equal = assembler.block_id();
+    let opcode_greater = assembler.block_id();
+    let opcode_greater_equal = assembler.block_id();
+    let opcode_int_add = assembler.block_id();
+    let opcode_int_sub = assembler.block_id();
+    let opcode_int_mul = assembler.block_id();
+    let opcode_int_div = assembler.block_id();
+    let opcode_int_rem = assembler.block_id();
+    let opcode_int_neg = assembler.block_id();
+    let opcode_int_shl = assembler.block_id();
+    let opcode_int_shr = assembler.block_id();
+    let opcode_float_add = assembler.block_id();
+    let opcode_float_sub = assembler.block_id();
+    let opcode_float_mul = assembler.block_id();
+    let opcode_float_div = assembler.block_id();
+    let opcode_float_neg = assembler.block_id();
+    let opcode_option_some = assembler.block_id();
+    let opcode_option_none = assembler.block_id();
+    let opcode_result_ok = assembler.block_id();
+    let opcode_result_err = assembler.block_id();
+    let opcode_cell_new = assembler.block_id();
+    let opcode_cell_get = assembler.block_id();
+    let opcode_cell_set = assembler.block_id();
+    let opcode_value_hash = assembler.block_id();
+    let opcode_float_fma = assembler.block_id();
     let opcode_tuple_new = assembler.block_id();
     let opcode_vector_new = assembler.block_id();
     let opcode_vector_len = assembler.block_id();
@@ -2425,6 +2456,7 @@ fn variadic_operation_lowerer() -> LowerScaffold {
     let opcode_map_contains = assembler.block_id();
     let opcode_map_insert = assembler.block_id();
     let opcode_map_remove = assembler.block_id();
+    let count_zero = assembler.block_id();
     let count_one = assembler.block_id();
     let count_two = assembler.block_id();
     let count_three = assembler.block_id();
@@ -2438,7 +2470,40 @@ fn variadic_operation_lowerer() -> LowerScaffold {
     let signature_error = assembler.block_id();
     let resource_error = assembler.block_id();
 
-    let tags = [
+    let scalar_tags = [
+        Opcode::BoolNot,
+        Opcode::BoolAnd,
+        Opcode::BoolOr,
+        Opcode::Equal,
+        Opcode::NotEqual,
+        Opcode::LessThan,
+        Opcode::LessEqual,
+        Opcode::GreaterThan,
+        Opcode::GreaterEqual,
+        Opcode::IntAddChecked,
+        Opcode::IntSubChecked,
+        Opcode::IntMulChecked,
+        Opcode::IntDivChecked,
+        Opcode::IntRemChecked,
+        Opcode::IntNegChecked,
+        Opcode::IntShlChecked,
+        Opcode::IntShrChecked,
+        Opcode::FloatAdd,
+        Opcode::FloatSub,
+        Opcode::FloatMul,
+        Opcode::FloatDiv,
+        Opcode::FloatNeg,
+        Opcode::OptionSome,
+        Opcode::OptionNone,
+        Opcode::ResultOk,
+        Opcode::ResultErr,
+        Opcode::CellNew,
+        Opcode::CellGet,
+        Opcode::CellSet,
+        Opcode::ValueHash,
+    ]
+    .map(|value| assembler.constant(u32_value(u128::from(value.tag()))));
+    let variadic_tags = [
         Opcode::FloatFma,
         Opcode::TupleNew,
         Opcode::VectorNew,
@@ -2497,77 +2562,287 @@ fn variadic_operation_lowerer() -> LowerScaffold {
     dispatch(
         &mut assembler,
         entry,
-        tags[0],
+        scalar_tags[0],
+        count_one,
+        opcode_bool_and,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_bool_and,
+        scalar_tags[1],
+        count_two,
+        opcode_bool_or,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_bool_or,
+        scalar_tags[2],
+        count_two,
+        opcode_equal,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_equal,
+        scalar_tags[3],
+        count_two,
+        opcode_not_equal,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_not_equal,
+        scalar_tags[4],
+        count_two,
+        opcode_less,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_less,
+        scalar_tags[5],
+        count_two,
+        opcode_less_equal,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_less_equal,
+        scalar_tags[6],
+        count_two,
+        opcode_greater,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_greater,
+        scalar_tags[7],
+        count_two,
+        opcode_greater_equal,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_greater_equal,
+        scalar_tags[8],
+        count_two,
+        opcode_int_add,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_int_add,
+        scalar_tags[9],
+        count_two,
+        opcode_int_sub,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_int_sub,
+        scalar_tags[10],
+        count_two,
+        opcode_int_mul,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_int_mul,
+        scalar_tags[11],
+        count_two,
+        opcode_int_div,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_int_div,
+        scalar_tags[12],
+        count_two,
+        opcode_int_rem,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_int_rem,
+        scalar_tags[13],
+        count_two,
+        opcode_int_neg,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_int_neg,
+        scalar_tags[14],
+        count_one,
+        opcode_int_shl,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_int_shl,
+        scalar_tags[15],
+        count_two,
+        opcode_int_shr,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_int_shr,
+        scalar_tags[16],
+        count_two,
+        opcode_float_add,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_float_add,
+        scalar_tags[17],
+        count_two,
+        opcode_float_sub,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_float_sub,
+        scalar_tags[18],
+        count_two,
+        opcode_float_mul,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_float_mul,
+        scalar_tags[19],
+        count_two,
+        opcode_float_div,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_float_div,
+        scalar_tags[20],
+        count_two,
+        opcode_float_neg,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_float_neg,
+        scalar_tags[21],
+        count_one,
+        opcode_option_some,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_option_some,
+        scalar_tags[22],
+        count_one,
+        opcode_option_none,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_option_none,
+        scalar_tags[23],
+        count_zero,
+        opcode_result_ok,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_result_ok,
+        scalar_tags[24],
+        count_one,
+        opcode_result_err,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_result_err,
+        scalar_tags[25],
+        count_one,
+        opcode_cell_new,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_cell_new,
+        scalar_tags[26],
+        count_one,
+        opcode_cell_get,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_cell_get,
+        scalar_tags[27],
+        count_one,
+        opcode_cell_set,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_cell_set,
+        scalar_tags[28],
+        count_two,
+        opcode_value_hash,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_value_hash,
+        scalar_tags[29],
+        count_one,
+        opcode_float_fma,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_float_fma,
+        variadic_tags[0],
         count_three,
         opcode_tuple_new,
     );
     dispatch(
         &mut assembler,
         opcode_tuple_new,
-        tags[1],
+        variadic_tags[1],
         validate,
         opcode_vector_new,
     );
     dispatch(
         &mut assembler,
         opcode_vector_new,
-        tags[2],
+        variadic_tags[2],
         validate,
         opcode_vector_len,
     );
     dispatch(
         &mut assembler,
         opcode_vector_len,
-        tags[3],
+        variadic_tags[3],
         count_one,
         opcode_vector_get,
     );
     dispatch(
         &mut assembler,
         opcode_vector_get,
-        tags[4],
+        variadic_tags[4],
         count_two,
         opcode_vector_set,
     );
     dispatch(
         &mut assembler,
         opcode_vector_set,
-        tags[5],
+        variadic_tags[5],
         count_three,
         opcode_map_new,
     );
     dispatch(
         &mut assembler,
         opcode_map_new,
-        tags[6],
+        variadic_tags[6],
         map_new_count,
         opcode_map_get,
     );
     dispatch(
         &mut assembler,
         opcode_map_get,
-        tags[7],
+        variadic_tags[7],
         count_two,
         opcode_map_contains,
     );
     dispatch(
         &mut assembler,
         opcode_map_contains,
-        tags[8],
+        variadic_tags[8],
         count_two,
         opcode_map_insert,
     );
     dispatch(
         &mut assembler,
         opcode_map_insert,
-        tags[9],
+        variadic_tags[9],
         count_three,
         opcode_map_remove,
     );
     dispatch(
         &mut assembler,
         opcode_map_remove,
-        tags[10],
+        variadic_tags[10],
         count_two,
         opcode_error,
     );
@@ -2602,6 +2877,7 @@ fn variadic_operation_lowerer() -> LowerScaffold {
             ),
         );
     };
+    count_check(&mut assembler, count_zero, zero_u64);
     count_check(&mut assembler, count_one, one_u64);
     count_check(&mut assembler, count_two, two_u64);
     count_check(&mut assembler, count_three, three_u64);
@@ -5364,7 +5640,7 @@ fn execute_bool_inventory(
     .expect("v2 executes ordered Boolean inventory lowerer")
 }
 
-fn execute_variadic_operation(
+fn execute_immediate_free_operation(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
     opcode: Opcode,
@@ -5383,7 +5659,7 @@ fn execute_variadic_operation(
             limits: generous_limits(),
         },
     )
-    .expect("v2 executes variadic operation lowerer")
+    .expect("v2 executes immediate-free operation lowerer")
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -5663,7 +5939,7 @@ fn assert_inventory_error(outcome: &sley_vm::ExecutionOutcome, expected: u32) {
     assert_eq!(code.data, ConstData::UInt(u128::from(expected)));
 }
 
-fn assert_variadic_summary(
+fn assert_immediate_free_summary(
     outcome: &sley_vm::ExecutionOutcome,
     expected: &sley_vm::Instruction,
     expected_frontier: u32,
@@ -5680,16 +5956,19 @@ fn assert_variadic_summary(
         other => panic!("register list must be Vector, got {other:?}"),
     };
     let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
-        panic!("variadic lowering must terminate with a value")
+        panic!("immediate-free lowering must terminate with a value")
     };
     let ConstData::Result(ResultConst::Ok(summary)) = &value.data else {
-        panic!("variadic lowering must return Ok, got {:?}", value.data)
+        panic!(
+            "immediate-free lowering must return Ok, got {:?}",
+            value.data
+        )
     };
     let ConstData::Sequence(fields) = &summary.data else {
-        panic!("variadic summary must be a tuple")
+        panic!("immediate-free summary must be a tuple")
     };
     let ConstData::Sequence(instruction) = &fields[0].data else {
-        panic!("variadic instruction must be a tuple")
+        panic!("immediate-free instruction must be a tuple")
     };
     assert_eq!(
         instruction[0].data,
@@ -7128,8 +7407,69 @@ fn lower_ordered_scalar_inventory_checks_every_row_in_order() {
 }
 
 #[test]
-fn lower_variadic_operation_families_match_native_dense_models() {
-    let (package, approved) = admit_lower_program(&variadic_operation_lowerer());
+fn lower_immediate_free_operation_families_match_native_dense_models() {
+    let (package, approved) = admit_lower_program(&immediate_free_operation_lowerer());
+    for opcode in [
+        Opcode::BoolNot,
+        Opcode::BoolAnd,
+        Opcode::BoolOr,
+        Opcode::Equal,
+        Opcode::NotEqual,
+        Opcode::LessThan,
+        Opcode::LessEqual,
+        Opcode::GreaterThan,
+        Opcode::GreaterEqual,
+        Opcode::IntAddChecked,
+        Opcode::IntSubChecked,
+        Opcode::IntMulChecked,
+        Opcode::IntDivChecked,
+        Opcode::IntRemChecked,
+        Opcode::IntNegChecked,
+        Opcode::IntShlChecked,
+        Opcode::IntShrChecked,
+        Opcode::FloatAdd,
+        Opcode::FloatSub,
+        Opcode::FloatMul,
+        Opcode::FloatDiv,
+        Opcode::FloatNeg,
+        Opcode::OptionSome,
+        Opcode::OptionNone,
+        Opcode::ResultOk,
+        Opcode::ResultErr,
+        Opcode::ValueHash,
+    ] {
+        let expected = native_single_scalar(opcode);
+        let next_register = expected.results[0];
+        let first = execute_immediate_free_operation(
+            &package,
+            &approved,
+            opcode,
+            &expected.operands,
+            next_register,
+        );
+        let second = execute_immediate_free_operation(
+            &package,
+            &approved,
+            opcode,
+            &expected.operands,
+            next_register,
+        );
+        assert_immediate_free_summary(&first, &expected, next_register + 1);
+        assert_eq!(first.termination, second.termination);
+    }
+    for cell_instruction in native_cell_chain() {
+        let opcode = Opcode::from_tag(cell_instruction.opcode).expect("cell opcode is frozen");
+        let next_register = cell_instruction.results[0];
+        let outcome = execute_immediate_free_operation(
+            &package,
+            &approved,
+            opcode,
+            &cell_instruction.operands,
+            next_register,
+        );
+        assert_immediate_free_summary(&outcome, &cell_instruction, next_register + 1);
+    }
+
     for opcode in [
         Opcode::FloatFma,
         Opcode::TupleNew,
@@ -7146,47 +7486,47 @@ fn lower_variadic_operation_families_match_native_dense_models() {
         let expected = native_variadic_instruction(opcode);
         let next_register =
             u32::try_from(expected.operands.len()).expect("small variadic fixture arity");
-        let first = execute_variadic_operation(
+        let first = execute_immediate_free_operation(
             &package,
             &approved,
             opcode,
             &expected.operands,
             next_register,
         );
-        let second = execute_variadic_operation(
+        let second = execute_immediate_free_operation(
             &package,
             &approved,
             opcode,
             &expected.operands,
             next_register,
         );
-        assert_variadic_summary(&first, &expected, next_register + 1);
+        assert_immediate_free_summary(&first, &expected, next_register + 1);
         assert_eq!(first.termination, second.termination);
     }
 }
 
 #[test]
-fn lower_variadic_operation_families_preserve_failure_order() {
-    let (package, approved) = admit_lower_program(&variadic_operation_lowerer());
+fn lower_immediate_free_operation_families_preserve_failure_order() {
+    let (package, approved) = admit_lower_program(&immediate_free_operation_lowerer());
     for (outcome, expected) in [
         (
-            execute_variadic_operation(&package, &approved, Opcode::BoolAnd, &[0, 1], 2),
+            execute_immediate_free_operation(&package, &approved, Opcode::ConstantRef, &[0, 1], 2),
             sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
         ),
         (
-            execute_variadic_operation(&package, &approved, Opcode::VectorLen, &[0, 1], 2),
+            execute_immediate_free_operation(&package, &approved, Opcode::VectorLen, &[0, 1], 2),
             sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
         ),
         (
-            execute_variadic_operation(&package, &approved, Opcode::MapNew, &[0, 1, 2], 3),
+            execute_immediate_free_operation(&package, &approved, Opcode::MapNew, &[0, 1, 2], 3),
             sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
         ),
         (
-            execute_variadic_operation(&package, &approved, Opcode::FloatFma, &[0, 1, 3], 3),
+            execute_immediate_free_operation(&package, &approved, Opcode::FloatFma, &[0, 1, 3], 3),
             sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
         ),
         (
-            execute_variadic_operation(&package, &approved, Opcode::TupleNew, &[], u32::MAX),
+            execute_immediate_free_operation(&package, &approved, Opcode::TupleNew, &[], u32::MAX),
             sley_vm::LowerErrorCode::ResourceLimit.numeric(),
         ),
     ] {
