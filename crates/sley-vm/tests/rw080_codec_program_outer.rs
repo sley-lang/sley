@@ -473,6 +473,7 @@ fn decode_consts(a: &mut Asm, ns: Ns) -> DecodeConsts {
 #[allow(
     clippy::many_single_char_names,
     clippy::similar_names,
+    clippy::too_many_arguments,
     clippy::too_many_lines
 )]
 fn build_decode(a: &mut Asm, ns: Ns, fid: EntityId) -> (FunctionGraph, DecodeConsts) {
@@ -13658,6 +13659,7 @@ fn build_program_encode(
 #[allow(
     clippy::many_single_char_names,
     clippy::similar_names,
+    clippy::too_many_arguments,
     clippy::too_many_lines
 )]
 fn build_program_encode_with_mode(
@@ -28392,6 +28394,7 @@ fn namespace_probe_valid_and_encode_bytes() {
 }
 
 #[test]
+#[allow(clippy::type_complexity)]
 fn rw080_current_mechanism_f8_counted_parent_matches_native() {
     let (unrolled_pkg, unrolled_approved) =
         admit(&namespace_encode_image_with_mode(ParentCopyMode::Unrolled));
@@ -29185,7 +29188,11 @@ fn f6_liveness_result_type() -> TypeExpr {
     }
 }
 
-#[allow(clippy::too_many_lines, clippy::many_single_char_names)]
+#[allow(
+    clippy::too_many_lines,
+    clippy::many_single_char_names,
+    clippy::similar_names
+)]
 fn f6_tail(
     a: &mut Asm,
     ns: Ns,
@@ -30029,7 +30036,7 @@ fn assert_f6_ok(
 }
 
 #[test]
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::similar_names, clippy::too_many_lines)]
 fn rw080_current_mechanism_f6_live_length_vectors_match_independent_bytes() {
     use sley_mutate::value::EntryExposure;
     let (live_pkg, live_approved) =
