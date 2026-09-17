@@ -437,8 +437,10 @@ REVIEW_REQUIRED: lane review (Ariadne contract, Vulcan surface)
 RW-080 construction update (2026-09-17): a provisional raw-section envelope
 emitter/strict decoder, candidate vector, refusal tests, independent Python
 reproduction, and marker pin now exist. The header reuses the package-digest
-preimage exactly. AT-EC-07 remains open pending semantic section hydration,
-Sley-side section emission, and the required contract/surface review.
+preimage exactly. Bounded structural decoders now hydrate all four non-image
+sections and reconstruct an exact `ExecutionPackage` with repeated-binding
+and canonical-re-encoding checks. AT-EC-07 remains open pending Sley-side
+section emission and the required contract/surface review.
 
 ### 3.3 Conformance layering, BLACKGLASS wording, Witness boundary (spec sections 10, 11, 12)
 
@@ -2120,9 +2122,9 @@ Tier 1 on the closeout tip (per-step run of the 102 quick steps with SLEY2_MASTE
   capability token and summary pair, and the attempt, context and phase
   digests remain owner work (S20-500, S20-380, S20-360).
 - The EXEC_PACKAGE_V2 envelope byte codec (AT-EC-07) now has a provisional
-  raw-section framing implementation in RW-080; semantic hydration,
-  Sley-side section emission, and lane review remain. The SMP1 entity-body
-  query (AT-MW-02) is implemented in its later audit lane.
+  framing and structural hydration implementation in RW-080; Sley-side
+  section emission and lane review remain. The SMP1 entity-body query
+  (AT-MW-02) is implemented in its later audit lane.
 - The campaign edited machine-summary.json and bootstrap-manifest.json, which
   the RW-080 lane also maintains; the lane must rebase its next summary edit
   on the merged main.

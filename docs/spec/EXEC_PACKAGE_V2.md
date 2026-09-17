@@ -11,6 +11,7 @@ Current R2 candidate. `EXEC_PACKAGE_V1` v1 preserved byte-identical as history.
   this document (authoritative for rationale and rules).
 - Rust surface: `sley_vm::exec_package` (`package_digests_v2`,
   `encode_package_envelope_v2`, `decode_package_envelope_v2`,
+  `hydrate_package_envelope_v2`, the four structural section decoders,
   `approve_package_v2`, `verify_package_binding_v2`,
   `BOOTSTRAP_PROFILE_2_DIGEST`, `EXEC_PACKAGE_V2_*`; the raw v2
   constructor is crate-private with no public re-export) plus
@@ -87,11 +88,21 @@ are fixed transport overhead.
 `encode_package_envelope_v2` emits this layout and
 `decode_package_envelope_v2` strictly verifies the fixed profile/ABI/VM
 binding, bounds, no trailing bytes, and every section digest. The decoder
-returns raw canonical section bytes and performs no semantic hydration or
-admission judgment. Its candidate vector and independent Python reproduction
-are under `conformance/exec-package-envelope/v2/`. The package identity and
-all existing section encodings are unchanged. The envelope candidate remains
-provisional until the RW-080 contract/surface review accepts it.
+returns raw canonical section bytes and performs no semantic judgment or
+admission judgment. `decode_constants_section`, `decode_layouts_section`,
+`decode_imports_section`, and `decode_dependency_section` hydrate those bytes
+structurally with byte/count/depth bounds, strict tags, row framing, and
+duplicate-identity refusal. `hydrate_package_envelope_v2` composes the raw and
+section decoders, verifies the repeated entry/epoch/root/profile bindings,
+requires canonical byte-for-byte re-encoding, and reconstructs the exact
+`ExecutionPackage` plus its authenticated digests. It does not resolve
+references, judge types/contracts/closure claims, or mint admission evidence.
+
+The candidate vector and independent Python reproduction are under
+`conformance/exec-package-envelope/v2/`. The package identity and all existing
+section encodings are unchanged. The envelope candidate remains provisional
+until Sley emits the non-image sections and the RW-080 contract/surface review
+accepts it.
 
 ## Failure vocabulary
 
@@ -112,8 +123,8 @@ assignment, and RW-075/RW-080 semantics are unchanged by this table.
   digest, or entry/import consistency in `approve_package_v2`. Surfaces
   through `PackageExecutionError::Package`.
 - `PACKAGE_HYDRATION_REFUSED` — LIVE. Structural hydration refused:
-  duplicate identity or count bound in `hydrate_layouts`, and imports
-  manifest refusal.
+  duplicate identity or count bound in layouts, constants, imports, globals,
+  or contracts.
 - `PACKAGE_SECTION_DIGEST_MISMATCH` — LIVE on a header-bound section mismatch
   in `decode_package_envelope_v2`; ordinary in-process binding checks continue
   to report content mismatches as `PACKAGE_BINDING_MISMATCH`.
@@ -121,7 +132,7 @@ assignment, and RW-075/RW-080 semantics are unchanged by this table.
 The framing codes `PACKAGE_UNKNOWN_MAGIC`, `PACKAGE_UNSUPPORTED_VERSION`,
 `PACKAGE_TRUNCATED`, and `PACKAGE_TRAILING_DATA` are LIVE on the provisional
 RW-080 decoder. This does not make the candidate accepted runtime authority;
-the lane review and semantic section hydration remain outstanding.
+Sley-side section emission and the lane review remain outstanding.
 
 ## Authority failure vocabulary (owner adoption)
 
@@ -206,9 +217,11 @@ Disposition (architecture-tightening finding AT-HH-01, C_PRE_FREEZE_REPAIR):
 - V1 remains "preserved functional for legacy evidence only" as stated above;
   new executions use v2, whose literal was always correct.
 
-## Hydration (unchanged)
+## Hydration (unchanged boundary, serialized path implemented)
 
 Same allows/forbids as v1 (byte/framing decode, digest verification,
 bounds before allocation, allocation, structural hydration,
 exact-equality checks; never shape/reference/cycle/map-key/typechecking/
-inference/repair).
+inference/repair). The v2 serialized path implements these allowed mechanics
+through `hydrate_package_envelope_v2`; its result is unadmitted until matched
+to separately minted authority evidence.

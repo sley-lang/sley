@@ -63,8 +63,10 @@
 use sley_check::TypeEnvironment;
 use sley_id::{BytecodeCacheKey, EntityId, SchemaEpochId, SemanticFingerprint, StateRoot};
 use sley_ssmc::{
-    AdapterImport, BuiltinFailureKind, ConstantDefinition, ContractDefinition,
-    GlobalValueDefinition, TypeDefForm, TypeDefinition, TypeExpr, Visibility,
+    AdapterImport, BuiltinFailureKind, ConstantDefinition, ContractBinding, ContractDefinition,
+    ContractKind, ContractSource, FunctionType, GlobalValueDefinition, IntegerWidth, MemberId,
+    NamedType, RecordField, ResourceLimits, TypeDefForm, TypeDefinition, TypeExpr,
+    TypeParameterDef, VariantCase, Visibility,
 };
 
 use crate::bootstrap::BootstrapProfileReport;
@@ -300,6 +302,48 @@ pub struct DecodedPackageEnvelopeV2 {
     /// State root repeated in the package header.
     pub state_root: StateRoot,
     /// Header and section digests, including the digest of the exact header.
+    pub digests: PackageDigests,
+}
+
+/// Structurally decoded dependency/inventory section.
+///
+/// This carries the complete byte-level rows needed to reconstruct an
+/// [`ExecutionPackage`]. It does not assert that references resolve, that
+/// contracts are valid, or that the closure is semantically complete.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DecodedDependencySection {
+    /// Designated entry function.
+    pub entry: EntityId,
+    /// Exact schema epoch.
+    pub schema_epoch: SchemaEpochId,
+    /// Exact state root.
+    pub state_root: StateRoot,
+    /// Encoded cache/lowering profile.
+    pub profile: CacheProfile,
+    /// Encoded admitted execution limits.
+    pub admitted_limits: crate::execute::ExecutionLimits,
+    /// Gate-judged operation count.
+    pub gate_operation_count: u32,
+    /// Gate-admitted bridge-use count.
+    pub gate_bridge_uses: u32,
+    /// Gate-judged closure fingerprints in encoded order.
+    pub gate_closure_fingerprints: Vec<SemanticFingerprint>,
+    /// Complete global-value inventory.
+    pub globals: Vec<GlobalValueDefinition>,
+    /// Complete contract inventory.
+    pub contracts: Vec<ContractDefinition>,
+}
+
+/// A v2 envelope after strict framing and section hydration.
+///
+/// Admission is deliberately absent: this result reconstructs exact package
+/// bytes and their digests, but never mints or substitutes an admission
+/// receipt.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HydratedPackageEnvelopeV2 {
+    /// Reconstructed execution package.
+    pub package: ExecutionPackage,
+    /// Authenticated section and package digests from the envelope header.
     pub digests: PackageDigests,
 }
 
@@ -546,6 +590,201 @@ fn encode_type_expr(
     Ok(())
 }
 
+fn decoded_count(
+    cursor: &mut PackageEnvelopeCursor<'_>,
+    maximum: usize,
+    minimum_item_bytes: usize,
+) -> Result<usize, PackageError> {
+    let count = usize::try_from(cursor.u64()?).map_err(|_| PackageError::Oversized)?;
+    if count > maximum {
+        return Err(PackageError::Oversized);
+    }
+    if minimum_item_bytes != 0 && count > cursor.remaining() / minimum_item_bytes {
+        return Err(PackageError::Truncated);
+    }
+    Ok(count)
+}
+
+fn decoded_visibility(tag: u32) -> Result<Visibility, PackageError> {
+    match tag {
+        1 => Ok(Visibility::Private),
+        2 => Ok(Visibility::Package),
+        3 => Ok(Visibility::Workspace),
+        4 => Ok(Visibility::Exported),
+        _ => Err(PackageError::Malformed),
+    }
+}
+
+fn decoded_builtin_failure(tag: u16) -> Result<BuiltinFailureKind, PackageError> {
+    match tag {
+        1 => Ok(BuiltinFailureKind::Arithmetic),
+        2 => Ok(BuiltinFailureKind::Index),
+        3 => Ok(BuiltinFailureKind::DuplicateKey),
+        4 => Ok(BuiltinFailureKind::ContractViolation),
+        5 => Ok(BuiltinFailureKind::Capability),
+        _ => Err(PackageError::Malformed),
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn decode_type_expr(
+    cursor: &mut PackageEnvelopeCursor<'_>,
+    depth: usize,
+) -> Result<TypeExpr, PackageError> {
+    if depth > sley_ssmc::MAX_TYPE_DEPTH {
+        return Err(PackageError::Malformed);
+    }
+    let next = depth.saturating_add(1);
+    match cursor.u32()? {
+        1 => Ok(TypeExpr::Unit),
+        2 => Ok(TypeExpr::Bool),
+        3 => Ok(TypeExpr::SInt(IntegerWidth::from_bits(cursor.u16()?))),
+        4 => Ok(TypeExpr::UInt(IntegerWidth::from_bits(cursor.u16()?))),
+        5 => Ok(TypeExpr::F32),
+        6 => Ok(TypeExpr::F64),
+        7 => Ok(TypeExpr::Bytes),
+        8 => Ok(TypeExpr::Text),
+        9 => {
+            let count = decoded_count(cursor, sley_ssmc::MAX_TUPLE_ITEMS, 4)?;
+            let mut items = Vec::with_capacity(count);
+            for _ in 0..count {
+                items.push(decode_type_expr(cursor, next)?);
+            }
+            Ok(TypeExpr::Tuple(items))
+        }
+        10 => {
+            if cursor.u32()? != 1 {
+                return Err(PackageError::Malformed);
+            }
+            let definition = EntityId::from_bytes(cursor.fixed_32()?);
+            let count = decoded_count(cursor, sley_ssmc::MAX_TYPE_ARGUMENTS, 4)?;
+            let mut arguments = Vec::with_capacity(count);
+            for _ in 0..count {
+                arguments.push(decode_type_expr(cursor, next)?);
+            }
+            Ok(TypeExpr::Named(NamedType {
+                definition,
+                arguments,
+            }))
+        }
+        11 => Ok(TypeExpr::Vector(Box::new(decode_type_expr(cursor, next)?))),
+        12 => Ok(TypeExpr::OrderedMap {
+            key: Box::new(decode_type_expr(cursor, next)?),
+            value: Box::new(decode_type_expr(cursor, next)?),
+        }),
+        13 => Ok(TypeExpr::Option(Box::new(decode_type_expr(cursor, next)?))),
+        14 => Ok(TypeExpr::Result {
+            ok: Box::new(decode_type_expr(cursor, next)?),
+            error: Box::new(decode_type_expr(cursor, next)?),
+        }),
+        15 => {
+            let count = decoded_count(cursor, sley_ssmc::MAX_MEMBERS, 4)?;
+            let mut parameters = Vec::with_capacity(count);
+            for _ in 0..count {
+                parameters.push(decode_type_expr(cursor, next)?);
+            }
+            let result = Box::new(decode_type_expr(cursor, next)?);
+            let effect_count = decoded_count(cursor, EXEC_PACKAGE_MAX_DEFINITIONS, 36)?;
+            let mut effects = Vec::with_capacity(effect_count);
+            for _ in 0..effect_count {
+                if cursor.u32()? != 1 {
+                    return Err(PackageError::Malformed);
+                }
+                effects.push(EntityId::from_bytes(cursor.fixed_32()?));
+            }
+            Ok(TypeExpr::FunctionRef(FunctionType {
+                parameters,
+                result,
+                effects,
+            }))
+        }
+        16 => {
+            if cursor.u32()? != 1 {
+                return Err(PackageError::Malformed);
+            }
+            Ok(TypeExpr::AdapterHandle(EntityId::from_bytes(
+                cursor.fixed_32()?,
+            )))
+        }
+        17 => {
+            if cursor.u32()? != 1 {
+                return Err(PackageError::Malformed);
+            }
+            Ok(TypeExpr::CapabilityToken(EntityId::from_bytes(
+                cursor.fixed_32()?,
+            )))
+        }
+        18 => Ok(TypeExpr::LocalCell(Box::new(decode_type_expr(
+            cursor, next,
+        )?))),
+        19 => Ok(TypeExpr::TypeParameter(cursor.u32()?)),
+        20 => Ok(TypeExpr::BuiltinFailure(decoded_builtin_failure(
+            cursor.u16()?,
+        )?)),
+        _ => Err(PackageError::Malformed),
+    }
+}
+
+fn decode_type_definition(input: &[u8]) -> Result<TypeDefinition, PackageError> {
+    let mut cursor = PackageEnvelopeCursor::new(input);
+    let entity_id = EntityId::from_bytes(cursor.fixed_32()?);
+    let parameter_count = decoded_count(&mut cursor, sley_ssmc::MAX_TYPE_ARGUMENTS, 4)?;
+    let mut type_parameters = Vec::with_capacity(parameter_count);
+    for _ in 0..parameter_count {
+        type_parameters.push(TypeParameterDef {
+            ordinal: cursor.u32()?,
+        });
+    }
+    let form = match cursor.u32()? {
+        1 => {
+            let field_count = decoded_count(&mut cursor, sley_ssmc::MAX_MEMBERS, 40)?;
+            let mut fields = Vec::with_capacity(field_count);
+            for _ in 0..field_count {
+                fields.push(RecordField {
+                    member_id: MemberId::from_bytes(cursor.fixed_32()?),
+                    value_type: decode_type_expr(&mut cursor, 1)?,
+                    visibility: decoded_visibility(cursor.u32()?)?,
+                });
+            }
+            TypeDefForm::Record(fields)
+        }
+        2 => {
+            let case_count = decoded_count(&mut cursor, sley_ssmc::MAX_MEMBERS, 36)?;
+            let mut cases = Vec::with_capacity(case_count);
+            for _ in 0..case_count {
+                let member_id = MemberId::from_bytes(cursor.fixed_32()?);
+                let payload_type = match cursor.u32()? {
+                    1 => None,
+                    2 => Some(decode_type_expr(&mut cursor, 1)?),
+                    _ => return Err(PackageError::Malformed),
+                };
+                cases.push(VariantCase {
+                    member_id,
+                    payload_type,
+                });
+            }
+            TypeDefForm::Variant(cases)
+        }
+        _ => return Err(PackageError::Malformed),
+    };
+    let invariant_count = decoded_count(&mut cursor, EXEC_PACKAGE_MAX_CONTRACTS, 32)?;
+    let mut invariants = Vec::with_capacity(invariant_count);
+    for _ in 0..invariant_count {
+        invariants.push(EntityId::from_bytes(cursor.fixed_32()?));
+    }
+    let visibility = decoded_visibility(cursor.u32()?)?;
+    if cursor.remaining() != 0 {
+        return Err(PackageError::Malformed);
+    }
+    Ok(TypeDefinition {
+        entity_id,
+        type_parameters,
+        form,
+        invariants,
+        visibility,
+    })
+}
+
 /// Structural definition encoder under the owning section ceiling.
 ///
 /// # Errors
@@ -633,6 +872,33 @@ fn encode_adapter_import(
     Ok(())
 }
 
+fn decode_adapter_import(input: &[u8]) -> Result<AdapterImport, PackageError> {
+    let mut cursor = PackageEnvelopeCursor::new(input);
+    let entity_id = EntityId::from_bytes(cursor.fixed_32()?);
+    let adapter_id = cursor.fixed_32()?;
+    let abi_version = cursor.u32()?;
+    let request_type = decode_type_expr(&mut cursor, 1)?;
+    let response_type = decode_type_expr(&mut cursor, 1)?;
+    let failure_type = decode_type_expr(&mut cursor, 1)?;
+    let effect_count = decoded_count(&mut cursor, EXEC_PACKAGE_MAX_DEFINITIONS, 32)?;
+    let mut effects = Vec::with_capacity(effect_count);
+    for _ in 0..effect_count {
+        effects.push(EntityId::from_bytes(cursor.fixed_32()?));
+    }
+    if cursor.remaining() != 0 {
+        return Err(PackageError::Malformed);
+    }
+    Ok(AdapterImport {
+        entity_id,
+        adapter_id,
+        abi_version,
+        request_type,
+        response_type,
+        failure_type,
+        effects,
+    })
+}
+
 /// Canonical constants-section bytes (count plus length-prefixed rows of
 /// entity identity beside the encoded constant value).
 ///
@@ -666,6 +932,52 @@ pub fn encode_constants_section(constants: &[ConstantDefinition]) -> Result<Vec<
     Ok(output)
 }
 
+/// Strictly decodes the canonical constants section.
+///
+/// This is structural hydration only: it checks framing, the count and byte
+/// ceilings, duplicate identities, and canonical constant-value encoding.
+/// It performs no type or persistability judgment.
+///
+/// # Errors
+///
+/// Returns `Oversized` for section/count ceilings, `Truncated` for incomplete
+/// rows, `Malformed` for non-canonical values or bytes after the declared
+/// inventory, and `HydrationRefused` for duplicate identities.
+pub fn decode_constants_section(input: &[u8]) -> Result<Vec<ConstantDefinition>, PackageError> {
+    const MINIMUM_ROW_BYTES: usize = 32 + 8;
+
+    if input.len() > EXEC_PACKAGE_MAX_CONSTANTS_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    let mut cursor = PackageEnvelopeCursor::new(input);
+    let count = usize::try_from(cursor.u64()?).map_err(|_| PackageError::Oversized)?;
+    if count > EXEC_PACKAGE_MAX_CONSTANTS {
+        return Err(PackageError::Oversized);
+    }
+    if count > cursor.remaining() / MINIMUM_ROW_BYTES {
+        return Err(PackageError::Truncated);
+    }
+    let mut constants = Vec::with_capacity(count);
+    let mut identities = std::collections::BTreeSet::new();
+    for _ in 0..count {
+        let entity_id = EntityId::from_bytes(cursor.fixed_32()?);
+        if !identities.insert(entity_id) {
+            return Err(PackageError::HydrationRefused);
+        }
+        let value_len = usize::try_from(cursor.u64()?).map_err(|_| PackageError::Oversized)?;
+        if value_len > EXEC_PACKAGE_MAX_CONSTANTS_BYTES {
+            return Err(PackageError::Oversized);
+        }
+        let value = sley_mutate::decode_const_value(cursor.take(value_len)?)
+            .map_err(|_| PackageError::Malformed)?;
+        constants.push(ConstantDefinition { entity_id, value });
+    }
+    if cursor.remaining() != 0 {
+        return Err(PackageError::Malformed);
+    }
+    Ok(constants)
+}
+
 /// Canonical layouts-section bytes: count + each encoded definition.
 ///
 /// # Errors
@@ -690,6 +1002,46 @@ pub fn encode_layouts_section(definitions: &[TypeDefinition]) -> Result<Vec<u8>,
         return Err(PackageError::Oversized);
     }
     Ok(output)
+}
+
+/// Strictly decodes the canonical layouts section without semantic judgment.
+///
+/// # Errors
+///
+/// Returns structural `PackageError` values for bounds, truncation, invalid
+/// tags/shapes, bytes after a row or section, and duplicate definition IDs.
+pub fn decode_layouts_section(input: &[u8]) -> Result<Vec<TypeDefinition>, PackageError> {
+    // u64 row length + the smallest definition row: entity, empty type
+    // parameters, record tag, empty field count, empty invariant count,
+    // visibility.
+    const MINIMUM_FRAMED_DEFINITION_BYTES: usize = 8 + 32 + 8 + 4 + 8 + 8 + 4;
+
+    if input.len() > EXEC_PACKAGE_MAX_LAYOUTS_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    let mut cursor = PackageEnvelopeCursor::new(input);
+    let count = decoded_count(
+        &mut cursor,
+        EXEC_PACKAGE_MAX_DEFINITIONS,
+        MINIMUM_FRAMED_DEFINITION_BYTES,
+    )?;
+    let mut definitions = Vec::with_capacity(count);
+    let mut identities = std::collections::BTreeSet::new();
+    for _ in 0..count {
+        let row_len = usize::try_from(cursor.u64()?).map_err(|_| PackageError::Oversized)?;
+        if row_len > EXEC_PACKAGE_MAX_LAYOUTS_BYTES {
+            return Err(PackageError::Oversized);
+        }
+        let definition = decode_type_definition(cursor.take(row_len)?)?;
+        if !identities.insert(definition.entity_id) {
+            return Err(PackageError::HydrationRefused);
+        }
+        definitions.push(definition);
+    }
+    if cursor.remaining() != 0 {
+        return Err(PackageError::Malformed);
+    }
+    Ok(definitions)
 }
 
 /// Canonical exact-row imports-section bytes: count + each encoded row.
@@ -721,12 +1073,54 @@ pub fn encode_imports_section(imports: &[AdapterImport]) -> Result<Vec<u8>, Pack
     Ok(output)
 }
 
+/// Strictly decodes the canonical exact-row imports section.
+///
+/// # Errors
+///
+/// Returns structural `PackageError` values for bounds, truncation, invalid
+/// tags/shapes, bytes after a row or section, and duplicate entity or adapter
+/// identities. Registry admissibility remains outside this decoder.
+pub fn decode_imports_section(input: &[u8]) -> Result<Vec<AdapterImport>, PackageError> {
+    // u64 row length + entity, adapter, ABI, three minimum type tags, and an
+    // empty effects count.
+    const MINIMUM_FRAMED_IMPORT_BYTES: usize = 8 + 32 + 32 + 4 + (3 * 4) + 8;
+
+    if input.len() > EXEC_PACKAGE_MAX_IMPORTS_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    let mut cursor = PackageEnvelopeCursor::new(input);
+    let count = decoded_count(
+        &mut cursor,
+        EXEC_PACKAGE_MAX_IMPORTS,
+        MINIMUM_FRAMED_IMPORT_BYTES,
+    )?;
+    let mut imports = Vec::with_capacity(count);
+    let mut entity_ids = std::collections::BTreeSet::new();
+    let mut adapter_ids = std::collections::BTreeSet::new();
+    for _ in 0..count {
+        let row_len = usize::try_from(cursor.u64()?).map_err(|_| PackageError::Oversized)?;
+        if row_len > EXEC_PACKAGE_MAX_IMPORTS_BYTES {
+            return Err(PackageError::Oversized);
+        }
+        let row = decode_adapter_import(cursor.take(row_len)?)?;
+        if !entity_ids.insert(row.entity_id) || !adapter_ids.insert(row.adapter_id) {
+            return Err(PackageError::HydrationRefused);
+        }
+        imports.push(row);
+    }
+    if cursor.remaining() != 0 {
+        return Err(PackageError::Malformed);
+    }
+    Ok(imports)
+}
+
 /// Dependency/inventory section bytes: entry + epoch + root + profile +
 /// VM/lowerer versions + admitted limits + global/contract counts and IDs.
 ///
-/// Globals and contracts travel by reference (initializer/contract IDs bound
-/// here; their bodies are canonical repository state, not execution
-/// immediates). This section binds the complete dependency/inventory digest.
+/// Globals and contracts carry their complete structural rows. Entity
+/// references inside those rows remain unresolved: their semantic validity is
+/// compiler-owned and is bound by admission rather than judged by this codec.
+/// This section binds the complete dependency/inventory digest.
 ///
 /// # Errors
 ///
@@ -833,6 +1227,161 @@ pub fn encode_dependency_section(package: &ExecutionPackage) -> Result<Vec<u8>, 
         return Err(PackageError::Oversized);
     }
     Ok(output)
+}
+
+fn decoded_contract_kind(tag: u32) -> Result<ContractKind, PackageError> {
+    match tag {
+        1 => Ok(ContractKind::Precondition),
+        2 => Ok(ContractKind::Postcondition),
+        3 => Ok(ContractKind::Invariant),
+        4 => Ok(ContractKind::EffectBound),
+        5 => Ok(ContractKind::CapabilityBound),
+        6 => Ok(ContractKind::ResultPredicate),
+        7 => Ok(ContractKind::ResourceCeiling),
+        _ => Err(PackageError::Malformed),
+    }
+}
+
+fn decode_contract_source(
+    cursor: &mut PackageEnvelopeCursor<'_>,
+) -> Result<ContractSource, PackageError> {
+    match cursor.u32()? {
+        1 => Ok(ContractSource::Parameter(EntityId::from_bytes(
+            cursor.fixed_32()?,
+        ))),
+        2 => Ok(ContractSource::Result),
+        3 => Ok(ContractSource::Error),
+        4 => Ok(ContractSource::Global(EntityId::from_bytes(
+            cursor.fixed_32()?,
+        ))),
+        _ => Err(PackageError::Malformed),
+    }
+}
+
+/// Strictly decodes the dependency/inventory section.
+///
+/// The decoder bounds every allocation, rejects duplicate global/contract
+/// identities, and carries types and references exactly. It does not resolve
+/// references, judge contracts, or validate the claimed gate evidence.
+///
+/// # Errors
+///
+/// Returns structural `PackageError` values for byte/count ceilings,
+/// truncation, invalid tags, trailing bytes, and duplicate identities.
+#[allow(clippy::too_many_lines)]
+pub fn decode_dependency_section(input: &[u8]) -> Result<DecodedDependencySection, PackageError> {
+    const MINIMUM_GLOBAL_BYTES: usize = 32 + 4 + 32 + 4;
+    const MINIMUM_CONTRACT_BYTES: usize = 32 + 32 + 4 + 32 + 8 + 4;
+
+    if input.len() > EXEC_PACKAGE_MAX_DEPENDENCY_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    let mut cursor = PackageEnvelopeCursor::new(input);
+    let entry = EntityId::from_bytes(cursor.fixed_32()?);
+    let schema_epoch = SchemaEpochId::from_bytes(cursor.fixed_32()?);
+    let state_root = StateRoot::from_bytes(cursor.fixed_32()?);
+    let profile = CacheProfile {
+        vm_version: [cursor.u32()?, cursor.u32()?, cursor.u32()?],
+        lowering_profile: cursor.u32()?,
+        lowerer_version: [cursor.u32()?, cursor.u32()?, cursor.u32()?],
+        entry_type_arguments: cursor.u64()?,
+        adapter_abi_entries: cursor.u64()?,
+        execution_abi_flags: cursor.u64()?,
+    };
+    let gate_operation_count = cursor.u32()?;
+    let gate_bridge_uses = cursor.u32()?;
+    let fingerprint_count = decoded_count(&mut cursor, EXEC_PACKAGE_MAX_DEPENDENCY_BYTES / 32, 32)?;
+    let mut gate_closure_fingerprints = Vec::with_capacity(fingerprint_count);
+    for _ in 0..fingerprint_count {
+        gate_closure_fingerprints.push(SemanticFingerprint::from_bytes(cursor.fixed_32()?));
+    }
+    let admitted_limits = crate::execute::ExecutionLimits {
+        max_instructions: cursor.u64()?,
+        max_fuel: cursor.u64()?,
+        max_value_units: cursor.u64()?,
+        max_output_units: cursor.u64()?,
+        cancel_at_fuel: match cursor.u32()? {
+            1 => None,
+            2 => Some(cursor.u64()?),
+            _ => return Err(PackageError::Malformed),
+        },
+    };
+
+    let global_count = decoded_count(&mut cursor, EXEC_PACKAGE_MAX_GLOBALS, MINIMUM_GLOBAL_BYTES)?;
+    let mut globals = Vec::with_capacity(global_count);
+    let mut global_ids = std::collections::BTreeSet::new();
+    for _ in 0..global_count {
+        let entity_id = EntityId::from_bytes(cursor.fixed_32()?);
+        if !global_ids.insert(entity_id) {
+            return Err(PackageError::HydrationRefused);
+        }
+        globals.push(GlobalValueDefinition {
+            entity_id,
+            value_type: decode_type_expr(&mut cursor, 1)?,
+            initializer: EntityId::from_bytes(cursor.fixed_32()?),
+            visibility: decoded_visibility(cursor.u32()?)?,
+        });
+    }
+
+    let contract_count = decoded_count(
+        &mut cursor,
+        EXEC_PACKAGE_MAX_CONTRACTS,
+        MINIMUM_CONTRACT_BYTES,
+    )?;
+    let mut contracts = Vec::with_capacity(contract_count);
+    let mut contract_ids = std::collections::BTreeSet::new();
+    for _ in 0..contract_count {
+        let entity_id = EntityId::from_bytes(cursor.fixed_32()?);
+        if !contract_ids.insert(entity_id) {
+            return Err(PackageError::HydrationRefused);
+        }
+        let target = EntityId::from_bytes(cursor.fixed_32()?);
+        let contract_kind = decoded_contract_kind(cursor.u32()?)?;
+        let predicate = EntityId::from_bytes(cursor.fixed_32()?);
+        let binding_count = decoded_count(&mut cursor, EXEC_PACKAGE_MAX_DEPENDENCY_BYTES / 8, 8)?;
+        let mut bindings = Vec::with_capacity(binding_count);
+        for _ in 0..binding_count {
+            bindings.push(ContractBinding {
+                predicate_parameter: cursor.u32()?,
+                source: decode_contract_source(&mut cursor)?,
+            });
+        }
+        let resource_limits = match cursor.u32()? {
+            1 => None,
+            2 => Some(ResourceLimits {
+                fuel: cursor.u64()?,
+                memory_bytes: cursor.u64()?,
+                output_bytes: cursor.u64()?,
+                effect_count: cursor.u64()?,
+                call_depth: cursor.u64()?,
+                wall_timeout_millis: cursor.u64()?,
+            }),
+            _ => return Err(PackageError::Malformed),
+        };
+        contracts.push(ContractDefinition {
+            entity_id,
+            target,
+            contract_kind,
+            predicate,
+            bindings,
+            resource_limits,
+        });
+    }
+    if cursor.remaining() != 0 {
+        return Err(PackageError::Malformed);
+    }
+    Ok(DecodedDependencySection {
+        entry,
+        schema_epoch,
+        state_root,
+        profile,
+        admitted_limits,
+        gate_operation_count,
+        gate_bridge_uses,
+        gate_closure_fingerprints,
+        globals,
+        contracts,
+    })
 }
 
 /// Computes every section digest plus the package identity for one package.
@@ -1024,6 +1573,10 @@ impl<'a> PackageEnvelopeCursor<'a> {
         Self { bytes, position: 0 }
     }
 
+    const fn remaining(&self) -> usize {
+        self.bytes.len() - self.position
+    }
+
     fn take(&mut self, len: usize) -> Result<&'a [u8], PackageError> {
         let end = self
             .position
@@ -1043,6 +1596,14 @@ impl<'a> PackageEnvelopeCursor<'a> {
             .try_into()
             .map_err(|_| PackageError::Truncated)?;
         Ok(u32::from_be_bytes(bytes))
+    }
+
+    fn u16(&mut self) -> Result<u16, PackageError> {
+        let bytes: [u8; 2] = self
+            .take(2)?
+            .try_into()
+            .map_err(|_| PackageError::Truncated)?;
+        Ok(u16::from_be_bytes(bytes))
     }
 
     fn u64(&mut self) -> Result<u64, PackageError> {
@@ -1166,6 +1727,63 @@ pub fn decode_package_envelope_v2(bytes: &[u8]) -> Result<DecodedPackageEnvelope
             package_digest,
         },
     })
+}
+
+/// Strictly decodes a v2 envelope and reconstructs its execution package.
+///
+/// This performs byte-level authentication, bounded structural section
+/// decoding, repeated-header binding checks, and canonical re-encoding. It
+/// does not validate Sley semantics or create admission evidence.
+///
+/// # Errors
+///
+/// Returns the first structural package failure. A mismatch between repeated
+/// header/dependency bindings or reconstructed digests is `BindingMismatch`;
+/// a section accepted by a decoder but not reproduced byte-for-byte by its
+/// canonical encoder is `Malformed`.
+pub fn hydrate_package_envelope_v2(
+    bytes: &[u8],
+) -> Result<HydratedPackageEnvelopeV2, PackageError> {
+    let decoded = decode_package_envelope_v2(bytes)?;
+    let constants = decode_constants_section(&decoded.constants_bytes)?;
+    let type_definitions = decode_layouts_section(&decoded.layouts_bytes)?;
+    let imports = decode_imports_section(&decoded.imports_bytes)?;
+    let dependency = decode_dependency_section(&decoded.dependency_bytes)?;
+    if dependency.entry != decoded.entry
+        || dependency.schema_epoch != decoded.schema_epoch
+        || dependency.state_root != decoded.state_root
+        || dependency.profile != CacheProfile::EXTENDED_V1
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    let package = ExecutionPackage {
+        image_bytes: decoded.image_bytes.clone(),
+        constants,
+        type_definitions,
+        imports,
+        globals: dependency.globals,
+        contracts: dependency.contracts,
+        entry: dependency.entry,
+        schema_epoch: dependency.schema_epoch,
+        state_root: dependency.state_root,
+        profile: dependency.profile,
+        admitted_limits: dependency.admitted_limits,
+        gate_operation_count: dependency.gate_operation_count,
+        gate_bridge_uses: dependency.gate_bridge_uses,
+        gate_closure_fingerprints: dependency.gate_closure_fingerprints,
+    };
+    if encode_constants_section(&package.constants)? != decoded.constants_bytes
+        || encode_layouts_section(&package.type_definitions)? != decoded.layouts_bytes
+        || encode_imports_section(&package.imports)? != decoded.imports_bytes
+        || encode_dependency_section(&package)? != decoded.dependency_bytes
+    {
+        return Err(PackageError::Malformed);
+    }
+    let digests = package_digests_v2(&package)?;
+    if digests != decoded.digests {
+        return Err(PackageError::BindingMismatch);
+    }
+    Ok(HydratedPackageEnvelopeV2 { package, digests })
 }
 
 /// Builds the admission receipt for one exact package digest.
@@ -1615,6 +2233,77 @@ mod tests {
         }
     }
 
+    fn populated_envelope_test_package() -> ExecutionPackage {
+        let mut package = envelope_test_package();
+        let constant = ConstantDefinition {
+            entity_id: EntityId::from_bytes([0xa1; 32]),
+            value: ConstValue {
+                value_type: TypeExpr::Bool,
+                data: ConstData::Bool(true),
+            },
+        };
+        package.constants.push(constant.clone());
+        package.type_definitions.push(TypeDefinition {
+            entity_id: EntityId::from_bytes([0xb1; 32]),
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Record(vec![RecordField {
+                member_id: MemberId::from_bytes([0xb2; 32]),
+                value_type: TypeExpr::Bool,
+                visibility: Visibility::Private,
+            }]),
+            invariants: Vec::new(),
+            visibility: Visibility::Package,
+        });
+        package.imports.push(AdapterImport {
+            entity_id: EntityId::from_bytes([0xc1; 32]),
+            adapter_id: [0xc2; 32],
+            abi_version: 2,
+            request_type: TypeExpr::Bytes,
+            response_type: TypeExpr::Bytes,
+            failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+            effects: vec![EntityId::from_bytes([0xc3; 32])],
+        });
+        let global = GlobalValueDefinition {
+            entity_id: EntityId::from_bytes([0xd1; 32]),
+            value_type: TypeExpr::Option(Box::new(TypeExpr::Bool)),
+            initializer: constant.entity_id,
+            visibility: Visibility::Workspace,
+        };
+        package.globals.push(global.clone());
+        package.contracts.push(ContractDefinition {
+            entity_id: EntityId::from_bytes([0xe1; 32]),
+            target: package.entry,
+            contract_kind: ContractKind::Postcondition,
+            predicate: EntityId::from_bytes([0xe2; 32]),
+            bindings: vec![
+                ContractBinding {
+                    predicate_parameter: 0,
+                    source: ContractSource::Result,
+                },
+                ContractBinding {
+                    predicate_parameter: 1,
+                    source: ContractSource::Global(global.entity_id),
+                },
+            ],
+            resource_limits: Some(ResourceLimits {
+                fuel: 10,
+                memory_bytes: 20,
+                output_bytes: 30,
+                effect_count: 40,
+                call_depth: 50,
+                wall_timeout_millis: 60,
+            }),
+        });
+        package.admitted_limits.cancel_at_fuel = Some(1_500);
+        package.gate_operation_count = 7;
+        package.gate_bridge_uses = 1;
+        package.gate_closure_fingerprints = vec![
+            SemanticFingerprint::from_bytes([0xf1; 32]),
+            SemanticFingerprint::from_bytes([0xf2; 32]),
+        ];
+        package
+    }
+
     #[test]
     fn v2_envelope_round_trips_exact_raw_sections_and_header_digest() {
         use core::fmt::Write as _;
@@ -1706,6 +2395,193 @@ mod tests {
         assert_eq!(
             decode_package_envelope_v2(&trailing),
             Err(PackageError::TrailingData)
+        );
+    }
+
+    #[test]
+    fn constants_section_strictly_round_trips_and_refuses_bad_structure() {
+        let constant = ConstantDefinition {
+            entity_id: EntityId::from_bytes([0x44; 32]),
+            value: ConstValue {
+                value_type: TypeExpr::Bool,
+                data: ConstData::Bool(true),
+            },
+        };
+        let encoded = encode_constants_section(std::slice::from_ref(&constant)).unwrap();
+        assert_eq!(
+            decode_constants_section(&encoded).unwrap(),
+            vec![constant.clone()]
+        );
+
+        let mut truncated = encoded.clone();
+        truncated.pop();
+        assert_eq!(
+            decode_constants_section(&truncated),
+            Err(PackageError::Truncated)
+        );
+
+        let mut trailing = encoded.clone();
+        trailing.push(0);
+        assert_eq!(
+            decode_constants_section(&trailing),
+            Err(PackageError::Malformed)
+        );
+
+        let duplicate = encode_constants_section(&[constant.clone(), constant]).unwrap();
+        assert_eq!(
+            decode_constants_section(&duplicate),
+            Err(PackageError::HydrationRefused)
+        );
+
+        let oversized_count = u64::try_from(EXEC_PACKAGE_MAX_CONSTANTS)
+            .unwrap()
+            .checked_add(1)
+            .unwrap()
+            .to_be_bytes();
+        assert_eq!(
+            decode_constants_section(&oversized_count),
+            Err(PackageError::Oversized)
+        );
+    }
+
+    #[test]
+    fn layouts_section_round_trips_nested_forms_and_refuses_bad_rows() {
+        let record = TypeDefinition {
+            entity_id: EntityId::from_bytes([0x50; 32]),
+            type_parameters: vec![TypeParameterDef { ordinal: 0 }],
+            form: TypeDefForm::Record(vec![RecordField {
+                member_id: MemberId::from_bytes([0x51; 32]),
+                value_type: TypeExpr::Vector(Box::new(TypeExpr::TypeParameter(0))),
+                visibility: Visibility::Package,
+            }]),
+            invariants: vec![EntityId::from_bytes([0x52; 32])],
+            visibility: Visibility::Exported,
+        };
+        let variant = TypeDefinition {
+            entity_id: EntityId::from_bytes([0x60; 32]),
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Variant(vec![
+                VariantCase {
+                    member_id: MemberId::from_bytes([0x61; 32]),
+                    payload_type: None,
+                },
+                VariantCase {
+                    member_id: MemberId::from_bytes([0x62; 32]),
+                    payload_type: Some(TypeExpr::Named(NamedType {
+                        definition: record.entity_id,
+                        arguments: vec![TypeExpr::Bool],
+                    })),
+                },
+            ]),
+            invariants: Vec::new(),
+            visibility: Visibility::Private,
+        };
+        let definitions = vec![record.clone(), variant];
+        let encoded = encode_layouts_section(&definitions).unwrap();
+        assert_eq!(decode_layouts_section(&encoded).unwrap(), definitions);
+
+        let duplicate = encode_layouts_section(&[record.clone(), record]).unwrap();
+        assert_eq!(
+            decode_layouts_section(&duplicate),
+            Err(PackageError::HydrationRefused)
+        );
+
+        let mut bad_form = encode_layouts_section(std::slice::from_ref(&definitions[0])).unwrap();
+        bad_form[60..64].copy_from_slice(&99_u32.to_be_bytes());
+        assert_eq!(
+            decode_layouts_section(&bad_form),
+            Err(PackageError::Malformed)
+        );
+    }
+
+    #[test]
+    fn imports_section_round_trips_exact_rows_and_refuses_bad_rows() {
+        let row = AdapterImport {
+            entity_id: EntityId::from_bytes([0x70; 32]),
+            adapter_id: [0x71; 32],
+            abi_version: 3,
+            request_type: TypeExpr::Tuple(vec![TypeExpr::Bool, TypeExpr::Bytes]),
+            response_type: TypeExpr::Result {
+                ok: Box::new(TypeExpr::Bytes),
+                error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)),
+            },
+            failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+            effects: vec![EntityId::from_bytes([0x72; 32])],
+        };
+        let encoded = encode_imports_section(std::slice::from_ref(&row)).unwrap();
+        assert_eq!(decode_imports_section(&encoded).unwrap(), vec![row.clone()]);
+
+        let duplicate = encode_imports_section(&[row.clone(), row]).unwrap();
+        assert_eq!(
+            decode_imports_section(&duplicate),
+            Err(PackageError::HydrationRefused)
+        );
+
+        let mut bad_request_type = encoded;
+        bad_request_type[84..88].copy_from_slice(&99_u32.to_be_bytes());
+        assert_eq!(
+            decode_imports_section(&bad_request_type),
+            Err(PackageError::Malformed)
+        );
+    }
+
+    #[test]
+    fn dependency_section_round_trips_complete_rows_and_refuses_duplicates() {
+        let package = populated_envelope_test_package();
+        let encoded = encode_dependency_section(&package).unwrap();
+        let decoded = decode_dependency_section(&encoded).unwrap();
+        assert_eq!(decoded.entry, package.entry);
+        assert_eq!(decoded.schema_epoch, package.schema_epoch);
+        assert_eq!(decoded.state_root, package.state_root);
+        assert_eq!(decoded.profile, package.profile);
+        assert_eq!(decoded.admitted_limits, package.admitted_limits);
+        assert_eq!(decoded.gate_operation_count, package.gate_operation_count);
+        assert_eq!(decoded.gate_bridge_uses, package.gate_bridge_uses);
+        assert_eq!(
+            decoded.gate_closure_fingerprints,
+            package.gate_closure_fingerprints
+        );
+        assert_eq!(decoded.globals, package.globals);
+        assert_eq!(decoded.contracts, package.contracts);
+
+        let mut duplicate_global = package.clone();
+        duplicate_global.globals.push(package.globals[0].clone());
+        assert_eq!(
+            decode_dependency_section(&encode_dependency_section(&duplicate_global).unwrap()),
+            Err(PackageError::HydrationRefused)
+        );
+
+        let mut duplicate_contract = package.clone();
+        duplicate_contract
+            .contracts
+            .push(package.contracts[0].clone());
+        assert_eq!(
+            decode_dependency_section(&encode_dependency_section(&duplicate_contract).unwrap()),
+            Err(PackageError::HydrationRefused)
+        );
+    }
+
+    #[test]
+    fn v2_envelope_hydrates_complete_package_and_refuses_split_bindings() {
+        const DEPENDENCY_DIGEST_OFFSET: usize = 8 + 4 + 32 + 4 + 12 + (4 * 32);
+
+        let package = populated_envelope_test_package();
+        let bytes = encode_package_envelope_v2(&package).unwrap();
+        let hydrated = hydrate_package_envelope_v2(&bytes).unwrap();
+        assert_eq!(hydrated.package, package);
+        assert_eq!(hydrated.digests, package_digests_v2(&package).unwrap());
+
+        let dependency_len = encode_dependency_section(&package).unwrap().len();
+        let dependency_start = bytes.len() - dependency_len;
+        let mut split_binding = bytes;
+        split_binding[dependency_start] ^= 1;
+        let replacement_digest = section_digest(&split_binding[dependency_start..]);
+        split_binding[DEPENDENCY_DIGEST_OFFSET..DEPENDENCY_DIGEST_OFFSET + 32]
+            .copy_from_slice(&replacement_digest);
+        assert!(decode_package_envelope_v2(&split_binding).is_ok());
+        assert_eq!(
+            hydrate_package_envelope_v2(&split_binding),
+            Err(PackageError::BindingMismatch)
         );
     }
 
