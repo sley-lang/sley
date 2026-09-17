@@ -101,8 +101,10 @@ references, judge types/contracts/closure claims, or mint admission evidence.
 The candidate vector and independent Python reproduction are under
 `conformance/exec-package-envelope/v2/`. The package identity and all existing
 section encodings are unchanged. The envelope candidate remains provisional
-until Sley emits the non-image sections and the RW-080 contract/surface review
-accepts it.
+until Sley emits nonempty inventory rows, composes the final envelope, and the
+RW-080 contract/surface review accepts it. The bounded construction already
+emits native-identical empty constants/layouts/imports sections and dependency
+framing with runtime gate fingerprints and limits.
 
 ## Failure vocabulary
 
@@ -132,7 +134,8 @@ assignment, and RW-075/RW-080 semantics are unchanged by this table.
 The framing codes `PACKAGE_UNKNOWN_MAGIC`, `PACKAGE_UNSUPPORTED_VERSION`,
 `PACKAGE_TRUNCATED`, and `PACKAGE_TRAILING_DATA` are LIVE on the provisional
 RW-080 decoder. This does not make the candidate accepted runtime authority;
-Sley-side section emission and the lane review remain outstanding.
+nonempty Sley-side section emission, final envelope composition, and the lane
+review remain outstanding.
 
 ## Authority failure vocabulary (owner adoption)
 

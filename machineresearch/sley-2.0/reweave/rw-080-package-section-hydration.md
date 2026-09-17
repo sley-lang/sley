@@ -43,7 +43,9 @@ All `sley-vm` package tests and Clippy with warnings denied pass for the slice.
 
 ## Explicit remainder
 
-Sley does not yet emit the constants, layouts, imports, or dependency section.
-The candidate envelope and hydration surface also still require the recorded
+Sley now emits the canonical empty constants/layouts/imports sections and the
+complete dependency framing for empty global/contract inventories in the next
+slice. Nonempty section rows and final envelope composition remain. The
+candidate envelope and hydration surface also still require the recorded
 RW-080 contract/surface review. Those are the remaining AT-EC-07 obligations;
 R2 remains provisional pending the independent acceptance debt.
