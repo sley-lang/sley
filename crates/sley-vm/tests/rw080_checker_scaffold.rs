@@ -20,20 +20,23 @@
 //! either the native CFG code or a compact deterministic report. The later
 //! `option_switch_cfg_checker` covers the switch-specific target, selector,
 //! case, payload, and argument judgments for an `Option<Bool>` projection.
+//! The bounded `single_effect_closure_checker` resolves one optional declared
+//! and requested effect identity before comparing the computed closure.
 //! Construction provenance:
 //! machineresearch/sley-2.0/reweave/rw-080-checker-scaffold.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-single-cfg.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-option-switch.md,
-//! machineresearch/sley-2.0/reweave/rw-080-checker-operation-inventory.md, and
-//! machineresearch/sley-2.0/reweave/rw-080-checker-type-chain.md.
+//! machineresearch/sley-2.0/reweave/rw-080-checker-operation-inventory.md,
+//! machineresearch/sley-2.0/reweave/rw-080-checker-type-chain.md, and
+//! machineresearch/sley-2.0/reweave/rw-080-checker-single-effect.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     Block, BuiltinCase, BuiltinFailureKind, CaseKey, CondBranchTerminator, ConstData, ConstValue,
-    ConstantDefinition, FunctionGraph, Immediate, IntegerWidth, MAX_TYPE_DEPTH, Opcode, Operation,
-    OperationResultRef, Parameter, ParameterRole, Reachability, ReturnTerminator, SwitchArgument,
-    SwitchCase, SwitchEdge, TargetEdge, Terminator, TrapCode, TrapTerminator, TypeExpr, ValueRef,
-    VariantSwitchTerminator, Visibility,
+    ConstantDefinition, EffectDefinition, EffectKind, FunctionGraph, Immediate, IntegerWidth,
+    MAX_TYPE_DEPTH, Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability,
+    ReturnTerminator, SwitchArgument, SwitchCase, SwitchEdge, TargetEdge, Terminator, TrapCode,
+    TrapTerminator, TypeExpr, ValueRef, VariantSwitchTerminator, Visibility,
 };
 
 fn id(byte: u8) -> EntityId {
@@ -107,6 +110,17 @@ fn arithmetic_u64_result_type() -> TypeExpr {
 fn type_chain_result_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(u64_type()),
+        error: Box::new(u32_type()),
+    }
+}
+
+fn effect_summary_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![u32_type(), u32_type(), u32_type(), u64_type()])
+}
+
+fn effect_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(effect_summary_type()),
         error: Box::new(u32_type()),
     }
 }
@@ -2415,6 +2429,288 @@ fn unary_type_chain_checker() -> CheckerScaffold {
     }
 }
 
+/// Bounded one-definition effect-closure judgment. Runtime identities and
+/// presence facts determine resolution and the declared/computed closure.
+#[allow(clippy::too_many_lines)]
+fn single_effect_closure_checker() -> CheckerScaffold {
+    let function = checker_inventory_id(5, 3);
+    let mut assembler = InventoryCheckAssembler::new();
+    let definition_present =
+        assembler.parameter(function, ParameterRole::Function, 0, TypeExpr::Bool);
+    let definition_id = assembler.parameter(function, ParameterRole::Function, 1, u64_type());
+    let declared_present =
+        assembler.parameter(function, ParameterRole::Function, 2, TypeExpr::Bool);
+    let declared_id = assembler.parameter(function, ParameterRole::Function, 3, u64_type());
+    let request_present = assembler.parameter(function, ParameterRole::Function, 4, TypeExpr::Bool);
+    let request_id = assembler.parameter(function, ParameterRole::Function, 5, u64_type());
+
+    let entry = assembler.block_id();
+    let declared_definition = assembler.block_id();
+    let declared_identity = assembler.block_id();
+    let request_presence = assembler.block_id();
+    let request_definition = assembler.block_id();
+    let request_identity = assembler.block_id();
+    let closure_declared = assembler.block_id();
+    let closure_request_required = assembler.block_id();
+    let closure_request_absent = assembler.block_id();
+    let success_empty = assembler.block_id();
+    let success_one = assembler.block_id();
+    let unresolved_error = assembler.block_id();
+    let closure_error = assembler.block_id();
+
+    let unresolved_code = assembler.constant(u32_value(u128::from(
+        sley_check::effects::EffectErrorCode::UnresolvedEntity.numeric(),
+    )));
+    let closure_code = assembler.constant(u32_value(u128::from(
+        sley_check::effects::EffectErrorCode::ClosureMismatch.numeric(),
+    )));
+    let zero_u32 = assembler.constant(u32_value(0));
+    let one_u32 = assembler.constant(u32_value(1));
+    let zero_u64 = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(0),
+    });
+    let one_u64 = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(1),
+    });
+
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(declared_present),
+            declared_definition,
+            Vec::new(),
+            request_presence,
+            Vec::new(),
+        ),
+    );
+    assembler.push_block(
+        declared_definition,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(definition_present),
+            declared_identity,
+            Vec::new(),
+            unresolved_error,
+            Vec::new(),
+        ),
+    );
+    let declared_matches = assembler.operation(
+        declared_identity,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(declared_id),
+            ValueRef::Parameter(definition_id),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        declared_identity,
+        function,
+        Vec::new(),
+        vec![declared_matches],
+        inventory_cond(
+            inventory_operation_value(declared_matches),
+            request_presence,
+            Vec::new(),
+            unresolved_error,
+            Vec::new(),
+        ),
+    );
+
+    assembler.push_block(
+        request_presence,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(request_present),
+            request_definition,
+            Vec::new(),
+            closure_declared,
+            Vec::new(),
+        ),
+    );
+    assembler.push_block(
+        request_definition,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(definition_present),
+            request_identity,
+            Vec::new(),
+            unresolved_error,
+            Vec::new(),
+        ),
+    );
+    let request_matches = assembler.operation(
+        request_identity,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(request_id),
+            ValueRef::Parameter(definition_id),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        request_identity,
+        function,
+        Vec::new(),
+        vec![request_matches],
+        inventory_cond(
+            inventory_operation_value(request_matches),
+            closure_declared,
+            Vec::new(),
+            unresolved_error,
+            Vec::new(),
+        ),
+    );
+
+    assembler.push_block(
+        closure_declared,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(declared_present),
+            closure_request_required,
+            Vec::new(),
+            closure_request_absent,
+            Vec::new(),
+        ),
+    );
+    assembler.push_block(
+        closure_request_required,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(request_present),
+            success_one,
+            Vec::new(),
+            closure_error,
+            Vec::new(),
+        ),
+    );
+    assembler.push_block(
+        closure_request_absent,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(request_present),
+            closure_error,
+            Vec::new(),
+            success_empty,
+            Vec::new(),
+        ),
+    );
+
+    let success_block = |assembler: &mut InventoryCheckAssembler,
+                         block: EntityId,
+                         count: EntityId,
+                         work: EntityId| {
+        let count_value = assembler.constant_ref(block, count, u32_type());
+        let edges = assembler.constant_ref(block, zero_u32, u32_type());
+        let rounds = assembler.constant_ref(block, one_u32, u32_type());
+        let work_value = assembler.constant_ref(block, work, u64_type());
+        let summary = assembler.operation(
+            block,
+            Opcode::TupleNew,
+            vec![
+                inventory_operation_value(count_value),
+                inventory_operation_value(edges),
+                inventory_operation_value(rounds),
+                inventory_operation_value(work_value),
+            ],
+            effect_summary_type(),
+            Immediate::None,
+        );
+        let accepted = assembler.operation(
+            block,
+            Opcode::ResultOk,
+            vec![inventory_operation_value(summary)],
+            effect_result_type(),
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![count_value, edges, rounds, work_value, summary, accepted],
+            Terminator::Return(ReturnTerminator {
+                value: inventory_operation_value(accepted),
+            }),
+        );
+    };
+    success_block(&mut assembler, success_empty, zero_u32, zero_u64);
+    success_block(&mut assembler, success_one, one_u32, one_u64);
+
+    for (block, code) in [
+        (unresolved_error, unresolved_code),
+        (closure_error, closure_code),
+    ] {
+        let code_value = assembler.constant_ref(block, code, u32_type());
+        let rejected = assembler.operation(
+            block,
+            Opcode::ResultErr,
+            vec![inventory_operation_value(code_value)],
+            effect_result_type(),
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![code_value, rejected],
+            Terminator::Return(ReturnTerminator {
+                value: inventory_operation_value(rejected),
+            }),
+        );
+    }
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![
+            definition_present,
+            definition_id,
+            declared_present,
+            declared_id,
+            request_present,
+            request_id,
+        ],
+        result_type: effect_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    CheckerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+    }
+}
+
 fn generous_limits() -> sley_vm::ExecutionLimits {
     sley_vm::ExecutionLimits {
         max_instructions: 10_000,
@@ -2591,6 +2887,36 @@ impl OptionSwitchFacts {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+struct SingleEffectFacts {
+    definition_present: bool,
+    definition_id: u64,
+    declared_present: bool,
+    declared_id: u64,
+    request_present: bool,
+    request_id: u64,
+}
+
+impl SingleEffectFacts {
+    const EMPTY: Self = Self {
+        definition_present: false,
+        definition_id: 20,
+        declared_present: false,
+        declared_id: 20,
+        request_present: false,
+        request_id: 20,
+    };
+
+    const ONE: Self = Self {
+        definition_present: true,
+        definition_id: 20,
+        declared_present: true,
+        declared_id: 20,
+        request_present: true,
+        request_id: 20,
+    };
+}
+
 fn execute_single_cfg(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
@@ -2697,6 +3023,37 @@ fn execute_type_chain(
         },
     )
     .expect("v2 executes unary type-chain checker")
+}
+
+fn execute_single_effect(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    facts: SingleEffectFacts,
+) -> sley_vm::ExecutionOutcome {
+    let bool_value = |value| ConstValue {
+        value_type: TypeExpr::Bool,
+        data: ConstData::Bool(value),
+    };
+    let u64_value = |value| ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::from(value)),
+    };
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                bool_value(facts.definition_present),
+                u64_value(facts.definition_id),
+                bool_value(facts.declared_present),
+                u64_value(facts.declared_id),
+                bool_value(facts.request_present),
+                u64_value(facts.request_id),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes single-effect closure checker")
 }
 
 fn native_single_cfg(
@@ -3147,6 +3504,153 @@ fn assert_type_chain_error(
     assert_eq!(code.data, ConstData::UInt(u128::from(expected.numeric())));
 }
 
+fn effect_entity_id(value: u64) -> EntityId {
+    let mut bytes = [0_u8; 32];
+    bytes[0] = 0xee;
+    bytes[24..].copy_from_slice(&value.to_be_bytes());
+    EntityId::from_bytes(bytes)
+}
+
+fn native_single_effect_closure(
+    facts: SingleEffectFacts,
+) -> Result<sley_check::effects::EffectReport, sley_check::effects::EffectErrorCode> {
+    use sley_check::effects::{EffectValidationError, FunctionUnit, validate_effect_program};
+
+    let function_id = id(1);
+    let block_id = id(2);
+    let scope = id(3);
+    let request = id(4);
+    let operation_id = id(5);
+    let function = FunctionGraph {
+        entity_id: function_id,
+        type_parameters: Vec::new(),
+        parameters: vec![scope, request],
+        result_type: TypeExpr::Unit,
+        effects: facts
+            .declared_present
+            .then(|| effect_entity_id(facts.declared_id))
+            .into_iter()
+            .collect(),
+        entry_block: block_id,
+        blocks: vec![block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameters = vec![
+        Parameter {
+            entity_id: scope,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 0,
+            value_type: TypeExpr::Unit,
+        },
+        Parameter {
+            entity_id: request,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 1,
+            value_type: TypeExpr::Unit,
+        },
+    ];
+    let operations = facts
+        .request_present
+        .then(|| Operation {
+            entity_id: operation_id,
+            block: block_id,
+            ordinal: 0,
+            opcode: Opcode::EffectRequest,
+            operands: vec![ValueRef::Parameter(scope), ValueRef::Parameter(request)],
+            result_types: vec![TypeExpr::Result {
+                ok: Box::new(TypeExpr::Unit),
+                error: Box::new(TypeExpr::Unit),
+            }],
+            immediate: Immediate::Entity(effect_entity_id(facts.request_id)),
+        })
+        .into_iter()
+        .collect::<Vec<_>>();
+    let block = Block {
+        entity_id: block_id,
+        function: function_id,
+        parameters: Vec::new(),
+        operations: operations
+            .iter()
+            .map(|operation| operation.entity_id)
+            .collect(),
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::Parameter(scope),
+        }),
+        reachability: Reachability::Required,
+    };
+    let effects = facts
+        .definition_present
+        .then(|| EffectDefinition {
+            entity_id: effect_entity_id(facts.definition_id),
+            effect_kind: EffectKind::StdoutWrite,
+            scope_type: TypeExpr::Unit,
+            request_type: TypeExpr::Unit,
+            response_type: TypeExpr::Unit,
+            failure_type: TypeExpr::Unit,
+            visibility: Visibility::Private,
+        })
+        .into_iter()
+        .collect::<Vec<_>>();
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    let unit = FunctionUnit {
+        function: &function,
+        parameters: &parameters,
+        blocks: std::slice::from_ref(&block),
+        operations: &operations,
+    };
+    validate_effect_program(&types, &[unit], &effects, &[], &[], &[]).map_err(|error| match error {
+        EffectValidationError::Effect(error) => error.code(),
+        earlier => panic!("single-effect reference reached earlier error: {earlier}"),
+    })
+}
+
+fn assert_effect_ok(
+    outcome: &sley_vm::ExecutionOutcome,
+    report: &sley_check::effects::EffectReport,
+) {
+    use sley_ssmc::ResultConst;
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!("effect checker must terminate with a value")
+    };
+    let ConstData::Result(ResultConst::Ok(summary)) = &value.data else {
+        panic!("effect checker must return Ok, got {:?}", value.data)
+    };
+    let ConstData::Sequence(fields) = &summary.data else {
+        panic!("effect summary must be a tuple")
+    };
+    let closure_count = report.functions[0].effects.len() as u128;
+    assert_eq!(fields[0].data, ConstData::UInt(closure_count));
+    assert_eq!(
+        fields[1].data,
+        ConstData::UInt(u128::from(report.call_edges))
+    );
+    assert_eq!(
+        fields[2].data,
+        ConstData::UInt(u128::from(report.closure_rounds))
+    );
+    assert_eq!(
+        fields[3].data,
+        ConstData::UInt(u128::from(report.closure_work))
+    );
+}
+
+fn assert_effect_error(
+    outcome: &sley_vm::ExecutionOutcome,
+    expected: sley_check::effects::EffectErrorCode,
+) {
+    use sley_ssmc::ResultConst;
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!("effect checker must terminate with a value")
+    };
+    let ConstData::Result(ResultConst::Err(code)) = &value.data else {
+        panic!("effect checker must return Err, got {:?}", value.data)
+    };
+    assert_eq!(code.data, ConstData::UInt(u128::from(expected.numeric())));
+}
+
 fn assert_cfg_ok(outcome: &sley_vm::ExecutionOutcome, report: &sley_check::cfg::CfgReport) {
     use sley_ssmc::ResultConst;
     match &outcome.termination {
@@ -3572,6 +4076,87 @@ fn checker_unary_type_chains_preserve_depth_and_leaf_errors() {
             ),
             expected,
         );
+    }
+}
+
+#[test]
+fn checker_single_effect_closures_match_native_report() {
+    let (package, approved) = admit_checker_program(&single_effect_closure_checker());
+
+    for facts in [SingleEffectFacts::EMPTY, SingleEffectFacts::ONE] {
+        let native =
+            native_single_effect_closure(facts).expect("native effect checker accepts fixture");
+        let first = execute_single_effect(&package, &approved, facts);
+        let second = execute_single_effect(&package, &approved, facts);
+        assert_effect_ok(&first, &native);
+        assert_eq!(first.termination, second.termination);
+    }
+}
+
+#[test]
+fn checker_single_effect_closures_preserve_resolution_precedence() {
+    use sley_check::effects::EffectErrorCode;
+
+    let (package, approved) = admit_checker_program(&single_effect_closure_checker());
+    let cases = [
+        (
+            SingleEffectFacts {
+                declared_present: true,
+                ..SingleEffectFacts::EMPTY
+            },
+            EffectErrorCode::UnresolvedEntity,
+        ),
+        (
+            SingleEffectFacts {
+                request_present: true,
+                ..SingleEffectFacts::EMPTY
+            },
+            EffectErrorCode::UnresolvedEntity,
+        ),
+        (
+            SingleEffectFacts {
+                declared_id: 21,
+                ..SingleEffectFacts::ONE
+            },
+            EffectErrorCode::UnresolvedEntity,
+        ),
+        (
+            SingleEffectFacts {
+                request_id: 21,
+                ..SingleEffectFacts::ONE
+            },
+            EffectErrorCode::UnresolvedEntity,
+        ),
+        (
+            SingleEffectFacts {
+                request_present: false,
+                ..SingleEffectFacts::ONE
+            },
+            EffectErrorCode::ClosureMismatch,
+        ),
+        (
+            SingleEffectFacts {
+                declared_present: false,
+                ..SingleEffectFacts::ONE
+            },
+            EffectErrorCode::ClosureMismatch,
+        ),
+        (
+            SingleEffectFacts {
+                declared_id: 21,
+                request_id: 22,
+                ..SingleEffectFacts::ONE
+            },
+            EffectErrorCode::UnresolvedEntity,
+        ),
+    ];
+    for (facts, expected) in cases {
+        assert_eq!(
+            native_single_effect_closure(facts),
+            Err(expected),
+            "native single-effect oracle"
+        );
+        assert_effect_error(&execute_single_effect(&package, &approved, facts), expected);
     }
 }
 
