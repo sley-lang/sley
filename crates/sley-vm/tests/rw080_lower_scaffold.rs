@@ -47,6 +47,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-bootstrap-immediates.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-immediate-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-mixed-inventory.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-simple-block.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use std::collections::BTreeMap;
@@ -226,6 +227,27 @@ fn terminator_model_type() -> TypeExpr {
 fn terminator_result_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(terminator_model_type()),
+        error: Box::new(u32_type()),
+    }
+}
+
+fn simple_block_model_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        u32_type(),
+        u32vec_type(),
+        immediate_inventory_model_type(),
+        terminator_model_type(),
+        u32_type(),
+    ])
+}
+
+fn simple_block_summary_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![simple_block_model_type(), u32_type()])
+}
+
+fn simple_block_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(simple_block_summary_type()),
         error: Box::new(u32_type()),
     }
 }
@@ -4636,6 +4658,269 @@ fn mixed_operation_inventory_lowerer() -> LowerScaffold {
     }
 }
 
+/// Builds one simple bytecode-block model from an ordered mixed-operation
+/// inventory and a return/branch/conditional/trap terminator fact set.
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn simple_block_lowerer() -> LowerScaffold {
+    let mut base = mixed_operation_inventory_lowerer();
+    let operation_lowerer = base.entry.entity_id;
+    let terminator = rebase_scaffold_artifacts(simple_terminator_lowerer(), 32);
+    let terminator_lowerer = terminator.entry.entity_id;
+    base.functions.extend(terminator.functions);
+    base.parameters.extend(terminator.parameters);
+    base.blocks.extend(terminator.blocks);
+    base.operations.extend(terminator.operations);
+    base.constants.extend(terminator.constants);
+    assert!(terminator.adapters.is_empty());
+
+    let mut assembler = InventoryAssembler {
+        next_block: u16::try_from(base.blocks.len() + 1).expect("fixture block count fits u16"),
+        next_parameter: u16::try_from(base.parameters.len() + 1)
+            .expect("fixture parameter count fits u16"),
+        next_operation: u16::try_from(base.operations.len() + 1)
+            .expect("fixture operation count fits u16"),
+        next_constant: u16::try_from(base.constants.len() + 1)
+            .expect("fixture constant count fits u16"),
+        parameters: base.parameters,
+        blocks: base.blocks,
+        operations: base.operations,
+        constants: base.constants,
+    };
+    let function = inventory_id(5, 12);
+    let inventory = assembler.parameter(
+        function,
+        ParameterRole::Function,
+        0,
+        immediate_inventory_type(),
+    );
+    let first_register = assembler.parameter(function, ParameterRole::Function, 1, u32_type());
+    let slot = assembler.parameter(function, ParameterRole::Function, 2, u32_type());
+    let parameter_registers =
+        assembler.parameter(function, ParameterRole::Function, 3, u32vec_type());
+    let kind = assembler.parameter(function, ParameterRole::Function, 4, u32_type());
+    let primary = assembler.parameter(function, ParameterRole::Function, 5, u32_type());
+    let target_zero = assembler.parameter(function, ParameterRole::Function, 6, u32_type());
+    let arguments_zero = assembler.parameter(function, ParameterRole::Function, 7, u32vec_type());
+    let target_one = assembler.parameter(function, ParameterRole::Function, 8, u32_type());
+    let arguments_one = assembler.parameter(function, ParameterRole::Function, 9, u32vec_type());
+    let payload = assembler.parameter(function, ParameterRole::Function, 10, optional_u32_type());
+    let block_count = assembler.parameter(function, ParameterRole::Function, 11, u32_type());
+    let reachability = assembler.parameter(function, ParameterRole::Function, 12, u32_type());
+
+    let entry = assembler.block_id();
+    let lower_terminator = assembler.block_id();
+    let emit = assembler.block_id();
+    let forward_error = assembler.block_id();
+
+    let lowered_operations = assembler.operation(
+        entry,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(inventory),
+            ValueRef::Parameter(first_register),
+        ],
+        immediate_inventory_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: operation_lowerer,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![lowered_operations],
+        inventory_switch(
+            operation_value(lowered_operations),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    lower_terminator,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let operation_summary = assembler.parameter(
+        lower_terminator,
+        ParameterRole::Block,
+        0,
+        immediate_inventory_summary_type(),
+    );
+    let instruction_model = assembler.operation(
+        lower_terminator,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(operation_summary)],
+        immediate_inventory_model_type(),
+        Immediate::Index(0),
+    );
+    let register_frontier = assembler.operation(
+        lower_terminator,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(operation_summary)],
+        u32_type(),
+        Immediate::Index(2),
+    );
+    let lowered_terminator = assembler.operation(
+        lower_terminator,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(kind),
+            ValueRef::Parameter(primary),
+            ValueRef::Parameter(target_zero),
+            ValueRef::Parameter(arguments_zero),
+            ValueRef::Parameter(target_one),
+            ValueRef::Parameter(arguments_one),
+            ValueRef::Parameter(payload),
+            operation_value(register_frontier),
+            ValueRef::Parameter(block_count),
+        ],
+        terminator_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: terminator_lowerer,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        lower_terminator,
+        function,
+        vec![operation_summary],
+        vec![instruction_model, register_frontier, lowered_terminator],
+        inventory_switch(
+            operation_value(lowered_terminator),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    emit,
+                    vec![
+                        SwitchArgument::Value(operation_value(instruction_model)),
+                        SwitchArgument::Value(operation_value(register_frontier)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let emit_instructions = assembler.parameter(
+        emit,
+        ParameterRole::Block,
+        0,
+        immediate_inventory_model_type(),
+    );
+    let emit_frontier = assembler.parameter(emit, ParameterRole::Block, 1, u32_type());
+    let emit_terminator =
+        assembler.parameter(emit, ParameterRole::Block, 2, terminator_model_type());
+    let block = assembler.operation(
+        emit,
+        Opcode::TupleNew,
+        vec![
+            ValueRef::Parameter(slot),
+            ValueRef::Parameter(parameter_registers),
+            ValueRef::Parameter(emit_instructions),
+            ValueRef::Parameter(emit_terminator),
+            ValueRef::Parameter(reachability),
+        ],
+        simple_block_model_type(),
+        Immediate::None,
+    );
+    let summary = assembler.operation(
+        emit,
+        Opcode::TupleNew,
+        vec![operation_value(block), ValueRef::Parameter(emit_frontier)],
+        simple_block_summary_type(),
+        Immediate::None,
+    );
+    let success = assembler.operation(
+        emit,
+        Opcode::ResultOk,
+        vec![operation_value(summary)],
+        simple_block_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        emit,
+        function,
+        vec![emit_instructions, emit_frontier, emit_terminator],
+        vec![block, summary, success],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(success),
+        }),
+    );
+
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let failure = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        simple_block_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(failure),
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![
+            inventory,
+            first_register,
+            slot,
+            parameter_registers,
+            kind,
+            primary,
+            target_zero,
+            arguments_zero,
+            target_one,
+            arguments_one,
+            payload,
+            block_count,
+            reachability,
+        ],
+        result_type: simple_block_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let mut functions = base.functions;
+    functions.push(graph.clone());
+    LowerScaffold {
+        types: base.types,
+        entry: graph,
+        functions,
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+        adapters: base.adapters,
+    }
+}
+
 fn append_terminator_success_block(
     assembler: &mut InventoryAssembler,
     function: EntityId,
@@ -6314,6 +6599,45 @@ fn execute_simple_terminator(
     .expect("v2 executes simple terminator lowerer")
 }
 
+#[allow(clippy::too_many_arguments)]
+fn execute_simple_block(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    rows: &[ImmediateInventoryFact],
+    first_register: u32,
+    slot: u32,
+    parameter_registers: &[u32],
+    terminator: &sley_vm::BytecodeTerminator,
+    block_count: u32,
+    reachability: u32,
+) -> sley_vm::ExecutionOutcome {
+    let (kind, primary, target_zero, arguments_zero, target_one, arguments_one, payload) =
+        simple_terminator_fact(terminator);
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                immediate_inventory_value(rows),
+                u32_value(u128::from(first_register)),
+                u32_value(u128::from(slot)),
+                u32vec_value(parameter_registers),
+                u32_value(u128::from(kind)),
+                u32_value(u128::from(primary)),
+                u32_value(u128::from(target_zero)),
+                u32vec_value(&arguments_zero),
+                u32_value(u128::from(target_one)),
+                u32vec_value(&arguments_one),
+                optional_u32_value(payload),
+                u32_value(u128::from(block_count)),
+                u32_value(u128::from(reachability)),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes simple block lowerer")
+}
+
 fn execute_builtin_switch(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
@@ -6360,6 +6684,61 @@ fn assert_builtin_switch_model(
     assert_eq!(model.data, expected);
 }
 
+type SimpleTerminatorFact = (u32, u32, u32, Vec<u32>, u32, Vec<u32>, Option<u32>);
+
+fn simple_terminator_fact(value: &sley_vm::BytecodeTerminator) -> SimpleTerminatorFact {
+    match value {
+        sley_vm::BytecodeTerminator::Return(register) => {
+            (1, *register, 0, Vec::new(), 0, Vec::new(), None)
+        }
+        sley_vm::BytecodeTerminator::Branch(edge) => (
+            2,
+            0,
+            edge.target,
+            edge.arguments.clone(),
+            0,
+            Vec::new(),
+            None,
+        ),
+        sley_vm::BytecodeTerminator::CondBranch {
+            condition,
+            if_true,
+            if_false,
+        } => (
+            3,
+            *condition,
+            if_true.target,
+            if_true.arguments.clone(),
+            if_false.target,
+            if_false.arguments.clone(),
+            None,
+        ),
+        sley_vm::BytecodeTerminator::Trap { code, payload } => {
+            (5, *code, 0, Vec::new(), 0, Vec::new(), *payload)
+        }
+        sley_vm::BytecodeTerminator::VariantSwitch { .. } => {
+            panic!("variant switch is outside the simple terminator slice")
+        }
+    }
+}
+
+fn simple_terminator_value(value: &sley_vm::BytecodeTerminator) -> ConstValue {
+    let (kind, primary, target_zero, arguments_zero, target_one, arguments_one, payload) =
+        simple_terminator_fact(value);
+    ConstValue {
+        value_type: terminator_model_type(),
+        data: ConstData::Sequence(vec![
+            u32_value(u128::from(kind)),
+            u32_value(u128::from(primary)),
+            u32_value(u128::from(target_zero)),
+            u32vec_value(&arguments_zero),
+            u32_value(u128::from(target_one)),
+            u32vec_value(&arguments_one),
+            optional_u32_value(payload),
+        ]),
+    }
+}
+
 fn assert_terminator_model(
     outcome: &sley_vm::ExecutionOutcome,
     expected: &sley_vm::BytecodeTerminator,
@@ -6397,39 +6776,7 @@ fn assert_terminator_model(
         registers(&fields[5]),
         payload,
     );
-    let normalized = match expected {
-        sley_vm::BytecodeTerminator::Return(value) => {
-            (1, *value, 0, Vec::new(), 0, Vec::new(), None)
-        }
-        sley_vm::BytecodeTerminator::Branch(edge) => (
-            2,
-            0,
-            edge.target,
-            edge.arguments.clone(),
-            0,
-            Vec::new(),
-            None,
-        ),
-        sley_vm::BytecodeTerminator::CondBranch {
-            condition,
-            if_true,
-            if_false,
-        } => (
-            3,
-            *condition,
-            if_true.target,
-            if_true.arguments.clone(),
-            if_false.target,
-            if_false.arguments.clone(),
-            None,
-        ),
-        sley_vm::BytecodeTerminator::Trap { code, payload } => {
-            (5, *code, 0, Vec::new(), 0, Vec::new(), *payload)
-        }
-        sley_vm::BytecodeTerminator::VariantSwitch { .. } => {
-            panic!("variant switch is outside the simple terminator slice")
-        }
-    };
+    let normalized = simple_terminator_fact(expected);
     assert_eq!(found, normalized);
 }
 
@@ -6594,6 +6941,21 @@ fn immediate_inventory_fact(instruction: &sley_vm::Instruction) -> ImmediateInve
     }
 }
 
+fn immediate_instruction_value(instruction: &sley_vm::Instruction) -> ConstValue {
+    let (immediate_tag, primary, secondary) = immediate_projection(&instruction.immediate);
+    ConstValue {
+        value_type: immediate_instruction_type(),
+        data: ConstData::Sequence(vec![
+            u32_value(u128::from(instruction.opcode)),
+            u32vec_value(&instruction.operands),
+            u32vec_value(&instruction.results),
+            u32_value(u128::from(immediate_tag)),
+            u64_value(u128::from(primary)),
+            u64_value(u128::from(secondary)),
+        ]),
+    }
+}
+
 fn assert_immediate_summary(
     outcome: &sley_vm::ExecutionOutcome,
     expected: &sley_vm::Instruction,
@@ -6690,6 +7052,57 @@ fn assert_immediate_inventory_summary(
         fields[2].data,
         ConstData::UInt(u128::from(expected_frontier))
     );
+}
+
+fn assert_simple_block_summary(
+    outcome: &sley_vm::ExecutionOutcome,
+    expected_slot: u32,
+    expected_parameters: &[u32],
+    expected_instructions: &[sley_vm::Instruction],
+    expected_terminator: &sley_vm::BytecodeTerminator,
+    expected_reachability: u32,
+    expected_frontier: u32,
+) {
+    use sley_ssmc::ResultConst;
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!("simple block lowering must terminate with a value")
+    };
+    let ConstData::Result(ResultConst::Ok(summary)) = &value.data else {
+        panic!("simple block lowering must return Ok, got {:?}", value.data)
+    };
+    let ConstData::Sequence(summary_fields) = &summary.data else {
+        panic!("simple block summary must be a tuple")
+    };
+    let ConstData::Sequence(block_fields) = &summary_fields[0].data else {
+        panic!("simple block model must be a tuple")
+    };
+    assert_eq!(
+        block_fields[0],
+        u32_value(u128::from(expected_slot)),
+        "block slot"
+    );
+    assert_eq!(block_fields[1], u32vec_value(expected_parameters));
+    assert_eq!(
+        block_fields[2],
+        ConstValue {
+            value_type: immediate_inventory_model_type(),
+            data: ConstData::Sequence(
+                expected_instructions
+                    .iter()
+                    .map(immediate_instruction_value)
+                    .collect(),
+            ),
+        }
+    );
+    assert_eq!(
+        block_fields[3],
+        simple_terminator_value(expected_terminator)
+    );
+    assert_eq!(
+        block_fields[4],
+        u32_value(u128::from(expected_reachability))
+    );
+    assert_eq!(summary_fields[1], u32_value(u128::from(expected_frontier)));
 }
 
 #[allow(clippy::too_many_lines)]
@@ -8360,6 +8773,109 @@ fn lower_mixed_operation_inventory_preserves_cross_family_failure_order() {
     assert_inventory_error(
         &execute_immediate_inventory(&package, &approved, &[unsupported], 5),
         sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
+    );
+}
+
+#[test]
+fn lower_simple_block_composes_operations_and_native_terminators() {
+    let instruction = native_single_scalar(Opcode::BoolAnd);
+    let rows = [immediate_inventory_fact(&instruction)];
+    let (package, approved) = admit_lower_program(&simple_block_lowerer());
+    for kind in [1, 2, 3, 5] {
+        let (terminator, _register_count, block_count) = native_simple_terminator(kind);
+        let first = execute_simple_block(
+            &package,
+            &approved,
+            &rows,
+            2,
+            0,
+            &[],
+            &terminator,
+            block_count,
+            Reachability::Required.tag(),
+        );
+        let second = execute_simple_block(
+            &package,
+            &approved,
+            &rows,
+            2,
+            0,
+            &[],
+            &terminator,
+            block_count,
+            Reachability::Required.tag(),
+        );
+        assert_simple_block_summary(
+            &first,
+            0,
+            &[],
+            std::slice::from_ref(&instruction),
+            &terminator,
+            Reachability::Required.tag(),
+            3,
+        );
+        assert_eq!(first.termination, second.termination);
+    }
+}
+
+#[test]
+fn lower_simple_block_preserves_operation_before_terminator_failures() {
+    let instruction = native_single_scalar(Opcode::BoolAnd);
+    let rows = [immediate_inventory_fact(&instruction)];
+    let (_, _, block_count) = native_simple_terminator(1);
+    let (package, approved) = admit_lower_program(&simple_block_lowerer());
+
+    let mut invalid_operation = rows.clone();
+    invalid_operation[0].operands[1] = 2;
+    assert_inventory_error(
+        &execute_simple_block(
+            &package,
+            &approved,
+            &invalid_operation,
+            2,
+            0,
+            &[],
+            &sley_vm::BytecodeTerminator::Return(3),
+            block_count,
+            Reachability::Required.tag(),
+        ),
+        sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+    );
+
+    assert_inventory_error(
+        &execute_simple_block(
+            &package,
+            &approved,
+            &rows,
+            2,
+            0,
+            &[],
+            &sley_vm::BytecodeTerminator::Return(3),
+            block_count,
+            Reachability::Required.tag(),
+        ),
+        sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+    );
+
+    let empty = execute_simple_block(
+        &package,
+        &approved,
+        &[],
+        2,
+        0,
+        &[0, 1],
+        &sley_vm::BytecodeTerminator::Return(1),
+        1,
+        Reachability::ExplicitlyUnreachable.tag(),
+    );
+    assert_simple_block_summary(
+        &empty,
+        0,
+        &[0, 1],
+        &[],
+        &sley_vm::BytecodeTerminator::Return(1),
+        Reachability::ExplicitlyUnreachable.tag(),
+        2,
     );
 }
 

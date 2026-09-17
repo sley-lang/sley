@@ -4,6 +4,9 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real bounded Sley lowering
 algorithm under the operator development override. It is not RW-110
 completion, C1, self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-simple-block.md` composes the mixed instruction
+inventory with native-parity simple terminators into one block model.
+
 ## Scope and behavior
 
 `mixed_operation_inventory_lowerer` is the first single Sley entry that walks
