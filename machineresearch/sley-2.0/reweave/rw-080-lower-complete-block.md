@@ -4,6 +4,9 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real bounded Sley lowering
 algorithm under the operator development override. It is not RW-110
 completion, C1, self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-function-blocks.md` traverses arbitrary block
+inventories and reproduces the native dense-register allocation schedule.
+
 ## Scope and behavior
 
 `complete_block_lowerer` composes the ordered mixed-operation entry with all
@@ -50,8 +53,9 @@ valid operation inventory, the late edge fails with the same
 ## Explicit remainder
 
 The block model consumes already-assigned parameter registers and compact
-decoded operation/terminator facts. It does not allocate register types or
-block parameters, compose an ordered multi-block function, build the callee
-table, emit SLEYBC02, or assemble an execution package. Those remain RW-110
-construction layers. The driver remains RW-120 work. RW-080 and R2 stay
-provisional pending the recorded independent acceptance debt.
+decoded operation/terminator facts. Its successor validates block-parameter
+allocation and composes an ordered multi-block function. Register types,
+function identity and result type, the callee table, SLEYBC02 emission, and
+execution-package assembly remain RW-110 construction layers. The driver
+remains RW-120 work. RW-080 and R2 stay provisional pending the recorded
+independent acceptance debt.

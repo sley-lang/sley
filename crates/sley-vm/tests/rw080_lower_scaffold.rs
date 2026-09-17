@@ -49,6 +49,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-mixed-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-simple-block.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-complete-block.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-function-blocks.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -282,6 +283,64 @@ fn complete_block_result_type() -> TypeExpr {
     }
 }
 
+fn complete_block_fact_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        u32_type(),
+        u32vec_type(),
+        immediate_inventory_type(),
+        u32_type(),
+        u32_type(),
+        u32_type(),
+        u32vec_type(),
+        u32_type(),
+        u32vec_type(),
+        optional_u32_type(),
+        builtin_switch_case_facts_type(),
+        u32_type(),
+    ])
+}
+
+fn complete_block_facts_type() -> TypeExpr {
+    TypeExpr::Vector(Box::new(complete_block_fact_type()))
+}
+
+fn complete_block_map_type() -> TypeExpr {
+    TypeExpr::OrderedMap {
+        key: Box::new(u32_type()),
+        value: Box::new(complete_block_model_type()),
+    }
+}
+
+fn empty_complete_block_map_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(complete_block_map_type()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+    }
+}
+
+fn complete_function_model_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        u32vec_type(),
+        u32_type(),
+        complete_block_map_type(),
+        u32_type(),
+    ])
+}
+
+fn complete_function_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(complete_function_model_type()),
+        error: Box::new(u32_type()),
+    }
+}
+
+fn dense_register_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(u32_type()),
+        error: Box::new(u32_type()),
+    }
+}
+
 fn switch_argument_fact_type() -> TypeExpr {
     TypeExpr::Tuple(vec![u32_type(), u32_type()])
 }
@@ -392,6 +451,15 @@ fn optional_u32_value(value: Option<u32>) -> ConstValue {
 
 type BuiltinSwitchFact = (u32, u32, Vec<(u32, u32)>);
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CompleteBlockFact {
+    slot: u32,
+    parameter_registers: Vec<u32>,
+    instructions: Vec<ImmediateInventoryFact>,
+    terminator: sley_vm::BytecodeTerminator,
+    reachability: u32,
+}
+
 fn builtin_switch_facts_value(cases: &[BuiltinSwitchFact]) -> ConstValue {
     ConstValue {
         value_type: builtin_switch_case_facts_type(),
@@ -419,6 +487,70 @@ fn builtin_switch_facts_value(cases: &[BuiltinSwitchFact]) -> ConstValue {
                             ),
                         },
                     ]),
+                })
+                .collect(),
+        ),
+    }
+}
+
+fn complete_block_facts_value(blocks: &[CompleteBlockFact]) -> ConstValue {
+    ConstValue {
+        value_type: complete_block_facts_type(),
+        data: ConstData::Sequence(
+            blocks
+                .iter()
+                .map(|block| {
+                    let (
+                        kind,
+                        primary,
+                        target_zero,
+                        arguments_zero,
+                        target_one,
+                        arguments_one,
+                        payload,
+                        cases,
+                    ) = if let sley_vm::BytecodeTerminator::VariantSwitch { .. } = &block.terminator
+                    {
+                        let (selector, cases) = builtin_switch_facts(&block.terminator);
+                        (4, selector, 0, Vec::new(), 0, Vec::new(), None, cases)
+                    } else {
+                        let (
+                            kind,
+                            primary,
+                            target_zero,
+                            arguments_zero,
+                            target_one,
+                            arguments_one,
+                            payload,
+                        ) = simple_terminator_fact(&block.terminator);
+                        (
+                            kind,
+                            primary,
+                            target_zero,
+                            arguments_zero,
+                            target_one,
+                            arguments_one,
+                            payload,
+                            Vec::new(),
+                        )
+                    };
+                    ConstValue {
+                        value_type: complete_block_fact_type(),
+                        data: ConstData::Sequence(vec![
+                            u32_value(u128::from(block.slot)),
+                            u32vec_value(&block.parameter_registers),
+                            immediate_inventory_value(&block.instructions),
+                            u32_value(u128::from(kind)),
+                            u32_value(u128::from(primary)),
+                            u32_value(u128::from(target_zero)),
+                            u32vec_value(&arguments_zero),
+                            u32_value(u128::from(target_one)),
+                            u32vec_value(&arguments_one),
+                            optional_u32_value(payload),
+                            builtin_switch_facts_value(&cases),
+                            u32_value(u128::from(block.reachability)),
+                        ]),
+                    }
                 })
                 .collect(),
         ),
@@ -5503,6 +5635,1121 @@ fn complete_block_lowerer() -> LowerScaffold {
     }
 }
 
+#[allow(clippy::too_many_lines)]
+fn build_dense_register_validator(
+    assembler: &mut InventoryAssembler,
+    function: EntityId,
+) -> FunctionGraph {
+    let values = assembler.parameter(function, ParameterRole::Function, 0, u32vec_type());
+    let first_register = assembler.parameter(function, ParameterRole::Function, 1, u32_type());
+
+    let entry = assembler.block_id();
+    let check = assembler.block_id();
+    let get = assembler.block_id();
+    let compare = assembler.block_id();
+    let advance_index = assembler.block_id();
+    let advance_register = assembler.block_id();
+    let done = assembler.block_id();
+    let local_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+    let invariant_trap = assembler.block_id();
+
+    let zero_u64 = assembler.constant(u64_value(0));
+    let one_u64 = assembler.constant(u64_value(1));
+    let one_u32 = assembler.constant(u32_value(1));
+    let local_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+    )));
+    let resource_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+    )));
+
+    let zero = assembler.constant_ref(entry, zero_u64, u64_type());
+    let length = assembler.operation(
+        entry,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(values)],
+        u64_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![zero, length],
+        inventory_branch(
+            check,
+            vec![
+                operation_value(zero),
+                ValueRef::Parameter(first_register),
+                operation_value(length),
+            ],
+        ),
+    );
+
+    let check_index = assembler.parameter(check, ParameterRole::Block, 0, u64_type());
+    let check_register = assembler.parameter(check, ParameterRole::Block, 1, u32_type());
+    let check_length = assembler.parameter(check, ParameterRole::Block, 2, u64_type());
+    let has_value = assembler.operation(
+        check,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(check_index),
+            ValueRef::Parameter(check_length),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    let check_state = vec![
+        ValueRef::Parameter(check_index),
+        ValueRef::Parameter(check_register),
+        ValueRef::Parameter(check_length),
+    ];
+    assembler.push_block(
+        check,
+        function,
+        vec![check_index, check_register, check_length],
+        vec![has_value],
+        inventory_cond(
+            operation_value(has_value),
+            get,
+            check_state,
+            done,
+            vec![ValueRef::Parameter(check_register)],
+        ),
+    );
+
+    let get_index = assembler.parameter(get, ParameterRole::Block, 0, u64_type());
+    let get_register = assembler.parameter(get, ParameterRole::Block, 1, u32_type());
+    let get_length = assembler.parameter(get, ParameterRole::Block, 2, u64_type());
+    let found = assembler.operation(
+        get,
+        Opcode::VectorGet,
+        vec![ValueRef::Parameter(values), ValueRef::Parameter(get_index)],
+        optional_u32_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        get,
+        function,
+        vec![get_index, get_register, get_length],
+        vec![found],
+        inventory_switch(
+            operation_value(found),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    compare,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(get_index)),
+                        SwitchArgument::Value(ValueRef::Parameter(get_register)),
+                        SwitchArgument::Value(ValueRef::Parameter(get_length)),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let compare_value = assembler.parameter(compare, ParameterRole::Block, 0, u32_type());
+    let compare_index = assembler.parameter(compare, ParameterRole::Block, 1, u64_type());
+    let compare_register = assembler.parameter(compare, ParameterRole::Block, 2, u32_type());
+    let compare_length = assembler.parameter(compare, ParameterRole::Block, 3, u64_type());
+    let matches = assembler.operation(
+        compare,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(compare_value),
+            ValueRef::Parameter(compare_register),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        compare,
+        function,
+        vec![
+            compare_value,
+            compare_index,
+            compare_register,
+            compare_length,
+        ],
+        vec![matches],
+        inventory_cond(
+            operation_value(matches),
+            advance_index,
+            vec![
+                ValueRef::Parameter(compare_index),
+                ValueRef::Parameter(compare_register),
+                ValueRef::Parameter(compare_length),
+            ],
+            local_error,
+            Vec::new(),
+        ),
+    );
+
+    let advance_index_value =
+        assembler.parameter(advance_index, ParameterRole::Block, 0, u64_type());
+    let advance_index_register =
+        assembler.parameter(advance_index, ParameterRole::Block, 1, u32_type());
+    let advance_index_length =
+        assembler.parameter(advance_index, ParameterRole::Block, 2, u64_type());
+    let one_index = assembler.constant_ref(advance_index, one_u64, u64_type());
+    let next_index = assembler.operation(
+        advance_index,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(advance_index_value),
+            operation_value(one_index),
+        ],
+        arithmetic_result_type(u64_type()),
+        Immediate::None,
+    );
+    assembler.push_block(
+        advance_index,
+        function,
+        vec![
+            advance_index_value,
+            advance_index_register,
+            advance_index_length,
+        ],
+        vec![one_index, next_index],
+        inventory_switch(
+            operation_value(next_index),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    advance_register,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(advance_index_register)),
+                        SwitchArgument::Value(ValueRef::Parameter(advance_index_length)),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let advance_register_index =
+        assembler.parameter(advance_register, ParameterRole::Block, 0, u64_type());
+    let advance_register_value =
+        assembler.parameter(advance_register, ParameterRole::Block, 1, u32_type());
+    let advance_register_length =
+        assembler.parameter(advance_register, ParameterRole::Block, 2, u64_type());
+    let one_register = assembler.constant_ref(advance_register, one_u32, u32_type());
+    let next_register = assembler.operation(
+        advance_register,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(advance_register_value),
+            operation_value(one_register),
+        ],
+        arithmetic_result_type(u32_type()),
+        Immediate::None,
+    );
+    assembler.push_block(
+        advance_register,
+        function,
+        vec![
+            advance_register_index,
+            advance_register_value,
+            advance_register_length,
+        ],
+        vec![one_register, next_register],
+        inventory_switch(
+            operation_value(next_register),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    check,
+                    vec![
+                        SwitchArgument::Value(ValueRef::Parameter(advance_register_index)),
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(advance_register_length)),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let done_register = assembler.parameter(done, ParameterRole::Block, 0, u32_type());
+    let success = assembler.operation(
+        done,
+        Opcode::ResultOk,
+        vec![ValueRef::Parameter(done_register)],
+        dense_register_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        done,
+        function,
+        vec![done_register],
+        vec![success],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(success),
+        }),
+    );
+
+    for (block, code) in [(local_error, local_code), (resource_error, resource_code)] {
+        let value = assembler.constant_ref(block, code, u32_type());
+        let failure = assembler.operation(
+            block,
+            Opcode::ResultErr,
+            vec![operation_value(value)],
+            dense_register_result_type(),
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![value, failure],
+            Terminator::Return(ReturnTerminator {
+                value: operation_value(failure),
+            }),
+        );
+    }
+    assembler.push_block(
+        invariant_trap,
+        function,
+        Vec::new(),
+        Vec::new(),
+        Terminator::Trap(TrapTerminator {
+            code: TrapCode::InternalInvariant,
+            payload: None,
+        }),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![values, first_register],
+        result_type: dense_register_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+/// Walks semantic blocks in order, validates the native dense-register
+/// allocation schedule, and accumulates complete lowered block models.
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn complete_function_lowerer() -> LowerScaffold {
+    let base = complete_block_lowerer();
+    let lower_block = base.entry.entity_id;
+    let dense_validator = inventory_id(5, 16);
+    let function = inventory_id(5, 17);
+    let mut assembler = InventoryAssembler {
+        next_block: u16::try_from(base.blocks.len() + 1).expect("fixture block count fits u16"),
+        next_parameter: u16::try_from(base.parameters.len() + 1)
+            .expect("fixture parameter count fits u16"),
+        next_operation: u16::try_from(base.operations.len() + 1)
+            .expect("fixture operation count fits u16"),
+        next_constant: u16::try_from(base.constants.len() + 1)
+            .expect("fixture constant count fits u16"),
+        parameters: base.parameters,
+        blocks: base.blocks,
+        operations: base.operations,
+        constants: base.constants,
+    };
+    let dense_graph = build_dense_register_validator(&mut assembler, dense_validator);
+
+    let function_parameters =
+        assembler.parameter(function, ParameterRole::Function, 0, u32vec_type());
+    let entry_slot = assembler.parameter(function, ParameterRole::Function, 1, u32_type());
+    let block_count = assembler.parameter(function, ParameterRole::Function, 2, u32_type());
+    let block_facts = assembler.parameter(
+        function,
+        ParameterRole::Function,
+        3,
+        complete_block_facts_type(),
+    );
+
+    let entry = assembler.block_id();
+    let initialize = assembler.block_id();
+    let check = assembler.block_id();
+    let get = assembler.block_id();
+    let unpack = assembler.block_id();
+    let validate_parameters = assembler.block_id();
+    let call_block = assembler.block_id();
+    let accept_block = assembler.block_id();
+    let advance_index = assembler.block_id();
+    let advance_slot = assembler.block_id();
+    let verify_count = assembler.block_id();
+    let verify_entry = assembler.block_id();
+    let emit = assembler.block_id();
+    let forward_error = assembler.block_id();
+    let local_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+    let invariant_trap = assembler.block_id();
+
+    let zero_u32 = assembler.constant(u32_value(0));
+    let zero_u64 = assembler.constant(u64_value(0));
+    let one_u32 = assembler.constant(u32_value(1));
+    let one_u64 = assembler.constant(u64_value(1));
+    let local_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+    )));
+    let resource_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+    )));
+
+    let first = assembler.constant_ref(entry, zero_u32, u32_type());
+    let validate_function_parameters = assembler.operation(
+        entry,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(function_parameters),
+            operation_value(first),
+        ],
+        dense_register_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: dense_validator,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![first, validate_function_parameters],
+        inventory_switch(
+            operation_value(validate_function_parameters),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    initialize,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let initial_frontier = assembler.parameter(initialize, ParameterRole::Block, 0, u32_type());
+    let initial_index = assembler.constant_ref(initialize, zero_u64, u64_type());
+    let initial_slot = assembler.constant_ref(initialize, zero_u32, u32_type());
+    let length = assembler.operation(
+        initialize,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(block_facts)],
+        u64_type(),
+        Immediate::None,
+    );
+    let empty_map = assembler.operation(
+        initialize,
+        Opcode::MapNew,
+        Vec::new(),
+        empty_complete_block_map_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        initialize,
+        function,
+        vec![initial_frontier],
+        vec![initial_index, initial_slot, length, empty_map],
+        inventory_switch(
+            operation_value(empty_map),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    check,
+                    vec![
+                        SwitchArgument::Value(operation_value(initial_index)),
+                        SwitchArgument::Value(operation_value(initial_slot)),
+                        SwitchArgument::Value(ValueRef::Parameter(initial_frontier)),
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(operation_value(length)),
+                    ],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let check_index = assembler.parameter(check, ParameterRole::Block, 0, u64_type());
+    let check_slot = assembler.parameter(check, ParameterRole::Block, 1, u32_type());
+    let check_frontier = assembler.parameter(check, ParameterRole::Block, 2, u32_type());
+    let check_map = assembler.parameter(check, ParameterRole::Block, 3, complete_block_map_type());
+    let check_length = assembler.parameter(check, ParameterRole::Block, 4, u64_type());
+    let has_block = assembler.operation(
+        check,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(check_index),
+            ValueRef::Parameter(check_length),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    let check_state = vec![
+        ValueRef::Parameter(check_index),
+        ValueRef::Parameter(check_slot),
+        ValueRef::Parameter(check_frontier),
+        ValueRef::Parameter(check_map),
+        ValueRef::Parameter(check_length),
+    ];
+    assembler.push_block(
+        check,
+        function,
+        vec![
+            check_index,
+            check_slot,
+            check_frontier,
+            check_map,
+            check_length,
+        ],
+        vec![has_block],
+        inventory_cond(
+            operation_value(has_block),
+            get,
+            check_state,
+            verify_count,
+            vec![
+                ValueRef::Parameter(check_slot),
+                ValueRef::Parameter(check_map),
+                ValueRef::Parameter(check_frontier),
+            ],
+        ),
+    );
+
+    let get_index = assembler.parameter(get, ParameterRole::Block, 0, u64_type());
+    let get_slot = assembler.parameter(get, ParameterRole::Block, 1, u32_type());
+    let get_frontier = assembler.parameter(get, ParameterRole::Block, 2, u32_type());
+    let get_map = assembler.parameter(get, ParameterRole::Block, 3, complete_block_map_type());
+    let get_length = assembler.parameter(get, ParameterRole::Block, 4, u64_type());
+    let found = assembler.operation(
+        get,
+        Opcode::VectorGet,
+        vec![
+            ValueRef::Parameter(block_facts),
+            ValueRef::Parameter(get_index),
+        ],
+        TypeExpr::Option(Box::new(complete_block_fact_type())),
+        Immediate::None,
+    );
+    assembler.push_block(
+        get,
+        function,
+        vec![get_index, get_slot, get_frontier, get_map, get_length],
+        vec![found],
+        inventory_switch(
+            operation_value(found),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    unpack,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(get_index)),
+                        SwitchArgument::Value(ValueRef::Parameter(get_slot)),
+                        SwitchArgument::Value(ValueRef::Parameter(get_frontier)),
+                        SwitchArgument::Value(ValueRef::Parameter(get_map)),
+                        SwitchArgument::Value(ValueRef::Parameter(get_length)),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let unpack_fact =
+        assembler.parameter(unpack, ParameterRole::Block, 0, complete_block_fact_type());
+    let unpack_index = assembler.parameter(unpack, ParameterRole::Block, 1, u64_type());
+    let unpack_slot = assembler.parameter(unpack, ParameterRole::Block, 2, u32_type());
+    let unpack_frontier = assembler.parameter(unpack, ParameterRole::Block, 3, u32_type());
+    let unpack_map =
+        assembler.parameter(unpack, ParameterRole::Block, 4, complete_block_map_type());
+    let unpack_length = assembler.parameter(unpack, ParameterRole::Block, 5, u64_type());
+    let fact_slot = assembler.operation(
+        unpack,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(unpack_fact)],
+        u32_type(),
+        Immediate::Index(0),
+    );
+    let fact_parameters = assembler.operation(
+        unpack,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(unpack_fact)],
+        u32vec_type(),
+        Immediate::Index(1),
+    );
+    let slot_matches = assembler.operation(
+        unpack,
+        Opcode::Equal,
+        vec![operation_value(fact_slot), ValueRef::Parameter(unpack_slot)],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        unpack,
+        function,
+        vec![
+            unpack_fact,
+            unpack_index,
+            unpack_slot,
+            unpack_frontier,
+            unpack_map,
+            unpack_length,
+        ],
+        vec![fact_slot, fact_parameters, slot_matches],
+        inventory_cond(
+            operation_value(slot_matches),
+            validate_parameters,
+            vec![
+                ValueRef::Parameter(unpack_fact),
+                operation_value(fact_parameters),
+                ValueRef::Parameter(unpack_index),
+                ValueRef::Parameter(unpack_slot),
+                ValueRef::Parameter(unpack_frontier),
+                ValueRef::Parameter(unpack_map),
+                ValueRef::Parameter(unpack_length),
+            ],
+            local_error,
+            Vec::new(),
+        ),
+    );
+
+    let validate_fact = assembler.parameter(
+        validate_parameters,
+        ParameterRole::Block,
+        0,
+        complete_block_fact_type(),
+    );
+    let validate_registers =
+        assembler.parameter(validate_parameters, ParameterRole::Block, 1, u32vec_type());
+    let validate_index =
+        assembler.parameter(validate_parameters, ParameterRole::Block, 2, u64_type());
+    let validate_slot =
+        assembler.parameter(validate_parameters, ParameterRole::Block, 3, u32_type());
+    let validate_frontier =
+        assembler.parameter(validate_parameters, ParameterRole::Block, 4, u32_type());
+    let validate_map = assembler.parameter(
+        validate_parameters,
+        ParameterRole::Block,
+        5,
+        complete_block_map_type(),
+    );
+    let validate_length =
+        assembler.parameter(validate_parameters, ParameterRole::Block, 6, u64_type());
+    let validated = assembler.operation(
+        validate_parameters,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(validate_registers),
+            ValueRef::Parameter(validate_frontier),
+        ],
+        dense_register_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: dense_validator,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        validate_parameters,
+        function,
+        vec![
+            validate_fact,
+            validate_registers,
+            validate_index,
+            validate_slot,
+            validate_frontier,
+            validate_map,
+            validate_length,
+        ],
+        vec![validated],
+        inventory_switch(
+            operation_value(validated),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    call_block,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(validate_fact)),
+                        SwitchArgument::Value(ValueRef::Parameter(validate_index)),
+                        SwitchArgument::Value(ValueRef::Parameter(validate_slot)),
+                        SwitchArgument::Value(ValueRef::Parameter(validate_map)),
+                        SwitchArgument::Value(ValueRef::Parameter(validate_length)),
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let call_frontier = assembler.parameter(call_block, ParameterRole::Block, 0, u32_type());
+    let call_fact = assembler.parameter(
+        call_block,
+        ParameterRole::Block,
+        1,
+        complete_block_fact_type(),
+    );
+    let call_index = assembler.parameter(call_block, ParameterRole::Block, 2, u64_type());
+    let call_slot = assembler.parameter(call_block, ParameterRole::Block, 3, u32_type());
+    let call_map = assembler.parameter(
+        call_block,
+        ParameterRole::Block,
+        4,
+        complete_block_map_type(),
+    );
+    let call_length = assembler.parameter(call_block, ParameterRole::Block, 5, u64_type());
+    let fact_types = [
+        u32_type(),
+        u32vec_type(),
+        immediate_inventory_type(),
+        u32_type(),
+        u32_type(),
+        u32_type(),
+        u32vec_type(),
+        u32_type(),
+        u32vec_type(),
+        optional_u32_type(),
+        builtin_switch_case_facts_type(),
+        u32_type(),
+    ];
+    let fields = fact_types
+        .into_iter()
+        .enumerate()
+        .map(|(index, value_type)| {
+            assembler.operation(
+                call_block,
+                Opcode::TupleGet,
+                vec![ValueRef::Parameter(call_fact)],
+                value_type,
+                Immediate::Index(u32::try_from(index).expect("fact field index fits u32")),
+            )
+        })
+        .collect::<Vec<_>>();
+    let lowered = assembler.operation(
+        call_block,
+        Opcode::CallDirect,
+        vec![
+            operation_value(fields[2]),
+            ValueRef::Parameter(call_frontier),
+            operation_value(fields[0]),
+            operation_value(fields[1]),
+            operation_value(fields[3]),
+            operation_value(fields[4]),
+            operation_value(fields[5]),
+            operation_value(fields[6]),
+            operation_value(fields[7]),
+            operation_value(fields[8]),
+            operation_value(fields[9]),
+            ValueRef::Parameter(block_count),
+            operation_value(fields[11]),
+            operation_value(fields[10]),
+        ],
+        complete_block_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: lower_block,
+            type_arguments: Vec::new(),
+        }),
+    );
+    let mut call_operations = fields;
+    call_operations.push(lowered);
+    assembler.push_block(
+        call_block,
+        function,
+        vec![
+            call_frontier,
+            call_fact,
+            call_index,
+            call_slot,
+            call_map,
+            call_length,
+        ],
+        call_operations,
+        inventory_switch(
+            operation_value(lowered),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    accept_block,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(call_index)),
+                        SwitchArgument::Value(ValueRef::Parameter(call_slot)),
+                        SwitchArgument::Value(ValueRef::Parameter(call_map)),
+                        SwitchArgument::Value(ValueRef::Parameter(call_length)),
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let accepted = assembler.parameter(
+        accept_block,
+        ParameterRole::Block,
+        0,
+        complete_block_summary_type(),
+    );
+    let accept_index = assembler.parameter(accept_block, ParameterRole::Block, 1, u64_type());
+    let accept_slot = assembler.parameter(accept_block, ParameterRole::Block, 2, u32_type());
+    let accept_map = assembler.parameter(
+        accept_block,
+        ParameterRole::Block,
+        3,
+        complete_block_map_type(),
+    );
+    let accept_length = assembler.parameter(accept_block, ParameterRole::Block, 4, u64_type());
+    let accepted_block = assembler.operation(
+        accept_block,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(accepted)],
+        complete_block_model_type(),
+        Immediate::Index(0),
+    );
+    let accepted_frontier = assembler.operation(
+        accept_block,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(accepted)],
+        u32_type(),
+        Immediate::Index(1),
+    );
+    let inserted = assembler.operation(
+        accept_block,
+        Opcode::MapInsert,
+        vec![
+            ValueRef::Parameter(accept_map),
+            ValueRef::Parameter(accept_slot),
+            operation_value(accepted_block),
+        ],
+        complete_block_map_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        accept_block,
+        function,
+        vec![
+            accepted,
+            accept_index,
+            accept_slot,
+            accept_map,
+            accept_length,
+        ],
+        vec![accepted_block, accepted_frontier, inserted],
+        inventory_branch(
+            advance_index,
+            vec![
+                ValueRef::Parameter(accept_index),
+                ValueRef::Parameter(accept_slot),
+                operation_value(accepted_frontier),
+                operation_value(inserted),
+                ValueRef::Parameter(accept_length),
+            ],
+        ),
+    );
+
+    let advance_index_value =
+        assembler.parameter(advance_index, ParameterRole::Block, 0, u64_type());
+    let advance_index_slot =
+        assembler.parameter(advance_index, ParameterRole::Block, 1, u32_type());
+    let advance_index_frontier =
+        assembler.parameter(advance_index, ParameterRole::Block, 2, u32_type());
+    let advance_index_map = assembler.parameter(
+        advance_index,
+        ParameterRole::Block,
+        3,
+        complete_block_map_type(),
+    );
+    let advance_index_length =
+        assembler.parameter(advance_index, ParameterRole::Block, 4, u64_type());
+    let index_one = assembler.constant_ref(advance_index, one_u64, u64_type());
+    let next_index = assembler.operation(
+        advance_index,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(advance_index_value),
+            operation_value(index_one),
+        ],
+        arithmetic_result_type(u64_type()),
+        Immediate::None,
+    );
+    assembler.push_block(
+        advance_index,
+        function,
+        vec![
+            advance_index_value,
+            advance_index_slot,
+            advance_index_frontier,
+            advance_index_map,
+            advance_index_length,
+        ],
+        vec![index_one, next_index],
+        inventory_switch(
+            operation_value(next_index),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    advance_slot,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(advance_index_slot)),
+                        SwitchArgument::Value(ValueRef::Parameter(advance_index_frontier)),
+                        SwitchArgument::Value(ValueRef::Parameter(advance_index_map)),
+                        SwitchArgument::Value(ValueRef::Parameter(advance_index_length)),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let advance_slot_index = assembler.parameter(advance_slot, ParameterRole::Block, 0, u64_type());
+    let advance_slot_value = assembler.parameter(advance_slot, ParameterRole::Block, 1, u32_type());
+    let advance_slot_frontier =
+        assembler.parameter(advance_slot, ParameterRole::Block, 2, u32_type());
+    let advance_slot_map = assembler.parameter(
+        advance_slot,
+        ParameterRole::Block,
+        3,
+        complete_block_map_type(),
+    );
+    let advance_slot_length =
+        assembler.parameter(advance_slot, ParameterRole::Block, 4, u64_type());
+    let slot_one = assembler.constant_ref(advance_slot, one_u32, u32_type());
+    let next_slot = assembler.operation(
+        advance_slot,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(advance_slot_value),
+            operation_value(slot_one),
+        ],
+        arithmetic_result_type(u32_type()),
+        Immediate::None,
+    );
+    assembler.push_block(
+        advance_slot,
+        function,
+        vec![
+            advance_slot_index,
+            advance_slot_value,
+            advance_slot_frontier,
+            advance_slot_map,
+            advance_slot_length,
+        ],
+        vec![slot_one, next_slot],
+        inventory_switch(
+            operation_value(next_slot),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    check,
+                    vec![
+                        SwitchArgument::Value(ValueRef::Parameter(advance_slot_index)),
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(advance_slot_frontier)),
+                        SwitchArgument::Value(ValueRef::Parameter(advance_slot_map)),
+                        SwitchArgument::Value(ValueRef::Parameter(advance_slot_length)),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let count_slot = assembler.parameter(verify_count, ParameterRole::Block, 0, u32_type());
+    let count_map = assembler.parameter(
+        verify_count,
+        ParameterRole::Block,
+        1,
+        complete_block_map_type(),
+    );
+    let count_frontier = assembler.parameter(verify_count, ParameterRole::Block, 2, u32_type());
+    let count_matches = assembler.operation(
+        verify_count,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(count_slot),
+            ValueRef::Parameter(block_count),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        verify_count,
+        function,
+        vec![count_slot, count_map, count_frontier],
+        vec![count_matches],
+        inventory_cond(
+            operation_value(count_matches),
+            verify_entry,
+            vec![
+                ValueRef::Parameter(count_map),
+                ValueRef::Parameter(count_frontier),
+            ],
+            local_error,
+            Vec::new(),
+        ),
+    );
+
+    let entry_map = assembler.parameter(
+        verify_entry,
+        ParameterRole::Block,
+        0,
+        complete_block_map_type(),
+    );
+    let entry_frontier = assembler.parameter(verify_entry, ParameterRole::Block, 1, u32_type());
+    let entry_valid = assembler.operation(
+        verify_entry,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(entry_slot),
+            ValueRef::Parameter(block_count),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        verify_entry,
+        function,
+        vec![entry_map, entry_frontier],
+        vec![entry_valid],
+        inventory_cond(
+            operation_value(entry_valid),
+            emit,
+            vec![
+                ValueRef::Parameter(entry_map),
+                ValueRef::Parameter(entry_frontier),
+            ],
+            local_error,
+            Vec::new(),
+        ),
+    );
+
+    let emit_map = assembler.parameter(emit, ParameterRole::Block, 0, complete_block_map_type());
+    let emit_frontier = assembler.parameter(emit, ParameterRole::Block, 1, u32_type());
+    let model = assembler.operation(
+        emit,
+        Opcode::TupleNew,
+        vec![
+            ValueRef::Parameter(function_parameters),
+            ValueRef::Parameter(entry_slot),
+            ValueRef::Parameter(emit_map),
+            ValueRef::Parameter(emit_frontier),
+        ],
+        complete_function_model_type(),
+        Immediate::None,
+    );
+    let success = assembler.operation(
+        emit,
+        Opcode::ResultOk,
+        vec![operation_value(model)],
+        complete_function_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        emit,
+        function,
+        vec![emit_map, emit_frontier],
+        vec![model, success],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(success),
+        }),
+    );
+
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let forwarded_failure = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        complete_function_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(forwarded_failure),
+        }),
+    );
+    for (block, code) in [(local_error, local_code), (resource_error, resource_code)] {
+        let value = assembler.constant_ref(block, code, u32_type());
+        let failure = assembler.operation(
+            block,
+            Opcode::ResultErr,
+            vec![operation_value(value)],
+            complete_function_result_type(),
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![value, failure],
+            Terminator::Return(ReturnTerminator {
+                value: operation_value(failure),
+            }),
+        );
+    }
+    assembler.push_block(
+        invariant_trap,
+        function,
+        Vec::new(),
+        Vec::new(),
+        Terminator::Trap(TrapTerminator {
+            code: TrapCode::InternalInvariant,
+            payload: None,
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![function_parameters, entry_slot, block_count, block_facts],
+        result_type: complete_function_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let mut functions = base.functions;
+    functions.extend([dense_graph, graph.clone()]);
+    LowerScaffold {
+        types: base.types,
+        entry: graph,
+        functions,
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+        adapters: base.adapters,
+    }
+}
+
 fn append_terminator_success_block(
     assembler: &mut InventoryAssembler,
     function: EntityId,
@@ -7276,6 +8523,48 @@ fn execute_complete_block(
     .expect("v2 executes complete block lowerer")
 }
 
+fn complete_block_facts(function: &sley_vm::BytecodeFunction) -> Vec<CompleteBlockFact> {
+    function
+        .blocks
+        .iter()
+        .map(|block| CompleteBlockFact {
+            slot: block.slot,
+            parameter_registers: block.parameter_registers.clone(),
+            instructions: block
+                .instructions
+                .iter()
+                .map(immediate_inventory_fact)
+                .collect(),
+            terminator: block.terminator.clone(),
+            reachability: block.reachability,
+        })
+        .collect()
+}
+
+fn execute_complete_function(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    function_parameters: &[u32],
+    entry_slot: u32,
+    block_count: u32,
+    blocks: &[CompleteBlockFact],
+) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                u32vec_value(function_parameters),
+                u32_value(u128::from(entry_slot)),
+                u32_value(u128::from(block_count)),
+                complete_block_facts_value(blocks),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes complete function lowerer")
+}
+
 fn execute_builtin_switch(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
@@ -8744,6 +10033,175 @@ fn native_builtin_switch_terminator() -> (sley_vm::BytecodeTerminator, u32, u32)
     )
 }
 
+#[allow(clippy::too_many_lines)]
+fn native_complete_function() -> sley_vm::BytecodeFunction {
+    let function_id = id(1);
+    let block_ids = [id(2), id(3), id(4)];
+    let operation_ids = [id(5), id(6), id(7)];
+    let function_parameters = [id(10), id(11)];
+    let none_parameter = id(12);
+    let some_parameters = [id(13), id(14)];
+    let option_result = ValueRef::OperationResult(OperationResultRef {
+        operation: operation_ids[0],
+        result_index: 0,
+    });
+    let none_result = ValueRef::OperationResult(OperationResultRef {
+        operation: operation_ids[1],
+        result_index: 0,
+    });
+    let some_result = ValueRef::OperationResult(OperationResultRef {
+        operation: operation_ids[2],
+        result_index: 0,
+    });
+    let function = FunctionGraph {
+        entity_id: function_id,
+        type_parameters: Vec::new(),
+        parameters: function_parameters.to_vec(),
+        result_type: TypeExpr::Bool,
+        effects: Vec::new(),
+        entry_block: block_ids[0],
+        blocks: block_ids.to_vec(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameters = vec![
+        Parameter {
+            entity_id: function_parameters[0],
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 0,
+            value_type: TypeExpr::Bool,
+        },
+        Parameter {
+            entity_id: function_parameters[1],
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 1,
+            value_type: TypeExpr::Bool,
+        },
+        Parameter {
+            entity_id: none_parameter,
+            owner: block_ids[1],
+            role: ParameterRole::Block,
+            ordinal: 0,
+            value_type: TypeExpr::Bool,
+        },
+        Parameter {
+            entity_id: some_parameters[0],
+            owner: block_ids[2],
+            role: ParameterRole::Block,
+            ordinal: 0,
+            value_type: TypeExpr::Bool,
+        },
+        Parameter {
+            entity_id: some_parameters[1],
+            owner: block_ids[2],
+            role: ParameterRole::Block,
+            ordinal: 1,
+            value_type: TypeExpr::Bool,
+        },
+    ];
+    let operations = vec![
+        Operation {
+            entity_id: operation_ids[0],
+            block: block_ids[0],
+            ordinal: 0,
+            opcode: Opcode::OptionSome,
+            operands: vec![ValueRef::Parameter(function_parameters[0])],
+            result_types: vec![TypeExpr::Option(Box::new(TypeExpr::Bool))],
+            immediate: Immediate::None,
+        },
+        Operation {
+            entity_id: operation_ids[1],
+            block: block_ids[1],
+            ordinal: 0,
+            opcode: Opcode::BoolNot,
+            operands: vec![ValueRef::Parameter(none_parameter)],
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::None,
+        },
+        Operation {
+            entity_id: operation_ids[2],
+            block: block_ids[2],
+            ordinal: 0,
+            opcode: Opcode::BoolAnd,
+            operands: vec![
+                ValueRef::Parameter(some_parameters[0]),
+                ValueRef::Parameter(some_parameters[1]),
+            ],
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::None,
+        },
+    ];
+    let blocks = vec![
+        Block {
+            entity_id: block_ids[0],
+            function: function_id,
+            parameters: Vec::new(),
+            operations: vec![operation_ids[0]],
+            terminator: Terminator::VariantSwitch(VariantSwitchTerminator {
+                value: option_result,
+                cases: vec![
+                    SwitchCase {
+                        case_key: CaseKey::Builtin(BuiltinCase::None),
+                        edge: SwitchEdge {
+                            target: block_ids[1],
+                            arguments: vec![SwitchArgument::Value(ValueRef::Parameter(
+                                function_parameters[1],
+                            ))],
+                        },
+                    },
+                    SwitchCase {
+                        case_key: CaseKey::Builtin(BuiltinCase::Some),
+                        edge: SwitchEdge {
+                            target: block_ids[2],
+                            arguments: vec![
+                                SwitchArgument::CasePayload,
+                                SwitchArgument::Value(ValueRef::Parameter(function_parameters[0])),
+                            ],
+                        },
+                    },
+                ],
+            }),
+            reachability: Reachability::Required,
+        },
+        Block {
+            entity_id: block_ids[1],
+            function: function_id,
+            parameters: vec![none_parameter],
+            operations: vec![operation_ids[1]],
+            terminator: Terminator::Return(ReturnTerminator { value: none_result }),
+            reachability: Reachability::Required,
+        },
+        Block {
+            entity_id: block_ids[2],
+            function: function_id,
+            parameters: some_parameters.to_vec(),
+            operations: vec![operation_ids[2]],
+            terminator: Terminator::Return(ReturnTerminator { value: some_result }),
+            reachability: Reachability::Required,
+        },
+    ];
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    sley_vm::lower_function(sley_vm::LoweringInput {
+        types: &types,
+        function: &function,
+        parameters: &parameters,
+        blocks: &blocks,
+        operations: &operations,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: sley_vm::CacheProfile::EXTENDED_V1,
+        constants: &[],
+        globals: &[],
+        functions: std::slice::from_ref(&function),
+        contracts: &[],
+        adapters: &[],
+    })
+    .expect("native reference lowers complete multi-block function")
+    .bytecode
+}
+
 fn builtin_switch_facts(terminator: &sley_vm::BytecodeTerminator) -> (u32, Vec<BuiltinSwitchFact>) {
     let sley_vm::BytecodeTerminator::VariantSwitch { value, cases } = terminator else {
         panic!("native reference must be a variant switch")
@@ -9009,6 +10467,95 @@ fn builtin_switch_model_value(selector: u32, cases: &[BuiltinSwitchFact]) -> Con
             builtin_switch_facts_value(cases),
         ]),
     }
+}
+
+fn complete_terminator_model_value(terminator: &sley_vm::BytecodeTerminator) -> ConstValue {
+    let (kind, simple, builtin) =
+        if let sley_vm::BytecodeTerminator::VariantSwitch { .. } = terminator {
+            let (selector, cases) = builtin_switch_facts(terminator);
+            (
+                4,
+                empty_simple_terminator_value(),
+                builtin_switch_model_value(selector, &cases),
+            )
+        } else {
+            let (kind, ..) = simple_terminator_fact(terminator);
+            (
+                kind,
+                simple_terminator_value(terminator),
+                builtin_switch_model_value(0, &[]),
+            )
+        };
+    ConstValue {
+        value_type: complete_terminator_model_type(),
+        data: ConstData::Sequence(vec![u32_value(u128::from(kind)), simple, builtin]),
+    }
+}
+
+fn complete_block_model_value(block: &sley_vm::BytecodeBlock) -> ConstValue {
+    ConstValue {
+        value_type: complete_block_model_type(),
+        data: ConstData::Sequence(vec![
+            u32_value(u128::from(block.slot)),
+            u32vec_value(&block.parameter_registers),
+            ConstValue {
+                value_type: immediate_inventory_model_type(),
+                data: ConstData::Sequence(
+                    block
+                        .instructions
+                        .iter()
+                        .map(immediate_instruction_value)
+                        .collect(),
+                ),
+            },
+            complete_terminator_model_value(&block.terminator),
+            u32_value(u128::from(block.reachability)),
+        ]),
+    }
+}
+
+fn assert_complete_function_model(
+    outcome: &sley_vm::ExecutionOutcome,
+    expected: &sley_vm::BytecodeFunction,
+) {
+    use sley_ssmc::ResultConst;
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!("complete function lowering must terminate with a value")
+    };
+    let ConstData::Result(ResultConst::Ok(model)) = &value.data else {
+        panic!(
+            "complete function lowering must return Ok, got {:?}",
+            value.data
+        )
+    };
+    let expected_map = ConstValue {
+        value_type: complete_block_map_type(),
+        data: ConstData::Map(
+            expected
+                .blocks
+                .iter()
+                .map(|block| sley_ssmc::MapEntryConst {
+                    key: u32_value(u128::from(block.slot)),
+                    value: complete_block_model_value(block),
+                })
+                .collect(),
+        ),
+    };
+    assert_eq!(
+        model.as_ref(),
+        &ConstValue {
+            value_type: complete_function_model_type(),
+            data: ConstData::Sequence(vec![
+                u32vec_value(&expected.parameter_registers),
+                u32_value(u128::from(expected.entry_block)),
+                expected_map,
+                u32_value(
+                    u128::try_from(expected.register_types.len())
+                        .expect("register count fits u128"),
+                ),
+            ]),
+        }
+    );
 }
 
 fn assert_complete_block_summary(
@@ -9717,6 +11264,105 @@ fn lower_complete_block_preserves_operation_before_switch_failures() {
             &switch,
             block_count,
             Reachability::Required.tag(),
+        ),
+        sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+    );
+}
+
+#[test]
+fn lower_complete_function_matches_native_block_and_register_order() {
+    let native = native_complete_function();
+    let facts = complete_block_facts(&native);
+    let block_count = u32::try_from(native.blocks.len()).expect("fixture block count fits u32");
+    let (package, approved) = admit_lower_program(&complete_function_lowerer());
+    let first = execute_complete_function(
+        &package,
+        &approved,
+        &native.parameter_registers,
+        native.entry_block,
+        block_count,
+        &facts,
+    );
+    let second = execute_complete_function(
+        &package,
+        &approved,
+        &native.parameter_registers,
+        native.entry_block,
+        block_count,
+        &facts,
+    );
+    assert_complete_function_model(&first, &native);
+    assert_eq!(first.termination, second.termination);
+}
+
+#[test]
+fn lower_complete_function_rejects_first_invalid_dense_fact() {
+    let native = native_complete_function();
+    let facts = complete_block_facts(&native);
+    let block_count = u32::try_from(native.blocks.len()).expect("fixture block count fits u32");
+    let (package, approved) = admit_lower_program(&complete_function_lowerer());
+
+    let mut wrong_slot = facts.clone();
+    wrong_slot[1].slot = 2;
+    assert_inventory_error(
+        &execute_complete_function(
+            &package,
+            &approved,
+            &native.parameter_registers,
+            native.entry_block,
+            block_count,
+            &wrong_slot,
+        ),
+        sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+    );
+
+    let mut wrong_parameters = facts.clone();
+    wrong_parameters[2].parameter_registers[1] = 7;
+    assert_inventory_error(
+        &execute_complete_function(
+            &package,
+            &approved,
+            &native.parameter_registers,
+            native.entry_block,
+            block_count,
+            &wrong_parameters,
+        ),
+        sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+    );
+
+    let mut earlier_operation = wrong_parameters;
+    earlier_operation[0].instructions[0].immediate_tag = Immediate::Entity(id(0)).tag();
+    assert_inventory_error(
+        &execute_complete_function(
+            &package,
+            &approved,
+            &native.parameter_registers,
+            native.entry_block,
+            block_count,
+            &earlier_operation,
+        ),
+        sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
+    );
+
+    assert_inventory_error(
+        &execute_complete_function(
+            &package,
+            &approved,
+            &native.parameter_registers,
+            native.entry_block,
+            block_count + 1,
+            &facts,
+        ),
+        sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+    );
+    assert_inventory_error(
+        &execute_complete_function(
+            &package,
+            &approved,
+            &native.parameter_registers,
+            block_count,
+            block_count,
+            &facts,
         ),
         sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
     );
