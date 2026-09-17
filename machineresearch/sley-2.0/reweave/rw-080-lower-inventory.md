@@ -4,6 +4,11 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real Sley lowering algorithm
 under the operator development override. It is not RW-110 completion, C1,
 self-hosting evidence, or runtime authority.
 
+Successor note: the implementation was renamed to
+`ordered_scalar_inventory_lowerer` and extended by
+`rw-080-lower-scalar-inventory.md`; this record preserves the original
+Boolean-only slice and its evidence.
+
 ## Scope and behavior
 
 `ordered_bool_inventory_lowerer(inventory, first_register)` accepts a runtime
