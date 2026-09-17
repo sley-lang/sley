@@ -196,11 +196,13 @@ def main() -> int:
         FIXTURES.mkdir(parents=True, exist_ok=True)
         for path, payload in payloads.items():
             path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-        sha = hashlib.sha256()
+        # One sha256sum-style line per fixture file, matching every other
+        # conformance family manifest.
+        lines = []
         for path in sorted(payloads):
-            sha.update(path.name.encode())
-            sha.update(path.read_bytes())
-        (FIXTURES / "SHA256SUMS").write_text(f"{sha.hexdigest()}  native-test-v1\n")
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            lines.append(f"{digest}  {path.name}\n")
+        (FIXTURES / "SHA256SUMS").write_text("".join(lines))
         return 0
     for path, payload in payloads.items():
         committed = json.loads(path.read_text())

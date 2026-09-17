@@ -7230,13 +7230,7 @@ fn emit_native_test_vectors_for_fixture_refresh() {
     let selected_fields = fields_of(&selected.body, 6);
     // Field 5 (index 4) is the minted 605 token; field 6 is the total.
     let live_read = report_read_body(&selected_fields[4], 0, 65_536);
-    let page = call_v3_ok(
-        &mut dserver,
-        dsession,
-        11,
-        TESTS_REPORT_READ_TAG,
-        live_read,
-    );
+    let page = call_v3_ok(&mut dserver, dsession, 11, TESTS_REPORT_READ_TAG, live_read);
     emit(
         "response",
         "tests.report_read.response",

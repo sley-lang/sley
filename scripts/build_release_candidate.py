@@ -51,6 +51,10 @@ CONFORMANCE_SUBSET = ("conformance/smp1/v1", "conformance/smp1-json-bridge/v1", 
 EMBEDDED_INPUT_PATHS = (
     "docs/spec/SSMC1_EPOCH1_SCHEMA.txt",
     "conformance/smp1-json-bridge/v2/methods.json",
+    # N8: the v3 table is embedded verbatim by sley-json-bridge
+    # (METHOD_TABLE_V3_JSON) and went live row by row through N7c/N7d,
+    # so it joins the exact input surface here.
+    "conformance/smp1-json-bridge/v3/methods.json",
 )
 # Every tracked input the staged artifact derives from: the release binary is
 # built from the Rust workspace and its compile-time embeds, the packaging
