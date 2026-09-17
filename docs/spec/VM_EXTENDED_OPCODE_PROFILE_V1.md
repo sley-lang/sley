@@ -1,10 +1,12 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 16 (2026-09-17).
-This revision specifies the E7 capability-handle host-binding design (the new
-E7 design section below) and changes no execution semantics: every landed
-slice keeps its bytes, vectors, and cache keys, and opcodes 145, 160, and
-162 keep their exact refusals. Revision 15 closed the historical Nabu
+Status: S20-260/S20-270 full-profile contract draft, revision 17 (2026-09-17).
+This revision implements the E7 result-escape guard specified by revision 16:
+an extended-profile Function result containing an `AdapterHandle` or
+`CapabilityToken`, at any structural depth, fails lowering with
+`VM_LOWER_SIGNATURE_MISMATCH`. It does not authorize E7 execution: every
+landed slice keeps its bytes, vectors, and cache keys, and opcodes 145, 160,
+and 162 keep their exact refusals. Revision 15 closed the historical Nabu
 documentation and corpus gaps; independent item-level review accepted these
 corrections (see
 `evidence/review/vm-nabu-correction-review-2026-09-15.md`). Existing epoch-1
@@ -35,7 +37,10 @@ rest of E7 stays excluded until its owners exist. Revision 16 specifies the
 E7 capability-handle host-binding design (new section below): it answers the
 S20-760 item 3c owner blocker with a boundary a future owner slice must
 satisfy, and authorizes no execution, no bytecode or cache-key change, and
-no new code.
+no new code. Revision 17 lands only the design's result-escape guard, with a
+direct regression test over both handle forms and nested result/function
+shapes. Handle construction, binding, narrowing, effect servicing, and host
+minting remain owner-blocked and unsupported.
 
 ## Boundary
 
@@ -91,9 +96,9 @@ Runtime values remain immutable views of validated `ConstValue`, extended
 by two execution-local forms that never persist, never enter an observation,
 and are rejected as a Function result type at lowering
 (`VM_LOWER_SIGNATURE_MISMATCH`): local cells (a slot in the execution's
-cell table) and adapter handles or capability tokens (E7, excluded from
-execution; the handle model a future owner slice must implement is specified
-in the E7 design section below). Every
+cell table) and adapter handles or capability tokens (E7 execution remains
+excluded; revision 17 enforces the result-escape portion of the handle model
+specified in the E7 design section below). Every
 constructed value carries exactly its register type; a value whose
 `value_type` differs from the result register's type is
 `VM_EXEC_INTERNAL_INVARIANT`. That identity check is the whole
@@ -347,6 +352,16 @@ Handles originate only from verified-token binding; an unbound handle is
 refused by the owner slice's code, the host table is dropped with the
 execution and never reused across executions, and handles cross the boundary
 as references only — they never serialize into observations or token bytes.
+
+Landed boundary enforcement (revision 17). The result-escape half of the
+handle form is active even while handle-producing opcodes remain refused:
+`check_result_type` recursively rejects `AdapterHandle` and
+`CapabilityToken` through tuples, named arguments, vectors, options, maps,
+results, function-reference signatures, and local-cell element types. The
+existing E5 `LocalCell` result guard remains separate because it also governs
+which operations may consume cells. This correction changes no bytecode
+layout and creates no handle value, host call, token verification, or minting
+path.
 
 Verification boundary. Presented tokens are verified by the host before
 execution, in the token profile section 5 order (version, issuer, key, MAC,
@@ -626,8 +641,8 @@ container/cache identities and record shape, not execution semantics.
 ## 6. Explicit exclusions
 
 This contract does not claim: E7 execution beyond slices E7a and E8; the E7
-handle-model subsection specifies a future design boundary only and
-authorizes no execution; generic specialization or type
+handle-model subsection authorizes no execution, and revision 17 implements
+only its result-escape guard; generic specialization or type
 arguments; an optimizer; effects, adapters, capabilities, replay, or live
 cancellation beyond S20-270's rules; a second host or byte-memory budget;
 S20-360 full operation analysis; or GA.

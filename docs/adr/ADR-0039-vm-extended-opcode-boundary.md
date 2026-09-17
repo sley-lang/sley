@@ -1,9 +1,10 @@
 # ADR-0039: the extended opcode profile as a second, explicit VM profile
 
-Status: accepted architecture; current contract revision 16 (2026-09-17).
-Slices E1–E6, E7a and E8 are implemented. Revision 16 is design-only: it
-specifies the E7 capability-handle host-binding boundary (160/162 execution
-deferred to S20-280/S20-380 owners) and changes no execution semantics.
+Status: accepted architecture; current contract revision 17 (2026-09-17).
+Slices E1–E6, E7a and E8 are implemented. Revision 16 specified the E7
+capability-handle host-binding boundary. Revision 17 implements its recursive
+result-escape guard for `AdapterHandle` and `CapabilityToken`; 160/162
+execution remains deferred to S20-280/S20-380 owners.
 Historical review records remain
 preserved; independent item-level review accepted the revision 15 corrections
 in `evidence/review/vm-nabu-correction-review-2026-09-15.md`.

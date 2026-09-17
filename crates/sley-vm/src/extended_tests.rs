@@ -1984,6 +1984,30 @@ fn cell_type() -> TypeExpr {
 }
 
 #[test]
+fn e7_execution_local_handles_cannot_escape_as_function_results() {
+    for result_type in [
+        TypeExpr::AdapterHandle(id(70)),
+        TypeExpr::CapabilityToken(id(71)),
+        TypeExpr::Result {
+            ok: Box::new(TypeExpr::CapabilityToken(id(72))),
+            error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Capability)),
+        },
+        TypeExpr::FunctionRef(FunctionType {
+            parameters: vec![TypeExpr::AdapterHandle(id(73))],
+            result: Box::new(TypeExpr::Unit),
+            effects: Vec::new(),
+        }),
+    ] {
+        assert_eq!(
+            crate::extended::check_result_type(&result_type)
+                .expect_err("execution-local handle must not escape")
+                .code(),
+            LowerErrorCode::SignatureMismatch,
+        );
+    }
+}
+
+#[test]
 fn e5_cells_hashes_globals_and_references_follow_the_contract() {
     let cells = Fixture::new(
         &[u64_type(), u64_type()],

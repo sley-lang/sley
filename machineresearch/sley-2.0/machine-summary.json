@@ -424,7 +424,7 @@
   "vm_extended_opcode_profile": {
     "status": "S20_260_270_EXTENDED_COMPLETE",
     "contract": "docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md",
-    "contract_revision": 16,
+    "contract_revision": 17,
     "adr": "docs/adr/ADR-0039-vm-extended-opcode-boundary.md",
     "checker": "scripts/check_vm_extended_opcode_profile.py",
     "cache_profile": "EXTENDED_V1",
@@ -621,11 +621,11 @@
     "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
     "vulcan_surface_review_initial": "FAIL_1_P0_2_P1_3_P2_2_P3",
     "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
-    "status_note": "Revision15: existing E1\u2013E6/E7a/E8 implementation remains complete; previously unaccounted historical Nabu residuals now have independent item-level closure. Excluded E7 functionality remains excluded. Revision16 is design-only: the E7 handle-model host-binding boundary for 160/162; execution still refused, owed to S20-280/S20-380 full; no bytes, vectors, or cache keys changed.",
+    "status_note": "Revision15: existing E1\u2013E6/E7a/E8 implementation remains complete; previously unaccounted historical Nabu residuals now have independent item-level closure. Revision16 specified the E7 handle-model host-binding boundary for 160/162. Revision17 implements only its recursive AdapterHandle/CapabilityToken result-escape guard; execution stays refused and owed to S20-280/S20-380 full; no bytes, vectors, or cache keys changed.",
     "revision_15_correction_note": "Precise float/hash/depth/prefilter/shared-version vocabulary, two added conformance outcomes, and current ADR/campaign consistency checks. Independent correction review found no new issue in scope; all 29 prior vectors preserved. Review and fingerprints: evidence/review/vm-nabu-correction-review-2026-09-15.md.",
     "nabu_architecture_review_original_note": "Original 2026-09-04 Nabu disposition: PASS_0_P0_7_P1_6_P2_5_P3. Transcript preserved in machineresearch/sley-2.0/reviews/s20-260-nabu-architecture-review-2026-09-04.log. Current disposition below is item-level closure confirmed by independent Codex qualification_review, not a new Nabu transcript.",
     "nabu_architecture_review_note": "All 18 original finding IDs independently inspected; six previously fixed, twelve corrected in revision15. Evidence: evidence/review/vm-nabu-correction-review-2026-09-15.md. This closes the historical findings only; no full-VM or release acceptance is asserted.",
-    "e7_design": "rev16 design-only: capability-handle host-binding boundary for 160/162 (host verifies pre-execution, execution sees handles only, host mints at observation boundary); 160/162 execution still refused, owed to S20-280/S20-380 full"
+    "e7_design": "rev17: rev16 capability-handle host-binding boundary for 160/162 plus implemented recursive result-escape guard (host verifies pre-execution, execution sees handles only, host mints at observation boundary); 160/162 execution still refused, owed to S20-280/S20-380 full"
   },
   "reference_adapter_profile": {
     "status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",

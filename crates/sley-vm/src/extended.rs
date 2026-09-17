@@ -120,13 +120,36 @@ pub fn contains_cell(value: &TypeExpr) -> bool {
     }
 }
 
-/// A Function result may not carry a cell out of its execution (contract E5).
+/// Whether a type contains an execution-local host handle anywhere.
+fn contains_host_handle(value: &TypeExpr) -> bool {
+    match value {
+        TypeExpr::AdapterHandle(_) | TypeExpr::CapabilityToken(_) => true,
+        TypeExpr::Tuple(items) => items.iter().any(contains_host_handle),
+        TypeExpr::Named(named) => named.arguments.iter().any(contains_host_handle),
+        TypeExpr::Vector(inner) | TypeExpr::Option(inner) | TypeExpr::LocalCell(inner) => {
+            contains_host_handle(inner)
+        }
+        TypeExpr::OrderedMap { key, value } => {
+            contains_host_handle(key) || contains_host_handle(value)
+        }
+        TypeExpr::Result { ok, error } => contains_host_handle(ok) || contains_host_handle(error),
+        TypeExpr::FunctionRef(function) => {
+            function.parameters.iter().any(contains_host_handle)
+                || contains_host_handle(&function.result)
+        }
+        _ => false,
+    }
+}
+
+/// A Function result may not carry an execution-local value out of its
+/// execution (contracts E5 and E7).
 ///
 /// # Errors
 ///
-/// `VM_LOWER_SIGNATURE_MISMATCH` when the result type contains a `LocalCell`.
+/// `VM_LOWER_SIGNATURE_MISMATCH` when the result type contains a `LocalCell`,
+/// `AdapterHandle`, or `CapabilityToken`.
 pub fn check_result_type(result_type: &TypeExpr) -> Result<(), LowerError> {
-    if contains_cell(result_type) {
+    if contains_cell(result_type) || contains_host_handle(result_type) {
         fail(LowerErrorCode::SignatureMismatch)
     } else {
         Ok(())

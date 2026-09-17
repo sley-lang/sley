@@ -69,13 +69,14 @@ SPEC_MARKERS = (
     # Revision 12 freeze findings: every marker below pins one answered
     # Ariadne or Vulcan finding, so a future edit that drops the answer
     # fails here.
-    # Revision 16 handle-model design: every marker below pins one normative
+    # Revisions 16/17 handle model: every marker below pins one normative
     # boundary of the E7 design section, so a future edit that authorizes
     # in-execution verify/mint, drops the owner handoff, or weakens the
     # 160/162 refusal fails here.
     "### E7 handle-model design (160, 162; execution deferred to owners)",
     "the secret\n  never enters execution",
     "Execution receives handles only",
+    "Landed boundary enforcement (revision 17)",
     "handoff record between execution and host mint",
     "is owed by",
     "no host services an effect today",
@@ -255,7 +256,7 @@ def main() -> int:
         problems.append("crate-marker:extended-lowerer-version")
     # The depth ceiling counts live frames including the entry: the frame
     # that would make 257 live is refused.
-    if "saturating_add(1) > MAX_CALL_DEPTH" not in execute:
+    if "frames.saturating_add(1) > runtime.max_call_depth" not in execute:
         problems.append("crate-marker:depth-ceiling-comparison")
     # At most MAX_EXECUTION_CELLS cells exist: the count check fires at the
     # cap, not past it.
@@ -272,6 +273,7 @@ def main() -> int:
     for test in (
         "fn judgment_rejects_non_canonical_referenced_constant",
         "fn judgment_acceptance_matches_lowering_acceptance",
+        "fn e7_execution_local_handles_cannot_escape_as_function_results",
         # The boundary pins: 256 live frames succeed, 257 are refused, and
         # the encoding order inverts numeric order at 255/256.
         "fn e6_call_depth_ceiling_is_256_live_frames_with_the_entry_included",
