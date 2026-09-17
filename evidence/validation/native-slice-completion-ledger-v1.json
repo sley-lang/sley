@@ -194,12 +194,23 @@
    "contracts": [],
    "deliverable": "Comparison kernel factored sley-conformance into sley-tests compare module with unchanged re-export; rw060 lifecycle gate 15/15 green.",
    "evidence": []
+  },
+  {
+   "id": "N5c",
+   "commit": "71600c23e7950f001f438e2245c3c372542e599e",
+   "contracts": [
+    "docs/spec/NATIVE_TEST_EXECUTION_V1.md sections 5 and 7",
+    "docs/spec/NATIVE_TEST_ADMISSION_V1.md native receipt verification"
+   ],
+   "deliverable": "Pinned Ed25519 signing plus strict canonical verification at native commit and exchange-import boundaries; invalid acceptance and measurement signatures refuse.",
+   "evidence": [
+    "evidence/validation/native-ed25519-closure-2026-09-17.md"
+   ]
   }
  ],
  "open": [
   "N2 execution observation byte-oracles: no independent golden observation bytes per limit case (oracle executes paths, not bytes).",
   "Supervisor-backed positive Match runs: blocked on privileged install (sudo password); unprivileged probe only.",
-  "Ed25519 acceptance signatures remain structural; vendored curve crypto pending.",
   "Legacy data paths keep the v1-only loader (branch advance to native heads deferred).",
   "Standing gate residuals: check_cli_rules TESTS_SELECTED_TAG unresolvable, required-contract-index drift (3 same-kind items), current-contract-review knock-on, smp1 vectors need blake3 (absent offline), report-envelope call_depth staleness, symbol-audit unregistered set.",
   "Successor slices S1-S6 (production fingerprint, effect/capability profiles, semantic epoch, workflow closure, live campaign, final gates/release) explicitly after this slice."
