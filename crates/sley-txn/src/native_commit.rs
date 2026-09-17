@@ -1024,6 +1024,44 @@ mod tests {
         second.candidate_id = CandidateId::from_bytes([10; 32]);
         assert!(!first.same_bindings(&second));
     }
+
+    #[test]
+    fn native_commit_error_symbols_are_frozen() {
+        for (error, symbol) in [
+            (
+                NativeCommitError::ExecutorUnavailable,
+                "NATIVE_EXECUTOR_UNAVAILABLE",
+            ),
+            (
+                NativeCommitError::BusyRetrySafe,
+                "NATIVE_COMMIT_BUSY_RETRY_SAFE",
+            ),
+            (
+                NativeCommitError::AbortedRetrySafe,
+                "NATIVE_COMMIT_ABORTED_RETRY_SAFE",
+            ),
+            (
+                NativeCommitError::OutcomeUnknown,
+                "NATIVE_COMMIT_OUTCOME_UNKNOWN",
+            ),
+            (
+                NativeCommitError::AttemptConflict,
+                "NATIVE_ATTEMPT_CONFLICT",
+            ),
+            (NativeCommitError::JournalCorrupt, "NATIVE_JOURNAL_CORRUPT"),
+            (
+                NativeCommitError::TrustUnavailable,
+                "HISTORICAL_TRUST_UNAVAILABLE",
+            ),
+            (
+                NativeCommitError::TrustRejected,
+                "HISTORICAL_TRUST_REJECTED",
+            ),
+        ] {
+            assert_eq!(error.symbol(), symbol);
+            assert_eq!(error.to_string(), symbol);
+        }
+    }
 }
 
 /// Complete verified native transaction state loaded from durable bytes.

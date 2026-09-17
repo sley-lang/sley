@@ -57,6 +57,15 @@ and ambiguity are failures, never success.
 - `VM_LOWER_*`: validated deterministic derived-bytecode lowering.
 - `TEST_PLAN_*`: canonical test-entity validation and provisional selection.
 - `VM_*`, `TEST_*`: execution, cancellation, determinism, and oracle.
+- `NATIVE_*`: native-test planning, execution, supervision, diagnostics,
+  admission, and commit-boundary failures (owning contracts
+  `NATIVE_TEST_EXECUTION_V1.md`, `NATIVE_TEST_ADMISSION_V1.md`, and
+  `NATIVE_TEST_RESERVATIONS_V1.md`; public codes 29200 through 29225 plus
+  explicitly numberless private runner/worker and commit-boundary symbols).
+- `HISTORICAL_TRUST_*`: native commit receiver-manifest lookup and grant
+  refusals (owning contract `NATIVE_TEST_ADMISSION_V1.md`; symbol-only at
+  this revision, with public exchange failures remaining the separately
+  frozen `NATIVE_TEST_HISTORICAL_TRUST_*` codes 29215 and 29216).
 - `IMAGE_*`: derived executable-image structural refusals (owning contract
   `HOST_ABI_V1.md`, RW-070; numberless typed vocabulary at this revision,
   numbers to be frozen or explicitly disclaimed by the owner).

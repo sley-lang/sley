@@ -54,11 +54,25 @@ WILDCARD = re.compile(r"`([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*)_\*`")
 SYMBOL = re.compile(r'"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"')
 STALE_ROOT_FAILURE = re.compile(r'stale_root_failure\(\s*"([A-Z][A-Z0-9_]*)"')
 RESOURCE_FAILURE_LITERAL = re.compile(r'resource_failure\(\s*\d+\s*,\s*"([A-Z][A-Z0-9_]*)"')
-# Success symbols are not failure emissions: the contract's terminal states
-# name VALID as the one state that permits commit, so a success symbol must
-# never be demanded to register as an error. Scoped to exact symbols, never
-# a prefix, so no failure symbol can hide behind it.
-SUCCESS_SYMBOLS = frozenset({"CANDIDATE_VALIDATION_VALID"})
+# Stable labels that are not failure emissions. This is exact rather than
+# prefix-based so a real refusal cannot hide behind a status/resource family.
+# Native diagnostic labels are result statuses carried by a successful 601/602
+# response; native resource labels identify a policy field inside a failure.
+NON_FAILURE_SYMBOLS = frozenset(
+    {
+        "CANDIDATE_VALIDATION_VALID",
+        "NATIVE_DIAGNOSTIC_COMPARISON_COMPLETE",
+        "NATIVE_DIAGNOSTIC_EXECUTION_REJECTED",
+        "NATIVE_DIAGNOSTIC_MEASURED_RESOURCE_REFUSAL",
+        "NATIVE_DIAGNOSTIC_MISMATCH",
+        "NATIVE_TEST_CALL_DEPTH",
+        "NATIVE_TEST_EFFECT_COUNT",
+        "NATIVE_TEST_FUEL",
+        "NATIVE_TEST_MEMORY_BYTES",
+        "NATIVE_TEST_OUTPUT_BYTES",
+        "NATIVE_TEST_WALL_TIMEOUT_MILLIS",
+    }
+)
 
 
 def namespaces() -> set[str]:
@@ -101,7 +115,7 @@ def emitted(declared: set[str]) -> dict[str, tuple[str, str | None]]:
         text = path.read_text(encoding="utf-8", errors="ignore")
         relative = str(path.relative_to(ROOT))
         for symbol in SYMBOL.findall(text):
-            if symbol in SUCCESS_SYMBOLS:
+            if symbol in NON_FAILURE_SYMBOLS:
                 continue
             if symbol not in found:
                 found[symbol] = (relative, longest_namespace(symbol, declared))
@@ -147,7 +161,7 @@ def defined_symbols() -> set[str]:
         found.update(
             STALE_ROOT_FAILURE.findall(text) + RESOURCE_FAILURE_LITERAL.findall(text)
         )
-    return found - SUCCESS_SYMBOLS
+    return found - NON_FAILURE_SYMBOLS
 
 
 def longest_namespace(symbol: str, declared: set[str]) -> str | None:

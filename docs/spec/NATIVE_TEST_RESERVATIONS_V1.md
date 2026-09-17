@@ -128,6 +128,24 @@ local wire tags, not these global numeric error codes.
 | 29224 | `NATIVE_TEST_RESOURCE_LIMIT` |
 | 29225 | `NATIVE_TEST_INTERNAL_INVARIANT` |
 
+The following native symbols are deliberately numberless in this revision.
+Private runner and worker tags are local enum discriminants, while protocol
+and transaction boundaries carry numeric zero until a public code is assigned;
+none may be substituted for a 29200--29225 failure:
+
+- `NATIVE_DIAGNOSTIC_TOKEN_LIMIT`
+- `NATIVE_JOURNAL_CORRUPT`
+- `HISTORICAL_TRUST_UNAVAILABLE`
+- `HISTORICAL_TRUST_REJECTED`
+- `NATIVE_RUNNER_CONFIG_INVALID_FIELD`
+- `NATIVE_RUNNER_CONFIG_DUPLICATE_CALLER`
+- `NATIVE_RUNNER_INVALID_BUDGET`
+- `NATIVE_RUNNER_UNACCOMMODATING_CAP`
+- `NATIVE_RUNNER_EVIDENCE_VIOLATION`
+- `NATIVE_RUNNER_DEADLINE_REACHED`
+- `NATIVE_WORKER_MALFORMED_ENVELOPE`
+- `NATIVE_WORKER_EXECUTION_NOT_WIRED`
+
 Unknown attempt0 is an attempt-status result, not a retry-safe error. Native
 resource limit is a failure status, never expected TrapCode. Use strict
 execution-contract error details; do not invent arbitrary causal text.
