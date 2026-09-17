@@ -44,6 +44,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-variadic.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-map-construction.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-bootstrap-immediates.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-immediate-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
@@ -148,6 +149,39 @@ fn immediate_result_type() -> TypeExpr {
     }
 }
 
+fn immediate_inventory_row_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        u32_type(),
+        u32vec_type(),
+        u32_type(),
+        u64_type(),
+        u64_type(),
+    ])
+}
+
+fn immediate_inventory_type() -> TypeExpr {
+    TypeExpr::Vector(Box::new(immediate_inventory_row_type()))
+}
+
+fn immediate_inventory_model_type() -> TypeExpr {
+    TypeExpr::Vector(Box::new(immediate_instruction_type()))
+}
+
+fn immediate_inventory_summary_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        immediate_inventory_model_type(),
+        u64_type(),
+        u32_type(),
+    ])
+}
+
+fn immediate_inventory_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(immediate_inventory_summary_type()),
+        error: Box::new(u32_type()),
+    }
+}
+
 fn arithmetic_result_type(inner: TypeExpr) -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(inner),
@@ -245,6 +279,35 @@ fn bool_inventory_value(rows: &[(u32, u32, u32, u32)]) -> ConstValue {
                         u32_value(u128::from(*arity)),
                         u32_value(u128::from(*operand_zero)),
                         u32_value(u128::from(*operand_one)),
+                    ]),
+                })
+                .collect(),
+        ),
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ImmediateInventoryFact {
+    opcode: u32,
+    operands: Vec<u32>,
+    immediate_tag: u32,
+    primary: u64,
+    secondary: u64,
+}
+
+fn immediate_inventory_value(rows: &[ImmediateInventoryFact]) -> ConstValue {
+    ConstValue {
+        value_type: immediate_inventory_type(),
+        data: ConstData::Sequence(
+            rows.iter()
+                .map(|row| ConstValue {
+                    value_type: immediate_inventory_row_type(),
+                    data: ConstData::Sequence(vec![
+                        u32_value(u128::from(row.opcode)),
+                        u32vec_value(&row.operands),
+                        u32_value(u128::from(row.immediate_tag)),
+                        u64_value(u128::from(row.primary)),
+                        u64_value(u128::from(row.secondary)),
                     ]),
                 })
                 .collect(),
@@ -1079,6 +1142,50 @@ struct InventoryRowParameters {
     arity: EntityId,
     operand_zero: EntityId,
     operand_one: EntityId,
+}
+
+#[derive(Clone, Copy)]
+struct ImmediateInventoryLoopParameters {
+    index: EntityId,
+    next_register: EntityId,
+    inventory: EntityId,
+    length: EntityId,
+    model: EntityId,
+}
+
+fn immediate_inventory_loop_parameters(
+    assembler: &mut InventoryAssembler,
+    block: EntityId,
+) -> ImmediateInventoryLoopParameters {
+    ImmediateInventoryLoopParameters {
+        index: assembler.parameter(block, ParameterRole::Block, 0, u64_type()),
+        next_register: assembler.parameter(block, ParameterRole::Block, 1, u32_type()),
+        inventory: assembler.parameter(block, ParameterRole::Block, 2, immediate_inventory_type()),
+        length: assembler.parameter(block, ParameterRole::Block, 3, u64_type()),
+        model: assembler.parameter(
+            block,
+            ParameterRole::Block,
+            4,
+            immediate_inventory_model_type(),
+        ),
+    }
+}
+
+fn immediate_inventory_loop_ids(parameters: ImmediateInventoryLoopParameters) -> Vec<EntityId> {
+    vec![
+        parameters.index,
+        parameters.next_register,
+        parameters.inventory,
+        parameters.length,
+        parameters.model,
+    ]
+}
+
+fn immediate_inventory_loop_values(parameters: ImmediateInventoryLoopParameters) -> Vec<ValueRef> {
+    immediate_inventory_loop_ids(parameters)
+        .into_iter()
+        .map(ValueRef::Parameter)
+        .collect()
 }
 
 fn inventory_loop_parameters(
@@ -3215,6 +3322,476 @@ fn bootstrap_immediate_lowerer() -> LowerScaffold {
     }
 }
 
+/// Walks an execution-time inventory of immediate-bearing operations. The
+/// Sley caller owns ordering, first-failure propagation, instruction
+/// accumulation, and the dense register frontier; the Sley callee owns the
+/// per-operation opcode/immediate/arity/reference judgment.
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
+    let base = bootstrap_immediate_lowerer();
+    let lower_operation = base.entry.entity_id;
+    let mut functions = base.functions;
+    let mut assembler = InventoryAssembler {
+        next_block: u16::try_from(base.blocks.len() + 1).expect("fixture block count fits u16"),
+        next_parameter: u16::try_from(base.parameters.len() + 1)
+            .expect("fixture parameter count fits u16"),
+        next_operation: u16::try_from(base.operations.len() + 1)
+            .expect("fixture operation count fits u16"),
+        next_constant: u16::try_from(base.constants.len() + 1)
+            .expect("fixture constant count fits u16"),
+        parameters: base.parameters,
+        blocks: base.blocks,
+        operations: base.operations,
+        constants: base.constants,
+    };
+    let function = inventory_id(5, 10);
+    let inventory = assembler.parameter(
+        function,
+        ParameterRole::Function,
+        0,
+        immediate_inventory_type(),
+    );
+    let first_register = assembler.parameter(function, ParameterRole::Function, 1, u32_type());
+
+    let entry = assembler.block_id();
+    let check = assembler.block_id();
+    let get = assembler.block_id();
+    let unpack = assembler.block_id();
+    let call = assembler.block_id();
+    let accept = assembler.block_id();
+    let advance = assembler.block_id();
+    let done = assembler.block_id();
+    let forward_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+    let invariant_trap = assembler.block_id();
+
+    let zero_u64 = assembler.constant(u64_value(0));
+    let one_u64 = assembler.constant(u64_value(1));
+    let resource_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+    )));
+
+    let zero = assembler.constant_ref(entry, zero_u64, u64_type());
+    let length = assembler.operation(
+        entry,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(inventory)],
+        u64_type(),
+        Immediate::None,
+    );
+    let model = assembler.operation(
+        entry,
+        Opcode::VectorNew,
+        Vec::new(),
+        immediate_inventory_model_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![zero, length, model],
+        inventory_branch(
+            check,
+            vec![
+                operation_value(zero),
+                ValueRef::Parameter(first_register),
+                ValueRef::Parameter(inventory),
+                operation_value(length),
+                operation_value(model),
+            ],
+        ),
+    );
+
+    let check_parameters = immediate_inventory_loop_parameters(&mut assembler, check);
+    let has_row = assembler.operation(
+        check,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(check_parameters.index),
+            ValueRef::Parameter(check_parameters.length),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        check,
+        function,
+        immediate_inventory_loop_ids(check_parameters),
+        vec![has_row],
+        inventory_cond(
+            operation_value(has_row),
+            get,
+            immediate_inventory_loop_values(check_parameters),
+            done,
+            vec![
+                ValueRef::Parameter(check_parameters.model),
+                ValueRef::Parameter(check_parameters.index),
+                ValueRef::Parameter(check_parameters.next_register),
+            ],
+        ),
+    );
+
+    let get_parameters = immediate_inventory_loop_parameters(&mut assembler, get);
+    let row = assembler.operation(
+        get,
+        Opcode::VectorGet,
+        vec![
+            ValueRef::Parameter(get_parameters.inventory),
+            ValueRef::Parameter(get_parameters.index),
+        ],
+        TypeExpr::Option(Box::new(immediate_inventory_row_type())),
+        Immediate::None,
+    );
+    let mut unpack_arguments = vec![SwitchArgument::CasePayload];
+    unpack_arguments.extend(inventory_switch_values(immediate_inventory_loop_values(
+        get_parameters,
+    )));
+    assembler.push_block(
+        get,
+        function,
+        immediate_inventory_loop_ids(get_parameters),
+        vec![row],
+        inventory_switch(
+            operation_value(row),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (BuiltinCase::Some, unpack, unpack_arguments),
+            ],
+        ),
+    );
+
+    let unpack_row = assembler.parameter(
+        unpack,
+        ParameterRole::Block,
+        0,
+        immediate_inventory_row_type(),
+    );
+    let unpack_loop = ImmediateInventoryLoopParameters {
+        index: assembler.parameter(unpack, ParameterRole::Block, 1, u64_type()),
+        next_register: assembler.parameter(unpack, ParameterRole::Block, 2, u32_type()),
+        inventory: assembler.parameter(unpack, ParameterRole::Block, 3, immediate_inventory_type()),
+        length: assembler.parameter(unpack, ParameterRole::Block, 4, u64_type()),
+        model: assembler.parameter(
+            unpack,
+            ParameterRole::Block,
+            5,
+            immediate_inventory_model_type(),
+        ),
+    };
+    let field_types = [
+        u32_type(),
+        u32vec_type(),
+        u32_type(),
+        u64_type(),
+        u64_type(),
+    ];
+    let fields = field_types
+        .into_iter()
+        .enumerate()
+        .map(|(index, value_type)| {
+            assembler.operation(
+                unpack,
+                Opcode::TupleGet,
+                vec![ValueRef::Parameter(unpack_row)],
+                value_type,
+                Immediate::Index(u32::try_from(index).expect("row field index fits u32")),
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut unpack_ids = vec![unpack_row];
+    unpack_ids.extend(immediate_inventory_loop_ids(unpack_loop));
+    let mut call_arguments = immediate_inventory_loop_values(unpack_loop);
+    call_arguments.extend(fields.iter().copied().map(operation_value));
+    assembler.push_block(
+        unpack,
+        function,
+        unpack_ids,
+        fields.clone(),
+        inventory_branch(call, call_arguments),
+    );
+
+    let call_loop = immediate_inventory_loop_parameters(&mut assembler, call);
+    let call_opcode = assembler.parameter(call, ParameterRole::Block, 5, u32_type());
+    let call_operands = assembler.parameter(call, ParameterRole::Block, 6, u32vec_type());
+    let call_tag = assembler.parameter(call, ParameterRole::Block, 7, u32_type());
+    let call_primary = assembler.parameter(call, ParameterRole::Block, 8, u64_type());
+    let call_secondary = assembler.parameter(call, ParameterRole::Block, 9, u64_type());
+    let lowered = assembler.operation(
+        call,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(call_opcode),
+            ValueRef::Parameter(call_operands),
+            ValueRef::Parameter(call_tag),
+            ValueRef::Parameter(call_primary),
+            ValueRef::Parameter(call_secondary),
+            ValueRef::Parameter(call_loop.next_register),
+        ],
+        immediate_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: lower_operation,
+            type_arguments: Vec::new(),
+        }),
+    );
+    let mut call_ids = immediate_inventory_loop_ids(call_loop);
+    call_ids.extend([
+        call_opcode,
+        call_operands,
+        call_tag,
+        call_primary,
+        call_secondary,
+    ]);
+    let accept_arguments = vec![
+        SwitchArgument::CasePayload,
+        SwitchArgument::Value(ValueRef::Parameter(call_loop.index)),
+        SwitchArgument::Value(ValueRef::Parameter(call_loop.inventory)),
+        SwitchArgument::Value(ValueRef::Parameter(call_loop.length)),
+        SwitchArgument::Value(ValueRef::Parameter(call_loop.model)),
+    ];
+    assembler.push_block(
+        call,
+        function,
+        call_ids,
+        vec![lowered],
+        inventory_switch(
+            operation_value(lowered),
+            vec![
+                (BuiltinCase::Ok, accept, accept_arguments),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let accepted = assembler.parameter(accept, ParameterRole::Block, 0, immediate_summary_type());
+    let accept_index = assembler.parameter(accept, ParameterRole::Block, 1, u64_type());
+    let accept_inventory =
+        assembler.parameter(accept, ParameterRole::Block, 2, immediate_inventory_type());
+    let accept_length = assembler.parameter(accept, ParameterRole::Block, 3, u64_type());
+    let accept_model = assembler.parameter(
+        accept,
+        ParameterRole::Block,
+        4,
+        immediate_inventory_model_type(),
+    );
+    let accepted_instruction = assembler.operation(
+        accept,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(accepted)],
+        immediate_instruction_type(),
+        Immediate::Index(0),
+    );
+    let accepted_frontier = assembler.operation(
+        accept,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(accepted)],
+        u32_type(),
+        Immediate::Index(1),
+    );
+    let pushed = assembler.operation(
+        accept,
+        Opcode::AdapterInvoke,
+        vec![
+            ValueRef::Parameter(accept_model),
+            operation_value(accepted_instruction),
+        ],
+        index_result_type(immediate_inventory_model_type()),
+        Immediate::Entity(EntityId::from_bytes(sley_vm::host_abi::bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_PSH1,
+        ))),
+    );
+    assembler.push_block(
+        accept,
+        function,
+        vec![
+            accepted,
+            accept_index,
+            accept_inventory,
+            accept_length,
+            accept_model,
+        ],
+        vec![accepted_instruction, accepted_frontier, pushed],
+        inventory_switch(
+            operation_value(pushed),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    advance,
+                    vec![
+                        SwitchArgument::Value(ValueRef::Parameter(accept_index)),
+                        SwitchArgument::Value(operation_value(accepted_frontier)),
+                        SwitchArgument::Value(ValueRef::Parameter(accept_inventory)),
+                        SwitchArgument::Value(ValueRef::Parameter(accept_length)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let advance_parameters = immediate_inventory_loop_parameters(&mut assembler, advance);
+    let one = assembler.constant_ref(advance, one_u64, u64_type());
+    let next_index = assembler.operation(
+        advance,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(advance_parameters.index),
+            operation_value(one),
+        ],
+        arithmetic_result_type(u64_type()),
+        Immediate::None,
+    );
+    assembler.push_block(
+        advance,
+        function,
+        immediate_inventory_loop_ids(advance_parameters),
+        vec![one, next_index],
+        inventory_switch(
+            operation_value(next_index),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    check,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(
+                            advance_parameters.next_register,
+                        )),
+                        SwitchArgument::Value(ValueRef::Parameter(advance_parameters.inventory)),
+                        SwitchArgument::Value(ValueRef::Parameter(advance_parameters.length)),
+                        SwitchArgument::Value(ValueRef::Parameter(advance_parameters.model)),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let done_model = assembler.parameter(
+        done,
+        ParameterRole::Block,
+        0,
+        immediate_inventory_model_type(),
+    );
+    let done_count = assembler.parameter(done, ParameterRole::Block, 1, u64_type());
+    let done_frontier = assembler.parameter(done, ParameterRole::Block, 2, u32_type());
+    let summary = assembler.operation(
+        done,
+        Opcode::TupleNew,
+        vec![
+            ValueRef::Parameter(done_model),
+            ValueRef::Parameter(done_count),
+            ValueRef::Parameter(done_frontier),
+        ],
+        immediate_inventory_summary_type(),
+        Immediate::None,
+    );
+    let success = assembler.operation(
+        done,
+        Opcode::ResultOk,
+        vec![operation_value(summary)],
+        immediate_inventory_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        done,
+        function,
+        vec![done_model, done_count, done_frontier],
+        vec![summary, success],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(success),
+        }),
+    );
+
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let failure = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        immediate_inventory_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(failure),
+        }),
+    );
+    let resource = assembler.constant_ref(resource_error, resource_code, u32_type());
+    let resource_failure = assembler.operation(
+        resource_error,
+        Opcode::ResultErr,
+        vec![operation_value(resource)],
+        immediate_inventory_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        resource_error,
+        function,
+        Vec::new(),
+        vec![resource, resource_failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(resource_failure),
+        }),
+    );
+    assembler.push_block(
+        invariant_trap,
+        function,
+        Vec::new(),
+        Vec::new(),
+        Terminator::Trap(TrapTerminator {
+            code: TrapCode::InternalInvariant,
+            payload: None,
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![inventory, first_register],
+        result_type: immediate_inventory_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    functions.insert(0, graph.clone());
+    LowerScaffold {
+        types: base.types,
+        entry: graph,
+        functions,
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+        adapters: vec![AdapterImport {
+            entity_id: EntityId::from_bytes(sley_vm::host_abi::bridge_identity(
+                sley_vm::host_abi::BRIDGE_CODE_PSH1,
+            )),
+            adapter_id: sley_vm::host_abi::bridge_identity(sley_vm::host_abi::BRIDGE_CODE_PSH1),
+            abi_version: sley_vm::host_abi::BRIDGE_ABI_VERSION,
+            request_type: immediate_instruction_type(),
+            response_type: immediate_inventory_model_type(),
+            failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+            effects: Vec::new(),
+        }],
+    }
+}
+
 fn append_terminator_success_block(
     assembler: &mut InventoryAssembler,
     function: EntityId,
@@ -4838,6 +5415,26 @@ fn execute_immediate_operation(
     .expect("v2 executes bootstrap immediate lowerer")
 }
 
+fn execute_immediate_inventory(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    rows: &[ImmediateInventoryFact],
+    first_register: u32,
+) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                immediate_inventory_value(rows),
+                u32_value(u128::from(first_register)),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes ordered immediate inventory lowerer")
+}
+
 #[allow(clippy::too_many_arguments)]
 fn execute_simple_terminator(
     package: &sley_vm::ExecutionPackage,
@@ -5136,6 +5733,17 @@ fn immediate_projection(immediate: &Immediate) -> (u32, u64, u64) {
     }
 }
 
+fn immediate_inventory_fact(instruction: &sley_vm::Instruction) -> ImmediateInventoryFact {
+    let (immediate_tag, primary, secondary) = immediate_projection(&instruction.immediate);
+    ImmediateInventoryFact {
+        opcode: instruction.opcode,
+        operands: instruction.operands.clone(),
+        immediate_tag,
+        primary,
+        secondary,
+    }
+}
+
 fn assert_immediate_summary(
     outcome: &sley_vm::ExecutionOutcome,
     expected: &sley_vm::Instruction,
@@ -5176,6 +5784,60 @@ fn assert_immediate_summary(
     assert_eq!(instruction[5].data, ConstData::UInt(u128::from(secondary)));
     assert_eq!(
         fields[1].data,
+        ConstData::UInt(u128::from(expected_frontier))
+    );
+}
+
+fn assert_immediate_inventory_summary(
+    outcome: &sley_vm::ExecutionOutcome,
+    expected: &[sley_vm::Instruction],
+    expected_frontier: u32,
+) {
+    use sley_ssmc::ResultConst;
+    let registers = |value: &ConstValue| match &value.data {
+        ConstData::Sequence(found) => found
+            .iter()
+            .map(|register| match register.data {
+                ConstData::UInt(value) => u32::try_from(value).expect("register fits u32"),
+                ref other => panic!("register must be UInt32, got {other:?}"),
+            })
+            .collect::<Vec<_>>(),
+        other => panic!("register list must be Vector, got {other:?}"),
+    };
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!("immediate inventory lowering must terminate with a value")
+    };
+    let ConstData::Result(ResultConst::Ok(summary)) = &value.data else {
+        panic!(
+            "immediate inventory lowering must return Ok, got {:?}",
+            value.data
+        )
+    };
+    let ConstData::Sequence(fields) = &summary.data else {
+        panic!("immediate inventory summary must be a tuple")
+    };
+    let ConstData::Sequence(instructions) = &fields[0].data else {
+        panic!("immediate inventory model must be a vector")
+    };
+    assert_eq!(instructions.len(), expected.len());
+    for (instruction, expected) in instructions.iter().zip(expected) {
+        let ConstData::Sequence(parts) = &instruction.data else {
+            panic!("immediate instruction must be a tuple")
+        };
+        let (tag, primary, secondary) = immediate_projection(&expected.immediate);
+        assert_eq!(parts[0].data, ConstData::UInt(u128::from(expected.opcode)));
+        assert_eq!(registers(&parts[1]), expected.operands);
+        assert_eq!(registers(&parts[2]), expected.results);
+        assert_eq!(parts[3].data, ConstData::UInt(u128::from(tag)));
+        assert_eq!(parts[4].data, ConstData::UInt(u128::from(primary)));
+        assert_eq!(parts[5].data, ConstData::UInt(u128::from(secondary)));
+    }
+    assert_eq!(
+        fields[1].data,
+        ConstData::UInt(u128::try_from(expected.len()).expect("instruction count fits u128"))
+    );
+    assert_eq!(
+        fields[2].data,
         ConstData::UInt(u128::from(expected_frontier))
     );
 }
@@ -6663,6 +7325,56 @@ fn lower_bootstrap_immediates_preserve_failure_order() {
     ] {
         assert_inventory_error(&outcome, expected);
     }
+}
+
+#[test]
+fn lower_ordered_immediate_inventory_matches_native_dense_sequence() {
+    let expected = native_bootstrap_immediate_instructions();
+    let rows = expected
+        .iter()
+        .map(immediate_inventory_fact)
+        .collect::<Vec<_>>();
+    let first_register = expected[0].results[0];
+    let expected_frontier = expected.last().expect("nonempty fixture").results[0] + 1;
+    let (package, approved) = admit_lower_program(&ordered_immediate_inventory_lowerer());
+    let first = execute_immediate_inventory(&package, &approved, &rows, first_register);
+    let second = execute_immediate_inventory(&package, &approved, &rows, first_register);
+    assert_immediate_inventory_summary(&first, &expected, expected_frontier);
+    assert_eq!(first.termination, second.termination);
+
+    let empty = execute_immediate_inventory(&package, &approved, &[], first_register);
+    assert_immediate_inventory_summary(&empty, &[], first_register);
+}
+
+#[test]
+fn lower_ordered_immediate_inventory_returns_first_late_failure() {
+    let expected = native_bootstrap_immediate_instructions();
+    let rows = expected
+        .iter()
+        .map(immediate_inventory_fact)
+        .collect::<Vec<_>>();
+    let first_register = expected[0].results[0];
+    let (package, approved) = admit_lower_program(&ordered_immediate_inventory_lowerer());
+
+    let mut wrong_immediate = rows.clone();
+    wrong_immediate[5].immediate_tag = Immediate::Index(0).tag();
+    assert_inventory_error(
+        &execute_immediate_inventory(&package, &approved, &wrong_immediate, first_register),
+        sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
+    );
+
+    let mut invalid_late_reference = rows;
+    invalid_late_reference[6].operands[0] += 100;
+    assert_inventory_error(
+        &execute_immediate_inventory(&package, &approved, &invalid_late_reference, first_register),
+        sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+    );
+
+    let constant = immediate_inventory_fact(&expected[0]);
+    assert_inventory_error(
+        &execute_immediate_inventory(&package, &approved, &[constant], u32::MAX),
+        sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+    );
 }
 
 #[test]
