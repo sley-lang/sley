@@ -460,35 +460,12 @@ impl TestReportFinality {
     }
 }
 
-/// Hash-only expected `TestCase` outcome.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ExpectedEvidence {
-    /// Exact expected value hash.
-    Value(ValueHash),
-    /// Exact frozen trap code.
-    FailureCode(u32),
-}
-
-/// Restricted comparison only; none of these arms means final test pass.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum RestrictedComparison {
-    /// Expected and observed restricted projections match.
-    Match,
-    /// Expected and observed restricted projections differ.
-    Mismatch,
-    /// Execution was rejected before an observation existed.
-    ExecutionRejected,
-}
-
-impl RestrictedComparison {
-    const fn tag(self) -> u32 {
-        match self {
-            Self::Match => 1,
-            Self::Mismatch => 2,
-            Self::ExecutionRejected => 3,
-        }
-    }
-}
+/// Hash-only expected-evidence comparison kernel, factored into
+/// `sley-tests` in N8 so lifecycle crates use the match rule without
+/// depending on the restricted envelopes. Re-exported here unchanged: the
+/// old restricted reports and the native reports cannot diverge on the
+/// match rule.
+pub use sley_tests::{ExpectedEvidence, RestrictedComparison, compare_expected_evidence};
 
 /// One selected `TestCase` comparison entry.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -874,26 +851,6 @@ fn project_expected(
 /// every other shape (resource refusal, cancellation, internal failure,
 /// wrong result, or no observation) never matches.
 #[must_use]
-pub fn compare_expected_evidence(
-    expected: ExpectedEvidence,
-    observed_success: Option<ValueHash>,
-    observed_trap_tag: Option<u32>,
-    observed: bool,
-) -> RestrictedComparison {
-    if !observed {
-        return RestrictedComparison::ExecutionRejected;
-    }
-    let matches = match expected {
-        ExpectedEvidence::Value(want) => observed_success == Some(want),
-        ExpectedEvidence::FailureCode(want) => observed_trap_tag == Some(want),
-    };
-    if matches {
-        RestrictedComparison::Match
-    } else {
-        RestrictedComparison::Mismatch
-    }
-}
-
 fn compare_expected(
     expected: ExpectedEvidence,
     observed: &ExecutionReportResult,

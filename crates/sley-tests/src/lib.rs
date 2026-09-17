@@ -4,6 +4,7 @@
 pub mod approval;
 pub mod bundle;
 pub mod codec;
+pub mod compare;
 pub mod context;
 pub mod measurement;
 pub mod plan;
@@ -25,6 +26,7 @@ pub use bundle::{
     BUNDLE_MAGIC, MAX_BUNDLE_EMBEDDED_BYTES, MAX_EXECUTION_ITEM_BYTES, NativeEvidenceBundleParts,
     NativeEvidenceBundleV1, TestEmbedded,
 };
+pub use compare::{ExpectedEvidence, RestrictedComparison, compare_expected_evidence};
 pub use context::{
     HISTORICAL_CONTEXT_MAGIC, HistoricalAdmissionContextParts, HistoricalAdmissionContextV1,
     MAX_CONTEXT_PROJECTION_BYTES,

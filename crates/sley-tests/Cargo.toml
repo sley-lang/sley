@@ -8,7 +8,6 @@ description = "Sley 2 pure native test evidence owner: resource policy, plans, r
 
 [dependencies]
 sley-check = { path = "../sley-check" }
-sley-conformance = { path = "../sley-conformance" }
 sley-id = { path = "../sley-id" }
 sley-scb1 = { path = "../sley-scb1" }
 sley-ssmc = { path = "../sley-ssmc" }

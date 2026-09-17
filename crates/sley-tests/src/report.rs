@@ -6,14 +6,14 @@
 //! binds one entry per selected plan test with an exact expected projection
 //! and comparison, plus checked totals. Parsing validates shape, order,
 //! ranges, digests, and totals; it never proves the VM ran. Exact comparison
-//! delegates to the shared [`sley_conformance`] kernel one-way, so the old
-//! restricted reports and the native reports cannot diverge on the match
-//! rule. The rejected-evidence mapping covers every
+//! uses the factored [`crate::compare`] kernel, so the old restricted
+//! reports and the native reports cannot diverge on the match rule. The
+//! rejected-evidence mapping covers every
 //! `NativeExecutionError` leaf from the N0 table using each owner's exact
 //! numeric and symbol accessors.
 
+use crate::compare::{ExpectedEvidence, RestrictedComparison, compare_expected_evidence};
 use sley_check::{cfg::CfgValidationError, effects::EffectValidationError};
-use sley_conformance::{ExpectedEvidence, RestrictedComparison, compare_expected_evidence};
 use sley_id::{
     EntityId, ExecutionReportId, NativeObservationId, NativeTestPlanId, ObjectId, SchemaEpochId,
     StateRoot, TestReportId, ValueHash,
