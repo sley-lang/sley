@@ -46,6 +46,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-map-construction.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-bootstrap-immediates.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-exact-immediates.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-instruction-map.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-immediate-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-mixed-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-simple-block.md and
@@ -187,7 +188,17 @@ fn immediate_inventory_type() -> TypeExpr {
 }
 
 fn immediate_inventory_model_type() -> TypeExpr {
-    TypeExpr::Vector(Box::new(immediate_instruction_type()))
+    TypeExpr::OrderedMap {
+        key: Box::new(u64_type()),
+        value: Box::new(immediate_instruction_type()),
+    }
+}
+
+fn empty_immediate_inventory_model_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(immediate_inventory_model_type()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+    }
 }
 
 fn immediate_inventory_summary_type() -> TypeExpr {
@@ -4148,9 +4159,9 @@ fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
     );
     let model = assembler.operation(
         entry,
-        Opcode::VectorNew,
+        Opcode::MapNew,
         Vec::new(),
-        immediate_inventory_model_type(),
+        empty_immediate_inventory_model_result_type(),
         Immediate::None,
     );
     assembler.push_block(
@@ -4158,14 +4169,21 @@ fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
         function,
         Vec::new(),
         vec![zero, length, model],
-        inventory_branch(
-            check,
+        inventory_switch(
+            operation_value(model),
             vec![
-                operation_value(zero),
-                ValueRef::Parameter(first_register),
-                ValueRef::Parameter(inventory),
-                operation_value(length),
-                operation_value(model),
+                (
+                    BuiltinCase::Ok,
+                    check,
+                    vec![
+                        SwitchArgument::Value(operation_value(zero)),
+                        SwitchArgument::Value(ValueRef::Parameter(first_register)),
+                        SwitchArgument::Value(ValueRef::Parameter(inventory)),
+                        SwitchArgument::Value(operation_value(length)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
             ],
         ),
     );
@@ -4363,17 +4381,16 @@ fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
         u32_type(),
         Immediate::Index(1),
     );
-    let pushed = assembler.operation(
+    let inserted = assembler.operation(
         accept,
-        Opcode::AdapterInvoke,
+        Opcode::MapInsert,
         vec![
             ValueRef::Parameter(accept_model),
+            ValueRef::Parameter(accept_index),
             operation_value(accepted_instruction),
         ],
-        index_result_type(immediate_inventory_model_type()),
-        Immediate::Entity(EntityId::from_bytes(sley_vm::host_abi::bridge_identity(
-            sley_vm::host_abi::BRIDGE_CODE_PSH1,
-        ))),
+        immediate_inventory_model_type(),
+        Immediate::None,
     );
     assembler.push_block(
         accept,
@@ -4385,22 +4402,15 @@ fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
             accept_length,
             accept_model,
         ],
-        vec![accepted_instruction, accepted_frontier, pushed],
-        inventory_switch(
-            operation_value(pushed),
+        vec![accepted_instruction, accepted_frontier, inserted],
+        inventory_branch(
+            advance,
             vec![
-                (
-                    BuiltinCase::Ok,
-                    advance,
-                    vec![
-                        SwitchArgument::Value(ValueRef::Parameter(accept_index)),
-                        SwitchArgument::Value(operation_value(accepted_frontier)),
-                        SwitchArgument::Value(ValueRef::Parameter(accept_inventory)),
-                        SwitchArgument::Value(ValueRef::Parameter(accept_length)),
-                        SwitchArgument::CasePayload,
-                    ],
-                ),
-                (BuiltinCase::Err, resource_error, Vec::new()),
+                ValueRef::Parameter(accept_index),
+                operation_value(accepted_frontier),
+                ValueRef::Parameter(accept_inventory),
+                ValueRef::Parameter(accept_length),
+                operation_value(inserted),
             ],
         ),
     );
@@ -4549,17 +4559,7 @@ fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
         blocks: assembler.blocks,
         operations: assembler.operations,
         constants: assembler.constants,
-        adapters: vec![AdapterImport {
-            entity_id: EntityId::from_bytes(sley_vm::host_abi::bridge_identity(
-                sley_vm::host_abi::BRIDGE_CODE_PSH1,
-            )),
-            adapter_id: sley_vm::host_abi::bridge_identity(sley_vm::host_abi::BRIDGE_CODE_PSH1),
-            abi_version: sley_vm::host_abi::BRIDGE_ABI_VERSION,
-            request_type: immediate_instruction_type(),
-            response_type: immediate_inventory_model_type(),
-            failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
-            effects: Vec::new(),
-        }],
+        adapters: base.adapters,
     }
 }
 
@@ -9476,6 +9476,22 @@ fn immediate_instruction_value(instruction: &sley_vm::Instruction) -> ConstValue
     }
 }
 
+fn immediate_inventory_model_value(instructions: &[sley_vm::Instruction]) -> ConstValue {
+    ConstValue {
+        value_type: immediate_inventory_model_type(),
+        data: ConstData::Map(
+            instructions
+                .iter()
+                .enumerate()
+                .map(|(index, instruction)| sley_ssmc::MapEntryConst {
+                    key: u64_value(u128::try_from(index).expect("instruction index fits u128")),
+                    value: immediate_instruction_value(instruction),
+                })
+                .collect(),
+        ),
+    }
+}
+
 fn assert_immediate_summary(
     outcome: &sley_vm::ExecutionOutcome,
     expected: &sley_vm::Instruction,
@@ -9552,12 +9568,16 @@ fn assert_immediate_inventory_summary(
     let ConstData::Sequence(fields) = &summary.data else {
         panic!("immediate inventory summary must be a tuple")
     };
-    let ConstData::Sequence(instructions) = &fields[0].data else {
-        panic!("immediate inventory model must be a vector")
+    let ConstData::Map(instructions) = &fields[0].data else {
+        panic!("immediate inventory model must be an ordered map")
     };
     assert_eq!(instructions.len(), expected.len());
-    for (instruction, expected) in instructions.iter().zip(expected) {
-        let ConstData::Sequence(parts) = &instruction.data else {
+    for (index, (instruction, expected)) in instructions.iter().zip(expected).enumerate() {
+        assert_eq!(
+            instruction.key,
+            u64_value(u128::try_from(index).expect("instruction index fits u128"))
+        );
+        let ConstData::Sequence(parts) = &instruction.value.data else {
             panic!("immediate instruction must be a tuple")
         };
         let (tag, primary, secondary) = immediate_projection(&expected.immediate);
@@ -9612,15 +9632,7 @@ fn assert_simple_block_summary(
     assert_eq!(block_fields[1], u32vec_value(expected_parameters));
     assert_eq!(
         block_fields[2],
-        ConstValue {
-            value_type: immediate_inventory_model_type(),
-            data: ConstData::Sequence(
-                expected_instructions
-                    .iter()
-                    .map(immediate_instruction_value)
-                    .collect(),
-            ),
-        }
+        immediate_inventory_model_value(expected_instructions)
     );
     assert_eq!(
         block_fields[3],
@@ -11099,16 +11111,7 @@ fn complete_block_model_value(block: &sley_vm::BytecodeBlock) -> ConstValue {
         data: ConstData::Sequence(vec![
             u32_value(u128::from(block.slot)),
             u32vec_value(&block.parameter_registers),
-            ConstValue {
-                value_type: immediate_inventory_model_type(),
-                data: ConstData::Sequence(
-                    block
-                        .instructions
-                        .iter()
-                        .map(immediate_instruction_value)
-                        .collect(),
-                ),
-            },
+            immediate_inventory_model_value(&block.instructions),
             complete_terminator_model_value(&block.terminator),
             u32_value(u128::from(block.reachability)),
         ]),
@@ -11197,15 +11200,7 @@ fn assert_complete_block_summary(
     assert_eq!(block_fields[1], u32vec_value(expected_parameters));
     assert_eq!(
         block_fields[2],
-        ConstValue {
-            value_type: immediate_inventory_model_type(),
-            data: ConstData::Sequence(
-                expected_instructions
-                    .iter()
-                    .map(immediate_instruction_value)
-                    .collect(),
-            ),
-        }
+        immediate_inventory_model_value(expected_instructions)
     );
     let ConstData::Sequence(terminator_fields) = &block_fields[3].data else {
         panic!("complete terminator must be a tuple")
@@ -11955,7 +11950,12 @@ fn lower_complete_function_matches_native_block_and_register_order() {
         .collect::<Vec<_>>();
     let result_type = encoded_type(&native.result_type);
     let block_count = u32::try_from(native.blocks.len()).expect("fixture block count fits u32");
-    let (package, approved) = admit_lower_program(&complete_function_lowerer());
+    let scaffold = complete_function_lowerer();
+    assert!(scaffold.adapters.iter().all(|adapter| {
+        adapter.adapter_id
+            != sley_vm::host_abi::bridge_identity(sley_vm::host_abi::BRIDGE_CODE_PSH1)
+    }));
+    let (package, approved) = admit_lower_program(&scaffold);
     let first = execute_complete_function(
         &package,
         &approved,

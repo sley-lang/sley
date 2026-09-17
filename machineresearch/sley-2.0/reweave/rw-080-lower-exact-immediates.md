@@ -4,6 +4,9 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real bounded Sley lowering
 algorithm under the operator development override. It is not RW-110
 completion, C1, self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-instruction-map.md` removes instruction-vector
+PSH1 use so the single admitted push row can serve final octet emission.
+
 ## Scope and behavior
 
 Every compact operation fact and lowered instruction now carries the complete
@@ -48,8 +51,8 @@ warnings denied is clean.
 ## Explicit remainder
 
 The Sley closure now holds lossless function metadata, block models, and
-instruction immediates, but it has not serialized function bodies, built the
-transitive callee table, wrapped the SLEYBC02 header, or assembled an execution
-package. Those remain RW-110 construction layers. The driver remains RW-120
-work. RW-080 and R2 stay provisional pending the recorded independent
-acceptance debt.
+instruction immediates. Its successor frees the PSH1 row needed for byte
+assembly. Function-body serialization, the transitive callee table, SLEYBC02
+header framing, and execution-package assembly remain RW-110 construction
+layers. The driver remains RW-120 work. RW-080 and R2 stay provisional pending
+the recorded independent acceptance debt.
