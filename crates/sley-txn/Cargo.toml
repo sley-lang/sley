@@ -11,6 +11,7 @@ s20-530-test-hooks = []
 
 [dependencies]
 blake3 = "=1.8.2"
+ed25519-dalek = "=3.0.0"
 sley-id = { path = "../sley-id" }
 sley-mutate = { path = "../sley-mutate" }
 sley-policy = { path = "../sley-policy" }

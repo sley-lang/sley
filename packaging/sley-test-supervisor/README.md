@@ -25,7 +25,7 @@ host and are explicitly **pending**, not waived:
    cleanup, orphan reconciliation) on **both** intended hosts and keep
    the receipts. Mock success cannot qualify an enforcer.
 6. Wire worker execution dispatch (N5) and the Ed25519 measurement signer
-   (vendored crypto dependency) before any attestation is trusted.
+   with the pinned Ed25519 implementation before any attestation is trusted.
 
 Known operational state: `sudo -n` on greyarch requires a password, so
 no privileged step was attempted from this session. Operator approval

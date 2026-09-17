@@ -23,8 +23,9 @@
 //!
 //! Signature handling is structural in this slice: the statement and
 //! attestation envelopes parse, key IDs bind to the recorded trust policies,
-//! and roles/intervals are checked by later owners. Curve verification waits
-//! on vendored Ed25519 crypto and is never claimed here.
+//! and roles/intervals are checked by later owners. The native commit and
+//! exchange owners strictly verify the embedded Ed25519 signatures after
+//! this structural codec has reconstructed their canonical preimages.
 
 use std::collections::BTreeSet;
 

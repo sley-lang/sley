@@ -12,14 +12,14 @@
 //! record. The checksum is corruption detection, not an identity: no new
 //! digest domain is minted here and no identifier derives from it.
 //!
-//! Signature handling stays structural in this slice: the acceptance signer
-//! adapter produces the 64-byte statement signature over the shared
+//! Signature handling is cryptographic at every accepting boundary. The
+//! acceptance signer adapter produces the 64-byte statement signature over the shared
 //! [`admission_signature_preimage`](sley_tests::statement::admission_signature_preimage),
-//! and the commit path checks key-ID binding, signer role, workspace and
+//! and the commit and exchange paths strictly verify RFC 8032 canonical
+//! signatures, key-ID binding, signer role, workspace and
 //! profile scope, and the historical validity interval against the
-//! receiver-provisioned trust manifests. Curve verification waits on
-//! vendored Ed25519 crypto and is never claimed. Measurement attestations
-//! are checked the same structural way; the qualified supervisor that
+//! receiver-provisioned trust manifests. Measurement attestations
+//! are checked the same way; the qualified supervisor that
 //! produces real measurements is a separate, privileged component (N3).
 //!
 //! Test doubles are test-only: production commits require a configured
@@ -30,6 +30,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+
+use ed25519_dalek::{Signature, Signer as _, SigningKey, VerifyingKey};
 
 use sley_id::{
     CandidateId, NativeAdmissionProfileId, ObjectId, PrincipalId, ReceiptId, StateRoot,
@@ -345,6 +347,46 @@ pub trait NativeAcceptanceSigner {
     fn sign(&self, preimage: &[u8]) -> [u8; 64];
 }
 
+/// In-process Ed25519 acceptance signer backed by an exact 32-byte secret.
+///
+/// The underlying signing key zeroizes its secret material on drop. Production
+/// provisioning is responsible for reading the root-owned key file and may
+/// construct this signer only after that read succeeds.
+pub struct Ed25519AcceptanceSigner {
+    key: SigningKey,
+}
+
+impl Ed25519AcceptanceSigner {
+    /// Constructs a signer from one RFC 8032 32-byte secret seed.
+    #[must_use]
+    pub fn from_secret_bytes(secret: [u8; 32]) -> Self {
+        Self {
+            key: SigningKey::from_bytes(&secret),
+        }
+    }
+}
+
+impl NativeAcceptanceSigner for Ed25519AcceptanceSigner {
+    fn key_id(&self) -> [u8; 32] {
+        self.key.verifying_key().to_bytes()
+    }
+
+    fn sign(&self, preimage: &[u8]) -> [u8; 64] {
+        self.key.sign(preimage).to_bytes()
+    }
+}
+
+fn verify_ed25519_signature(
+    key: &[u8; 32],
+    preimage: &[u8],
+    signature: &[u8; 64],
+) -> Result<(), NativeCommitError> {
+    let key = VerifyingKey::from_bytes(key).map_err(|_| NativeCommitError::TrustRejected)?;
+    let signature = Signature::from_bytes(signature);
+    key.verify_strict(preimage, &signature)
+        .map_err(|_| NativeCommitError::TrustRejected)
+}
+
 /// One executed native test with its deterministic and measured evidence.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ExecutedNativeTest {
@@ -572,6 +614,64 @@ pub fn verify_measurement_trust(
     } else {
         Err(NativeCommitError::TrustRejected)
     }
+}
+
+/// Verifies an acceptance statement's receiver grant and exact Ed25519
+/// signature over its canonical fields 1 through 18.
+///
+/// # Errors
+///
+/// Returns the existing trust refusal when the grant, key encoding, canonical
+/// preimage, or strict signature check fails.
+pub fn verify_acceptance_statement(
+    statement: &sley_tests::CommitAdmissionStatementV1,
+    workspace: WorkspaceId,
+    admission_profile: NativeAdmissionProfileId,
+    manifest: &HistoricalTrustPolicyV1,
+) -> Result<(), NativeCommitError> {
+    let parts = statement.parts();
+    verify_acceptance_trust(
+        &parts.key_id,
+        parts.acceptance_trust_policy_id,
+        workspace,
+        admission_profile,
+        parts.historical_validation_time,
+        manifest,
+    )?;
+    let unsigned = sley_tests::unsigned_statement_prefix(parts)
+        .map_err(|_| NativeCommitError::TrustRejected)?;
+    let preimage = sley_tests::admission_signature_preimage(&unsigned)
+        .map_err(|_| NativeCommitError::TrustRejected)?;
+    verify_ed25519_signature(&parts.key_id, &preimage, &parts.signature)
+}
+
+/// Verifies a measurement attestation's receiver grant and exact Ed25519
+/// signature over its canonical fields 1 through 20.
+///
+/// # Errors
+///
+/// Returns the existing trust refusal when the grant, key encoding, canonical
+/// preimage, or strict signature check fails.
+pub fn verify_measurement_attestation(
+    attestation: &sley_tests::MeasuredTestAttestationV1,
+    workspace: WorkspaceId,
+    execution_profile: sley_id::NativeExecutionProfileId,
+    manifest: &HistoricalTrustPolicyV1,
+) -> Result<(), NativeCommitError> {
+    let parts = attestation.parts();
+    verify_measurement_trust(
+        &parts.key_id,
+        &parts.trust_policy_id,
+        workspace,
+        execution_profile,
+        parts.recorded_unix_millis,
+        manifest,
+    )?;
+    let unsigned =
+        sley_tests::unsigned_record_prefix(parts).map_err(|_| NativeCommitError::TrustRejected)?;
+    let preimage = sley_tests::measurement_signature_preimage(&unsigned)
+        .map_err(|_| NativeCommitError::TrustRejected)?;
+    verify_ed25519_signature(&parts.key_id, &preimage, &parts.signature)
 }
 
 /// Verifies executor-returned evidence covers exactly the plan selection.
@@ -1061,6 +1161,35 @@ mod tests {
             assert_eq!(error.symbol(), symbol);
             assert_eq!(error.to_string(), symbol);
         }
+    }
+
+    #[test]
+    fn ed25519_acceptance_signer_is_strict_and_tamper_evident() {
+        let signer = Ed25519AcceptanceSigner::from_secret_bytes([0x37; 32]);
+        let preimage = b"sley2 acceptance test preimage";
+        let signature = signer.sign(preimage);
+        assert_eq!(
+            verify_ed25519_signature(&signer.key_id(), preimage, &signature),
+            Ok(())
+        );
+
+        let mut changed_message = preimage.to_vec();
+        changed_message[0] ^= 1;
+        assert_eq!(
+            verify_ed25519_signature(&signer.key_id(), &changed_message, &signature),
+            Err(NativeCommitError::TrustRejected)
+        );
+
+        let mut changed_signature = signature;
+        changed_signature[63] ^= 1;
+        assert_eq!(
+            verify_ed25519_signature(&signer.key_id(), preimage, &changed_signature),
+            Err(NativeCommitError::TrustRejected)
+        );
+        assert_eq!(
+            verify_ed25519_signature(&[0; 32], preimage, &[0; 64]),
+            Err(NativeCommitError::TrustRejected)
+        );
     }
 }
 

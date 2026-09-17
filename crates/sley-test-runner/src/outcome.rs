@@ -8,10 +8,11 @@
 //! never become a signed pass.
 //!
 //! Only the root daemon holds the measurement-signing key. Signing itself
-//! goes through [`Signer`]; the Ed25519 implementation lands with the
-//! vendored crypto dependency, which is still pending.
+//! goes through [`Signer`]; [`Ed25519MeasurementSigner`] provides the strict
+//! RFC 8032 implementation over a root-provisioned 32-byte secret file.
 
 use crate::enforce::{EnforceError, check_elapsed, check_memory_evidence};
+use ed25519_dalek::{Signer as _, SigningKey};
 
 /// Worker termination classes the daemon can observe.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -146,8 +147,7 @@ pub fn admit_for_signature(outcome: &AttemptOutcome) -> Result<(), AdmissionRefu
 ///
 /// Implementations hold the root-only measurement key and sign the exact
 /// domain-separated attestation preimage from `sley-tests`; they never sign
-/// caller-supplied bytes. The Ed25519 implementation lands with the vendored
-/// crypto dependency (pending); tests use an explicit test double.
+/// caller-supplied bytes.
 pub trait Signer {
     /// Signs one attestation preimage; failures never produce a signature.
     ///
@@ -158,6 +158,50 @@ pub trait Signer {
     fn sign(&self, preimage: &[u8]) -> Result<[u8; 64], SignerError>;
     /// Raw measurement public key bound as the attestation key ID.
     fn public_key(&self) -> [u8; 32];
+}
+
+/// Root-daemon Ed25519 measurement signer.
+///
+/// The signer accepts exactly one raw 32-byte RFC 8032 secret seed. The
+/// underlying key zeroizes secret material on drop. Callers retain ownership
+/// of path permissions and root-only provisioning checks.
+pub struct Ed25519MeasurementSigner {
+    key: SigningKey,
+}
+
+impl Ed25519MeasurementSigner {
+    /// Constructs a signer from one exact 32-byte secret seed.
+    #[must_use]
+    pub fn from_secret_bytes(secret: [u8; 32]) -> Self {
+        Self {
+            key: SigningKey::from_bytes(&secret),
+        }
+    }
+
+    /// Loads one exact 32-byte secret seed from a provisioned key file.
+    ///
+    /// # Errors
+    ///
+    /// Returns `KeyUnavailable` when the file cannot be read and
+    /// `OperationFailed` when its length is not exactly 32 bytes.
+    pub fn from_key_file(path: &std::path::Path) -> Result<Self, SignerError> {
+        let bytes = std::fs::read(path).map_err(|_| SignerError::KeyUnavailable)?;
+        let secret: [u8; 32] = bytes.try_into().map_err(|_| SignerError::OperationFailed)?;
+        Ok(Self::from_secret_bytes(secret))
+    }
+}
+
+impl Signer for Ed25519MeasurementSigner {
+    fn sign(&self, preimage: &[u8]) -> Result<[u8; 64], SignerError> {
+        if preimage.is_empty() {
+            return Err(SignerError::OperationFailed);
+        }
+        Ok(self.key.sign(preimage).to_bytes())
+    }
+
+    fn public_key(&self) -> [u8; 32] {
+        self.key.verifying_key().to_bytes()
+    }
 }
 
 /// Signer failure with a stable machine tag.
@@ -201,8 +245,8 @@ mod tests {
         }
     }
 
-    /// Explicit test double: reverses the preimage digest input so tests can
-    /// prove the admit-then-sign flow without real Ed25519 (pending).
+    /// Explicit test double proving that the trait boundary propagates
+    /// signer failures independently of the production Ed25519 signer.
     struct TestSigner;
 
     impl Signer for TestSigner {
@@ -280,5 +324,30 @@ mod tests {
         assert_eq!(signer.sign(&[]), Err(SignerError::OperationFailed));
         assert_eq!(SignerError::KeyUnavailable.tag(), 1);
         assert_eq!(SignerError::OperationFailed.tag(), 2);
+    }
+
+    #[test]
+    fn ed25519_measurement_signer_loads_exact_seed_and_signs_strictly() {
+        use ed25519_dalek::{Signature, VerifyingKey};
+
+        let path =
+            std::env::temp_dir().join(format!("sley-measurement-key-{}", std::process::id()));
+        std::fs::write(&path, [0x42; 32]).expect("writes test key");
+        let signer = Ed25519MeasurementSigner::from_key_file(&path).expect("loads test key");
+        std::fs::remove_file(&path).expect("removes test key");
+
+        let preimage = b"sley2 measured attestation preimage";
+        let signature = signer.sign(preimage).expect("signs");
+        let key = VerifyingKey::from_bytes(&signer.public_key()).expect("public key parses");
+        key.verify_strict(preimage, &Signature::from_bytes(&signature))
+            .expect("strict verification passes");
+        assert_eq!(signer.sign(&[]), Err(SignerError::OperationFailed));
+
+        std::fs::write(&path, [0x42; 31]).expect("writes malformed key");
+        assert!(matches!(
+            Ed25519MeasurementSigner::from_key_file(&path),
+            Err(SignerError::OperationFailed)
+        ));
+        std::fs::remove_file(&path).expect("removes malformed key");
     }
 }

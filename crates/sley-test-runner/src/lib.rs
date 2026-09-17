@@ -9,7 +9,7 @@
 //!
 //! It performs no policy selection, grants no commit authority, and holds no
 //! acceptance key. Measurement signing goes through [`outcome::Signer`];
-//! Ed25519 wiring lands with the vendored crypto dependency (pending), and
+//! [`outcome::Ed25519MeasurementSigner`] owns the concrete Ed25519 key, and
 //! privileged install/probe steps need the authenticated privilege handoff.
 //! Worker execution dispatch lands with the N5 commit path, which owns
 //! plans-to-inputs construction; until then the worker entry strictly

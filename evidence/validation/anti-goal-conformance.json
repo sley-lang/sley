@@ -116,7 +116,7 @@
     {
       "acceptance_evidence": "core/conformance pass with network disabled",
       "anti_goal": "network-dependent core tests",
-      "detail": "networking crates in the lock: none; the lock holds 50 crates in total",
+      "detail": "networking crates in the lock: none; the lock holds 60 crates in total",
       "state": "HOLDS",
       "surface": "network-isolated gate"
     },
@@ -179,7 +179,7 @@
   ],
   "contract": "sley2.anti-goal-conformance.v1",
   "interpretation": "HOLDS means the named mechanical evidence was evaluated and passed; REVIEW_ONLY means the anti-goal's evidence needs a human judgment and is not a pass. A VIOLATED entry is a constitutional breach and fails the gate.",
-  "report_digest": "e9bcf4d0de652ba7d96892ef82b31c3c10493860f5233557eb3a53951e6cea3f",
+  "report_digest": "6b92575eb466095545c86c2559ba668f077343e94896ad22885b5ed7c9b371f0",
   "source": "docs/ANTI_GOALS.md",
   "states": {
     "HOLDS": 9,

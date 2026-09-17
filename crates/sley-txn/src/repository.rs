@@ -56,7 +56,7 @@ use crate::native_commit::{
     NativeAttemptScope, NativeCommitError, NativeCommitInput, NativeCommitOutcome,
     NativeCommitOutput, NativeRejection, NativeVerifiedRevision, check_admission_profile_binding,
     check_execution_coverage, check_native_wall_budget, commit_needs_executor, read_attempt_record,
-    verify_acceptance_trust, verify_measurement_trust, write_attempt_record,
+    verify_acceptance_statement, verify_measurement_attestation, write_attempt_record,
 };
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 use crate::recovery_ancestry_test_hook;
@@ -3414,12 +3414,10 @@ impl TransactionRepository {
         // the acceptance signer's structural trust before persisting.
         let parsed_statement = CommitAdmissionStatementV1::parse(statement.stored_bytes())
             .map_err(|error| CommitError::Codec(error.into()))?;
-        verify_acceptance_trust(
-            &parsed_statement.parts().key_id,
-            parsed_statement.parts().acceptance_trust_policy_id,
+        verify_acceptance_statement(
+            &parsed_statement,
             candidate_root.record.workspace_id,
             fixed_profile.id(),
-            input.now_unix_millis,
             input.acceptance_trust,
         )
         .map_err(CommitError::Native)?;
@@ -3586,12 +3584,10 @@ impl TransactionRepository {
                 NativeExecutionReportV1::parse(&execution.execution_stored).map_err(codec_error)?;
             let attestation = MeasuredTestAttestationV1::parse(&execution.attestation_stored)
                 .map_err(codec_error)?;
-            verify_measurement_trust(
-                &attestation.key_id(),
-                &attestation.trust_policy_id(),
+            verify_measurement_attestation(
+                &attestation,
                 validated.candidate_root().record.workspace_id,
                 plan.execution_profile(),
-                attestation.recorded_unix_millis(),
                 measurement_trust,
             )
             .map_err(CommitError::Native)?;
@@ -23888,6 +23884,7 @@ mod clone_tests {
 mod native_commit_tests {
     use std::cell::Cell;
 
+    use ed25519_dalek::{Signer as _, SigningKey};
     use sley_id::NativeAdmissionProfileId;
     use sley_mutate::value::{ParameterBody, TestCaseBody};
     use sley_policy::ValidatedCandidatePlan;
@@ -23910,24 +23907,23 @@ mod native_commit_tests {
 
     const NOW: u64 = 1_000;
 
-    const MEASUREMENT_KEY: [u8; 32] = [0xB2; 32];
-    const ACCEPTANCE_KEY: [u8; 32] = [0xA1; 32];
+    const MEASUREMENT_SECRET: [u8; 32] = [0xB2; 32];
+    const ACCEPTANCE_SECRET: [u8; 32] = [0xA1; 32];
 
-    /// Test-only acceptance signer with fixed structural signature bytes.
-    ///
-    /// The signature is opaque shape-checked bytes, never a curve claim.
-    struct TestSigner {
-        key: [u8; 32],
+    fn measurement_signing_key() -> SigningKey {
+        SigningKey::from_bytes(&MEASUREMENT_SECRET)
     }
 
-    impl NativeAcceptanceSigner for TestSigner {
-        fn key_id(&self) -> [u8; 32] {
-            self.key
-        }
+    fn measurement_key() -> [u8; 32] {
+        measurement_signing_key().verifying_key().to_bytes()
+    }
 
-        fn sign(&self, _preimage: &[u8]) -> [u8; 64] {
-            [0x5A; 64]
-        }
+    fn acceptance_signer() -> crate::Ed25519AcceptanceSigner {
+        crate::Ed25519AcceptanceSigner::from_secret_bytes(ACCEPTANCE_SECRET)
+    }
+
+    fn acceptance_key() -> [u8; 32] {
+        acceptance_signer().key_id()
     }
 
     /// Test-only executor returning empty evidence while counting calls.
@@ -23957,6 +23953,7 @@ mod native_commit_tests {
         supervisor_config: Vec<u8>,
         supervisor_config_id: [u8; 32],
         recorded_millis: u64,
+        corrupt_signature: bool,
     }
 
     impl NativeTestExecutor for RejectingExecutor {
@@ -23982,8 +23979,8 @@ mod native_commit_tests {
                     evidence: NativeExecutionEvidence::Rejected(rejected),
                 })
                 .expect("synthetic report builds");
-                let attestation = MeasuredTestAttestationV1::build(MeasuredTestAttestationParts {
-                    key_id: MEASUREMENT_KEY,
+                let mut attestation_parts = MeasuredTestAttestationParts {
+                    key_id: measurement_key(),
                     trust_policy_id: self.measurement_policy,
                     supervisor_config_id: self.supervisor_config_id,
                     plan_id: plan.plan_id(),
@@ -24006,9 +24003,18 @@ mod native_commit_tests {
                     complete_output: false,
                     empty_cgroup_confirmed: true,
                     recorded_unix_millis: self.recorded_millis,
-                    signature: [0xA5; 64],
-                })
-                .expect("synthetic attestation builds");
+                    signature: [0; 64],
+                };
+                let unsigned = sley_tests::unsigned_record_prefix(&attestation_parts)
+                    .expect("synthetic unsigned attestation builds");
+                let preimage = sley_tests::measurement_signature_preimage(&unsigned)
+                    .expect("synthetic attestation preimage builds");
+                attestation_parts.signature = measurement_signing_key().sign(&preimage).to_bytes();
+                if self.corrupt_signature {
+                    attestation_parts.signature[63] ^= 1;
+                }
+                let attestation = MeasuredTestAttestationV1::build(attestation_parts)
+                    .expect("synthetic attestation builds");
                 out.push(ExecutedNativeTest {
                     test_entity: entry.test_entity,
                     execution_stored: report.stored_bytes().to_vec(),
@@ -24236,7 +24242,7 @@ mod native_commit_tests {
         workspace: WorkspaceId,
         measurement_trust: HistoricalTrustPolicyV1,
         acceptance_trust: HistoricalTrustPolicyV1,
-        signer: TestSigner,
+        signer: crate::Ed25519AcceptanceSigner,
         admission_profile: NativeAdmissionProfileId,
     }
 
@@ -24246,13 +24252,13 @@ mod native_commit_tests {
                 .expect("fixed descriptor builds")
                 .id();
             let measurement_trust = test_trust(
-                MEASUREMENT_KEY,
+                measurement_key(),
                 ROLE_MEASUREMENT,
                 workspace,
                 *native_execution_profile_id().as_bytes(),
             );
             let acceptance_trust = test_trust(
-                ACCEPTANCE_KEY,
+                acceptance_key(),
                 ROLE_ACCEPTANCE,
                 workspace,
                 *admission_profile.as_bytes(),
@@ -24261,9 +24267,7 @@ mod native_commit_tests {
                 workspace,
                 measurement_trust,
                 acceptance_trust,
-                signer: TestSigner {
-                    key: ACCEPTANCE_KEY,
-                },
+                signer: acceptance_signer(),
                 admission_profile,
             }
         }
@@ -24415,6 +24419,7 @@ mod native_commit_tests {
             supervisor_config: config.stored_bytes().to_vec(),
             supervisor_config_id: *config.id().as_bytes(),
             recorded_millis: NOW,
+            corrupt_signature: false,
         };
         let outcome = fixture
             .repository
@@ -24628,7 +24633,7 @@ mod native_commit_tests {
         assert_eq!(error.code(), "HISTORICAL_TRUST_UNAVAILABLE");
         // The manifest mentions the key with the wrong role: rejected.
         harness.acceptance_trust = test_trust(
-            ACCEPTANCE_KEY,
+            acceptance_key(),
             ROLE_MEASUREMENT,
             harness.workspace,
             *harness.admission_profile.as_bytes(),
@@ -24643,6 +24648,47 @@ mod native_commit_tests {
                 Some(&executor),
             ))
             .expect_err("wrong-role acceptance key is rejected");
+        assert_eq!(error.code(), "HISTORICAL_TRUST_REJECTED");
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
+    }
+
+    #[test]
+    fn native_commit_rejects_a_trusted_key_with_an_invalid_acceptance_signature() {
+        struct CorruptingSigner(crate::Ed25519AcceptanceSigner);
+
+        impl NativeAcceptanceSigner for CorruptingSigner {
+            fn key_id(&self) -> [u8; 32] {
+                self.0.key_id()
+            }
+
+            fn sign(&self, preimage: &[u8]) -> [u8; 64] {
+                let mut signature = self.0.sign(preimage);
+                signature[63] ^= 1;
+                signature
+            }
+        }
+
+        let fixture = Fixture::new("native-signature-acceptance");
+        let harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
+        let executor = CountingExecutor {
+            invocations: Cell::new(0),
+        };
+        let signer = CorruptingSigner(acceptance_signer());
+        let mut input = harness.input(
+            fixture.genesis_transaction_id,
+            &fixture.candidate.stored_bytes,
+            fixture.principal_id,
+            attempt(18),
+            Some(&executor),
+        );
+        input.acceptance_signer = &signer;
+        let error = fixture
+            .repository
+            .commit_native(&input)
+            .expect_err("invalid acceptance signature refuses");
         assert_eq!(error.code(), "HISTORICAL_TRUST_REJECTED");
         assert_eq!(
             fixture.repository.accepted_head().unwrap().transaction_id(),
@@ -24681,6 +24727,7 @@ mod native_commit_tests {
             supervisor_config: config.stored_bytes().to_vec(),
             supervisor_config_id: *config.id().as_bytes(),
             recorded_millis: NOW,
+            corrupt_signature: false,
         };
         let error = fixture
             .repository
@@ -24693,6 +24740,48 @@ mod native_commit_tests {
             ))
             .expect_err("untrusted measurement refuses");
         assert_eq!(error.code(), "HISTORICAL_TRUST_UNAVAILABLE");
+        assert_eq!(
+            fixture.repository.accepted_head().unwrap().transaction_id(),
+            fixture.genesis_transaction_id
+        );
+    }
+
+    #[test]
+    fn native_commit_rejects_an_invalid_measurement_signature() {
+        let fixture = Fixture::new("native-signature-measurement");
+        let head = fixture.repository.accepted_head().unwrap();
+        let candidate = testcase_candidate_for(
+            head.state_root().record.workspace_id,
+            fixture.principal_id,
+            fixture.genesis_transaction_id,
+            head.state_root(),
+            head.policy_root(),
+            42,
+        );
+        let harness = NativeHarness::new(head.state_root().record.workspace_id);
+        let config =
+            test_supervisor_config(head.state_root().record.workspace_id, fixture.principal_id);
+        let executor = RejectingExecutor {
+            invocations: Cell::new(0),
+            workspace: head.state_root().record.workspace_id,
+            principal: fixture.principal_id,
+            measurement_policy: *harness.measurement_trust.id().as_bytes(),
+            supervisor_config: config.stored_bytes().to_vec(),
+            supervisor_config_id: *config.id().as_bytes(),
+            recorded_millis: NOW,
+            corrupt_signature: true,
+        };
+        let error = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(19),
+                Some(&executor),
+            ))
+            .expect_err("invalid measurement signature refuses");
+        assert_eq!(error.code(), "HISTORICAL_TRUST_REJECTED");
         assert_eq!(
             fixture.repository.accepted_head().unwrap().transaction_id(),
             fixture.genesis_transaction_id

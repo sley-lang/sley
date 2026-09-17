@@ -48,8 +48,9 @@ use sley_txn::{
     TransactionCodecError, TransactionKind, TransactionRepository,
     acquire_exclusive_repository_maintenance_nonblocking, acquire_shared_repository_maintenance,
     check_execution_coverage, import_native_transaction_receipt, import_transaction_receipt,
-    initialize_repository_maintenance, native_receipt_trust_policy_ids, verify_acceptance_trust,
-    verify_any_receipt_against_objects, verify_measurement_trust,
+    initialize_repository_maintenance, native_receipt_trust_policy_ids,
+    verify_acceptance_statement, verify_any_receipt_against_objects,
+    verify_measurement_attestation,
 };
 
 use crate::exchange::{
@@ -1539,12 +1540,10 @@ fn check_receipt_trust_grants(
     let statement = receipt.statement.parts();
     let acceptance_manifest =
         resolve_trust_manifest(statement.acceptance_trust_policy_id.as_bytes(), trust)?;
-    verify_acceptance_trust(
-        &statement.key_id,
-        statement.acceptance_trust_policy_id,
+    verify_acceptance_statement(
+        &receipt.statement,
         receipt.transaction.record.workspace_id,
         statement.admission_profile,
-        statement.historical_validation_time,
         acceptance_manifest,
     )
     .map_err(map_trust_error)?;
@@ -1554,12 +1553,10 @@ fn check_receipt_trust_grants(
         let attestation = MeasuredTestAttestationV1::parse(&embedded.stored)
             .map_err(|error| NativeExchangeError::Pack(scb_error(&error)))?;
         let measurement_manifest = resolve_trust_manifest(&attestation.trust_policy_id(), trust)?;
-        verify_measurement_trust(
-            &attestation.key_id(),
-            &attestation.trust_policy_id(),
+        verify_measurement_attestation(
+            &attestation,
             receipt.transaction.record.workspace_id,
             plan.execution_profile(),
-            attestation.recorded_unix_millis(),
             measurement_manifest,
         )
         .map_err(map_trust_error)?;
@@ -2699,26 +2696,28 @@ mod tests {
         native_execution_profile_id,
     };
     use sley_txn::{
-        CommitInput, ExecutedNativeTest, NativeAcceptanceSigner, NativeAttemptId,
-        NativeCommitError, NativeCommitInput, NativeCommitOutcome, NativeTestExecutor,
-        TransactionRepository, TrustedGenesisInput,
+        CommitInput, Ed25519AcceptanceSigner, ExecutedNativeTest, NativeAcceptanceSigner,
+        NativeAttemptId, NativeCommitError, NativeCommitInput, NativeCommitOutcome,
+        NativeTestExecutor, TransactionRepository, TrustedGenesisInput,
     };
     const NOW: u64 = 1_000;
     const MEASUREMENT_KEY: [u8; 32] = [0xB2; 32];
-    const ACCEPTANCE_KEY: [u8; 32] = [0xA1; 32];
+    const ACCEPTANCE_SECRET: [u8; 32] = [0xA1; 32];
 
-    struct TestSigner {
-        key: [u8; 32],
-    }
+    struct TestSigner(Ed25519AcceptanceSigner);
 
     impl NativeAcceptanceSigner for TestSigner {
         fn key_id(&self) -> [u8; 32] {
-            self.key
+            self.0.key_id()
         }
 
-        fn sign(&self, _preimage: &[u8]) -> [u8; 64] {
-            [0x5A; 64]
+        fn sign(&self, preimage: &[u8]) -> [u8; 64] {
+            self.0.sign(preimage)
         }
+    }
+
+    fn acceptance_key() -> [u8; 32] {
+        Ed25519AcceptanceSigner::from_secret_bytes(ACCEPTANCE_SECRET).key_id()
     }
 
     struct CountingExecutor {
@@ -2775,7 +2774,7 @@ mod tests {
                 *native_execution_profile_id().as_bytes(),
             );
             let acceptance_trust = test_trust(
-                ACCEPTANCE_KEY,
+                acceptance_key(),
                 ROLE_ACCEPTANCE,
                 workspace,
                 *admission_profile.as_bytes(),
@@ -2783,9 +2782,9 @@ mod tests {
             Self {
                 measurement_trust,
                 acceptance_trust,
-                signer: TestSigner {
-                    key: ACCEPTANCE_KEY,
-                },
+                signer: TestSigner(Ed25519AcceptanceSigner::from_secret_bytes(
+                    ACCEPTANCE_SECRET,
+                )),
                 admission_profile,
             }
         }

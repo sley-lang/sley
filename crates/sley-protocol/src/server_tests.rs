@@ -4251,19 +4251,16 @@ fn report_read_refuses_after_token_expiry() {
 // 606/607/commit route (NATIVE_TEST_ADMISSION_V1 App. C rev5)
 // ---------------------------------------------------------------------------
 
-/// Test-only acceptance signer: structural 64-byte claim signature,
-/// mirroring the txn fixture signer (real Ed25519 stays vendored out).
-struct CommitTestSigner {
-    key: [u8; 32],
-}
+/// Deterministic test acceptance signer using the production Ed25519 path.
+struct CommitTestSigner(sley_txn::Ed25519AcceptanceSigner);
 
 impl sley_txn::NativeAcceptanceSigner for CommitTestSigner {
     fn key_id(&self) -> [u8; 32] {
-        self.key
+        self.0.key_id()
     }
 
-    fn sign(&self, _preimage: &[u8]) -> [u8; 64] {
-        [0x5A; 64]
+    fn sign(&self, preimage: &[u8]) -> [u8; 64] {
+        self.0.sign(preimage)
     }
 }
 
@@ -4305,7 +4302,16 @@ impl sley_txn::NativeTestExecutor for NoReplayExecutor {
 }
 
 const COMMIT_MEASUREMENT_KEY: [u8; 32] = [0xB2; 32];
-const COMMIT_ACCEPTANCE_KEY: [u8; 32] = [0xA1; 32];
+const COMMIT_ACCEPTANCE_SECRET: [u8; 32] = [0xA1; 32];
+
+fn commit_acceptance_signer() -> sley_txn::Ed25519AcceptanceSigner {
+    sley_txn::Ed25519AcceptanceSigner::from_secret_bytes(COMMIT_ACCEPTANCE_SECRET)
+}
+
+fn commit_acceptance_key() -> [u8; 32] {
+    use sley_txn::NativeAcceptanceSigner as _;
+    commit_acceptance_signer().key_id()
+}
 
 /// One receiver trust manifest granting one key one role over one
 /// workspace/profile pair, mirroring the txn fixture trust.
@@ -4338,9 +4344,7 @@ fn commit_authority(workspace: sley_id::WorkspaceId) -> crate::server::NativeAut
         .id();
     crate::server::NativeAuthority::provision(
         Box::new(EmptyNativeExecutor),
-        Box::new(CommitTestSigner {
-            key: COMMIT_ACCEPTANCE_KEY,
-        }),
+        Box::new(CommitTestSigner(commit_acceptance_signer())),
         commit_manifest(
             COMMIT_MEASUREMENT_KEY,
             sley_tests::ROLE_MEASUREMENT,
@@ -4348,7 +4352,7 @@ fn commit_authority(workspace: sley_id::WorkspaceId) -> crate::server::NativeAut
             *sley_tests::native_execution_profile_id().as_bytes(),
         ),
         commit_manifest(
-            COMMIT_ACCEPTANCE_KEY,
+            commit_acceptance_key(),
             sley_tests::ROLE_ACCEPTANCE,
             workspace,
             *admission.as_bytes(),
@@ -4927,9 +4931,7 @@ fn replay_untrusted_without_matching_manifests() {
         .id();
     server.set_native_authority(crate::server::NativeAuthority::provision(
         Box::new(EmptyNativeExecutor),
-        Box::new(CommitTestSigner {
-            key: COMMIT_ACCEPTANCE_KEY,
-        }),
+        Box::new(CommitTestSigner(commit_acceptance_signer())),
         commit_manifest(
             [0xF1; 32],
             sley_tests::ROLE_MEASUREMENT,
@@ -5003,9 +5005,7 @@ fn replay_refusing_executor_answers_inconclusive() {
         .id();
     server.set_native_authority(crate::server::NativeAuthority::provision(
         Box::new(NoReplayExecutor),
-        Box::new(CommitTestSigner {
-            key: COMMIT_ACCEPTANCE_KEY,
-        }),
+        Box::new(CommitTestSigner(commit_acceptance_signer())),
         commit_manifest(
             COMMIT_MEASUREMENT_KEY,
             sley_tests::ROLE_MEASUREMENT,
@@ -5013,7 +5013,7 @@ fn replay_refusing_executor_answers_inconclusive() {
             *sley_tests::native_execution_profile_id().as_bytes(),
         ),
         commit_manifest(
-            COMMIT_ACCEPTANCE_KEY,
+            commit_acceptance_key(),
             sley_tests::ROLE_ACCEPTANCE,
             workspace,
             *admission.as_bytes(),

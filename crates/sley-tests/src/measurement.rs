@@ -341,6 +341,12 @@ impl MeasuredTestAttestationV1 {
     pub const fn recorded_unix_millis(&self) -> u64 {
         self.parts.recorded_unix_millis
     }
+
+    /// Validated attestation facts used by signature verifiers.
+    #[must_use]
+    pub const fn parts(&self) -> &MeasuredTestAttestationParts {
+        &self.parts
+    }
 }
 
 /// Canonical signature preimage for one unsigned attestation record.
