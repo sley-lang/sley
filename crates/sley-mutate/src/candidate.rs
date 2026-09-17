@@ -17,6 +17,14 @@ pub const CANDIDATE_FORMAT_VERSION: u32 = 1;
 /// Exact S20-345 validation-profile format version.
 pub const VALIDATION_PROFILE_FORMAT_VERSION: u32 = 1;
 
+/// Exact production fingerprint-profile format version.
+///
+/// The successor profile record is byte-identical to
+/// [`ValidationProfileRecord::full_v1`] except for this version value, so its
+/// identity is disjoint while the profile-record decoder (eight fixed fields)
+/// does not change.
+pub const PRODUCTION_VALIDATION_PROFILE_FORMAT_VERSION: u32 = 2;
+
 /// Candidate-envelope magic bytes.
 pub const CANDIDATE_MAGIC: &[u8; 8] = b"SLEYCAN1";
 
@@ -51,7 +59,8 @@ pub enum CandidateError {
     PayloadKindMismatch,
     /// Create-entity operation did not target the deterministic S20-110 identity.
     TargetEntityMismatch,
-    /// Validation profile record was not the exact full-v1 profile.
+    /// Validation profile was not one of the two accepted profiles
+    /// (full-v1 or production-v1).
     ValidationProfileInvalid,
 }
 
@@ -414,6 +423,43 @@ impl ValidationProfileRecord {
             Err(CandidateError::ValidationProfileInvalid)
         }
     }
+
+    /// Returns the exact production-v1 validation profile.
+    ///
+    /// Byte-identical to [`Self::full_v1`] except `format_version`, so the
+    /// fourteen phases and every hard ceiling are unchanged. The disjoint
+    /// identity is what carries the fingerprint-claim requirement: the
+    /// S20-360 validator refuses absent claims only under this profile.
+    #[must_use]
+    pub fn production_v1() -> Self {
+        Self {
+            format_version: PRODUCTION_VALIDATION_PROFILE_FORMAT_VERSION,
+            phase_tags: FULL_VALIDATION_PHASE_TAGS.to_vec(),
+            max_operations: 65_535,
+            max_preconditions: 65_535,
+            max_candidate_bytes: 67_108_864,
+            max_decoded_value_bytes: 67_108_864,
+            max_graph_work: 10_000_000,
+            max_selected_tests: 65_535,
+        }
+    }
+
+    pub(crate) fn validate_production_v1(&self) -> Result<(), CandidateError> {
+        if self == &Self::production_v1() {
+            Ok(())
+        } else {
+            Err(CandidateError::ValidationProfileInvalid)
+        }
+    }
+
+    /// Returns true when this record is exactly one of the two accepted
+    /// validation profiles. The closed set never widens silently: any other
+    /// byte combination is refused by the profile-record codec and by
+    /// candidate import alike.
+    #[must_use]
+    pub fn is_accepted_validation_profile(&self) -> bool {
+        self.validate_full_v1().is_ok() || self.validate_production_v1().is_ok()
+    }
 }
 
 /// Exact 13-field canonical candidate record.
@@ -459,7 +505,9 @@ impl CandidateRecord {
             return Err(CandidateError::FormatVersionUnsupported);
         }
         self.expiry.validate()?;
-        if self.validation_profile_id != crate::codec::full_validation_profile_id()? {
+        let full = crate::codec::full_validation_profile_id()?;
+        let production = crate::codec::production_validation_profile_id()?;
+        if self.validation_profile_id != full && self.validation_profile_id != production {
             return Err(CandidateError::ValidationProfileInvalid);
         }
         if self.operations.is_empty() {
@@ -587,6 +635,21 @@ pub fn full_validation_profile_record() -> ValidationProfileRecord {
 /// Returns a stable error only if strict SCB1 profile encoding fails.
 pub fn full_validation_profile_id() -> Result<ValidationProfileId, CandidateError> {
     crate::codec::full_validation_profile_id()
+}
+
+/// Returns the exact production-v1 validation profile record.
+#[must_use]
+pub fn production_validation_profile_record() -> ValidationProfileRecord {
+    ValidationProfileRecord::production_v1()
+}
+
+/// Returns the exact production-v1 validation profile identity.
+///
+/// # Errors
+///
+/// Returns a stable error only if strict SCB1 profile encoding fails.
+pub fn production_validation_profile_id() -> Result<ValidationProfileId, CandidateError> {
+    crate::codec::production_validation_profile_id()
 }
 
 pub(crate) fn descriptor_field_tag(field_tag: Option<u32>) -> Result<Option<u16>, CandidateError> {

@@ -3408,7 +3408,9 @@ impl MutationValueCodec for BoundPrecondition {
 impl MutationValueCodec for ValidationProfileRecord {
     fn encode_value(&self, depth: usize) -> Result<Vec<u8>> {
         check_container_depth(depth)?;
-        self.validate_full_v1().map_err(|_| scb_invalid())?;
+        if !self.is_accepted_validation_profile() {
+            return Err(scb_invalid());
+        }
         encode_record(&[
             (1, encode_at_depth(&self.format_version, depth + 1)?),
             (2, encode_at_depth(&self.phase_tags, depth + 1)?),
@@ -3472,7 +3474,9 @@ impl MutationValueCodec for ValidationProfileRecord {
             max_selected_tests: max_selected_tests
                 .ok_or_else(|| ScbError::new(ScbErrorCode::FieldMissing))?,
         };
-        value.validate_full_v1().map_err(|_| scb_invalid())?;
+        if !value.is_accepted_validation_profile() {
+            return Err(scb_invalid());
+        }
         Ok(value)
     }
 }
@@ -3903,6 +3907,18 @@ pub(crate) fn import_candidate(
 pub(crate) fn full_validation_profile_id()
 -> core::result::Result<ValidationProfileId, CandidateError> {
     let profile = ValidationProfileRecord::full_v1();
+    let record = encode_exact(&profile)?;
+    let mut preimage = Vec::with_capacity(8 + 1 + record.len());
+    preimage.extend_from_slice(b"SLEYVAP1");
+    preimage.extend_from_slice(&encode_uvar(1));
+    preimage.extend_from_slice(&encode_uvar(record.len() as u64));
+    preimage.extend_from_slice(&record);
+    Ok(ValidationProfileId::derive(preimage))
+}
+
+pub(crate) fn production_validation_profile_id()
+-> core::result::Result<ValidationProfileId, CandidateError> {
+    let profile = ValidationProfileRecord::production_v1();
     let record = encode_exact(&profile)?;
     let mut preimage = Vec::with_capacity(8 + 1 + record.len());
     preimage.extend_from_slice(b"SLEYVAP1");
@@ -5937,5 +5953,146 @@ mod tests {
             invalid.validate_full_v1().unwrap_err(),
             CandidateError::ValidationProfileInvalid
         );
+    }
+
+    #[test]
+    fn validation_profile_production_v1_is_disjoint_and_accepted() {
+        use crate::candidate::PRODUCTION_VALIDATION_PROFILE_FORMAT_VERSION;
+        let production = ValidationProfileRecord::production_v1();
+        assert_eq!(
+            production.format_version,
+            PRODUCTION_VALIDATION_PROFILE_FORMAT_VERSION
+        );
+        assert_eq!(
+            production.phase_tags,
+            crate::candidate::FULL_VALIDATION_PHASE_TAGS
+        );
+        // Every ceiling is byte-identical to full-v1; only the version differs.
+        let full = ValidationProfileRecord::full_v1();
+        assert_eq!(production.max_operations, full.max_operations);
+        assert_eq!(production.max_preconditions, full.max_preconditions);
+        assert_eq!(production.max_candidate_bytes, full.max_candidate_bytes);
+        assert_eq!(
+            production.max_decoded_value_bytes,
+            full.max_decoded_value_bytes
+        );
+        assert_eq!(production.max_graph_work, full.max_graph_work);
+        assert_eq!(production.max_selected_tests, full.max_selected_tests);
+        assert!(production.is_accepted_validation_profile());
+        assert!(full.is_accepted_validation_profile());
+        assert_round_trip(&production);
+        let full_id = full_validation_profile_id().unwrap();
+        let production_id = production_validation_profile_id().unwrap();
+        assert_ne!(full_id, production_id);
+        assert_eq!(
+            production_id,
+            crate::production_validation_profile_id().unwrap()
+        );
+        // Pinned identity: any derivation drift fails closed here.
+        assert_eq!(
+            production_id.as_bytes(),
+            &[
+                0x01, 0x8e, 0xea, 0x48, 0x24, 0xed, 0x41, 0xda, 0xa7, 0x82, 0xce, 0xaa, 0x20, 0x4a,
+                0x13, 0x3f, 0x15, 0x40, 0x7f, 0x99, 0x4e, 0x19, 0x2d, 0x2c, 0x3d, 0xb6, 0x78, 0xfe,
+                0x99, 0x98, 0xa9, 0xf1,
+            ]
+        );
+
+        // The accepted set is closed: a third version encodes/decodes nowhere.
+        let mut third = production.clone();
+        third.format_version = 3;
+        assert!(!third.is_accepted_validation_profile());
+        assert!(encode_exact(&third).is_err());
+        // The decode gate refuses a third version even when the bytes are
+        // well-formed SCB1: hand-encode a version-3 record and decode it.
+        let third_bytes = sley_scb1::encode_record(&[
+            (1, encode_at_depth(&3u32, 1).unwrap()),
+            (2, encode_at_depth(&production.phase_tags, 1).unwrap()),
+            (3, encode_at_depth(&production.max_operations, 1).unwrap()),
+            (
+                4,
+                encode_at_depth(&production.max_preconditions, 1).unwrap(),
+            ),
+            (
+                5,
+                encode_at_depth(&production.max_candidate_bytes, 1).unwrap(),
+            ),
+            (
+                6,
+                encode_at_depth(&production.max_decoded_value_bytes, 1).unwrap(),
+            ),
+            (7, encode_at_depth(&production.max_graph_work, 1).unwrap()),
+            (
+                8,
+                encode_at_depth(&production.max_selected_tests, 1).unwrap(),
+            ),
+        ])
+        .unwrap();
+        assert!(decode_exact::<ValidationProfileRecord>(&third_bytes).is_err());
+    }
+
+    #[test]
+    fn candidate_record_accepts_exactly_two_profile_identities() {
+        let record = full_candidate_record();
+        // The production identity builds and round-trips.
+        let mut production = record.clone();
+        production.validation_profile_id = production_validation_profile_id().unwrap();
+        let imported = build_candidate(&production).unwrap();
+        assert_eq!(import_candidate(&imported.stored_bytes).unwrap(), imported);
+        // Unknown identities fail closed at build through the same shared
+        // check the import decoder runs.
+        for garbage in [
+            ValidationProfileId::from_bytes([0; 32]),
+            ValidationProfileId::from_bytes([9; 32]),
+        ] {
+            let mut bad = record.clone();
+            bad.validation_profile_id = garbage;
+            assert_eq!(
+                build_candidate(&bad).unwrap_err(),
+                CandidateError::ValidationProfileInvalid
+            );
+        }
+        // Adversarial stored bytes carrying an unknown identity fail at
+        // import: swap the profile id inside an honestly built preimage and
+        // re-derive the digest trailer, so the bytes reach the record
+        // decoder with a valid envelope.
+        for garbage in [
+            ValidationProfileId::from_bytes([0; 32]),
+            ValidationProfileId::from_bytes([9; 32]),
+        ] {
+            let stored = stored_bytes_with_profile(&record, garbage);
+            assert_eq!(
+                import_candidate(&stored).unwrap_err(),
+                CandidateError::ValidationProfileInvalid
+            );
+        }
+    }
+
+    /// Rewrites the profile identity inside an honestly built candidate
+    /// preimage and re-derives the digest trailer, producing adversarial
+    /// stored bytes with a valid envelope but a foreign profile.
+    fn stored_bytes_with_profile(
+        record: &crate::candidate::CandidateRecord,
+        profile: ValidationProfileId,
+    ) -> Vec<u8> {
+        let built = build_candidate(record).unwrap();
+        let full = full_validation_profile_id().unwrap();
+        let occurrences = built
+            .preimage
+            .windows(32)
+            .filter(|window| *window == full.as_bytes())
+            .count();
+        assert_eq!(occurrences, 1);
+        let position = built
+            .preimage
+            .windows(32)
+            .position(|window| window == full.as_bytes())
+            .unwrap();
+        let mut preimage = built.preimage.clone();
+        preimage[position..position + 32].copy_from_slice(profile.as_bytes());
+        let id = sley_id::CandidateId::derive(&preimage);
+        let mut stored = preimage;
+        stored.extend_from_slice(id.as_bytes());
+        stored
     }
 }

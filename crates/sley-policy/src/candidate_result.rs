@@ -18,7 +18,7 @@ use sley_id::{
     CandidateAttemptDigest, CandidateId, CandidateResultId, EntityId, StateRoot,
     ValidationProfileId,
 };
-use sley_mutate::full_validation_profile_id;
+use sley_mutate::{full_validation_profile_id, production_validation_profile_id};
 use sley_scb1::{
     MAX_STANDALONE_BYTES, ScbError, ScbErrorCode, ScbValueCursor, encode_list, encode_record,
     encode_text, encode_union, encode_uvar,
@@ -940,9 +940,13 @@ fn validate_result_record(record: &CandidateResultRecord) -> Result<(), Candidat
     if record.format_version != RESULT_FORMAT_VERSION {
         return Err(result_error(CandidateResultErrorCode::FormatVersion));
     }
-    let expected_profile = full_validation_profile_id()
+    let full_profile = full_validation_profile_id()
         .map_err(|_| result_error(CandidateResultErrorCode::ProfileInvalid))?;
-    if record.validation_profile_id != expected_profile {
+    let production_profile = production_validation_profile_id()
+        .map_err(|_| result_error(CandidateResultErrorCode::ProfileInvalid))?;
+    if record.validation_profile_id != full_profile
+        && record.validation_profile_id != production_profile
+    {
         return Err(result_error(CandidateResultErrorCode::ProfileInvalid));
     }
     validate_set(&record.affected_closure)?;

@@ -429,6 +429,7 @@ impl CandidateProgram {
         &self,
         schema_epoch: SchemaEpochId,
         objects: &[EntityObject],
+        require_claims: bool,
     ) -> Result<(), FingerprintError> {
         let definitions = self
             .type_definitions
@@ -439,14 +440,15 @@ impl CandidateProgram {
             let claimed = object.record().semantic_fingerprint;
             match &object.record().body {
                 EntityBodyValue::TypeDef(_) => {
-                    if let Some(claimed) = claimed {
-                        let definition =
-                            definitions.get(&object.record().entity_id).ok_or_else(|| {
-                                FingerprintError::new(FingerprintErrorCode::InventoryInvalid)
-                            })?;
-                        let computed = fingerprint_type_definition(schema_epoch, definition)?;
-                        verify_fingerprint_claim(computed, Some(claimed))?;
+                    if claimed.is_none() && !require_claims {
+                        continue;
                     }
+                    let definition =
+                        definitions.get(&object.record().entity_id).ok_or_else(|| {
+                            FingerprintError::new(FingerprintErrorCode::InventoryInvalid)
+                        })?;
+                    let computed = fingerprint_type_definition(schema_epoch, definition)?;
+                    verify_fingerprint_claim(computed, claimed)?;
                 }
                 EntityBodyValue::Function(_) => {}
                 _ if claimed.is_some() => {
@@ -464,6 +466,7 @@ impl CandidateProgram {
         &self,
         schema_epoch: SchemaEpochId,
         objects: &[EntityObject],
+        require_claims: bool,
     ) -> Result<(), FingerprintError> {
         let units = self
             .function_units()
@@ -474,9 +477,10 @@ impl CandidateProgram {
             if !matches!(object.record().body, EntityBodyValue::Function(_)) {
                 continue;
             }
-            let Some(claimed) = object.record().semantic_fingerprint else {
+            let claimed = object.record().semantic_fingerprint;
+            if claimed.is_none() && !require_claims {
                 continue;
-            };
+            }
             let unit = units
                 .get(&object.record().entity_id)
                 .ok_or_else(|| FingerprintError::new(FingerprintErrorCode::InventoryInvalid))?;
@@ -489,7 +493,7 @@ impl CandidateProgram {
                     operations: &unit.operations,
                 },
             )?;
-            verify_fingerprint_claim(computed, Some(claimed))?;
+            verify_fingerprint_claim(computed, claimed)?;
         }
         Ok(())
     }
@@ -1333,5 +1337,110 @@ mod tests {
             program.dependency_roots(),
             vec![StateRoot::from_bytes([9; 32])]
         );
+    }
+
+    fn typedef_object(entity: u8, claim: Option<sley_id::SemanticFingerprint>) -> EntityObject {
+        build_entity_object(
+            SchemaEpochId::from_bytes([7; 32]),
+            &EntityObjectRecord {
+                entity_id: id(entity),
+                body: EntityBodyValue::TypeDef(sley_mutate::value::TypeDefBody {
+                    type_parameters: vec![],
+                    form: TypeDefForm::Record(vec![]),
+                    invariants: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    visibility: Visibility::Private,
+                }),
+                label: None,
+                semantic_fingerprint: claim,
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn typedef_claim_requirement_is_profile_selected() {
+        let epoch = SchemaEpochId::from_bytes([7; 32]);
+        let unclaimed = typedef_object(20, None);
+        let program = CandidateProgram::project(std::slice::from_ref(&unclaimed)).unwrap();
+        // Restricted full-v1 profile: absent claims pass through.
+        program
+            .validate_restricted_type_fingerprint_claims(
+                epoch,
+                std::slice::from_ref(&unclaimed),
+                false,
+            )
+            .unwrap();
+        // Production-v1 profile: the absent claim fails with the stable
+        // missing symbol, not a mismatch.
+        let error = program
+            .validate_restricted_type_fingerprint_claims(epoch, &[unclaimed], true)
+            .unwrap_err();
+        assert_eq!(error.code(), FingerprintErrorCode::ClaimMissing);
+        assert_eq!(error.code().as_str(), "FINGERPRINT_CLAIM_MISSING");
+
+        // A wrong present claim mismatches under both profiles.
+        let wrong = typedef_object(20, Some(sley_id::SemanticFingerprint::from_bytes([9; 32])));
+        for require in [false, true] {
+            let error = program
+                .validate_restricted_type_fingerprint_claims(
+                    epoch,
+                    std::slice::from_ref(&wrong),
+                    require,
+                )
+                .unwrap_err();
+            assert_eq!(error.code(), FingerprintErrorCode::Mismatch);
+        }
+    }
+
+    #[test]
+    fn function_claim_requirement_is_profile_selected() {
+        let epoch = SchemaEpochId::from_bytes([7; 32]);
+        let function = object(
+            id(22),
+            EntityBodyValue::Function(FunctionBody {
+                type_parameters: vec![],
+                parameters: vec![id(23)],
+                result_type: TypeExpr::Bool,
+                effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                entry_block: id(24),
+                blocks: vec![id(24)],
+                contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                visibility: Visibility::Private,
+            }),
+        );
+        let parameter = object(
+            id(23),
+            EntityBodyValue::Parameter(ParameterBody {
+                owner: id(22),
+                role: ParameterRole::Function,
+                ordinal: 0,
+                value_type: TypeExpr::Bool,
+            }),
+        );
+        let block = object(
+            id(24),
+            EntityBodyValue::Block(sley_mutate::value::BlockBody {
+                function: id(22),
+                parameters: vec![],
+                operations: vec![],
+                terminator: Terminator::Return(ReturnTerminator {
+                    value: ValueRef::Parameter(id(23)),
+                }),
+                reachability: Reachability::Required,
+            }),
+        );
+        let objects = vec![function, parameter, block];
+        let program = CandidateProgram::project(&objects).unwrap();
+        // Restricted full-v1 profile: absent claims pass through.
+        program
+            .validate_restricted_function_fingerprint_claims(epoch, &objects, false)
+            .unwrap();
+        // Production-v1 profile: the absent claim fails with the stable
+        // missing symbol, not a mismatch.
+        let error = program
+            .validate_restricted_function_fingerprint_claims(epoch, &objects, true)
+            .unwrap_err();
+        assert_eq!(error.code(), FingerprintErrorCode::ClaimMissing);
+        assert_eq!(error.code().as_str(), "FINGERPRINT_CLAIM_MISSING");
     }
 }

@@ -29,6 +29,7 @@ use sley_mutate::{
     CandidateApplyError, CandidateError, EntityObject, ImportedCandidate, MutationClass,
     PreconditionPayload, ProposedEntityState, apply_candidate_to_snapshot,
     full_validation_profile_id, full_validation_profile_record, import_candidate,
+    production_validation_profile_id,
 };
 use sley_scb1::{
     MAX_STANDALONE_BYTES, ScbError, ScbErrorCode, encode_list, encode_record, encode_text,
@@ -439,6 +440,10 @@ impl ResultRenderer {
 
     fn set_candidate(&mut self, candidate: &ImportedCandidate) {
         self.candidate_id = Some(candidate.candidate_id);
+        // The result carries the profile the candidate actually requested.
+        // Undecodable input never reaches this call and keeps the renderer's
+        // construction-time full-v1 identity.
+        self.validation_profile_id = candidate.record.validation_profile_id;
     }
 
     fn pass(&mut self, phase: u32, values: &[Vec<u8>]) -> Result<(), CandidateValidationError> {
@@ -696,6 +701,13 @@ pub fn validate_candidate_bytes(
             encode_uvar(stored_candidate_bytes.len() as u64),
         ],
     )?;
+    // The production-v1 successor profile requires every TypeDef and Function
+    // claim to be present; full-v1 keeps allowing absent claims. Unknown
+    // profile identities never reach this point: candidate import refuses
+    // them at phase 1 through the closed accepted-profile set.
+    let production_profile =
+        production_validation_profile_id().map_err(candidate_result_from_candidate)?;
+    let require_fingerprint_claims = candidate.record.validation_profile_id == production_profile;
 
     // Phase 2: profile, hard limits, and exact closed trusted inventory.
     if let Err(failure) = validate_phase_two(context, &candidate) {
@@ -809,6 +821,7 @@ pub fn validate_candidate_bytes(
     if let Err(error) = program.validate_restricted_type_fingerprint_claims(
         candidate.record.schema_epoch_id,
         proposed.entities(),
+        require_fingerprint_claims,
     ) {
         return renderer.finish_failure(fingerprint_semantic_failure(
             6,
@@ -924,6 +937,7 @@ pub fn validate_candidate_bytes(
     if let Err(error) = program.validate_restricted_function_fingerprint_claims(
         candidate.record.schema_epoch_id,
         proposed.entities(),
+        require_fingerprint_claims,
     ) {
         return renderer.finish_failure(fingerprint_semantic_failure(
             8,
@@ -3023,6 +3037,154 @@ pub(crate) mod tests {
         assert_eq!(
             output.result().record.diagnostics[0].source_numeric_code,
             Some(23_003)
+        );
+    }
+
+    #[test]
+    fn production_profile_requires_absent_typedef_claim_at_phase_six() {
+        let fixture = Fixture::valid();
+        let production_id = production_validation_profile_id().unwrap();
+        let typedef = fixture.create_candidate(
+            70,
+            vec![(
+                4,
+                EntityBodyValue::TypeDef(TypeDefBody {
+                    type_parameters: vec![],
+                    form: TypeDefForm::Record(vec![]),
+                    invariants: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                    visibility: Visibility::Private,
+                }),
+            )],
+        );
+        // The same claimless bytes validate under the restricted profile.
+        let full_output =
+            validate_candidate_bytes(&fixture.context(), &typedef.stored_bytes).unwrap();
+        assert!(full_output.is_valid());
+
+        // Under the production profile the absent claim fails at phase 6
+        // with the stable missing symbol, and the result carries the
+        // requested production identity.
+        let mut record = typedef.record.clone();
+        record.validation_profile_id = production_id;
+        let production = build_candidate(&record).unwrap();
+        let output =
+            validate_candidate_bytes(&fixture.context(), &production.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::TypeError,
+            6,
+            "FINGERPRINT_CLAIM_MISSING",
+        );
+        assert_eq!(
+            output.result().record.diagnostics[0].source_numeric_code,
+            Some(25_003)
+        );
+        assert_eq!(output.result().record.validation_profile_id, production_id);
+    }
+
+    #[test]
+    fn production_profile_requires_absent_function_claim_at_phase_eight() {
+        let fixture = Fixture::valid();
+        let production_id = production_validation_profile_id().unwrap();
+        let function = fixture.created_id(71, 5, 0);
+        let parameter = fixture.created_id(71, 6, 1);
+        let block = fixture.created_id(71, 7, 2);
+        let candidate = fixture.create_candidate(
+            71,
+            vec![
+                (
+                    5,
+                    EntityBodyValue::Function(FunctionBody {
+                        type_parameters: vec![],
+                        parameters: vec![parameter],
+                        result_type: TypeExpr::Unit,
+                        effects: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        entry_block: block,
+                        blocks: vec![block],
+                        contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                        visibility: Visibility::Private,
+                    }),
+                ),
+                (
+                    6,
+                    EntityBodyValue::Parameter(ParameterBody {
+                        owner: function,
+                        role: ParameterRole::Function,
+                        ordinal: 0,
+                        value_type: TypeExpr::Unit,
+                    }),
+                ),
+                (
+                    7,
+                    EntityBodyValue::Block(BlockBody {
+                        function,
+                        parameters: vec![],
+                        operations: vec![],
+                        terminator: Terminator::Return(ReturnTerminator {
+                            value: ValueRef::Parameter(parameter),
+                        }),
+                        reachability: Reachability::Required,
+                    }),
+                ),
+            ],
+        );
+        let mut record = candidate.record.clone();
+        record.validation_profile_id = production_id;
+        let production = build_candidate(&record).unwrap();
+        // The same claimless bytes validate under the restricted profile.
+        let full_output =
+            validate_candidate_bytes(&fixture.context(), &candidate.stored_bytes).unwrap();
+        assert!(full_output.is_valid());
+        let output =
+            validate_candidate_bytes(&fixture.context(), &production.stored_bytes).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::EffectError,
+            8,
+            "FINGERPRINT_CLAIM_MISSING",
+        );
+        assert_eq!(
+            output.result().record.diagnostics[0].source_numeric_code,
+            Some(25_003)
+        );
+        assert_eq!(output.result().record.validation_profile_id, production_id);
+    }
+
+    #[test]
+    fn unknown_profile_identity_stops_at_phase_one() {
+        use sley_id::CandidateId;
+
+        let fixture = Fixture::valid();
+        let full = full_validation_profile_id().unwrap();
+        let occurrences = fixture
+            .candidate
+            .preimage
+            .windows(32)
+            .filter(|window| *window == full.as_bytes())
+            .count();
+        assert_eq!(occurrences, 1);
+        let position = fixture
+            .candidate
+            .preimage
+            .windows(32)
+            .position(|window| window == full.as_bytes())
+            .unwrap();
+        let mut preimage = fixture.candidate.preimage.clone();
+        preimage[position..position + 32]
+            .copy_from_slice(ValidationProfileId::from_bytes([9; 32]).as_bytes());
+        let id = CandidateId::derive(&preimage);
+        let mut stored = preimage;
+        stored.extend_from_slice(id.as_bytes());
+        let output = validate_candidate_bytes(&fixture.context(), &stored).unwrap();
+        assert_terminal(
+            &output,
+            CandidateDecision::InvalidEncoding,
+            1,
+            "MUTATION_CANDIDATE_VALIDATION_PROFILE",
+        );
+        assert_eq!(
+            output.result().record.diagnostics[0].source_numeric_code,
+            Some(35_010)
         );
     }
 

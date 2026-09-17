@@ -191,7 +191,7 @@ pub use candidate::{
     MutationPayload, OrderedInsert, OrderedMove, OrderedRemove, PreconditionPayload,
     ReferenceTarget, ValidationProfileRecord, build_candidate, decode_candidate_record,
     encode_candidate_record, full_validation_profile_id, full_validation_profile_record,
-    import_candidate,
+    import_candidate, production_validation_profile_id, production_validation_profile_record,
 };
 pub use codec::{
     ConstValueByteMeasure, decode_const_value, encode_const_value, measure_const_value_bounded,
