@@ -24,22 +24,25 @@
 //! and requested effect identity before comparing the computed closure.
 //! `effect_set_inventory_checker` advances that phase over runtime vectors
 //! with Sley-owned strict-order and nested membership walks.
+//! `two_function_effect_closure_checker` adds bounded direct-call propagation
+//! and native-equivalent closure-work accounting.
 //! Construction provenance:
 //! machineresearch/sley-2.0/reweave/rw-080-checker-scaffold.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-single-cfg.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-option-switch.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-operation-inventory.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-type-chain.md,
-//! machineresearch/sley-2.0/reweave/rw-080-checker-single-effect.md, and
-//! machineresearch/sley-2.0/reweave/rw-080-checker-effect-inventory.md.
+//! machineresearch/sley-2.0/reweave/rw-080-checker-single-effect.md,
+//! machineresearch/sley-2.0/reweave/rw-080-checker-effect-inventory.md, and
+//! machineresearch/sley-2.0/reweave/rw-080-checker-effect-propagation.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     Block, BuiltinCase, BuiltinFailureKind, CaseKey, CondBranchTerminator, ConstData, ConstValue,
-    ConstantDefinition, EffectDefinition, EffectKind, FunctionGraph, Immediate, IntegerWidth,
-    MAX_TYPE_DEPTH, Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability,
-    ReturnTerminator, SwitchArgument, SwitchCase, SwitchEdge, TargetEdge, Terminator, TrapCode,
-    TrapTerminator, TypeExpr, ValueRef, VariantSwitchTerminator, Visibility,
+    ConstantDefinition, EffectDefinition, EffectKind, FunctionGraph, FunctionRefValue, Immediate,
+    IntegerWidth, MAX_TYPE_DEPTH, Opcode, Operation, OperationResultRef, Parameter, ParameterRole,
+    Reachability, ReturnTerminator, SwitchArgument, SwitchCase, SwitchEdge, TargetEdge, Terminator,
+    TrapCode, TrapTerminator, TypeExpr, ValueRef, VariantSwitchTerminator, Visibility,
 };
 
 fn id(byte: u8) -> EntityId {
@@ -3550,6 +3553,332 @@ fn effect_set_inventory_checker() -> CheckerScaffold {
     }
 }
 
+/// Computes the least effect closure for a bounded two-function call graph.
+/// Runtime facts control both local requests, the caller-to-callee edge, and
+/// each declared closure.
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn two_function_effect_closure_checker() -> CheckerScaffold {
+    let function = checker_inventory_id(5, 5);
+    let mut assembler = InventoryCheckAssembler::new();
+    let caller_declared = assembler.parameter(function, ParameterRole::Function, 0, TypeExpr::Bool);
+    let caller_local = assembler.parameter(function, ParameterRole::Function, 1, TypeExpr::Bool);
+    let calls_callee = assembler.parameter(function, ParameterRole::Function, 2, TypeExpr::Bool);
+    let callee_declared = assembler.parameter(function, ParameterRole::Function, 3, TypeExpr::Bool);
+    let callee_local = assembler.parameter(function, ParameterRole::Function, 4, TypeExpr::Bool);
+
+    let entry = assembler.block_id();
+    let called_compute = assembler.block_id();
+    let caller_compare = assembler.block_id();
+    let callee_compare = assembler.block_id();
+    let success_dispatch = assembler.block_id();
+    let no_call_caller = assembler.block_id();
+    let no_call_caller_false = assembler.block_id();
+    let no_call_caller_true = assembler.block_id();
+    let call_caller = assembler.block_id();
+    let call_caller_false = assembler.block_id();
+    let call_caller_true = assembler.block_id();
+    let success_000 = assembler.block_id();
+    let success_001 = assembler.block_id();
+    let success_010 = assembler.block_id();
+    let success_011 = assembler.block_id();
+    let success_100 = assembler.block_id();
+    let success_101 = assembler.block_id();
+    let success_110 = assembler.block_id();
+    let success_111 = assembler.block_id();
+    let closure_error = assembler.block_id();
+
+    let u64_constants = [0_u64, 1, 2, 4, 5].map(|value| {
+        assembler.constant(ConstValue {
+            value_type: u64_type(),
+            data: ConstData::UInt(u128::from(value)),
+        })
+    });
+    let zero_u32 = assembler.constant(u32_value(0));
+    let one_u32 = assembler.constant(u32_value(1));
+    let closure_code = assembler.constant(u32_value(u128::from(
+        sley_check::effects::EffectErrorCode::ClosureMismatch.numeric(),
+    )));
+
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(calls_callee),
+            called_compute,
+            Vec::new(),
+            caller_compare,
+            vec![ValueRef::Parameter(caller_local)],
+        ),
+    );
+    let propagated = assembler.operation(
+        called_compute,
+        Opcode::BoolOr,
+        vec![
+            ValueRef::Parameter(caller_local),
+            ValueRef::Parameter(callee_local),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        called_compute,
+        function,
+        Vec::new(),
+        vec![propagated],
+        inventory_branch(caller_compare, vec![inventory_operation_value(propagated)]),
+    );
+
+    let caller_closure =
+        assembler.parameter(caller_compare, ParameterRole::Block, 0, TypeExpr::Bool);
+    let caller_matches = assembler.operation(
+        caller_compare,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(caller_declared),
+            ValueRef::Parameter(caller_closure),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        caller_compare,
+        function,
+        vec![caller_closure],
+        vec![caller_matches],
+        inventory_cond(
+            inventory_operation_value(caller_matches),
+            callee_compare,
+            vec![ValueRef::Parameter(caller_closure)],
+            closure_error,
+            Vec::new(),
+        ),
+    );
+
+    let checked_caller_closure =
+        assembler.parameter(callee_compare, ParameterRole::Block, 0, TypeExpr::Bool);
+    let callee_matches = assembler.operation(
+        callee_compare,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(callee_declared),
+            ValueRef::Parameter(callee_local),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        callee_compare,
+        function,
+        vec![checked_caller_closure],
+        vec![callee_matches],
+        inventory_cond(
+            inventory_operation_value(callee_matches),
+            success_dispatch,
+            vec![ValueRef::Parameter(checked_caller_closure)],
+            closure_error,
+            Vec::new(),
+        ),
+    );
+
+    let accepted_caller_closure =
+        assembler.parameter(success_dispatch, ParameterRole::Block, 0, TypeExpr::Bool);
+    assembler.push_block(
+        success_dispatch,
+        function,
+        vec![accepted_caller_closure],
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(calls_callee),
+            call_caller,
+            Vec::new(),
+            no_call_caller,
+            vec![ValueRef::Parameter(accepted_caller_closure)],
+        ),
+    );
+
+    let no_call_closure =
+        assembler.parameter(no_call_caller, ParameterRole::Block, 0, TypeExpr::Bool);
+    assembler.push_block(
+        no_call_caller,
+        function,
+        vec![no_call_closure],
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(no_call_closure),
+            no_call_caller_true,
+            Vec::new(),
+            no_call_caller_false,
+            Vec::new(),
+        ),
+    );
+    assembler.push_block(
+        no_call_caller_false,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(callee_local),
+            success_001,
+            Vec::new(),
+            success_000,
+            Vec::new(),
+        ),
+    );
+    assembler.push_block(
+        no_call_caller_true,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(callee_local),
+            success_011,
+            Vec::new(),
+            success_010,
+            Vec::new(),
+        ),
+    );
+    assembler.push_block(
+        call_caller,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(caller_local),
+            call_caller_true,
+            Vec::new(),
+            call_caller_false,
+            Vec::new(),
+        ),
+    );
+    assembler.push_block(
+        call_caller_false,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(callee_local),
+            success_101,
+            Vec::new(),
+            success_100,
+            Vec::new(),
+        ),
+    );
+    assembler.push_block(
+        call_caller_true,
+        function,
+        Vec::new(),
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(callee_local),
+            success_111,
+            Vec::new(),
+            success_110,
+            Vec::new(),
+        ),
+    );
+
+    let mut success_block = |block: EntityId, count: usize, edges: EntityId, work: usize| {
+        let count_value = assembler.constant_ref(block, u64_constants[count], u64_type());
+        let edge_value = assembler.constant_ref(block, edges, u32_type());
+        let round_value = assembler.constant_ref(block, one_u32, u32_type());
+        let work_value = assembler.constant_ref(block, u64_constants[work], u64_type());
+        let summary = assembler.operation(
+            block,
+            Opcode::TupleNew,
+            vec![
+                inventory_operation_value(count_value),
+                inventory_operation_value(edge_value),
+                inventory_operation_value(round_value),
+                inventory_operation_value(work_value),
+            ],
+            effect_summary_type(),
+            Immediate::None,
+        );
+        let accepted = assembler.operation(
+            block,
+            Opcode::ResultOk,
+            vec![inventory_operation_value(summary)],
+            effect_result_type(),
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![
+                count_value,
+                edge_value,
+                round_value,
+                work_value,
+                summary,
+                accepted,
+            ],
+            Terminator::Return(ReturnTerminator {
+                value: inventory_operation_value(accepted),
+            }),
+        );
+    };
+    success_block(success_000, 0, zero_u32, 0);
+    success_block(success_001, 1, zero_u32, 1);
+    success_block(success_010, 1, zero_u32, 1);
+    success_block(success_011, 2, zero_u32, 2);
+    success_block(success_100, 0, one_u32, 1);
+    success_block(success_101, 2, one_u32, 4);
+    success_block(success_110, 1, one_u32, 2);
+    success_block(success_111, 2, one_u32, 3);
+
+    let code_value = assembler.constant_ref(closure_error, closure_code, u32_type());
+    let rejected = assembler.operation(
+        closure_error,
+        Opcode::ResultErr,
+        vec![inventory_operation_value(code_value)],
+        effect_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        closure_error,
+        function,
+        Vec::new(),
+        vec![code_value, rejected],
+        Terminator::Return(ReturnTerminator {
+            value: inventory_operation_value(rejected),
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![
+            caller_declared,
+            caller_local,
+            calls_callee,
+            callee_declared,
+            callee_local,
+        ],
+        result_type: effect_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    CheckerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+    }
+}
+
 fn generous_limits() -> sley_vm::ExecutionLimits {
     sley_vm::ExecutionLimits {
         max_instructions: 10_000,
@@ -3758,6 +4087,16 @@ impl SingleEffectFacts {
 
 type EffectSetCase<'a> = (&'a [u64], &'a [u64], &'a [u64], u32);
 
+#[derive(Clone, Copy, Debug)]
+#[allow(clippy::struct_excessive_bools)]
+struct TwoFunctionEffectFacts {
+    caller_declared: bool,
+    caller_local: bool,
+    calls_callee: bool,
+    callee_declared: bool,
+    callee_local: bool,
+}
+
 fn execute_single_cfg(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
@@ -3917,6 +4256,32 @@ fn execute_effect_set_inventory(
         },
     )
     .expect("v2 executes effect-set inventory checker")
+}
+
+fn execute_two_function_effect_closure(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    facts: TwoFunctionEffectFacts,
+) -> sley_vm::ExecutionOutcome {
+    let value = |value| ConstValue {
+        value_type: TypeExpr::Bool,
+        data: ConstData::Bool(value),
+    };
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                value(facts.caller_declared),
+                value(facts.caller_local),
+                value(facts.calls_callee),
+                value(facts.callee_declared),
+                value(facts.callee_local),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes two-function effect-closure checker")
 }
 
 fn native_single_cfg(
@@ -4572,6 +4937,204 @@ fn native_effect_set_inventory(
     })
 }
 
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn native_two_function_effect_closure(
+    facts: TwoFunctionEffectFacts,
+) -> Result<sley_check::effects::EffectReport, u32> {
+    use sley_check::{
+        cfg::CfgValidationError,
+        effects::{EffectValidationError, FunctionUnit, validate_effect_program},
+    };
+
+    let effect = effect_entity_id(20);
+    let caller_id = id(1);
+    let caller_scope = id(2);
+    let caller_request = id(3);
+    let caller_block_id = id(4);
+    let callee_id = id(10);
+    let callee_scope = id(11);
+    let callee_request = id(12);
+    let callee_block_id = id(13);
+    let result_type = TypeExpr::Result {
+        ok: Box::new(TypeExpr::Unit),
+        error: Box::new(TypeExpr::Unit),
+    };
+
+    let caller = FunctionGraph {
+        entity_id: caller_id,
+        type_parameters: Vec::new(),
+        parameters: vec![caller_scope, caller_request],
+        result_type: TypeExpr::Unit,
+        effects: facts
+            .caller_declared
+            .then_some(effect)
+            .into_iter()
+            .collect(),
+        entry_block: caller_block_id,
+        blocks: vec![caller_block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let callee = FunctionGraph {
+        entity_id: callee_id,
+        type_parameters: Vec::new(),
+        parameters: vec![callee_scope, callee_request],
+        result_type: TypeExpr::Unit,
+        effects: facts
+            .callee_declared
+            .then_some(effect)
+            .into_iter()
+            .collect(),
+        entry_block: callee_block_id,
+        blocks: vec![callee_block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let caller_parameters = vec![
+        Parameter {
+            entity_id: caller_scope,
+            owner: caller_id,
+            role: ParameterRole::Function,
+            ordinal: 0,
+            value_type: TypeExpr::Unit,
+        },
+        Parameter {
+            entity_id: caller_request,
+            owner: caller_id,
+            role: ParameterRole::Function,
+            ordinal: 1,
+            value_type: TypeExpr::Unit,
+        },
+    ];
+    let callee_parameters = vec![
+        Parameter {
+            entity_id: callee_scope,
+            owner: callee_id,
+            role: ParameterRole::Function,
+            ordinal: 0,
+            value_type: TypeExpr::Unit,
+        },
+        Parameter {
+            entity_id: callee_request,
+            owner: callee_id,
+            role: ParameterRole::Function,
+            ordinal: 1,
+            value_type: TypeExpr::Unit,
+        },
+    ];
+
+    let mut caller_operations = Vec::new();
+    if facts.caller_local {
+        caller_operations.push(Operation {
+            entity_id: id(5),
+            block: caller_block_id,
+            ordinal: u32::try_from(caller_operations.len()).expect("bounded caller ordinal"),
+            opcode: Opcode::EffectRequest,
+            operands: vec![
+                ValueRef::Parameter(caller_scope),
+                ValueRef::Parameter(caller_request),
+            ],
+            result_types: vec![result_type.clone()],
+            immediate: Immediate::Entity(effect),
+        });
+    }
+    if facts.calls_callee {
+        caller_operations.push(Operation {
+            entity_id: id(6),
+            block: caller_block_id,
+            ordinal: u32::try_from(caller_operations.len()).expect("bounded caller ordinal"),
+            opcode: Opcode::CallDirect,
+            operands: vec![
+                ValueRef::Parameter(caller_scope),
+                ValueRef::Parameter(caller_request),
+            ],
+            result_types: vec![TypeExpr::Unit],
+            immediate: Immediate::Function(FunctionRefValue {
+                function: callee_id,
+                type_arguments: Vec::new(),
+            }),
+        });
+    }
+    let callee_operations = facts
+        .callee_local
+        .then(|| Operation {
+            entity_id: id(14),
+            block: callee_block_id,
+            ordinal: 0,
+            opcode: Opcode::EffectRequest,
+            operands: vec![
+                ValueRef::Parameter(callee_scope),
+                ValueRef::Parameter(callee_request),
+            ],
+            result_types: vec![result_type],
+            immediate: Immediate::Entity(effect),
+        })
+        .into_iter()
+        .collect::<Vec<_>>();
+    let caller_block = Block {
+        entity_id: caller_block_id,
+        function: caller_id,
+        parameters: Vec::new(),
+        operations: caller_operations
+            .iter()
+            .map(|operation| operation.entity_id)
+            .collect(),
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::Parameter(caller_scope),
+        }),
+        reachability: Reachability::Required,
+    };
+    let callee_block = Block {
+        entity_id: callee_block_id,
+        function: callee_id,
+        parameters: Vec::new(),
+        operations: callee_operations
+            .iter()
+            .map(|operation| operation.entity_id)
+            .collect(),
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::Parameter(callee_scope),
+        }),
+        reachability: Reachability::Required,
+    };
+    let definition = EffectDefinition {
+        entity_id: effect,
+        effect_kind: EffectKind::StdoutWrite,
+        scope_type: TypeExpr::Unit,
+        request_type: TypeExpr::Unit,
+        response_type: TypeExpr::Unit,
+        failure_type: TypeExpr::Unit,
+        visibility: Visibility::Private,
+    };
+    let caller_unit = FunctionUnit {
+        function: &caller,
+        parameters: &caller_parameters,
+        blocks: std::slice::from_ref(&caller_block),
+        operations: &caller_operations,
+    };
+    let callee_unit = FunctionUnit {
+        function: &callee,
+        parameters: &callee_parameters,
+        blocks: std::slice::from_ref(&callee_block),
+        operations: &callee_operations,
+    };
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    validate_effect_program(
+        &types,
+        &[caller_unit, callee_unit],
+        &[definition],
+        &[],
+        &[],
+        &[],
+    )
+    .map_err(|error| match error {
+        EffectValidationError::Type(error)
+        | EffectValidationError::Cfg(CfgValidationError::Type(error)) => error.code().numeric(),
+        EffectValidationError::Cfg(CfgValidationError::Cfg(error)) => error.code().numeric(),
+        EffectValidationError::Effect(error) => error.code().numeric(),
+    })
+}
+
 fn assert_effect_ok(
     outcome: &sley_vm::ExecutionOutcome,
     report: &sley_check::effects::EffectReport,
@@ -4586,7 +5149,11 @@ fn assert_effect_ok(
     let ConstData::Sequence(fields) = &summary.data else {
         panic!("effect summary must be a tuple")
     };
-    let closure_count = report.functions[0].effects.len() as u128;
+    let closure_count = report
+        .functions
+        .iter()
+        .map(|function| function.effects.len() as u128)
+        .sum();
     assert_eq!(fields[0].data, ConstData::UInt(closure_count));
     assert_eq!(
         fields[1].data,
@@ -5223,6 +5790,40 @@ fn checker_effect_set_inventories_preserve_native_precedence() {
             ),
             *expected,
         );
+    }
+}
+
+#[test]
+fn checker_two_function_effect_closures_match_native_state_space() {
+    let (package, approved) = admit_checker_program(&two_function_effect_closure_checker());
+    for caller_declared in [false, true] {
+        for caller_local in [false, true] {
+            for calls_callee in [false, true] {
+                for callee_declared in [false, true] {
+                    for callee_local in [false, true] {
+                        let facts = TwoFunctionEffectFacts {
+                            caller_declared,
+                            caller_local,
+                            calls_callee,
+                            callee_declared,
+                            callee_local,
+                        };
+                        let native = native_two_function_effect_closure(facts);
+                        let first = execute_two_function_effect_closure(&package, &approved, facts);
+                        let second =
+                            execute_two_function_effect_closure(&package, &approved, facts);
+                        match native {
+                            Ok(report) => assert_effect_ok(&first, &report),
+                            Err(code) => assert_effect_numeric_error(&first, code),
+                        }
+                        assert_eq!(
+                            first.termination, second.termination,
+                            "two-function checker is deterministic for {facts:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 }
 
