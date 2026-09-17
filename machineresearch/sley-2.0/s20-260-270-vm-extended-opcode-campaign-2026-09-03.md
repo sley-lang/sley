@@ -1,7 +1,8 @@
 # S20-260/S20-270 VM Extended Opcode Campaign (2026-09-03)
 
-Status: contract draft revision 15 (2026-09-15), with slices E1–E6, E7a
-and E8 implemented. Historical Nabu residual corrections passed independent
+Status: contract draft revision 16 (2026-09-17), with slices E1–E6, E7a
+and E8 implemented. Revision 16 is design-only (E7 handle-model boundary,
+no execution change). Historical Nabu residual corrections passed independent
 item-level review (`evidence/review/vm-nabu-correction-review-2026-09-15.md`);
 prior verdicts and dated validation below remain preserved.
 Current conformance vectors: 31.

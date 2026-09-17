@@ -69,6 +69,17 @@ SPEC_MARKERS = (
     # Revision 12 freeze findings: every marker below pins one answered
     # Ariadne or Vulcan finding, so a future edit that drops the answer
     # fails here.
+    # Revision 16 handle-model design: every marker below pins one normative
+    # boundary of the E7 design section, so a future edit that authorizes
+    # in-execution verify/mint, drops the owner handoff, or weakens the
+    # 160/162 refusal fails here.
+    "### E7 handle-model design (160, 162; execution deferred to owners)",
+    "the secret\n  never enters execution",
+    "Execution receives handles only",
+    "handoff record between execution and host mint",
+    "is owed by",
+    "no host services an effect today",
+    "not widen by implication from VM execution",
     "lowerer_version [2,0,0]",
     "bumps `lowerer_version` again or the change does not land",
     "followed by each callee body in ascending function-id order",

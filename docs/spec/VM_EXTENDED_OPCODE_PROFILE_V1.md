@@ -1,8 +1,12 @@
 # VM Extended Opcode Profile v1
 
-Status: S20-260/S20-270 full-profile contract draft, revision 15 (2026-09-15).
-This revision closes the historical Nabu documentation and corpus gaps;
-independent item-level review accepted these corrections (see
+Status: S20-260/S20-270 full-profile contract draft, revision 16 (2026-09-17).
+This revision specifies the E7 capability-handle host-binding design (the new
+E7 design section below) and changes no execution semantics: every landed
+slice keeps its bytes, vectors, and cache keys, and opcodes 145, 160, and
+162 keep their exact refusals. Revision 15 closed the historical Nabu
+documentation and corpus gaps; independent item-level review accepted these
+corrections (see
 `evidence/review/vm-nabu-correction-review-2026-09-15.md`). Existing epoch-1
 execution semantics and earlier vector identities are preserved. Revision
 14 recorded the E8 review currency; later E8 review evidence remains in the
@@ -27,7 +31,11 @@ same-toolchain evidence scope in section 5. Revision 13 lands slice E8, the
 host bridge imports admitted by the REWEAVE RW-030 charter (section E8):
 three versioned `adapter_invoke` entries over the already-frozen opcode 161,
 which the same S20-760 determination class shows needs no schema epoch. The
-rest of E7 stays excluded until its owners exist.
+rest of E7 stays excluded until its owners exist. Revision 16 specifies the
+E7 capability-handle host-binding design (new section below): it answers the
+S20-760 item 3c owner blocker with a boundary a future owner slice must
+satisfy, and authorizes no execution, no bytecode or cache-key change, and
+no new code.
 
 ## Boundary
 
@@ -83,7 +91,9 @@ Runtime values remain immutable views of validated `ConstValue`, extended
 by two execution-local forms that never persist, never enter an observation,
 and are rejected as a Function result type at lowering
 (`VM_LOWER_SIGNATURE_MISMATCH`): local cells (a slot in the execution's
-cell table) and adapter handles or capability tokens (E7, excluded). Every
+cell table) and adapter handles or capability tokens (E7, excluded from
+execution; the handle model a future owner slice must implement is specified
+in the E7 design section below). Every
 constructed value carries exactly its register type; a value whose
 `value_type` differs from the result register's type is
 `VM_EXEC_INTERNAL_INVARIANT`. That identity check is the whole
@@ -299,6 +309,88 @@ full own their runtime.
 outright rather than leaving its semantics open (`CONTRACT_TEST_PROFILE_V1.md`
 section 3.4 carries the rejection; op 145 is in the epoch-1 table, so the
 manifest alone does not).
+
+### E7 handle-model design (160, 162; execution deferred to owners)
+
+This section specifies the boundary a future owner slice must satisfy before
+opcodes 160 (`effect_request`) and 162 (`capability_narrow`) can execute. It
+authorizes no execution: every use of 160 and 162 still answers
+`VM_LOWER_OPCODE_UNSUPPORTED`, and no owner may cite this section as
+execution authority. It answers the S20-760 section 6 item 3c owner blocker
+with a design rather than an implementation.
+
+Authority facts the design rests on:
+
+- `CAPABILITY_TOKEN_V1.md` section 1: only the host issues or verifies
+  tokens, because the keyed-BLAKE3 secret and the current time are explicit
+  host inputs that are never serialized and never read from ambient process
+  state.
+- `CAPABILITY_TOKEN_V1.md` section 7: the token profile does not complete
+  VM effect opcodes.
+- Execution has no host-secret or wall-clock channel: the execution context
+  carries cells, fuel, budgets, and call-stack state, but no host secret or
+  wall-clock channel. Carrying the secret or the clock
+  into execution would breach the token authority boundary above: the secret
+  never enters execution, so in-execution verification and in-execution
+  minting are both refused by this design, not merely unimplemented.
+- `EPOCH_MIGRATION_POLICY_V1.md` section 6 item 3c (re-verified 2026-09-04):
+  no narrowing function exists in `sley-policy`, and no host services an
+  effect.
+
+Handle form. A capability handle is an opaque execution-local reference to
+a host-owned table entry, in the same family as the E5 cell handle: it never
+persists, never enters an observation, has no wire or constant form, and a
+Function whose result type contains one fails lowering with
+`VM_LOWER_SIGNATURE_MISMATCH`. Execution receives handles only: token bytes
+and the host secret never cross the execution boundary in either direction.
+Handles originate only from verified-token binding; an unbound handle is
+refused by the owner slice's code, the host table is dropped with the
+execution and never reused across executions, and handles cross the boundary
+as references only — they never serialize into observations or token bytes.
+
+Verification boundary. Presented tokens are verified by the host before
+execution, in the token profile section 5 order (version, issuer, key, MAC,
+policy root, workspace, principal, state root, effect, scope, adapter, time,
+grant, budget). Execution never re-verifies and never trusts an unverified
+handle: a handle resolves only through the host table that verified-token
+binding populates.
+
+Narrowing decomposition. A future 162 slice must split narrowing into three
+parts and may land only all three together:
+
+- structural scope subset against the presented token's requirement and its
+  frozen allowlist
+  (`EFFECT_SYSTEM_V1.md` section 1.3 with its Appendix A order), which needs
+  no authority because the allowlist is static requirement data;
+- constraint-contract predicate execution, for which slice E7a is the
+  precedent (predicates run as ordinary frames under the same budgets);
+- host mint of the narrowed token at the observation boundary, because only
+  the host holds the secret.
+
+The handoff record between execution and host mint — the narrowed-body
+bytes, the proof inputs, the fresh-nonce discipline that keeps the token
+profile replay ledger sound, the grant, policy-root, and time recheck at
+mint, the narrowed-budget subset rule, and the budget charge for the mint —
+is owed by S20-380 full. Until that owner specifies it, 162 execution cannot land,
+because landing structural narrowing without authenticated mint would hand
+out authority from unverified bytes.
+
+Effect servicing. Opcode 160 stays excluded until S20-280 full owns
+fixtures and host servicing: no host services an effect today, and a request
+with nowhere to be serviced is not executable. The fixture protocol
+(identity, budgets, replay order, atomicity) is that owner's acceptance, not
+this profile's.
+
+What a future owner slice must still bring. The E7a/E8 evidence pattern
+applies unchanged: exact signature judgments with the frozen `VM_LOWER_*`
+mapping and no new numeric range, the acceptance-invariant differential
+test of section 3.1, conformance vectors with a pinned refusal code for
+every remaining refusal, fuzz-lane reach-execution per section 5, an S20-360
+phase-7 analyzability addendum (phase 7 is owned by `sley-policy` and does
+not widen by implication from VM execution), and S20-280/S20-380 owner
+review. Opcode 145 and the item 1 contract kinds are outside this design:
+they need a schema epoch with the four approvals of the epoch policy
+section 3, which no profile revision grants.
 
 ### E8 host bridge imports (161)
 
@@ -533,7 +625,9 @@ container/cache identities and record shape, not execution semantics.
 
 ## 6. Explicit exclusions
 
-This contract does not claim: E7 beyond slices E7a and E8; generic specialization or type
+This contract does not claim: E7 execution beyond slices E7a and E8; the E7
+handle-model subsection specifies a future design boundary only and
+authorizes no execution; generic specialization or type
 arguments; an optimizer; effects, adapters, capabilities, replay, or live
 cancellation beyond S20-270's rules; a second host or byte-memory budget;
 S20-360 full operation analysis; or GA.

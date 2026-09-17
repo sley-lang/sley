@@ -47,7 +47,7 @@ class CurrentRecordConsistency(unittest.TestCase):
         import check_vm_extended_opcode_profile as checker
         with tempfile.TemporaryDirectory() as directory:
             adr = Path(directory) / 'adr.md'
-            adr.write_text(checker.ADR.read_text().replace('current contract revision 15', 'current contract revision 16'))
+            adr.write_text(checker.ADR.read_text().replace('current contract revision 16', 'current contract revision 15'))
             with patch.object(checker, 'ADR', adr), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(checker.main(), 1)
 

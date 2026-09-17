@@ -1,7 +1,10 @@
 # ADR-0039: the extended opcode profile as a second, explicit VM profile
 
-Status: accepted architecture; current contract revision 15 (2026-09-15).
-Slices E1–E6, E7a and E8 are implemented. Historical review records remain
+Status: accepted architecture; current contract revision 16 (2026-09-17).
+Slices E1–E6, E7a and E8 are implemented. Revision 16 is design-only: it
+specifies the E7 capability-handle host-binding boundary (160/162 execution
+deferred to S20-280/S20-380 owners) and changes no execution semantics.
+Historical review records remain
 preserved; independent item-level review accepted the revision 15 corrections
 in `evidence/review/vm-nabu-correction-review-2026-09-15.md`.
 Revision 12 acceptance and the revision 13 E8 implementation are historical
