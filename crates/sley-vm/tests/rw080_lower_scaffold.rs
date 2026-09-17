@@ -25,7 +25,8 @@
 //! dense-register frontier internally, emits the ordered typed instruction
 //! model, and preserves frozen late-row failures. Its scalar-family extension
 //! adds all six equality/ordering opcodes and all eight checked-integer
-//! opcodes plus the unary/binary floating family to the same traversal.
+//! opcodes, the unary/binary floating family, value constructors, local-cell
+//! operations, and value hashing to the same traversal.
 //! The terminator slices lower return, branch, conditional branch, trap, and
 //! built-in variant-switch models. They walk every edge or case argument and
 //! every runtime switch case in Sley.
@@ -36,6 +37,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-scalar-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-checked-integers.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-floating.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-values-cells.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
@@ -1185,8 +1187,18 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
     let opcode_float_mul = assembler.block_id();
     let opcode_float_div = assembler.block_id();
     let opcode_float_neg = assembler.block_id();
+    let opcode_option_some = assembler.block_id();
+    let opcode_option_none = assembler.block_id();
+    let opcode_result_ok = assembler.block_id();
+    let opcode_result_err = assembler.block_id();
+    let opcode_cell_new = assembler.block_id();
+    let opcode_cell_get = assembler.block_id();
+    let opcode_cell_set = assembler.block_id();
+    let opcode_value_hash = assembler.block_id();
+    let zero_count = assembler.block_id();
     let unary_count = assembler.block_id();
     let binary_count = assembler.block_id();
+    let emit_zero = assembler.block_id();
     let unary_reference = assembler.block_id();
     let binary_reference_zero = assembler.block_id();
     let binary_reference_one = assembler.block_id();
@@ -1203,6 +1215,7 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
 
     let zero_u64 = assembler.constant(u64_value(0));
     let one_u64 = assembler.constant(u64_value(1));
+    let zero_u32 = assembler.constant(u32_value(0));
     let one_u32 = assembler.constant(u32_value(1));
     let two_u32 = assembler.constant(u32_value(2));
     let not_tag = assembler.constant(u32_value(u128::from(Opcode::BoolNot.tag())));
@@ -1227,6 +1240,14 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
     let float_mul_tag = assembler.constant(u32_value(u128::from(Opcode::FloatMul.tag())));
     let float_div_tag = assembler.constant(u32_value(u128::from(Opcode::FloatDiv.tag())));
     let float_neg_tag = assembler.constant(u32_value(u128::from(Opcode::FloatNeg.tag())));
+    let option_some_tag = assembler.constant(u32_value(u128::from(Opcode::OptionSome.tag())));
+    let option_none_tag = assembler.constant(u32_value(u128::from(Opcode::OptionNone.tag())));
+    let result_ok_tag = assembler.constant(u32_value(u128::from(Opcode::ResultOk.tag())));
+    let result_err_tag = assembler.constant(u32_value(u128::from(Opcode::ResultErr.tag())));
+    let cell_new_tag = assembler.constant(u32_value(u128::from(Opcode::CellNew.tag())));
+    let cell_get_tag = assembler.constant(u32_value(u128::from(Opcode::CellGet.tag())));
+    let cell_set_tag = assembler.constant(u32_value(u128::from(Opcode::CellSet.tag())));
+    let value_hash_tag = assembler.constant(u32_value(u128::from(Opcode::ValueHash.tag())));
     let opcode_error_code = assembler.constant(u32_value(u128::from(
         sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
     )));
@@ -1550,6 +1571,62 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
         opcode_float_neg,
         float_neg_tag,
         unary_count,
+        opcode_option_some,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_option_some,
+        option_some_tag,
+        unary_count,
+        opcode_option_none,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_option_none,
+        option_none_tag,
+        zero_count,
+        opcode_result_ok,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_result_ok,
+        result_ok_tag,
+        unary_count,
+        opcode_result_err,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_result_err,
+        result_err_tag,
+        unary_count,
+        opcode_cell_new,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_cell_new,
+        cell_new_tag,
+        unary_count,
+        opcode_cell_get,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_cell_get,
+        cell_get_tag,
+        unary_count,
+        opcode_cell_set,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_cell_set,
+        cell_set_tag,
+        binary_count,
+        opcode_value_hash,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_value_hash,
+        value_hash_tag,
+        unary_count,
         opcode_error,
     );
 
@@ -1583,6 +1660,7 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
             ),
         );
     };
+    count_block(&mut assembler, zero_count, zero_u32, emit_zero);
     count_block(&mut assembler, unary_count, one_u32, unary_reference);
     count_block(&mut assembler, binary_count, two_u32, binary_reference_zero);
 
@@ -1629,10 +1707,13 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
     );
     reference_block(&mut assembler, binary_reference_one, true, emit_binary);
 
-    let emit_block = |assembler: &mut InventoryAssembler, block: EntityId, binary: bool| {
+    let emit_block = |assembler: &mut InventoryAssembler, block: EntityId, arity: u32| {
         let parameters = inventory_row_parameters(assembler, block);
-        let mut operand_values = vec![ValueRef::Parameter(parameters.operand_zero)];
-        if binary {
+        let mut operand_values = Vec::new();
+        if arity >= 1 {
+            operand_values.push(ValueRef::Parameter(parameters.operand_zero));
+        }
+        if arity >= 2 {
             operand_values.push(ValueRef::Parameter(parameters.operand_one));
         }
         let operands = assembler.operation(
@@ -1706,8 +1787,9 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
             ),
         );
     };
-    emit_block(&mut assembler, emit_unary, false);
-    emit_block(&mut assembler, emit_binary, true);
+    emit_block(&mut assembler, emit_zero, 0);
+    emit_block(&mut assembler, emit_unary, 1);
+    emit_block(&mut assembler, emit_binary, 2);
 
     let advance_index_parameters = inventory_loop_parameters(&mut assembler, advance_index);
     let index_one = assembler.constant_ref(advance_index, one_u64, u64_type());
@@ -3964,6 +4046,7 @@ fn assert_inventory_error(outcome: &sley_vm::ExecutionOutcome, expected: u32) {
     assert_eq!(code.data, ConstData::UInt(u128::from(expected)));
 }
 
+#[allow(clippy::too_many_lines)]
 fn native_single_scalar(opcode: Opcode) -> sley_vm::Instruction {
     let function_id = id(1);
     let block_id = id(2);
@@ -3989,6 +4072,43 @@ fn native_single_scalar(opcode: Opcode) -> sley_vm::Instruction {
             (2, TypeExpr::F64, TypeExpr::F64)
         }
         Opcode::FloatNeg => (1, TypeExpr::F64, TypeExpr::F64),
+        Opcode::OptionSome => (
+            1,
+            TypeExpr::Bool,
+            TypeExpr::Option(Box::new(TypeExpr::Bool)),
+        ),
+        Opcode::OptionNone => (
+            0,
+            TypeExpr::Unit,
+            TypeExpr::Option(Box::new(TypeExpr::Bool)),
+        ),
+        Opcode::ResultOk => (
+            1,
+            TypeExpr::Bool,
+            TypeExpr::Result {
+                ok: Box::new(TypeExpr::Bool),
+                error: Box::new(TypeExpr::Unit),
+            },
+        ),
+        Opcode::ResultErr => (
+            1,
+            TypeExpr::Bool,
+            TypeExpr::Result {
+                ok: Box::new(TypeExpr::Unit),
+                error: Box::new(TypeExpr::Bool),
+            },
+        ),
+        Opcode::CellNew => (
+            1,
+            TypeExpr::Bool,
+            TypeExpr::LocalCell(Box::new(TypeExpr::Bool)),
+        ),
+        Opcode::CellGet => (
+            1,
+            TypeExpr::LocalCell(Box::new(TypeExpr::Bool)),
+            TypeExpr::Bool,
+        ),
+        Opcode::ValueHash => (1, TypeExpr::Bool, TypeExpr::Bytes),
         other => panic!("scalar reference fixture does not support {other:?}"),
     };
     let parameter_ids: Vec<EntityId> = (0..parameter_count)
@@ -4058,7 +4178,7 @@ fn native_single_scalar(opcode: Opcode) -> sley_vm::Instruction {
         contracts: &[],
         adapters: &[],
     })
-    .expect("native reference lowers the Boolean operation");
+    .unwrap_or_else(|error| panic!("native reference lowers {opcode:?}: {error:?}"));
     lowered.bytecode.blocks[0].instructions[0].clone()
 }
 
@@ -4149,6 +4269,116 @@ fn native_bool_chain() -> Vec<sley_vm::Instruction> {
         adapters: &[],
     })
     .expect("native reference lowers the Boolean chain")
+    .bytecode
+    .blocks
+    .remove(0)
+    .instructions
+}
+
+#[allow(clippy::too_many_lines)]
+fn native_cell_chain() -> Vec<sley_vm::Instruction> {
+    let function_id = id(1);
+    let block_id = id(2);
+    let value = id(10);
+    let replacement = id(11);
+    let new_id = id(3);
+    let set_id = id(4);
+    let get_id = id(5);
+    let function = FunctionGraph {
+        entity_id: function_id,
+        type_parameters: Vec::new(),
+        parameters: vec![value, replacement],
+        result_type: TypeExpr::Bool,
+        effects: Vec::new(),
+        entry_block: block_id,
+        blocks: vec![block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameters = vec![
+        Parameter {
+            entity_id: value,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 0,
+            value_type: TypeExpr::Bool,
+        },
+        Parameter {
+            entity_id: replacement,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 1,
+            value_type: TypeExpr::Bool,
+        },
+    ];
+    let operations = vec![
+        Operation {
+            entity_id: new_id,
+            block: block_id,
+            ordinal: 0,
+            opcode: Opcode::CellNew,
+            operands: vec![ValueRef::Parameter(value)],
+            result_types: vec![TypeExpr::LocalCell(Box::new(TypeExpr::Bool))],
+            immediate: Immediate::None,
+        },
+        Operation {
+            entity_id: set_id,
+            block: block_id,
+            ordinal: 1,
+            opcode: Opcode::CellSet,
+            operands: vec![
+                ValueRef::OperationResult(OperationResultRef {
+                    operation: new_id,
+                    result_index: 0,
+                }),
+                ValueRef::Parameter(replacement),
+            ],
+            result_types: vec![TypeExpr::Unit],
+            immediate: Immediate::None,
+        },
+        Operation {
+            entity_id: get_id,
+            block: block_id,
+            ordinal: 2,
+            opcode: Opcode::CellGet,
+            operands: vec![ValueRef::OperationResult(OperationResultRef {
+                operation: new_id,
+                result_index: 0,
+            })],
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::None,
+        },
+    ];
+    let block = Block {
+        entity_id: block_id,
+        function: function_id,
+        parameters: Vec::new(),
+        operations: vec![new_id, set_id, get_id],
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::OperationResult(OperationResultRef {
+                operation: get_id,
+                result_index: 0,
+            }),
+        }),
+        reachability: Reachability::Required,
+    };
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    sley_vm::lower_function(sley_vm::LoweringInput {
+        types: &types,
+        function: &function,
+        parameters: &parameters,
+        blocks: &[block],
+        operations: &operations,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: sley_vm::CacheProfile::EXTENDED_V1,
+        constants: &[],
+        globals: &[],
+        functions: std::slice::from_ref(&function),
+        contracts: &[],
+        adapters: &[],
+    })
+    .expect("native reference lowers local-cell construction and read")
     .bytecode
     .blocks
     .remove(0)
@@ -4640,6 +4870,11 @@ fn lower_ordered_scalar_inventory_matches_native_model_and_frontier() {
         (Opcode::FloatMul, 2),
         (Opcode::FloatDiv, 2),
         (Opcode::FloatNeg, 1),
+        (Opcode::OptionSome, 1),
+        (Opcode::OptionNone, 0),
+        (Opcode::ResultOk, 1),
+        (Opcode::ResultErr, 1),
+        (Opcode::ValueHash, 1),
     ] {
         let expected = native_single_scalar(opcode);
         assert_inventory_summary(
@@ -4648,6 +4883,22 @@ fn lower_ordered_scalar_inventory_matches_native_model_and_frontier() {
             arity + 1,
         );
     }
+
+    let cell_native = native_cell_chain();
+    assert_inventory_summary(
+        &execute_bool_inventory(
+            &package,
+            &approved,
+            &[
+                (Opcode::CellNew.tag(), 1, 0, 0),
+                (Opcode::CellSet.tag(), 2, 2, 1),
+                (Opcode::CellGet.tag(), 1, 2, 0),
+            ],
+            2,
+        ),
+        &cell_native,
+        5,
+    );
 }
 
 #[test]

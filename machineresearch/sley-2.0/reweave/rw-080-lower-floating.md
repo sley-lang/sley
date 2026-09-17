@@ -4,6 +4,10 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real Sley lowering algorithm
 under the operator development override. It is not RW-110 completion, C1,
 self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-values-cells.md` extends the same runtime loop
+with value constructors, local cells, and hashing; this record preserves the
+floating-family increment and its evidence.
+
 ## Scope and behavior
 
 `ordered_scalar_inventory_lowerer` now accepts `FloatAdd`, `FloatSub`,
