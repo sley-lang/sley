@@ -4,6 +4,9 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real bounded Sley lowering
 algorithm under the operator development override. It is not RW-110
 completion, C1, self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-complete-block.md` adds the frozen built-in
+variant-switch terminator family to the composed block boundary.
+
 ## Scope and behavior
 
 `simple_block_lowerer` composes the ordered mixed-operation entry with the
@@ -43,9 +46,9 @@ clean.
 ## Explicit remainder
 
 This block model accepts already-assigned parameter registers and covers the
-four simple terminators. It does not allocate register types or block
-parameters, compose multiple blocks, attach the built-in variant-switch
-model, form the function/callee table, emit SLEYBC02, or assemble an execution
-package. Those remain RW-110 construction layers. The driver remains RW-120
-work. RW-080 and R2 stay provisional pending the recorded independent
-acceptance debt.
+four simple terminators. The successor slice attaches the built-in
+variant-switch model. Register-type and block-parameter allocation,
+multi-block composition, function/callee tables, SLEYBC02 emission, and
+execution-package assembly remain RW-110 construction layers. The driver
+remains RW-120 work. RW-080 and R2 stay provisional pending the recorded
+independent acceptance debt.
