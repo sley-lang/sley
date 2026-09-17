@@ -46,7 +46,10 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-map-construction.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-bootstrap-immediates.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-immediate-inventory.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-mixed-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
+
+use std::collections::BTreeMap;
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
@@ -416,6 +419,121 @@ struct LowerScaffold {
     operations: Vec<Operation>,
     constants: Vec<ConstantDefinition>,
     adapters: Vec<AdapterImport>,
+}
+
+fn rebase_value_ref(value: &mut ValueRef, ids: &BTreeMap<EntityId, EntityId>) {
+    match value {
+        ValueRef::Parameter(entity) => {
+            *entity = ids.get(entity).copied().unwrap_or(*entity);
+        }
+        ValueRef::OperationResult(result) => {
+            result.operation = ids
+                .get(&result.operation)
+                .copied()
+                .unwrap_or(result.operation);
+        }
+    }
+}
+
+fn rebase_target_edge(edge: &mut TargetEdge, ids: &BTreeMap<EntityId, EntityId>) {
+    edge.target = ids.get(&edge.target).copied().unwrap_or(edge.target);
+    for argument in &mut edge.arguments {
+        rebase_value_ref(argument, ids);
+    }
+}
+
+fn rebase_terminator(terminator: &mut Terminator, ids: &BTreeMap<EntityId, EntityId>) {
+    match terminator {
+        Terminator::Return(value) => rebase_value_ref(&mut value.value, ids),
+        Terminator::Branch(value) => rebase_target_edge(&mut value.edge, ids),
+        Terminator::CondBranch(value) => {
+            rebase_value_ref(&mut value.condition, ids);
+            rebase_target_edge(&mut value.if_true, ids);
+            rebase_target_edge(&mut value.if_false, ids);
+        }
+        Terminator::VariantSwitch(value) => {
+            rebase_value_ref(&mut value.value, ids);
+            for case in &mut value.cases {
+                case.edge.target = ids
+                    .get(&case.edge.target)
+                    .copied()
+                    .unwrap_or(case.edge.target);
+                for argument in &mut case.edge.arguments {
+                    if let SwitchArgument::Value(value) = argument {
+                        rebase_value_ref(value, ids);
+                    }
+                }
+            }
+        }
+        Terminator::Trap(value) => {
+            if let Some(payload) = &mut value.payload {
+                rebase_value_ref(payload, ids);
+            }
+        }
+    }
+}
+
+/// Moves one independently assembled fixture's parameter/block/operation/
+/// constant identities into a disjoint byte namespace while preserving its
+/// stable function and external bridge identities.
+fn rebase_scaffold_artifacts(mut scaffold: LowerScaffold, namespace_delta: u8) -> LowerScaffold {
+    let mut ids = BTreeMap::new();
+    for entity in scaffold
+        .parameters
+        .iter()
+        .map(|value| value.entity_id)
+        .chain(scaffold.blocks.iter().map(|value| value.entity_id))
+        .chain(scaffold.operations.iter().map(|value| value.entity_id))
+        .chain(scaffold.constants.iter().map(|value| value.entity_id))
+    {
+        let mut bytes = *entity.as_bytes();
+        bytes[0] = bytes[0]
+            .checked_add(namespace_delta)
+            .expect("fixture namespace byte does not overflow");
+        ids.insert(entity, EntityId::from_bytes(bytes));
+    }
+    let map_id = |entity: EntityId| ids.get(&entity).copied().unwrap_or(entity);
+    let rebase_graph = |graph: &mut FunctionGraph| {
+        graph.parameters.iter_mut().for_each(|id| *id = map_id(*id));
+        graph.entry_block = map_id(graph.entry_block);
+        graph.blocks.iter_mut().for_each(|id| *id = map_id(*id));
+        graph.contracts.iter_mut().for_each(|id| *id = map_id(*id));
+    };
+    rebase_graph(&mut scaffold.entry);
+    for graph in &mut scaffold.functions {
+        rebase_graph(graph);
+    }
+    for parameter in &mut scaffold.parameters {
+        parameter.entity_id = map_id(parameter.entity_id);
+        parameter.owner = map_id(parameter.owner);
+    }
+    for block in &mut scaffold.blocks {
+        block.entity_id = map_id(block.entity_id);
+        block.function = map_id(block.function);
+        block.parameters.iter_mut().for_each(|id| *id = map_id(*id));
+        block.operations.iter_mut().for_each(|id| *id = map_id(*id));
+        rebase_terminator(&mut block.terminator, &ids);
+    }
+    for operation in &mut scaffold.operations {
+        operation.entity_id = map_id(operation.entity_id);
+        operation.block = map_id(operation.block);
+        for operand in &mut operation.operands {
+            rebase_value_ref(operand, &ids);
+        }
+        match &mut operation.immediate {
+            Immediate::Entity(entity) => *entity = map_id(*entity),
+            Immediate::Variant(value) => value.definition = map_id(value.definition),
+            Immediate::Function(value) => value.function = map_id(value.function),
+            Immediate::None
+            | Immediate::Index(_)
+            | Immediate::Field(_)
+            | Immediate::Observation(_) => {}
+        }
+    }
+    for constant in &mut scaffold.constants {
+        constant.entity_id = map_id(constant.entity_id);
+    }
+    scaffold
 }
 
 struct ScaffoldBuilder {
@@ -4068,6 +4186,456 @@ fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
     }
 }
 
+/// Composes the complete immediate-free target family with the bootstrap
+/// immediate-bearing family behind the ordered inventory entry. The
+/// dispatcher recognizes the opcode family before checking the immediate so
+/// native opcode/immediate/signature failure precedence is retained.
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn mixed_operation_inventory_lowerer() -> LowerScaffold {
+    let mut base = ordered_immediate_inventory_lowerer();
+    let immediate_free = rebase_scaffold_artifacts(immediate_free_operation_lowerer(), 16);
+    let immediate_free_entry = immediate_free.entry.entity_id;
+    base.functions.extend(immediate_free.functions);
+    base.parameters.extend(immediate_free.parameters);
+    base.blocks.extend(immediate_free.blocks);
+    base.operations.extend(immediate_free.operations);
+    base.constants.extend(immediate_free.constants);
+    assert!(immediate_free.adapters.is_empty());
+
+    let function = inventory_id(5, 11);
+    let immediate_entry = inventory_id(5, 8);
+    let mut retargeted = 0;
+    let inventory_entry_blocks = base
+        .blocks
+        .iter()
+        .filter(|block| block.function == base.entry.entity_id)
+        .map(|block| block.entity_id)
+        .collect::<Vec<_>>();
+    for operation in &mut base.operations {
+        if inventory_entry_blocks.contains(&operation.block)
+            && operation.opcode == Opcode::CallDirect
+            && matches!(
+                &operation.immediate,
+                Immediate::Function(reference) if reference.function == immediate_entry
+            )
+        {
+            operation.immediate = Immediate::Function(FunctionRefValue {
+                function,
+                type_arguments: Vec::new(),
+            });
+            retargeted += 1;
+        }
+    }
+    assert_eq!(retargeted, 1, "one inventory call is retargeted");
+
+    let mut assembler = InventoryAssembler {
+        next_block: u16::try_from(base.blocks.len() + 1).expect("fixture block count fits u16"),
+        next_parameter: u16::try_from(base.parameters.len() + 1)
+            .expect("fixture parameter count fits u16"),
+        next_operation: u16::try_from(base.operations.len() + 1)
+            .expect("fixture operation count fits u16"),
+        next_constant: u16::try_from(base.constants.len() + 1)
+            .expect("fixture constant count fits u16"),
+        parameters: base.parameters,
+        blocks: base.blocks,
+        operations: base.operations,
+        constants: base.constants,
+    };
+    let opcode = assembler.parameter(function, ParameterRole::Function, 0, u32_type());
+    let operands = assembler.parameter(function, ParameterRole::Function, 1, u32vec_type());
+    let immediate_tag = assembler.parameter(function, ParameterRole::Function, 2, u32_type());
+    let primary = assembler.parameter(function, ParameterRole::Function, 3, u64_type());
+    let secondary = assembler.parameter(function, ParameterRole::Function, 4, u64_type());
+    let next_register = assembler.parameter(function, ParameterRole::Function, 5, u32_type());
+
+    let immediate_free_opcodes = [
+        Opcode::BoolNot,
+        Opcode::BoolAnd,
+        Opcode::BoolOr,
+        Opcode::Equal,
+        Opcode::NotEqual,
+        Opcode::LessThan,
+        Opcode::LessEqual,
+        Opcode::GreaterThan,
+        Opcode::GreaterEqual,
+        Opcode::IntAddChecked,
+        Opcode::IntSubChecked,
+        Opcode::IntMulChecked,
+        Opcode::IntDivChecked,
+        Opcode::IntRemChecked,
+        Opcode::IntNegChecked,
+        Opcode::IntShlChecked,
+        Opcode::IntShrChecked,
+        Opcode::FloatAdd,
+        Opcode::FloatSub,
+        Opcode::FloatMul,
+        Opcode::FloatDiv,
+        Opcode::FloatNeg,
+        Opcode::FloatFma,
+        Opcode::OptionSome,
+        Opcode::OptionNone,
+        Opcode::ResultOk,
+        Opcode::ResultErr,
+        Opcode::TupleNew,
+        Opcode::VectorNew,
+        Opcode::VectorLen,
+        Opcode::VectorGet,
+        Opcode::VectorSet,
+        Opcode::MapNew,
+        Opcode::MapGet,
+        Opcode::MapContains,
+        Opcode::MapInsert,
+        Opcode::MapRemove,
+        Opcode::CellNew,
+        Opcode::CellGet,
+        Opcode::CellSet,
+        Opcode::ValueHash,
+    ];
+    let dispatch_blocks = immediate_free_opcodes
+        .iter()
+        .map(|_| assembler.block_id())
+        .collect::<Vec<_>>();
+    let tag_check = assembler.block_id();
+    let call_immediate_free = assembler.block_id();
+    let wrap_immediate_free = assembler.block_id();
+    let call_immediate = assembler.block_id();
+    let forward_error = assembler.block_id();
+    let immediate_error = assembler.block_id();
+    let opcode_tags =
+        immediate_free_opcodes.map(|value| assembler.constant(u32_value(u128::from(value.tag()))));
+    let none_tag = assembler.constant(u32_value(u128::from(Immediate::None.tag())));
+    let zero_u64 = assembler.constant(u64_value(0));
+    let immediate_error_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
+    )));
+
+    for (index, block) in dispatch_blocks.iter().copied().enumerate() {
+        let tag = assembler.constant_ref(block, opcode_tags[index], u32_type());
+        let matches = assembler.operation(
+            block,
+            Opcode::Equal,
+            vec![ValueRef::Parameter(opcode), operation_value(tag)],
+            TypeExpr::Bool,
+            Immediate::None,
+        );
+        let unmatched = dispatch_blocks
+            .get(index + 1)
+            .copied()
+            .unwrap_or(call_immediate);
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![tag, matches],
+            inventory_cond(
+                operation_value(matches),
+                tag_check,
+                Vec::new(),
+                unmatched,
+                Vec::new(),
+            ),
+        );
+    }
+
+    let expected_none = assembler.constant_ref(tag_check, none_tag, u32_type());
+    let tag_matches = assembler.operation(
+        tag_check,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(immediate_tag),
+            operation_value(expected_none),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    let zero_primary = assembler.constant_ref(tag_check, zero_u64, u64_type());
+    let primary_matches = assembler.operation(
+        tag_check,
+        Opcode::Equal,
+        vec![ValueRef::Parameter(primary), operation_value(zero_primary)],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    let zero_secondary = assembler.constant_ref(tag_check, zero_u64, u64_type());
+    let secondary_matches = assembler.operation(
+        tag_check,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(secondary),
+            operation_value(zero_secondary),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    let tag_and_primary = assembler.operation(
+        tag_check,
+        Opcode::BoolAnd,
+        vec![
+            operation_value(tag_matches),
+            operation_value(primary_matches),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    let immediate_is_none = assembler.operation(
+        tag_check,
+        Opcode::BoolAnd,
+        vec![
+            operation_value(tag_and_primary),
+            operation_value(secondary_matches),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        tag_check,
+        function,
+        Vec::new(),
+        vec![
+            expected_none,
+            tag_matches,
+            zero_primary,
+            primary_matches,
+            zero_secondary,
+            secondary_matches,
+            tag_and_primary,
+            immediate_is_none,
+        ],
+        inventory_cond(
+            operation_value(immediate_is_none),
+            call_immediate_free,
+            Vec::new(),
+            immediate_error,
+            Vec::new(),
+        ),
+    );
+
+    let lowered_free = assembler.operation(
+        call_immediate_free,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(opcode),
+            ValueRef::Parameter(operands),
+            ValueRef::Parameter(next_register),
+        ],
+        variadic_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: immediate_free_entry,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        call_immediate_free,
+        function,
+        Vec::new(),
+        vec![lowered_free],
+        inventory_switch(
+            operation_value(lowered_free),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    wrap_immediate_free,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let free_summary = assembler.parameter(
+        wrap_immediate_free,
+        ParameterRole::Block,
+        0,
+        variadic_summary_type(),
+    );
+    let compact_instruction = assembler.operation(
+        wrap_immediate_free,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(free_summary)],
+        single_lowered_type(),
+        Immediate::Index(0),
+    );
+    let free_frontier = assembler.operation(
+        wrap_immediate_free,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(free_summary)],
+        u32_type(),
+        Immediate::Index(1),
+    );
+    let compact_opcode = assembler.operation(
+        wrap_immediate_free,
+        Opcode::TupleGet,
+        vec![operation_value(compact_instruction)],
+        u32_type(),
+        Immediate::Index(0),
+    );
+    let compact_operands = assembler.operation(
+        wrap_immediate_free,
+        Opcode::TupleGet,
+        vec![operation_value(compact_instruction)],
+        u32vec_type(),
+        Immediate::Index(1),
+    );
+    let compact_results = assembler.operation(
+        wrap_immediate_free,
+        Opcode::TupleGet,
+        vec![operation_value(compact_instruction)],
+        u32vec_type(),
+        Immediate::Index(2),
+    );
+    let full_instruction = assembler.operation(
+        wrap_immediate_free,
+        Opcode::TupleNew,
+        vec![
+            operation_value(compact_opcode),
+            operation_value(compact_operands),
+            operation_value(compact_results),
+            ValueRef::Parameter(immediate_tag),
+            ValueRef::Parameter(primary),
+            ValueRef::Parameter(secondary),
+        ],
+        immediate_instruction_type(),
+        Immediate::None,
+    );
+    let full_summary = assembler.operation(
+        wrap_immediate_free,
+        Opcode::TupleNew,
+        vec![
+            operation_value(full_instruction),
+            operation_value(free_frontier),
+        ],
+        immediate_summary_type(),
+        Immediate::None,
+    );
+    let free_success = assembler.operation(
+        wrap_immediate_free,
+        Opcode::ResultOk,
+        vec![operation_value(full_summary)],
+        immediate_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        wrap_immediate_free,
+        function,
+        vec![free_summary],
+        vec![
+            compact_instruction,
+            free_frontier,
+            compact_opcode,
+            compact_operands,
+            compact_results,
+            full_instruction,
+            full_summary,
+            free_success,
+        ],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(free_success),
+        }),
+    );
+
+    let lowered_immediate = assembler.operation(
+        call_immediate,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(opcode),
+            ValueRef::Parameter(operands),
+            ValueRef::Parameter(immediate_tag),
+            ValueRef::Parameter(primary),
+            ValueRef::Parameter(secondary),
+            ValueRef::Parameter(next_register),
+        ],
+        immediate_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: immediate_entry,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        call_immediate,
+        function,
+        Vec::new(),
+        vec![lowered_immediate],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(lowered_immediate),
+        }),
+    );
+
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let forwarded_failure = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        immediate_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(forwarded_failure),
+        }),
+    );
+    let immediate_code = assembler.constant_ref(immediate_error, immediate_error_code, u32_type());
+    let immediate_failure = assembler.operation(
+        immediate_error,
+        Opcode::ResultErr,
+        vec![operation_value(immediate_code)],
+        immediate_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        immediate_error,
+        function,
+        Vec::new(),
+        vec![immediate_code, immediate_failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(immediate_failure),
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![
+            opcode,
+            operands,
+            immediate_tag,
+            primary,
+            secondary,
+            next_register,
+        ],
+        result_type: immediate_result_type(),
+        effects: Vec::new(),
+        entry_block: dispatch_blocks[0],
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let mut functions = base.functions;
+    functions.push(graph);
+    LowerScaffold {
+        types: base.types,
+        entry: base.entry,
+        functions,
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+        adapters: base.adapters,
+    }
+}
+
 fn append_terminator_success_block(
     assembler: &mut InventoryAssembler,
     function: EntityId,
@@ -5992,6 +6560,7 @@ fn compact_identity(bytes: &[u8; 32]) -> u64 {
 
 fn immediate_projection(immediate: &Immediate) -> (u32, u64, u64) {
     match immediate {
+        Immediate::None => (immediate.tag(), 0, 0),
         Immediate::Entity(entity) => (immediate.tag(), compact_identity(entity.as_bytes()), 0),
         Immediate::Index(index) => (immediate.tag(), u64::from(*index), 0),
         Immediate::Field(member) => (immediate.tag(), compact_identity(member.as_bytes()), 0),
@@ -6008,7 +6577,9 @@ fn immediate_projection(immediate: &Immediate) -> (u32, u64, u64) {
                 0,
             )
         }
-        other => panic!("immediate projection does not support {other:?}"),
+        other @ Immediate::Observation(_) => {
+            panic!("immediate projection does not support {other:?}")
+        }
     }
 }
 
@@ -7714,6 +8285,81 @@ fn lower_ordered_immediate_inventory_returns_first_late_failure() {
     assert_inventory_error(
         &execute_immediate_inventory(&package, &approved, &[constant], u32::MAX),
         sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+    );
+}
+
+#[test]
+fn lower_mixed_operation_inventory_composes_both_opcode_families() {
+    let immediate = native_bootstrap_immediate_instructions();
+    let constant = immediate[0].clone();
+    let mut bool_not = native_single_scalar(Opcode::BoolNot);
+    bool_not.operands = vec![5];
+    bool_not.results = vec![6];
+    let mut tuple = native_variadic_instruction(Opcode::TupleNew);
+    tuple.operands = vec![0, 1];
+    tuple.results = vec![7];
+    let mut call = immediate[6].clone();
+    call.operands = vec![6];
+    call.results = vec![8];
+    let mut adapter = immediate[7].clone();
+    adapter.results = vec![9];
+    let expected = vec![constant, bool_not, tuple, call, adapter];
+    let rows = expected
+        .iter()
+        .map(immediate_inventory_fact)
+        .collect::<Vec<_>>();
+    let (package, approved) = admit_lower_program(&mixed_operation_inventory_lowerer());
+    let first = execute_immediate_inventory(&package, &approved, &rows, 5);
+    let second = execute_immediate_inventory(&package, &approved, &rows, 5);
+    assert_immediate_inventory_summary(&first, &expected, 10);
+    assert_eq!(first.termination, second.termination);
+}
+
+#[test]
+fn lower_mixed_operation_inventory_preserves_cross_family_failure_order() {
+    let immediate = native_bootstrap_immediate_instructions();
+    let mut bool_not = native_single_scalar(Opcode::BoolNot);
+    bool_not.operands = vec![5];
+    bool_not.results = vec![6];
+    let expected = [immediate[0].clone(), bool_not, immediate[6].clone()];
+    let rows = expected
+        .iter()
+        .map(immediate_inventory_fact)
+        .collect::<Vec<_>>();
+    let (package, approved) = admit_lower_program(&mixed_operation_inventory_lowerer());
+
+    let mut wrong_none_tag = rows.clone();
+    wrong_none_tag[1].immediate_tag = Immediate::Entity(id(0)).tag();
+    wrong_none_tag[1].operands.clear();
+    assert_inventory_error(
+        &execute_immediate_inventory(&package, &approved, &wrong_none_tag, 5),
+        sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
+    );
+
+    let mut nonzero_none_payload = rows.clone();
+    nonzero_none_payload[1].primary = 1;
+    assert_inventory_error(
+        &execute_immediate_inventory(&package, &approved, &nonzero_none_payload, 5),
+        sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
+    );
+
+    let mut invalid_late_reference = rows;
+    invalid_late_reference[2].operands[0] = 8;
+    assert_inventory_error(
+        &execute_immediate_inventory(&package, &approved, &invalid_late_reference, 5),
+        sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+    );
+
+    let unsupported = ImmediateInventoryFact {
+        opcode: Opcode::ContractAssert.tag(),
+        operands: vec![0],
+        immediate_tag: Immediate::Entity(id(1)).tag(),
+        primary: 1,
+        secondary: 0,
+    };
+    assert_inventory_error(
+        &execute_immediate_inventory(&package, &approved, &[unsupported], 5),
+        sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
     );
 }
 

@@ -4,6 +4,9 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real bounded Sley lowering
 algorithm under the operator development override. It is not RW-110
 completion, C1, self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-mixed-inventory.md` adds opcode-first dispatch
+between this immediate-bearing path and the unified immediate-free path.
+
 ## Scope and behavior
 
 `ordered_immediate_inventory_lowerer` composes the prior
