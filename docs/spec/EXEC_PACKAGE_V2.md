@@ -101,13 +101,13 @@ references, judge types/contracts/closure claims, or mint admission evidence.
 The candidate vector and independent Python reproduction are under
 `conformance/exec-package-envelope/v2/`. The package identity and all existing
 section encodings are unchanged. The envelope candidate remains provisional
-until the separate Sley closures are composed behind `build_package` and the
-RW-080 contract/surface review accepts it. The bounded construction emits
-native-identical empty and nonempty constants/layouts/imports sections plus
-dependency framing with runtime gate fingerprints, limits, globals, and
-contracts, then composes the final header and five length-prefixed sections.
-The five SHA-256 values are host-mechanic execution results under the frozen
-RW-075 hash inventory and enter distinct fixed-width digest fields.
+until the RW-080 contract/surface review accepts it. The bounded Sley
+`build_package` entry emits native-identical empty and nonempty
+constants/layouts/imports sections plus dependency framing with runtime gate
+fingerprints, limits, globals, and contracts, then composes the final header
+and five length-prefixed sections. The five SHA-256 values are host-mechanic
+execution results under the frozen RW-075 hash inventory and enter distinct
+fixed-width digest fields.
 
 ## Failure vocabulary
 
@@ -137,7 +137,7 @@ assignment, and RW-075/RW-080 semantics are unchanged by this table.
 The framing codes `PACKAGE_UNKNOWN_MAGIC`, `PACKAGE_UNSUPPORTED_VERSION`,
 `PACKAGE_TRUNCATED`, and `PACKAGE_TRAILING_DATA` are LIVE on the provisional
 RW-080 decoder. This does not make the candidate accepted runtime authority;
-the composed Sley `build_package` entry and lane review remain outstanding.
+the lane review remains outstanding.
 
 ## Authority failure vocabulary (owner adoption)
 

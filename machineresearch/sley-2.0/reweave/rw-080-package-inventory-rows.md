@@ -43,8 +43,7 @@ hashed section byte and places each result in its fixed header field. Adding a
 second raw primitive or hand-rolling SHA-256 in Sley would contradict that
 frozen boundary.
 
-The lowerer, inventory builders, dependency builder, and envelope composer
-remain separate admitted closures. The next construction slice must compose
-them behind the canonical `build_package` entry and preserve the mechanical
-digest handoff. Contract/surface review remains mandatory, and R2 remains
-provisional pending the independent acceptance debt.
+Slice 40 composes the inventory builders, dependency builder, and envelope
+composer behind one canonical `build_package` entry while preserving the
+mechanical digest handoff. Contract/surface review remains mandatory, and R2
+remains provisional pending the independent acceptance debt.

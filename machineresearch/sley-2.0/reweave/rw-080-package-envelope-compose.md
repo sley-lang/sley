@@ -40,7 +40,6 @@ instruction, fuel, and output ceilings remain bounded.
 Slice 39 closes nonempty constants/layouts/imports/globals/contracts. The five
 SHA-256 values remain host-mechanic execution results by the frozen RW-075
 hash inventory; this Sley function places them in distinct fixed-width header
-fields. The compiler-side functions are still separate admitted closures
-rather than one final `build_package` entry. Contract/surface review remains
-mandatory, and R2 remains provisional pending the independent acceptance
-debt.
+fields. Slice 40 composes the section and envelope closures behind one
+`build_package` entry. Contract/surface review remains mandatory, and R2
+remains provisional pending the independent acceptance debt.

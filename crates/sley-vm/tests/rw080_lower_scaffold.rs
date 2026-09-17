@@ -69,6 +69,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-package-empty-sections.md and
 //! machineresearch/sley-2.0/reweave/rw-080-package-envelope-compose.md and
 //! machineresearch/sley-2.0/reweave/rw-080-package-inventory-rows.md and
+//! machineresearch/sley-2.0/reweave/rw-080-package-builder.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -1193,6 +1194,19 @@ fn rebase_scaffold_functions(
         }
     }
     scaffold
+}
+
+fn rebase_scaffold_function_namespace(scaffold: LowerScaffold, namespace: u8) -> LowerScaffold {
+    let mappings = scaffold
+        .functions
+        .iter()
+        .map(|graph| {
+            let mut bytes = *graph.entity_id.as_bytes();
+            bytes[0] = namespace;
+            (graph.entity_id, EntityId::from_bytes(bytes))
+        })
+        .collect::<Vec<_>>();
+    rebase_scaffold_functions(scaffold, &mappings)
 }
 
 fn remove_scaffold_function(mut scaffold: LowerScaffold, function: EntityId) -> LowerScaffold {
@@ -16962,6 +16976,391 @@ fn package_envelope_composer() -> LowerScaffold {
     }
 }
 
+/// Canonical package-builder entry over the admitted section and envelope
+/// closures. Canonical checked row bodies and host-mechanic SHA-256 results
+/// are explicit inputs; Sley owns counts, frames, dependency bytes, and the
+/// final `EXEC_PACKAGE_V2` composition in one invocation.
+#[allow(clippy::too_many_lines)]
+fn package_builder() -> LowerScaffold {
+    let inventory = rebase_scaffold_function_namespace(
+        rebase_scaffold_artifacts(package_inventory_section_encoder(), 32),
+        6,
+    );
+    let dependency = rebase_scaffold_function_namespace(
+        rebase_scaffold_artifacts(package_dependency_sections_encoder(), 64),
+        7,
+    );
+    let composer = rebase_scaffold_function_namespace(
+        rebase_scaffold_artifacts(package_envelope_composer(), 96),
+        8,
+    );
+    let inventory_entry = inventory.entry.entity_id;
+    let dependency_entry = dependency.entry.entity_id;
+    let composer_entry = composer.entry.entity_id;
+    let adapters = inventory.adapters.clone();
+    assert_eq!(dependency.adapters, adapters);
+    assert_eq!(composer.adapters, adapters);
+
+    let function = inventory_id(9, 1);
+    let mut assembler = InventoryAssembler::new();
+    let image = assembler.parameter(function, ParameterRole::Function, 0, TypeExpr::Bytes);
+    let constant_rows = assembler.parameter(function, ParameterRole::Function, 1, bytesvec_type());
+    let layout_rows = assembler.parameter(function, ParameterRole::Function, 2, bytesvec_type());
+    let import_rows = assembler.parameter(function, ParameterRole::Function, 3, bytesvec_type());
+    let entry_identity = assembler.parameter(function, ParameterRole::Function, 4, TypeExpr::Bytes);
+    let schema_epoch = assembler.parameter(function, ParameterRole::Function, 5, TypeExpr::Bytes);
+    let state_root = assembler.parameter(function, ParameterRole::Function, 6, TypeExpr::Bytes);
+    let gate_operations = assembler.parameter(function, ParameterRole::Function, 7, u32_type());
+    let gate_bridges = assembler.parameter(function, ParameterRole::Function, 8, u32_type());
+    let fingerprints = assembler.parameter(function, ParameterRole::Function, 9, bytesvec_type());
+    let max_instructions = assembler.parameter(function, ParameterRole::Function, 10, u64_type());
+    let max_fuel = assembler.parameter(function, ParameterRole::Function, 11, u64_type());
+    let max_value_units = assembler.parameter(function, ParameterRole::Function, 12, u64_type());
+    let max_output_units = assembler.parameter(function, ParameterRole::Function, 13, u64_type());
+    let global_rows = assembler.parameter(function, ParameterRole::Function, 14, bytesvec_type());
+    let contract_rows = assembler.parameter(function, ParameterRole::Function, 15, bytesvec_type());
+    let cancel_present = assembler.parameter(function, ParameterRole::Function, 16, TypeExpr::Bool);
+    let cancel_at_fuel = assembler.parameter(function, ParameterRole::Function, 17, u64_type());
+    let image_digest = assembler.parameter(function, ParameterRole::Function, 18, TypeExpr::Bytes);
+    let constants_digest =
+        assembler.parameter(function, ParameterRole::Function, 19, TypeExpr::Bytes);
+    let layouts_digest =
+        assembler.parameter(function, ParameterRole::Function, 20, TypeExpr::Bytes);
+    let imports_digest =
+        assembler.parameter(function, ParameterRole::Function, 21, TypeExpr::Bytes);
+    let dependency_digest =
+        assembler.parameter(function, ParameterRole::Function, 22, TypeExpr::Bytes);
+
+    let build_constants = assembler.block_id();
+    let build_layouts = assembler.block_id();
+    let build_imports = assembler.block_id();
+    let build_dependency = assembler.block_id();
+    let compose = assembler.block_id();
+    let forward_error = assembler.block_id();
+    let false_constant = assembler.constant(bool_value(false));
+    let true_constant = assembler.constant(bool_value(true));
+
+    let no_frame = assembler.constant_ref(build_constants, false_constant, TypeExpr::Bool);
+    let constants_result = assembler.operation(
+        build_constants,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(constant_rows),
+            operation_value(no_frame),
+        ],
+        bytes_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: inventory_entry,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        build_constants,
+        function,
+        Vec::new(),
+        vec![no_frame, constants_result],
+        inventory_switch(
+            operation_value(constants_result),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    build_layouts,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let constants_section =
+        assembler.parameter(build_layouts, ParameterRole::Block, 0, TypeExpr::Bytes);
+    let frame_layouts = assembler.constant_ref(build_layouts, true_constant, TypeExpr::Bool);
+    let layouts_result = assembler.operation(
+        build_layouts,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(layout_rows),
+            operation_value(frame_layouts),
+        ],
+        bytes_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: inventory_entry,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        build_layouts,
+        function,
+        vec![constants_section],
+        vec![frame_layouts, layouts_result],
+        inventory_switch(
+            operation_value(layouts_result),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    build_imports,
+                    vec![
+                        SwitchArgument::Value(ValueRef::Parameter(constants_section)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let carried_constants =
+        assembler.parameter(build_imports, ParameterRole::Block, 0, TypeExpr::Bytes);
+    let layouts_section =
+        assembler.parameter(build_imports, ParameterRole::Block, 1, TypeExpr::Bytes);
+    let frame_imports = assembler.constant_ref(build_imports, true_constant, TypeExpr::Bool);
+    let imports_result = assembler.operation(
+        build_imports,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(import_rows),
+            operation_value(frame_imports),
+        ],
+        bytes_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: inventory_entry,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        build_imports,
+        function,
+        vec![carried_constants, layouts_section],
+        vec![frame_imports, imports_result],
+        inventory_switch(
+            operation_value(imports_result),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    build_dependency,
+                    vec![
+                        SwitchArgument::Value(ValueRef::Parameter(carried_constants)),
+                        SwitchArgument::Value(ValueRef::Parameter(layouts_section)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let dependency_constants =
+        assembler.parameter(build_dependency, ParameterRole::Block, 0, TypeExpr::Bytes);
+    let dependency_layouts =
+        assembler.parameter(build_dependency, ParameterRole::Block, 1, TypeExpr::Bytes);
+    let imports_section =
+        assembler.parameter(build_dependency, ParameterRole::Block, 2, TypeExpr::Bytes);
+    let dependency_result = assembler.operation(
+        build_dependency,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(entry_identity),
+            ValueRef::Parameter(schema_epoch),
+            ValueRef::Parameter(state_root),
+            ValueRef::Parameter(gate_operations),
+            ValueRef::Parameter(gate_bridges),
+            ValueRef::Parameter(fingerprints),
+            ValueRef::Parameter(max_instructions),
+            ValueRef::Parameter(max_fuel),
+            ValueRef::Parameter(max_value_units),
+            ValueRef::Parameter(max_output_units),
+            ValueRef::Parameter(global_rows),
+            ValueRef::Parameter(contract_rows),
+            ValueRef::Parameter(cancel_present),
+            ValueRef::Parameter(cancel_at_fuel),
+        ],
+        package_sections_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: dependency_entry,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        build_dependency,
+        function,
+        vec![dependency_constants, dependency_layouts, imports_section],
+        vec![dependency_result],
+        inventory_switch(
+            operation_value(dependency_result),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    compose,
+                    vec![
+                        SwitchArgument::Value(ValueRef::Parameter(dependency_constants)),
+                        SwitchArgument::Value(ValueRef::Parameter(dependency_layouts)),
+                        SwitchArgument::Value(ValueRef::Parameter(imports_section)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let compose_constants = assembler.parameter(compose, ParameterRole::Block, 0, TypeExpr::Bytes);
+    let compose_layouts = assembler.parameter(compose, ParameterRole::Block, 1, TypeExpr::Bytes);
+    let compose_imports = assembler.parameter(compose, ParameterRole::Block, 2, TypeExpr::Bytes);
+    let dependency_sections =
+        assembler.parameter(compose, ParameterRole::Block, 3, package_sections_type());
+    let dependency_section = assembler.operation(
+        compose,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(dependency_sections)],
+        TypeExpr::Bytes,
+        Immediate::Index(3),
+    );
+    let envelope = assembler.operation(
+        compose,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(image),
+            ValueRef::Parameter(compose_constants),
+            ValueRef::Parameter(compose_layouts),
+            ValueRef::Parameter(compose_imports),
+            operation_value(dependency_section),
+            ValueRef::Parameter(image_digest),
+            ValueRef::Parameter(constants_digest),
+            ValueRef::Parameter(layouts_digest),
+            ValueRef::Parameter(imports_digest),
+            ValueRef::Parameter(dependency_digest),
+            ValueRef::Parameter(entry_identity),
+            ValueRef::Parameter(schema_epoch),
+            ValueRef::Parameter(state_root),
+        ],
+        bytes_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: composer_entry,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        compose,
+        function,
+        vec![
+            compose_constants,
+            compose_layouts,
+            compose_imports,
+            dependency_sections,
+        ],
+        vec![dependency_section, envelope],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(envelope),
+        }),
+    );
+
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let failure = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        bytes_lower_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(failure),
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![
+            image,
+            constant_rows,
+            layout_rows,
+            import_rows,
+            entry_identity,
+            schema_epoch,
+            state_root,
+            gate_operations,
+            gate_bridges,
+            fingerprints,
+            max_instructions,
+            max_fuel,
+            max_value_units,
+            max_output_units,
+            global_rows,
+            contract_rows,
+            cancel_present,
+            cancel_at_fuel,
+            image_digest,
+            constants_digest,
+            layouts_digest,
+            imports_digest,
+            dependency_digest,
+        ],
+        result_type: bytes_lower_result_type(),
+        effects: Vec::new(),
+        entry_block: build_constants,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+
+    let mut functions = vec![graph.clone()];
+    functions.extend(inventory.functions);
+    functions.extend(dependency.functions);
+    functions.extend(composer.functions);
+    let mut parameters = assembler.parameters;
+    parameters.extend(inventory.parameters);
+    parameters.extend(dependency.parameters);
+    parameters.extend(composer.parameters);
+    let mut blocks = assembler.blocks;
+    blocks.extend(inventory.blocks);
+    blocks.extend(dependency.blocks);
+    blocks.extend(composer.blocks);
+    let mut operations = assembler.operations;
+    operations.extend(inventory.operations);
+    operations.extend(dependency.operations);
+    operations.extend(composer.operations);
+    let mut constants = assembler.constants;
+    constants.extend(inventory.constants);
+    constants.extend(dependency.constants);
+    constants.extend(composer.constants);
+    LowerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph,
+        functions,
+        parameters,
+        blocks,
+        operations,
+        constants,
+        adapters,
+    }
+}
+
 fn append_terminator_success_block(
     assembler: &mut InventoryAssembler,
     function: EntityId,
@@ -18899,6 +19298,55 @@ fn execute_package_envelope_composer(
         },
     )
     .expect("v2 executes package-envelope composer")
+}
+
+fn execute_package_builder(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    expected: &sley_vm::ExecutionPackage,
+    digests: &sley_vm::PackageDigests,
+) -> sley_vm::ExecutionOutcome {
+    let fingerprint_bytes = expected
+        .gate_closure_fingerprints
+        .iter()
+        .map(|fingerprint| fingerprint.as_bytes().to_vec())
+        .collect::<Vec<_>>();
+    let (global_rows, contract_rows) = canonical_dependency_rows(expected);
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                bytes_value(&expected.image_bytes),
+                bytesvec_value(&canonical_constant_rows(&expected.constants)),
+                bytesvec_value(&canonical_layout_rows(&expected.type_definitions)),
+                bytesvec_value(&canonical_import_rows(&expected.imports)),
+                bytes_value(expected.entry.as_bytes()),
+                bytes_value(expected.schema_epoch.as_bytes()),
+                bytes_value(expected.state_root.as_bytes()),
+                u32_value(u128::from(expected.gate_operation_count)),
+                u32_value(u128::from(expected.gate_bridge_uses)),
+                bytesvec_value(&fingerprint_bytes),
+                u64_value(u128::from(expected.admitted_limits.max_instructions)),
+                u64_value(u128::from(expected.admitted_limits.max_fuel)),
+                u64_value(u128::from(expected.admitted_limits.max_value_units)),
+                u64_value(u128::from(expected.admitted_limits.max_output_units)),
+                bytesvec_value(&global_rows),
+                bytesvec_value(&contract_rows),
+                bool_value(expected.admitted_limits.cancel_at_fuel.is_some()),
+                u64_value(u128::from(
+                    expected.admitted_limits.cancel_at_fuel.unwrap_or_default(),
+                )),
+                bytes_value(&digests.image_digest),
+                bytes_value(&digests.constants_digest),
+                bytes_value(&digests.layouts_digest),
+                bytes_value(&digests.imports_digest),
+                bytes_value(&digests.dependency_digest),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes composed package builder")
 }
 
 fn successful_package_sections(outcome: &sley_vm::ExecutionOutcome) -> [Vec<u8>; 4] {
@@ -22783,6 +23231,41 @@ fn package_envelope_composer_matches_native_bytes_and_hydrates() {
     let hydrated = sley_vm::hydrate_package_envelope_v2(&envelope).unwrap();
     assert_eq!(hydrated.package, expected);
     assert_eq!(hydrated.digests, digests);
+}
+
+#[test]
+fn package_builder_emits_complete_populated_envelope_in_one_invocation() {
+    let native = native_complete_lowered();
+    let expected = package_inventory_fixture(native.bytes, native.bytecode.function);
+    let digests = sley_vm::package_digests_v2(&expected).unwrap();
+    let scaffold = package_builder();
+    let (package, approved) = admit_lower_program(&scaffold);
+    let outcome = execute_package_builder(&package, &approved, &expected, &digests);
+    let envelope = successful_bytes_result(&outcome, "composed package builder");
+    assert_eq!(
+        envelope,
+        sley_vm::encode_package_envelope_v2(&expected).unwrap()
+    );
+    let hydrated = sley_vm::hydrate_package_envelope_v2(&envelope).unwrap();
+    assert_eq!(hydrated.package, expected);
+    assert_eq!(hydrated.digests, digests);
+
+    let mut changed = hydrated.package;
+    changed.constants[1].value = bool_value(true);
+    let changed_digests = sley_vm::package_digests_v2(&changed).unwrap();
+    let changed_outcome = execute_package_builder(&package, &approved, &changed, &changed_digests);
+    let changed_envelope = successful_bytes_result(&changed_outcome, "mutated package builder");
+    assert_ne!(changed_envelope, envelope);
+    assert_eq!(
+        changed_envelope,
+        sley_vm::encode_package_envelope_v2(&changed).unwrap()
+    );
+    assert_eq!(
+        sley_vm::hydrate_package_envelope_v2(&changed_envelope)
+            .unwrap()
+            .package,
+        changed
+    );
 }
 
 #[test]
