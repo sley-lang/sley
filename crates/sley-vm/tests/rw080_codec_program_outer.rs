@@ -14407,12 +14407,7 @@ fn build_program_encode_with_mode(
                 operations: vec![f1_z0],
                 terminator: branch(edge(
                     c2_check,
-                    vec![
-                        op_result(f1_z0),
-                        pav(f1_acc),
-                        pav(f1_dig),
-                        pav(f1_unit),
-                    ],
+                    vec![op_result(f1_z0), pav(f1_acc), pav(f1_dig), pav(f1_unit)],
                 )),
                 reachability: Reachability::Required,
             });
@@ -27623,11 +27618,21 @@ fn rw080_current_mechanism_f7_counted_composer_matches_native() {
         let expected = program_stored(eid_byte, func_byte, exposure);
         let eid_hex = hex_encode(&[eid_byte; 32]);
         let func_hex = hex_encode(&[func_byte; 32]);
-        let unrolled =
-            program_encode_call(&unrolled_pkg, &unrolled_approved, &eid_hex, &func_hex, exp_u64);
+        let unrolled = program_encode_call(
+            &unrolled_pkg,
+            &unrolled_approved,
+            &eid_hex,
+            &func_hex,
+            exp_u64,
+        );
         let fuel_u = assert_encode_ok(&unrolled, &expected);
-        let counted =
-            program_encode_call(&counted_pkg, &counted_approved, &eid_hex, &func_hex, exp_u64);
+        let counted = program_encode_call(
+            &counted_pkg,
+            &counted_approved,
+            &eid_hex,
+            &func_hex,
+            exp_u64,
+        );
         let fuel_c = assert_encode_ok(&counted, &expected);
         eprintln!(
             "PROG_ENC_F7 eid{eid_byte} func{func_byte} exp{exp_u64} out{}B unrolled_fuel={fuel_u} counted_fuel={fuel_c} instr_u={} instr_c={} peak_u={} peak_c={}",
@@ -27659,8 +27664,9 @@ fn rw080_current_mechanism_f7_swapped_edge_is_observable() {
     use sley_mutate::value::EntryExposure;
     let (counted_pkg, counted_approved) =
         admit(&program_encode_image_with_mode(DigestCopyMode::Counted));
-    let (swapped_pkg, swapped_approved) =
-        admit(&program_encode_image_with_mode(DigestCopyMode::SwappedEdgeControl));
+    let (swapped_pkg, swapped_approved) = admit(&program_encode_image_with_mode(
+        DigestCopyMode::SwappedEdgeControl,
+    ));
     let expected = program_stored(1, 10, EntryExposure::Local);
     assert_eq!(expected.len(), 153, "program stored 153B");
     let eid_hex = hex_encode(&[1u8; 32]);
@@ -27680,8 +27686,7 @@ fn rw080_current_mechanism_f7_swapped_edge_is_observable() {
                         predicted.push(digest[i]);
                     }
                     assert_eq!(
-                        bytes,
-                        &predicted,
+                        bytes, &predicted,
                         "swapped graph emits the predicted even-byte shape"
                     );
                     eprintln!(
@@ -28390,10 +28395,12 @@ fn namespace_probe_valid_and_encode_bytes() {
 fn rw080_current_mechanism_f8_counted_parent_matches_native() {
     let (unrolled_pkg, unrolled_approved) =
         admit(&namespace_encode_image_with_mode(ParentCopyMode::Unrolled));
-    let (constant_pkg, constant_approved) =
-        admit(&namespace_encode_image_with_mode(ParentCopyMode::CountedConstant));
-    let (length_pkg, length_approved) =
-        admit(&namespace_encode_image_with_mode(ParentCopyMode::CountedLength));
+    let (constant_pkg, constant_approved) = admit(&namespace_encode_image_with_mode(
+        ParentCopyMode::CountedConstant,
+    ));
+    let (length_pkg, length_approved) = admit(&namespace_encode_image_with_mode(
+        ParentCopyMode::CountedLength,
+    ));
     // Parent-length guards first (matches `namespace_encode_rejections`
     // par31/par33), before any copy-loop comparison.
     let mem_two = hex_encode(&[2u8; 32].into_iter().chain([3u8; 32]).collect::<Vec<u8>>());
@@ -28445,7 +28452,11 @@ fn rw080_current_mechanism_f8_counted_parent_matches_native() {
         let stored_obj = sley_mutate::build_entity_object(program_epoch9(), &record)
             .expect("native builds nonuniform parent fixture");
         let stored = stored_obj.stored_bytes().to_vec();
-        assert_eq!(program_native_code(&stored), "OK", "native accepts nonuniform");
+        assert_eq!(
+            program_native_code(&stored),
+            "OK",
+            "native accepts nonuniform"
+        );
         let body = ns_body_of(&stored);
         cases.push(("nonuniform0_31", parent_bytes.to_vec(), Vec::new(), body));
     }
@@ -28456,19 +28467,11 @@ fn rw080_current_mechanism_f8_counted_parent_matches_native() {
         (&length_pkg, &length_approved, "counted-length"),
     ] {
         for (name, exp_par, exp_mem, body) in &cases {
-            let enc = namespace_encode_call(
-                pkg,
-                approved,
-                &hex_encode(exp_par),
-                &hex_encode(exp_mem),
-            );
+            let enc =
+                namespace_encode_call(pkg, approved, &hex_encode(exp_par), &hex_encode(exp_mem));
             let fuel = assert_encode_ok(&enc, body);
-            let enc_again = namespace_encode_call(
-                pkg,
-                approved,
-                &hex_encode(exp_par),
-                &hex_encode(exp_mem),
-            );
+            let enc_again =
+                namespace_encode_call(pkg, approved, &hex_encode(exp_par), &hex_encode(exp_mem));
             assert_encode_ok(&enc_again, body);
             eprintln!(
                 "NS_ENC_F8 {mode} {name} body{}B fuel={fuel} instr={} peak={}",
@@ -29415,7 +29418,11 @@ fn f6_tail(
     built
 }
 
-#[allow(clippy::too_many_lines, clippy::many_single_char_names, clippy::similar_names)]
+#[allow(
+    clippy::too_many_lines,
+    clippy::many_single_char_names,
+    clippy::similar_names
+)]
 fn build_f6_wrapper(
     a: &mut Asm,
     ns: Ns,
@@ -29965,11 +29972,7 @@ fn f6_call(
     approved: &sley_vm::ApprovedExecutionPackage,
     payload: &[u8],
 ) -> sley_vm::ExecutionOutcome {
-    execute(
-        package,
-        approved,
-        vec![bytes_input(payload), unit_input()],
-    )
+    execute(package, approved, vec![bytes_input(payload), unit_input()])
 }
 
 // ResourceLimit is a recorded failure, never a pass.
@@ -29978,7 +29981,17 @@ fn assert_f6_ok(
     outcome: &sley_vm::ExecutionOutcome,
     mode: &str,
     case: &str,
-) -> (Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, Vec<u8>, u64, u64, u64) {
+) -> (
+    Vec<u8>,
+    Vec<u8>,
+    Vec<u8>,
+    Vec<u8>,
+    Vec<u8>,
+    Vec<u8>,
+    u64,
+    u64,
+    u64,
+) {
     match &outcome.termination {
         sley_vm::ExecutionTermination::Success(found) => match &found.data {
             ConstData::Result(ResultConst::Ok(payload)) => match &payload.data {
@@ -29989,9 +30002,7 @@ fn assert_f6_ok(
                         other => panic!("F6 {mode} {case}: {name} must be Bytes, got {other:?}"),
                     };
                     let field_count = |i: usize, name: &str| match &items[i].data {
-                        ConstData::UInt(found) => {
-                            u64::try_from(*found).expect("F6 count fits u64")
-                        }
+                        ConstData::UInt(found) => u64::try_from(*found).expect("F6 count fits u64"),
                         other => panic!("F6 {mode} {case}: {name} must be UInt, got {other:?}"),
                     };
                     (
@@ -30023,8 +30034,9 @@ fn rw080_current_mechanism_f6_live_length_vectors_match_independent_bytes() {
     use sley_mutate::value::EntryExposure;
     let (live_pkg, live_approved) =
         admit(&f6_liveness_image(LengthLivenessMode::LiveAcrossEncoding));
-    let (remat_pkg, remat_approved) =
-        admit(&f6_liveness_image(LengthLivenessMode::RematerializeAfterLength));
+    let (remat_pkg, remat_approved) = admit(&f6_liveness_image(
+        LengthLivenessMode::RematerializeAfterLength,
+    ));
     let entry77 = program_payload(&program_stored(1, 10, EntryExposure::Local));
     assert_eq!(entry77.len(), 77, "native EntryPoint payload is 77B");
     let mut nonuniform = Vec::with_capacity(128);
