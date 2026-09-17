@@ -43,16 +43,18 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-values-cells.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-variadic.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-map-construction.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-bootstrap-immediates.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     AdapterImport, Block, BranchTerminator, BuiltinCase, BuiltinFailureKind, CaseKey,
     CondBranchTerminator, ConstData, ConstValue, ConstantDefinition, FunctionGraph,
-    FunctionRefValue, Immediate, IntegerWidth, Opcode, Operation, OperationResultRef, Parameter,
-    ParameterRole, Reachability, ReturnTerminator, SwitchArgument, SwitchCase, SwitchEdge,
-    TargetEdge, Terminator, TrapCode, TrapTerminator, TypeExpr, ValueRef, VariantSwitchTerminator,
-    Visibility,
+    FunctionRefValue, Immediate, IntegerWidth, MemberId, NamedType, Opcode, Operation,
+    OperationResultRef, Parameter, ParameterRole, Reachability, RecordField, ReturnTerminator,
+    SwitchArgument, SwitchCase, SwitchEdge, TargetEdge, Terminator, TrapCode, TrapTerminator,
+    TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase, VariantImmediate,
+    VariantSwitchTerminator, Visibility,
 };
 
 fn id(byte: u8) -> EntityId {
@@ -120,6 +122,28 @@ fn variadic_summary_type() -> TypeExpr {
 fn variadic_result_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(variadic_summary_type()),
+        error: Box::new(u32_type()),
+    }
+}
+
+fn immediate_instruction_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        u32_type(),
+        u32vec_type(),
+        u32vec_type(),
+        u32_type(),
+        u64_type(),
+        u64_type(),
+    ])
+}
+
+fn immediate_summary_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![immediate_instruction_type(), u32_type()])
+}
+
+fn immediate_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(immediate_summary_type()),
         error: Box::new(u32_type()),
     }
 }
@@ -199,6 +223,13 @@ fn u32_value(n: u128) -> ConstValue {
     ConstValue {
         value_type: u32_type(),
         data: ConstData::UInt(n),
+    }
+}
+
+fn bool_value(value: bool) -> ConstValue {
+    ConstValue {
+        value_type: TypeExpr::Bool,
+        data: ConstData::Bool(value),
     }
 }
 
@@ -2704,6 +2735,486 @@ fn variadic_operation_lowerer() -> LowerScaffold {
     }
 }
 
+/// Lowers the complete frozen bootstrap immediate-bearing family into a
+/// compact instruction model. Identity payloads use the bounded u64 fixture
+/// projection; the native oracle retains the full identity objects.
+#[allow(clippy::too_many_lines)]
+fn bootstrap_immediate_lowerer() -> LowerScaffold {
+    let function = inventory_id(5, 8);
+    let validator = inventory_id(5, 9);
+    let mut assembler = InventoryAssembler::new();
+    let validator_graph = build_register_vector_validator(&mut assembler, validator);
+
+    let opcode = assembler.parameter(function, ParameterRole::Function, 0, u32_type());
+    let operands = assembler.parameter(function, ParameterRole::Function, 1, u32vec_type());
+    let immediate_tag = assembler.parameter(function, ParameterRole::Function, 2, u32_type());
+    let primary = assembler.parameter(function, ParameterRole::Function, 3, u64_type());
+    let secondary = assembler.parameter(function, ParameterRole::Function, 4, u64_type());
+    let next_register = assembler.parameter(function, ParameterRole::Function, 5, u32_type());
+
+    let entry = assembler.block_id();
+    let opcode_tuple_get = assembler.block_id();
+    let opcode_record_new = assembler.block_id();
+    let opcode_record_get = assembler.block_id();
+    let opcode_variant_new = assembler.block_id();
+    let opcode_variant_get = assembler.block_id();
+    let opcode_call_direct = assembler.block_id();
+    let opcode_adapter_invoke = assembler.block_id();
+    let tag_constant = assembler.block_id();
+    let tag_tuple = assembler.block_id();
+    let tag_record_new = assembler.block_id();
+    let tag_record_get = assembler.block_id();
+    let tag_variant_new = assembler.block_id();
+    let tag_variant_get = assembler.block_id();
+    let tag_call = assembler.block_id();
+    let tag_adapter = assembler.block_id();
+    let count_zero = assembler.block_id();
+    let count_one = assembler.block_id();
+    let count_two = assembler.block_id();
+    let variant_count = assembler.block_id();
+    let validate = assembler.block_id();
+    let emit = assembler.block_id();
+    let success = assembler.block_id();
+    let forward_error = assembler.block_id();
+    let opcode_error = assembler.block_id();
+    let immediate_error = assembler.block_id();
+    let signature_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+
+    let opcode_tags = [
+        Opcode::ConstantRef,
+        Opcode::TupleGet,
+        Opcode::RecordNew,
+        Opcode::RecordGet,
+        Opcode::VariantNew,
+        Opcode::VariantGet,
+        Opcode::CallDirect,
+        Opcode::AdapterInvoke,
+    ]
+    .map(|value| assembler.constant(u32_value(u128::from(value.tag()))));
+    let immediate_tags = [
+        Immediate::Entity(id(0)).tag(),
+        Immediate::Index(0).tag(),
+        Immediate::Field(MemberId::from_bytes([0; 32])).tag(),
+        Immediate::Variant(VariantImmediate {
+            definition: id(0),
+            member_id: MemberId::from_bytes([0; 32]),
+        })
+        .tag(),
+        Immediate::Function(FunctionRefValue {
+            function: id(0),
+            type_arguments: Vec::new(),
+        })
+        .tag(),
+    ]
+    .map(|tag| assembler.constant(u32_value(u128::from(tag))));
+    let zero_u64 = assembler.constant(u64_value(0));
+    let one_u64 = assembler.constant(u64_value(1));
+    let two_u64 = assembler.constant(u64_value(2));
+    let one_u32 = assembler.constant(u32_value(1));
+    let opcode_error_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
+    )));
+    let immediate_error_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
+    )));
+    let signature_error_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
+    )));
+    let resource_error_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+    )));
+
+    let dispatch = |assembler: &mut InventoryAssembler,
+                    block: EntityId,
+                    expected: EntityId,
+                    matched: EntityId,
+                    unmatched: EntityId| {
+        let expected_value = assembler.constant_ref(block, expected, u32_type());
+        let matches = assembler.operation(
+            block,
+            Opcode::Equal,
+            vec![ValueRef::Parameter(opcode), operation_value(expected_value)],
+            TypeExpr::Bool,
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![expected_value, matches],
+            inventory_cond(
+                operation_value(matches),
+                matched,
+                Vec::new(),
+                unmatched,
+                Vec::new(),
+            ),
+        );
+    };
+    dispatch(
+        &mut assembler,
+        entry,
+        opcode_tags[0],
+        tag_constant,
+        opcode_tuple_get,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_tuple_get,
+        opcode_tags[1],
+        tag_tuple,
+        opcode_record_new,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_record_new,
+        opcode_tags[2],
+        tag_record_new,
+        opcode_record_get,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_record_get,
+        opcode_tags[3],
+        tag_record_get,
+        opcode_variant_new,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_variant_new,
+        opcode_tags[4],
+        tag_variant_new,
+        opcode_variant_get,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_variant_get,
+        opcode_tags[5],
+        tag_variant_get,
+        opcode_call_direct,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_call_direct,
+        opcode_tags[6],
+        tag_call,
+        opcode_adapter_invoke,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_adapter_invoke,
+        opcode_tags[7],
+        tag_adapter,
+        opcode_error,
+    );
+
+    let tag_check = |assembler: &mut InventoryAssembler,
+                     block: EntityId,
+                     expected: EntityId,
+                     target: EntityId| {
+        let expected_value = assembler.constant_ref(block, expected, u32_type());
+        let matches = assembler.operation(
+            block,
+            Opcode::Equal,
+            vec![
+                ValueRef::Parameter(immediate_tag),
+                operation_value(expected_value),
+            ],
+            TypeExpr::Bool,
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![expected_value, matches],
+            inventory_cond(
+                operation_value(matches),
+                target,
+                Vec::new(),
+                immediate_error,
+                Vec::new(),
+            ),
+        );
+    };
+    tag_check(&mut assembler, tag_constant, immediate_tags[0], count_zero);
+    tag_check(&mut assembler, tag_tuple, immediate_tags[1], count_one);
+    tag_check(&mut assembler, tag_record_new, immediate_tags[0], validate);
+    tag_check(&mut assembler, tag_record_get, immediate_tags[2], count_one);
+    tag_check(
+        &mut assembler,
+        tag_variant_new,
+        immediate_tags[3],
+        variant_count,
+    );
+    tag_check(
+        &mut assembler,
+        tag_variant_get,
+        immediate_tags[3],
+        count_one,
+    );
+    tag_check(&mut assembler, tag_call, immediate_tags[4], validate);
+    tag_check(&mut assembler, tag_adapter, immediate_tags[0], count_two);
+
+    let count_check = |assembler: &mut InventoryAssembler, block: EntityId, expected: EntityId| {
+        let length = assembler.operation(
+            block,
+            Opcode::VectorLen,
+            vec![ValueRef::Parameter(operands)],
+            u64_type(),
+            Immediate::None,
+        );
+        let expected_value = assembler.constant_ref(block, expected, u64_type());
+        let matches = assembler.operation(
+            block,
+            Opcode::Equal,
+            vec![operation_value(length), operation_value(expected_value)],
+            TypeExpr::Bool,
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![length, expected_value, matches],
+            inventory_cond(
+                operation_value(matches),
+                validate,
+                Vec::new(),
+                signature_error,
+                Vec::new(),
+            ),
+        );
+    };
+    count_check(&mut assembler, count_zero, zero_u64);
+    count_check(&mut assembler, count_one, one_u64);
+    count_check(&mut assembler, count_two, two_u64);
+
+    let variant_length = assembler.operation(
+        variant_count,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(operands)],
+        u64_type(),
+        Immediate::None,
+    );
+    let variant_limit = assembler.constant_ref(variant_count, two_u64, u64_type());
+    let variant_valid = assembler.operation(
+        variant_count,
+        Opcode::LessThan,
+        vec![
+            operation_value(variant_length),
+            operation_value(variant_limit),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        variant_count,
+        function,
+        Vec::new(),
+        vec![variant_length, variant_limit, variant_valid],
+        inventory_cond(
+            operation_value(variant_valid),
+            validate,
+            Vec::new(),
+            signature_error,
+            Vec::new(),
+        ),
+    );
+
+    let validation = assembler.operation(
+        validate,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(operands),
+            ValueRef::Parameter(next_register),
+        ],
+        unit_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: validator,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        validate,
+        function,
+        Vec::new(),
+        vec![validation],
+        inventory_switch(
+            operation_value(validation),
+            vec![
+                (BuiltinCase::Ok, emit, Vec::new()),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let results = assembler.operation(
+        emit,
+        Opcode::VectorNew,
+        vec![ValueRef::Parameter(next_register)],
+        u32vec_type(),
+        Immediate::None,
+    );
+    let instruction = assembler.operation(
+        emit,
+        Opcode::TupleNew,
+        vec![
+            ValueRef::Parameter(opcode),
+            ValueRef::Parameter(operands),
+            operation_value(results),
+            ValueRef::Parameter(immediate_tag),
+            ValueRef::Parameter(primary),
+            ValueRef::Parameter(secondary),
+        ],
+        immediate_instruction_type(),
+        Immediate::None,
+    );
+    let one = assembler.constant_ref(emit, one_u32, u32_type());
+    let advanced = assembler.operation(
+        emit,
+        Opcode::IntAddChecked,
+        vec![ValueRef::Parameter(next_register), operation_value(one)],
+        arithmetic_result_type(u32_type()),
+        Immediate::None,
+    );
+    assembler.push_block(
+        emit,
+        function,
+        Vec::new(),
+        vec![results, instruction, one, advanced],
+        inventory_switch(
+            operation_value(advanced),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    success,
+                    vec![
+                        SwitchArgument::Value(operation_value(instruction)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let success_instruction = assembler.parameter(
+        success,
+        ParameterRole::Block,
+        0,
+        immediate_instruction_type(),
+    );
+    let success_frontier = assembler.parameter(success, ParameterRole::Block, 1, u32_type());
+    let summary = assembler.operation(
+        success,
+        Opcode::TupleNew,
+        vec![
+            ValueRef::Parameter(success_instruction),
+            ValueRef::Parameter(success_frontier),
+        ],
+        immediate_summary_type(),
+        Immediate::None,
+    );
+    let accepted = assembler.operation(
+        success,
+        Opcode::ResultOk,
+        vec![operation_value(summary)],
+        immediate_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        success,
+        function,
+        vec![success_instruction, success_frontier],
+        vec![summary, accepted],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(accepted),
+        }),
+    );
+
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let forwarded_error = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        immediate_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_error],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(forwarded_error),
+        }),
+    );
+    for (block, code) in [
+        (opcode_error, opcode_error_code),
+        (immediate_error, immediate_error_code),
+        (signature_error, signature_error_code),
+        (resource_error, resource_error_code),
+    ] {
+        let value = assembler.constant_ref(block, code, u32_type());
+        let rejected = assembler.operation(
+            block,
+            Opcode::ResultErr,
+            vec![operation_value(value)],
+            immediate_result_type(),
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![value, rejected],
+            Terminator::Return(ReturnTerminator {
+                value: operation_value(rejected),
+            }),
+        );
+    }
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![
+            opcode,
+            operands,
+            immediate_tag,
+            primary,
+            secondary,
+            next_register,
+        ],
+        result_type: immediate_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    LowerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph, validator_graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+        adapters: Vec::new(),
+    }
+}
+
 fn append_terminator_success_block(
     assembler: &mut InventoryAssembler,
     function: EntityId,
@@ -4299,6 +4810,35 @@ fn execute_variadic_operation(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn execute_immediate_operation(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    opcode: Opcode,
+    operands: &[u32],
+    immediate_tag: u32,
+    primary: u64,
+    secondary: u64,
+    next_register: u32,
+) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                u32_value(u128::from(opcode.tag())),
+                u32vec_value(operands),
+                u32_value(u128::from(immediate_tag)),
+                u64_value(u128::from(primary)),
+                u64_value(u128::from(secondary)),
+                u32_value(u128::from(next_register)),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes bootstrap immediate lowerer")
+}
+
+#[allow(clippy::too_many_arguments)]
 fn execute_simple_terminator(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
@@ -4566,6 +5106,80 @@ fn assert_variadic_summary(
     );
 }
 
+fn compact_identity(bytes: &[u8; 32]) -> u64 {
+    u64::from_be_bytes(
+        bytes[24..]
+            .try_into()
+            .expect("identity suffix is eight bytes"),
+    )
+}
+
+fn immediate_projection(immediate: &Immediate) -> (u32, u64, u64) {
+    match immediate {
+        Immediate::Entity(entity) => (immediate.tag(), compact_identity(entity.as_bytes()), 0),
+        Immediate::Index(index) => (immediate.tag(), u64::from(*index), 0),
+        Immediate::Field(member) => (immediate.tag(), compact_identity(member.as_bytes()), 0),
+        Immediate::Variant(variant) => (
+            immediate.tag(),
+            compact_identity(variant.definition.as_bytes()),
+            compact_identity(variant.member_id.as_bytes()),
+        ),
+        Immediate::Function(reference) => {
+            assert!(reference.type_arguments.is_empty());
+            (
+                immediate.tag(),
+                compact_identity(reference.function.as_bytes()),
+                0,
+            )
+        }
+        other => panic!("immediate projection does not support {other:?}"),
+    }
+}
+
+fn assert_immediate_summary(
+    outcome: &sley_vm::ExecutionOutcome,
+    expected: &sley_vm::Instruction,
+    expected_frontier: u32,
+) {
+    use sley_ssmc::ResultConst;
+    let registers = |value: &ConstValue| match &value.data {
+        ConstData::Sequence(found) => found
+            .iter()
+            .map(|register| match register.data {
+                ConstData::UInt(value) => u32::try_from(value).expect("register fits u32"),
+                ref other => panic!("register must be UInt32, got {other:?}"),
+            })
+            .collect::<Vec<_>>(),
+        other => panic!("register list must be Vector, got {other:?}"),
+    };
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!("immediate lowering must terminate with a value")
+    };
+    let ConstData::Result(ResultConst::Ok(summary)) = &value.data else {
+        panic!("immediate lowering must return Ok, got {:?}", value.data)
+    };
+    let ConstData::Sequence(fields) = &summary.data else {
+        panic!("immediate summary must be a tuple")
+    };
+    let ConstData::Sequence(instruction) = &fields[0].data else {
+        panic!("immediate instruction must be a tuple")
+    };
+    let (tag, primary, secondary) = immediate_projection(&expected.immediate);
+    assert_eq!(
+        instruction[0].data,
+        ConstData::UInt(u128::from(expected.opcode))
+    );
+    assert_eq!(registers(&instruction[1]), expected.operands);
+    assert_eq!(registers(&instruction[2]), expected.results);
+    assert_eq!(instruction[3].data, ConstData::UInt(u128::from(tag)));
+    assert_eq!(instruction[4].data, ConstData::UInt(u128::from(primary)));
+    assert_eq!(instruction[5].data, ConstData::UInt(u128::from(secondary)));
+    assert_eq!(
+        fields[1].data,
+        ConstData::UInt(u128::from(expected_frontier))
+    );
+}
+
 #[allow(clippy::too_many_lines)]
 fn native_single_scalar(opcode: Opcode) -> sley_vm::Instruction {
     let function_id = id(1);
@@ -4820,6 +5434,274 @@ fn native_variadic_instruction(opcode: Opcode) -> sley_vm::Instruction {
     .blocks[0]
         .instructions[0]
         .clone()
+}
+
+/// One native lowering image that covers all seven immediate-bearing entries
+/// in the frozen bootstrap opcode table plus the separately admitted bridge
+/// operation. The results deliberately form one dense register sequence so
+/// the Sley algorithm must preserve both prior-result references and the
+/// result frontier for every immediate family.
+#[allow(clippy::too_many_lines)]
+fn native_bootstrap_immediate_instructions() -> Vec<sley_vm::Instruction> {
+    let function_id = id(1);
+    let block_id = id(2);
+    let operation_ids = (3_u8..=10).map(id).collect::<Vec<_>>();
+    let parameter_ids = (11_u8..=15).map(id).collect::<Vec<_>>();
+    let callee_id = id(20);
+    let callee_block_id = id(21);
+    let callee_parameter_id = id(22);
+    let constant_id = id(60);
+    let record_id = id(50);
+    let variant_id = id(51);
+    let record_field_a = MemberId::from_bytes([0xA1; 32]);
+    let record_field_b = MemberId::from_bytes([0xB2; 32]);
+    let variant_case = MemberId::from_bytes([0xC1; 32]);
+    let octet = TypeExpr::UInt(IntegerWidth::from_bits(8));
+    let byte_vector = TypeExpr::Vector(Box::new(octet));
+    let bridge_result = TypeExpr::Result {
+        ok: Box::new(byte_vector.clone()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)),
+    };
+    let pair_type = TypeExpr::Named(NamedType {
+        definition: record_id,
+        arguments: Vec::new(),
+    });
+    let shape_type = TypeExpr::Named(NamedType {
+        definition: variant_id,
+        arguments: Vec::new(),
+    });
+    let definitions = vec![
+        TypeDefinition {
+            entity_id: record_id,
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Record(vec![
+                RecordField {
+                    member_id: record_field_a,
+                    value_type: u64_type(),
+                    visibility: Visibility::Private,
+                },
+                RecordField {
+                    member_id: record_field_b,
+                    value_type: TypeExpr::Text,
+                    visibility: Visibility::Private,
+                },
+            ]),
+            invariants: Vec::new(),
+            visibility: Visibility::Private,
+        },
+        TypeDefinition {
+            entity_id: variant_id,
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Variant(vec![VariantCase {
+                member_id: variant_case,
+                payload_type: Some(u64_type()),
+            }]),
+            invariants: Vec::new(),
+            visibility: Visibility::Private,
+        },
+    ];
+    let function_result = bridge_result.clone();
+    let function = FunctionGraph {
+        entity_id: function_id,
+        type_parameters: Vec::new(),
+        parameters: parameter_ids.clone(),
+        result_type: function_result,
+        effects: Vec::new(),
+        entry_block: block_id,
+        blocks: vec![block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let callee = FunctionGraph {
+        entity_id: callee_id,
+        type_parameters: Vec::new(),
+        parameters: vec![callee_parameter_id],
+        result_type: TypeExpr::Bool,
+        effects: Vec::new(),
+        entry_block: callee_block_id,
+        blocks: vec![callee_block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameter_types = [
+        TypeExpr::Tuple(vec![TypeExpr::Bool, u32_type()]),
+        u64_type(),
+        TypeExpr::Text,
+        TypeExpr::Unit,
+        TypeExpr::Bytes,
+    ];
+    let mut parameters = parameter_ids
+        .iter()
+        .zip(parameter_types)
+        .enumerate()
+        .map(|(ordinal, (entity_id, value_type))| Parameter {
+            entity_id: *entity_id,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: u32::try_from(ordinal).expect("small parameter ordinal"),
+            value_type,
+        })
+        .collect::<Vec<_>>();
+    parameters.push(Parameter {
+        entity_id: callee_parameter_id,
+        owner: callee_id,
+        role: ParameterRole::Function,
+        ordinal: 0,
+        value_type: TypeExpr::Bool,
+    });
+
+    let result = |operation: EntityId| {
+        ValueRef::OperationResult(OperationResultRef {
+            operation,
+            result_index: 0,
+        })
+    };
+    let operations = vec![
+        Operation {
+            entity_id: operation_ids[0],
+            block: block_id,
+            ordinal: 0,
+            opcode: Opcode::ConstantRef,
+            operands: Vec::new(),
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::Entity(constant_id),
+        },
+        Operation {
+            entity_id: operation_ids[1],
+            block: block_id,
+            ordinal: 1,
+            opcode: Opcode::TupleGet,
+            operands: vec![ValueRef::Parameter(parameter_ids[0])],
+            result_types: vec![u32_type()],
+            immediate: Immediate::Index(1),
+        },
+        Operation {
+            entity_id: operation_ids[2],
+            block: block_id,
+            ordinal: 2,
+            opcode: Opcode::RecordNew,
+            operands: vec![
+                ValueRef::Parameter(parameter_ids[1]),
+                ValueRef::Parameter(parameter_ids[2]),
+            ],
+            result_types: vec![pair_type.clone()],
+            immediate: Immediate::Entity(record_id),
+        },
+        Operation {
+            entity_id: operation_ids[3],
+            block: block_id,
+            ordinal: 3,
+            opcode: Opcode::RecordGet,
+            operands: vec![result(operation_ids[2])],
+            result_types: vec![TypeExpr::Text],
+            immediate: Immediate::Field(record_field_b),
+        },
+        Operation {
+            entity_id: operation_ids[4],
+            block: block_id,
+            ordinal: 4,
+            opcode: Opcode::VariantNew,
+            operands: vec![ValueRef::Parameter(parameter_ids[1])],
+            result_types: vec![shape_type],
+            immediate: Immediate::Variant(VariantImmediate {
+                definition: variant_id,
+                member_id: variant_case,
+            }),
+        },
+        Operation {
+            entity_id: operation_ids[5],
+            block: block_id,
+            ordinal: 5,
+            opcode: Opcode::VariantGet,
+            operands: vec![result(operation_ids[4])],
+            result_types: vec![TypeExpr::Option(Box::new(u64_type()))],
+            immediate: Immediate::Variant(VariantImmediate {
+                definition: variant_id,
+                member_id: variant_case,
+            }),
+        },
+        Operation {
+            entity_id: operation_ids[6],
+            block: block_id,
+            ordinal: 6,
+            opcode: Opcode::CallDirect,
+            operands: vec![result(operation_ids[0])],
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::Function(FunctionRefValue {
+                function: callee_id,
+                type_arguments: Vec::new(),
+            }),
+        },
+        Operation {
+            entity_id: operation_ids[7],
+            block: block_id,
+            ordinal: 7,
+            opcode: Opcode::AdapterInvoke,
+            operands: vec![
+                ValueRef::Parameter(parameter_ids[3]),
+                ValueRef::Parameter(parameter_ids[4]),
+            ],
+            result_types: vec![bridge_result],
+            immediate: Immediate::Entity(EntityId::from_bytes(sley_vm::host_abi::bridge_identity(
+                sley_vm::host_abi::BRIDGE_CODE_B2V1,
+            ))),
+        },
+    ];
+    let block = Block {
+        entity_id: block_id,
+        function: function_id,
+        parameters: Vec::new(),
+        operations: operation_ids.clone(),
+        terminator: Terminator::Return(ReturnTerminator {
+            value: result(operation_ids[7]),
+        }),
+        reachability: Reachability::Required,
+    };
+    let callee_block = Block {
+        entity_id: callee_block_id,
+        function: callee_id,
+        parameters: Vec::new(),
+        operations: Vec::new(),
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::Parameter(callee_parameter_id),
+        }),
+        reachability: Reachability::Required,
+    };
+    let constants = vec![ConstantDefinition {
+        entity_id: constant_id,
+        value: bool_value(true),
+    }];
+    let adapter_identity = sley_vm::host_abi::bridge_identity(sley_vm::host_abi::BRIDGE_CODE_B2V1);
+    let adapters = vec![AdapterImport {
+        entity_id: EntityId::from_bytes(adapter_identity),
+        adapter_id: adapter_identity,
+        abi_version: sley_vm::host_abi::BRIDGE_ABI_VERSION,
+        request_type: TypeExpr::Bytes,
+        response_type: byte_vector,
+        failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+        effects: Vec::new(),
+    }];
+    let types = sley_check::TypeEnvironment::new(definitions).unwrap();
+    sley_vm::lower_function(sley_vm::LoweringInput {
+        types: &types,
+        function: &function,
+        parameters: &parameters,
+        blocks: &[block, callee_block],
+        operations: &operations,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: sley_vm::CacheProfile::EXTENDED_V1,
+        constants: &constants,
+        globals: &[],
+        functions: &[function.clone(), callee],
+        contracts: &[],
+        adapters: &adapters,
+    })
+    .expect("native reference lowers the bootstrap immediate family")
+    .bytecode
+    .blocks
+    .remove(0)
+    .instructions
 }
 
 fn native_bool_chain() -> Vec<sley_vm::Instruction> {
@@ -5643,6 +6525,139 @@ fn lower_variadic_operation_families_preserve_failure_order() {
         ),
         (
             execute_variadic_operation(&package, &approved, Opcode::TupleNew, &[], u32::MAX),
+            sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+        ),
+    ] {
+        assert_inventory_error(&outcome, expected);
+    }
+}
+
+#[test]
+fn lower_bootstrap_immediates_match_native_dense_models() {
+    let expected = native_bootstrap_immediate_instructions();
+    assert_eq!(expected.len(), 8, "the native image covers every family");
+    let (package, approved) = admit_lower_program(&bootstrap_immediate_lowerer());
+    for instruction in expected {
+        let opcode = Opcode::from_tag(instruction.opcode).expect("native opcode is frozen");
+        let (tag, primary, secondary) = immediate_projection(&instruction.immediate);
+        let next_register = instruction.results[0];
+        let first = execute_immediate_operation(
+            &package,
+            &approved,
+            opcode,
+            &instruction.operands,
+            tag,
+            primary,
+            secondary,
+            next_register,
+        );
+        let second = execute_immediate_operation(
+            &package,
+            &approved,
+            opcode,
+            &instruction.operands,
+            tag,
+            primary,
+            secondary,
+            next_register,
+        );
+        assert_immediate_summary(&first, &instruction, next_register + 1);
+        assert_eq!(first.termination, second.termination);
+    }
+}
+
+#[test]
+fn lower_bootstrap_immediates_preserve_failure_order() {
+    let (package, approved) = admit_lower_program(&bootstrap_immediate_lowerer());
+    let entity_tag = Immediate::Entity(id(0)).tag();
+    let index_tag = Immediate::Index(0).tag();
+    let variant_tag = Immediate::Variant(VariantImmediate {
+        definition: id(0),
+        member_id: MemberId::from_bytes([0; 32]),
+    })
+    .tag();
+    let function_tag = Immediate::Function(FunctionRefValue {
+        function: id(0),
+        type_arguments: Vec::new(),
+    })
+    .tag();
+    for (outcome, expected) in [
+        (
+            execute_immediate_operation(
+                &package,
+                &approved,
+                Opcode::BoolAnd,
+                &[0, 1],
+                entity_tag,
+                0,
+                0,
+                2,
+            ),
+            sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
+        ),
+        (
+            execute_immediate_operation(
+                &package,
+                &approved,
+                Opcode::ConstantRef,
+                &[0],
+                index_tag,
+                0,
+                0,
+                1,
+            ),
+            sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
+        ),
+        (
+            execute_immediate_operation(
+                &package,
+                &approved,
+                Opcode::TupleGet,
+                &[],
+                index_tag,
+                0,
+                0,
+                0,
+            ),
+            sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
+        ),
+        (
+            execute_immediate_operation(
+                &package,
+                &approved,
+                Opcode::VariantNew,
+                &[0, 1],
+                variant_tag,
+                0,
+                0,
+                2,
+            ),
+            sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
+        ),
+        (
+            execute_immediate_operation(
+                &package,
+                &approved,
+                Opcode::CallDirect,
+                &[2],
+                function_tag,
+                0,
+                0,
+                2,
+            ),
+            sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+        ),
+        (
+            execute_immediate_operation(
+                &package,
+                &approved,
+                Opcode::TupleGet,
+                &[0],
+                index_tag,
+                0,
+                0,
+                u32::MAX,
+            ),
             sley_vm::LowerErrorCode::ResourceLimit.numeric(),
         ),
     ] {

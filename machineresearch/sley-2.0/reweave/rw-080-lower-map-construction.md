@@ -4,6 +4,9 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real Sley lowering algorithm
 under the operator development override. It is not RW-110 completion, C1,
 self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-bootstrap-immediates.md` adds the frozen
+bootstrap immediate-bearing opcode family and the admitted bridge operation.
+
 ## Scope and behavior
 
 `variadic_operation_lowerer` now supports `MapNew`. Sley obtains the complete
