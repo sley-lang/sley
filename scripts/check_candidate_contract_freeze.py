@@ -95,16 +95,22 @@ for marker in [
     'b"sley2.capability-summary.v1"', 'b"sley2.validation-profile.v1"',
     "bad9f879f53483061bd181da955a62cb6c758bbd0381ee93630781a074f5fd19",
     "974290a6758c97f547093e707ba18055c3ab73a6a504c3c0514b2a7d4dc7bf11",
-    # S20-540 (ADR-0025) added sley2.repository-exchange.v1 as the thirtieth domain;
-    # S20-510 (ADR-0027) added sley2.semantic-delta.v1 as the thirty-first;
-    # S20-520 (ADR-0028) added sley2.merge-conflict.v1 as the thirty-second;
-    # S20-310 full (ADR-0030) added sley2.root-query.v1 as the thirty-third;
-    # S20-410 (ADR-0032) added sley2.protocol-frame.v1 as the thirty-fourth;
-    # S20-330 (ADR-0033) added sley2.session.v1 as the thirty-fifth.
-    "const ALL: [Self; 35]",
 ]:
     if marker not in identifier_source:
         problems.append(f"identifier-registry:missing:{marker}")
+all_domains = re.search(
+    r"const ALL: \[Self; (\d+)\] = \[(.*?)\];", identifier_source, re.S
+)
+if all_domains is None:
+    problems.append("identifier-registry:domain-all-missing")
+else:
+    declared_count = int(all_domains.group(1))
+    members = re.findall(r"Self::([A-Za-z0-9_]+)", all_domains.group(2))
+    if declared_count != len(members) or len(members) != len(set(members)):
+        problems.append("identifier-registry:domain-all-shape")
+    for member in ("CapabilitySummary", "ValidationProfile"):
+        if member not in members:
+            problems.append(f"identifier-registry:domain-all-missing:{member}")
 for marker in ["`sley2.capability-summary.v1`", "`sley2.validation-profile.v1`"]:
     if marker not in identifier_spec:
         problems.append(f"identifier-spec:missing:{marker}")

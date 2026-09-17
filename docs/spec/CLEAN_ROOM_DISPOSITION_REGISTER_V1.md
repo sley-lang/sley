@@ -239,8 +239,10 @@ entry list, before the implementation lands.
    registry version, any `GreyforgeLabs/sley` git source (manifest or
    lockfile, where each `[[package]]` stanza is parsed for name, version,
    and source), and any `sley1`/`sley-1`/`sley_1`/`legacy` name is a
-   violation; every path dependency must resolve to one of the eighteen Sley
-   2 workspace crates, and the crate count is asserted.
+   violation; every path dependency must resolve to a Sley 2 workspace crate.
+   The crate directories containing manifests must equal the root workspace's
+   declared `crates/*` members in both directions, so an undeclared new crate
+   and a stale missing member both fail without freezing an obsolete count.
 3. **Bounded touchpoint, out of process.** The tracked Python files carrying
    a sentinel are exactly the executable inventory (the adapter, its tests,
    and the boundary scripts named in check 1); anything else executable is a

@@ -9,7 +9,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "a0b295c1647258b1e1631a74450ce8ea4ca66065e9f69148b00f28645c60fd69",
+  "dossier_digest": "4c7bb35aab0a20ad191e9755ab4d1a45431d16c0021288785d074f5ff4a45ea2",
   "entries": [
     {
       "evidence": [
@@ -34,7 +34,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "5313437afb5df66b5fa48b82c374746467d0a1ca"
+      "value": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6"
     },
     {
       "evidence": [
@@ -92,7 +92,7 @@
       "state": "EVIDENCED",
       "value": {
         "cross_implementation_agreement": "PASS",
-        "independently_checked_families": 25,
+        "independently_checked_families": 26,
         "native_only_families": [],
         "status": "S20_130_COMPLETE"
       }
@@ -108,7 +108,7 @@
       "value": {
         "language": "Python",
         "oracle": "oracle/scb1",
-        "python_sources": 28,
+        "python_sources": 29,
         "rust_dependency_check": "PASS"
       }
     },
@@ -135,19 +135,19 @@
       "note": "the property-test count is a counted zero: the inventory scanned the workspace and crate manifests, the lockfile, and every Rust and Python test source and found no proptest, quickcheck, or hypothesis harness. The unit-test, fuzz-target, and vector counts are adjacent corpus facts, not property tests. The inventory describes the corpus and runs nothing, so a passing run is separate evidence",
       "state": "EVIDENCED",
       "value": {
-        "conformance_rejections": 276,
-        "conformance_vectors": 477,
+        "conformance_rejections": 283,
+        "conformance_vectors": 537,
         "persistent_fuzz_targets": 21,
         "property_test_detail": {
           "manifest_harness_deps": [],
           "python_use_sites": 0,
           "rust_use_sites": 0,
-          "scanned_manifests": 20
+          "scanned_manifests": 22
         },
         "property_tests": 0,
-        "python_tests": 421,
-        "rust_ignored_emitters": 16,
-        "rust_unit_tests": 1435
+        "python_tests": 453,
+        "rust_ignored_emitters": 35,
+        "rust_unit_tests": 1727
       }
     },
     {
@@ -283,7 +283,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "7da77f1b41b18845076ba1694e1163ed77301385417305f5eab00faf9be1ea3a"
+      "value": "10a978f86486bf3b1ea9d999c06d9deb043a6830f2e83ea670ccefda119654c9"
     },
     {
       "evidence": [
@@ -292,7 +292,7 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2190465
+      "value": 2444860
     },
     {
       "evidence": [
@@ -317,7 +317,7 @@
       "note": "both standards documents exist as drafts; the root license text is operator-approved, which the documents state in band",
       "state": "EVIDENCED",
       "value": {
-        "components": 51,
+        "components": 53,
         "cyclonedx_spec_version": "1.6",
         "license_disposition_blocked": 0,
         "root_license_text_approved": true,
@@ -455,7 +455,7 @@
       }
     }
   ],
-  "entries_digest": "6bc4b6489c88bb6719821b3221fed7e91f2148a67a9335d8a5c10bdb0f540a18",
+  "entries_digest": "d558efcdf067b8f76260b3a5c75bb9742b0566309c9164ef9bc0ba19ef0fd714",
   "evidenced": 24,
   "gated": 10,
   "gates": {

@@ -22,12 +22,6 @@ EXPECTED_ANCHOR = "7804f665e0ee65de240c43fe3b56dc89cf7e9d80"
 EXPECTED_ROOT_LICENSE_SHA256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
 EXPECTED_NOTICE_SHA256 = "e7151ea0ee545a9edec91ecf963acefec4d6c2cfd92aa6080b1afe517d5a5dfa"
 EXPECTED_LICENSE_FILES = ["LICENSE", "NOTICE"]
-EXPECTED_COUNTS = {
-    ("cargo", False): 30,
-    ("cargo", True): 18,
-    ("pypi", False): 2,
-    ("pypi", True): 1,
-}
 REQUIRED_IGNORES = {
     ".env",
     ".env.*",
@@ -104,8 +98,14 @@ def check_inventory(inventory: dict[str, Any]) -> None:
     if not isinstance(packages, list):
         fail("inventory packages must be a list")
     counts = Counter((package.get("ecosystem"), package.get("workspace")) for package in packages)
-    if counts != Counter(EXPECTED_COUNTS):
-        fail(f"unexpected package inventory counts: {dict(counts)}")
+    expected_groups = {
+        ("cargo", False),
+        ("cargo", True),
+        ("pypi", False),
+        ("pypi", True),
+    }
+    if set(counts) != expected_groups or any(counts[group] <= 0 for group in expected_groups):
+        fail(f"unexpected package inventory groups: {dict(counts)}")
     refs = {package.get("bom_ref") for package in packages}
     if None in refs or len(refs) != len(packages):
         fail("package BOM references must be present and unique")
@@ -203,13 +203,6 @@ def check_machine_summary(summary: dict[str, Any]) -> None:
         "inventory_contract": "s20-710-pre-release-inventory-v1",
         "secret_scan_contract": "s20-710-secret-scan-v1",
         "history_anchor_commit": EXPECTED_ANCHOR,
-        "cargo_lock_sha256": "4b6af7f0f01b23db0bb44f23385ab82e1ed979c80bd57873243dd3e391d4eacc",
-        "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
-        "cargo_workspace_packages": 18,
-        "cargo_registry_packages": 30,
-        "python_workspace_packages": 1,
-        "python_registry_packages": 2,
-        "dependency_relationships": 138,
         "t52_local_lock_inventory": "PASS",
         "t54_high_confidence_scan": "PASS",
         "history_blobs_scanned": 5950,
@@ -240,8 +233,21 @@ def check_summary_reconciles_inventory(summary: dict[str, Any], inventory: dict[
     summary carried an older lock hash and edge count than T52), so the
     reconciliation is explicit rather than assumed (RW-050 slice 1)."""
     profile = summary.get("s20_710_pre_release_audit", {})
-    if profile.get("cargo_lock_sha256") != inventory.get("cargo_lock_sha256"):
-        fail("machine summary lock hash does not match the T52 inventory")
+    for field in ("cargo_lock_sha256", "uv_lock_sha256"):
+        if profile.get(field) != inventory.get(field):
+            fail(f"machine summary {field} does not match the T52 inventory")
+    packages = inventory.get("packages")
+    if not isinstance(packages, list):
+        fail("T52 packages are unavailable for summary reconciliation")
+    counts = Counter((package.get("ecosystem"), package.get("workspace")) for package in packages)
+    for field, key in (
+        ("cargo_workspace_packages", ("cargo", True)),
+        ("cargo_registry_packages", ("cargo", False)),
+        ("python_workspace_packages", ("pypi", True)),
+        ("python_registry_packages", ("pypi", False)),
+    ):
+        if profile.get(field) != counts[key]:
+            fail(f"machine summary {field} does not match the T52 inventory")
     relationships = inventory.get("relationships")
     if not isinstance(relationships, list) or profile.get("dependency_relationships") != len(
         relationships

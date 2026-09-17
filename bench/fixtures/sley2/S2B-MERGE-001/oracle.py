@@ -61,7 +61,7 @@ def run_cargo(workspace, test_binary, test_name, nocapture):
     cmd = ["cargo", "test", "--offline", "-p", "sley-repo",
            "--test", test_binary, test_name]
     if nocapture:
-        cmd += ["--", "--nocapture"]
+        cmd += ["--", "--ignored", "--nocapture"]
     try:
         proc = subprocess.run(
             cmd, cwd=str(workspace), capture_output=True, text=True,

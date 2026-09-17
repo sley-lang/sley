@@ -84,6 +84,20 @@
       "bundle_commit": "5313437afb5df66b5fa48b82c374746467d0a1ca",
       "merge_commit": "694b29b92388e73f50f014b07df27e63bec1f4a7",
       "note": "Revision-9 sequence: provisional commit contains only the merged report and retained secondary; receipt filed next; full evidence refresh and verification follow. Both clean host builds succeeded and artifacts match."
+    },
+    {
+      "candidate_commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
+      "date": "2026-09-17",
+      "transport_lane": "USB 10.10.10.1 to 10.10.10.2 via forge-lab-connect; verified SSH_CONNECTION",
+      "lab_checkout": "/home/greyforgelab/sley2-repair-45b2cd9-v1",
+      "lab_commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
+      "lab_evidence_sha256": "6f19e2ec37a3985d7ab308d69eee74d3845d58eb003fb4fcc59c447f0caaf0ff",
+      "artifact_sha256": "10a978f86486bf3b1ea9d999c06d9deb043a6830f2e83ea670ccefda119654c9",
+      "attestation_path": "evidence/release/attestations/45b2cd9-secondary.json",
+      "attestation_file_sha256": "273c174040b36f2b5ca0ea6b88c2a8799c156c09477a14e35675d8e09c35811a",
+      "bundle_commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
+      "merge_commit": "2297045748d84cfbf588a7db5be4127c1e435c83",
+      "note": "Revision-9 sequence: the provisional commit contains only the merged report and retained secondary attestation. Both clean hosts rebuilt the candidate twice and produced byte-identical artifacts; this receipt precedes the final evidence refresh and verification."
     }
   ]
 }

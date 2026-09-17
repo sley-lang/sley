@@ -584,6 +584,7 @@ fn s3_stale_fixture_conformance() {
 }
 
 #[test]
+#[ignore = "negative oracle handshake; fixture oracle invokes it explicitly"]
 fn s3_stale_neg_guard_disabled() {
     let ctx = genesis("neg-guard");
     let _evidence = run_stale_scenario(&ctx);

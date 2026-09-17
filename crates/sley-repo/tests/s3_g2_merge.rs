@@ -333,6 +333,7 @@ fn s3_merge_fixture_conformance() {
 }
 
 #[test]
+#[ignore = "negative oracle handshake; fixture oracle invokes it explicitly"]
 fn s3_merge_neg_overlapping_change() {
     let (evidence, code) = run_overlapping_change();
     println!("S3_NEG_RESULT {code}");

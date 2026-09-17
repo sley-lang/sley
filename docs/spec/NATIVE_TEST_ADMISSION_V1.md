@@ -65,6 +65,13 @@ does not waive aggregate limits. Native per-test wall ≤30,000ms; execution dep
 cap is explicitly recorded and may refuse. Local configuration may tighten all
 native maxima but cannot enlarge them.
 
+The public implementation aliases bind the same ceilings:
+`MAX_ATTESTATION_LIST` is 256 entries and `MAX_COMMIT_WALL_MILLIS` is
+30,000 milliseconds across the selected tests. `MAX_BUNDLE_RECORD_BYTES` is
+50,331,648 bytes; `MAX_BUNDLE_STORED_BYTES` is 50,331,712 bytes, the record
+ceiling plus 64 bytes reserved for its canonical envelope framing and digest
+trailer. These aliases do not create additional budgets.
+
 `NativeResourcePolicyV1` (`SLEYNRP1`) fields:
 `{version:UInt32=1,policy_root:Id,principal:Id,capability_summary:Id,
 grant:GrantCeilings,validation:ValidationLimits,
@@ -422,6 +429,12 @@ expired token or missing bytes refuses as `NATIVE_TOKEN_INVALID`, never a
 semantic entity-handle lookup.
 605 went live in revision 4; the token's bound report_id and bound root are
 part of the minted capability and are answered back verbatim.
+The token bytes are
+`BLAKE3-256("sley2.diagnostic-report-token.v1" || server_nonce[32] ||
+SessionId[32] || counter_u64_be)`. The counter starts at zero and increments
+before each mint; overflow refuses before changing state. This domain is live
+in `IDENTIFIERS_V1.md`, but the token remains ephemeral and never names stored
+semantic content.
 
 *606 tests.replay:* `{transaction_id:Id,expected_root:Id,execution_profile:Id,
 replay_resource_policy_id:Id,attempt_id:FixedBytes16}`. Require transaction in

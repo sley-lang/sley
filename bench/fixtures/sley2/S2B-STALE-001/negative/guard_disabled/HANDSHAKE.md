@@ -11,7 +11,7 @@ The named Rust test is `s3_stale_neg_guard_disabled`
    `S3_NEG_RESULT ORACLE_LAST_WRITE_WINS` to stdout, then panics
    (fails by design), so `cargo test` exits nonzero (cargo reports 101).
 3. `oracle.py` runs
-   `cargo test --offline -p sley-repo --test s3_g2_stale s3_stale_neg_guard_disabled -- --nocapture`
+   `cargo test --offline -p sley-repo --test s3_g2_stale s3_stale_neg_guard_disabled -- --ignored --nocapture`
    (bounded timeout 240 s) and records `rejected` with code
    `ORACLE_LAST_WRITE_WINS` only if BOTH the exit is nonzero AND the output
    contains the exact code line. A passing test or a missing code line is a

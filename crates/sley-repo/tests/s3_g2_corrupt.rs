@@ -353,6 +353,7 @@ fn s3_corrupt_fixture_conformance() {
 }
 
 #[test]
+#[ignore = "negative oracle handshake; fixture oracle invokes it explicitly"]
 fn s3_corrupt_neg_unflipped() {
     let code = run_unflipped();
     println!("S3_NEG_RESULT {code}");
@@ -362,6 +363,7 @@ fn s3_corrupt_neg_unflipped() {
 }
 
 #[test]
+#[ignore = "negative oracle handshake; fixture oracle invokes it explicitly"]
 fn s3_corrupt_neg_flip_elsewhere() {
     let code = run_flip_elsewhere();
     println!("S3_NEG_RESULT {code}");

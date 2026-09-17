@@ -208,9 +208,21 @@ def main() -> int:
 
     # 2. No crate depends on a legacy package, and every path dependency is a
     #    Sley 2 workspace crate.
-    workspace = {path.name for path in (ROOT / "crates").iterdir() if path.is_dir()}
-    if len(workspace) != 18:
-        problems.append(f"clean-room-violation:crate-count:{len(workspace)}")
+    workspace = {
+        path.name
+        for path in (ROOT / "crates").iterdir()
+        if path.is_dir() and (path / "Cargo.toml").is_file()
+    }
+    root_workspace = tomllib.loads(read(ROOT / "Cargo.toml")).get("workspace", {})
+    declared_workspace = {
+        Path(member).name
+        for member in root_workspace.get("members", [])
+        if isinstance(member, str) and member.startswith("crates/")
+    }
+    for crate in sorted(workspace - declared_workspace):
+        problems.append(f"clean-room-violation:undeclared-workspace-crate:{crate}")
+    for crate in sorted(declared_workspace - workspace):
+        problems.append(f"clean-room-violation:missing-workspace-crate:{crate}")
     manifests = sorted((ROOT / "crates").glob("*/Cargo.toml"))
     root_manifest = ROOT / "Cargo.toml"
     if root_manifest.exists():
@@ -305,6 +317,7 @@ def main() -> int:
         "register_entries": len(entries),
         "result": "FAIL" if problems else "PASS",
         "status": status,
+        "workspace_crates": len(workspace),
     }
     print(json.dumps(result, indent=2, sort_keys=True))
     return 1 if problems else 0

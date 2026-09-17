@@ -593,6 +593,7 @@ fn s3_context_fixture_conformance() {
 }
 
 #[test]
+#[ignore = "negative oracle handshake; fixture oracle invokes it explicitly"]
 fn s3_context_neg_unbounded_read() {
     let code = run_unbounded_read();
     println!("S3_NEG_RESULT {code}");

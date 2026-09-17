@@ -64,7 +64,7 @@
     },
     {
       "criterion": "Every non-canonical fixture is rejected",
-      "evidence": "independent conformance report INDEPENDENT_CONFORMANCE_COMPLETE: 25 of 25 fixture families independently checked, 0 native-only, rejection corpora included",
+      "evidence": "independent conformance report INDEPENDENT_CONFORMANCE_COMPLETE: 26 of 26 fixture families independently checked, 0 native-only, rejection corpora included",
       "group": "26.2 canonical format",
       "state": "EVIDENCED"
     },
@@ -166,7 +166,7 @@
     },
     {
       "criterion": "machine outputs use stable codes and contracts",
-      "evidence": "docs/spec/ERROR_CODES_V1.md with the per-package checkers that pin every reserved range; error-symbol registration PASS: 495 symbols, 0 unregistered, 0 ambiguous codes",
+      "evidence": "docs/spec/ERROR_CODES_V1.md with the per-package checkers that pin every reserved range; error-symbol registration PASS: 533 symbols, 0 unregistered, 0 ambiguous codes",
       "group": "26.4 agent loop",
       "state": "EVIDENCED"
     },
@@ -238,7 +238,7 @@
     },
     {
       "criterion": "all P0/P1 threats have passing tests",
-      "evidence": "threat coverage report: 44 exercised, 0 P0/P1 without a located symbol; 495 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol; independent security review: threat_coverage.independent_security_review reads PASS_0_P0_0_P1_0_P2_3_P3_5_P4, a PASS naming unclaimed findings (P3, P4). Whether a located, exercised control mitigates its threat stays the review's judgment",
+      "evidence": "threat coverage report: 44 exercised, 0 P0/P1 without a located symbol; 533 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol; independent security review: threat_coverage.independent_security_review reads PASS_0_P0_0_P1_0_P2_3_P3_5_P4, a PASS naming unclaimed findings (P3, P4). Whether a located, exercised control mitigates its threat stays the review's judgment",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
@@ -250,7 +250,7 @@
     },
     {
       "criterion": "opacity is not used as a security argument",
-      "evidence": "anti-goal conformance report 'opacity as security' REVIEW_ONLY; every contract is public in docs/spec and the independent oracle checks 25 fixture families, which is the review's input",
+      "evidence": "anti-goal conformance report 'opacity as security' REVIEW_ONLY; every contract is public in docs/spec and the independent oracle checks 26 fixture families, which is the review's input",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
@@ -268,7 +268,7 @@
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit 5313437afb5df66b5fa48b82c374746467d0a1ca; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
+      "evidence": "attested commit 45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
       "group": "26.8 packaging",
       "state": "GATED"
     },
@@ -286,7 +286,7 @@
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "attested manifest digest e3904edcae19, artifact digest 7da77f1b41b1, 2190465 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
+      "evidence": "attested manifest digest 74dfe30f3cce, artifact digest 10a978f86486, 2444860 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
@@ -342,7 +342,7 @@
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "9a499ad6d753edfa00615e5160a2a1efecb12e2bdcfb125f9e4b122d73aa6cd4",
   "register_digest": "deb0046a70821fa1f5aea5b8ccf413677ac81dd8808121bcf7496db56ba70724",
-  "report_digest": "63d9348e7a7c8034be6585b52ddde4b4274c29c52b0ff430a551141840029205",
+  "report_digest": "93f4751059f0814159f7e7fca143cd4b5958ca61298489bdef11697aefac30d1",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

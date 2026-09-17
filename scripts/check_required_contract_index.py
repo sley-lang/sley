@@ -22,6 +22,14 @@ ACCEPTED_STATUS = "S20_770_INDEX_ACCEPTED"
 REQUIRED_ROWS = 12
 CODES = ((77000, "CONTRACT_INDEX_UNSATISFIED"), (77001, "CONTRACT_INDEX_DRIFT"))
 BACKTICKED = re.compile(r"`([^`]+)`")
+RUST_DOMAIN_LITERAL = re.compile(r'b"(sley2\.[a-z0-9.\-]+)"')
+# These are Ed25519 signing contexts, explicitly classified by the native-test
+# reservation ledger. Keep the allowlist exact so a newly introduced context
+# fails closed until its owner classifies it.
+NON_IDENTIFIER_CONTEXTS = {
+    "sley2.native-test-admission-signature.v1",
+    "sley2.native-test-measurement-signature.v1",
+}
 
 
 def read(path: Path) -> str:
@@ -60,6 +68,34 @@ def iter_crate_sources() -> "object":
         for filename in filenames:
             if filename.endswith(".rs"):
                 yield Path(dirpath) / filename
+
+
+def rust_identifier_domains(source: str) -> set[str]:
+    """Return domain byte literals from Rust code, excluding comments and
+    the two frozen Ed25519 signing contexts.
+
+    The former whole-source scan treated documentation and signing contexts
+    as BLAKE3 domains. Code byte literals fail closed here: every new value is
+    a domain unless the owning contract adds an exact reviewed exclusion.
+    """
+    without_blocks = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+    code = "\n".join(line.split("//", 1)[0] for line in without_blocks.splitlines())
+    return {
+        domain
+        for domain in RUST_DOMAIN_LITERAL.findall(code)
+        if domain not in NON_IDENTIFIER_CONTEXTS
+    }
+
+
+def derived_identifier_domains() -> list[str]:
+    """Derive the live crate-side BLAKE3 domain set."""
+    return sorted(
+        {
+            domain
+            for path in sorted(iter_crate_sources())
+            for domain in rust_identifier_domains(read(path))
+        }
+    )
 
 
 def table_rows(text: str) -> list[list[str]]:
@@ -170,13 +206,7 @@ def main() -> int:
     # round 9: the comment always required the same set, but only the
     # derived-subset-registry direction was checked).
     # Every crate that hashes may define a domain, not only `sley-id`.
-    derived = sorted(
-        {
-            domain
-            for path in sorted(iter_crate_sources())
-            for domain in re.findall(r'"(sley2\.[a-z0-9.\-]+)"', read(path))
-        }
-    )
+    derived = derived_identifier_domains()
     unregistered = [domain for domain in derived if f"`{domain}`" not in identifiers]
     for domain in unregistered:
         problems.append(f"identifier-registry-drift:{domain}")

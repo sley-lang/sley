@@ -11,7 +11,7 @@ The named Rust test is `s3_corrupt_neg_unflipped`
    `S3_NEG_RESULT ORACLE_CLEAN_ACCEPTED` to stdout, then panics
    (fails by design), so `cargo test` exits nonzero (cargo reports 101).
 3. `oracle.py` runs
-   `cargo test --offline -p sley-repo --test s3_g2_corrupt s3_corrupt_neg_unflipped -- --nocapture`
+   `cargo test --offline -p sley-repo --test s3_g2_corrupt s3_corrupt_neg_unflipped -- --ignored --nocapture`
    (bounded timeout 240 s) and records `rejected` with code
    `ORACLE_CLEAN_ACCEPTED` only if BOTH the exit is nonzero AND the output
    contains the exact code line. A passing test or a missing code line is a

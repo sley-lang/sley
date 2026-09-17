@@ -2310,7 +2310,7 @@ fn lifecycle_uses_no_source_parser_text_path_or_normalization() {
     let anti_goal = fs::read_to_string(root.join("evidence/validation/anti-goal-conformance.json"))
         .expect("anti-goal conformance evidence present");
     assert!(
-        anti_goal.contains("0 .sley files; parser crates in the lock: none"),
+        anti_goal.contains("0 production .sley files; parser crates in the lock: none"),
         "parser anti-goal holds"
     );
     assert!(

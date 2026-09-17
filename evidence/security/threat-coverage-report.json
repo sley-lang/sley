@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "1b8652943c7b21222f11040369a4d9ea6e2b75e149140fdf61c4ae3e11fbedb6",
+  "report_digest": "3420a90cc62e28183b4ebb0e452681fb7649734ad0ff202387d58f957608adb2",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -30,13 +30,13 @@
         "crates/sley-policy/src/lib.rs#tests",
         "crates/sley-repo/src/compare.rs#tests",
         "crates/sley-repo/src/lib.rs#tests",
-        "crates/sley-repo/src/refs.rs#tests",
-        "crates/sley-state-root/src/lib.rs#tests"
+        "crates/sley-repo/src/native_exchange.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests"
       ],
-      "exercised_source_count": 26,
+      "exercised_source_count": 29,
       "expected_failure_code": "SCB_MALFORMED",
       "id": "T01",
-      "located_file_count": 24,
+      "located_file_count": 30,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -92,7 +92,7 @@
       "exercised_source_count": 20,
       "expected_failure_code": "SCB_NON_CANONICAL",
       "id": "T02",
-      "located_file_count": 20,
+      "located_file_count": 24,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -518,12 +518,13 @@
     {
       "exercised_in": [
         "crates/sley-protocol/src/lib.rs#tests",
+        "crates/sley-repo/tests/s3_g2_context.rs",
         "conformance/root-backed-query/v1/rejected.json"
       ],
-      "exercised_source_count": 2,
+      "exercised_source_count": 3,
       "expected_failure_code": "QUERY_REQUIRED_FACT_OMITTED",
       "id": "T14",
-      "located_file_count": 8,
+      "located_file_count": 9,
       "located_in": {
         "checkers": [
           "scripts/check_restricted_query_profile.py",
@@ -553,18 +554,20 @@
     },
     {
       "exercised_in": [
+        "crates/sley-cli/tests/cli.rs",
         "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
       ],
-      "exercised_source_count": 1,
+      "exercised_source_count": 2,
       "expected_failure_code": "SESSION_STALE_HANDLE",
       "id": "T15",
-      "located_file_count": 6,
+      "located_file_count": 7,
       "located_in": {
         "checkers": [
           "scripts/check_session_handle_profile.py",
           "scripts/record_session_threat_matrices.py"
         ],
         "implementation": [
+          "crates/sley-cli/tests/cli.rs",
           "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
           "crates/sley-protocol/src/session.rs"
@@ -593,13 +596,13 @@
         "crates/sley-policy/src/lib.rs#tests",
         "crates/sley-repo/src/refs.rs#tests",
         "crates/sley-state-root/src/lib.rs#tests",
-        "crates/sley-txn/src/repository.rs#tests",
-        "crates/sley-vm/tests/rw080_codec_envelope.rs"
+        "crates/sley-test-runner/src/worker.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests"
       ],
-      "exercised_source_count": 18,
+      "exercised_source_count": 19,
       "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
       "id": "T16",
-      "located_file_count": 28,
+      "located_file_count": 38,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py",
@@ -642,24 +645,33 @@
     },
     {
       "exercised_in": [
+        "crates/sley-repo/tests/s3_g2_stale.rs",
         "crates/sley-txn/src/repository.rs#tests",
+        "bench/fixtures/raw/S2B-STALE-001/fixture/test_program.py",
+        "bench/fixtures/raw/S2B-STALE-001/negative/guard_disabled/test_program.py",
         "conformance/candidate-result/v1/accepted.json",
-        "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
-        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+        "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
       ],
-      "exercised_source_count": 4,
+      "exercised_source_count": 7,
       "expected_failure_code": "STALE_ROOT",
       "id": "T17",
-      "located_file_count": 8,
+      "located_file_count": 14,
       "located_in": {
         "checkers": [
           "scripts/check_candidate_result_contract.py",
           "scripts/check_candidate_result_persistent_fuzz_slice.py",
           "scripts/check_transaction_contract.py"
         ],
+        "harness": [
+          "bench/fixtures/raw/S2B-STALE-001/fixture/program.py",
+          "bench/fixtures/raw/S2B-STALE-001/fixture/test_program.py",
+          "bench/fixtures/raw/S2B-STALE-001/negative/guard_disabled/program.py",
+          "bench/fixtures/raw/S2B-STALE-001/negative/guard_disabled/test_program.py"
+        ],
         "implementation": [
           "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
+          "crates/sley-repo/tests/s3_g2_stale.rs",
           "crates/sley-txn/src/repository.rs"
         ],
         "oracle": [
@@ -870,13 +882,22 @@
     {
       "exercised_in": [
         "crates/sley-adapter/src/lib.rs#tests",
-        "crates/sley-policy/src/lib.rs#tests"
+        "crates/sley-policy/src/lib.rs#tests",
+        "bench/fixtures/raw/S2B-CAP-001/fixture/test_program.py",
+        "bench/fixtures/raw/S2B-CAP-001/negative/sibling_allowed/test_program.py",
+        "bench/fixtures/raw/S2B-CAP-001/negative/wildcard_scope/test_program.py"
       ],
-      "exercised_source_count": 2,
+      "exercised_source_count": 5,
       "expected_failure_code": "CAP_SCOPE_MISMATCH",
       "id": "T24",
-      "located_file_count": 3,
+      "located_file_count": 10,
       "located_in": {
+        "harness": [
+          "bench/fixtures/raw/S2B-CAP-001/fixture/program.py",
+          "bench/fixtures/raw/S2B-CAP-001/fixture/test_program.py",
+          "bench/fixtures/raw/S2B-CAP-001/negative/sibling_allowed/program.py",
+          "bench/fixtures/raw/S2B-CAP-001/negative/sibling_allowed/test_program.py"
+        ],
         "implementation": [
           "crates/sley-adapter/src/lib.rs",
           "crates/sley-policy/src/candidate_validation.rs",
@@ -1043,7 +1064,7 @@
         "VM_EXEC_INTERNAL_INVARIANT",
         "VM_EXEC_RESOURCE_LIMIT",
         "VM_EXEC_TRAP",
-        "VM_INPUT_EXTENDED_FAMILY_S20_700_BOUNDARY"
+        "VM_EXTENDED_LIMIT"
       ],
       "required_test": "clean/poisoned env equivalence",
       "searched_codes": [
@@ -1055,12 +1076,13 @@
     },
     {
       "exercised_in": [
+        "crates/sley-tests/src/report.rs#tests",
         "crates/sley-vm/src/execute.rs#tests"
       ],
-      "exercised_source_count": 1,
+      "exercised_source_count": 2,
       "expected_failure_code": "VM_OUTPUT_LIMIT",
       "id": "T30",
-      "located_file_count": 4,
+      "located_file_count": 6,
       "located_in": {
         "checkers": [
           "scripts/check_vm_execution_profile.py"
@@ -1068,6 +1090,7 @@
         "implementation": [
           "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
+          "crates/sley-tests/src/report.rs",
           "crates/sley-vm/src/execute.rs"
         ]
       },
@@ -1121,12 +1144,13 @@
     {
       "exercised_in": [
         "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-tests/src/report.rs#tests",
         "crates/sley-vm/src/lib.rs#tests"
       ],
-      "exercised_source_count": 2,
+      "exercised_source_count": 3,
       "expected_failure_code": "VM_RESOURCE_LIMIT",
       "id": "T32",
-      "located_file_count": 7,
+      "located_file_count": 8,
       "located_in": {
         "checkers": [
           "scripts/check_vm_execution_profile.py",
@@ -1136,7 +1160,7 @@
           "crates/sley-policy/src/candidate_validation.rs",
           "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
-          "crates/sley-vm/src/execute.rs"
+          "crates/sley-tests/src/report.rs"
         ]
       },
       "owner": "sley-vm",
@@ -1443,12 +1467,16 @@
     {
       "exercised_in": [
         "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/tests/s3_g2_corrupt.rs",
+        "bench/fixtures/raw/S2B-CORRUPT-001/fixture/test_program.py",
+        "bench/fixtures/raw/S2B-CORRUPT-001/negative/flip_elsewhere/test_program.py",
+        "bench/fixtures/raw/S2B-CORRUPT-001/negative/unflipped/test_program.py",
         "fuzz/targets/repository_pack_importer.rs"
       ],
-      "exercised_source_count": 2,
+      "exercised_source_count": 6,
       "expected_failure_code": "PACK_INVALID",
       "id": "T41",
-      "located_file_count": 6,
+      "located_file_count": 15,
       "located_in": {
         "checkers": [
           "scripts/check_pack_persistent_fuzz_slice.py",
@@ -1457,10 +1485,17 @@
         "fuzz": [
           "fuzz/targets/repository_pack_importer.rs"
         ],
+        "harness": [
+          "bench/fixtures/legacy/S2B-CORRUPT-001/oracle.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/fixture/program.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/fixture/test_program.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/negative/flip_elsewhere/program.py"
+        ],
         "implementation": [
           "crates/sley-protocol/src/server.rs",
           "crates/sley-protocol/src/server_tests.rs",
-          "crates/sley-repo/src/lib.rs"
+          "crates/sley-repo/src/lib.rs",
+          "crates/sley-repo/tests/s3_g2_corrupt.rs"
         ]
       },
       "owner": "sley-repo",
@@ -1700,16 +1735,18 @@
     {
       "exercised_in": [
         "crates/sley-policy/src/candidate_validation.rs#tests",
-        "crates/sley-policy/src/lib.rs#tests"
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-policy/tests/s3_g3_adversary.rs"
       ],
-      "exercised_source_count": 2,
+      "exercised_source_count": 3,
       "expected_failure_code": "CAPABILITY_DENIED",
       "id": "T48",
-      "located_file_count": 2,
+      "located_file_count": 3,
       "located_in": {
         "implementation": [
           "crates/sley-policy/src/candidate_validation.rs",
-          "crates/sley-policy/src/lib.rs"
+          "crates/sley-policy/src/lib.rs",
+          "crates/sley-policy/tests/s3_g3_adversary.rs"
         ]
       },
       "owner": "sley-policy",
@@ -1736,17 +1773,17 @@
     },
     {
       "exercised_in": [
+        "crates/sley-repo/src/native_exchange.rs#tests",
         "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-test-runner/src/worker.rs#tests",
+        "crates/sley-txn/src/native_codec.rs#tests",
         "crates/sley-txn/src/repository.rs#tests",
-        "crates/sley-vm/tests/rw080_codec_envelope.rs",
-        "crates/sley-vm/tests/rw080_codec_program_outer.rs",
-        "conformance/candidate-result/v1/rejected.json",
-        "conformance/mutation-candidate/v1/rejected.json"
+        "crates/sley-vm/tests/rw080_codec_envelope.rs"
       ],
-      "exercised_source_count": 15,
+      "exercised_source_count": 18,
       "expected_failure_code": "SCB_MAGIC_INVALID",
       "id": "T49",
-      "located_file_count": 16,
+      "located_file_count": 20,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -1755,10 +1792,10 @@
           "scripts/generate_transaction_receipt_fixtures.py"
         ],
         "implementation": [
+          "crates/sley-repo/src/native_exchange.rs",
           "crates/sley-repo/src/refs.rs",
           "crates/sley-scb1/src/lib.rs",
-          "crates/sley-txn/src/repository.rs",
-          "crates/sley-vm/tests/rw080_codec_envelope.rs"
+          "crates/sley-test-runner/src/worker.rs"
         ],
         "oracle": [
           "oracle/scb1/generate_s20_350_fixtures.py",
@@ -1806,15 +1843,26 @@
     },
     {
       "exercised_in": [
-        "crates/sley-repo/src/lib.rs#tests"
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/tests/s3_g2_corrupt.rs",
+        "bench/fixtures/raw/S2B-CORRUPT-001/fixture/test_program.py",
+        "bench/fixtures/raw/S2B-CORRUPT-001/negative/flip_elsewhere/test_program.py",
+        "bench/fixtures/raw/S2B-CORRUPT-001/negative/unflipped/test_program.py"
       ],
-      "exercised_source_count": 1,
+      "exercised_source_count": 5,
       "expected_failure_code": "PACK_DIGEST_MISMATCH",
       "id": "T51",
-      "located_file_count": 1,
+      "located_file_count": 10,
       "located_in": {
+        "harness": [
+          "bench/fixtures/legacy/S2B-CORRUPT-001/oracle.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/fixture/program.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/fixture/test_program.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/negative/flip_elsewhere/program.py"
+        ],
         "implementation": [
-          "crates/sley-repo/src/lib.rs"
+          "crates/sley-repo/src/lib.rs",
+          "crates/sley-repo/tests/s3_g2_corrupt.rs"
         ]
       },
       "owner": "sley-repo",

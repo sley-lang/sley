@@ -91,6 +91,12 @@
       "version": "v1"
     },
     {
+      "family": "native-test",
+      "rejections": 7,
+      "vectors": 12,
+      "version": "v1"
+    },
+    {
       "family": "raw-hash",
       "rejections": 0,
       "vectors": 0,
@@ -157,6 +163,12 @@
       "version": "v2"
     },
     {
+      "family": "smp1-json-bridge",
+      "rejections": 0,
+      "vectors": 46,
+      "version": "v3"
+    },
+    {
       "family": "state-root",
       "rejections": 0,
       "vectors": 0,
@@ -171,14 +183,14 @@
     {
       "family": "vm-extended",
       "rejections": 5,
-      "vectors": 29,
+      "vectors": 31,
       "version": "v1"
     }
   ],
-  "conformance_rejections": 276,
-  "conformance_vectors": 477,
+  "conformance_rejections": 283,
+  "conformance_vectors": 537,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "5cbce1e9e481eba3888c9f68f608bb20877705b4862d967fb9d72a2ecd852a54",
+  "inventory_digest": "4b02bf8a5bc20d62c7edff67f3c6672d3603ba59d371eadbf0a4075bad496ced",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -207,7 +219,7 @@
     "manifest_harness_deps": [],
     "python_use_sites": 0,
     "rust_use_sites": 0,
-    "scanned_manifests": 20
+    "scanned_manifests": 22
   },
   "property_tests": 0,
   "python_test_modules": [
@@ -238,8 +250,8 @@
     },
     {
       "directory": "bench/review/tests",
-      "files": 3,
-      "tests": 90
+      "files": 7,
+      "tests": 109
     },
     {
       "directory": "bench/sley2/tests",
@@ -248,11 +260,11 @@
     },
     {
       "directory": "oracle/scb1/tests",
-      "files": 2,
-      "tests": 120
+      "files": 3,
+      "tests": 133
     }
   ],
-  "python_tests": 421,
+  "python_tests": 453,
   "rust_crates": [
     {
       "crate": "sley-adapter",
@@ -267,7 +279,7 @@
     {
       "crate": "sley-cli",
       "ignored": 0,
-      "tests": 29
+      "tests": 43
     },
     {
       "crate": "sley-conformance",
@@ -287,17 +299,17 @@
     {
       "crate": "sley-mutate",
       "ignored": 0,
-      "tests": 70
+      "tests": 81
     },
     {
       "crate": "sley-policy",
-      "ignored": 1,
-      "tests": 59
+      "ignored": 2,
+      "tests": 85
     },
     {
       "crate": "sley-protocol",
-      "ignored": 3,
-      "tests": 89
+      "ignored": 4,
+      "tests": 121
     },
     {
       "crate": "sley-query",
@@ -306,8 +318,8 @@
     },
     {
       "crate": "sley-repo",
-      "ignored": 4,
-      "tests": 406
+      "ignored": 20,
+      "tests": 485
     },
     {
       "crate": "sley-scb1",
@@ -335,18 +347,28 @@
       "tests": 48
     },
     {
+      "crate": "sley-test-runner",
+      "ignored": 0,
+      "tests": 21
+    },
+    {
+      "crate": "sley-tests",
+      "ignored": 0,
+      "tests": 44
+    },
+    {
       "crate": "sley-txn",
       "ignored": 1,
-      "tests": 204
+      "tests": 244
     },
     {
       "crate": "sley-vm",
-      "ignored": 2,
-      "tests": 232
+      "ignored": 3,
+      "tests": 257
     }
   ],
-  "rust_ignored_emitters": 16,
-  "rust_unit_tests": 1435,
+  "rust_ignored_emitters": 35,
+  "rust_unit_tests": 1727,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

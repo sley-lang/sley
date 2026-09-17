@@ -13,7 +13,7 @@ The named Rust test is `s3_merge_neg_overlapping_change`
    (`ORACLE_MERGE_CONFLICT`, not an engine error symbol: a conflict is a
    successful judge outcome, never silent.)
 3. `oracle.py` runs
-   `cargo test --offline -p sley-repo --test s3_g2_merge s3_merge_neg_overlapping_change -- --nocapture`
+   `cargo test --offline -p sley-repo --test s3_g2_merge s3_merge_neg_overlapping_change -- --ignored --nocapture`
    (bounded timeout 240 s) and records `rejected` with code
    `ORACLE_MERGE_CONFLICT` only if BOTH the exit is nonzero AND the output
    contains the exact code line. A passing test or a missing code line is a

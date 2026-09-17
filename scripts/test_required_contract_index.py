@@ -85,6 +85,30 @@ class ValidBaselineControl(unittest.TestCase):
         self.assertEqual(payload.get("result"), "PASS")
 
 
+class IdentifierDomainClassification(unittest.TestCase):
+    def test_signing_contexts_and_comments_are_not_identifier_domains(self):
+        source = '''
+/// Documentation mentions b"sley2.documentation-only.v1".
+const TOKEN_DOMAIN: &[u8] = b"sley2.diagnostic-report-token.v1";
+const ADMISSION_SIGNATURE_CONTEXT: &[u8] =
+    b"sley2.native-test-admission-signature.v1";
+const MEASUREMENT_SIGNATURE_CONTEXT: &[u8] =
+    b"sley2.native-test-measurement-signature.v1";
+// A comment mentions b"sley2.comment-only.v1".
+'''
+        self.assertEqual(
+            CHECKER.rust_identifier_domains(source),
+            {"sley2.diagnostic-report-token.v1"},
+        )
+
+    def test_unknown_code_context_fails_closed_as_a_domain(self):
+        source = 'const NEW_CONTEXT: &[u8] = b"sley2.unreviewed-context.v1";'
+        self.assertEqual(
+            CHECKER.rust_identifier_domains(source),
+            {"sley2.unreviewed-context.v1"},
+        )
+
+
 class SectionRevisionCases(unittest.TestCase):
     """A-ST-R2-03/N-STATIC-R2-02/VUL-P2S-R2-03: document, section and
     current review revisions agree as true integers."""

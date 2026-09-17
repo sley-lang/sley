@@ -81,18 +81,21 @@ part of the `sley-id` kernel API.
 | merge plan nonce (S20-520) | `sley2.merge-plan-nonce.v1` |
 | reference adapter deterministic randomness (S20-280) | `sley2.reference-random.v1` |
 | S20-530 recovery ancestry test plan | `sley2.s20-530.recovery-ancestry-test-plan.v1` |
+| diagnostic report bearer token (SMP 605) | `sley2.diagnostic-report-token.v1` |
 
-Four rows were added on 2026-09-03 (ADR-0047) and fifteen more later the same
-day (ADR-0048). Every one was specified and fixtured by its own package but never reached
-this registry: the first four because no check compared the registry with the
-implementation, and the next sixteen because the check that was then added read
-only `crates/sley-id`, while a domain may be derived by any crate that hashes.
-The registry now carries all fifty domains the crates derive,
-`scripts/check_required_contract_index.py` compares the two over every crate on
-every `make quick`, and the last two rows are labelled by what they are: a
-deterministic randomness domain that grants no authority, and a test-hook plan
-domain that a release build compiles out. The registry's scope is the crate
-implementation. `sley2.*` strings that appear only under `scripts/` and
+Historical additions are recorded by ADR-0047, ADR-0048, and each later owning
+contract. Several were specified and fixtured by their own package but did not
+reach this registry because the first drift check read only `crates/sley-id`,
+while a domain may be derived by any crate that hashes. The registry now carries
+every BLAKE3 domain the crates derive. `scripts/check_required_contract_index.py`
+compares both sets over every crate on every `make quick`, excludes only the two
+exact Ed25519 signing contexts classified in `NATIVE_TEST_RESERVATIONS_V1.md`,
+and treats any other new crate-side `sley2.*` byte literal as a domain until its
+owner explicitly classifies it. The deterministic-randomness row grants no
+authority, the test-hook plan domain is compiled out of release builds, and the
+diagnostic-report token is an ephemeral bearer capability rather than a stored
+content identity. The registry's scope is the crate implementation. `sley2.*`
+strings that appear only under `scripts/` and
 `bench/` (evidence-chain SHA-256 prefixes such as the trial-trace and
 raw-run manifests, JSON report contract labels, the host-boundary record
 label) are not hash domains and are not registered;

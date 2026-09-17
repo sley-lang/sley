@@ -1,12 +1,18 @@
 {
   "contract": "sley2.declared-limits.v1",
-  "declared_limits": 156,
-  "documented_limits": 4,
+  "declared_limits": 187,
+  "documented_limits": 8,
   "result": "PASS",
   "scope": "PUBLIC CONSTANTS ONLY; OWNERSHIP STAYS WITH THE OWNING PACKAGE'S CHECKER",
   "undocumented": [],
   "undocumented_limits": 0,
-  "unevaluated_initializers": [],
+  "unevaluated_initializers": [
+    {
+      "constant": "MAX_COMMIT_WALL_MILLIS",
+      "initializer": "NATIVE_WALL_CAP_MILLIS",
+      "source": "crates/sley-txn/src/native_commit.rs"
+    }
+  ],
   "weak_evidence": [
     {
       "constant": "MAX_CFG_BLOCKS",
@@ -634,6 +640,31 @@
       "value": 100000000
     },
     {
+      "constant": "MAX_NATIVE_RECEIPT_CHUNKS",
+      "source": "crates/sley-repo/src/native_exchange.rs",
+      "value": 1024
+    },
+    {
+      "constant": "MAX_NATIVE_EXCHANGE_LEAVES",
+      "source": "crates/sley-repo/src/native_exchange.rs",
+      "value": 8195
+    },
+    {
+      "constant": "MAX_NATIVE_SIGNATURE_CHECKS",
+      "source": "crates/sley-repo/src/native_exchange.rs",
+      "value": 1052672
+    },
+    {
+      "constant": "MAX_NATIVE_TEST_VISITS",
+      "source": "crates/sley-repo/src/native_exchange.rs",
+      "value": 1048576
+    },
+    {
+      "constant": "MAX_NATIVE_EVIDENCE_BYTES",
+      "source": "crates/sley-repo/src/native_exchange.rs",
+      "value": 1073741824
+    },
+    {
       "constant": "MAX_BRANCHES",
       "source": "crates/sley-repo/src/refs.rs",
       "value": 4096
@@ -719,6 +750,116 @@
       "value": 16777216
     },
     {
+      "constant": "MAX_REQUEST_BYTES",
+      "source": "crates/sley-test-runner/src/config.rs",
+      "value": 65536
+    },
+    {
+      "constant": "MAX_WORKER_OUTPUT_BYTES",
+      "source": "crates/sley-test-runner/src/config.rs",
+      "value": 262144
+    },
+    {
+      "constant": "MAX_WORKER_FRAME",
+      "source": "crates/sley-test-runner/src/worker.rs",
+      "value": 262144
+    },
+    {
+      "constant": "MAX_BUNDLE_EMBEDDED_BYTES",
+      "source": "crates/sley-tests/src/bundle.rs",
+      "value": 16777216
+    },
+    {
+      "constant": "MAX_EXECUTION_ITEM_BYTES",
+      "source": "crates/sley-tests/src/bundle.rs",
+      "value": 262144
+    },
+    {
+      "constant": "MAX_STORED_BYTES",
+      "source": "crates/sley-tests/src/codec.rs",
+      "value": 4194304
+    },
+    {
+      "constant": "MAX_SELECTED_ENTRIES",
+      "source": "crates/sley-tests/src/codec.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_CHANGED_ENTRIES",
+      "source": "crates/sley-tests/src/codec.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_CONTEXT_PROJECTION_BYTES",
+      "source": "crates/sley-tests/src/context.rs",
+      "value": 16777216
+    },
+    {
+      "constant": "MAX_EXECUTION_REPORT_STORED",
+      "source": "crates/sley-tests/src/report.rs",
+      "value": 262144
+    },
+    {
+      "constant": "MAX_TEST_REPORT_ENTRIES",
+      "source": "crates/sley-tests/src/report.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_SYMBOL_BYTES",
+      "source": "crates/sley-tests/src/report.rs",
+      "value": 96
+    },
+    {
+      "constant": "MAX_PROPERTIES",
+      "source": "crates/sley-tests/src/supervisor.rs",
+      "value": 64
+    },
+    {
+      "constant": "MAX_CALLERS",
+      "source": "crates/sley-tests/src/supervisor.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_PROPERTY_NAME_BYTES",
+      "source": "crates/sley-tests/src/supervisor.rs",
+      "value": 128
+    },
+    {
+      "constant": "MAX_PROPERTY_VALUE_BYTES",
+      "source": "crates/sley-tests/src/supervisor.rs",
+      "value": 4096
+    },
+    {
+      "constant": "MAX_TRUST_ENTRIES",
+      "source": "crates/sley-tests/src/trust.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_TRUST_SET",
+      "source": "crates/sley-tests/src/trust.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_TRANSACTION_ITEMS",
+      "source": "crates/sley-txn/src/codec.rs",
+      "value": 65535
+    },
+    {
+      "constant": "MAX_NATIVE_SELECTED_TESTS",
+      "source": "crates/sley-txn/src/native_codec.rs",
+      "value": 256
+    },
+    {
+      "constant": "MAX_NATIVE_EVIDENCE_BYTES",
+      "source": "crates/sley-txn/src/native_codec.rs",
+      "value": 50331648
+    },
+    {
+      "constant": "MAX_JOURNAL_BYTES",
+      "source": "crates/sley-txn/src/native_commit.rs",
+      "value": 1024
+    },
+    {
       "constant": "MAX_OBSERVATION_PREIMAGE_BYTES",
       "source": "crates/sley-vm/src/execute.rs",
       "value": 67108864
@@ -769,5 +910,5 @@
       "value": 67108864
     }
   ],
-  "weak_limits": 152
+  "weak_limits": 179
 }

@@ -87,6 +87,8 @@ def spellings(value: int) -> set[str]:
 # `4 * (MAX_FRAME_BYTES as usize)`. The referenced constant must itself
 # evaluate; the cast is a width change, not a value change.
 DERIVED = re.compile(r"(\d[\d_]*)\s*\*\s*\(\s*(MAX_[A-Z0-9_]+)\s+as\s+\w+\s*\)")
+REFERENCE = re.compile(r"(MAX_[A-Z0-9_]+)")
+REFERENCE_OFFSET = re.compile(r"(MAX_[A-Z0-9_]+)\s*([+-])\s*(\d[\d_]*)")
 
 
 def evaluate(initializer: str, known: dict[str, int] | None = None) -> int | None:
@@ -99,6 +101,13 @@ def evaluate(initializer: str, known: dict[str, int] | None = None) -> int | Non
     text = initializer.strip()
     if NUMERIC.fullmatch(text):
         return int(text.replace("_", ""))
+    reference = REFERENCE.fullmatch(text)
+    if reference and known and reference.group(1) in known:
+        return known[reference.group(1)]
+    offset = REFERENCE_OFFSET.fullmatch(text)
+    if offset and known and offset.group(1) in known:
+        amount = int(offset.group(3).replace("_", ""))
+        return known[offset.group(1)] + amount if offset.group(2) == "+" else known[offset.group(1)] - amount
     derived = DERIVED.fullmatch(text)
     if derived and known and derived.group(2) in known:
         return int(derived.group(1).replace("_", "")) * known[derived.group(2)]
@@ -157,13 +166,25 @@ def main() -> int:
             continue
         for match in DECLARATION.finditer(path.read_text(encoding="utf-8", errors="ignore")):
             declarations.append((path, match.group(1), match.group(2)))
-    # First pass: every literal limit is a known value; second pass: a
-    # derived initializer evaluates through the limit it names.
+    # Resolve literal values, aliases, offsets and the supported multiplied
+    # form to a fixed point. A duplicated name with different values is
+    # intentionally unavailable to references rather than chosen by scan
+    # order.
+    values: dict[str, set[int]] = {}
     known: dict[str, int] = {}
-    for _path, name, initializer in declarations:
-        value = evaluate(initializer)
-        if value is not None and name not in known:
-            known[name] = value
+    while True:
+        before = {name: frozenset(found) for name, found in values.items()}
+        for _path, name, initializer in declarations:
+            value = evaluate(initializer, known)
+            if value is not None:
+                values.setdefault(name, set()).add(value)
+        known = {
+            name: next(iter(found))
+            for name, found in values.items()
+            if len(found) == 1
+        }
+        if before == {name: frozenset(found) for name, found in values.items()}:
+            break
     for path, name, initializer in declarations:
         if True:
             declared += 1

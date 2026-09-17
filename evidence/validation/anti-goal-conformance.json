@@ -2,9 +2,9 @@
   "anti_goal_count": 25,
   "anti_goals": [
     {
-      "acceptance_evidence": "no parser crate/grammar/`.sley`; source-like input rejected",
+      "acceptance_evidence": "no production parser crate/grammar/`.sley`; inert benchmark fixture sources never enter the product graph; source-like protocol input rejected",
       "anti_goal": "Sley source syntax or parser",
-      "detail": "0 .sley files; parser crates in the lock: none",
+      "detail": "0 production .sley files; parser crates in the lock: none; benchmark fixture sources are inert corpus inputs",
       "state": "HOLDS",
       "surface": "dependency/file inventory; protocol input corpus"
     },
@@ -86,9 +86,9 @@
       "surface": "error contract and fault injection"
     },
     {
-      "acceptance_evidence": "no process opcode or unrestricted adapter",
+      "acceptance_evidence": "no process opcode, unrestricted adapter, or shell interpreter; the host-readiness probe may execute only its mechanically closed `systemctl --version` and `getconf PAGESIZE` commands",
       "anti_goal": "arbitrary shell",
-      "detail": "kernel sources invoking a process: none",
+      "detail": "unapproved process surfaces: none; the host-readiness probe is limited to systemctl --version and getconf PAGESIZE without a shell",
       "state": "HOLDS",
       "surface": "opcode/adapter inventory and runtime denial"
     },
@@ -116,7 +116,7 @@
     {
       "acceptance_evidence": "core/conformance pass with network disabled",
       "anti_goal": "network-dependent core tests",
-      "detail": "networking crates in the lock: none; the lock holds 48 crates in total",
+      "detail": "networking crates in the lock: none; the lock holds 50 crates in total",
       "state": "HOLDS",
       "surface": "network-isolated gate"
     },
@@ -179,7 +179,7 @@
   ],
   "contract": "sley2.anti-goal-conformance.v1",
   "interpretation": "HOLDS means the named mechanical evidence was evaluated and passed; REVIEW_ONLY means the anti-goal's evidence needs a human judgment and is not a pass. A VIOLATED entry is a constitutional breach and fails the gate.",
-  "report_digest": "e9cdd99deacb364f93fd9f75b83a0e7dbbda2558ca2ef0372d5965885c923733",
+  "report_digest": "e9bcf4d0de652ba7d96892ef82b31c3c10493860f5233557eb3a53951e6cea3f",
   "source": "docs/ANTI_GOALS.md",
   "states": {
     "HOLDS": 9,

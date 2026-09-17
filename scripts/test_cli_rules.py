@@ -13,6 +13,7 @@ mutates the repository under test.
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -51,12 +52,23 @@ def audit(production: str) -> tuple[list, dict]:
 
 
 class TruthDerivationControl(unittest.TestCase):
-    def test_version_two_tags_and_names_are_audited(self) -> None:
+    def test_current_protocol_tags_and_names_match_the_v3_table(self) -> None:
         self.assertIn(306, TAGS)
         self.assertIn(307, TAGS)
+        self.assertIn(605, TAGS)
         self.assertIn("entity.version", NAMES)
         self.assertIn("entity.signature", NAMES)
-        self.assertEqual((len(TAGS), len(NAMES)), (43, 43))
+        self.assertIn("tests.report_read", NAMES)
+        table = json.loads(
+            (ROOT / "conformance/smp1-json-bridge/v3/methods.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        expected_tags = tuple(sorted(method["tag"] for method in table["methods"]))
+        expected_names = tuple(sorted(method["name"] for method in table["methods"]))
+        self.assertEqual(TAGS, expected_tags)
+        self.assertEqual(NAMES, expected_names)
+        self.assertEqual(len(TAGS), table["method_count"])
 
     def test_refactored_protocol_source_fails_as_value_error(self) -> None:
         with self.assertRaises(ValueError):

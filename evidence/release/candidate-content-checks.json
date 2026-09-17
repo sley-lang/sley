@@ -1,13 +1,13 @@
 {
-  "artifact_sha256": "7da77f1b41b18845076ba1694e1163ed77301385417305f5eab00faf9be1ea3a",
-  "artifact_size_bytes": 2190465,
+  "artifact_sha256": "10a978f86486bf3b1ea9d999c06d9deb043a6830f2e83ea670ccefda119654c9",
+  "artifact_size_bytes": 2444860,
   "checks": {
     "forbidden_content": true,
     "manifest": true
   },
-  "commit": "5313437afb5df66b5fa48b82c374746467d0a1ca",
+  "commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
   "contract": "sley2.candidate-content-checks.v1",
-  "manifest_digest": "e3904edcae19475e52e36c473884b5dbd61bb42ae8d445966ad065ed57bf6702",
-  "report_digest": "0e2d3f56113d1b14833ba5821546ec36ebbdd4965f12de9ba12e63978f7ee8eb",
+  "manifest_digest": "74dfe30f3cce0236df7984229ab9684da0105ac0813290e4544d8c8af2019670",
+  "report_digest": "47a0d8002e1d8539841666a32a897943346cac65b50afea0b5faeffccf48c560",
   "result": "PASS"
 }

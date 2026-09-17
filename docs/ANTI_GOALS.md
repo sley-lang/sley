@@ -12,7 +12,7 @@ acceptance evidence is mechanical and writes
 
 | Anti-goal | Enforcement surface | Acceptance evidence |
 |---|---|---|
-| Sley source syntax or parser | dependency/file inventory; protocol input corpus | no parser crate/grammar/`.sley`; source-like input rejected |
+| Sley source syntax or parser | dependency/file inventory; protocol input corpus | no production parser crate/grammar/`.sley`; inert benchmark fixture sources never enter the product graph; source-like protocol input rejected |
 | canonical text or human projection | format and release inventory | SCB1 only; debug notation rejected as input |
 | formatter, REPL, Tree-sitter, conventional LSP | package and command inventory | release-check denylist is empty |
 | Sley 1.x compatibility | dependency and fixture review | no legacy crate/source dependency; importer absent from GA graph |
@@ -24,7 +24,7 @@ acceptance evidence is mechanical and writes
 | self-authorizing candidate | policy/epoch/oracle isolation tests | candidate cannot change its judging roots |
 | normalize malformed bytes | SCB1 rejection corpus | every non-canonical vector rejected, not rewritten |
 | weak/unknown success | error contract and fault injection | unknown/internal/incomparable never commits |
-| arbitrary shell | opcode/adapter inventory and runtime denial | no process opcode or unrestricted adapter |
+| arbitrary shell | opcode/adapter inventory and runtime denial | no process opcode, unrestricted adapter, or shell interpreter; the host-readiness probe may execute only its mechanically closed `systemctl --version` and `getconf PAGESIZE` commands |
 | mandatory Greyforge dependency | Cargo graph and clean-room release | core builds/tests offline without ZJX/Siglum/Forge products |
 | Git-defined semantics | repository conformance | identical packs/roots outside Git; no Git metadata in hashes |
 | native/JIT/AOT/marketplace/self-hosting outside an authorized campaign | workspace/package denylist + campaign-declaration record | absent from GA dependency graph unless declared in the authorized campaign boundary record (host-boundary.json) and gated by staged SH2 proofs |

@@ -11,7 +11,7 @@ The named Rust test is `s3_corrupt_neg_flip_elsewhere`
    `S3_NEG_RESULT PACK_DIGEST_MISMATCH` to stdout, then panics
    (fails by design), so `cargo test` exits nonzero (cargo reports 101).
 3. `oracle.py` runs
-   `cargo test --offline -p sley-repo --test s3_g2_corrupt s3_corrupt_neg_flip_elsewhere -- --nocapture`
+   `cargo test --offline -p sley-repo --test s3_g2_corrupt s3_corrupt_neg_flip_elsewhere -- --ignored --nocapture`
    (bounded timeout 240 s) and records `rejected` with code
    `PACK_DIGEST_MISMATCH` only if BOTH the exit is nonzero AND the output
    contains the exact code line. A passing test or a missing code line is a

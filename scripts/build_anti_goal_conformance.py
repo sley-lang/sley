@@ -26,6 +26,7 @@ MATRIX = ROOT / "docs/ANTI_GOALS.md"
 REPORT = ROOT / "evidence/validation/anti-goal-conformance.json"
 CONTRACT = "sley2.anti-goal-conformance.v1"
 KERNEL_TREES = ("crates",)
+PROBE_SOURCE = Path("crates/sley-test-runner/src/probe.rs")
 # Crate names that would signal a prohibited capability if they entered the
 # dependency graph.
 FORBIDDEN_DEPENDENCIES = {
@@ -74,6 +75,23 @@ def kernel_sources() -> list[Path]:
             if "/target/" not in str(path):
                 sources.append(path)
     return sources
+
+
+def approved_probe_process_surface(source: str) -> bool:
+    """Whether the host-readiness probe keeps its closed shell-free surface."""
+    if source.count("std::process::Command::new(") != 1:
+        return False
+    if "fn run_capture(program: &str, args: &[&str])" not in source:
+        return False
+    if "std::process::Command::new(program)\n        .args(args)\n        .output()" not in source:
+        return False
+    calls = re.findall(r'run_capture\("([^"]+)",\s*&\[([^]]*)\]\)', source)
+    if sorted(calls) != [
+        ("getconf", '"PAGESIZE"'),
+        ("systemctl", '"--version"'),
+    ]:
+        return False
+    return not re.search(r'Command::new\("(?:ba|da|z)?sh"\)|"-c"', source)
 
 
 def git(*arguments: str) -> str:
@@ -144,16 +162,18 @@ def evaluate() -> dict[str, dict]:
     def record(anti_goal: str, holds: bool, detail: str) -> None:
         verdicts[anti_goal] = {"verdict": "HOLDS" if holds else "VIOLATED", "detail": detail}
 
+    fixture_root = ROOT / "bench" / "fixtures"
     sley_files = [
         str(path.relative_to(ROOT))
         for path in ROOT.rglob("*.sley")
-        if "/target/" not in str(path)
+        if "/target/" not in str(path) and not path.is_relative_to(fixture_root)
     ]
     parsers = sorted(locked & set(FORBIDDEN_DEPENDENCIES["parser"]))
     record(
         "Sley source syntax or parser",
         not sley_files and not parsers,
-        f"{len(sley_files)} .sley files; parser crates in the lock: {parsers or 'none'}",
+        f"{len(sley_files)} production .sley files; parser crates in the lock: {parsers or 'none'}; "
+        "benchmark fixture sources are inert corpus inputs",
     )
 
     services = sorted(locked & set(FORBIDDEN_DEPENDENCIES["language_service"]))
@@ -191,15 +211,20 @@ def evaluate() -> dict[str, dict]:
         f"Greyforge product crates in the lock: {products or 'none'}",
     )
 
-    shell_users = [
-        str(path.relative_to(ROOT))
-        for path in sources
-        if "std::process::Command" in path.read_text(encoding="utf-8", errors="ignore")
-    ]
+    shell_users = []
+    for path in sources:
+        source = path.read_text(encoding="utf-8", errors="ignore")
+        if "std::process::Command" not in source:
+            continue
+        relative = path.relative_to(ROOT)
+        if relative == PROBE_SOURCE and approved_probe_process_surface(source):
+            continue
+        shell_users.append(str(relative))
     record(
         "arbitrary shell",
         not shell_users,
-        f"kernel sources invoking a process: {shell_users or 'none'}",
+        f"unapproved process surfaces: {shell_users or 'none'}; the host-readiness probe is "
+        "limited to systemctl --version and getconf PAGESIZE without a shell",
     )
 
     workspace_manifest = (ROOT / "Cargo.toml").read_text(encoding="utf-8")

@@ -233,7 +233,9 @@ engine made unimplementable (exact error, no paraphrase of intent).
   no failing candidate ever traverses the engine. Strengthen to
   engine-rejected negatives where the API allows.
 - Prove-then-fail handshake (used by CORRUPT-001 `flip_elsewhere`: sley2 Rust
-  neg tests print `S3_NEG_RESULT <CODE>` then fail by design; legacy
+  neg tests are ignored by ordinary `cargo test`; the fixture oracles invoke
+  them with `--ignored`, require `S3_NEG_RESULT <CODE>`, then require the
+  intentional nonzero exit; legacy
   `PROVE_THEN_FAIL` marker file inverts a demonstrated refusal to exit 1):
   the property is genuinely demonstrated, the exit-1 is procedural. Keep the
   marker + PIN line greppable; never use this handshake to mask a property

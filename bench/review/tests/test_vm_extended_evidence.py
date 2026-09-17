@@ -1,5 +1,6 @@
 """Required frozen VM outcomes remain distinct from codec-only acceptance."""
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -47,7 +48,16 @@ class CurrentRecordConsistency(unittest.TestCase):
         import check_vm_extended_opcode_profile as checker
         with tempfile.TemporaryDirectory() as directory:
             adr = Path(directory) / 'adr.md'
-            adr.write_text(checker.ADR.read_text().replace('current contract revision 16', 'current contract revision 15'))
+            current = checker.ADR.read_text()
+            stale = re.sub(
+                r'^(Status:[^\n]*current contract revision )\d+',
+                r'\g<1>0',
+                current,
+                count=1,
+                flags=re.MULTILINE,
+            )
+            self.assertNotEqual(stale, current)
+            adr.write_text(stale)
             with patch.object(checker, 'ADR', adr), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(checker.main(), 1)
 
