@@ -27,6 +27,8 @@
 //! adds all six equality/ordering opcodes and all eight checked-integer
 //! opcodes, the unary/binary floating family, value constructors, local-cell
 //! operations, and value hashing to the same traversal.
+//! A second runtime-vector path walks arbitrary operand lists for FMA, tuple/
+//! vector construction and access, and ordered-map access/update operations.
 //! The terminator slices lower return, branch, conditional branch, trap, and
 //! built-in variant-switch models. They walk every edge or case argument and
 //! every runtime switch case in Sley.
@@ -38,6 +40,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-checked-integers.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-floating.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-values-cells.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-variadic.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
@@ -104,6 +107,17 @@ fn inventory_model_type() -> TypeExpr {
 fn inventory_result_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(inventory_summary_type()),
+        error: Box::new(u32_type()),
+    }
+}
+
+fn variadic_summary_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![single_lowered_type(), u32_type()])
+}
+
+fn variadic_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(variadic_summary_type()),
         error: Box::new(u32_type()),
     }
 }
@@ -2246,6 +2260,377 @@ fn build_register_vector_validator(
     }
 }
 
+/// Lowers one runtime immediate-free operation whose complete operand vector
+/// is supplied after checking. A Sley helper walks every register before the
+/// main function derives the dense result frontier.
+#[allow(clippy::too_many_lines)]
+fn variadic_operation_lowerer() -> LowerScaffold {
+    let function = inventory_id(5, 6);
+    let validator = inventory_id(5, 7);
+    let mut assembler = InventoryAssembler::new();
+    let validator_graph = build_register_vector_validator(&mut assembler, validator);
+
+    let opcode = assembler.parameter(function, ParameterRole::Function, 0, u32_type());
+    let operands = assembler.parameter(function, ParameterRole::Function, 1, u32vec_type());
+    let next_register = assembler.parameter(function, ParameterRole::Function, 2, u32_type());
+
+    let entry = assembler.block_id();
+    let opcode_tuple_new = assembler.block_id();
+    let opcode_vector_new = assembler.block_id();
+    let opcode_vector_len = assembler.block_id();
+    let opcode_vector_get = assembler.block_id();
+    let opcode_vector_set = assembler.block_id();
+    let opcode_map_get = assembler.block_id();
+    let opcode_map_contains = assembler.block_id();
+    let opcode_map_insert = assembler.block_id();
+    let opcode_map_remove = assembler.block_id();
+    let count_one = assembler.block_id();
+    let count_two = assembler.block_id();
+    let count_three = assembler.block_id();
+    let validate = assembler.block_id();
+    let emit = assembler.block_id();
+    let success = assembler.block_id();
+    let forward_error = assembler.block_id();
+    let opcode_error = assembler.block_id();
+    let signature_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+
+    let tags = [
+        Opcode::FloatFma,
+        Opcode::TupleNew,
+        Opcode::VectorNew,
+        Opcode::VectorLen,
+        Opcode::VectorGet,
+        Opcode::VectorSet,
+        Opcode::MapGet,
+        Opcode::MapContains,
+        Opcode::MapInsert,
+        Opcode::MapRemove,
+    ]
+    .map(|value| assembler.constant(u32_value(u128::from(value.tag()))));
+    let one_u64 = assembler.constant(u64_value(1));
+    let two_u64 = assembler.constant(u64_value(2));
+    let three_u64 = assembler.constant(u64_value(3));
+    let one_u32 = assembler.constant(u32_value(1));
+    let opcode_error_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
+    )));
+    let signature_error_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
+    )));
+    let resource_error_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+    )));
+
+    let dispatch = |assembler: &mut InventoryAssembler,
+                    block: EntityId,
+                    tag: EntityId,
+                    matched: EntityId,
+                    unmatched: EntityId| {
+        let tag_value = assembler.constant_ref(block, tag, u32_type());
+        let matches = assembler.operation(
+            block,
+            Opcode::Equal,
+            vec![ValueRef::Parameter(opcode), operation_value(tag_value)],
+            TypeExpr::Bool,
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![tag_value, matches],
+            inventory_cond(
+                operation_value(matches),
+                matched,
+                Vec::new(),
+                unmatched,
+                Vec::new(),
+            ),
+        );
+    };
+    dispatch(
+        &mut assembler,
+        entry,
+        tags[0],
+        count_three,
+        opcode_tuple_new,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_tuple_new,
+        tags[1],
+        validate,
+        opcode_vector_new,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_vector_new,
+        tags[2],
+        validate,
+        opcode_vector_len,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_vector_len,
+        tags[3],
+        count_one,
+        opcode_vector_get,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_vector_get,
+        tags[4],
+        count_two,
+        opcode_vector_set,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_vector_set,
+        tags[5],
+        count_three,
+        opcode_map_get,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_map_get,
+        tags[6],
+        count_two,
+        opcode_map_contains,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_map_contains,
+        tags[7],
+        count_two,
+        opcode_map_insert,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_map_insert,
+        tags[8],
+        count_three,
+        opcode_map_remove,
+    );
+    dispatch(
+        &mut assembler,
+        opcode_map_remove,
+        tags[9],
+        count_two,
+        opcode_error,
+    );
+
+    let count_check = |assembler: &mut InventoryAssembler, block: EntityId, expected: EntityId| {
+        let length = assembler.operation(
+            block,
+            Opcode::VectorLen,
+            vec![ValueRef::Parameter(operands)],
+            u64_type(),
+            Immediate::None,
+        );
+        let expected_value = assembler.constant_ref(block, expected, u64_type());
+        let matches = assembler.operation(
+            block,
+            Opcode::Equal,
+            vec![operation_value(length), operation_value(expected_value)],
+            TypeExpr::Bool,
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![length, expected_value, matches],
+            inventory_cond(
+                operation_value(matches),
+                validate,
+                Vec::new(),
+                signature_error,
+                Vec::new(),
+            ),
+        );
+    };
+    count_check(&mut assembler, count_one, one_u64);
+    count_check(&mut assembler, count_two, two_u64);
+    count_check(&mut assembler, count_three, three_u64);
+
+    let validation = assembler.operation(
+        validate,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(operands),
+            ValueRef::Parameter(next_register),
+        ],
+        unit_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: validator,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        validate,
+        function,
+        Vec::new(),
+        vec![validation],
+        inventory_switch(
+            operation_value(validation),
+            vec![
+                (BuiltinCase::Ok, emit, Vec::new()),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let results = assembler.operation(
+        emit,
+        Opcode::VectorNew,
+        vec![ValueRef::Parameter(next_register)],
+        u32vec_type(),
+        Immediate::None,
+    );
+    let instruction = assembler.operation(
+        emit,
+        Opcode::TupleNew,
+        vec![
+            ValueRef::Parameter(opcode),
+            ValueRef::Parameter(operands),
+            operation_value(results),
+        ],
+        single_lowered_type(),
+        Immediate::None,
+    );
+    let one = assembler.constant_ref(emit, one_u32, u32_type());
+    let advanced = assembler.operation(
+        emit,
+        Opcode::IntAddChecked,
+        vec![ValueRef::Parameter(next_register), operation_value(one)],
+        arithmetic_result_type(u32_type()),
+        Immediate::None,
+    );
+    assembler.push_block(
+        emit,
+        function,
+        Vec::new(),
+        vec![results, instruction, one, advanced],
+        inventory_switch(
+            operation_value(advanced),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    success,
+                    vec![
+                        SwitchArgument::Value(operation_value(instruction)),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let success_instruction =
+        assembler.parameter(success, ParameterRole::Block, 0, single_lowered_type());
+    let success_frontier = assembler.parameter(success, ParameterRole::Block, 1, u32_type());
+    let summary = assembler.operation(
+        success,
+        Opcode::TupleNew,
+        vec![
+            ValueRef::Parameter(success_instruction),
+            ValueRef::Parameter(success_frontier),
+        ],
+        variadic_summary_type(),
+        Immediate::None,
+    );
+    let accepted = assembler.operation(
+        success,
+        Opcode::ResultOk,
+        vec![operation_value(summary)],
+        variadic_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        success,
+        function,
+        vec![success_instruction, success_frontier],
+        vec![summary, accepted],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(accepted),
+        }),
+    );
+
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let forwarded_error = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        variadic_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_error],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(forwarded_error),
+        }),
+    );
+    for (block, code) in [
+        (opcode_error, opcode_error_code),
+        (signature_error, signature_error_code),
+        (resource_error, resource_error_code),
+    ] {
+        let value = assembler.constant_ref(block, code, u32_type());
+        let rejected = assembler.operation(
+            block,
+            Opcode::ResultErr,
+            vec![operation_value(value)],
+            variadic_result_type(),
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![value, rejected],
+            Terminator::Return(ReturnTerminator {
+                value: operation_value(rejected),
+            }),
+        );
+    }
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![opcode, operands, next_register],
+        result_type: variadic_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    LowerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph, validator_graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+        adapters: Vec::new(),
+    }
+}
+
 fn append_terminator_success_block(
     assembler: &mut InventoryAssembler,
     function: EntityId,
@@ -3818,6 +4203,28 @@ fn execute_bool_inventory(
     .expect("v2 executes ordered Boolean inventory lowerer")
 }
 
+fn execute_variadic_operation(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    opcode: Opcode,
+    operands: &[u32],
+    next_register: u32,
+) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                u32_value(u128::from(opcode.tag())),
+                u32vec_value(operands),
+                u32_value(u128::from(next_register)),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes variadic operation lowerer")
+}
+
 #[allow(clippy::too_many_arguments)]
 fn execute_simple_terminator(
     package: &sley_vm::ExecutionPackage,
@@ -4046,6 +4453,46 @@ fn assert_inventory_error(outcome: &sley_vm::ExecutionOutcome, expected: u32) {
     assert_eq!(code.data, ConstData::UInt(u128::from(expected)));
 }
 
+fn assert_variadic_summary(
+    outcome: &sley_vm::ExecutionOutcome,
+    expected: &sley_vm::Instruction,
+    expected_frontier: u32,
+) {
+    use sley_ssmc::ResultConst;
+    let registers = |value: &ConstValue| match &value.data {
+        ConstData::Sequence(found) => found
+            .iter()
+            .map(|register| match register.data {
+                ConstData::UInt(value) => u32::try_from(value).expect("register fits u32"),
+                ref other => panic!("register must be UInt32, got {other:?}"),
+            })
+            .collect::<Vec<_>>(),
+        other => panic!("register list must be Vector, got {other:?}"),
+    };
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!("variadic lowering must terminate with a value")
+    };
+    let ConstData::Result(ResultConst::Ok(summary)) = &value.data else {
+        panic!("variadic lowering must return Ok, got {:?}", value.data)
+    };
+    let ConstData::Sequence(fields) = &summary.data else {
+        panic!("variadic summary must be a tuple")
+    };
+    let ConstData::Sequence(instruction) = &fields[0].data else {
+        panic!("variadic instruction must be a tuple")
+    };
+    assert_eq!(
+        instruction[0].data,
+        ConstData::UInt(u128::from(expected.opcode))
+    );
+    assert_eq!(registers(&instruction[1]), expected.operands);
+    assert_eq!(registers(&instruction[2]), expected.results);
+    assert_eq!(
+        fields[1].data,
+        ConstData::UInt(u128::from(expected_frontier))
+    );
+}
+
 #[allow(clippy::too_many_lines)]
 fn native_single_scalar(opcode: Opcode) -> sley_vm::Instruction {
     let function_id = id(1);
@@ -4180,6 +4627,119 @@ fn native_single_scalar(opcode: Opcode) -> sley_vm::Instruction {
     })
     .unwrap_or_else(|error| panic!("native reference lowers {opcode:?}: {error:?}"));
     lowered.bytecode.blocks[0].instructions[0].clone()
+}
+
+#[allow(clippy::too_many_lines)]
+fn native_variadic_instruction(opcode: Opcode) -> sley_vm::Instruction {
+    let vector = TypeExpr::Vector(Box::new(TypeExpr::Bool));
+    let map = TypeExpr::OrderedMap {
+        key: Box::new(TypeExpr::Bool),
+        value: Box::new(u32_type()),
+    };
+    let (parameter_types, result_type) = match opcode {
+        Opcode::FloatFma => (vec![TypeExpr::F64; 3], TypeExpr::F64),
+        Opcode::TupleNew => (
+            vec![TypeExpr::Bool, u32_type()],
+            TypeExpr::Tuple(vec![TypeExpr::Bool, u32_type()]),
+        ),
+        Opcode::VectorNew => (vec![TypeExpr::Bool, TypeExpr::Bool], vector.clone()),
+        Opcode::VectorLen => (vec![vector.clone()], u64_type()),
+        Opcode::VectorGet => (
+            vec![vector.clone(), u64_type()],
+            TypeExpr::Option(Box::new(TypeExpr::Bool)),
+        ),
+        Opcode::VectorSet => (
+            vec![vector.clone(), u64_type(), TypeExpr::Bool],
+            TypeExpr::Result {
+                ok: Box::new(vector.clone()),
+                error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Index)),
+            },
+        ),
+        Opcode::MapGet => (
+            vec![map.clone(), TypeExpr::Bool],
+            TypeExpr::Option(Box::new(u32_type())),
+        ),
+        Opcode::MapContains => (vec![map.clone(), TypeExpr::Bool], TypeExpr::Bool),
+        Opcode::MapInsert => (vec![map.clone(), TypeExpr::Bool, u32_type()], map.clone()),
+        Opcode::MapRemove => (vec![map.clone(), TypeExpr::Bool], map),
+        other => panic!("variadic reference fixture does not support {other:?}"),
+    };
+    let function_id = id(1);
+    let block_id = id(2);
+    let operation_id = id(3);
+    let parameter_ids = (0..parameter_types.len())
+        .map(|index| id(10 + u8::try_from(index).expect("small parameter index")))
+        .collect::<Vec<_>>();
+    let function = FunctionGraph {
+        entity_id: function_id,
+        type_parameters: Vec::new(),
+        parameters: parameter_ids.clone(),
+        result_type: result_type.clone(),
+        effects: Vec::new(),
+        entry_block: block_id,
+        blocks: vec![block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameters = parameter_ids
+        .iter()
+        .zip(parameter_types)
+        .enumerate()
+        .map(|(ordinal, (entity_id, value_type))| Parameter {
+            entity_id: *entity_id,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: u32::try_from(ordinal).expect("small parameter ordinal"),
+            value_type,
+        })
+        .collect::<Vec<_>>();
+    let operation = Operation {
+        entity_id: operation_id,
+        block: block_id,
+        ordinal: 0,
+        opcode,
+        operands: parameter_ids
+            .iter()
+            .copied()
+            .map(ValueRef::Parameter)
+            .collect(),
+        result_types: vec![result_type],
+        immediate: Immediate::None,
+    };
+    let block = Block {
+        entity_id: block_id,
+        function: function_id,
+        parameters: Vec::new(),
+        operations: vec![operation_id],
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::OperationResult(OperationResultRef {
+                operation: operation_id,
+                result_index: 0,
+            }),
+        }),
+        reachability: Reachability::Required,
+    };
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    sley_vm::lower_function(sley_vm::LoweringInput {
+        types: &types,
+        function: &function,
+        parameters: &parameters,
+        blocks: &[block],
+        operations: &[operation],
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: sley_vm::CacheProfile::EXTENDED_V1,
+        constants: &[],
+        globals: &[],
+        functions: std::slice::from_ref(&function),
+        contracts: &[],
+        adapters: &[],
+    })
+    .unwrap_or_else(|error| panic!("native reference lowers {opcode:?}: {error:?}"))
+    .bytecode
+    .blocks[0]
+        .instructions[0]
+        .clone()
 }
 
 fn native_bool_chain() -> Vec<sley_vm::Instruction> {
@@ -4941,6 +5501,68 @@ fn lower_ordered_scalar_inventory_checks_every_row_in_order() {
         ),
         sley_vm::LowerErrorCode::ResourceLimit.numeric(),
     );
+}
+
+#[test]
+fn lower_variadic_operation_families_match_native_dense_models() {
+    let (package, approved) = admit_lower_program(&variadic_operation_lowerer());
+    for opcode in [
+        Opcode::FloatFma,
+        Opcode::TupleNew,
+        Opcode::VectorNew,
+        Opcode::VectorLen,
+        Opcode::VectorGet,
+        Opcode::VectorSet,
+        Opcode::MapGet,
+        Opcode::MapContains,
+        Opcode::MapInsert,
+        Opcode::MapRemove,
+    ] {
+        let expected = native_variadic_instruction(opcode);
+        let next_register =
+            u32::try_from(expected.operands.len()).expect("small variadic fixture arity");
+        let first = execute_variadic_operation(
+            &package,
+            &approved,
+            opcode,
+            &expected.operands,
+            next_register,
+        );
+        let second = execute_variadic_operation(
+            &package,
+            &approved,
+            opcode,
+            &expected.operands,
+            next_register,
+        );
+        assert_variadic_summary(&first, &expected, next_register + 1);
+        assert_eq!(first.termination, second.termination);
+    }
+}
+
+#[test]
+fn lower_variadic_operation_families_preserve_failure_order() {
+    let (package, approved) = admit_lower_program(&variadic_operation_lowerer());
+    for (outcome, expected) in [
+        (
+            execute_variadic_operation(&package, &approved, Opcode::BoolAnd, &[0, 1], 2),
+            sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
+        ),
+        (
+            execute_variadic_operation(&package, &approved, Opcode::VectorLen, &[0, 1], 2),
+            sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
+        ),
+        (
+            execute_variadic_operation(&package, &approved, Opcode::FloatFma, &[0, 1, 3], 3),
+            sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
+        ),
+        (
+            execute_variadic_operation(&package, &approved, Opcode::TupleNew, &[], u32::MAX),
+            sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+        ),
+    ] {
+        assert_inventory_error(&outcome, expected);
+    }
 }
 
 #[test]
