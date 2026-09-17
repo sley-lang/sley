@@ -333,15 +333,18 @@ fn lower_scaffold() -> LowerScaffold {
 }
 
 /// Real bounded §1.3 algorithm: lower one checked Boolean operation to
-/// `(opcode, operand_registers, result_registers)`. Function parameters own
-/// dense registers from zero and the single result follows them. The input is
-/// intentionally supplied after admission, so the image cannot contain the
-/// answer being compared with the native reference lowerer.
+/// `(opcode, operand_registers, result_registers)`. Operands and the next
+/// dense result register are runtime inputs and every operand must refer to a
+/// prior register. Inputs arrive after admission, so the image cannot contain
+/// the answer being compared with the native reference lowerer.
 #[allow(clippy::too_many_lines)]
 fn single_bool_lowerer() -> LowerScaffold {
     const FUNCTION_ID: u8 = 1;
     const OPCODE_PARAM: u8 = 10;
     const PARAM_COUNT_PARAM: u8 = 11;
+    const OPERAND_ZERO_PARAM: u8 = 12;
+    const OPERAND_ONE_PARAM: u8 = 13;
+    const NEXT_REGISTER_PARAM: u8 = 14;
     const ENTRY: u8 = 20;
     const AND_CHECK: u8 = 21;
     const OR_CHECK: u8 = 22;
@@ -351,18 +354,25 @@ fn single_bool_lowerer() -> LowerScaffold {
     const BINARY_EMIT: u8 = 26;
     const OPCODE_ERROR: u8 = 27;
     const SIGNATURE_ERROR: u8 = 28;
+    const UNARY_REFERENCE: u8 = 29;
+    const BINARY_REFERENCE_ZERO: u8 = 30;
+    const BINARY_REFERENCE_ONE: u8 = 31;
+    const LOCAL_REFERENCE_ERROR: u8 = 32;
     const K_NOT: u8 = 60;
     const K_AND: u8 = 61;
     const K_OR: u8 = 62;
     const K_ONE: u8 = 63;
     const K_TWO: u8 = 64;
-    const K_ZERO: u8 = 65;
     const K_OPCODE_ERROR: u8 = 66;
     const K_SIGNATURE_ERROR: u8 = 67;
+    const K_LOCAL_REFERENCE_ERROR: u8 = 68;
 
     let function = id(FUNCTION_ID);
     let opcode_param = id(OPCODE_PARAM);
     let parameter_count_param = id(PARAM_COUNT_PARAM);
+    let operand_zero_param = id(OPERAND_ZERO_PARAM);
+    let operand_one_param = id(OPERAND_ONE_PARAM);
+    let next_register_param = id(NEXT_REGISTER_PARAM);
     let constants = vec![
         ConstantDefinition {
             entity_id: id(K_NOT),
@@ -385,10 +395,6 @@ fn single_bool_lowerer() -> LowerScaffold {
             value: u32_value(2),
         },
         ConstantDefinition {
-            entity_id: id(K_ZERO),
-            value: u32_value(0),
-        },
-        ConstantDefinition {
             entity_id: id(K_OPCODE_ERROR),
             value: u32_value(u128::from(
                 sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
@@ -398,6 +404,12 @@ fn single_bool_lowerer() -> LowerScaffold {
             entity_id: id(K_SIGNATURE_ERROR),
             value: u32_value(u128::from(
                 sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
+            )),
+        },
+        ConstantDefinition {
+            entity_id: id(K_LOCAL_REFERENCE_ERROR),
+            value: u32_value(u128::from(
+                sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
             )),
         },
     ];
@@ -448,38 +460,68 @@ fn single_bool_lowerer() -> LowerScaffold {
             reachability: Reachability::Required,
         });
     };
-    count_block(UNARY_COUNT, K_ONE, UNARY_EMIT);
-    count_block(BINARY_COUNT, K_TWO, BINARY_EMIT);
+    count_block(UNARY_COUNT, K_ONE, UNARY_REFERENCE);
+    count_block(BINARY_COUNT, K_TWO, BINARY_REFERENCE_ZERO);
 
-    let mut emit_block = |block_id: u8, operand_constants: &[u8], result_constant: u8| {
+    let mut reference_block = |block_id: u8, operand: EntityId, success: u8| {
+        let block = id(block_id);
+        let valid = builder.take_op();
+        builder.operations.push(Operation {
+            entity_id: valid,
+            block,
+            ordinal: 0,
+            opcode: Opcode::LessThan,
+            operands: vec![
+                ValueRef::Parameter(operand),
+                ValueRef::Parameter(next_register_param),
+            ],
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::None,
+        });
+        builder.blocks.push(Block {
+            entity_id: block,
+            function,
+            parameters: Vec::new(),
+            operations: vec![valid],
+            terminator: Terminator::CondBranch(CondBranchTerminator {
+                condition: ValueRef::OperationResult(OperationResultRef {
+                    operation: valid,
+                    result_index: 0,
+                }),
+                if_true: TargetEdge {
+                    target: id(success),
+                    arguments: Vec::new(),
+                },
+                if_false: TargetEdge {
+                    target: id(LOCAL_REFERENCE_ERROR),
+                    arguments: Vec::new(),
+                },
+            }),
+            reachability: Reachability::Required,
+        });
+    };
+    reference_block(UNARY_REFERENCE, operand_zero_param, UNARY_EMIT);
+    reference_block(
+        BINARY_REFERENCE_ZERO,
+        operand_zero_param,
+        BINARY_REFERENCE_ONE,
+    );
+    reference_block(BINARY_REFERENCE_ONE, operand_one_param, BINARY_EMIT);
+
+    let mut emit_block = |block_id: u8, operand_parameters: &[EntityId]| {
         let block = id(block_id);
         let mut operation_ids = Vec::new();
-        let mut operand_values = Vec::new();
-        for constant in operand_constants {
-            let operation = builder.const_ref(
-                block,
-                u32::try_from(operation_ids.len()).expect("small operation inventory"),
-                id(*constant),
-            );
-            operation_ids.push(operation);
-            operand_values.push(ValueRef::OperationResult(OperationResultRef {
-                operation,
-                result_index: 0,
-            }));
-        }
-        let result_ref = builder.const_ref(
-            block,
-            u32::try_from(operation_ids.len()).expect("small operation inventory"),
-            id(result_constant),
-        );
-        operation_ids.push(result_ref);
         let operands = builder.take_op();
         builder.operations.push(Operation {
             entity_id: operands,
             block,
-            ordinal: u32::try_from(operation_ids.len()).expect("small operation inventory"),
+            ordinal: 0,
             opcode: Opcode::VectorNew,
-            operands: operand_values,
+            operands: operand_parameters
+                .iter()
+                .copied()
+                .map(ValueRef::Parameter)
+                .collect(),
             result_types: vec![u32vec_type()],
             immediate: Immediate::None,
         });
@@ -488,12 +530,9 @@ fn single_bool_lowerer() -> LowerScaffold {
         builder.operations.push(Operation {
             entity_id: results,
             block,
-            ordinal: u32::try_from(operation_ids.len()).expect("small operation inventory"),
+            ordinal: 1,
             opcode: Opcode::VectorNew,
-            operands: vec![ValueRef::OperationResult(OperationResultRef {
-                operation: result_ref,
-                result_index: 0,
-            })],
+            operands: vec![ValueRef::Parameter(next_register_param)],
             result_types: vec![u32vec_type()],
             immediate: Immediate::None,
         });
@@ -502,7 +541,7 @@ fn single_bool_lowerer() -> LowerScaffold {
         builder.operations.push(Operation {
             entity_id: tuple,
             block,
-            ordinal: u32::try_from(operation_ids.len()).expect("small operation inventory"),
+            ordinal: 2,
             opcode: Opcode::TupleNew,
             operands: vec![
                 ValueRef::Parameter(opcode_param),
@@ -523,7 +562,7 @@ fn single_bool_lowerer() -> LowerScaffold {
         builder.operations.push(Operation {
             entity_id: success,
             block,
-            ordinal: u32::try_from(operation_ids.len()).expect("small operation inventory"),
+            ordinal: 3,
             opcode: Opcode::ResultOk,
             operands: vec![ValueRef::OperationResult(OperationResultRef {
                 operation: tuple,
@@ -547,8 +586,8 @@ fn single_bool_lowerer() -> LowerScaffold {
             reachability: Reachability::Required,
         });
     };
-    emit_block(UNARY_EMIT, &[K_ZERO], K_ONE);
-    emit_block(BINARY_EMIT, &[K_ZERO, K_ONE], K_TWO);
+    emit_block(UNARY_EMIT, &[operand_zero_param]);
+    emit_block(BINARY_EMIT, &[operand_zero_param, operand_one_param]);
 
     let mut error_block = |block_id: u8, error_constant: u8| {
         let block = id(block_id);
@@ -582,11 +621,18 @@ fn single_bool_lowerer() -> LowerScaffold {
     };
     error_block(OPCODE_ERROR, K_OPCODE_ERROR);
     error_block(SIGNATURE_ERROR, K_SIGNATURE_ERROR);
+    error_block(LOCAL_REFERENCE_ERROR, K_LOCAL_REFERENCE_ERROR);
     let (blocks, operations) = builder.finish();
     let graph = FunctionGraph {
         entity_id: function,
         type_parameters: Vec::new(),
-        parameters: vec![opcode_param, parameter_count_param],
+        parameters: vec![
+            opcode_param,
+            parameter_count_param,
+            operand_zero_param,
+            operand_one_param,
+            next_register_param,
+        ],
         result_type: single_lower_result_type(),
         effects: Vec::new(),
         entry_block: id(ENTRY),
@@ -604,6 +650,27 @@ fn single_bool_lowerer() -> LowerScaffold {
                 owner: function,
                 role: ParameterRole::Function,
                 ordinal: 0,
+                value_type: u32_type(),
+            },
+            Parameter {
+                entity_id: operand_zero_param,
+                owner: function,
+                role: ParameterRole::Function,
+                ordinal: 2,
+                value_type: u32_type(),
+            },
+            Parameter {
+                entity_id: operand_one_param,
+                owner: function,
+                role: ParameterRole::Function,
+                ordinal: 3,
+                value_type: u32_type(),
+            },
+            Parameter {
+                entity_id: next_register_param,
+                owner: function,
+                role: ParameterRole::Function,
+                ordinal: 4,
                 value_type: u32_type(),
             },
             Parameter {
@@ -739,6 +806,9 @@ fn execute_single_bool(
     approved: &sley_vm::ApprovedExecutionPackage,
     opcode: u32,
     parameter_count: u32,
+    operand_zero: u32,
+    operand_one: u32,
+    next_register: u32,
 ) -> sley_vm::ExecutionOutcome {
     sley_vm::execute_approved_package_v2(
         package,
@@ -747,6 +817,9 @@ fn execute_single_bool(
             inputs: vec![
                 u32_value(u128::from(opcode)),
                 u32_value(u128::from(parameter_count)),
+                u32_value(u128::from(operand_zero)),
+                u32_value(u128::from(operand_one)),
+                u32_value(u128::from(next_register)),
             ],
             limits: generous_limits(),
         },
@@ -830,6 +903,99 @@ fn native_single_bool(opcode: Opcode) -> sley_vm::Instruction {
     lowered.bytecode.blocks[0].instructions[0].clone()
 }
 
+fn native_bool_chain() -> Vec<sley_vm::Instruction> {
+    let function_id = id(1);
+    let block_id = id(2);
+    let left = id(10);
+    let right = id(11);
+    let first_id = id(3);
+    let second_id = id(4);
+    let function = FunctionGraph {
+        entity_id: function_id,
+        type_parameters: Vec::new(),
+        parameters: vec![left, right],
+        result_type: TypeExpr::Bool,
+        effects: Vec::new(),
+        entry_block: block_id,
+        blocks: vec![block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameters = vec![
+        Parameter {
+            entity_id: left,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 0,
+            value_type: TypeExpr::Bool,
+        },
+        Parameter {
+            entity_id: right,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: 1,
+            value_type: TypeExpr::Bool,
+        },
+    ];
+    let operations = vec![
+        Operation {
+            entity_id: first_id,
+            block: block_id,
+            ordinal: 0,
+            opcode: Opcode::BoolAnd,
+            operands: vec![ValueRef::Parameter(left), ValueRef::Parameter(right)],
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::None,
+        },
+        Operation {
+            entity_id: second_id,
+            block: block_id,
+            ordinal: 1,
+            opcode: Opcode::BoolNot,
+            operands: vec![ValueRef::OperationResult(OperationResultRef {
+                operation: first_id,
+                result_index: 0,
+            })],
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::None,
+        },
+    ];
+    let block = Block {
+        entity_id: block_id,
+        function: function_id,
+        parameters: Vec::new(),
+        operations: vec![first_id, second_id],
+        terminator: Terminator::Return(ReturnTerminator {
+            value: ValueRef::OperationResult(OperationResultRef {
+                operation: second_id,
+                result_index: 0,
+            }),
+        }),
+        reachability: Reachability::Required,
+    };
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    sley_vm::lower_function(sley_vm::LoweringInput {
+        types: &types,
+        function: &function,
+        parameters: &parameters,
+        blocks: &[block],
+        operations: &operations,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: sley_vm::CacheProfile::EXTENDED_V1,
+        constants: &[],
+        globals: &[],
+        functions: std::slice::from_ref(&function),
+        contracts: &[],
+        adapters: &[],
+    })
+    .expect("native reference lowers the Boolean chain")
+    .bytecode
+    .blocks
+    .remove(0)
+    .instructions
+}
+
 fn assert_single_lowered(outcome: &sley_vm::ExecutionOutcome, expected: &sley_vm::Instruction) {
     use sley_ssmc::ResultConst;
     match &outcome.termination {
@@ -889,8 +1055,27 @@ fn lower_single_boolean_operations_match_native_dense_registers() {
     for opcode in [Opcode::BoolNot, Opcode::BoolAnd, Opcode::BoolOr] {
         let reference = native_single_bool(opcode);
         let parameter_count = u32::try_from(reference.operands.len()).expect("small arity");
-        let first = execute_single_bool(&package, &approved, opcode.tag(), parameter_count);
-        let second = execute_single_bool(&package, &approved, opcode.tag(), parameter_count);
+        let operand_zero = reference.operands[0];
+        let operand_one = reference.operands.get(1).copied().unwrap_or(0);
+        let next_register = reference.results[0];
+        let first = execute_single_bool(
+            &package,
+            &approved,
+            opcode.tag(),
+            parameter_count,
+            operand_zero,
+            operand_one,
+            next_register,
+        );
+        let second = execute_single_bool(
+            &package,
+            &approved,
+            opcode.tag(),
+            parameter_count,
+            operand_zero,
+            operand_one,
+            next_register,
+        );
         assert_single_lowered(&first, &reference);
         assert_single_lowered(&second, &reference);
         assert_eq!(
@@ -898,6 +1083,17 @@ fn lower_single_boolean_operations_match_native_dense_registers() {
             "lowering is deterministic"
         );
     }
+}
+
+#[test]
+fn lower_composes_over_a_prior_operation_result() {
+    let (package, approved) = admit_lower_program(&single_bool_lowerer());
+    let native = native_bool_chain();
+    assert_eq!(native.len(), 2, "reference chain has two instructions");
+    let first = execute_single_bool(&package, &approved, Opcode::BoolAnd.tag(), 2, 0, 1, 2);
+    let second = execute_single_bool(&package, &approved, Opcode::BoolNot.tag(), 1, 2, 0, 3);
+    assert_single_lowered(&first, &native[0]);
+    assert_single_lowered(&second, &native[1]);
 }
 
 #[test]
@@ -910,14 +1106,32 @@ fn lower_single_boolean_operations_return_frozen_errors() {
         (Opcode::BoolOr.tag(), 3),
     ] {
         assert_single_lower_error(
-            &execute_single_bool(&package, &approved, opcode, count),
+            &execute_single_bool(&package, &approved, opcode, count, 0, 1, 2),
             sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
         );
     }
     for opcode in [0, Opcode::Equal.tag(), u32::MAX] {
         assert_single_lower_error(
-            &execute_single_bool(&package, &approved, opcode, 2),
+            &execute_single_bool(&package, &approved, opcode, 2, 0, 1, 2),
             sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
+        );
+    }
+    for (opcode, count, operand_zero, operand_one, next_register) in [
+        (Opcode::BoolNot.tag(), 1, 1, 0, 1),
+        (Opcode::BoolAnd.tag(), 2, 0, 2, 2),
+        (Opcode::BoolOr.tag(), 2, u32::MAX, 1, 2),
+    ] {
+        assert_single_lower_error(
+            &execute_single_bool(
+                &package,
+                &approved,
+                opcode,
+                count,
+                operand_zero,
+                operand_one,
+                next_register,
+            ),
+            sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
         );
     }
 }
