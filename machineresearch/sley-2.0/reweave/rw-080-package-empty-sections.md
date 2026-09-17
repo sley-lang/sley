@@ -35,8 +35,10 @@ and identities from the Sley bytes.
 
 ## Explicit remainder
 
-Nonempty constants, layouts, imports, globals, and contracts are not yet
-encoded by Sley. The next slice composes the fixed header and five frames from
-these section bytes plus five exact SHA-256 digest inputs; Sley-side SHA-256
-production remains. Contract/surface review remains mandatory. R2 stays
+Slices 38 and 39 supersede this boundary: Sley now composes the fixed header
+and five frames, and emits nonempty constants, layouts, imports, globals, and
+contracts. The remaining construction work is one canonical `build_package`
+entry over those admitted closures. SHA-256 stays host artifact mechanics as
+frozen by `rw-075-hash-inventory.md`; the builder consumes its five results in
+fixed-width fields. Contract/surface review remains mandatory. R2 stays
 provisional pending that implementation and the independent acceptance debt.

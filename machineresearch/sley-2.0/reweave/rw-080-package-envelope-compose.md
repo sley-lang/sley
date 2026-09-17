@@ -23,12 +23,13 @@ length from the actual section octets before appending the unchanged section.
 
 ## End-to-end parity
 
-The parity test first executes the prior Sley section encoder with two runtime
-closure fingerprints and nonzero limits. It computes the currently native
-SHA-256 section digests, executes the Sley envelope composer, and compares the
-result byte-for-byte with `encode_package_envelope_v2`. The strict native
-hydrator then decodes the Sley-composed bytes back to the exact original
-`ExecutionPackage` and digest set.
+The parity test executes the Sley section encoders with nonempty constants,
+layouts, imports, globals, and contracts, two runtime closure fingerprints,
+nonzero limits, and a present cancellation fuel. It computes the frozen
+host-mechanic SHA-256 results, executes the Sley envelope composer, and
+compares the result byte-for-byte with `encode_package_envelope_v2`. The
+strict native hydrator then decodes the Sley-composed bytes back to the exact
+original `ExecutionPackage` and digest set.
 
 The test uses a real `SLEYBC02` image and raises only the fixture's monotonic
 value-unit budget to accommodate repeated immutable vector construction; the
@@ -36,9 +37,10 @@ instruction, fuel, and output ceilings remain bounded.
 
 ## Explicit remainder
 
-The Sley builder receives the five SHA-256 section digests in this slice; it
-does not yet produce them. Nonempty constants/layouts/imports/globals/contracts
-also remain. The compiler-side functions are still separate admitted closures
+Slice 39 closes nonempty constants/layouts/imports/globals/contracts. The five
+SHA-256 values remain host-mechanic execution results by the frozen RW-075
+hash inventory; this Sley function places them in distinct fixed-width header
+fields. The compiler-side functions are still separate admitted closures
 rather than one final `build_package` entry. Contract/surface review remains
 mandatory, and R2 remains provisional pending the independent acceptance
 debt.

@@ -68,6 +68,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-callee-table.md and
 //! machineresearch/sley-2.0/reweave/rw-080-package-empty-sections.md and
 //! machineresearch/sley-2.0/reweave/rw-080-package-envelope-compose.md and
+//! machineresearch/sley-2.0/reweave/rw-080-package-inventory-rows.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -75,12 +76,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     AdapterImport, Block, BranchTerminator, BuiltinCase, BuiltinFailureKind, CaseKey,
-    CondBranchTerminator, ConstData, ConstValue, ConstantDefinition, FunctionGraph,
-    FunctionRefValue, Immediate, IntegerWidth, MemberId, NamedType, Opcode, Operation,
-    OperationResultRef, Parameter, ParameterRole, Reachability, RecordField, ReturnTerminator,
-    SwitchArgument, SwitchCase, SwitchEdge, TargetEdge, Terminator, TrapCode, TrapTerminator,
-    TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase, VariantImmediate,
-    VariantSwitchTerminator, Visibility,
+    CondBranchTerminator, ConstData, ConstValue, ConstantDefinition, ContractDefinition,
+    ContractKind, FunctionGraph, FunctionRefValue, GlobalValueDefinition, Immediate, IntegerWidth,
+    MemberId, NamedType, Opcode, Operation, OperationResultRef, Parameter, ParameterRole,
+    Reachability, RecordField, ReturnTerminator, SwitchArgument, SwitchCase, SwitchEdge,
+    TargetEdge, Terminator, TrapCode, TrapTerminator, TypeDefForm, TypeDefinition, TypeExpr,
+    ValueRef, VariantCase, VariantImmediate, VariantSwitchTerminator, Visibility,
 };
 
 fn id(byte: u8) -> EntityId {
@@ -15609,12 +15610,12 @@ fn push_package_section_append_stage(
 }
 
 /// Emits the three empty counted inventory sections plus the complete
-/// dependency section for a package with no globals or contracts. Every
+/// dependency section from canonical checked global/contract row bytes. Every
 /// identity, gate claim, fingerprint, and execution limit is a typed runtime
-/// input; only the frozen profile fields and empty-inventory counts are
-/// constants in the Sley program.
+/// input; only the frozen profile fields and the three returned empty section
+/// placeholders are constants in this Sley program.
 #[allow(clippy::too_many_lines)]
-fn empty_inventory_package_sections_encoder() -> LowerScaffold {
+fn package_dependency_sections_encoder() -> LowerScaffold {
     let narrow_u32 = inventory_id(5, 19);
     let append_u32 = inventory_id(5, 20);
     let narrow_u64 = inventory_id(5, 21);
@@ -15696,6 +15697,10 @@ fn empty_inventory_package_sections_encoder() -> LowerScaffold {
     let max_fuel = assembler.parameter(function, ParameterRole::Function, 7, u64_type());
     let max_value_units = assembler.parameter(function, ParameterRole::Function, 8, u64_type());
     let max_output_units = assembler.parameter(function, ParameterRole::Function, 9, u64_type());
+    let global_rows = assembler.parameter(function, ParameterRole::Function, 10, bytesvec_type());
+    let contract_rows = assembler.parameter(function, ParameterRole::Function, 11, bytesvec_type());
+    let cancel_present = assembler.parameter(function, ParameterRole::Function, 12, TypeExpr::Bool);
+    let cancel_at_fuel = assembler.parameter(function, ParameterRole::Function, 13, u64_type());
 
     let entry = assembler.block_id();
     let append_epoch = assembler.block_id();
@@ -15706,7 +15711,11 @@ fn empty_inventory_package_sections_encoder() -> LowerScaffold {
     let append_fingerprint_rows = assembler.block_id();
     let append_limits = assembler.block_id();
     let append_cancel = assembler.block_id();
-    let append_inventory_counts = assembler.block_id();
+    let append_cancel_none = assembler.block_id();
+    let append_cancel_some_tag = assembler.block_id();
+    let append_cancel_value = assembler.block_id();
+    let append_globals = assembler.block_id();
+    let append_contracts = assembler.block_id();
     let convert = assembler.block_id();
     let success_block = assembler.block_id();
     let forward_error = assembler.block_id();
@@ -15905,44 +15914,101 @@ fn empty_inventory_package_sections_encoder() -> LowerScaffold {
 
     let cancel_accumulator =
         assembler.parameter(append_cancel, ParameterRole::Block, 0, u8vec_type());
-    let cancel_none = assembler.constant_ref(append_cancel, one_u32, u32_type());
+    assembler.push_block(
+        append_cancel,
+        function,
+        vec![cancel_accumulator],
+        Vec::new(),
+        inventory_cond(
+            ValueRef::Parameter(cancel_present),
+            append_cancel_some_tag,
+            vec![ValueRef::Parameter(cancel_accumulator)],
+            append_cancel_none,
+            vec![ValueRef::Parameter(cancel_accumulator)],
+        ),
+    );
+
+    let cancel_none_accumulator =
+        assembler.parameter(append_cancel_none, ParameterRole::Block, 0, u8vec_type());
+    let cancel_none = assembler.constant_ref(append_cancel_none, one_u32, u32_type());
     push_package_section_append_stage(
         &mut assembler,
         function,
-        append_cancel,
-        vec![cancel_accumulator],
+        append_cancel_none,
+        vec![cancel_none_accumulator],
         vec![cancel_none],
-        ValueRef::Parameter(cancel_accumulator),
+        ValueRef::Parameter(cancel_none_accumulator),
         operation_value(cancel_none),
         append_u32,
         true,
-        append_inventory_counts,
+        append_globals,
         forward_error,
     );
 
-    let inventory_accumulator = assembler.parameter(
-        append_inventory_counts,
+    let cancel_some_accumulator = assembler.parameter(
+        append_cancel_some_tag,
         ParameterRole::Block,
         0,
         u8vec_type(),
     );
-    let inventory_zero = assembler.constant_ref(append_inventory_counts, zero_u64, u64_type());
-    let inventory_counts = assembler.operation(
-        append_inventory_counts,
-        Opcode::VectorNew,
-        vec![operation_value(inventory_zero); 2],
-        u64vec_type(),
-        Immediate::None,
-    );
+    let cancel_some = assembler.constant_ref(append_cancel_some_tag, two_u32, u32_type());
     push_package_section_append_stage(
         &mut assembler,
         function,
-        append_inventory_counts,
-        vec![inventory_accumulator],
-        vec![inventory_zero, inventory_counts],
-        ValueRef::Parameter(inventory_accumulator),
-        operation_value(inventory_counts),
-        append_u64_sequence,
+        append_cancel_some_tag,
+        vec![cancel_some_accumulator],
+        vec![cancel_some],
+        ValueRef::Parameter(cancel_some_accumulator),
+        operation_value(cancel_some),
+        append_u32,
+        true,
+        append_cancel_value,
+        forward_error,
+    );
+
+    let cancel_value_accumulator =
+        assembler.parameter(append_cancel_value, ParameterRole::Block, 0, u8vec_type());
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_cancel_value,
+        vec![cancel_value_accumulator],
+        Vec::new(),
+        ValueRef::Parameter(cancel_value_accumulator),
+        ValueRef::Parameter(cancel_at_fuel),
+        append_u64,
+        true,
+        append_globals,
+        forward_error,
+    );
+
+    let global_accumulator =
+        assembler.parameter(append_globals, ParameterRole::Block, 0, u8vec_type());
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_globals,
+        vec![global_accumulator],
+        Vec::new(),
+        ValueRef::Parameter(global_accumulator),
+        ValueRef::Parameter(global_rows),
+        append_fingerprints,
+        true,
+        append_contracts,
+        forward_error,
+    );
+
+    let contract_accumulator =
+        assembler.parameter(append_contracts, ParameterRole::Block, 0, u8vec_type());
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_contracts,
+        vec![contract_accumulator],
+        Vec::new(),
+        ValueRef::Parameter(contract_accumulator),
+        ValueRef::Parameter(contract_rows),
+        append_fingerprints,
         true,
         convert,
         forward_error,
@@ -16060,6 +16126,10 @@ fn empty_inventory_package_sections_encoder() -> LowerScaffold {
             max_fuel,
             max_value_units,
             max_output_units,
+            global_rows,
+            contract_rows,
+            cancel_present,
+            cancel_at_fuel,
         ],
         result_type: package_sections_result_type(),
         effects: Vec::new(),
@@ -16093,6 +16163,309 @@ fn empty_inventory_package_sections_encoder() -> LowerScaffold {
             append_chunk_graph,
             append_u32_graph,
             narrow_u32_graph,
+            append_u64_graph,
+            narrow_u64_graph,
+        ],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+        adapters: vec![
+            bridge_adapter(
+                sley_vm::host_abi::BRIDGE_CODE_B2V1,
+                TypeExpr::Bytes,
+                u8vec_type(),
+            ),
+            bridge_adapter(sley_vm::host_abi::BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            bridge_adapter(
+                sley_vm::host_abi::BRIDGE_CODE_V2B1,
+                u8vec_type(),
+                TypeExpr::Bytes,
+            ),
+        ],
+    }
+}
+
+/// Emits one canonical counted package-inventory section from canonical row
+/// bytes. Constant rows already contain their entity identity and value-length
+/// frame, while layout and import rows receive a Sley-owned `u64` row frame.
+/// The checker/codec owns row meaning; this program owns the section count,
+/// optional row framing, ordering, and byte composition.
+#[allow(clippy::too_many_lines)]
+fn package_inventory_section_encoder() -> LowerScaffold {
+    let narrow_u64 = inventory_id(5, 21);
+    let append_u64 = inventory_id(5, 22);
+    let append_chunk = inventory_id(5, 24);
+    let append_counted_chunks = inventory_id(5, 50);
+    let append_framed_section = inventory_id(5, 51);
+    let append_counted_framed = inventory_id(5, 52);
+    let function = inventory_id(5, 53);
+    let mut assembler = InventoryAssembler::new();
+    let narrow_u64_graph =
+        build_unsigned_octet_narrower(&mut assembler, narrow_u64, &u64_type(), u64_value);
+    let append_u64_graph = build_fixed_width_appender(
+        &mut assembler,
+        append_u64,
+        narrow_u64,
+        &u64_type(),
+        u64_value,
+        &[
+            1_u128 << 56,
+            1_u128 << 48,
+            1_u128 << 40,
+            1_u128 << 32,
+            1_u128 << 24,
+            1_u128 << 16,
+            1_u128 << 8,
+            1,
+        ],
+    );
+    let append_chunk_graph = build_byte_chunk_appender(&mut assembler, append_chunk);
+    let append_counted_chunks_graph = build_vector_byte_appender(
+        &mut assembler,
+        append_counted_chunks,
+        append_u64,
+        append_chunk,
+        &bytesvec_type(),
+        &TypeExpr::Bytes,
+        false,
+        true,
+    );
+    let append_framed_section_graph = build_framed_byte_section_appender(
+        &mut assembler,
+        append_framed_section,
+        append_u64,
+        append_chunk,
+    );
+    let append_counted_framed_graph = build_vector_byte_appender(
+        &mut assembler,
+        append_counted_framed,
+        append_u64,
+        append_framed_section,
+        &bytesvec_type(),
+        &TypeExpr::Bytes,
+        true,
+        true,
+    );
+
+    let rows = assembler.parameter(function, ParameterRole::Function, 0, bytesvec_type());
+    let frame_rows = assembler.parameter(function, ParameterRole::Function, 1, TypeExpr::Bool);
+    let entry = assembler.block_id();
+    let append_opaque = assembler.block_id();
+    let append_framed = assembler.block_id();
+    let convert = assembler.block_id();
+    let success_block = assembler.block_id();
+    let forward_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+    let empty_octets = assembler.constant(u8vec_value(&[]));
+    let unit = assembler.constant(ConstValue {
+        value_type: TypeExpr::Unit,
+        data: ConstData::Unit,
+    });
+    let resource_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+    )));
+
+    let empty = assembler.constant_ref(entry, empty_octets, u8vec_type());
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![empty],
+        inventory_cond(
+            ValueRef::Parameter(frame_rows),
+            append_framed,
+            vec![operation_value(empty)],
+            append_opaque,
+            vec![operation_value(empty)],
+        ),
+    );
+
+    let opaque_accumulator =
+        assembler.parameter(append_opaque, ParameterRole::Block, 0, u8vec_type());
+    let opaque = assembler.operation(
+        append_opaque,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(rows),
+            ValueRef::Parameter(opaque_accumulator),
+        ],
+        byte_vector_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: append_counted_chunks,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        append_opaque,
+        function,
+        vec![opaque_accumulator],
+        vec![opaque],
+        inventory_switch(
+            operation_value(opaque),
+            vec![
+                (BuiltinCase::Ok, convert, vec![SwitchArgument::CasePayload]),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let framed_accumulator =
+        assembler.parameter(append_framed, ParameterRole::Block, 0, u8vec_type());
+    let framed = assembler.operation(
+        append_framed,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(rows),
+            ValueRef::Parameter(framed_accumulator),
+        ],
+        byte_vector_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: append_counted_framed,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        append_framed,
+        function,
+        vec![framed_accumulator],
+        vec![framed],
+        inventory_switch(
+            operation_value(framed),
+            vec![
+                (BuiltinCase::Ok, convert, vec![SwitchArgument::CasePayload]),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let section_octets = assembler.parameter(convert, ParameterRole::Block, 0, u8vec_type());
+    let output_scope = assembler.constant_ref(convert, unit, TypeExpr::Unit);
+    let section_bytes = assembler.operation(
+        convert,
+        Opcode::AdapterInvoke,
+        vec![
+            operation_value(output_scope),
+            ValueRef::Parameter(section_octets),
+        ],
+        index_result_type(TypeExpr::Bytes),
+        Immediate::Entity(EntityId::from_bytes(sley_vm::host_abi::bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_V2B1,
+        ))),
+    );
+    assembler.push_block(
+        convert,
+        function,
+        vec![section_octets],
+        vec![output_scope, section_bytes],
+        inventory_switch(
+            operation_value(section_bytes),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    success_block,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let section = assembler.parameter(success_block, ParameterRole::Block, 0, TypeExpr::Bytes);
+    let success = assembler.operation(
+        success_block,
+        Opcode::ResultOk,
+        vec![ValueRef::Parameter(section)],
+        bytes_lower_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        success_block,
+        function,
+        vec![section],
+        vec![success],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(success),
+        }),
+    );
+
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let forwarded_failure = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        bytes_lower_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(forwarded_failure),
+        }),
+    );
+    let resource = assembler.constant_ref(resource_error, resource_code, u32_type());
+    let resource_failure = assembler.operation(
+        resource_error,
+        Opcode::ResultErr,
+        vec![operation_value(resource)],
+        bytes_lower_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        resource_error,
+        function,
+        Vec::new(),
+        vec![resource, resource_failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(resource_failure),
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![rows, frame_rows],
+        result_type: bytes_lower_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let bridge_adapter = |code, request_type, response_type| AdapterImport {
+        entity_id: EntityId::from_bytes(sley_vm::host_abi::bridge_identity(code)),
+        adapter_id: sley_vm::host_abi::bridge_identity(code),
+        abi_version: sley_vm::host_abi::BRIDGE_ABI_VERSION,
+        request_type,
+        response_type,
+        failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+        effects: Vec::new(),
+    };
+    LowerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![
+            graph,
+            append_counted_chunks_graph,
+            append_counted_framed_graph,
+            append_framed_section_graph,
+            append_chunk_graph,
             append_u64_graph,
             narrow_u64_graph,
         ],
@@ -18439,10 +18812,12 @@ fn execute_complete_image(
     .expect("v2 executes complete function-image lowerer")
 }
 
-fn execute_empty_inventory_package_sections(
+fn execute_package_dependency_sections(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
     expected: &sley_vm::ExecutionPackage,
+    global_rows: &[Vec<u8>],
+    contract_rows: &[Vec<u8>],
 ) -> sley_vm::ExecutionOutcome {
     let fingerprint_bytes = expected
         .gate_closure_fingerprints
@@ -18464,11 +18839,34 @@ fn execute_empty_inventory_package_sections(
                 u64_value(u128::from(expected.admitted_limits.max_fuel)),
                 u64_value(u128::from(expected.admitted_limits.max_value_units)),
                 u64_value(u128::from(expected.admitted_limits.max_output_units)),
+                bytesvec_value(global_rows),
+                bytesvec_value(contract_rows),
+                bool_value(expected.admitted_limits.cancel_at_fuel.is_some()),
+                u64_value(u128::from(
+                    expected.admitted_limits.cancel_at_fuel.unwrap_or_default(),
+                )),
             ],
             limits: generous_limits(),
         },
     )
-    .expect("v2 executes empty-inventory package-section encoder")
+    .expect("v2 executes package-dependency-section encoder")
+}
+
+fn execute_package_inventory_section(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    rows: &[Vec<u8>],
+    frame_rows: bool,
+) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![bytesvec_value(rows), bool_value(frame_rows)],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes package-inventory-section encoder")
 }
 
 fn execute_package_envelope_composer(
@@ -18530,6 +18928,198 @@ fn successful_package_sections(outcome: &sley_vm::ExecutionOutcome) -> [Vec<u8>;
         .collect::<Vec<_>>()
         .try_into()
         .expect("package-section tuple has four fields")
+}
+
+fn successful_bytes_result(outcome: &sley_vm::ExecutionOutcome, subject: &str) -> Vec<u8> {
+    use sley_ssmc::ResultConst;
+
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!(
+            "{subject} must terminate with a value, got {:?}",
+            outcome.termination
+        )
+    };
+    let ConstData::Result(ResultConst::Ok(encoded)) = &value.data else {
+        panic!("{subject} must return Ok, got {:?}", value.data)
+    };
+    let ConstData::Bytes(encoded) = &encoded.data else {
+        panic!("{subject} result must be Bytes")
+    };
+    encoded.clone()
+}
+
+fn package_inventory_fixture(image_bytes: Vec<u8>, entry: EntityId) -> sley_vm::ExecutionPackage {
+    use sley_id::SemanticFingerprint;
+
+    let constants = vec![
+        ConstantDefinition {
+            entity_id: id(0xa1),
+            value: bool_value(true),
+        },
+        ConstantDefinition {
+            entity_id: id(0xa2),
+            value: bool_value(false),
+        },
+    ];
+    let type_definitions = vec![
+        TypeDefinition {
+            entity_id: id(0xb1),
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Record(Vec::new()),
+            invariants: Vec::new(),
+            visibility: Visibility::Package,
+        },
+        TypeDefinition {
+            entity_id: id(0xb2),
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Variant(Vec::new()),
+            invariants: Vec::new(),
+            visibility: Visibility::Exported,
+        },
+    ];
+    let imports = vec![
+        AdapterImport {
+            entity_id: id(0xc1),
+            adapter_id: [0xc2; 32],
+            abi_version: 2,
+            request_type: TypeExpr::Bytes,
+            response_type: TypeExpr::Bytes,
+            failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+            effects: vec![id(0xc3)],
+        },
+        AdapterImport {
+            entity_id: id(0xc4),
+            adapter_id: [0xc5; 32],
+            abi_version: 3,
+            request_type: TypeExpr::Bool,
+            response_type: TypeExpr::Bool,
+            failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+            effects: Vec::new(),
+        },
+    ];
+    let globals = vec![GlobalValueDefinition {
+        entity_id: id(0xd1),
+        value_type: TypeExpr::Bool,
+        initializer: constants[0].entity_id,
+        visibility: Visibility::Workspace,
+    }];
+    let contracts = vec![ContractDefinition {
+        entity_id: id(0xe1),
+        target: entry,
+        contract_kind: ContractKind::Postcondition,
+        predicate: id(0xe2),
+        bindings: Vec::new(),
+        resource_limits: None,
+    }];
+    let mut admitted_limits = generous_limits();
+    admitted_limits.cancel_at_fuel = Some(1_500);
+    sley_vm::ExecutionPackage {
+        image_bytes,
+        constants,
+        type_definitions,
+        imports,
+        globals,
+        contracts,
+        entry,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: sley_vm::CacheProfile::EXTENDED_V1,
+        admitted_limits,
+        gate_operation_count: 91,
+        gate_bridge_uses: 4,
+        gate_closure_fingerprints: vec![
+            SemanticFingerprint::from_bytes([0xc3; 32]),
+            SemanticFingerprint::from_bytes([0xd4; 32]),
+        ],
+    }
+}
+
+fn canonical_constant_rows(constants: &[ConstantDefinition]) -> Vec<Vec<u8>> {
+    constants
+        .iter()
+        .map(|constant| {
+            let encoded =
+                sley_vm::exec_package::encode_constants_section(std::slice::from_ref(constant))
+                    .expect("single constant row encodes");
+            assert_eq!(&encoded[..8], &1_u64.to_be_bytes());
+            encoded[8..].to_vec()
+        })
+        .collect()
+}
+
+fn canonical_framed_row(encoded: &[u8], subject: &str) -> Vec<u8> {
+    assert_eq!(&encoded[..8], &1_u64.to_be_bytes());
+    let row_len = u64::from_be_bytes(encoded[8..16].try_into().unwrap());
+    let row_len = usize::try_from(row_len).expect("row length fits usize");
+    assert_eq!(encoded.len(), 16 + row_len, "{subject} row frame is exact");
+    encoded[16..].to_vec()
+}
+
+fn canonical_layout_rows(definitions: &[TypeDefinition]) -> Vec<Vec<u8>> {
+    definitions
+        .iter()
+        .map(|definition| {
+            let encoded =
+                sley_vm::exec_package::encode_layouts_section(std::slice::from_ref(definition))
+                    .expect("single layout row encodes");
+            canonical_framed_row(&encoded, "layout")
+        })
+        .collect()
+}
+
+fn canonical_import_rows(imports: &[AdapterImport]) -> Vec<Vec<u8>> {
+    imports
+        .iter()
+        .map(|import| {
+            let encoded =
+                sley_vm::exec_package::encode_imports_section(std::slice::from_ref(import))
+                    .expect("single import row encodes");
+            canonical_framed_row(&encoded, "import")
+        })
+        .collect()
+}
+
+fn canonical_dependency_rows(package: &sley_vm::ExecutionPackage) -> (Vec<Vec<u8>>, Vec<Vec<u8>>) {
+    let mut empty = package.clone();
+    empty.globals.clear();
+    empty.contracts.clear();
+    let empty_encoded = sley_vm::exec_package::encode_dependency_section(&empty)
+        .expect("empty dependency inventory encodes");
+    let prefix_len = empty_encoded
+        .len()
+        .checked_sub(16)
+        .expect("dependency contains both inventory counts");
+
+    let globals = package
+        .globals
+        .iter()
+        .map(|global| {
+            let mut single = empty.clone();
+            single.globals.push(global.clone());
+            let encoded = sley_vm::exec_package::encode_dependency_section(&single)
+                .expect("single global row encodes");
+            assert_eq!(&encoded[prefix_len..prefix_len + 8], &1_u64.to_be_bytes());
+            assert_eq!(&encoded[encoded.len() - 8..], &0_u64.to_be_bytes());
+            encoded[prefix_len + 8..encoded.len() - 8].to_vec()
+        })
+        .collect();
+    let contracts = package
+        .contracts
+        .iter()
+        .map(|contract| {
+            let mut single = empty.clone();
+            single.contracts.push(contract.clone());
+            let encoded = sley_vm::exec_package::encode_dependency_section(&single)
+                .expect("single contract row encodes");
+            assert_eq!(&encoded[prefix_len..prefix_len + 8], &0_u64.to_be_bytes());
+            assert_eq!(
+                &encoded[prefix_len + 8..prefix_len + 16],
+                &1_u64.to_be_bytes()
+            );
+            encoded[prefix_len + 16..].to_vec()
+        })
+        .collect();
+    (globals, contracts)
 }
 
 fn execute_fixed_width_encoder(
@@ -22057,44 +22647,62 @@ fn complete_function_image_encoder_matches_native_transitive_callee_table() {
 }
 
 #[test]
-fn package_section_encoder_matches_native_empty_inventories_and_dependency() {
-    use sley_id::SemanticFingerprint;
+fn package_section_encoders_match_nonempty_native_inventories_and_dependency() {
+    let expected = package_inventory_fixture(Vec::new(), id(0x31));
 
-    let expected = sley_vm::ExecutionPackage {
-        image_bytes: Vec::new(),
-        constants: Vec::new(),
-        type_definitions: Vec::new(),
-        imports: Vec::new(),
-        globals: Vec::new(),
-        contracts: Vec::new(),
-        entry: id(0x31),
-        schema_epoch: epoch(),
-        state_root: root(),
-        profile: sley_vm::CacheProfile::EXTENDED_V1,
-        admitted_limits: generous_limits(),
-        gate_operation_count: 37,
-        gate_bridge_uses: 3,
-        gate_closure_fingerprints: vec![
-            SemanticFingerprint::from_bytes([0xa1; 32]),
-            SemanticFingerprint::from_bytes([0xb2; 32]),
-        ],
-    };
-    let scaffold = empty_inventory_package_sections_encoder();
-    let (package, approved) = admit_lower_program(&scaffold);
-    let outcome = execute_empty_inventory_package_sections(&package, &approved, &expected);
-    let encoded = successful_package_sections(&outcome);
+    let inventory_scaffold = package_inventory_section_encoder();
+    let (inventory_package, inventory_approved) = admit_lower_program(&inventory_scaffold);
+    let constants = successful_bytes_result(
+        &execute_package_inventory_section(
+            &inventory_package,
+            &inventory_approved,
+            &canonical_constant_rows(&expected.constants),
+            false,
+        ),
+        "constant-section encoder",
+    );
+    let layouts = successful_bytes_result(
+        &execute_package_inventory_section(
+            &inventory_package,
+            &inventory_approved,
+            &canonical_layout_rows(&expected.type_definitions),
+            true,
+        ),
+        "layout-section encoder",
+    );
+    let imports = successful_bytes_result(
+        &execute_package_inventory_section(
+            &inventory_package,
+            &inventory_approved,
+            &canonical_import_rows(&expected.imports),
+            true,
+        ),
+        "import-section encoder",
+    );
     assert_eq!(
-        encoded[0],
+        constants,
         sley_vm::exec_package::encode_constants_section(&expected.constants).unwrap()
     );
     assert_eq!(
-        encoded[1],
+        layouts,
         sley_vm::exec_package::encode_layouts_section(&expected.type_definitions).unwrap()
     );
     assert_eq!(
-        encoded[2],
+        imports,
         sley_vm::exec_package::encode_imports_section(&expected.imports).unwrap()
     );
+
+    let (global_rows, contract_rows) = canonical_dependency_rows(&expected);
+    let dependency_scaffold = package_dependency_sections_encoder();
+    let (dependency_package, dependency_approved) = admit_lower_program(&dependency_scaffold);
+    let dependency_outcome = execute_package_dependency_sections(
+        &dependency_package,
+        &dependency_approved,
+        &expected,
+        &global_rows,
+        &contract_rows,
+    );
+    let encoded = successful_package_sections(&dependency_outcome);
     assert_eq!(
         encoded[3],
         sley_vm::exec_package::encode_dependency_section(&expected).unwrap()
@@ -22106,41 +22714,56 @@ fn package_section_encoder_matches_native_empty_inventories_and_dependency() {
         expected.gate_closure_fingerprints
     );
     assert_eq!(decoded.admitted_limits, expected.admitted_limits);
-    assert!(decoded.globals.is_empty());
-    assert!(decoded.contracts.is_empty());
+    assert_eq!(decoded.globals, expected.globals);
+    assert_eq!(decoded.contracts, expected.contracts);
 }
 
 #[test]
 fn package_envelope_composer_matches_native_bytes_and_hydrates() {
-    use sley_id::SemanticFingerprint;
-    use sley_ssmc::ResultConst;
-
     let native = native_complete_lowered();
-    let expected = sley_vm::ExecutionPackage {
-        image_bytes: native.bytes,
-        constants: Vec::new(),
-        type_definitions: Vec::new(),
-        imports: Vec::new(),
-        globals: Vec::new(),
-        contracts: Vec::new(),
-        entry: native.bytecode.function,
-        schema_epoch: epoch(),
-        state_root: root(),
-        profile: sley_vm::CacheProfile::EXTENDED_V1,
-        admitted_limits: generous_limits(),
-        gate_operation_count: 91,
-        gate_bridge_uses: 4,
-        gate_closure_fingerprints: vec![
-            SemanticFingerprint::from_bytes([0xc3; 32]),
-            SemanticFingerprint::from_bytes([0xd4; 32]),
-        ],
-    };
+    let expected = package_inventory_fixture(native.bytes, native.bytecode.function);
 
-    let section_scaffold = empty_inventory_package_sections_encoder();
-    let (section_package, section_approved) = admit_lower_program(&section_scaffold);
-    let section_outcome =
-        execute_empty_inventory_package_sections(&section_package, &section_approved, &expected);
-    let sections = successful_package_sections(&section_outcome);
+    let inventory_scaffold = package_inventory_section_encoder();
+    let (inventory_package, inventory_approved) = admit_lower_program(&inventory_scaffold);
+    let constants = successful_bytes_result(
+        &execute_package_inventory_section(
+            &inventory_package,
+            &inventory_approved,
+            &canonical_constant_rows(&expected.constants),
+            false,
+        ),
+        "constant-section encoder",
+    );
+    let layouts = successful_bytes_result(
+        &execute_package_inventory_section(
+            &inventory_package,
+            &inventory_approved,
+            &canonical_layout_rows(&expected.type_definitions),
+            true,
+        ),
+        "layout-section encoder",
+    );
+    let imports = successful_bytes_result(
+        &execute_package_inventory_section(
+            &inventory_package,
+            &inventory_approved,
+            &canonical_import_rows(&expected.imports),
+            true,
+        ),
+        "import-section encoder",
+    );
+    let (global_rows, contract_rows) = canonical_dependency_rows(&expected);
+    let dependency_scaffold = package_dependency_sections_encoder();
+    let (dependency_package, dependency_approved) = admit_lower_program(&dependency_scaffold);
+    let dependency_outcome = execute_package_dependency_sections(
+        &dependency_package,
+        &dependency_approved,
+        &expected,
+        &global_rows,
+        &contract_rows,
+    );
+    let dependency = successful_package_sections(&dependency_outcome)[3].clone();
+    let sections = [constants, layouts, imports, dependency];
     let digests = sley_vm::package_digests_v2(&expected).unwrap();
 
     let composer_scaffold = package_envelope_composer();
@@ -22152,26 +22775,12 @@ fn package_envelope_composer_matches_native_bytes_and_hydrates() {
         &sections,
         &digests,
     );
-    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
-        panic!(
-            "package-envelope composer must terminate with a value, got {:?}",
-            outcome.termination
-        )
-    };
-    let ConstData::Result(ResultConst::Ok(envelope)) = &value.data else {
-        panic!(
-            "package-envelope composer must return Ok, got {:?}",
-            value.data
-        )
-    };
-    let ConstData::Bytes(envelope) = &envelope.data else {
-        panic!("package-envelope composer result must be Bytes")
-    };
+    let envelope = successful_bytes_result(&outcome, "package-envelope composer");
     assert_eq!(
         envelope,
-        &sley_vm::encode_package_envelope_v2(&expected).unwrap()
+        sley_vm::encode_package_envelope_v2(&expected).unwrap()
     );
-    let hydrated = sley_vm::hydrate_package_envelope_v2(envelope).unwrap();
+    let hydrated = sley_vm::hydrate_package_envelope_v2(&envelope).unwrap();
     assert_eq!(hydrated.package, expected);
     assert_eq!(hydrated.digests, digests);
 }
