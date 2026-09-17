@@ -28,8 +28,8 @@ V2_SECTION_END = "## 5. Bounded context"
 # owner review), not in the frozen SMP1 contract: SMP1.md stays revision 12
 # while the native contract owns the five rows below (two live selection
 # reads since N7c revision 3, report paging live since N7d-1 revision 4,
-# two still-reserved rows).
-V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 4)"
+# replay/status live since N7d-2 revision 5).
+V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 5)"
 V3_SECTION_END = "## 7. Required implementation evidence"
 FAMILIES = {
     1: "session",
@@ -52,8 +52,8 @@ EXPECTED_V2_ADDITIONS = ((306, "entity.version"), (307, "entity.signature"))
 V2_OWNER = "S20-310"
 # The version 3 additions are exactly the five native rows owned by the
 # S20-620 test-selection seam: the two selection reads live since N7c
-# revision 3, report paging live since N7d-1 revision 4, and the two
-# replay/status rows still reserved to N7d-2.
+# revision 3, report paging live since N7d-1 revision 4, and the
+# replay/status rows live since N7d-2 revision 5.
 EXPECTED_V3_ADDITIONS = (
     (601, "tests.selected"),
     (602, "tests.affected"),
@@ -64,13 +64,15 @@ EXPECTED_V3_ADDITIONS = (
 # Tags live at version 3 (reserved flips false); every other native row
 # stays reserved. A future semantics slice flips a row live by contract
 # revision, never by editing this set beside the contract.
-EXPECTED_V3_LIVE = (601, 602, 605)
+EXPECTED_V3_LIVE = (601, 602, 605, 606, 607)
 # Live rows name their Appendix C typed records exactly; the bridge carries
 # no bodies, so this pin is the only machine check on the record names.
 EXPECTED_V3_LIVE_BODIES = {
     601: ("tests.selected.request", "tests.selected.response"),
     602: ("tests.affected.request", "tests.affected.response"),
     605: ("tests.report_read.request", "tests.report_read.response"),
+    606: ("tests.replay.request", "tests.replay.response"),
+    607: ("tests.attempt_status.request", "tests.attempt_status.response"),
 }
 V3_OWNER = "S20-620"
 
@@ -157,7 +159,7 @@ def parse_v3_additions(native_text: str) -> list[dict]:
             if bodies != EXPECTED_V3_LIVE_BODIES[method["tag"]]:
                 raise SystemExit(f"v3 addition {method['tag']} must name its Appendix C records, found {bodies}")
         elif not method["reserved"]:
-            raise SystemExit(f"v3 addition {method['tag']} must stay reserved until N7d-2")
+            raise SystemExit(f"v3 addition {method['tag']} must stay reserved")
     return additions
 
 

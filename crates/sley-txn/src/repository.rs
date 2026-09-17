@@ -53,10 +53,10 @@ use crate::native_codec::{
 };
 use crate::native_commit::{
     AttemptRecord, AttemptState, AttemptStatus, ExecutedNativeTest, NativeAttemptId,
-    NativeCommitError, NativeCommitInput, NativeCommitOutcome, NativeCommitOutput, NativeRejection,
-    NativeVerifiedRevision, check_admission_profile_binding, check_execution_coverage,
-    check_native_wall_budget, commit_needs_executor, read_attempt_record, verify_acceptance_trust,
-    verify_measurement_trust, write_attempt_record,
+    NativeAttemptScope, NativeCommitError, NativeCommitInput, NativeCommitOutcome,
+    NativeCommitOutput, NativeRejection, NativeVerifiedRevision, check_admission_profile_binding,
+    check_execution_coverage, check_native_wall_budget, commit_needs_executor, read_attempt_record,
+    verify_acceptance_trust, verify_measurement_trust, write_attempt_record,
 };
 #[cfg(any(test, feature = "s20-530-test-hooks"))]
 use crate::recovery_ancestry_test_hook;
@@ -2793,6 +2793,35 @@ impl TransactionRepository {
         self.validate_maintenance(&maintenance)?;
         let _lock = self.acquire_existing_lock()?;
         self.load_verified_native_revision(transaction_id)
+    }
+
+    /// Reads one attempt's journaled scope without touching receipts.
+    ///
+    /// The 607 surface enforces workspace and candidate bindings from this
+    /// scope before resolving status: no journal record means unknown, and
+    /// enforcement never consults receipt or head bytes.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TXN_IO` for invalid layout or `NATIVE_JOURNAL_CORRUPT` for
+    /// an unreadable journal record.
+    pub fn native_attempt_scope(
+        &self,
+        attempt_id: NativeAttemptId,
+    ) -> Result<Option<NativeAttemptScope>, CommitError> {
+        self.ensure_read_layout()?;
+        let maintenance = acquire_shared_repository_maintenance(&self.root)?;
+        self.validate_maintenance(&maintenance)?;
+        let _lock = self.acquire_existing_lock()?;
+        let Some(record) = read_attempt_record(&self.root, attempt_id)? else {
+            return Ok(None);
+        };
+        Ok(Some(NativeAttemptScope {
+            workspace: record.workspace,
+            principal: record.principal,
+            candidate_id: record.candidate_id,
+            expected_parent: record.expected_parent,
+        }))
     }
 
     /// Resolves one attempt against journal, receipt, and head bytes.

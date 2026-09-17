@@ -560,12 +560,11 @@ impl Method {
         Self::Report,
     ];
 
-    /// The version-3 table: the frozen v2 tags plus the three native test
-    /// methods new in that scope, in tag order. The legacy `ALL` and `V2_ALL`
-    /// tables are unchanged. The selection reads 601/602 dispatch at v3
-    /// with the native-tests bit since N7c; 605-607 stay reserved until
-    /// N7d, so v3 negotiation works while those calls still refuse
-    /// `PROTOCOL_METHOD_UNSUPPORTED`.
+    /// The version-3 table: the frozen v2 tags plus the five native test
+    /// methods, in tag order. The legacy `ALL` and `V2_ALL`
+    /// tables are unchanged. All five native methods dispatch at v3
+    /// with the native-tests bit since N7d-2; without the bit or below v3
+    /// those calls still refuse `PROTOCOL_METHOD_UNSUPPORTED`.
     pub const V3_ALL: [Self; 46] = [
         Self::SessionOpen,
         Self::SessionRenew,
@@ -726,11 +725,10 @@ impl Method {
     }
 
     /// Reserved methods fail `PROTOCOL_METHOD_UNSUPPORTED` at this revision.
-    /// The two still-pending v3-native methods join the reserved set until
-    /// N7d-2; `tests.selected`, `tests.affected` and `tests.report_read`
-    /// went live at v3 with the native-tests bit in N7c/N7d-1, so they stay
-    /// reserved in every other version and v1/v2 refuse them byte-for-byte
-    /// as before.
+    /// All five v3-native methods went live at v3 with the native-tests bit
+    /// (N7c/N7d-1/N7d-2), so they stay reserved in every other version and
+    /// v1/v2 refuse them as before: 601/602 byte-for-byte, 605–607 at decode
+    /// as unsupported.
     #[must_use]
     pub const fn is_reserved(self) -> bool {
         matches!(
@@ -755,14 +753,17 @@ impl Method {
     }
 
     /// Native test reads live at v3 with the native-tests bit and only
-    /// there: the two selection reads plus report paging. Replay and
-    /// attempt status join in N7d-2; until then they stay reserved even
-    /// at v3 with the bit.
+    /// there: the two selection reads, report paging, replay and attempt
+    /// status, all live since N7d-2.
     #[must_use]
     pub const fn is_native_test(self) -> bool {
         matches!(
             self,
-            Self::TestsSelected | Self::TestsAffected | Self::TestsReportRead
+            Self::TestsSelected
+                | Self::TestsAffected
+                | Self::TestsReportRead
+                | Self::TestsReplay
+                | Self::TestsAttemptStatus
         )
     }
 
@@ -3419,8 +3420,8 @@ mod tests {
         assert!(Method::TestsSelected.is_native_test());
         assert!(Method::TestsAffected.is_native_test());
         assert!(Method::TestsReportRead.is_native_test());
-        assert!(!Method::TestsReplay.is_native_test());
-        assert!(!Method::TestsAttemptStatus.is_native_test());
+        assert!(Method::TestsReplay.is_native_test());
+        assert!(Method::TestsAttemptStatus.is_native_test());
         assert!(!Method::Report.is_native_test());
         assert!(!Method::Report.is_reserved());
         for method in Method::V3_ALL {

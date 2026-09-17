@@ -3413,19 +3413,15 @@ fn v3_offered_hello_names_v3_table_and_native_bit() {
         vec![PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3]
     );
     assert_eq!(offered.methods, v3_offered_methods());
-    assert_eq!(offered.methods.len(), v3_methods().len() + 3);
+    assert_eq!(offered.methods.len(), v3_methods().len() + 5);
     for tag in [
         TESTS_SELECTED_TAG,
         TESTS_AFFECTED_TAG,
         TESTS_REPORT_READ_TAG,
+        TESTS_REPLAY_TAG,
+        TESTS_ATTEMPT_STATUS_TAG,
     ] {
         assert!(offered.methods.contains(&tag), "v3 offers live {tag}");
-    }
-    for tag in [TESTS_REPLAY_TAG, TESTS_ATTEMPT_STATUS_TAG] {
-        assert!(
-            !offered.methods.contains(&tag),
-            "v3 offers no pending {tag}"
-        );
     }
     assert!(offered.features & FEATURE_NATIVE_TESTS_V1 != 0);
     // The v3 hello still travels at frame version 1 so older peers can
@@ -3454,17 +3450,17 @@ fn v3_offered_hello_names_v3_table_and_native_bit() {
 }
 
 #[test]
-fn v3_native_calls_refuse_reserved_with_bit_and_unnegotiated_without() {
-    // With the bit, a peer-offered still-pending native tag negotiates
-    // and refuses as reserved; the live 605 paging tag instead reaches
-    // dispatch, where an empty body refuses as malformed. Without the
+fn v3_native_calls_route_live_with_bit_and_refuse_reserved_without() {
+    // With the bit, every native tag negotiates and reaches dispatch:
+    // the live 606/607 tags refuse an empty body as malformed, proving
+    // they traveled past reservation into their handlers. Without the
     // bit, negotiation strips every native tag and the same calls refuse
-    // without running native semantics.
+    // as reserved without running native semantics.
     let mut offered_native = v3_methods();
     offered_native.extend_from_slice(&[TESTS_REPLAY_TAG, TESTS_ATTEMPT_STATUS_TAG]);
     offered_native.sort_unstable();
     let bit = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1;
-    let (temp, _, _) = genesis("v3-native-refusal", executable_bodies(), &[]);
+    let (temp, _, _) = genesis("v3-native-live", executable_bodies(), &[]);
     let repository = temp.child("repo");
     let mut server = Server::new_versioned(
         &repository,
@@ -3474,15 +3470,14 @@ fn v3_native_calls_refuse_reserved_with_bit_and_unnegotiated_without() {
     .unwrap();
     assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V3);
     assert!(server.profile().admits(Method::TestsReplay));
+    assert!(server.profile().admits(Method::TestsAttemptStatus));
     let session = open_v3_session(&mut server);
     for (request_id, tag) in [TESTS_REPLAY_TAG, TESTS_ATTEMPT_STATUS_TAG]
         .into_iter()
         .enumerate()
     {
         let failure = call_v3(&mut server, session, request_id as u64 + 1, tag);
-        assert_eq!(failure.code, ProtocolErrorCode::MethodUnsupported.numeric());
-        assert_eq!(failure.details, RESERVED_SEAM_620_DETAIL);
-        assert_eq!(failure.retryability, Retryability::AfterCapability);
+        assert_eq!(failure.code, ProtocolErrorCode::PayloadInvalid.numeric());
     }
     // Without the bit the tags never reach admission: the selection
     // drops them, and dispatch still refuses the reserved method (the
@@ -3508,18 +3503,25 @@ fn v3_native_calls_refuse_reserved_with_bit_and_unnegotiated_without() {
 fn native_selection_refuses_reserved_on_v1_paths() {
     // v1 and v2 refuse the reserved native selections byte-for-byte as
     // before: `tests.selected`/`tests.affected` decode, then refuse as
-    // reserved with the seam detail and AfterCapability. `tests.report_read`
-    // never existed in the frozen v1/v2 tables, so it refuses at decode as
-    // unsupported with no seam detail.
+    // reserved with the seam detail and AfterCapability. `tests.report_read`,
+    // `tests.replay` and `tests.attempt_status` never existed in the frozen
+    // v1/v2 tables, so they refuse at decode as unsupported with no seam
+    // detail.
     let mut harness = Harness::new("smp1-native-v1-refusal");
     for method in [Method::TestsSelected, Method::TestsAffected] {
         let failure = harness.fail(method, Vec::new());
         assert_eq!(failure.details, RESERVED_SEAM_620_DETAIL);
         assert_eq!(failure.retryability, Retryability::AfterCapability);
     }
-    let failure = harness.fail(Method::TestsReportRead, Vec::new());
-    assert_eq!(failure.code, ProtocolErrorCode::MethodUnsupported.numeric());
-    assert!(failure.details.is_empty());
+    for method in [
+        Method::TestsReportRead,
+        Method::TestsReplay,
+        Method::TestsAttemptStatus,
+    ] {
+        let failure = harness.fail(method, Vec::new());
+        assert_eq!(failure.code, ProtocolErrorCode::MethodUnsupported.numeric());
+        assert!(failure.details.is_empty());
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -4243,6 +4245,879 @@ fn report_read_refuses_after_token_expiry() {
         report_read_body(&token, 0, total),
     );
     assert_eq!(fields_of(&revived.body, 6)[3], encode_uvar(total));
+}
+
+// ---------------------------------------------------------------------------
+// 606/607/commit route (NATIVE_TEST_ADMISSION_V1 App. C rev5)
+// ---------------------------------------------------------------------------
+
+/// Test-only acceptance signer: structural 64-byte claim signature,
+/// mirroring the txn fixture signer (real Ed25519 stays vendored out).
+struct CommitTestSigner {
+    key: [u8; 32],
+}
+
+impl sley_txn::NativeAcceptanceSigner for CommitTestSigner {
+    fn key_id(&self) -> [u8; 32] {
+        self.key
+    }
+
+    fn sign(&self, _preimage: &[u8]) -> [u8; 64] {
+        [0x5A; 64]
+    }
+}
+
+/// Test-only commit-path executor: empty plans execute zero workers, so
+/// commit and replay both return no evidence. Replay parity is exact
+/// because both sides return the same empty vector.
+struct EmptyNativeExecutor;
+
+impl sley_txn::NativeTestExecutor for EmptyNativeExecutor {
+    fn execute(
+        &self,
+        _plan: &sley_tests::NativeTestPlanV1,
+        _validated: &sley_policy::ValidatedCandidatePlan,
+    ) -> Result<Vec<sley_txn::ExecutedNativeTest>, sley_txn::NativeCommitError> {
+        Ok(Vec::new())
+    }
+
+    fn execute_replay(
+        &self,
+        _plan: &sley_tests::NativeTestPlanV1,
+        _objects: &std::collections::BTreeMap<sley_id::ObjectId, &[u8]>,
+    ) -> Result<Vec<sley_txn::ExecutedNativeTest>, sley_txn::NativeCommitError> {
+        Ok(Vec::new())
+    }
+}
+
+/// Test-only commit-path executor refusing replay: commits execute zero
+/// workers while replay refuses, proving the inconclusive verdict.
+struct NoReplayExecutor;
+
+impl sley_txn::NativeTestExecutor for NoReplayExecutor {
+    fn execute(
+        &self,
+        _plan: &sley_tests::NativeTestPlanV1,
+        _validated: &sley_policy::ValidatedCandidatePlan,
+    ) -> Result<Vec<sley_txn::ExecutedNativeTest>, sley_txn::NativeCommitError> {
+        Ok(Vec::new())
+    }
+}
+
+const COMMIT_MEASUREMENT_KEY: [u8; 32] = [0xB2; 32];
+const COMMIT_ACCEPTANCE_KEY: [u8; 32] = [0xA1; 32];
+
+/// One receiver trust manifest granting one key one role over one
+/// workspace/profile pair, mirroring the txn fixture trust.
+fn commit_manifest(
+    key: [u8; 32],
+    role: u32,
+    workspace: sley_id::WorkspaceId,
+    profile: [u8; 32],
+) -> sley_tests::HistoricalTrustPolicyV1 {
+    use sley_tests::{HistoricalTrustPolicyParts, HistoricalTrustPolicyV1, TrustEntry};
+    HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
+        policy_nonce: [0x11; 32],
+        entries: vec![TrustEntry {
+            key_id: key,
+            role,
+            workspaces: vec![*workspace.as_bytes()],
+            profiles: vec![profile],
+            valid_from_unix_millis: 0,
+            valid_until_unix_millis: u64::MAX,
+        }],
+    })
+    .expect("commit trust builds")
+}
+
+/// Provisions one commit authority over the genesis workspace: trivial
+/// commit-path executor, structural signer, and matching trust manifests.
+fn commit_authority(workspace: sley_id::WorkspaceId) -> crate::server::NativeAuthority {
+    let admission = sley_policy::fixed_native_admission_profile()
+        .expect("fixed descriptor builds")
+        .id();
+    crate::server::NativeAuthority::provision(
+        Box::new(EmptyNativeExecutor),
+        Box::new(CommitTestSigner {
+            key: COMMIT_ACCEPTANCE_KEY,
+        }),
+        commit_manifest(
+            COMMIT_MEASUREMENT_KEY,
+            sley_tests::ROLE_MEASUREMENT,
+            workspace,
+            *sley_tests::native_execution_profile_id().as_bytes(),
+        ),
+        commit_manifest(
+            COMMIT_ACCEPTANCE_KEY,
+            sley_tests::ROLE_ACCEPTANCE,
+            workspace,
+            *admission.as_bytes(),
+        ),
+    )
+}
+
+/// Test-only diagnostic executor serving empty plans: returns no
+/// evidence without touching commit machinery (commit entry points keep
+/// refusing honestly), proving diagnostics derive over native heads
+/// through the shared state, object, and policy types.
+struct EmptyDiagnosticExecutor;
+
+impl sley_txn::NativeTestExecutor for EmptyDiagnosticExecutor {
+    fn execute(
+        &self,
+        _plan: &sley_tests::NativeTestPlanV1,
+        _validated: &sley_policy::ValidatedCandidatePlan,
+    ) -> Result<Vec<sley_txn::ExecutedNativeTest>, sley_txn::NativeCommitError> {
+        Err(sley_txn::NativeCommitError::ExecutorUnavailable)
+    }
+
+    fn execute_diagnostic(
+        &self,
+        _plan: &sley_tests::NativeTestPlanV1,
+        _objects: &std::collections::BTreeMap<sley_id::ObjectId, &[u8]>,
+    ) -> Result<Vec<sley_txn::ExecutedNativeTest>, sley_txn::NativeCommitError> {
+        Ok(Vec::new())
+    }
+}
+
+/// A v3 server provisioned for native commits with a fixed clock: the
+/// genesis workspace is byte 1 like the diagnostic convention.
+fn commit_server(label: &str) -> (sley_repo::test_support::TempDir, Server, SessionId) {
+    use sley_id::WorkspaceId;
+    let (temp, _transactions, _genesis_id) = genesis(label, executable_bodies(), &[]);
+    let repository = temp.child("repo");
+    let bit = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1;
+    let methods = v3_offered_methods();
+    let mut server = Server::new_versioned(
+        &repository,
+        &v3hello(methods.clone(), bit),
+        &v3hello(methods, bit),
+    )
+    .unwrap();
+    assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V3);
+    let session = open_v3_session(&mut server);
+    server.set_clock_millis(clock_zero);
+    server.set_native_authority(commit_authority(WorkspaceId::from_bytes([1; 32])));
+    (temp, server, session)
+}
+
+/// An empty-selection namespace candidate over the given parent: no
+/// `TestCases` created, so the native plan selects nothing and the commit
+/// exercises the journal/status/replay path without worker evidence.
+fn empty_candidate(
+    temp: &sley_repo::test_support::TempDir,
+    parent: sley_id::TransactionId,
+) -> Vec<u8> {
+    use sley_id::{CandidateNonce, PrincipalId, WorkspaceId};
+    use sley_mutate::value::{EntityBodyValue, EntityIdSet, NamespaceBody};
+    use sley_mutate::{
+        BoundPrecondition, CandidateExpiry, CandidateRecord, ExpectedIdentityAbsent, MutationClass,
+        MutationOperation, MutationPayload, PreconditionPayload, PreimageRequirement,
+        build_candidate, full_validation_profile_id,
+    };
+    use sley_policy::build_capability_summary_projection;
+    let head = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .accepted_head()
+        .unwrap();
+    let revision = head.verified_revision();
+    let workspace = WorkspaceId::from_bytes([1; 32]);
+    let principal = PrincipalId::from_bytes([2; 32]);
+    let nonce = CandidateNonce::from_bytes([0x77; 32]);
+    let target = sley_id::EntityId::derive(workspace, nonce, 3, 0);
+    let summary = build_capability_summary_projection(
+        principal,
+        workspace,
+        revision.policy_root().root(),
+        revision.state_root().root,
+        &[],
+    )
+    .unwrap();
+    build_candidate(&CandidateRecord {
+        format_version: 1,
+        workspace_id: workspace,
+        base_transaction_id: parent,
+        base_root: revision.state_root().root,
+        schema_epoch_id: revision.state_root().record.schema_epoch_id,
+        policy_root_id: revision.policy_root().root(),
+        principal_id: principal,
+        capability_summary_digest: summary.digest(),
+        operations: vec![MutationOperation {
+            ordinal: 0,
+            class: MutationClass::CreateEntity,
+            target_kind: 3,
+            target_entity: target,
+            field_tag: None,
+            payload: MutationPayload::CreateEntity(EntityBodyValue::Namespace(NamespaceBody {
+                parent: None,
+                members: EntityIdSet::from_unsorted(vec![]).unwrap(),
+            })),
+            precondition_ordinal: 0,
+        }],
+        preconditions: vec![BoundPrecondition {
+            operation_ordinal: 0,
+            requirement: PreimageRequirement::ExpectedIdentityAbsent,
+            payload: PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
+                entity_id: target,
+            }),
+        }],
+        validation_profile_id: full_validation_profile_id().unwrap(),
+        candidate_nonce: nonce,
+        expiry: CandidateExpiry::unix_millis(2_000),
+    })
+    .unwrap()
+    .stored_bytes
+}
+
+/// One v3 native commit request body: candidate, parent, attempt, profile.
+fn commit_native_body(
+    candidate: &[u8],
+    parent: sley_id::TransactionId,
+    attempt: [u8; 16],
+) -> Vec<u8> {
+    let profile = sley_policy::fixed_native_admission_profile()
+        .expect("fixed descriptor builds")
+        .id();
+    encode_record(&[
+        (1, candidate.to_vec()),
+        (2, parent.as_bytes().to_vec()),
+        (3, attempt.to_vec()),
+        (4, profile.as_bytes().to_vec()),
+    ])
+    .unwrap()
+}
+
+/// Drives one empty native commit through the v3 route and returns the
+/// committed identities: journal coverage every later 606/607 test builds
+/// on. The commit advances the head, so callers open a fresh session for
+/// the reads that follow.
+fn committed_native(
+    temp: &sley_repo::test_support::TempDir,
+    server: &mut Server,
+    session: SessionId,
+    attempt: [u8; 16],
+) -> (
+    sley_id::TransactionId,
+    sley_id::ReceiptId,
+    sley_id::StateRoot,
+) {
+    use sley_id::TransactionId;
+    let parent = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .transaction_id();
+    let candidate = empty_candidate(temp, parent);
+    let frame = call_v3_ok(
+        server,
+        session,
+        1,
+        Method::Commit.tag(),
+        commit_native_body(&candidate, parent, attempt),
+    );
+    let fields = fields_of(&frame.body, 6);
+    assert_eq!(fields[5], attempt.to_vec());
+    let transaction_id = TransactionId::from_bytes(fields[0].as_slice().try_into().unwrap());
+    assert_ne!(transaction_id, parent);
+    (
+        transaction_id,
+        sley_id::ReceiptId::from_bytes(fields[1].as_slice().try_into().unwrap()),
+        sley_id::StateRoot::from_bytes(fields[2].as_slice().try_into().unwrap()),
+    )
+}
+
+/// The stored plan's resource policy behind one committed transaction:
+/// the claim a 606 replay must echo exactly.
+fn stored_policy_id(
+    temp: &sley_repo::test_support::TempDir,
+    transaction_id: sley_id::TransactionId,
+) -> [u8; 32] {
+    let revision = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .verified_native_revision(transaction_id)
+        .unwrap();
+    let plan =
+        sley_tests::NativeTestPlanV1::parse(revision.receipt().bundle.plan_stored()).unwrap();
+    *plan.resource_policy().policy_id().as_bytes()
+}
+
+/// One 606 `tests.replay` request body: transaction, root, profile,
+/// policy, attempt.
+fn replay_body(
+    transaction_id: sley_id::TransactionId,
+    root: sley_id::StateRoot,
+    policy: [u8; 32],
+    attempt: [u8; 16],
+) -> Vec<u8> {
+    let profile = sley_tests::native_execution_profile_id();
+    encode_record(&[
+        (1, transaction_id.as_bytes().to_vec()),
+        (2, root.as_bytes().to_vec()),
+        (3, profile.as_bytes().to_vec()),
+        (4, policy.to_vec()),
+        (5, attempt.to_vec()),
+    ])
+    .unwrap()
+}
+
+/// One 607 `tests.attempt_status` request body: attempt plus an optional
+/// candidate binding (empty bytes mean absent).
+fn attempt_status_body(attempt: [u8; 16], candidate: Option<[u8; 32]>) -> Vec<u8> {
+    encode_record(&[
+        (1, attempt.to_vec()),
+        (
+            2,
+            candidate.map_or_else(Vec::new, |identity| identity.to_vec()),
+        ),
+    ])
+    .unwrap()
+}
+
+#[test]
+fn commit_route_commits_empty_selection_and_journals_attempt() {
+    let (temp, mut server, session) = commit_server("v3-commit-route");
+    let attempt = [0xC0; 16];
+    let parent = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .transaction_id();
+    let (transaction_id, receipt_id, _root) =
+        committed_native(&temp, &mut server, session, attempt);
+    // The journal binds workspace, principal, candidate, and parent
+    // behind the attempt the response echoed.
+    let scope = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .native_attempt_scope(sley_txn::NativeAttemptId(attempt))
+        .unwrap()
+        .expect("commit journals its attempt");
+    assert_eq!(scope.workspace, sley_id::WorkspaceId::from_bytes([1; 32]));
+    assert_eq!(scope.principal, sley_id::PrincipalId::from_bytes([2; 32]));
+    assert_eq!(scope.expected_parent, parent);
+    assert_ne!(transaction_id, parent);
+    let _ = receipt_id;
+}
+
+/// The stored test report bytes behind one committed transaction: the
+/// exact bytes a 605 token must serve.
+fn stored_report_bytes(
+    temp: &sley_repo::test_support::TempDir,
+    transaction_id: sley_id::TransactionId,
+) -> Vec<u8> {
+    sley_txn::TransactionRepository::new(temp.child("repo"))
+        .verified_native_revision(transaction_id)
+        .unwrap()
+        .receipt()
+        .bundle
+        .test_report_stored()
+        .to_vec()
+}
+
+#[test]
+fn commit_route_without_authority_refuses_before_journal() {
+    let (temp, mut server, session) = diagnostic_server("v3-commit-noauth");
+    let parent = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .transaction_id();
+    let candidate = empty_candidate(&temp, parent);
+    let attempt = [0xC1; 16];
+    let failure = call_v3_fail(
+        &mut server,
+        session,
+        1,
+        Method::Commit.tag(),
+        commit_native_body(&candidate, parent, attempt),
+    );
+    assert_eq!(failure.symbol, "NATIVE_SIGNER_UNAVAILABLE");
+    // Nothing journaled, head unchanged.
+    assert!(
+        sley_txn::TransactionRepository::new(temp.child("repo"))
+            .native_attempt_scope(sley_txn::NativeAttemptId(attempt))
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn commit_route_legacy_shape_refuses_malformed_under_v3() {
+    // A legacy v1 commit body under v3+native never reaches the legacy
+    // route: the native payload owns the method there. The first field
+    // (a parent identity where candidate bytes belong) fails candidate
+    // import before any work, so the head stays put and nothing journals.
+    // The exact codec symbol depends on the parent bytes, so this pins
+    // the refusal and its side-effect freedom, not the symbol.
+    let (temp, mut server, session) = commit_server("v3-commit-legacy");
+    let parent = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .transaction_id();
+    let candidate = empty_candidate(&temp, parent);
+    let legacy = encode_record(&[
+        (1, parent.as_bytes().to_vec()),
+        (
+            2,
+            sley_id::PrincipalId::from_bytes([2; 32])
+                .as_bytes()
+                .to_vec(),
+        ),
+        (3, encode_uvar(1_000)),
+        (4, candidate),
+    ])
+    .unwrap();
+    let _failure = call_v3_fail(&mut server, session, 1, Method::Commit.tag(), legacy);
+    let head = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .transaction_id();
+    assert_eq!(head, parent);
+}
+
+#[test]
+fn commit_route_native_shape_stays_legacy_on_v1() {
+    // Routing is by negotiation, never sniffing: the native shape under
+    // v1 reaches the legacy commit, where the candidate bytes fail the
+    // parent field and refuse as malformed.
+    let mut harness = Harness::new("smp1-commit-v1-shape");
+    let parent = sley_id::TransactionId::from_bytes([9; 32]);
+    let failure = harness.fail(
+        Method::Commit,
+        commit_native_body(&[7; 64], parent, [0xC2; 16]),
+    );
+    assert_eq!(failure.code, ProtocolErrorCode::PayloadInvalid.numeric());
+}
+
+#[test]
+fn attempt_status_answers_unknown_for_missing_and_diagnostic_attempts() {
+    let (temp, mut server, session) = diagnostic_server("v3-status-unknown");
+    let root = diagnostic_head_root(&temp);
+    // A completed diagnostic attempt is never journaled, so 607 answers
+    // unknown for it (selected_report answers request 1 underneath).
+    let (_report_id, _token, _total) = selected_report(&mut server, session, root, [0xD1; 16]);
+    let frame = call_v3_ok(
+        &mut server,
+        session,
+        2,
+        TESTS_ATTEMPT_STATUS_TAG,
+        attempt_status_body([0xD1; 16], None),
+    );
+    let fields = fields_of(&frame.body, 4);
+    assert_eq!(fields[0], encode_uvar(0));
+    assert!(fields[1].is_empty() && fields[2].is_empty() && fields[3].is_empty());
+    // No journal record either: unknown with every optional field absent.
+    let frame = call_v3_ok(
+        &mut server,
+        session,
+        3,
+        TESTS_ATTEMPT_STATUS_TAG,
+        attempt_status_body([0xD0; 16], None),
+    );
+    let fields = fields_of(&frame.body, 4);
+    assert_eq!(fields[0], encode_uvar(0));
+    assert!(fields[1].is_empty() && fields[2].is_empty() && fields[3].is_empty());
+}
+#[test]
+fn attempt_status_answers_committed_with_token_after_renewal() {
+    let (temp, mut server, session) = commit_server("v3-status-committed");
+    let attempt = [0xC3; 16];
+    let (transaction_id, receipt_id, _root) =
+        committed_native(&temp, &mut server, session, attempt);
+    // The commit moved the head past the session: renew into the new
+    // head, proving status binds workspace rather than session identity.
+    let renewed = call_v3_ok(
+        &mut server,
+        session,
+        2,
+        Method::SessionRenew.tag(),
+        session.as_bytes().to_vec(),
+    );
+    assert_eq!(renewed.method, Method::SessionRenew.tag());
+    let frame = call_v3_ok(
+        &mut server,
+        session,
+        3,
+        TESTS_ATTEMPT_STATUS_TAG,
+        attempt_status_body(attempt, None),
+    );
+    let fields = fields_of(&frame.body, 4);
+    assert_eq!(fields[0], encode_uvar(5));
+    assert_eq!(fields[1], transaction_id.as_bytes().to_vec());
+    assert_eq!(fields[2], receipt_id.as_bytes().to_vec());
+    assert_eq!(fields[3].len(), 32);
+    // The fresh token pages the verified accepted report to its end.
+    let page = call_v3_ok(
+        &mut server,
+        session,
+        4,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&fields[3], 0, u64::from(u32::MAX)),
+    );
+    let page_fields = fields_of(&page.body, 6);
+    let stored = stored_report_bytes(&temp, transaction_id);
+    assert_eq!(uvar_of(&page_fields[3]), stored.len() as u64);
+    assert_eq!(
+        page_fields[4],
+        sley_scb1::encode_bytes(&stored).expect("page encodes")
+    );
+    assert_eq!(
+        page_fields[5],
+        sley_scb1::encode_option_uvar(None).expect("no link encodes"),
+        "final page links nowhere"
+    );
+}
+
+#[test]
+fn attempt_status_conflicts_on_divergent_candidate() {
+    let (temp, mut server, session) = commit_server("v3-status-conflict");
+    let attempt = [0xC4; 16];
+    let _ = committed_native(&temp, &mut server, session, attempt);
+    let fresh = open_v3_session(&mut server);
+    let failure = call_v3_fail(
+        &mut server,
+        fresh,
+        1,
+        TESTS_ATTEMPT_STATUS_TAG,
+        attempt_status_body(attempt, Some([0xEE; 32])),
+    );
+    assert_eq!(failure.symbol, "NATIVE_ATTEMPT_CONFLICT");
+}
+
+#[test]
+fn replay_scope_refuses_unknown_transaction() {
+    let (_temp, mut server, session) = commit_server("v3-replay-scope");
+    let policy = [0xDD; 32];
+    let root = sley_id::StateRoot::from_bytes([0xDB; 32]);
+    let failure = call_v3_fail(
+        &mut server,
+        session,
+        1,
+        TESTS_REPLAY_TAG,
+        replay_body(
+            sley_id::TransactionId::from_bytes([0xDA; 32]),
+            root,
+            policy,
+            [0xE0; 16],
+        ),
+    );
+    assert_eq!(failure.symbol, "NATIVE_REPLAY_SCOPE_REFUSED");
+}
+
+#[test]
+fn replay_matches_empty_commit_and_pages_original_report() {
+    let (temp, mut server, session) = commit_server("v3-replay-matched");
+    let attempt = [0xC5; 16];
+    let (transaction_id, _receipt_id, root) =
+        committed_native(&temp, &mut server, session, attempt);
+    let policy = stored_policy_id(&temp, transaction_id);
+    let fresh = open_v3_session(&mut server);
+    let frame = call_v3_ok(
+        &mut server,
+        fresh,
+        1,
+        TESTS_REPLAY_TAG,
+        replay_body(transaction_id, root, policy, [0xE1; 16]),
+    );
+    let fields = fields_of(&frame.body, 6);
+    assert_eq!(fields[0], transaction_id.as_bytes().to_vec());
+    assert_eq!(fields[1], root.as_bytes().to_vec());
+    assert_eq!(fields[2], encode_uvar(1));
+    assert!(!fields[3].is_empty());
+    assert!(fields[4].is_empty());
+    assert_eq!(fields[5].len(), 32);
+    // The match token pages the verified original report to its end.
+    let page = call_v3_ok(
+        &mut server,
+        fresh,
+        2,
+        TESTS_REPORT_READ_TAG,
+        report_read_body(&fields[5], 0, u64::from(u32::MAX)),
+    );
+    let page_fields = fields_of(&page.body, 6);
+    assert_eq!(page_fields[0], fields[3]);
+    let stored = stored_report_bytes(&temp, transaction_id);
+    assert_eq!(uvar_of(&page_fields[3]), stored.len() as u64);
+    assert_eq!(
+        page_fields[4],
+        sley_scb1::encode_bytes(&stored).expect("page encodes")
+    );
+    assert_eq!(
+        page_fields[5],
+        sley_scb1::encode_option_uvar(None).expect("no link encodes"),
+        "final page links nowhere"
+    );
+    // Identical bindings replay the cached answer byte-for-byte.
+    let replayed = call_v3_ok(
+        &mut server,
+        fresh,
+        3,
+        TESTS_REPLAY_TAG,
+        replay_body(transaction_id, root, policy, [0xE1; 16]),
+    );
+    assert_eq!(replayed.body, frame.body);
+    // Divergent bindings under the same attempt refuse as a conflict.
+    let conflict = call_v3_fail(
+        &mut server,
+        fresh,
+        4,
+        TESTS_REPLAY_TAG,
+        replay_body(
+            transaction_id,
+            sley_id::StateRoot::from_bytes([0xDC; 32]),
+            policy,
+            [0xE1; 16],
+        ),
+    );
+    assert_eq!(conflict.symbol, "NATIVE_ATTEMPT_CONFLICT");
+}
+
+#[test]
+fn replay_root_mismatch_answers_untrusted() {
+    let (temp, mut server, session) = commit_server("v3-replay-root");
+    let attempt = [0xC6; 16];
+    let (transaction_id, _receipt_id, _root) =
+        committed_native(&temp, &mut server, session, attempt);
+    let policy = stored_policy_id(&temp, transaction_id);
+    let fresh = open_v3_session(&mut server);
+    let frame = call_v3_ok(
+        &mut server,
+        fresh,
+        1,
+        TESTS_REPLAY_TAG,
+        replay_body(
+            transaction_id,
+            sley_id::StateRoot::from_bytes([0xDC; 32]),
+            policy,
+            [0xE2; 16],
+        ),
+    );
+    let fields = fields_of(&frame.body, 6);
+    assert_eq!(fields[2], encode_uvar(4));
+    assert!(fields[4].is_empty() && fields[5].is_empty());
+}
+
+#[test]
+fn replay_wrong_policy_claim_refuses_malformed() {
+    let (temp, mut server, session) = commit_server("v3-replay-policy");
+    let attempt = [0xC7; 16];
+    let (transaction_id, _receipt_id, root) =
+        committed_native(&temp, &mut server, session, attempt);
+    let fresh = open_v3_session(&mut server);
+    let failure = call_v3_fail(
+        &mut server,
+        fresh,
+        1,
+        TESTS_REPLAY_TAG,
+        replay_body(transaction_id, root, [0xDD; 32], [0xE3; 16]),
+    );
+    assert_eq!(failure.code, ProtocolErrorCode::PayloadInvalid.numeric());
+}
+
+#[test]
+fn replay_untrusted_without_matching_manifests() {
+    let (temp, mut server, session) = commit_server("v3-replay-untrusted");
+    let attempt = [0xC8; 16];
+    let (transaction_id, _receipt_id, root) =
+        committed_native(&temp, &mut server, session, attempt);
+    let policy = stored_policy_id(&temp, transaction_id);
+    // Re-provision with unrelated manifests: the receipt's trust
+    // references resolve against nothing this server holds.
+    let workspace = sley_id::WorkspaceId::from_bytes([1; 32]);
+    let admission = sley_policy::fixed_native_admission_profile()
+        .expect("fixed descriptor builds")
+        .id();
+    server.set_native_authority(crate::server::NativeAuthority::provision(
+        Box::new(EmptyNativeExecutor),
+        Box::new(CommitTestSigner {
+            key: COMMIT_ACCEPTANCE_KEY,
+        }),
+        commit_manifest(
+            [0xF1; 32],
+            sley_tests::ROLE_MEASUREMENT,
+            workspace,
+            *sley_tests::native_execution_profile_id().as_bytes(),
+        ),
+        commit_manifest(
+            [0xF2; 32],
+            sley_tests::ROLE_ACCEPTANCE,
+            workspace,
+            *admission.as_bytes(),
+        ),
+    ));
+    let fresh = open_v3_session(&mut server);
+    let frame = call_v3_ok(
+        &mut server,
+        fresh,
+        1,
+        TESTS_REPLAY_TAG,
+        replay_body(transaction_id, root, policy, [0xE4; 16]),
+    );
+    let fields = fields_of(&frame.body, 6);
+    assert_eq!(fields[2], encode_uvar(4));
+    assert!(fields[4].is_empty() && fields[5].is_empty());
+}
+
+#[test]
+fn replay_without_authority_answers_untrusted() {
+    // A server with no provisioned authority runs the engine
+    // executor-less and trust-less: the verifiable history answers
+    // untrusted rather than executing.
+    let (temp, mut server, session) = commit_server("v3-replay-noauth");
+    let attempt = [0xCC; 16];
+    let (transaction_id, _receipt_id, root) =
+        committed_native(&temp, &mut server, session, attempt);
+    let policy = stored_policy_id(&temp, transaction_id);
+    let repository = temp.child("repo");
+    let bit = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1;
+    let methods = v3_offered_methods();
+    let mut bare = Server::new_versioned(
+        &repository,
+        &v3hello(methods.clone(), bit),
+        &v3hello(methods, bit),
+    )
+    .unwrap();
+    let fresh = open_v3_session(&mut bare);
+    let frame = call_v3_ok(
+        &mut bare,
+        fresh,
+        1,
+        TESTS_REPLAY_TAG,
+        replay_body(transaction_id, root, policy, [0xE7; 16]),
+    );
+    let fields = fields_of(&frame.body, 6);
+    assert_eq!(fields[2], encode_uvar(4));
+    assert!(fields[4].is_empty() && fields[5].is_empty());
+}
+
+#[test]
+fn replay_refusing_executor_answers_inconclusive() {
+    let (temp, mut server, session) = commit_server("v3-replay-inconclusive");
+    let attempt = [0xC9; 16];
+    let (transaction_id, _receipt_id, root) =
+        committed_native(&temp, &mut server, session, attempt);
+    let policy = stored_policy_id(&temp, transaction_id);
+    // The commit-time executor replays nothing new here: swap in a
+    // dispatch whose replay refuses while history still verifies.
+    let workspace = sley_id::WorkspaceId::from_bytes([1; 32]);
+    let admission = sley_policy::fixed_native_admission_profile()
+        .expect("fixed descriptor builds")
+        .id();
+    server.set_native_authority(crate::server::NativeAuthority::provision(
+        Box::new(NoReplayExecutor),
+        Box::new(CommitTestSigner {
+            key: COMMIT_ACCEPTANCE_KEY,
+        }),
+        commit_manifest(
+            COMMIT_MEASUREMENT_KEY,
+            sley_tests::ROLE_MEASUREMENT,
+            workspace,
+            *sley_tests::native_execution_profile_id().as_bytes(),
+        ),
+        commit_manifest(
+            COMMIT_ACCEPTANCE_KEY,
+            sley_tests::ROLE_ACCEPTANCE,
+            workspace,
+            *admission.as_bytes(),
+        ),
+    ));
+    let fresh = open_v3_session(&mut server);
+    let frame = call_v3_ok(
+        &mut server,
+        fresh,
+        1,
+        TESTS_REPLAY_TAG,
+        replay_body(transaction_id, root, policy, [0xE5; 16]),
+    );
+    let fields = fields_of(&frame.body, 6);
+    assert_eq!(fields[2], encode_uvar(3));
+    assert!(fields[4].is_empty() && fields[5].is_empty());
+}
+
+#[test]
+fn replay_refuses_non_native_history() {
+    // The v1 genesis sits in scope but carries no native receipt: the
+    // engine error refuses with its preserved symbol, never a verdict.
+    let (temp, mut server, _session) = commit_server("v3-replay-nonnative");
+    let genesis_id = sley_txn::TransactionRepository::new(temp.child("repo"))
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .transaction_id();
+    let fresh = open_v3_session(&mut server);
+    let failure = call_v3_fail(
+        &mut server,
+        fresh,
+        1,
+        TESTS_REPLAY_TAG,
+        replay_body(
+            genesis_id,
+            diagnostic_head_root(&temp),
+            [0xDD; 32],
+            [0xE6; 16],
+        ),
+    );
+    assert_eq!(failure.symbol, "EXCHANGE_RECEIPT_INVALID");
+}
+
+#[test]
+fn selected_runs_empty_plan_over_native_head() {
+    // After a native commit the head is format-2: the selection read
+    // derives the empty plan over it through the shared types, proving
+    // the native arm of every head accessor serves diagnostics.
+    let (temp, mut server, session) = commit_server("v3-selected-native");
+    let attempt = [0xCA; 16];
+    let (_transaction_id, _receipt_id, root) =
+        committed_native(&temp, &mut server, session, attempt);
+    server.set_executor(Box::new(EmptyDiagnosticExecutor));
+    let fresh = open_v3_session(&mut server);
+    let frame = call_v3_ok(
+        &mut server,
+        fresh,
+        1,
+        TESTS_SELECTED_TAG,
+        selected_body(root, &[], [0xCB; 16]),
+    );
+    let fields = fields_of(&frame.body, 6);
+    assert_eq!(fields[3], encode_uvar(0));
+    assert!(!fields[4].is_empty());
+}
+
+#[test]
+fn replay_and_attempt_state_numbers_cover_every_verdict() {
+    use crate::server::{attempt_state_number, replay_status_number};
+    use sley_repo::NativeReplayStatus;
+    assert_eq!(replay_status_number(NativeReplayStatus::Matched), 1);
+    assert_eq!(replay_status_number(NativeReplayStatus::Mismatch), 2);
+    assert_eq!(
+        replay_status_number(NativeReplayStatus::InconclusiveResource),
+        3
+    );
+    assert_eq!(
+        replay_status_number(NativeReplayStatus::UntrustedHistory),
+        4
+    );
+    assert_eq!(attempt_state_number(&sley_txn::AttemptStatus::Unknown), 0);
+    assert_eq!(attempt_state_number(&sley_txn::AttemptStatus::Admitted), 1);
+    assert_eq!(attempt_state_number(&sley_txn::AttemptStatus::Running), 2);
+    assert_eq!(
+        attempt_state_number(&sley_txn::AttemptStatus::AbortedBeforePromotion),
+        3
+    );
+    assert_eq!(
+        attempt_state_number(&sley_txn::AttemptStatus::PromotionStarted),
+        4
+    );
+    assert_eq!(
+        attempt_state_number(&sley_txn::AttemptStatus::Committed {
+            transaction_id: sley_id::TransactionId::from_bytes([1; 32]),
+            receipt_id: sley_id::ReceiptId::from_bytes([2; 32]),
+            at_head: true,
+        }),
+        5
+    );
+    assert_eq!(
+        attempt_state_number(&sley_txn::AttemptStatus::OutcomeUnknown { head: None }),
+        6
+    );
 }
 
 #[test]

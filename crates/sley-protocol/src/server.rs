@@ -15,12 +15,12 @@ use std::path::{Path, PathBuf};
 use sley_check::TypeEnvironment;
 use sley_conformance::{build_execution_report, execution_report_preimage};
 use sley_id::{
-    EntityId, ExecutionReportId, NativeExecutionProfileId, ObjectId, ProtocolHandshakeId,
-    SchemaEpochId, StateRoot, TransactionId,
+    CandidateId, EntityId, ExecutionReportId, NativeAdmissionProfileId, NativeExecutionProfileId,
+    ObjectId, ProtocolHandshakeId, SchemaEpochId, StateRoot, TransactionId,
 };
 use sley_id::{PrincipalId, ReceiptId};
 use sley_mutate::{
-    build_candidate, decode_candidate_record, decode_const_value, import_candidate,
+    EntityObject, build_candidate, decode_candidate_record, decode_const_value, import_candidate,
     import_entity_object,
     value::{EntityBodyValue, TestCaseBody},
 };
@@ -36,13 +36,14 @@ use sley_query::{
 };
 use sley_repo::{
     BranchName, BranchRepository, BranchUpdateStatus, CompleteRootRequest, GcDecision, GcReport,
-    IndexCacheError, MergeCommitInput, MergeOutcome, MergeSide, ReportStoreErrorCode,
+    IndexCacheError, MAX_ANCESTRY_NODES, MergeCommitInput, MergeOutcome, MergeSide,
+    NativeExchangeTrust, NativeReplayRequest, NativeReplayStatus, ReportStoreErrorCode,
     RepositoryObjectVerifier, RepositoryQueryError, RetentionAnchor, RetentionKind,
     RetentionSnapshot, RetentionTarget, acquire_exclusive_gc, build_merge_plan, commit_merge,
     compare_complete_roots, encode_verified_entity_read_response, export_repository_exchange,
     gc_collect, gc_dry_run, import_repository_exchange, judge_merge_verified,
-    prepare_verified_entity_read, read_execution_report, run_root_query, run_root_query_fresh,
-    store_execution_report, transaction_ancestry,
+    prepare_verified_entity_read, read_execution_report, replay_native_commit, run_root_query,
+    run_root_query_fresh, store_execution_report, transaction_ancestry,
 };
 use sley_scb1::{
     encode_bytes, encode_list, encode_option_uvar, encode_record, encode_union, encode_uvar,
@@ -52,10 +53,13 @@ use sley_state_root::{
     AcceptedStateRoot, conformance_registry as state_registry, import_state_root,
 };
 use sley_store::ObjectStore;
-use sley_tests::{NativeAggregateLimits, NativeTestPlanV1};
+use sley_tests::{
+    HistoricalTrustPolicyV1, NativeAggregateLimits, NativeTestPlanV1, NativeTestReportV1,
+};
 use sley_txn::{
-    CommitInput, NativeDiagnosticAssembly, NativeTestExecutor, RepositoryMaintenanceGuard,
-    TransactionRepository, TrustedGenesisInput, VerifiedRevision,
+    AttemptStatus, CommitInput, ImportedReceipt, NativeAcceptanceSigner, NativeAttemptId,
+    NativeCommitInput, NativeDiagnosticAssembly, NativeTestExecutor, NativeVerifiedRevision,
+    RepositoryMaintenanceGuard, TransactionRepository, TrustedGenesisInput, VerifiedRevision,
     acquire_shared_repository_maintenance, assemble_diagnostic_report,
     initialize_repository_maintenance,
 };
@@ -217,6 +221,9 @@ const MAX_DIAGNOSTIC_PAGE_BYTES: u64 = 65_536;
 /// Maximum cached diagnostic attempts per server; the oldest goes on
 /// overflow, and a re-submitted attempt simply re-executes.
 const MAX_DIAGNOSTIC_ATTEMPTS: usize = 256;
+/// Maximum cached replay queries per server; the oldest goes on
+/// overflow, and a re-submitted attempt simply re-executes.
+const MAX_REPLAY_ATTEMPTS: usize = 256;
 /// Token derivation domain: the per-instance server nonce, session, and a
 /// server counter make each token unpredictable to callers while keeping
 /// one instance deterministic.
@@ -250,6 +257,129 @@ struct DiagnosticAttempt {
     selected_count: u64,
     token: [u8; 32],
     created_millis: u64,
+}
+
+/// One completed replay query with the response it produced.
+///
+/// Resubmission with identical bindings replays the cached response
+/// without re-running the engine; any binding divergence refuses as an
+/// attempt conflict. Like diagnostics, the attempt dies with its token:
+/// a cached response whose token is gone re-executes fresh instead of
+/// serving a dead capability. Replay attempts are never journaled, so
+/// 607 always answers unknown for them.
+struct ReplayAttempt {
+    session: SessionId,
+    bindings: Vec<u8>,
+    response: Vec<u8>,
+    compared_count: u64,
+    token: Option<[u8; 32]>,
+    created_millis: u64,
+}
+
+/// Operator-provisioned native commit authority, installed as one unit.
+///
+/// The v3 commit route cannot accept caller signing keys, grant bypasses,
+/// or supervisor configuration: the executor runs the tests, the signer
+/// claims the acceptance statement with the server's key, and the two
+/// receiver manifests resolve every trust reference the receipt names. A
+/// server without this authority refuses native commits before any
+/// journal or accepted-state write.
+pub struct NativeAuthority {
+    /// Qualified test-execution dispatch for commit and replay.
+    executor: Box<dyn NativeTestExecutor>,
+    /// Configured acceptance signer claiming statements.
+    signer: Box<dyn NativeAcceptanceSigner>,
+    /// Receiver-provisioned trust manifests: measurement first, then
+    /// acceptance. The array carries both sides together because the
+    /// replay engine resolves every trust reference the receipt names
+    /// against the supplied set.
+    trust_manifests: [HistoricalTrustPolicyV1; 2],
+}
+
+impl NativeAuthority {
+    /// Provisions the commit authority as one unit: test-execution
+    /// dispatch, acceptance signer, measurement trust manifest, and
+    /// acceptance trust manifest, in that argument order.
+    #[must_use]
+    pub fn provision(
+        executor: Box<dyn NativeTestExecutor>,
+        signer: Box<dyn NativeAcceptanceSigner>,
+        measurement_trust: HistoricalTrustPolicyV1,
+        acceptance_trust: HistoricalTrustPolicyV1,
+    ) -> Self {
+        Self {
+            executor,
+            signer,
+            trust_manifests: [measurement_trust, acceptance_trust],
+        }
+    }
+
+    /// Returns the receiver-provisioned measurement trust manifest.
+    #[must_use]
+    pub fn measurement_trust(&self) -> &HistoricalTrustPolicyV1 {
+        &self.trust_manifests[0]
+    }
+
+    /// Returns the receiver-provisioned acceptance trust manifest.
+    #[must_use]
+    pub fn acceptance_trust(&self) -> &HistoricalTrustPolicyV1 {
+        &self.trust_manifests[1]
+    }
+}
+
+/// Accepted head of either receipt format for the session layer and the
+/// native surfaces.
+///
+/// Legacy data paths keep the v1-only loader; session binding, the native
+/// reads, and the v3 commit route serve both formats through the shared
+/// state, object, and policy types. The format dispatches on the stored
+/// bytes through the transaction owner's any-format loader, never on
+/// caller assertion.
+enum HeadRevision {
+    V1(Box<VerifiedRevision>),
+    Native(Box<NativeVerifiedRevision>),
+}
+
+impl HeadRevision {
+    /// Returns the exact accepted revision identity.
+    fn transaction_id(&self) -> TransactionId {
+        match self {
+            Self::V1(revision) => revision.transaction_id(),
+            Self::Native(revision) => revision.transaction_id(),
+        }
+    }
+
+    /// Returns the registry-authorized accepted semantic root.
+    fn state_root(&self) -> &AcceptedStateRoot {
+        match self {
+            Self::V1(revision) => revision.state_root(),
+            Self::Native(revision) => revision.state_root(),
+        }
+    }
+
+    /// Returns the registry-authorized protected policy root.
+    fn policy_root(&self) -> &sley_policy::AcceptedPolicyRoot {
+        match self {
+            Self::V1(revision) => revision.policy_root(),
+            Self::Native(revision) => revision.policy_root(),
+        }
+    }
+
+    /// Returns every exact live entity object in state-root binding order.
+    fn objects(&self) -> &[EntityObject] {
+        match self {
+            Self::V1(revision) => revision.objects(),
+            Self::Native(revision) => revision.objects(),
+        }
+    }
+
+    /// Returns the complete sorted non-reusable identity ledger.
+    fn tombstoned_entities(&self) -> &[EntityId] {
+        match self {
+            Self::V1(revision) => revision.tombstoned_entities(),
+            Self::Native(revision) => revision.tombstoned_entities(),
+        }
+    }
 }
 
 /// Reads wall-clock milliseconds for diagnostic token expiry. Response
@@ -292,6 +422,14 @@ pub struct Server {
     /// selection reads: server-operator configuration, never caller
     /// authority. `None` refuses diagnostics before any owner work.
     executor: Option<Box<dyn NativeTestExecutor>>,
+    /// Provisioned native commit authority for the v3 commit route and
+    /// replay trust resolution. `None` refuses native commits before any
+    /// journal or accepted-state write; replay without it runs the engine
+    /// with no executor and no trust, so verifiable histories answer
+    /// untrusted.
+    native_authority: Option<NativeAuthority>,
+    /// Completed replay queries keyed by client attempt identity.
+    replay_attempts: BTreeMap<[u8; 16], ReplayAttempt>,
     /// Wall-clock source for diagnostic token expiry; tests inject a
     /// manual clock, production uses system time.
     now_millis: fn() -> u64,
@@ -315,6 +453,10 @@ impl core::fmt::Debug for Server {
             .field("budgets", &self.budgets)
             .field("version_aware", &self.version_aware)
             .field("executor_configured", &self.executor.is_some())
+            .field(
+                "native_authority_configured",
+                &self.native_authority.is_some(),
+            )
             .field("diagnostic_token_counter", &self.diagnostic_token_counter)
             .field("diagnostic_tokens", &self.diagnostic_tokens.len())
             .field("diagnostic_attempts", &self.diagnostic_attempts.len())
@@ -372,10 +514,12 @@ impl Server {
             #[cfg(test)]
             head_loads: core::cell::Cell::new(0),
             executor: None,
+            native_authority: None,
             now_millis: system_millis,
             diagnostic_token_counter: 0,
             diagnostic_tokens: Vec::new(),
             diagnostic_attempts: BTreeMap::new(),
+            replay_attempts: BTreeMap::new(),
         })
     }
 
@@ -409,10 +553,12 @@ impl Server {
             #[cfg(test)]
             head_loads: core::cell::Cell::new(0),
             executor: None,
+            native_authority: None,
             now_millis: system_millis,
             diagnostic_token_counter: 0,
             diagnostic_tokens: Vec::new(),
             diagnostic_attempts: BTreeMap::new(),
+            replay_attempts: BTreeMap::new(),
         })
     }
 
@@ -480,14 +626,12 @@ impl Server {
     /// the v3 method table and the native-tests feature bit. The hello
     /// frame itself still travels at frame version 1 so older peers can
     /// read the offer and negotiate down. The live native reads 601/602
-    /// (since N7c) and 605 (since N7d-1) are offered (listable only with
-    /// version 3 and the bit); older negotiations still refuse 601/602 as
-    /// reserved byte-for-byte, while 605 never existed in the frozen v1/v2
-    /// tables and refuses at decode as unsupported. 606-607 stay reserved
-    /// until N7d-2, so the offer carries none of those tags yet: with the
-    /// bit, a peer-offered pending tag negotiates and refuses as reserved;
-    /// without the bit, negotiation strips native tags and they refuse as
-    /// not-negotiated.
+    /// (since N7c), 605 (since N7d-1) and 606/607 (since N7d-2) are
+    /// offered (listable only with version 3 and the bit); older
+    /// negotiations still refuse 601/602 as reserved byte-for-byte, while
+    /// 605–607 never existed in the frozen v1/v2 tables and refuse at
+    /// decode as unsupported. Without the bit, negotiation strips native
+    /// tags and they refuse as not-negotiated.
     ///
     /// # Errors
     ///
@@ -534,6 +678,15 @@ impl Server {
     /// without one every selection read refuses before any owner work.
     pub fn set_executor(&mut self, executor: Box<dyn NativeTestExecutor>) {
         self.executor = Some(executor);
+    }
+
+    /// Installs the provisioned native commit authority serving the v3
+    /// commit route and replay trust resolution. Signer and manifests
+    /// travel as one unit because a commit needs all three: without the
+    /// authority every native commit refuses before any journal or
+    /// accepted-state write.
+    pub fn set_native_authority(&mut self, authority: NativeAuthority) {
+        self.native_authority = Some(authority);
     }
 
     /// Overrides the wall-clock source for diagnostic token expiry. Tests
@@ -1067,6 +1220,14 @@ impl Server {
         if method.is_native_test() && self.native_tests_live() && self.profile.admits(method) {
             return self.tests_native(session, method, &frame.body);
         }
+        // The v3 native commit route owns the existing commit method under
+        // negotiated version 3 with the native-tests bit (contract
+        // appendix C, revision 5): the four-field native payload replaces
+        // the legacy payload there, routed by negotiation and never by
+        // sniffing. Every other version keeps the legacy commit below.
+        if method == Method::Commit && self.native_tests_live() && self.profile.admits(method) {
+            return self.commit_native_route(session, &frame.body);
+        }
         if !self.profile.admits(method) || method.is_reserved() {
             if method.is_reserved() {
                 return Err(reserved_refusal(method));
@@ -1167,7 +1328,7 @@ impl Server {
         if fixed32(body)? != *session.as_bytes() {
             return protocol_failure(ProtocolErrorCode::FrameInvalid);
         }
-        let (head, binding) = self.head_binding()?;
+        let (head, binding) = self.head_binding_mixed()?;
         let record = self
             .authority
             .renew_session(session, &binding, head.state_root())
@@ -1202,12 +1363,13 @@ impl Server {
 
     /// Routes a live native read after the admission gate proved
     /// version 3, the bit, and negotiation. The session root must still be
-    /// the accepted head: diagnostics answer over the live binding, and a
-    /// session left behind by a head advance fails stale instead of
-    /// answering over a root the head no longer names. Report paging
-    /// serves immutable cached bytes rather than head state, but the same
-    /// staleness bar keeps one session view coherent: a token minted under
-    /// a moved-past root is already dead by invalidation.
+    /// the accepted head: diagnostics answer over the live binding, replay
+    /// and status resolve over the bound head's history, and a session left
+    /// behind by a head advance fails stale instead of answering over a
+    /// root the head no longer names. Report paging serves immutable
+    /// cached bytes rather than head state, but the same staleness bar
+    /// keeps one session view coherent: a token minted under a moved-past
+    /// root is already dead by invalidation.
     fn tests_native(
         &mut self,
         session: SessionId,
@@ -1219,7 +1381,7 @@ impl Server {
             .record(session)
             .map(|record| (record.bound_root, record.workspace_id))
             .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
-        let (head, _) = self.head_binding()?;
+        let (head, _) = self.head_binding_mixed()?;
         if session_root != head.state_root().root {
             return Err(session_failure(SessionError::new(
                 SessionErrorCode::RootAdvanced,
@@ -1229,8 +1391,10 @@ impl Server {
             Method::TestsSelected => self.tests_selected(session, workspace, &head, body),
             Method::TestsAffected => self.tests_affected(session, workspace, &head, body),
             Method::TestsReportRead => self.tests_report_read(session, body),
-            // Replay and attempt status join the router in N7d-2; reaching
-            // here with any other tag is an internal invariant breach.
+            Method::TestsReplay => self.tests_replay(session, workspace, &head, body),
+            Method::TestsAttemptStatus => self.tests_attempt_status(session, workspace, body),
+            // Every live native method routes above; reaching here with any
+            // other tag is an internal invariant breach.
             _ => protocol_failure(ProtocolErrorCode::InternalInvariant),
         }
     }
@@ -1242,7 +1406,7 @@ impl Server {
         &mut self,
         session: SessionId,
         workspace: sley_id::WorkspaceId,
-        head: &VerifiedRevision,
+        head: &HeadRevision,
         body: &[u8],
     ) -> Result<(Vec<u8>, BoundedContext)> {
         let fields = record(body, 4)?;
@@ -1313,7 +1477,7 @@ impl Server {
         &mut self,
         session: SessionId,
         workspace: sley_id::WorkspaceId,
-        head: &VerifiedRevision,
+        head: &HeadRevision,
         body: &[u8],
     ) -> Result<(Vec<u8>, BoundedContext)> {
         let fields = record(body, 3)?;
@@ -1459,6 +1623,359 @@ impl Server {
         self.counted(body, 0)
     }
 
+    /// 606 `tests.replay`: replays one in-scope native commit through the
+    /// shared native engine and answers the Appendix C response record
+    /// (contract appendix C, revision 5).
+    ///
+    /// The claimed execution profile and replay resource policy must equal
+    /// the stored plan's own bindings or the request is malformed; ceilings
+    /// are always the server-enforced stored ones. Scope precedes replay:
+    /// the transaction must sit in the session head's ancestry or name a
+    /// visible branch head, else `NATIVE_REPLAY_SCOPE_REFUSED`. Engine
+    /// verdicts map one-to-one (matched 1, mismatch 2,
+    /// inconclusive-resource 3, untrusted-history 4); engine host errors
+    /// refuse with their preserved symbols. Only a match mints a fresh
+    /// 605 token over the verified original report bytes; every other
+    /// status carries no token, and `replay_report_id` stays `None`
+    /// locally. `attempt_id` binds the server-side replay cache with the
+    /// diagnostic conflict rule.
+    #[allow(clippy::too_many_lines)]
+    fn tests_replay(
+        &mut self,
+        session: SessionId,
+        workspace: sley_id::WorkspaceId,
+        head: &HeadRevision,
+        body: &[u8],
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 5)?;
+        let transaction_id = TransactionId::from_bytes(fixed32(fields[0])?);
+        let expected_root = StateRoot::from_bytes(fixed32(fields[1])?);
+        let profile = NativeExecutionProfileId::from_bytes(fixed32(fields[2])?);
+        let policy = sley_id::NativeResourcePolicyId::from_bytes(fixed32(fields[3])?);
+        let attempt = fixed16(fields[4])?;
+        if profile != native_execution_profile() {
+            return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+        }
+        let mut bindings = Vec::with_capacity(192);
+        bindings.extend_from_slice(&Method::TestsReplay.tag().to_be_bytes());
+        bindings.extend_from_slice(workspace.as_bytes());
+        bindings.extend_from_slice(transaction_id.as_bytes());
+        bindings.extend_from_slice(expected_root.as_bytes());
+        bindings.extend_from_slice(profile.as_bytes());
+        bindings.extend_from_slice(policy.as_bytes());
+        if let Some(cached) = self.replay_cached(session, attempt, &bindings)? {
+            return Ok(cached);
+        }
+        self.require_replay_scope(head, transaction_id)?;
+        // The stored plan binds the profile and policy claims: the caller
+        // names them, the server enforces the stored values. A stored plan
+        // that no longer parses is malformed history, so the claim checks
+        // step aside and the engine errors honestly below.
+        let stored = self
+            .transactions()
+            .verified_native_revision(transaction_id)
+            .ok();
+        let (compared, report_stored) = match stored.as_ref() {
+            Some(revision) => {
+                match sley_tests::NativeTestPlanV1::parse(revision.receipt().bundle.plan_stored()) {
+                    Ok(plan) => {
+                        if plan.execution_profile() != profile
+                            || plan.resource_policy().policy_id() != policy
+                        {
+                            return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+                        }
+                        (
+                            to_u64(plan.selected().len())?,
+                            Some(revision.receipt().bundle.test_report_stored().to_vec()),
+                        )
+                    }
+                    Err(_) => (0, None),
+                }
+            }
+            None => (0, None),
+        };
+        let epoch = state_epoch_id()
+            .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        let verifier =
+            move |bytes: &[u8]| import_entity_object(epoch, bytes).map(|object| object.object_id());
+        let authority = self.native_authority.as_ref();
+        let request = NativeReplayRequest {
+            transaction_id,
+            expected_root,
+            executor: authority
+                .map(|authority| &*authority.executor as &dyn sley_txn::NativeTestExecutor),
+            trust: NativeExchangeTrust {
+                manifests: authority.map_or(&[], |authority| &authority.trust_manifests[..]),
+            },
+        };
+        let report = replay_native_commit(&self.repository, &request, &verifier)
+            .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))?;
+        let status = replay_status_number(report.status);
+        // Only a match mints a token: the replay confirmed the history,
+        // so the verified original report pages like accepted evidence.
+        // Any other status carries no token.
+        let token = if report.status == NativeReplayStatus::Matched {
+            let stored: Vec<u8> = report_stored
+                .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+            let parsed = NativeTestReportV1::parse(&stored)
+                .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+            Some(self.cache_verified_report(
+                session,
+                *parsed.report_id().as_bytes(),
+                *report.root.as_bytes(),
+                stored,
+            )?)
+        } else {
+            None
+        };
+        let body = scb(encode_record(&[
+            (1, transaction_id.as_bytes().to_vec()),
+            (2, report.root.as_bytes().to_vec()),
+            (3, encode_uvar(status)),
+            (4, report.original_report_id.as_bytes().to_vec()),
+            (5, encode_option_id(None)),
+            (6, encode_option_id(token)),
+        ]))?;
+        self.store_replay(session, attempt, bindings, body, compared, token)
+    }
+
+    /// Replays a cached replay answer without re-running the engine.
+    ///
+    /// Identical bindings return the cached response bytes; any binding
+    /// divergence refuses as an attempt conflict. A cached answer whose
+    /// token is gone (invalidated, expired, or never minted for a
+    /// non-match) is not replayed: the caller re-executes fresh.
+    fn replay_cached(
+        &self,
+        session: SessionId,
+        attempt: [u8; 16],
+        bindings: &[u8],
+    ) -> Result<Option<(Vec<u8>, BoundedContext)>> {
+        let Some(cached) = self.replay_attempts.get(&attempt) else {
+            return Ok(None);
+        };
+        if cached.session != session || cached.bindings != bindings {
+            return Err(owner("NATIVE_ATTEMPT_CONFLICT", 0));
+        }
+        let now = (self.now_millis)();
+        let live = cached.token.is_some_and(|token| {
+            self.diagnostic_tokens.iter().any(|entry| {
+                entry.token == token && entry.session == session && !entry.expired(now)
+            })
+        });
+        if !live {
+            return Ok(None);
+        }
+        Ok(Some(
+            self.counted(cached.response.clone(), cached.compared_count)?,
+        ))
+    }
+
+    /// Stores a completed replay answer, evicting the oldest entry past
+    /// its bound, and answers the Appendix C response record.
+    fn store_replay(
+        &mut self,
+        session: SessionId,
+        attempt: [u8; 16],
+        bindings: Vec<u8>,
+        body: Vec<u8>,
+        compared: u64,
+        token: Option<[u8; 32]>,
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let now = (self.now_millis)();
+        if self.replay_attempts.len() >= MAX_REPLAY_ATTEMPTS {
+            let oldest = self
+                .replay_attempts
+                .iter()
+                .min_by_key(|(_, attempt)| attempt.created_millis)
+                .map(|(identity, _)| *identity);
+            if let Some(identity) = oldest {
+                self.replay_attempts.remove(&identity);
+            }
+        }
+        self.replay_attempts.insert(
+            attempt,
+            ReplayAttempt {
+                session,
+                bindings,
+                response: body.clone(),
+                compared_count: compared,
+                token,
+                created_millis: now,
+            },
+        );
+        self.counted(body, compared)
+    }
+
+    /// 607 `tests.attempt_status`: resolves one journaled attempt against
+    /// journal, receipt, and head bytes and answers the Appendix C
+    /// response record (contract appendix C, revision 5).
+    ///
+    /// No journal record means `UnknownAttempt0` with every optional field
+    /// absent: diagnostic and replay attempts are never journaled, so they
+    /// always answer unknown here, and unknown never implies retry-safe. A
+    /// record bound to another workspace, or to another candidate when the
+    /// request names one, refuses as `NATIVE_ATTEMPT_CONFLICT` before any
+    /// status work. States reuse the §6 journal tags; committed answers
+    /// both identities plus a fresh 605 token minted over the verified
+    /// accepted report bytes when they load (identities without a token
+    /// when they do not), every other known state answers neither
+    /// identities nor token. Binding is by workspace rather than session
+    /// identity, so a renewed session keeps answering for its workspace's
+    /// attempts.
+    fn tests_attempt_status(
+        &mut self,
+        session: SessionId,
+        workspace: sley_id::WorkspaceId,
+        body: &[u8],
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let fields = record(body, 2)?;
+        let attempt = NativeAttemptId(fixed16(fields[0])?);
+        let candidate = option_id(fields[1])?.map(CandidateId::from_bytes);
+        let commit_failure =
+            |error: sley_txn::CommitError| owner(error.code(), error.numeric_code().unwrap_or(0));
+        let scope = self
+            .transactions()
+            .native_attempt_scope(attempt)
+            .map_err(commit_failure)?;
+        let Some(scope) = scope else {
+            return self.unknown_attempt();
+        };
+        if scope.workspace != workspace
+            || candidate.is_some_and(|claimed| claimed != scope.candidate_id)
+        {
+            return Err(owner("NATIVE_ATTEMPT_CONFLICT", 0));
+        }
+        let status = self
+            .transactions()
+            .native_attempt_status(attempt)
+            .map_err(commit_failure)?;
+        let state = attempt_state_number(&status);
+        let (transaction_id, receipt_id, token) = match status {
+            AttemptStatus::Committed {
+                transaction_id,
+                receipt_id,
+                ..
+            } => (
+                Some(*transaction_id.as_bytes()),
+                Some(*receipt_id.as_bytes()),
+                self.committed_report_token(session, transaction_id)?,
+            ),
+            _ => (None, None, None),
+        };
+        let body = scb(encode_record(&[
+            (1, encode_uvar(state)),
+            (2, encode_option_id(transaction_id)),
+            (3, encode_option_id(receipt_id)),
+            (4, encode_option_id(token)),
+        ]))?;
+        self.counted(body, 0)
+    }
+
+    /// Answers `UnknownAttempt0` with every optional field absent.
+    fn unknown_attempt(&self) -> Result<(Vec<u8>, BoundedContext)> {
+        let body = scb(encode_record(&[
+            (1, encode_uvar(0)),
+            (2, encode_option_id(None)),
+            (3, encode_option_id(None)),
+            (4, encode_option_id(None)),
+        ]))?;
+        self.counted(body, 0)
+    }
+
+    /// Mints a fresh 605 token over one committed transaction's verified
+    /// test report bytes, or carries no token when the bytes do not load.
+    ///
+    /// The receipt was already reconciled against history by the status
+    /// owner; this reloads it read-only and caches its test report under
+    /// the session caps. Caps failures refuse like any mint; unloadable
+    /// bytes degrade to identities without a token, never a status
+    /// refusal.
+    fn committed_report_token(
+        &mut self,
+        session: SessionId,
+        transaction_id: TransactionId,
+    ) -> Result<Option<[u8; 32]>> {
+        let revision = self
+            .transactions()
+            .verified_native_revision(transaction_id)
+            .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))?;
+        let stored = revision.receipt().bundle.test_report_stored();
+        let Ok(report) = NativeTestReportV1::parse(stored) else {
+            return Ok(None);
+        };
+        Ok(Some(
+            self.cache_verified_report(
+                session,
+                *report.report_id().as_bytes(),
+                *revision
+                    .receipt()
+                    .transaction
+                    .record
+                    .committed_root
+                    .as_bytes(),
+                stored.to_vec(),
+            )?,
+        ))
+    }
+
+    /// Requires the named transaction in the session's authorized scope:
+    /// an ancestor of the session-bound head or the head of a visible
+    /// branch ref (contract appendix C, revision 5). Anything else refuses
+    /// as `NATIVE_REPLAY_SCOPE_REFUSED` before any replay work. The walk
+    /// covers mixed v1/native ancestry through the transaction owner's
+    /// any-format loader; a corrupt chain refuses with its preserved
+    /// failure, never as out-of-scope.
+    fn require_replay_scope(
+        &self,
+        head: &HeadRevision,
+        transaction_id: TransactionId,
+    ) -> Result<()> {
+        if self.history_contains(head.transaction_id(), transaction_id)? {
+            return Ok(());
+        }
+        let limit = usize::try_from(MAX_BRANCH_LIST).unwrap_or(usize::MAX);
+        let branches = self
+            .branches()
+            .list_branches(limit)
+            .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))?;
+        if branches
+            .iter()
+            .any(|branch| branch.revision.transaction_id() == transaction_id)
+        {
+            return Ok(());
+        }
+        Err(owner("NATIVE_REPLAY_SCOPE_REFUSED", 0))
+    }
+
+    /// Returns whether the target sits in the head-first ancestry of one
+    /// transaction over mixed-format history: cycle-checked, bounded, and
+    /// verified per node through the any-format loader.
+    fn history_contains(&self, head: TransactionId, target: TransactionId) -> Result<bool> {
+        let maintenance = self.maintenance()?;
+        let transactions = self.transactions();
+        let commit_failure =
+            |error: sley_txn::CommitError| owner(error.code(), error.numeric_code().unwrap_or(0));
+        let mut seen = BTreeSet::new();
+        let mut stack = vec![head];
+        while let Some(transaction_id) = stack.pop() {
+            if transaction_id == target {
+                return Ok(true);
+            }
+            if !seen.insert(transaction_id) {
+                continue;
+            }
+            if seen.len() > MAX_ANCESTRY_NODES {
+                return Err(owner("MERGE_RESOURCE_LIMIT", 52_006));
+            }
+            let receipt = transactions
+                .imported_receipt_any_with_maintenance(&maintenance, transaction_id)
+                .map_err(commit_failure)?;
+            stack.extend(receipt.parent_transaction_ids().iter().copied());
+        }
+        Ok(false)
+    }
+
     /// Replays a completed diagnostic attempt without re-executing.
     ///
     /// Identical bindings return the cached response bytes; any binding
@@ -1492,9 +2009,9 @@ impl Server {
     /// Stores a completed diagnostic report, mints its 605 token, and
     /// answers the Appendix C response record.
     ///
-    /// The per-session token count and cached-evidence bytes are enforced
-    /// before minting; the attempt cache evicts its oldest entry past its
-    /// bound, and a re-submitted attempt then simply re-executes.
+    /// The attempt cache evicts its oldest entry past its bound, and a
+    /// re-submitted attempt then simply re-executes; token caps live in
+    /// the shared mint below.
     fn store_diagnostic(
         &mut self,
         session: SessionId,
@@ -1508,27 +2025,12 @@ impl Server {
         let total = to_u64(report_bytes.len())?;
         let count = to_u64(plan.selected().len())?;
         let now = (self.now_millis)();
-        self.prune_diagnostic_tokens(session, now);
-        let held_count = self
-            .diagnostic_tokens
-            .iter()
-            .filter(|token| token.session == session)
-            .count();
-        if held_count >= MAX_DIAGNOSTIC_TOKENS_PER_SESSION {
-            return Err(owner("NATIVE_DIAGNOSTIC_TOKEN_LIMIT", 0));
-        }
-        let mut held_bytes = 0_u64;
-        for token in &self.diagnostic_tokens {
-            if token.session == session {
-                held_bytes = held_bytes
-                    .checked_add(token.report.len() as u64)
-                    .ok_or_else(|| owner("NATIVE_DIAGNOSTIC_TOKEN_LIMIT", 0))?;
-            }
-        }
-        if held_bytes.saturating_add(total) > MAX_DIAGNOSTIC_BYTES_PER_SESSION {
-            return Err(owner("NATIVE_DIAGNOSTIC_TOKEN_LIMIT", 0));
-        }
-        let token = self.mint_diagnostic_token(session)?;
+        let token = self.cache_verified_report(
+            session,
+            *assembly.report.report_id().as_bytes(),
+            *bound_root.as_bytes(),
+            report_bytes,
+        )?;
         let body = scb(encode_record(&[
             (1, plan.plan_id().as_bytes().to_vec()),
             (2, assembly.report.report_id().as_bytes().to_vec()),
@@ -1537,14 +2039,6 @@ impl Server {
             (5, token.to_vec()),
             (6, encode_uvar(total)),
         ]))?;
-        self.diagnostic_tokens.push(DiagnosticToken {
-            token,
-            session,
-            report_id: *assembly.report.report_id().as_bytes(),
-            bound_root: *bound_root.as_bytes(),
-            report: report_bytes,
-            created_millis: now,
-        });
         if self.diagnostic_attempts.len() >= MAX_DIAGNOSTIC_ATTEMPTS {
             let oldest = self
                 .diagnostic_attempts
@@ -1567,6 +2061,56 @@ impl Server {
             },
         );
         self.counted(body, count)
+    }
+
+    /// Mints one 605 token over verified report bytes for this session.
+    ///
+    /// Diagnostics, replay matches, and committed attempt answers share
+    /// this capability: every token binds session, report identity, and
+    /// root, and the per-session token count and cached-evidence bytes are
+    /// enforced before minting. Bytes must be verified accepted evidence
+    /// (a diagnostic assembly, an engine-confirmed history, or a
+    /// reconciled committed receipt); the mint itself checks caps, never
+    /// provenance.
+    fn cache_verified_report(
+        &mut self,
+        session: SessionId,
+        report_id: [u8; 32],
+        bound_root: [u8; 32],
+        report: Vec<u8>,
+    ) -> Result<[u8; 32]> {
+        let total = to_u64(report.len())?;
+        let now = (self.now_millis)();
+        self.prune_diagnostic_tokens(session, now);
+        let held_count = self
+            .diagnostic_tokens
+            .iter()
+            .filter(|token| token.session == session)
+            .count();
+        if held_count >= MAX_DIAGNOSTIC_TOKENS_PER_SESSION {
+            return Err(owner("NATIVE_DIAGNOSTIC_TOKEN_LIMIT", 0));
+        }
+        let mut held_bytes = 0_u64;
+        for token in &self.diagnostic_tokens {
+            if token.session == session {
+                held_bytes = held_bytes
+                    .checked_add(token.report.len() as u64)
+                    .ok_or_else(|| owner("NATIVE_DIAGNOSTIC_TOKEN_LIMIT", 0))?;
+            }
+        }
+        if held_bytes.saturating_add(total) > MAX_DIAGNOSTIC_BYTES_PER_SESSION {
+            return Err(owner("NATIVE_DIAGNOSTIC_TOKEN_LIMIT", 0));
+        }
+        let token = self.mint_diagnostic_token(session)?;
+        self.diagnostic_tokens.push(DiagnosticToken {
+            token,
+            session,
+            report_id,
+            bound_root,
+            report,
+            created_millis: now,
+        });
+        Ok(token)
     }
 
     /// Mints one diagnostic report token, unpredictable to callers and
@@ -1811,8 +2355,45 @@ impl Server {
         Ok((head, binding))
     }
 
+    /// Loads the accepted head of either receipt format with its session
+    /// binding. The session layer and the native surfaces work over both
+    /// formats; legacy data paths keep the v1-only loader above and fail
+    /// loudly on native heads.
+    fn head_binding_mixed(&self) -> Result<(HeadRevision, HeadBinding)> {
+        let head = self.head_mixed()?;
+        let record = &head.state_root().record;
+        let binding = HeadBinding {
+            workspace_id: record.workspace_id,
+            root: head.state_root().root,
+            schema_epoch: record.schema_epoch_id,
+        };
+        Ok((head, binding))
+    }
+
+    /// Loads the accepted head of either receipt format, dispatching on
+    /// the stored bytes through the transaction owner's any-format
+    /// loader. Format-1 heads verify through the frozen v1 loader;
+    /// native heads verify through the native loader with its evidence,
+    /// relationship, object, inventory, and pin checks.
+    fn head_mixed(&self) -> Result<HeadRevision> {
+        let maintenance = self.maintenance()?;
+        let transactions = self.transactions();
+        let receipt = transactions
+            .accepted_head_any_with_maintenance(&maintenance)
+            .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))?;
+        match receipt {
+            ImportedReceipt::V1(_) => Ok(HeadRevision::V1(Box::new(self.head()?))),
+            ImportedReceipt::V2(native) => {
+                let revision = transactions
+                    .verified_native_revision(native.transaction.transaction_id)
+                    .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))?;
+                Ok(HeadRevision::Native(Box::new(revision)))
+            }
+        }
+    }
+
     fn session_check(&self, session: SessionId, method: Method) -> Result<()> {
-        let (_, binding) = self.head_binding()?;
+        let (_, binding) = self.head_binding_mixed()?;
         self.authority
             .check_session(session, &binding, Self::head_bound(method))
             .map(|_| ())
@@ -1833,7 +2414,7 @@ impl Server {
         if claimed != *self.handshake_id.as_bytes() {
             return protocol_failure(ProtocolErrorCode::Downgrade);
         }
-        let (head, binding) = self.head_binding()?;
+        let (head, binding) = self.head_binding_mixed()?;
         let record = self
             .authority
             .open_session(
@@ -2369,6 +2950,99 @@ impl Server {
         self.counted(output.result().stored_bytes.clone(), 1)
     }
 
+    /// Native commit over the v3 route: takes the four-field native
+    /// payload under the existing commit method when version 3 with the
+    /// native-tests bit negotiated (contract appendix C, revision 5).
+    ///
+    /// The session must still be bound to the accepted head. The principal
+    /// comes from the validated candidate itself, never the caller; no
+    /// caller capabilities are honored and the server clock stamps
+    /// validation. Without provisioned authority the call refuses as
+    /// `NATIVE_SIGNER_UNAVAILABLE` before any journal or accepted-state
+    /// write; trust and admission failures then surface with their
+    /// preserved symbols through the commit owner. Success answers the
+    /// v3-only record and advances the head, invalidating diagnostic
+    /// tokens like any commit. The journaled attempt is what 607 later
+    /// resolves and 606 replays against.
+    fn commit_native_route(
+        &mut self,
+        session: SessionId,
+        body: &[u8],
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        let session_root = self
+            .authority
+            .record(session)
+            .map(|record| record.bound_root)
+            .ok_or_else(|| ProtocolFailure::protocol(ProtocolErrorCode::InternalInvariant))?;
+        let (head, _) = self.head_binding_mixed()?;
+        if session_root != head.state_root().root {
+            return Err(session_failure(SessionError::new(
+                SessionErrorCode::RootAdvanced,
+            )));
+        }
+        let fields = record(body, 4)?;
+        let candidate = import_candidate(fields[0]).map_err(|error| owner(error.code(), 0))?;
+        let expected_parent = TransactionId::from_bytes(fixed32(fields[1])?);
+        let attempt = NativeAttemptId(fixed16(fields[2])?);
+        let admission_profile = NativeAdmissionProfileId::from_bytes(fixed32(fields[3])?);
+        let authority = self
+            .native_authority
+            .as_ref()
+            .ok_or_else(|| owner("NATIVE_SIGNER_UNAVAILABLE", 0))?;
+        let input = NativeCommitInput {
+            expected_parent,
+            stored_candidate: fields[0],
+            principal_id: candidate.record.principal_id,
+            capabilities: &[],
+            now_unix_millis: (self.now_millis)(),
+            limits: CandidateValidationLimits::full_v1(),
+            attempt_id: attempt,
+            admission_profile_id: admission_profile,
+            implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+            aggregate: NativeAggregateLimits::HARD_MAXIMA,
+            executor: Some(&*authority.executor),
+            acceptance_signer: &*authority.signer,
+            measurement_trust: authority.measurement_trust(),
+            acceptance_trust: authority.acceptance_trust(),
+        };
+        let outcome = self
+            .transactions()
+            .commit_native(&input)
+            .map_err(|error| owner(error.code(), error.numeric_code().unwrap_or(0)))?;
+        // Rejected tests are a refusal with the preserved failure symbol,
+        // never a success: the journal keeps the aborted attempt for 607
+        // while the head stays unchanged.
+        let output = match outcome {
+            sley_txn::NativeCommitOutcome::Committed(output) => output,
+            sley_txn::NativeCommitOutcome::Rejected(rejection) => {
+                match rejection.approval.decision() {
+                    sley_tests::ApprovalDecision::Rejected(record) => {
+                        return Err(owner(&record.symbol, record.numeric_code));
+                    }
+                    sley_tests::ApprovalDecision::Accepted => {
+                        return Err(ProtocolFailure::protocol(
+                            ProtocolErrorCode::InternalInvariant,
+                        ));
+                    }
+                }
+            }
+        };
+        let body = scb(encode_record(&[
+            (1, output.transaction_id().as_bytes().to_vec()),
+            (2, output.receipt_id().as_bytes().to_vec()),
+            (3, output.state_root().root.as_bytes().to_vec()),
+            (
+                4,
+                scb(encode_bytes(&output.candidate_result().stored_bytes))?,
+            ),
+            (5, output.approval_id().as_bytes().to_vec()),
+            (6, output.attempt_id().0.to_vec()),
+        ]))?;
+        // The commit advances the head every token was minted under.
+        self.invalidate_all_diagnostics();
+        self.counted(body, 1)
+    }
+
     fn commit(&mut self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
         let fields = record(body, 4)?;
         let parent = TransactionId::from_bytes(fixed32(fields[0])?);
@@ -2893,6 +3567,48 @@ fn fixed16(input: &[u8]) -> Result<[u8; 16]> {
         .map_err(|_| ProtocolFailure::protocol(ProtocolErrorCode::PayloadInvalid))
 }
 
+/// Encodes an optional 32-byte identity for 606/607 records: exactly 32
+/// bytes when present, empty when absent (contract appendix C, revision
+/// 5). The shape is strict so a truncated identity can never decode as
+/// absent.
+fn encode_option_id(value: Option<[u8; 32]>) -> Vec<u8> {
+    value.map_or_else(Vec::new, |identity| identity.to_vec())
+}
+
+/// Decodes an optional 32-byte identity: empty means absent, exactly 32
+/// bytes means present, any other length is malformed.
+fn option_id(input: &[u8]) -> Result<Option<[u8; 32]>> {
+    if input.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(fixed32(input)?))
+}
+
+/// Maps a replay verdict to its Appendix C response status number:
+/// matched 1, mismatch 2, inconclusive-resource 3, untrusted-history 4.
+pub(crate) fn replay_status_number(status: NativeReplayStatus) -> u64 {
+    match status {
+        NativeReplayStatus::Matched => 1,
+        NativeReplayStatus::Mismatch => 2,
+        NativeReplayStatus::InconclusiveResource => 3,
+        NativeReplayStatus::UntrustedHistory => 4,
+    }
+}
+
+/// Maps a reconciled attempt status to its Appendix C state number:
+/// `UnknownAttempt0` plus the §6 journal tags 1..=6.
+pub(crate) fn attempt_state_number(status: &AttemptStatus) -> u64 {
+    match status {
+        AttemptStatus::Unknown => 0,
+        AttemptStatus::Admitted => 1,
+        AttemptStatus::Running => 2,
+        AttemptStatus::AbortedBeforePromotion => 3,
+        AttemptStatus::PromotionStarted => 4,
+        AttemptStatus::Committed { .. } => 5,
+        AttemptStatus::OutcomeUnknown { .. } => 6,
+    }
+}
+
 /// Parses a strictly increasing set of 32-byte identities from one SCB1
 /// list field. Wire order is part of the contract: an unsorted or
 /// duplicated set refuses rather than being silently canonicalized.
@@ -2917,7 +3633,7 @@ fn native_plan_failure(error: NativePlanErrorV1) -> ProtocolFailure {
 /// identity and canonical test-case bodies keyed by test entity, both
 /// owner-loaded from the same revision the plan derived from.
 fn diagnostic_test_cases(
-    head: &VerifiedRevision,
+    head: &HeadRevision,
 ) -> (BTreeMap<ObjectId, &[u8]>, BTreeMap<EntityId, &TestCaseBody>) {
     let mut object_bytes = BTreeMap::new();
     let mut test_cases = BTreeMap::new();

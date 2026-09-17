@@ -63,13 +63,12 @@ def main() -> int:
     print(json.dumps({"case": "explicit-v2-counts", "result": "PASS"}))
 
     # The explicit version 3 table overrides the frozen reserved
-    # 601/602/605 rows with the live native selection reads and report
-    # paging, and unions the two still-reserved native rows, with the
-    # native provenance in the header; the frozen v3 bytes on disk match
-    # the render exactly.
+    # 601/602 rows and unions the three fresh native rows, all five live,
+    # with the native provenance in the header; the frozen v3 bytes on
+    # disk match the render exactly.
     native_spec = (ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md").read_text(encoding="utf-8")
     v3 = gen.build(3)
-    if v3["method_count"] != 46 or v3["reserved_count"] != 4:
+    if v3["method_count"] != 46 or v3["reserved_count"] != 2:
         print(json.dumps({"case": "explicit-v3-counts", "result": "FAIL"}))
         return 1
     v3_tags = [method["tag"] for method in v3["methods"]]
@@ -85,10 +84,19 @@ def main() -> int:
         for method in v3["methods"]
         if method["tag"] in (601, 602, 605, 606, 607)
     }
-    if v3_live.get(601) or v3_live.get(602) or v3_live.get(605):
+    if (
+        v3_live.get(601)
+        or v3_live.get(602)
+        or v3_live.get(605)
+        or v3_live.get(606)
+        or v3_live.get(607)
+    ):
         print(json.dumps({"case": "explicit-v3-live-rows", "result": "FAIL"}))
         return 1
-    if not (v3_live.get(606) and v3_live.get(607)):
+    v3_reserved = sorted(
+        method["tag"] for method in v3["methods"] if method["reserved"]
+    )
+    if v3_reserved != [305, 503]:
         print(json.dumps({"case": "explicit-v3-reserved-rows", "result": "FAIL"}))
         return 1
     if v3.get("v3_source") != "docs/spec/NATIVE_TEST_ADMISSION_V1.md":
@@ -156,7 +164,7 @@ def main() -> int:
         "missing-v3-section",
         gen.parse_v3_additions,
         native_spec.replace(
-            "## Appendix D. SMP v3 additions table (machine-readable, revision 4)\n", ""
+            "## Appendix D. SMP v3 additions table (machine-readable, revision 5)\n", ""
         ),
     )
     # A method row outside the native v3 section fails.
@@ -171,14 +179,24 @@ def main() -> int:
         gen.parse_v3_additions,
         native_spec.replace("| 605 | `tests.report_read` |", "| 608 | `tests.report_read` |", 1),
     )
-    # A live (non-reserved) still-pending v3 row fails: 606 stays
-    # reserved to N7d-2.
+    # A live v3 row naming the wrong records fails: 606 must name its
+    # Appendix C replay records exactly.
     expect_fail(
-        "live-v3-row",
+        "misnamed-606-row",
         gen.parse_v3_additions,
         native_spec.replace(
-            "| 606 | `tests.replay` | reserved | reserved | S20-620 |",
-            "| 606 | `tests.replay` | replay token | replay page | S20-620 |",
+            "| 606 | `tests.replay` | `tests.replay.request` | `tests.replay.response` | S20-620 |",
+            "| 606 | `tests.replay` | `replay token` | `replay page` | S20-620 |",
+            1,
+        ),
+    )
+    # A reserved-back 607 row fails: replay and status are live since N7d-2.
+    expect_fail(
+        "relocked-607-row",
+        gen.parse_v3_additions,
+        native_spec.replace(
+            "| 607 | `tests.attempt_status` | `tests.attempt_status.request` | `tests.attempt_status.response` | S20-620 |",
+            "| 607 | `tests.attempt_status` | reserved | reserved | S20-620 |",
             1,
         ),
     )
@@ -212,7 +230,7 @@ def main() -> int:
             1,
         ),
     )
-    print(json.dumps({"cases": 16, "result": "PASS"}))
+    print(json.dumps({"cases": 17, "result": "PASS"}))
     return 0
 
 

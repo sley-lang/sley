@@ -769,6 +769,26 @@ pub enum AttemptStatus {
     },
 }
 
+/// Journal-bound attempt scope for protocol-layer enforcement.
+///
+/// The 607 attempt-status surface binds a query to the journaled
+/// workspace and candidate without consulting receipts: unknown attempts
+/// stay unknown, and divergent bindings refuse before any status work.
+/// The principal is reported so future authenticated sessions can check
+/// it; current sessions carry a workspace but no principal, so the
+/// protocol layer enforces workspace and candidate only.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeAttemptScope {
+    /// Workspace the attempt was admitted in.
+    pub workspace: WorkspaceId,
+    /// Principal the attempt was admitted for.
+    pub principal: PrincipalId,
+    /// Candidate the attempt binds.
+    pub candidate_id: CandidateId,
+    /// Accepted parent the attempt builds on.
+    pub expected_parent: TransactionId,
+}
+
 /// Fresh ordinary-candidate native commit inputs not recoverable from
 /// accepted state.
 #[derive(Clone, Copy)]

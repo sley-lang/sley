@@ -1,6 +1,6 @@
 # Native Test Admission v1
 
-Status: N0 owner-contract proposal, revision 4 (2026-09-16). Independent
+Status: N0 owner-contract proposal, revision 5 (2026-09-17). Independent
 architecture review passed; this precise contract still awaits owner review,
 vectors and implementation. Reserved wire formats are not currently admitted.
 No product completion, test execution or release claim follows from this file.
@@ -434,12 +434,53 @@ observation under recorded execution profile; compare exact bytes/counters.
 New host timeout is inconclusive, not historical failure/success. No accepted
 transaction or replacement historical attestation is created.
 
+606 went live in revision 5. The named transaction must sit in the session's
+authorized scope: an ancestor of the session-bound head (bounded walk) or
+the head of a visible branch ref; anything else refuses as
+`NATIVE_REPLAY_SCOPE_REFUSED` before any replay work, never as a history
+verdict. The claimed execution profile and replay resource policy must equal
+the stored plan's own bindings or the request is malformed; ceilings are
+always the server-enforced stored ones, never caller values. Replay runs the
+shared native engine: a root that does not match the pinned receipt, missing
+receiver trust, or unverifiable history arrives as `UntrustedHistory4`, never
+`Matched1`. Without provisioned authority the engine runs executor-less and
+trust-less, so verifiable histories answer untrusted rather than executing;
+an executor that refuses re-execution, a coverage divergence, or a ceiling
+failure is `InconclusiveResource3`. `attempt_id` binds a server-side replay cache like
+the diagnostic attempts (identical bindings replay the cached response;
+divergent bindings refuse `NATIVE_ATTEMPT_CONFLICT`; a cached response whose
+token is gone re-executes fresh); replay attempts are never journaled, so
+607 answers `UnknownAttempt0` for them exactly like diagnostic attempts.
+`replay_report_id` stays `None` locally; on `Matched1` the response carries
+a fresh 605 token minted over the verified original report bytes so the
+confirmed history pages like any accepted evidence, while every other status
+carries no token.
+
 *607 tests.attempt_status:* `{attempt_id:FixedBytes16,candidate_id:Option<Id>}`.
 Response `{state:UInt32,transaction_id:Option<Id>,receipt_id:Option<Id>,
 report_token:Option<FixedBytes32>}`. State uses §6 journal tags; UnknownAttempt0.
 Same authenticated workspace/principal required; usable after session renewal.
 Committed identities come from verified history, not a journal assertion.
 Unknown never implies retry-safe. Fresh token only for verified accepted evidence.
+
+607 went live in revision 5. Enforcement reads the journal-bound attempt
+scope before any status work: no journal record means `UnknownAttempt0`
+with every optional field absent (diagnostic and replay attempts are never
+journaled, so they always answer unknown here). A record bound to another
+workspace, or to another candidate when the request names one, refuses as
+`NATIVE_ATTEMPT_CONFLICT`; the journal binds the principal too, but current
+sessions carry a workspace and no authenticated principal, so the protocol
+layer enforces workspace and candidate while commit-time checks own the
+principal. Binding is by workspace rather than session identity, so a
+renewed session keeps answering for its workspace's attempts. States reuse
+the §6 journal tags with `UnknownAttempt0` added: admitted 1, running 2,
+aborted-before-promotion 3, promotion-started 4, committed 5, outcome-unknown
+6; mixed attempts report the reconciled best-covered committing status from
+verified history. Committed answers both identities; every other known state
+answers neither. A fresh 605 token is minted only for verified accepted
+evidence: the committed receipt is loaded and verified, and the token names
+its test report bytes, otherwise the committed answer carries identities
+with no token.
 
 V3 native commit payload is `{candidate_bytes:Bytes,expected_parent:Id,
 attempt_id:FixedBytes16,admission_profile:Id}` under the existing commit method
@@ -452,43 +493,68 @@ AbortedRetrySafe assert pre-promotion retry safety. Transaction
 owner derives all evidence. The protocol cannot accept caller signing keys,
 grant bypasses or arbitrary supervisor configs.
 
+The v3 native commit route went live in revision 5: under negotiated
+version 3 with the native-tests bit, the existing commit method takes the
+four-field native payload above instead of the legacy commit payload, routed
+by negotiation and never by sniffing (a legacy-shaped body under v3+native
+refuses as malformed; the native shape under older versions never reaches
+native semantics). The session must still be bound to the accepted head.
+The principal comes from the validated candidate itself, never the caller;
+no caller capabilities are honored and the server clock stamps validation.
+The server operator provisions the commit authority as one unit: the test
+executor, the acceptance signer, and both receiver trust manifests. A call
+without provisioned authority refuses as `NATIVE_SIGNER_UNAVAILABLE`
+before any journal or accepted-state write; trust and admission failures
+then surface with their preserved symbols through the commit owner. Ceilings
+are the hard maxima as the operator default; grant, validation, and
+aggregate policy still bind from plan derivation. Success answers the
+v3-only record above and advances the head, invalidating diagnostic tokens
+like any commit. The journaled attempt is what 607 later resolves and 606
+replays against: protocol-driven commits are the route by which committing
+attempts enter the journal. Session binding and the native surfaces serve
+both receipt formats through the shared state, object, and policy types;
+legacy data paths keep their v1-only loader and fail loudly on native
+heads until lifecycle hardening claims them.
+
+Optional identities in 606/607 requests and responses travel as the field
+bytes: exactly 32 bytes when present, empty when absent; any other length
+is malformed.
+
 JSON bridge maps these exact typed records; CLI is thin SMP routing. Typed
 record allocation, exact response fields and profile identity require N7
 independent vectors; no current bridge method is implicitly activated by N0.
 
-## Appendix D. SMP v3 additions table (machine-readable, revision 4)
+## Appendix D. SMP v3 additions table (machine-readable, revision 5)
 
 Protocol version 3 is the sorted union of the frozen SMP1 version 1 and
 version 2 tables (`docs/spec/SMP1.md`, unchanged at revision 12) and exactly
-the rows below: 46 rows total, 42 dispatched methods. No second
+the rows below: 46 rows total, 44 dispatched methods. No second
 independently maintained 46-row table exists; consumers union the SMP1 tables
-with these rows in tag order. Reserved tags under version 3 are 305, 503,
-606, 607: 601, 602 and 605 went live (revisions 3 and 4) with the typed
-records named below, while the two still-reserved rows name the S20-620
-test-selection seam, so a version 3 refusal of 606-607 names
-`SMP1-RESERVED-S20-620` exactly as versions 1 and 2 do.
+with these rows in tag order. Reserved tags under version 3 are 305 and 503:
+601, 602, 605, 606 and 607 went live (revisions 3, 4 and 5) with the typed
+records named below; the still-reserved rows name their owning seams, so a
+version 3 refusal of 305-503 names the frozen seam exactly as versions 1
+and 2 do.
 
-Rows 606-607 stay reserved until N7d-2 (607 attempt status, 606 replay, and
-the v3 commit route): Appendix C above defines the pending records, and this
-table records current admission only. A row goes live by a later revision of
-this contract, never by appearing in a negotiated `methods` intersection. The
-generator
+All five native rows are live as of this revision: Appendix C above defines
+the records, and this table records current admission only. A row goes live
+by a later revision of this contract, never by appearing in a negotiated
+`methods` intersection. The generator
 (`scripts/generate_smp1_json_bridge_table.py --protocol-version 3`) parses
-exactly these rows: at version 3 it overrides the frozen reserved 601/602/605
-rows with the live rows below (reserved flips false, bodies stay with the
-bridge as for every other method) and keeps 606-607 reserved; a method row
-anywhere else in this file is drift. Versions 1 and 2 generate from the
-frozen tables alone: 601/602 refuse as reserved byte-for-byte as before,
-while 605 never existed in those tables and refuses at decode as
-unsupported.
+exactly these rows: at version 3 it overrides the frozen reserved
+601/602/605/606/607 rows with the live rows below (reserved flips false,
+bodies stay with the bridge as for every other method). Versions 1 and 2
+generate from the frozen tables alone: 601/602 refuse as reserved
+byte-for-byte as before, while 605–607 never existed in those tables and
+refuse at decode as unsupported.
 
 | Tag | Method | Request body | Response body | Owner |
 |---:|---|---|---|---|
 | 601 | `tests.selected` | `tests.selected.request` | `tests.selected.response` | S20-620 |
 | 602 | `tests.affected` | `tests.affected.request` | `tests.affected.response` | S20-620 |
 | 605 | `tests.report_read` | `tests.report_read.request` | `tests.report_read.response` | S20-620 |
-| 606 | `tests.replay` | reserved | reserved | S20-620 |
-| 607 | `tests.attempt_status` | reserved | reserved | S20-620 |
+| 606 | `tests.replay` | `tests.replay.request` | `tests.replay.response` | S20-620 |
+| 607 | `tests.attempt_status` | `tests.attempt_status.request` | `tests.attempt_status.response` | S20-620 |
 
 ## 7. Required implementation evidence
 

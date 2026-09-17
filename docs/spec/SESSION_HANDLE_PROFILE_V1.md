@@ -198,11 +198,14 @@ repository): `session.renew` (101), `session.close` (102),
 outside the head-bound set passes checks 1 through 4 and check 6 and
 skips check 5. A mutating method leaves the session bound to the previous root
 until an explicit renewal, which is the explicit signal that earlier
-handles and capsules describe an older root. The four reserved tags
-(305, 503, 601, 602) pass checks 1 through 4 and check 6 and are then
-refused with
-`PROTOCOL_METHOD_UNSUPPORTED` (SMP1 section 4); a reserved tag joins a
-list above only when its owner claims it.
+handles and capsules describe an older root. The seven reserved tags
+(305, 503, 601, 602, 605, 606, 607) pass checks 1 through 4 and check 6
+and are then refused with
+`PROTOCOL_METHOD_UNSUPPORTED` (SMP1 section 4) outside version 3 with the
+native-tests bit; under the native contract
+(`NATIVE_TEST_ADMISSION_V1.md` appendix D) 601, 602, 605, 606, and 607 go
+live at version 3 and answer through their owner records instead. A
+reserved tag joins a list above only when its owner claims it.
 
 Protocol version 2 extension (S20-310 entity reads, revision 4):
 `entity.version` (306) and `entity.signature` (307) are head-bound only

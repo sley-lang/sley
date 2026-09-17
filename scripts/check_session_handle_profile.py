@@ -282,7 +282,9 @@ def check_method_classification(
     classified = [tag for tags in lists.values() for tag in tags]
     if len(classified) != len(set(classified)):
         problems.append("classification:duplicate-tag")
-    sentence = re.search(r"reserved tags\s+\((\d+), (\d+), (\d+), (\d+)\)", spec)
+    sentence = re.search(
+        r"reserved tags\s+\((\d+), (\d+), (\d+), (\d+), (\d+), (\d+), (\d+)\)", spec
+    )
     stated_reserved = {int(tag) for tag in sentence.groups()} if sentence else set()
     if stated_reserved != reserved:
         problems.append(
@@ -292,7 +294,12 @@ def check_method_classification(
     # obtained by adding 306/307 to head-bound only. No subset comparison:
     # every tag on each side must match exactly.
     v1_method_tags = {tag_of[name] for name in all_names} if all_names else set(tag_of.values())
-    covered_v1 = set(classified) | {SESSION_OPEN_TAG} | reserved
+    # Only the v1-table members of the code reserved set belong in the v1
+    # partition: the fresh v3-only rows (605-607) are reserved outside
+    # version 3 but were never v1 tags, so they stay out of this side
+    # exactly like the prose sentence keeps naming the whole code set.
+    reserved_v1 = reserved & v1_method_tags
+    covered_v1 = set(classified) | {SESSION_OPEN_TAG} | reserved_v1
     if tag_of and all_names and covered_v1 != v1_method_tags:
         problems.append(
             "classification:partition-v1:"

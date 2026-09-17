@@ -466,6 +466,12 @@ impl NativeTestApprovalV1 {
         &self.parts.attestations
     }
 
+    /// Accept or reject with the exact failure record.
+    #[must_use]
+    pub const fn decision(&self) -> &ApprovalDecision {
+        &self.parts.decision
+    }
+
     /// Historical admission context binding the original authorization, as
     /// raw bytes until the `SLEYNCT1` domain promotes to a typed identity.
     /// The transaction owner compares these against the context digest.
