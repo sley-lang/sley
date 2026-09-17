@@ -441,8 +441,10 @@ preimage exactly. Bounded structural decoders now hydrate all four non-image
 sections and reconstruct an exact `ExecutionPackage` with repeated-binding
 and canonical-re-encoding checks. Sley now emits native-identical empty
 constants/layouts/imports sections and dependency framing with runtime
-fingerprints and limits. AT-EC-07 remains open pending nonempty row emission,
-final envelope composition, and the required contract/surface review.
+fingerprints and limits, then composes the final header and five framed
+sections from exact SHA-256 digest inputs. AT-EC-07 remains open pending
+nonempty row emission, Sley-side digest production, and the required
+contract/surface review.
 
 ### 3.3 Conformance layering, BLACKGLASS wording, Witness boundary (spec sections 10, 11, 12)
 
@@ -2125,9 +2127,10 @@ Tier 1 on the closeout tip (per-step run of the 102 quick steps with SLEY2_MASTE
   digests remain owner work (S20-500, S20-380, S20-360).
 - The EXEC_PACKAGE_V2 envelope byte codec (AT-EC-07) now has a provisional
   framing and structural hydration implementation in RW-080; the Sley side
-  emits empty inventory sections and dependency framing. Nonempty row
-  emission, final envelope composition, and lane review remain. The SMP1
-  entity-body query (AT-MW-02) is implemented in its later audit lane.
+  emits empty inventory sections and dependency framing, then composes the
+  complete envelope from exact digest inputs. Nonempty row emission,
+  Sley-side digest production, and lane review remain. The SMP1 entity-body
+  query (AT-MW-02) is implemented in its later audit lane.
 - The campaign edited machine-summary.json and bootstrap-manifest.json, which
   the RW-080 lane also maintains; the lane must rebase its next summary edit
   on the merged main.

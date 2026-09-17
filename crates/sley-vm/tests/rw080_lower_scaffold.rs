@@ -67,6 +67,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-root-image.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-callee-table.md and
 //! machineresearch/sley-2.0/reweave/rw-080-package-empty-sections.md and
+//! machineresearch/sley-2.0/reweave/rw-080-package-envelope-compose.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -8867,6 +8868,176 @@ fn byte_chunk_encoder() -> LowerScaffold {
     }
 }
 
+/// Prefixes one exact byte section with its canonical `UInt64` byte length
+/// and appends the section to a Sley-owned octet accumulator.
+#[allow(clippy::too_many_lines)]
+fn build_framed_byte_section_appender(
+    assembler: &mut InventoryAssembler,
+    function: EntityId,
+    append_u64: EntityId,
+    append_chunk: EntityId,
+) -> FunctionGraph {
+    let section = assembler.parameter(function, ParameterRole::Function, 0, TypeExpr::Bytes);
+    let accumulator = assembler.parameter(function, ParameterRole::Function, 1, u8vec_type());
+    let entry = assembler.block_id();
+    let prefix_length = assembler.block_id();
+    let append_section = assembler.block_id();
+    let forward_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+    let unit = assembler.constant(ConstValue {
+        value_type: TypeExpr::Unit,
+        data: ConstData::Unit,
+    });
+    let resource_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+    )));
+
+    let scope = assembler.constant_ref(entry, unit, TypeExpr::Unit);
+    let octets = assembler.operation(
+        entry,
+        Opcode::AdapterInvoke,
+        vec![operation_value(scope), ValueRef::Parameter(section)],
+        index_result_type(u8vec_type()),
+        Immediate::Entity(EntityId::from_bytes(sley_vm::host_abi::bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_B2V1,
+        ))),
+    );
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![scope, octets],
+        inventory_switch(
+            operation_value(octets),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    prefix_length,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let section_octets = assembler.parameter(prefix_length, ParameterRole::Block, 0, u8vec_type());
+    let length = assembler.operation(
+        prefix_length,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(section_octets)],
+        u64_type(),
+        Immediate::None,
+    );
+    let prefixed = assembler.operation(
+        prefix_length,
+        Opcode::CallDirect,
+        vec![operation_value(length), ValueRef::Parameter(accumulator)],
+        byte_vector_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: append_u64,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        prefix_length,
+        function,
+        vec![section_octets],
+        vec![length, prefixed],
+        inventory_switch(
+            operation_value(prefixed),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    append_section,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let section_accumulator =
+        assembler.parameter(append_section, ParameterRole::Block, 0, u8vec_type());
+    let appended = assembler.operation(
+        append_section,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(section_accumulator),
+            ValueRef::Parameter(section),
+        ],
+        byte_vector_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: append_chunk,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        append_section,
+        function,
+        vec![section_accumulator],
+        vec![appended],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(appended),
+        }),
+    );
+
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let forwarded_failure = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        byte_vector_lower_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(forwarded_failure),
+        }),
+    );
+    let resource = assembler.constant_ref(resource_error, resource_code, u32_type());
+    let resource_failure = assembler.operation(
+        resource_error,
+        Opcode::ResultErr,
+        vec![operation_value(resource)],
+        byte_vector_lower_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        resource_error,
+        function,
+        Vec::new(),
+        vec![resource, resource_failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(resource_failure),
+        }),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![section, accumulator],
+        result_type: byte_vector_lower_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
 /// Appends every item of a concrete vector through a private item encoder.
 /// `prefix_length` emits the canonical `UInt64` element count first when the
 /// owning format is counted. The `item_first` flag reflects the established
@@ -15945,6 +16116,479 @@ fn empty_inventory_package_sections_encoder() -> LowerScaffold {
     }
 }
 
+/// Composes a canonical `EXEC_PACKAGE_V2` envelope from exact section bytes and
+/// their already-computed SHA-256 digests. Hash production is deliberately a
+/// separate remaining slice; this function owns the fixed header and all five
+/// `u64` section frames.
+#[allow(clippy::too_many_lines)]
+fn package_envelope_composer() -> LowerScaffold {
+    let narrow_u32 = inventory_id(5, 19);
+    let append_u32 = inventory_id(5, 20);
+    let narrow_u64 = inventory_id(5, 21);
+    let append_u64 = inventory_id(5, 22);
+    let append_chunk = inventory_id(5, 24);
+    let append_u32_sequence = inventory_id(5, 43);
+    let append_digest_sequence = inventory_id(5, 47);
+    let append_framed_section = inventory_id(5, 48);
+    let function = inventory_id(5, 49);
+    let mut assembler = InventoryAssembler::new();
+    let narrow_u32_graph =
+        build_unsigned_octet_narrower(&mut assembler, narrow_u32, &u32_type(), u32_value);
+    let append_u32_graph = build_fixed_width_appender(
+        &mut assembler,
+        append_u32,
+        narrow_u32,
+        &u32_type(),
+        u32_value,
+        &[1_u128 << 24, 1_u128 << 16, 1_u128 << 8, 1],
+    );
+    let narrow_u64_graph =
+        build_unsigned_octet_narrower(&mut assembler, narrow_u64, &u64_type(), u64_value);
+    let append_u64_graph = build_fixed_width_appender(
+        &mut assembler,
+        append_u64,
+        narrow_u64,
+        &u64_type(),
+        u64_value,
+        &[
+            1_u128 << 56,
+            1_u128 << 48,
+            1_u128 << 40,
+            1_u128 << 32,
+            1_u128 << 24,
+            1_u128 << 16,
+            1_u128 << 8,
+            1,
+        ],
+    );
+    let append_chunk_graph = build_byte_chunk_appender(&mut assembler, append_chunk);
+    let append_u32_sequence_graph = build_vector_byte_appender(
+        &mut assembler,
+        append_u32_sequence,
+        append_u64,
+        append_u32,
+        &u32vec_type(),
+        &u32_type(),
+        true,
+        false,
+    );
+    let append_digest_sequence_graph = build_vector_byte_appender(
+        &mut assembler,
+        append_digest_sequence,
+        append_u64,
+        append_chunk,
+        &bytesvec_type(),
+        &TypeExpr::Bytes,
+        false,
+        false,
+    );
+    let append_framed_section_graph = build_framed_byte_section_appender(
+        &mut assembler,
+        append_framed_section,
+        append_u64,
+        append_chunk,
+    );
+
+    let image = assembler.parameter(function, ParameterRole::Function, 0, TypeExpr::Bytes);
+    let constants = assembler.parameter(function, ParameterRole::Function, 1, TypeExpr::Bytes);
+    let layouts = assembler.parameter(function, ParameterRole::Function, 2, TypeExpr::Bytes);
+    let imports = assembler.parameter(function, ParameterRole::Function, 3, TypeExpr::Bytes);
+    let dependency = assembler.parameter(function, ParameterRole::Function, 4, TypeExpr::Bytes);
+    let image_digest = assembler.parameter(function, ParameterRole::Function, 5, TypeExpr::Bytes);
+    let constants_digest =
+        assembler.parameter(function, ParameterRole::Function, 6, TypeExpr::Bytes);
+    let layouts_digest = assembler.parameter(function, ParameterRole::Function, 7, TypeExpr::Bytes);
+    let imports_digest = assembler.parameter(function, ParameterRole::Function, 8, TypeExpr::Bytes);
+    let dependency_digest =
+        assembler.parameter(function, ParameterRole::Function, 9, TypeExpr::Bytes);
+    let entry_identity =
+        assembler.parameter(function, ParameterRole::Function, 10, TypeExpr::Bytes);
+    let schema_epoch = assembler.parameter(function, ParameterRole::Function, 11, TypeExpr::Bytes);
+    let state_root = assembler.parameter(function, ParameterRole::Function, 12, TypeExpr::Bytes);
+
+    let start = assembler.block_id();
+    let append_version = assembler.block_id();
+    let append_profile = assembler.block_id();
+    let append_abi = assembler.block_id();
+    let append_vm = assembler.block_id();
+    let append_digests = assembler.block_id();
+    let append_entry = assembler.block_id();
+    let append_epoch = assembler.block_id();
+    let append_root = assembler.block_id();
+    let append_image = assembler.block_id();
+    let append_constants = assembler.block_id();
+    let append_layouts = assembler.block_id();
+    let append_imports = assembler.block_id();
+    let append_dependency = assembler.block_id();
+    let convert = assembler.block_id();
+    let success_block = assembler.block_id();
+    let forward_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+
+    let empty_octets = assembler.constant(u8vec_value(&[]));
+    let magic = assembler.constant(bytes_value(sley_vm::exec_package::EXEC_PACKAGE_MAGIC));
+    let profile_digest = assembler.constant(bytes_value(&sley_vm::BOOTSTRAP_PROFILE_2_DIGEST));
+    let zero_u32 = assembler.constant(u32_value(0));
+    let one_u32 = assembler.constant(u32_value(1));
+    let two_u32 = assembler.constant(u32_value(2));
+    let unit = assembler.constant(ConstValue {
+        value_type: TypeExpr::Unit,
+        data: ConstData::Unit,
+    });
+    let resource_code = assembler.constant(u32_value(u128::from(
+        sley_vm::LowerErrorCode::ResourceLimit.numeric(),
+    )));
+
+    let initial = assembler.constant_ref(start, empty_octets, u8vec_type());
+    let magic_bytes = assembler.constant_ref(start, magic, TypeExpr::Bytes);
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        start,
+        Vec::new(),
+        vec![initial, magic_bytes],
+        operation_value(initial),
+        operation_value(magic_bytes),
+        append_chunk,
+        false,
+        append_version,
+        forward_error,
+    );
+
+    let version_accumulator =
+        assembler.parameter(append_version, ParameterRole::Block, 0, u8vec_type());
+    let version = assembler.constant_ref(append_version, two_u32, u32_type());
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_version,
+        vec![version_accumulator],
+        vec![version],
+        ValueRef::Parameter(version_accumulator),
+        operation_value(version),
+        append_u32,
+        true,
+        append_profile,
+        forward_error,
+    );
+
+    let profile_accumulator =
+        assembler.parameter(append_profile, ParameterRole::Block, 0, u8vec_type());
+    let profile = assembler.constant_ref(append_profile, profile_digest, TypeExpr::Bytes);
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_profile,
+        vec![profile_accumulator],
+        vec![profile],
+        ValueRef::Parameter(profile_accumulator),
+        operation_value(profile),
+        append_chunk,
+        false,
+        append_abi,
+        forward_error,
+    );
+
+    let abi_accumulator = assembler.parameter(append_abi, ParameterRole::Block, 0, u8vec_type());
+    let abi = assembler.constant_ref(append_abi, two_u32, u32_type());
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_abi,
+        vec![abi_accumulator],
+        vec![abi],
+        ValueRef::Parameter(abi_accumulator),
+        operation_value(abi),
+        append_u32,
+        true,
+        append_vm,
+        forward_error,
+    );
+
+    let vm_accumulator = assembler.parameter(append_vm, ParameterRole::Block, 0, u8vec_type());
+    let vm_one = assembler.constant_ref(append_vm, one_u32, u32_type());
+    let vm_zero = assembler.constant_ref(append_vm, zero_u32, u32_type());
+    let vm_words = assembler.operation(
+        append_vm,
+        Opcode::VectorNew,
+        vec![
+            operation_value(vm_one),
+            operation_value(vm_zero),
+            operation_value(vm_zero),
+        ],
+        u32vec_type(),
+        Immediate::None,
+    );
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_vm,
+        vec![vm_accumulator],
+        vec![vm_one, vm_zero, vm_words],
+        ValueRef::Parameter(vm_accumulator),
+        operation_value(vm_words),
+        append_u32_sequence,
+        true,
+        append_digests,
+        forward_error,
+    );
+
+    let digest_accumulator =
+        assembler.parameter(append_digests, ParameterRole::Block, 0, u8vec_type());
+    let digest_words = assembler.operation(
+        append_digests,
+        Opcode::VectorNew,
+        vec![
+            ValueRef::Parameter(image_digest),
+            ValueRef::Parameter(constants_digest),
+            ValueRef::Parameter(layouts_digest),
+            ValueRef::Parameter(imports_digest),
+            ValueRef::Parameter(dependency_digest),
+        ],
+        bytesvec_type(),
+        Immediate::None,
+    );
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_digests,
+        vec![digest_accumulator],
+        vec![digest_words],
+        ValueRef::Parameter(digest_accumulator),
+        operation_value(digest_words),
+        append_digest_sequence,
+        true,
+        append_entry,
+        forward_error,
+    );
+
+    let entry_accumulator =
+        assembler.parameter(append_entry, ParameterRole::Block, 0, u8vec_type());
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_entry,
+        vec![entry_accumulator],
+        Vec::new(),
+        ValueRef::Parameter(entry_accumulator),
+        ValueRef::Parameter(entry_identity),
+        append_chunk,
+        false,
+        append_epoch,
+        forward_error,
+    );
+
+    let epoch_accumulator =
+        assembler.parameter(append_epoch, ParameterRole::Block, 0, u8vec_type());
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_epoch,
+        vec![epoch_accumulator],
+        Vec::new(),
+        ValueRef::Parameter(epoch_accumulator),
+        ValueRef::Parameter(schema_epoch),
+        append_chunk,
+        false,
+        append_root,
+        forward_error,
+    );
+
+    let root_accumulator = assembler.parameter(append_root, ParameterRole::Block, 0, u8vec_type());
+    push_package_section_append_stage(
+        &mut assembler,
+        function,
+        append_root,
+        vec![root_accumulator],
+        Vec::new(),
+        ValueRef::Parameter(root_accumulator),
+        ValueRef::Parameter(state_root),
+        append_chunk,
+        false,
+        append_image,
+        forward_error,
+    );
+
+    for (block, next, section) in [
+        (append_image, append_constants, image),
+        (append_constants, append_layouts, constants),
+        (append_layouts, append_imports, layouts),
+        (append_imports, append_dependency, imports),
+        (append_dependency, convert, dependency),
+    ] {
+        let accumulator = assembler.parameter(block, ParameterRole::Block, 0, u8vec_type());
+        push_package_section_append_stage(
+            &mut assembler,
+            function,
+            block,
+            vec![accumulator],
+            Vec::new(),
+            ValueRef::Parameter(accumulator),
+            ValueRef::Parameter(section),
+            append_framed_section,
+            true,
+            next,
+            forward_error,
+        );
+    }
+
+    let envelope_octets = assembler.parameter(convert, ParameterRole::Block, 0, u8vec_type());
+    let output_scope = assembler.constant_ref(convert, unit, TypeExpr::Unit);
+    let envelope = assembler.operation(
+        convert,
+        Opcode::AdapterInvoke,
+        vec![
+            operation_value(output_scope),
+            ValueRef::Parameter(envelope_octets),
+        ],
+        index_result_type(TypeExpr::Bytes),
+        Immediate::Entity(EntityId::from_bytes(sley_vm::host_abi::bridge_identity(
+            sley_vm::host_abi::BRIDGE_CODE_V2B1,
+        ))),
+    );
+    assembler.push_block(
+        convert,
+        function,
+        vec![envelope_octets],
+        vec![output_scope, envelope],
+        inventory_switch(
+            operation_value(envelope),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    success_block,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let encoded = assembler.parameter(success_block, ParameterRole::Block, 0, TypeExpr::Bytes);
+    let success = assembler.operation(
+        success_block,
+        Opcode::ResultOk,
+        vec![ValueRef::Parameter(encoded)],
+        bytes_lower_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        success_block,
+        function,
+        vec![encoded],
+        vec![success],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(success),
+        }),
+    );
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let forwarded_failure = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        bytes_lower_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(forwarded_failure),
+        }),
+    );
+    let resource = assembler.constant_ref(resource_error, resource_code, u32_type());
+    let resource_failure = assembler.operation(
+        resource_error,
+        Opcode::ResultErr,
+        vec![operation_value(resource)],
+        bytes_lower_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        resource_error,
+        function,
+        Vec::new(),
+        vec![resource, resource_failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(resource_failure),
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![
+            image,
+            constants,
+            layouts,
+            imports,
+            dependency,
+            image_digest,
+            constants_digest,
+            layouts_digest,
+            imports_digest,
+            dependency_digest,
+            entry_identity,
+            schema_epoch,
+            state_root,
+        ],
+        result_type: bytes_lower_result_type(),
+        effects: Vec::new(),
+        entry_block: start,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let bridge_adapter = |code, request_type, response_type| AdapterImport {
+        entity_id: EntityId::from_bytes(sley_vm::host_abi::bridge_identity(code)),
+        adapter_id: sley_vm::host_abi::bridge_identity(code),
+        abi_version: sley_vm::host_abi::BRIDGE_ABI_VERSION,
+        request_type,
+        response_type,
+        failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+        effects: Vec::new(),
+    };
+    LowerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![
+            graph,
+            append_framed_section_graph,
+            append_digest_sequence_graph,
+            append_u32_sequence_graph,
+            append_chunk_graph,
+            append_u32_graph,
+            narrow_u32_graph,
+            append_u64_graph,
+            narrow_u64_graph,
+        ],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+        adapters: vec![
+            bridge_adapter(
+                sley_vm::host_abi::BRIDGE_CODE_B2V1,
+                TypeExpr::Bytes,
+                u8vec_type(),
+            ),
+            bridge_adapter(sley_vm::host_abi::BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            bridge_adapter(
+                sley_vm::host_abi::BRIDGE_CODE_V2B1,
+                u8vec_type(),
+                TypeExpr::Bytes,
+            ),
+        ],
+    }
+}
+
 fn append_terminator_success_block(
     assembler: &mut InventoryAssembler,
     function: EntityId,
@@ -17361,7 +18005,7 @@ fn generous_limits() -> sley_vm::ExecutionLimits {
     sley_vm::ExecutionLimits {
         max_instructions: 100_000,
         max_fuel: 1_000_000,
-        max_value_units: 10_000_000,
+        max_value_units: 100_000_000,
         max_output_units: 100_000,
         cancel_at_fuel: None,
     }
@@ -17825,6 +18469,67 @@ fn execute_empty_inventory_package_sections(
         },
     )
     .expect("v2 executes empty-inventory package-section encoder")
+}
+
+fn execute_package_envelope_composer(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    expected: &sley_vm::ExecutionPackage,
+    sections: &[Vec<u8>; 4],
+    digests: &sley_vm::PackageDigests,
+) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                bytes_value(&expected.image_bytes),
+                bytes_value(&sections[0]),
+                bytes_value(&sections[1]),
+                bytes_value(&sections[2]),
+                bytes_value(&sections[3]),
+                bytes_value(&digests.image_digest),
+                bytes_value(&digests.constants_digest),
+                bytes_value(&digests.layouts_digest),
+                bytes_value(&digests.imports_digest),
+                bytes_value(&digests.dependency_digest),
+                bytes_value(expected.entry.as_bytes()),
+                bytes_value(expected.schema_epoch.as_bytes()),
+                bytes_value(expected.state_root.as_bytes()),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes package-envelope composer")
+}
+
+fn successful_package_sections(outcome: &sley_vm::ExecutionOutcome) -> [Vec<u8>; 4] {
+    use sley_ssmc::ResultConst;
+
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!(
+            "package-section encoder must terminate with a value, got {:?}",
+            outcome.termination
+        )
+    };
+    let ConstData::Result(ResultConst::Ok(sections)) = &value.data else {
+        panic!(
+            "package-section encoder must return Ok, got {:?}",
+            value.data
+        )
+    };
+    let ConstData::Sequence(sections) = &sections.data else {
+        panic!("package-section encoder result must be a tuple")
+    };
+    sections
+        .iter()
+        .map(|section| match &section.data {
+            ConstData::Bytes(bytes) => bytes.clone(),
+            other => panic!("package section must be Bytes, got {other:?}"),
+        })
+        .collect::<Vec<_>>()
+        .try_into()
+        .expect("package-section tuple has four fields")
 }
 
 fn execute_fixed_width_encoder(
@@ -21354,7 +22059,6 @@ fn complete_function_image_encoder_matches_native_transitive_callee_table() {
 #[test]
 fn package_section_encoder_matches_native_empty_inventories_and_dependency() {
     use sley_id::SemanticFingerprint;
-    use sley_ssmc::ResultConst;
 
     let expected = sley_vm::ExecutionPackage {
         image_bytes: Vec::new(),
@@ -21378,29 +22082,7 @@ fn package_section_encoder_matches_native_empty_inventories_and_dependency() {
     let scaffold = empty_inventory_package_sections_encoder();
     let (package, approved) = admit_lower_program(&scaffold);
     let outcome = execute_empty_inventory_package_sections(&package, &approved, &expected);
-    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
-        panic!(
-            "package-section encoder must terminate with a value, got {:?}",
-            outcome.termination
-        )
-    };
-    let ConstData::Result(ResultConst::Ok(sections)) = &value.data else {
-        panic!(
-            "package-section encoder must return Ok, got {:?}",
-            value.data
-        )
-    };
-    let ConstData::Sequence(sections) = &sections.data else {
-        panic!("package-section encoder result must be a tuple")
-    };
-    let encoded = sections
-        .iter()
-        .map(|section| match &section.data {
-            ConstData::Bytes(bytes) => bytes.clone(),
-            other => panic!("package section must be Bytes, got {other:?}"),
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(encoded.len(), 4);
+    let encoded = successful_package_sections(&outcome);
     assert_eq!(
         encoded[0],
         sley_vm::exec_package::encode_constants_section(&expected.constants).unwrap()
@@ -21426,6 +22108,72 @@ fn package_section_encoder_matches_native_empty_inventories_and_dependency() {
     assert_eq!(decoded.admitted_limits, expected.admitted_limits);
     assert!(decoded.globals.is_empty());
     assert!(decoded.contracts.is_empty());
+}
+
+#[test]
+fn package_envelope_composer_matches_native_bytes_and_hydrates() {
+    use sley_id::SemanticFingerprint;
+    use sley_ssmc::ResultConst;
+
+    let native = native_complete_lowered();
+    let expected = sley_vm::ExecutionPackage {
+        image_bytes: native.bytes,
+        constants: Vec::new(),
+        type_definitions: Vec::new(),
+        imports: Vec::new(),
+        globals: Vec::new(),
+        contracts: Vec::new(),
+        entry: native.bytecode.function,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: sley_vm::CacheProfile::EXTENDED_V1,
+        admitted_limits: generous_limits(),
+        gate_operation_count: 91,
+        gate_bridge_uses: 4,
+        gate_closure_fingerprints: vec![
+            SemanticFingerprint::from_bytes([0xc3; 32]),
+            SemanticFingerprint::from_bytes([0xd4; 32]),
+        ],
+    };
+
+    let section_scaffold = empty_inventory_package_sections_encoder();
+    let (section_package, section_approved) = admit_lower_program(&section_scaffold);
+    let section_outcome =
+        execute_empty_inventory_package_sections(&section_package, &section_approved, &expected);
+    let sections = successful_package_sections(&section_outcome);
+    let digests = sley_vm::package_digests_v2(&expected).unwrap();
+
+    let composer_scaffold = package_envelope_composer();
+    let (composer_package, composer_approved) = admit_lower_program(&composer_scaffold);
+    let outcome = execute_package_envelope_composer(
+        &composer_package,
+        &composer_approved,
+        &expected,
+        &sections,
+        &digests,
+    );
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!(
+            "package-envelope composer must terminate with a value, got {:?}",
+            outcome.termination
+        )
+    };
+    let ConstData::Result(ResultConst::Ok(envelope)) = &value.data else {
+        panic!(
+            "package-envelope composer must return Ok, got {:?}",
+            value.data
+        )
+    };
+    let ConstData::Bytes(envelope) = &envelope.data else {
+        panic!("package-envelope composer result must be Bytes")
+    };
+    assert_eq!(
+        envelope,
+        &sley_vm::encode_package_envelope_v2(&expected).unwrap()
+    );
+    let hydrated = sley_vm::hydrate_package_envelope_v2(envelope).unwrap();
+    assert_eq!(hydrated.package, expected);
+    assert_eq!(hydrated.digests, digests);
 }
 
 #[test]

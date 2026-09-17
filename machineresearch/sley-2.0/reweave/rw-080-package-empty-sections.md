@@ -36,8 +36,7 @@ and identities from the Sley bytes.
 ## Explicit remainder
 
 Nonempty constants, layouts, imports, globals, and contracts are not yet
-encoded by Sley. The builder also does not yet hash the emitted sections or
-compose the fixed header and five framed sections into the final
-`EXEC_PACKAGE_V2` envelope. Contract/surface review remains mandatory. R2
-stays provisional pending that implementation and the independent acceptance
-debt.
+encoded by Sley. The next slice composes the fixed header and five frames from
+these section bytes plus five exact SHA-256 digest inputs; Sley-side SHA-256
+production remains. Contract/surface review remains mandatory. R2 stays
+provisional pending that implementation and the independent acceptance debt.
