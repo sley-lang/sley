@@ -6,7 +6,8 @@ completion, C1, self-hosting evidence, or runtime authority.
 
 Successor note: `rw-080-lower-immediate-inventory.md` composes these
 single-operation decisions over an ordered runtime inventory with one dense
-register frontier.
+register frontier. `rw-080-lower-exact-immediates.md` later retains the full
+canonical immediate encoding alongside the compact validation fields.
 
 ## Scope and behavior
 
@@ -49,9 +50,9 @@ late invalid register reference, and frontier overflow. All seventeen tests in
 
 ## Explicit remainder
 
-The compact model does not decode full SSMC type or immediate payloads, judge
-their semantic targets, assemble functions and blocks into complete bytecode,
-emit exact SLEYBC02 bytes, or build an execution package. Full closure
-hydration, checked-function integration, cache metadata, package assembly, and
-the build driver remain RW-110/RW-120 work. RW-080 and R2 stay provisional
-pending the recorded independent acceptance debt.
+This slice itself does not decode full SSMC type or immediate payloads. Its
+successor retains exact canonical immediate bytes without changing these
+validation fields. Semantic target judgment remains a checker responsibility;
+SLEYBC02 emission, package assembly, and the build driver remain RW-110/RW-120
+work. RW-080 and R2 stay provisional pending the recorded independent
+acceptance debt.

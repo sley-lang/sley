@@ -4,6 +4,9 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real bounded Sley lowering
 algorithm under the operator development override. It is not RW-110
 completion, C1, self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-exact-immediates.md` removes the remaining
+lossy instruction-payload boundary before byte emission.
+
 ## Scope and behavior
 
 `complete_function_lowerer` now carries the three native function-body fields
@@ -48,9 +51,9 @@ warnings denied is clean.
 
 ## Explicit remainder
 
-Operation immediates still carry their bounded projection rather than exact
-identity/member/type-argument payload bytes. The Sley closure has not yet
-emitted function-body bytes, built the transitive callee table, wrapped the
-SLEYBC02 header, or assembled an execution package. Those remain RW-110
-construction layers. The driver remains RW-120 work. RW-080 and R2 stay
-provisional pending the recorded independent acceptance debt.
+The successor carries exact identity/member/type-argument payload bytes for
+operation immediates. The Sley closure has not yet emitted function-body
+bytes, built the transitive callee table, wrapped the SLEYBC02 header, or
+assembled an execution package. Those remain RW-110 construction layers. The
+driver remains RW-120 work. RW-080 and R2 stay provisional pending the
+recorded independent acceptance debt.

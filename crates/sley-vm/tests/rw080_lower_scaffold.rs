@@ -45,6 +45,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-immediate-free.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-map-construction.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-bootstrap-immediates.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-exact-immediates.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-immediate-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-mixed-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-simple-block.md and
@@ -155,6 +156,7 @@ fn immediate_instruction_type() -> TypeExpr {
         u32_type(),
         u64_type(),
         u64_type(),
+        TypeExpr::Bytes,
     ])
 }
 
@@ -176,6 +178,7 @@ fn immediate_inventory_row_type() -> TypeExpr {
         u32_type(),
         u64_type(),
         u64_type(),
+        TypeExpr::Bytes,
     ])
 }
 
@@ -424,6 +427,7 @@ struct ImmediateInventoryFact {
     immediate_tag: u32,
     primary: u64,
     secondary: u64,
+    immediate_bytes: Vec<u8>,
 }
 
 fn immediate_inventory_value(rows: &[ImmediateInventoryFact]) -> ConstValue {
@@ -439,6 +443,7 @@ fn immediate_inventory_value(rows: &[ImmediateInventoryFact]) -> ConstValue {
                         u32_value(u128::from(row.immediate_tag)),
                         u64_value(u128::from(row.primary)),
                         u64_value(u128::from(row.secondary)),
+                        bytes_value(&row.immediate_bytes),
                     ]),
                 })
                 .collect(),
@@ -666,6 +671,37 @@ fn encoded_type(value: &TypeExpr) -> Vec<u8> {
     }
     let mut output = Vec::new();
     walk(&mut output, value);
+    output
+}
+
+fn encoded_immediate(value: &Immediate) -> Vec<u8> {
+    fn entity(output: &mut Vec<u8>, value: EntityId) {
+        output.extend_from_slice(&1_u32.to_be_bytes());
+        output.extend_from_slice(value.as_bytes());
+    }
+    let mut output = value.tag().to_be_bytes().to_vec();
+    match value {
+        Immediate::None => {}
+        Immediate::Entity(value) => entity(&mut output, *value),
+        Immediate::Index(value) => output.extend_from_slice(&value.to_be_bytes()),
+        Immediate::Field(value) => output.extend_from_slice(value.as_bytes()),
+        Immediate::Variant(value) => {
+            entity(&mut output, value.definition);
+            output.extend_from_slice(value.member_id.as_bytes());
+        }
+        Immediate::Observation(value) => output.extend_from_slice(value),
+        Immediate::Function(value) => {
+            entity(&mut output, value.function);
+            output.extend_from_slice(
+                &u64::try_from(value.type_arguments.len())
+                    .expect("immediate type-argument length fits u64")
+                    .to_be_bytes(),
+            );
+            for argument in &value.type_arguments {
+                output.extend_from_slice(&encoded_type(argument));
+            }
+        }
+    }
     output
 }
 
@@ -3570,8 +3606,8 @@ fn immediate_free_operation_lowerer() -> LowerScaffold {
 }
 
 /// Lowers the complete frozen bootstrap immediate-bearing family into a
-/// compact instruction model. Identity payloads use the bounded u64 fixture
-/// projection; the native oracle retains the full identity objects.
+/// instruction model. Compact fields support Sley-side validation while the
+/// exact canonical immediate bytes retain every identity/member/type payload.
 #[allow(clippy::too_many_lines)]
 fn bootstrap_immediate_lowerer() -> LowerScaffold {
     let function = inventory_id(5, 8);
@@ -3584,7 +3620,9 @@ fn bootstrap_immediate_lowerer() -> LowerScaffold {
     let immediate_tag = assembler.parameter(function, ParameterRole::Function, 2, u32_type());
     let primary = assembler.parameter(function, ParameterRole::Function, 3, u64_type());
     let secondary = assembler.parameter(function, ParameterRole::Function, 4, u64_type());
-    let next_register = assembler.parameter(function, ParameterRole::Function, 5, u32_type());
+    let immediate_bytes =
+        assembler.parameter(function, ParameterRole::Function, 5, TypeExpr::Bytes);
+    let next_register = assembler.parameter(function, ParameterRole::Function, 6, u32_type());
 
     let entry = assembler.block_id();
     let opcode_tuple_get = assembler.block_id();
@@ -3905,6 +3943,7 @@ fn bootstrap_immediate_lowerer() -> LowerScaffold {
             ValueRef::Parameter(immediate_tag),
             ValueRef::Parameter(primary),
             ValueRef::Parameter(secondary),
+            ValueRef::Parameter(immediate_bytes),
         ],
         immediate_instruction_type(),
         Immediate::None,
@@ -4023,6 +4062,7 @@ fn bootstrap_immediate_lowerer() -> LowerScaffold {
             immediate_tag,
             primary,
             secondary,
+            immediate_bytes,
             next_register,
         ],
         result_type: immediate_result_type(),
@@ -4212,6 +4252,7 @@ fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
         u32_type(),
         u64_type(),
         u64_type(),
+        TypeExpr::Bytes,
     ];
     let fields = field_types
         .into_iter()
@@ -4244,6 +4285,7 @@ fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
     let call_tag = assembler.parameter(call, ParameterRole::Block, 7, u32_type());
     let call_primary = assembler.parameter(call, ParameterRole::Block, 8, u64_type());
     let call_secondary = assembler.parameter(call, ParameterRole::Block, 9, u64_type());
+    let call_immediate_bytes = assembler.parameter(call, ParameterRole::Block, 10, TypeExpr::Bytes);
     let lowered = assembler.operation(
         call,
         Opcode::CallDirect,
@@ -4253,6 +4295,7 @@ fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
             ValueRef::Parameter(call_tag),
             ValueRef::Parameter(call_primary),
             ValueRef::Parameter(call_secondary),
+            ValueRef::Parameter(call_immediate_bytes),
             ValueRef::Parameter(call_loop.next_register),
         ],
         immediate_result_type(),
@@ -4268,6 +4311,7 @@ fn ordered_immediate_inventory_lowerer() -> LowerScaffold {
         call_tag,
         call_primary,
         call_secondary,
+        call_immediate_bytes,
     ]);
     let accept_arguments = vec![
         SwitchArgument::CasePayload,
@@ -4579,7 +4623,9 @@ fn mixed_operation_inventory_lowerer() -> LowerScaffold {
     let immediate_tag = assembler.parameter(function, ParameterRole::Function, 2, u32_type());
     let primary = assembler.parameter(function, ParameterRole::Function, 3, u64_type());
     let secondary = assembler.parameter(function, ParameterRole::Function, 4, u64_type());
-    let next_register = assembler.parameter(function, ParameterRole::Function, 5, u32_type());
+    let immediate_bytes =
+        assembler.parameter(function, ParameterRole::Function, 5, TypeExpr::Bytes);
+    let next_register = assembler.parameter(function, ParameterRole::Function, 6, u32_type());
 
     let immediate_free_opcodes = [
         Opcode::BoolNot,
@@ -4637,6 +4683,7 @@ fn mixed_operation_inventory_lowerer() -> LowerScaffold {
     let opcode_tags =
         immediate_free_opcodes.map(|value| assembler.constant(u32_value(u128::from(value.tag()))));
     let none_tag = assembler.constant(u32_value(u128::from(Immediate::None.tag())));
+    let none_bytes = assembler.constant(bytes_value(&encoded_immediate(&Immediate::None)));
     let zero_u64 = assembler.constant(u64_value(0));
     let immediate_error_code = assembler.constant(u32_value(u128::from(
         sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
@@ -4720,6 +4767,27 @@ fn mixed_operation_inventory_lowerer() -> LowerScaffold {
         TypeExpr::Bool,
         Immediate::None,
     );
+    let expected_none_bytes = assembler.constant_ref(tag_check, none_bytes, TypeExpr::Bytes);
+    let bytes_match = assembler.operation(
+        tag_check,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(immediate_bytes),
+            operation_value(expected_none_bytes),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    let complete_none = assembler.operation(
+        tag_check,
+        Opcode::BoolAnd,
+        vec![
+            operation_value(immediate_is_none),
+            operation_value(bytes_match),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
     assembler.push_block(
         tag_check,
         function,
@@ -4733,9 +4801,12 @@ fn mixed_operation_inventory_lowerer() -> LowerScaffold {
             secondary_matches,
             tag_and_primary,
             immediate_is_none,
+            expected_none_bytes,
+            bytes_match,
+            complete_none,
         ],
         inventory_cond(
-            operation_value(immediate_is_none),
+            operation_value(complete_none),
             call_immediate_free,
             Vec::new(),
             immediate_error,
@@ -4830,6 +4901,7 @@ fn mixed_operation_inventory_lowerer() -> LowerScaffold {
             ValueRef::Parameter(immediate_tag),
             ValueRef::Parameter(primary),
             ValueRef::Parameter(secondary),
+            ValueRef::Parameter(immediate_bytes),
         ],
         immediate_instruction_type(),
         Immediate::None,
@@ -4879,6 +4951,7 @@ fn mixed_operation_inventory_lowerer() -> LowerScaffold {
             ValueRef::Parameter(immediate_tag),
             ValueRef::Parameter(primary),
             ValueRef::Parameter(secondary),
+            ValueRef::Parameter(immediate_bytes),
             ValueRef::Parameter(next_register),
         ],
         immediate_result_type(),
@@ -4941,6 +5014,7 @@ fn mixed_operation_inventory_lowerer() -> LowerScaffold {
             immediate_tag,
             primary,
             secondary,
+            immediate_bytes,
             next_register,
         ],
         result_type: immediate_result_type(),
@@ -8861,6 +8935,7 @@ fn execute_immediate_operation(
     immediate_tag: u32,
     primary: u64,
     secondary: u64,
+    immediate_bytes: &[u8],
     next_register: u32,
 ) -> sley_vm::ExecutionOutcome {
     sley_vm::execute_approved_package_v2(
@@ -8873,6 +8948,7 @@ fn execute_immediate_operation(
                 u32_value(u128::from(immediate_tag)),
                 u64_value(u128::from(primary)),
                 u64_value(u128::from(secondary)),
+                bytes_value(immediate_bytes),
                 u32_value(u128::from(next_register)),
             ],
             limits: generous_limits(),
@@ -9380,6 +9456,7 @@ fn immediate_inventory_fact(instruction: &sley_vm::Instruction) -> ImmediateInve
         immediate_tag,
         primary,
         secondary,
+        immediate_bytes: encoded_immediate(&instruction.immediate),
     }
 }
 
@@ -9394,6 +9471,7 @@ fn immediate_instruction_value(instruction: &sley_vm::Instruction) -> ConstValue
             u32_value(u128::from(immediate_tag)),
             u64_value(u128::from(primary)),
             u64_value(u128::from(secondary)),
+            bytes_value(&encoded_immediate(&instruction.immediate)),
         ]),
     }
 }
@@ -9436,6 +9514,10 @@ fn assert_immediate_summary(
     assert_eq!(instruction[3].data, ConstData::UInt(u128::from(tag)));
     assert_eq!(instruction[4].data, ConstData::UInt(u128::from(primary)));
     assert_eq!(instruction[5].data, ConstData::UInt(u128::from(secondary)));
+    assert_eq!(
+        instruction[6],
+        bytes_value(&encoded_immediate(&expected.immediate))
+    );
     assert_eq!(
         fields[1].data,
         ConstData::UInt(u128::from(expected_frontier))
@@ -9485,6 +9567,10 @@ fn assert_immediate_inventory_summary(
         assert_eq!(parts[3].data, ConstData::UInt(u128::from(tag)));
         assert_eq!(parts[4].data, ConstData::UInt(u128::from(primary)));
         assert_eq!(parts[5].data, ConstData::UInt(u128::from(secondary)));
+        assert_eq!(
+            parts[6],
+            bytes_value(&encoded_immediate(&expected.immediate))
+        );
     }
     assert_eq!(
         fields[1].data,
@@ -11335,6 +11421,7 @@ fn lower_bootstrap_immediates_match_native_dense_models() {
             tag,
             primary,
             secondary,
+            &encoded_immediate(&instruction.immediate),
             next_register,
         );
         let second = execute_immediate_operation(
@@ -11345,6 +11432,7 @@ fn lower_bootstrap_immediates_match_native_dense_models() {
             tag,
             primary,
             secondary,
+            &encoded_immediate(&instruction.immediate),
             next_register,
         );
         assert_immediate_summary(&first, &instruction, next_register + 1);
@@ -11353,6 +11441,7 @@ fn lower_bootstrap_immediates_match_native_dense_models() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn lower_bootstrap_immediates_preserve_failure_order() {
     let (package, approved) = admit_lower_program(&bootstrap_immediate_lowerer());
     let entity_tag = Immediate::Entity(id(0)).tag();
@@ -11377,6 +11466,7 @@ fn lower_bootstrap_immediates_preserve_failure_order() {
                 entity_tag,
                 0,
                 0,
+                b"",
                 2,
             ),
             sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
@@ -11390,6 +11480,7 @@ fn lower_bootstrap_immediates_preserve_failure_order() {
                 index_tag,
                 0,
                 0,
+                b"",
                 1,
             ),
             sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
@@ -11403,6 +11494,7 @@ fn lower_bootstrap_immediates_preserve_failure_order() {
                 index_tag,
                 0,
                 0,
+                b"",
                 0,
             ),
             sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
@@ -11416,6 +11508,7 @@ fn lower_bootstrap_immediates_preserve_failure_order() {
                 variant_tag,
                 0,
                 0,
+                b"",
                 2,
             ),
             sley_vm::LowerErrorCode::SignatureMismatch.numeric(),
@@ -11429,6 +11522,7 @@ fn lower_bootstrap_immediates_preserve_failure_order() {
                 function_tag,
                 0,
                 0,
+                b"",
                 2,
             ),
             sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
@@ -11442,6 +11536,7 @@ fn lower_bootstrap_immediates_preserve_failure_order() {
                 index_tag,
                 0,
                 0,
+                b"",
                 u32::MAX,
             ),
             sley_vm::LowerErrorCode::ResourceLimit.numeric(),
@@ -11449,6 +11544,54 @@ fn lower_bootstrap_immediates_preserve_failure_order() {
     ] {
         assert_inventory_error(&outcome, expected);
     }
+}
+
+#[test]
+fn lower_bootstrap_immediates_preserve_full_identity_bytes() {
+    let mut left_bytes = [0x31; 32];
+    let mut right_bytes = left_bytes;
+    left_bytes[0] = 0xA1;
+    right_bytes[0] = 0xB2;
+    let left_immediate = Immediate::Entity(EntityId::from_bytes(left_bytes));
+    let right_immediate = Immediate::Entity(EntityId::from_bytes(right_bytes));
+    let (left_tag, left_primary, left_secondary) = immediate_projection(&left_immediate);
+    let (right_tag, right_primary, right_secondary) = immediate_projection(&right_immediate);
+    assert_eq!(left_tag, right_tag);
+    assert_eq!(
+        left_primary, right_primary,
+        "compact suffixes deliberately collide"
+    );
+    assert_eq!(left_secondary, right_secondary);
+
+    let (package, approved) = admit_lower_program(&bootstrap_immediate_lowerer());
+    let execute = |immediate: &Immediate| {
+        execute_immediate_operation(
+            &package,
+            &approved,
+            Opcode::ConstantRef,
+            &[],
+            immediate.tag(),
+            left_primary,
+            0,
+            &encoded_immediate(immediate),
+            0,
+        )
+    };
+    let left = execute(&left_immediate);
+    let right = execute(&right_immediate);
+    for (outcome, immediate) in [(&left, left_immediate), (&right, right_immediate)] {
+        assert_immediate_summary(
+            outcome,
+            &sley_vm::Instruction {
+                opcode: Opcode::ConstantRef.tag(),
+                operands: Vec::new(),
+                results: vec![0],
+                immediate,
+            },
+            1,
+        );
+    }
+    assert_ne!(left.termination, right.termination);
 }
 
 #[test]
@@ -11556,6 +11699,13 @@ fn lower_mixed_operation_inventory_preserves_cross_family_failure_order() {
         sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
     );
 
+    let mut wrong_none_bytes = rows.clone();
+    wrong_none_bytes[1].immediate_bytes = encoded_immediate(&Immediate::Entity(id(1)));
+    assert_inventory_error(
+        &execute_immediate_inventory(&package, &approved, &wrong_none_bytes, 5),
+        sley_vm::LowerErrorCode::ImmediateMismatch.numeric(),
+    );
+
     let mut invalid_late_reference = rows;
     invalid_late_reference[2].operands[0] = 8;
     assert_inventory_error(
@@ -11569,6 +11719,7 @@ fn lower_mixed_operation_inventory_preserves_cross_family_failure_order() {
         immediate_tag: Immediate::Entity(id(1)).tag(),
         primary: 1,
         secondary: 0,
+        immediate_bytes: encoded_immediate(&Immediate::Entity(id(1))),
     };
     assert_inventory_error(
         &execute_immediate_inventory(&package, &approved, &[unsupported], 5),
