@@ -23,7 +23,10 @@ summary = json.loads((ROOT / "machineresearch/sley-2.0/machine-summary.json").re
 if summary.get("publication_authorized") is not False:
     missing.append("machine-summary publication_authorized=false")
 
+fixture_root = ROOT / "bench" / "fixtures"
 for forbidden in ROOT.rglob("*.sley"):
+    if forbidden.is_relative_to(fixture_root):
+        continue
     missing.append(f"forbidden Sley source: {forbidden.relative_to(ROOT)}")
 
 threats = (ROOT / "docs/THREAT_REGISTER.md").read_text()

@@ -90,13 +90,20 @@ for stable_code in codes:
 # the VM ever gains one, the determination is stale, which is the point: the
 # test-report corpus stays empty for a stated reason, not by habit.
 vm_execute = (ROOT / "crates/sley-vm/src/execute.rs").read_text(encoding="utf-8")
+try:
+    execution_limits = vm_execute.split("pub struct ExecutionLimits {", 1)[1].split(
+        "}", 1
+    )[0]
+except IndexError:
+    problems.append("ExecutionLimits declaration is missing")
+    execution_limits = ""
 for unit, marker in (
     ("memory_bytes", "max_memory_bytes"),
     ("output_bytes", "max_output_bytes"),
     ("call_depth", "max_call_depth"),
     ("wall_timeout_millis", "wall_timeout"),
 ):
-    if marker in vm_execute:
+    if marker in execution_limits:
         problems.append(f"execution-limits-gained:{unit}; section 9.1 is stale")
 
 unit_tests = code.count("#[test]")

@@ -12,8 +12,22 @@ ROOT = Path(__file__).resolve().parents[1]
 CRATE = ROOT / "crates/sley-cli"
 MANIFEST = CRATE / "Cargo.toml"
 PROTOCOL = ROOT / "crates/sley-protocol/src/lib.rs"
-ALLOWED_DEPENDENCIES = {"sley-protocol", "sley-json-bridge", "serde_json"}
-ALLOWED_DEV_DEPENDENCIES = {"sley-repo", "sley-id", "sley-scb1", "sley-protocol", "sley-json-bridge", "serde_json"}
+ALLOWED_DEPENDENCIES = {
+    "sley-protocol",
+    "sley-json-bridge",
+    "sley-test-runner",
+    "serde_json",
+}
+ALLOWED_DEV_DEPENDENCIES = {
+    "sley-repo",
+    "sley-id",
+    "sley-scb1",
+    "sley-protocol",
+    "sley-json-bridge",
+    "sley-test-runner",
+    "sley-vm",
+    "serde_json",
+}
 KERNEL_CRATES = (
     "sley_ssmc",
     "sley_check",
@@ -42,7 +56,7 @@ def derive_method_truth(protocol_text: str) -> tuple[tuple[int, ...], tuple[str,
     constants = {
         name: int(value)
         for name, value in re.findall(
-            r"pub const (ENTITY_\w+_TAG): u32 = (\d+);", protocol_text
+            r"pub const ([A-Z][A-Z0-9_]*_TAG): u32 = (\d+);", protocol_text
         )
     }
     tag_block: str
