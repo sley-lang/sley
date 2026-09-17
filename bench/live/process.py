@@ -5,8 +5,10 @@ from __future__ import annotations
 import os
 import signal
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Mapping, Sequence
 
 
@@ -29,6 +31,35 @@ class ProcessCapture:
     exit_code: int
     timed_out: bool
     wall_time_ms: int
+    peak_memory_bytes: int = 0
+
+
+def _resident_bytes(process_id: int) -> int:
+    """Sample resident bytes for one Linux process tree; races read as zero."""
+
+    pending = [process_id]
+    seen: set[int] = set()
+    total = 0
+    while pending:
+        current = pending.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        try:
+            status = (Path(f"/proc/{current}/status")).read_text(encoding="ascii")
+            children = (Path(f"/proc/{current}/task/{current}/children")).read_text(
+                encoding="ascii"
+            )
+        except (OSError, UnicodeError):
+            continue
+        for line in status.splitlines():
+            if line.startswith("VmRSS:"):
+                fields = line.split()
+                if len(fields) >= 2 and fields[1].isdigit():
+                    total += int(fields[1]) * 1024
+                break
+        pending.extend(int(child) for child in children.split() if child.isdigit())
+    return total
 
 
 def _kill_group(process: subprocess.Popen[bytes]) -> None:
@@ -81,6 +112,18 @@ def run_provider_process(
         )
     except OSError as error:
         raise ProcessError(f"LIVE_PROVIDER_SPAWN_FAILED: {error}") from error
+    peak_memory_bytes = 0
+    sampling_done = threading.Event()
+
+    def sample_memory() -> None:
+        nonlocal peak_memory_bytes
+        while not sampling_done.is_set():
+            peak_memory_bytes = max(peak_memory_bytes, _resident_bytes(process.pid))
+            sampling_done.wait(0.01)
+        peak_memory_bytes = max(peak_memory_bytes, _resident_bytes(process.pid))
+
+    sampler = threading.Thread(target=sample_memory, name="sley2-live-rss", daemon=True)
+    sampler.start()
     timed_out = False
     try:
         stdout, stderr = process.communicate(prompt, timeout=timeout_ms / 1000)
@@ -88,6 +131,9 @@ def run_provider_process(
         timed_out = True
         _kill_group(process)
         stdout, stderr = process.communicate()
+    finally:
+        sampling_done.set()
+        sampler.join(timeout=1)
     wall_time_ms = max(0, (time.monotonic_ns() - started) // 1_000_000)
     if len(stdout) + len(stderr) > max_output_bytes:
         _fail("LIVE_PROVIDER_OUTPUT_LIMIT", str(len(stdout) + len(stderr)))
@@ -97,4 +143,5 @@ def run_provider_process(
         exit_code=124 if timed_out else process.returncode,
         timed_out=timed_out,
         wall_time_ms=wall_time_ms,
+        peak_memory_bytes=peak_memory_bytes,
     )

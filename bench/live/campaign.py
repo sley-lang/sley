@@ -92,6 +92,7 @@ def _apply_observation(
 ) -> None:
     metrics.update(derive_provider_observation(events, prompt))
     metrics["wall_time"] = capture.wall_time_ms
+    metrics["peak_memory"] = capture.peak_memory_bytes
 
 
 def execute_attempt(

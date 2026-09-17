@@ -12,7 +12,7 @@ class ProviderProcessTests(unittest.TestCase):
             [
                 sys.executable,
                 "-c",
-                "import sys; data=sys.stdin.buffer.read(); sys.stdout.buffer.write(data); sys.stderr.write('note')",
+                "import sys,time; data=sys.stdin.buffer.read(); time.sleep(.05); sys.stdout.buffer.write(data); sys.stderr.write('note')",
             ],
             b"prompt\n",
             timeout_ms=5_000,
@@ -23,6 +23,7 @@ class ProviderProcessTests(unittest.TestCase):
         self.assertEqual(capture.exit_code, 0)
         self.assertFalse(capture.timed_out)
         self.assertGreaterEqual(capture.wall_time_ms, 0)
+        self.assertGreater(capture.peak_memory_bytes, 0)
 
     def test_timeout_is_retained_as_a_capture(self) -> None:
         capture = run_provider_process(
