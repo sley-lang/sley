@@ -5,6 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from live_boundary import BoundaryError, resolve_candidate
+
 TASK_ID = "S2B-CONTEXT-001"
 ARM = "raw"
 TIMEOUT_S = 120
@@ -44,24 +47,10 @@ def main():
     if len(sys.argv) != 2:
         emit("rejected", "HARNESS_ERROR", "usage: oracle.py <fixture-dir>", 2)
     base = Path(__file__).resolve().parent
-    cand = Path(sys.argv[1])
-    if not cand.is_absolute():
-        maybe = Path.cwd() / cand
-        fdir = maybe if maybe.exists() else base / cand
-    else:
-        fdir = cand
-    fdir = fdir.resolve()
     try:
-        rel = fdir.relative_to(base.resolve())
-    except ValueError:
-        emit("rejected", "HARNESS_ERROR", "fixture-dir outside task dir", 2)
-    if rel.parts == ("fixture",):
-        role, name = "positive", None
-    elif len(rel.parts) == 2 and rel.parts[0] == "negative":
-        role, name = "negative", rel.parts[1]
-    else:
-        emit("rejected", "HARNESS_ERROR",
-             "fixture-dir must be fixture or negative/<name>", 2)
+        fdir, role, name = resolve_candidate(base, sys.argv[1])
+    except BoundaryError as error:
+        emit("rejected", "HARNESS_ERROR", str(error), 2)
     for need in ("program.py", "test_program.py"):
         if not (fdir / need).is_file():
             emit("rejected", "HARNESS_ERROR", "missing file: " + need, 2)
