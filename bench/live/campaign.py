@@ -11,7 +11,7 @@ from typing import Any, Callable, Mapping
 
 from bench.live.artifacts import ArtifactStore
 from bench.live.attempts import append_attempt, build_attempt
-from bench.live.environment import environment_snapshot_bytes
+from bench.live.environment import environment_snapshot_bytes, provider_environment
 from bench.live.manifest import canonical_json_bytes, read_manifest
 from bench.live.metrics import derive_provider_observation
 from bench.live.oracle import OracleError, run_fixture_oracle
@@ -118,6 +118,7 @@ def execute_attempt(
     parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     prompt = build_prompt(task_id, seed, arm_id)
     environment_payload = environment_snapshot_bytes(manifest)
+    frozen_provider_environment = provider_environment(manifest)
     started = utc_now()
     metrics = _empty_metrics()
     status = "harness_failure"
@@ -142,7 +143,7 @@ def execute_attempt(
                 prompt,
                 timeout_ms=manifest["wall_time_budget"],
                 max_output_bytes=MAX_PROVIDER_OUTPUT_BYTES,
-                environment=None,
+                environment=frozen_provider_environment,
             )
             try:
                 after_snapshot = snapshot_directory(workspace)

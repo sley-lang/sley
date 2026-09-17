@@ -62,7 +62,11 @@ class CampaignAttemptTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_complete_attempt_is_snapshotted_judged_appended_and_verified(self) -> None:
+        observed_environment = None
+
         def provider(argv, prompt, **kwargs):
+            nonlocal observed_environment
+            observed_environment = kwargs["environment"]
             workspace = Path(argv[argv.index("--cd") + 1])
             source = Path(__file__).resolve().parents[2] / "fixtures/raw/S2B-REPAIR-001/fixture"
             shutil.copy2(source / "program.py", workspace / "program.py")
@@ -93,6 +97,10 @@ class CampaignAttemptTests(unittest.TestCase):
         )
         self.assertIsNotNone(record["artifacts"]["oracle_stdout_sha256"])
         self.assertIsNotNone(record["artifacts"]["oracle_stderr_sha256"])
+        self.assertEqual(
+            observed_environment,
+            {"HOME": "/home/benchmark", "LANG": "C.UTF-8", "PATH": "/usr/bin:/bin"},
+        )
 
     def test_timeout_is_retained_without_an_oracle_claim(self) -> None:
         def provider(argv, prompt, **kwargs):

@@ -38,7 +38,15 @@ class LiveManifestTests(unittest.TestCase):
             retry_policy={"provider_attempts": 1, "retryable_failures": []},
             hardware_manifest={"node": "greyarch", "cpu": "frozen"},
             cache_state="cold-per-trial",
-            environment_manifest={"locale": "C.UTF-8", "timezone": "UTC"},
+            environment_manifest={
+                "locale": "C.UTF-8",
+                "timezone": "UTC",
+                "provider_environment": {
+                    "HOME": "/home/benchmark",
+                    "LANG": "C.UTF-8",
+                    "PATH": "/usr/bin:/bin",
+                },
+            },
             arm_fixture_digests={
                 "raw_files": digest("raw"),
                 "sley_1_2_0": digest("legacy"),

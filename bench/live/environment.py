@@ -25,10 +25,51 @@ FIELDS = frozenset(
         "run_manifest_digest",
     }
 )
+PROVIDER_ENVIRONMENT_FIELDS = frozenset(
+    {
+        "CODEX_HOME",
+        "HOME",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "LANG",
+        "LC_ALL",
+        "NO_PROXY",
+        "PATH",
+        "SSL_CERT_DIR",
+        "SSL_CERT_FILE",
+        "TZ",
+        "http_proxy",
+        "https_proxy",
+        "no_proxy",
+    }
+)
+REQUIRED_PROVIDER_ENVIRONMENT_FIELDS = frozenset({"HOME", "PATH"})
 
 
 class EnvironmentError(ValueError):
     """An attempt environment receipt is malformed or disagrees with its run."""
+
+
+def provider_environment(manifest: Mapping[str, Any]) -> dict[str, str]:
+    """Return the exact allowlisted environment passed to the provider process."""
+
+    validate_manifest(manifest)
+    value = manifest["environment_manifest"].get("provider_environment")
+    if (
+        not isinstance(value, dict)
+        or not REQUIRED_PROVIDER_ENVIRONMENT_FIELDS <= set(value)
+        or not set(value) <= PROVIDER_ENVIRONMENT_FIELDS
+        or any(
+            not isinstance(key, str)
+            or not isinstance(item, str)
+            or not item
+            or "\x00" in key
+            or "\x00" in item
+            for key, item in value.items()
+        )
+    ):
+        raise EnvironmentError("LIVE_PROVIDER_ENVIRONMENT_INVALID")
+    return dict(value)
 
 
 def _expected(manifest: Mapping[str, Any]) -> dict[str, Any]:
