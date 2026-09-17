@@ -138,6 +138,11 @@ pub const EXEC_PACKAGE_V2_CONTRACT: &str = "sley2-exec-package-2";
 /// Successor execution-package version (envelope `u32` 2; v1 envelope 1
 /// preserved as history).
 pub const EXEC_PACKAGE_V2_VERSION: u32 = 2;
+/// Fixed v2 serialized-envelope header size. The header is exactly the
+/// existing package-digest preimage; five `u64` section lengths follow it.
+pub const EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES: usize = 316;
+/// Fixed length-framing overhead for the five package sections.
+pub const EXEC_PACKAGE_V2_ENVELOPE_LENGTH_BYTES: usize = 40;
 
 /// Execution-package structural failure vocabulary.
 ///
@@ -270,6 +275,32 @@ pub struct PackageDigests {
     /// version, profile digest, ABI version, VM version, the five section
     /// digests, entry, epoch, root), never over serialized envelope bytes.
     pub package_digest: [u8; 32],
+}
+
+/// Strictly decoded v2 envelope framing and raw canonical section bytes.
+///
+/// This is deliberately a structural handoff. Hydrating the section bytes
+/// into compiler-owned semantic inventories is a separate operation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DecodedPackageEnvelopeV2 {
+    /// Exact `SLEYBC02` image section bytes.
+    pub image_bytes: Vec<u8>,
+    /// Exact canonical constants-section bytes.
+    pub constants_bytes: Vec<u8>,
+    /// Exact canonical layouts-section bytes.
+    pub layouts_bytes: Vec<u8>,
+    /// Exact canonical imports-section bytes.
+    pub imports_bytes: Vec<u8>,
+    /// Exact canonical dependency-section bytes.
+    pub dependency_bytes: Vec<u8>,
+    /// Entry identity repeated in the package header.
+    pub entry: EntityId,
+    /// Schema epoch repeated in the package header.
+    pub schema_epoch: SchemaEpochId,
+    /// State root repeated in the package header.
+    pub state_root: StateRoot,
+    /// Header and section digests, including the digest of the exact header.
+    pub digests: PackageDigests,
 }
 
 /// The admission receipt for one exact package (separately accepted
@@ -868,6 +899,27 @@ pub fn package_digests(package: &ExecutionPackage) -> Result<PackageDigests, Pac
     })
 }
 
+fn package_header_v2(package: &ExecutionPackage, digests: &PackageDigests) -> Vec<u8> {
+    let mut header = Vec::with_capacity(EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES);
+    header.extend_from_slice(EXEC_PACKAGE_MAGIC);
+    push_u32(&mut header, EXEC_PACKAGE_V2_VERSION);
+    header.extend_from_slice(&BOOTSTRAP_PROFILE_2_DIGEST);
+    push_u32(&mut header, crate::host_abi::HOST_ABI_V2_VERSION);
+    for part in package.profile.vm_version {
+        push_u32(&mut header, part);
+    }
+    header.extend_from_slice(&digests.image_digest);
+    header.extend_from_slice(&digests.constants_digest);
+    header.extend_from_slice(&digests.layouts_digest);
+    header.extend_from_slice(&digests.imports_digest);
+    header.extend_from_slice(&digests.dependency_digest);
+    header.extend_from_slice(package.entry.as_bytes());
+    header.extend_from_slice(package.schema_epoch.as_bytes());
+    header.extend_from_slice(package.state_root.as_bytes());
+    debug_assert_eq!(header.len(), EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES);
+    header
+}
+
 /// Successor package digests (RW-075 correction, AR-02).
 ///
 /// Same envelope layout/bounds as v1; preimage uses `u32(2)`,
@@ -901,30 +953,218 @@ pub fn package_digests_v2(package: &ExecutionPackage) -> Result<PackageDigests, 
     if envelope_len > EXEC_PACKAGE_MAX_BYTES {
         return Err(PackageError::Oversized);
     }
-    let mut preimage = Vec::new();
-    preimage.extend_from_slice(EXEC_PACKAGE_MAGIC);
-    push_u32(&mut preimage, EXEC_PACKAGE_V2_VERSION);
-    preimage.extend_from_slice(&BOOTSTRAP_PROFILE_2_DIGEST);
-    push_u32(&mut preimage, crate::host_abi::HOST_ABI_V2_VERSION);
-    for part in package.profile.vm_version {
-        push_u32(&mut preimage, part);
-    }
-    preimage.extend_from_slice(&image_digest);
-    preimage.extend_from_slice(&constants_digest);
-    preimage.extend_from_slice(&layouts_digest);
-    preimage.extend_from_slice(&imports_digest);
-    preimage.extend_from_slice(&dependency_digest);
-    preimage.extend_from_slice(package.entry.as_bytes());
-    preimage.extend_from_slice(package.schema_epoch.as_bytes());
-    preimage.extend_from_slice(package.state_root.as_bytes());
-    let package_digest = section_digest(&preimage);
-    Ok(PackageDigests {
+    let mut digests = PackageDigests {
         image_digest,
         constants_digest,
         layouts_digest,
         imports_digest,
         dependency_digest,
-        package_digest,
+        package_digest: [0; 32],
+    };
+    digests.package_digest = section_digest(&package_header_v2(package, &digests));
+    Ok(digests)
+}
+
+/// Encodes the canonical v2 package byte envelope.
+///
+/// The fixed header is byte-for-byte the existing package-digest preimage.
+/// It is followed by five `u64` big-endian length-prefixed sections in this
+/// order: image, constants, layouts, imports, dependency. Section payload
+/// bytes retain their existing canonical encodings and limits.
+///
+/// # Errors
+///
+/// Returns the same structural and size failures as the section encoders and
+/// [`package_digests_v2`].
+pub fn encode_package_envelope_v2(package: &ExecutionPackage) -> Result<Vec<u8>, PackageError> {
+    let constants = encode_constants_section(&package.constants)?;
+    let layouts = encode_layouts_section(&package.type_definitions)?;
+    let imports = encode_imports_section(&package.imports)?;
+    let dependency = encode_dependency_section(package)?;
+    let sections: [&[u8]; 5] = [
+        &package.image_bytes,
+        &constants,
+        &layouts,
+        &imports,
+        &dependency,
+    ];
+    let payload_len = sections.iter().try_fold(0_usize, |total, section| {
+        total
+            .checked_add(section.len())
+            .ok_or(PackageError::Oversized)
+    })?;
+    if payload_len > EXEC_PACKAGE_MAX_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    let digests = package_digests_v2(package)?;
+    let capacity = EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES
+        .checked_add(EXEC_PACKAGE_V2_ENVELOPE_LENGTH_BYTES)
+        .and_then(|overhead| overhead.checked_add(payload_len))
+        .ok_or(PackageError::Oversized)?;
+    let mut output = package_header_v2(package, &digests);
+    output.reserve(EXEC_PACKAGE_V2_ENVELOPE_LENGTH_BYTES + payload_len);
+    for section in sections {
+        push_u64(
+            &mut output,
+            u64::try_from(section.len()).map_err(|_| PackageError::Oversized)?,
+        );
+        output.extend_from_slice(section);
+    }
+    debug_assert_eq!(output.len(), capacity);
+    Ok(output)
+}
+
+struct PackageEnvelopeCursor<'a> {
+    bytes: &'a [u8],
+    position: usize,
+}
+
+impl<'a> PackageEnvelopeCursor<'a> {
+    const fn new(bytes: &'a [u8]) -> Self {
+        Self { bytes, position: 0 }
+    }
+
+    fn take(&mut self, len: usize) -> Result<&'a [u8], PackageError> {
+        let end = self
+            .position
+            .checked_add(len)
+            .ok_or(PackageError::Oversized)?;
+        let value = self
+            .bytes
+            .get(self.position..end)
+            .ok_or(PackageError::Truncated)?;
+        self.position = end;
+        Ok(value)
+    }
+
+    fn u32(&mut self) -> Result<u32, PackageError> {
+        let bytes: [u8; 4] = self
+            .take(4)?
+            .try_into()
+            .map_err(|_| PackageError::Truncated)?;
+        Ok(u32::from_be_bytes(bytes))
+    }
+
+    fn u64(&mut self) -> Result<u64, PackageError> {
+        let bytes: [u8; 8] = self
+            .take(8)?
+            .try_into()
+            .map_err(|_| PackageError::Truncated)?;
+        Ok(u64::from_be_bytes(bytes))
+    }
+
+    fn fixed_32(&mut self) -> Result<[u8; 32], PackageError> {
+        self.take(32)?
+            .try_into()
+            .map_err(|_| PackageError::Truncated)
+    }
+
+    fn section(&mut self, ceiling: usize) -> Result<&'a [u8], PackageError> {
+        let len = usize::try_from(self.u64()?).map_err(|_| PackageError::Oversized)?;
+        if len > ceiling {
+            return Err(PackageError::Oversized);
+        }
+        self.take(len)
+    }
+}
+
+/// Strictly decodes and authenticates the canonical v2 package envelope.
+///
+/// This validates only framing, fixed profile/ABI/VM bindings, section
+/// ceilings, exact section digests, and absence of trailing bytes. It returns
+/// raw canonical section bytes; it performs no type, reference, closure, or
+/// compiler judgment and does not mint admission evidence.
+///
+/// # Errors
+///
+/// Returns the reserved `PACKAGE_*` framing failures with this precedence:
+/// total ceiling, truncation, magic, version, fixed binding, section ceiling,
+/// trailing data, then section digest.
+#[allow(clippy::too_many_lines)]
+pub fn decode_package_envelope_v2(bytes: &[u8]) -> Result<DecodedPackageEnvelopeV2, PackageError> {
+    let serialized_ceiling = EXEC_PACKAGE_MAX_BYTES
+        .checked_add(EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES)
+        .and_then(|value| value.checked_add(EXEC_PACKAGE_V2_ENVELOPE_LENGTH_BYTES))
+        .ok_or(PackageError::Oversized)?;
+    if bytes.len() > serialized_ceiling {
+        return Err(PackageError::Oversized);
+    }
+    let mut cursor = PackageEnvelopeCursor::new(bytes);
+    if cursor.take(EXEC_PACKAGE_MAGIC.len())? != EXEC_PACKAGE_MAGIC {
+        return Err(PackageError::UnknownMagic);
+    }
+    if cursor.u32()? != EXEC_PACKAGE_V2_VERSION {
+        return Err(PackageError::UnsupportedVersion);
+    }
+    if cursor.fixed_32()? != BOOTSTRAP_PROFILE_2_DIGEST
+        || cursor.u32()? != crate::host_abi::HOST_ABI_V2_VERSION
+    {
+        return Err(PackageError::BindingMismatch);
+    }
+    let vm_version = [cursor.u32()?, cursor.u32()?, cursor.u32()?];
+    if vm_version != CacheProfile::EXTENDED_V1.vm_version {
+        return Err(PackageError::BindingMismatch);
+    }
+    let expected_image_digest = cursor.fixed_32()?;
+    let expected_constants_digest = cursor.fixed_32()?;
+    let expected_layouts_digest = cursor.fixed_32()?;
+    let expected_imports_digest = cursor.fixed_32()?;
+    let expected_dependency_digest = cursor.fixed_32()?;
+    let entry = EntityId::from_bytes(cursor.fixed_32()?);
+    let schema_epoch = SchemaEpochId::from_bytes(cursor.fixed_32()?);
+    let state_root = StateRoot::from_bytes(cursor.fixed_32()?);
+    debug_assert_eq!(cursor.position, EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES);
+
+    let image = cursor.section(IMAGE_MAX_BYTES)?;
+    let constants = cursor.section(EXEC_PACKAGE_MAX_CONSTANTS_BYTES)?;
+    let layouts = cursor.section(EXEC_PACKAGE_MAX_LAYOUTS_BYTES)?;
+    let imports = cursor.section(EXEC_PACKAGE_MAX_IMPORTS_BYTES)?;
+    let dependency = cursor.section(EXEC_PACKAGE_MAX_DEPENDENCY_BYTES)?;
+    let payload_len = [image, constants, layouts, imports, dependency]
+        .iter()
+        .try_fold(0_usize, |total, section| {
+            total
+                .checked_add(section.len())
+                .ok_or(PackageError::Oversized)
+        })?;
+    if payload_len > EXEC_PACKAGE_MAX_BYTES {
+        return Err(PackageError::Oversized);
+    }
+    if cursor.position != bytes.len() {
+        return Err(PackageError::TrailingData);
+    }
+
+    let image_digest = image_digest(image);
+    let constants_digest = section_digest(constants);
+    let layouts_digest = section_digest(layouts);
+    let imports_digest = section_digest(imports);
+    let dependency_digest = section_digest(dependency);
+    if image_digest != expected_image_digest
+        || constants_digest != expected_constants_digest
+        || layouts_digest != expected_layouts_digest
+        || imports_digest != expected_imports_digest
+        || dependency_digest != expected_dependency_digest
+    {
+        return Err(PackageError::SectionDigestMismatch);
+    }
+    let package_digest = section_digest(&bytes[..EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES]);
+    Ok(DecodedPackageEnvelopeV2 {
+        image_bytes: image.to_vec(),
+        constants_bytes: constants.to_vec(),
+        layouts_bytes: layouts.to_vec(),
+        imports_bytes: imports.to_vec(),
+        dependency_bytes: dependency.to_vec(),
+        entry,
+        schema_epoch,
+        state_root,
+        digests: PackageDigests {
+            image_digest,
+            constants_digest,
+            layouts_digest,
+            imports_digest,
+            dependency_digest,
+            package_digest,
+        },
     })
 }
 
@@ -1335,12 +1575,9 @@ mod tests {
     use sley_ssmc::{FunctionType, MemberId, NamedType};
     use std::collections::BTreeMap;
 
-    // Defense-only pin: SectionDigestMismatch is never constructed (the
-    // binding checks report content mismatches as BindingMismatch), but
-    // the vocabulary reserves it for a header-bound section comparison.
-    // The variant and its stable symbol are pinned here. Registration of
-    // the symbol with its owning contract remains an open governance
-    // item; this test exercises the vocabulary, not the ownership.
+    // The strict v2 envelope decoder constructs SectionDigestMismatch for a
+    // header-bound section mismatch. This smaller pin keeps the stable symbol
+    // explicit beside the broader behavioral refusal test below.
     #[test]
     fn section_digest_mismatch_variant_is_stable() {
         assert_eq!(
@@ -1351,6 +1588,125 @@ mod tests {
 
     fn test_digest() -> [u8; 32] {
         [0x08; 32]
+    }
+
+    fn envelope_test_package() -> ExecutionPackage {
+        ExecutionPackage {
+            image_bytes: b"SLEYBC02\0".to_vec(),
+            constants: Vec::new(),
+            type_definitions: Vec::new(),
+            imports: Vec::new(),
+            globals: Vec::new(),
+            contracts: Vec::new(),
+            entry: EntityId::from_bytes([1; 32]),
+            schema_epoch: SchemaEpochId::from_bytes([8; 32]),
+            state_root: StateRoot::from_bytes([9; 32]),
+            profile: CacheProfile::EXTENDED_V1,
+            admitted_limits: crate::ExecutionLimits {
+                max_instructions: 1_000,
+                max_fuel: 2_000,
+                max_value_units: 3_000,
+                max_output_units: 4_000,
+                cancel_at_fuel: None,
+            },
+            gate_operation_count: 0,
+            gate_bridge_uses: 0,
+            gate_closure_fingerprints: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn v2_envelope_round_trips_exact_raw_sections_and_header_digest() {
+        use core::fmt::Write as _;
+
+        let package = envelope_test_package();
+        let bytes = encode_package_envelope_v2(&package).expect("envelope encodes");
+        let decoded = decode_package_envelope_v2(&bytes).expect("envelope decodes");
+        let expected = package_digests_v2(&package).expect("package digests");
+        assert_eq!(&bytes[..8], EXEC_PACKAGE_MAGIC);
+        assert_eq!(decoded.image_bytes, package.image_bytes);
+        assert_eq!(
+            decoded.constants_bytes,
+            encode_constants_section(&package.constants).unwrap()
+        );
+        assert_eq!(
+            decoded.layouts_bytes,
+            encode_layouts_section(&package.type_definitions).unwrap()
+        );
+        assert_eq!(
+            decoded.imports_bytes,
+            encode_imports_section(&package.imports).unwrap()
+        );
+        assert_eq!(
+            decoded.dependency_bytes,
+            encode_dependency_section(&package).unwrap()
+        );
+        assert_eq!(decoded.entry, package.entry);
+        assert_eq!(decoded.schema_epoch, package.schema_epoch);
+        assert_eq!(decoded.state_root, package.state_root);
+        assert_eq!(decoded.digests, expected);
+        let mut encoded_hex = String::with_capacity(bytes.len() * 2);
+        for byte in &bytes {
+            write!(&mut encoded_hex, "{byte:02x}").expect("writing to String cannot fail");
+        }
+        assert_eq!(
+            encoded_hex,
+            include_str!("../../../conformance/exec-package-envelope/v2/accepted.hex").trim(),
+            "Rust emitter reproduces the independent candidate vector"
+        );
+        assert_eq!(
+            encode_package_envelope_v2(&package).unwrap(),
+            bytes,
+            "envelope encoding is deterministic"
+        );
+    }
+
+    #[test]
+    fn v2_envelope_refusal_vocabulary_is_live() {
+        let package = envelope_test_package();
+        let bytes = encode_package_envelope_v2(&package).expect("envelope encodes");
+
+        let mut wrong_magic = bytes.clone();
+        wrong_magic[0] ^= 1;
+        assert_eq!(
+            decode_package_envelope_v2(&wrong_magic),
+            Err(PackageError::UnknownMagic)
+        );
+
+        let mut wrong_version = bytes.clone();
+        wrong_version[8..12].copy_from_slice(&3_u32.to_be_bytes());
+        assert_eq!(
+            decode_package_envelope_v2(&wrong_version),
+            Err(PackageError::UnsupportedVersion)
+        );
+
+        let mut wrong_profile = bytes.clone();
+        wrong_profile[12] ^= 1;
+        assert_eq!(
+            decode_package_envelope_v2(&wrong_profile),
+            Err(PackageError::BindingMismatch)
+        );
+
+        let mut wrong_digest = bytes.clone();
+        wrong_digest[60] ^= 1;
+        assert_eq!(
+            decode_package_envelope_v2(&wrong_digest),
+            Err(PackageError::SectionDigestMismatch)
+        );
+
+        let mut truncated = bytes.clone();
+        truncated.pop();
+        assert_eq!(
+            decode_package_envelope_v2(&truncated),
+            Err(PackageError::Truncated)
+        );
+
+        let mut trailing = bytes;
+        trailing.push(0);
+        assert_eq!(
+            decode_package_envelope_v2(&trailing),
+            Err(PackageError::TrailingData)
+        );
     }
 
     #[test]

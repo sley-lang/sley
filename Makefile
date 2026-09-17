@@ -63,6 +63,7 @@ quick:
 	python3 scripts/check_host_abi_markers.py
 	python3 scripts/check_exec_package_v1.py
 	python3 scripts/check_exec_package_v2.py
+	python3 scripts/check_exec_package_envelope_v2.py
 	python3 scripts/check_exec_package_markers.py
 	python3 scripts/check_reference_adapter_profile.py
 	python3 scripts/check_report_envelope_profile.py

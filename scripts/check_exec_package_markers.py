@@ -60,6 +60,8 @@ for pin, value in [
     ("EXEC_PACKAGE_MAX_DEPENDENCY_BYTES", "8_388_608"),
     ("&BootstrapProfileReport", "&BootstrapProfileReport"),
     ("pub fn package_digests_v2(", "BOOTSTRAP_PROFILE_2_DIGEST"),
+    ("pub fn encode_package_envelope_v2(", "package_header_v2"),
+    ("pub fn decode_package_envelope_v2(", "SectionDigestMismatch"),
     ("pub(crate) fn admit_package_v2(", "HOST_ABI_V2_VERSION"),
     ("pub fn approve_package_v2(", "BOOTSTRAP_PROFILE_2_DIGEST"),
     ("pub fn verify_package_binding_v2(", "package_digests_v2"),

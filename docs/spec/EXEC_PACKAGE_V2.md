@@ -10,6 +10,7 @@ Current R2 candidate. `EXEC_PACKAGE_V1` v1 preserved byte-identical as history.
   `conformance/exec-package/v2/exec-package.json` (authoritative for values);
   this document (authoritative for rationale and rules).
 - Rust surface: `sley_vm::exec_package` (`package_digests_v2`,
+  `encode_package_envelope_v2`, `decode_package_envelope_v2`,
   `approve_package_v2`, `verify_package_binding_v2`,
   `BOOTSTRAP_PROFILE_2_DIGEST`, `EXEC_PACKAGE_V2_*`; the raw v2
   constructor is crate-private with no public re-export) plus
@@ -74,15 +75,23 @@ digest (over the envelope of at most 67_108_864 total bytes)" describes
 the same header preimage bounded by the envelope ceiling; that text is
 frozen history and is superseded by this statement, not edited.
 
-No canonical byte serialization of the envelope (header layout, section
-order, length prefixes) is frozen by this contract, and no encoder or
-decoder for one exists. Packages reach `execute_approved_package_v2` as
-in-process structures. The framing codes `PACKAGE_UNKNOWN_MAGIC`,
-`PACKAGE_UNSUPPORTED_VERSION`, `PACKAGE_TRUNCATED` and
-`PACKAGE_TRAILING_DATA` are reserved for the strict decoder that the
-RW-080 builder/loader handoff will freeze together with its emitter and
-vectors; until then they are unreachable by design. Freezing the layout
-will not change the package digest preimage.
+RW-080 now carries a provisional serialized-envelope candidate alongside the
+unchanged package identity. The fixed 316-byte header is exactly the package
+digest preimage above. It is followed by five sections in this order: image,
+constants, layouts, imports, dependency. Each section is framed as a
+big-endian `u64` byte length followed by the exact existing canonical section
+bytes. The sum of the five payload lengths remains bounded by
+`EXEC_PACKAGE_MAX_BYTES`; the 316-byte header and five 8-byte length fields
+are fixed transport overhead.
+
+`encode_package_envelope_v2` emits this layout and
+`decode_package_envelope_v2` strictly verifies the fixed profile/ABI/VM
+binding, bounds, no trailing bytes, and every section digest. The decoder
+returns raw canonical section bytes and performs no semantic hydration or
+admission judgment. Its candidate vector and independent Python reproduction
+are under `conformance/exec-package-envelope/v2/`. The package identity and
+all existing section encodings are unchanged. The envelope candidate remains
+provisional until the RW-080 contract/surface review accepts it.
 
 ## Failure vocabulary
 
@@ -105,10 +114,14 @@ assignment, and RW-075/RW-080 semantics are unchanged by this table.
 - `PACKAGE_HYDRATION_REFUSED` — LIVE. Structural hydration refused:
   duplicate identity or count bound in `hydrate_layouts`, and imports
   manifest refusal.
-- `PACKAGE_SECTION_DIGEST_MISMATCH` — RESERVED/DEAD. No construction
-  site exists: the binding checks report content mismatches as
-  `PACKAGE_BINDING_MISMATCH`. Reserved for a header-bound section
-  comparison, mirroring the decoder-reserved framing codes above.
+- `PACKAGE_SECTION_DIGEST_MISMATCH` — LIVE on a header-bound section mismatch
+  in `decode_package_envelope_v2`; ordinary in-process binding checks continue
+  to report content mismatches as `PACKAGE_BINDING_MISMATCH`.
+
+The framing codes `PACKAGE_UNKNOWN_MAGIC`, `PACKAGE_UNSUPPORTED_VERSION`,
+`PACKAGE_TRUNCATED`, and `PACKAGE_TRAILING_DATA` are LIVE on the provisional
+RW-080 decoder. This does not make the candidate accepted runtime authority;
+the lane review and semantic section hydration remain outstanding.
 
 ## Authority failure vocabulary (owner adoption)
 

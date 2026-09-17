@@ -27,11 +27,13 @@ pub use admission_authority::{
 };
 pub use exec_package::{
     AdmissionReceipt, ApprovedExecutionPackage, BOOTSTRAP_PROFILE_1_DIGEST,
-    BOOTSTRAP_PROFILE_2_DIGEST, EXEC_PACKAGE_CONTRACT, EXEC_PACKAGE_IDENTITY,
-    EXEC_PACKAGE_V2_CONTRACT, EXEC_PACKAGE_V2_IDENTITY, EXEC_PACKAGE_V2_VERSION,
+    BOOTSTRAP_PROFILE_2_DIGEST, DecodedPackageEnvelopeV2, EXEC_PACKAGE_CONTRACT,
+    EXEC_PACKAGE_IDENTITY, EXEC_PACKAGE_V2_CONTRACT, EXEC_PACKAGE_V2_ENVELOPE_HEADER_BYTES,
+    EXEC_PACKAGE_V2_ENVELOPE_LENGTH_BYTES, EXEC_PACKAGE_V2_IDENTITY, EXEC_PACKAGE_V2_VERSION,
     EXEC_PACKAGE_VERSION, ExecutionPackage, PackageDigests, PackageError, admit_package,
-    approve_package, approve_package_v2, hydrate_layouts, package_digests, package_digests_v2,
-    verify_package_binding, verify_package_binding_v2,
+    approve_package, approve_package_v2, decode_package_envelope_v2, encode_package_envelope_v2,
+    hydrate_layouts, package_digests, package_digests_v2, verify_package_binding,
+    verify_package_binding_v2,
 };
 pub use execute::{
     ApprovedImage, ExecutionError, ExecutionErrorCode, ExecutionLimits, ExecutionOutcome,
