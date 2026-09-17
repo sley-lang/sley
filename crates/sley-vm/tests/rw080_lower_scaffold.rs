@@ -56,6 +56,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-fixed-width-bytes.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-byte-chunks.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-function-header.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-instruction-bytes.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -491,6 +492,21 @@ fn u32vec_value(values: &[u32]) -> ConstValue {
     }
 }
 
+fn u8vec_value(values: &[u8]) -> ConstValue {
+    ConstValue {
+        value_type: u8vec_type(),
+        data: ConstData::Sequence(
+            values
+                .iter()
+                .map(|value| ConstValue {
+                    value_type: u8_type(),
+                    data: ConstData::UInt(u128::from(*value)),
+                })
+                .collect(),
+        ),
+    }
+}
+
 fn bytesvec_value(values: &[Vec<u8>]) -> ConstValue {
     ConstValue {
         value_type: bytesvec_type(),
@@ -758,6 +774,28 @@ fn encoded_function_header(value: &sley_vm::BytecodeFunction) -> Vec<u8> {
             .expect("block length fits u64")
             .to_be_bytes(),
     );
+    output
+}
+
+fn encoded_instruction(value: &sley_vm::Instruction) -> Vec<u8> {
+    let mut output = value.opcode.to_be_bytes().to_vec();
+    output.extend_from_slice(
+        &u64::try_from(value.operands.len())
+            .expect("operand length fits u64")
+            .to_be_bytes(),
+    );
+    for register in &value.operands {
+        output.extend_from_slice(&register.to_be_bytes());
+    }
+    output.extend_from_slice(
+        &u64::try_from(value.results.len())
+            .expect("result length fits u64")
+            .to_be_bytes(),
+    );
+    for register in &value.results {
+        output.extend_from_slice(&register.to_be_bytes());
+    }
+    output.extend_from_slice(&encoded_immediate(&value.immediate));
     output
 }
 
@@ -8942,6 +8980,343 @@ fn build_vector_byte_appender(
     }
 }
 
+/// Emits one complete extended-profile instruction from the lossless lowered
+/// model: opcode, operand registers, result registers, and exact immediate.
+#[allow(clippy::too_many_lines)]
+fn build_instruction_byte_appender(
+    assembler: &mut InventoryAssembler,
+    function: EntityId,
+    append_u32: EntityId,
+    append_u32_vector: EntityId,
+    append_chunk: EntityId,
+) -> FunctionGraph {
+    let instruction = assembler.parameter(
+        function,
+        ParameterRole::Function,
+        0,
+        immediate_instruction_type(),
+    );
+    let accumulator = assembler.parameter(function, ParameterRole::Function, 1, u8vec_type());
+    let entry = assembler.block_id();
+    let append_operands = assembler.block_id();
+    let append_results = assembler.block_id();
+    let append_immediate = assembler.block_id();
+    let forward_error = assembler.block_id();
+
+    let opcode = assembler.operation(
+        entry,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(instruction)],
+        u32_type(),
+        Immediate::Index(0),
+    );
+    let operands = assembler.operation(
+        entry,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(instruction)],
+        u32vec_type(),
+        Immediate::Index(1),
+    );
+    let results = assembler.operation(
+        entry,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(instruction)],
+        u32vec_type(),
+        Immediate::Index(2),
+    );
+    let immediate_bytes = assembler.operation(
+        entry,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(instruction)],
+        TypeExpr::Bytes,
+        Immediate::Index(6),
+    );
+    let encoded_opcode = assembler.operation(
+        entry,
+        Opcode::CallDirect,
+        vec![operation_value(opcode), ValueRef::Parameter(accumulator)],
+        byte_vector_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: append_u32,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![opcode, operands, results, immediate_bytes, encoded_opcode],
+        inventory_switch(
+            operation_value(encoded_opcode),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    append_operands,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(operation_value(operands)),
+                        SwitchArgument::Value(operation_value(results)),
+                        SwitchArgument::Value(operation_value(immediate_bytes)),
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let operand_accumulator =
+        assembler.parameter(append_operands, ParameterRole::Block, 0, u8vec_type());
+    let operand_values =
+        assembler.parameter(append_operands, ParameterRole::Block, 1, u32vec_type());
+    let operand_results =
+        assembler.parameter(append_operands, ParameterRole::Block, 2, u32vec_type());
+    let operand_immediate =
+        assembler.parameter(append_operands, ParameterRole::Block, 3, TypeExpr::Bytes);
+    let encoded_operands = assembler.operation(
+        append_operands,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(operand_values),
+            ValueRef::Parameter(operand_accumulator),
+        ],
+        byte_vector_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: append_u32_vector,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        append_operands,
+        function,
+        vec![
+            operand_accumulator,
+            operand_values,
+            operand_results,
+            operand_immediate,
+        ],
+        vec![encoded_operands],
+        inventory_switch(
+            operation_value(encoded_operands),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    append_results,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(operand_results)),
+                        SwitchArgument::Value(ValueRef::Parameter(operand_immediate)),
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let result_accumulator =
+        assembler.parameter(append_results, ParameterRole::Block, 0, u8vec_type());
+    let result_values = assembler.parameter(append_results, ParameterRole::Block, 1, u32vec_type());
+    let result_immediate =
+        assembler.parameter(append_results, ParameterRole::Block, 2, TypeExpr::Bytes);
+    let encoded_results = assembler.operation(
+        append_results,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(result_values),
+            ValueRef::Parameter(result_accumulator),
+        ],
+        byte_vector_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: append_u32_vector,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        append_results,
+        function,
+        vec![result_accumulator, result_values, result_immediate],
+        vec![encoded_results],
+        inventory_switch(
+            operation_value(encoded_results),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    append_immediate,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(result_immediate)),
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let immediate_accumulator =
+        assembler.parameter(append_immediate, ParameterRole::Block, 0, u8vec_type());
+    let immediate_value =
+        assembler.parameter(append_immediate, ParameterRole::Block, 1, TypeExpr::Bytes);
+    let encoded_immediate = assembler.operation(
+        append_immediate,
+        Opcode::CallDirect,
+        vec![
+            ValueRef::Parameter(immediate_accumulator),
+            ValueRef::Parameter(immediate_value),
+        ],
+        byte_vector_lower_result_type(),
+        Immediate::Function(FunctionRefValue {
+            function: append_chunk,
+            type_arguments: Vec::new(),
+        }),
+    );
+    assembler.push_block(
+        append_immediate,
+        function,
+        vec![immediate_accumulator, immediate_value],
+        vec![encoded_immediate],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(encoded_immediate),
+        }),
+    );
+
+    let forwarded = assembler.parameter(forward_error, ParameterRole::Block, 0, u32_type());
+    let failure = assembler.operation(
+        forward_error,
+        Opcode::ResultErr,
+        vec![ValueRef::Parameter(forwarded)],
+        byte_vector_lower_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![failure],
+        Terminator::Return(ReturnTerminator {
+            value: operation_value(failure),
+        }),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![instruction, accumulator],
+        result_type: byte_vector_lower_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .filter(|block| block.function == function)
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+fn instruction_byte_encoder() -> LowerScaffold {
+    let narrow_u32 = inventory_id(5, 19);
+    let append_u32 = inventory_id(5, 20);
+    let narrow_u64 = inventory_id(5, 21);
+    let append_u64 = inventory_id(5, 22);
+    let append_chunk = inventory_id(5, 24);
+    let append_u32_vector = inventory_id(5, 26);
+    let function = inventory_id(5, 29);
+    let mut assembler = InventoryAssembler::new();
+    let narrow_u32_graph =
+        build_unsigned_octet_narrower(&mut assembler, narrow_u32, &u32_type(), u32_value);
+    let append_u32_graph = build_fixed_width_appender(
+        &mut assembler,
+        append_u32,
+        narrow_u32,
+        &u32_type(),
+        u32_value,
+        &[1_u128 << 24, 1_u128 << 16, 1_u128 << 8, 1],
+    );
+    let narrow_u64_graph =
+        build_unsigned_octet_narrower(&mut assembler, narrow_u64, &u64_type(), u64_value);
+    let append_u64_graph = build_fixed_width_appender(
+        &mut assembler,
+        append_u64,
+        narrow_u64,
+        &u64_type(),
+        u64_value,
+        &[
+            1_u128 << 56,
+            1_u128 << 48,
+            1_u128 << 40,
+            1_u128 << 32,
+            1_u128 << 24,
+            1_u128 << 16,
+            1_u128 << 8,
+            1,
+        ],
+    );
+    let append_chunk_graph = build_byte_chunk_appender(&mut assembler, append_chunk);
+    let append_u32_vector_graph = build_vector_byte_appender(
+        &mut assembler,
+        append_u32_vector,
+        append_u64,
+        append_u32,
+        &u32vec_type(),
+        &u32_type(),
+        true,
+    );
+    let graph = build_instruction_byte_appender(
+        &mut assembler,
+        function,
+        append_u32,
+        append_u32_vector,
+        append_chunk,
+    );
+    let adapter = |code, request_type, response_type| AdapterImport {
+        entity_id: EntityId::from_bytes(sley_vm::host_abi::bridge_identity(code)),
+        adapter_id: sley_vm::host_abi::bridge_identity(code),
+        abi_version: sley_vm::host_abi::BRIDGE_ABI_VERSION,
+        request_type,
+        response_type,
+        failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+        effects: Vec::new(),
+    };
+    LowerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![
+            graph,
+            narrow_u32_graph,
+            append_u32_graph,
+            narrow_u64_graph,
+            append_u64_graph,
+            append_chunk_graph,
+            append_u32_vector_graph,
+        ],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+        adapters: vec![
+            adapter(
+                sley_vm::host_abi::BRIDGE_CODE_B2V1,
+                TypeExpr::Bytes,
+                u8vec_type(),
+            ),
+            adapter(sley_vm::host_abi::BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+        ],
+    }
+}
+
 /// Composes complete semantic lowering with exact SLEYBC02 function-body
 /// metadata emission. The returned bytes end after the canonical block count;
 /// ordered block bodies are the next serializer layer.
@@ -11450,6 +11825,26 @@ fn execute_byte_chunk_encoder(
         },
     )
     .expect("v2 executes byte-chunk encoder")
+}
+
+fn execute_instruction_byte_encoder(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    instruction: &sley_vm::Instruction,
+    prefix: &[u8],
+) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                immediate_instruction_value(instruction),
+                u8vec_value(prefix),
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes instruction byte encoder")
 }
 
 fn execute_builtin_switch(
@@ -14233,6 +14628,40 @@ fn lower_complete_block_preserves_operation_before_switch_failures() {
         ),
         sley_vm::LowerErrorCode::LocalReferenceInvalid.numeric(),
     );
+}
+
+#[test]
+fn instruction_byte_encoder_matches_native_extended_layout() {
+    use sley_ssmc::ResultConst;
+
+    let scaffold = instruction_byte_encoder();
+    let (package, approved) = admit_lower_program(&scaffold);
+    for (index, instruction) in native_bootstrap_immediate_instructions().iter().enumerate() {
+        let prefix = vec![0xA5, u8::try_from(index).expect("fixture index fits u8")];
+        let outcome = execute_instruction_byte_encoder(&package, &approved, instruction, &prefix);
+        let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+            panic!("instruction byte encoder must terminate with a value")
+        };
+        let ConstData::Result(ResultConst::Ok(encoded)) = &value.data else {
+            panic!(
+                "instruction byte encoder must return Ok, got {:?}",
+                value.data
+            )
+        };
+        let ConstData::Sequence(found) = &encoded.data else {
+            panic!("instruction encoder result must be an octet vector")
+        };
+        let found = found
+            .iter()
+            .map(|octet| match octet.data {
+                ConstData::UInt(value) => u8::try_from(value).expect("encoded octet fits u8"),
+                ref other => panic!("encoded octet must be UInt8, got {other:?}"),
+            })
+            .collect::<Vec<_>>();
+        let mut expected = prefix;
+        expected.extend_from_slice(&encoded_instruction(instruction));
+        assert_eq!(found, expected);
+    }
 }
 
 #[test]
