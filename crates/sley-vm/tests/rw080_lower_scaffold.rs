@@ -25,7 +25,7 @@
 //! dense-register frontier internally, emits the ordered typed instruction
 //! model, and preserves frozen late-row failures. Its scalar-family extension
 //! adds all six equality/ordering opcodes and all eight checked-integer
-//! opcodes to the same runtime traversal.
+//! opcodes plus the unary/binary floating family to the same traversal.
 //! The terminator slices lower return, branch, conditional branch, trap, and
 //! built-in variant-switch models. They walk every edge or case argument and
 //! every runtime switch case in Sley.
@@ -35,6 +35,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-scalar-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-checked-integers.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-floating.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
@@ -1179,6 +1180,11 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
     let opcode_int_neg = assembler.block_id();
     let opcode_int_shl = assembler.block_id();
     let opcode_int_shr = assembler.block_id();
+    let opcode_float_add = assembler.block_id();
+    let opcode_float_sub = assembler.block_id();
+    let opcode_float_mul = assembler.block_id();
+    let opcode_float_div = assembler.block_id();
+    let opcode_float_neg = assembler.block_id();
     let unary_count = assembler.block_id();
     let binary_count = assembler.block_id();
     let unary_reference = assembler.block_id();
@@ -1216,6 +1222,11 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
     let int_neg_tag = assembler.constant(u32_value(u128::from(Opcode::IntNegChecked.tag())));
     let int_shl_tag = assembler.constant(u32_value(u128::from(Opcode::IntShlChecked.tag())));
     let int_shr_tag = assembler.constant(u32_value(u128::from(Opcode::IntShrChecked.tag())));
+    let float_add_tag = assembler.constant(u32_value(u128::from(Opcode::FloatAdd.tag())));
+    let float_sub_tag = assembler.constant(u32_value(u128::from(Opcode::FloatSub.tag())));
+    let float_mul_tag = assembler.constant(u32_value(u128::from(Opcode::FloatMul.tag())));
+    let float_div_tag = assembler.constant(u32_value(u128::from(Opcode::FloatDiv.tag())));
+    let float_neg_tag = assembler.constant(u32_value(u128::from(Opcode::FloatNeg.tag())));
     let opcode_error_code = assembler.constant(u32_value(u128::from(
         sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
     )));
@@ -1504,6 +1515,41 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
         opcode_int_shr,
         int_shr_tag,
         binary_count,
+        opcode_float_add,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_float_add,
+        float_add_tag,
+        binary_count,
+        opcode_float_sub,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_float_sub,
+        float_sub_tag,
+        binary_count,
+        opcode_float_mul,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_float_mul,
+        float_mul_tag,
+        binary_count,
+        opcode_float_div,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_float_div,
+        float_div_tag,
+        binary_count,
+        opcode_float_neg,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_float_neg,
+        float_neg_tag,
+        unary_count,
         opcode_error,
     );
 
@@ -3939,6 +3985,10 @@ fn native_single_scalar(opcode: Opcode) -> sley_vm::Instruction {
         | Opcode::IntShlChecked
         | Opcode::IntShrChecked => (2, u32_type(), arithmetic_result_type(u32_type())),
         Opcode::IntNegChecked => (1, signed32.clone(), arithmetic_result_type(signed32)),
+        Opcode::FloatAdd | Opcode::FloatSub | Opcode::FloatMul | Opcode::FloatDiv => {
+            (2, TypeExpr::F64, TypeExpr::F64)
+        }
+        Opcode::FloatNeg => (1, TypeExpr::F64, TypeExpr::F64),
         other => panic!("scalar reference fixture does not support {other:?}"),
     };
     let parameter_ids: Vec<EntityId> = (0..parameter_count)
@@ -4585,6 +4635,11 @@ fn lower_ordered_scalar_inventory_matches_native_model_and_frontier() {
         (Opcode::IntNegChecked, 1),
         (Opcode::IntShlChecked, 2),
         (Opcode::IntShrChecked, 2),
+        (Opcode::FloatAdd, 2),
+        (Opcode::FloatSub, 2),
+        (Opcode::FloatMul, 2),
+        (Opcode::FloatDiv, 2),
+        (Opcode::FloatNeg, 1),
     ] {
         let expected = native_single_scalar(opcode);
         assert_inventory_summary(

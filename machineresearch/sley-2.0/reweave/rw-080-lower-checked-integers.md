@@ -4,6 +4,10 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real Sley lowering algorithm
 under the operator development override. It is not RW-110 completion, C1,
 self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-floating.md` extends the same scalar inventory
+loop with the unary/binary floating family; this record preserves the
+checked-integer increment and its evidence.
+
 ## Scope and behavior
 
 `ordered_scalar_inventory_lowerer` now dispatches the complete checked-integer
