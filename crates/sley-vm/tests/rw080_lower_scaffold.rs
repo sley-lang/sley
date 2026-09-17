@@ -24,7 +24,8 @@
 //! backedge over runtime rows. Sley validates every row and advances the
 //! dense-register frontier internally, emits the ordered typed instruction
 //! model, and preserves frozen late-row failures. Its scalar-family extension
-//! adds all six equality/ordering opcodes to the same runtime traversal.
+//! adds all six equality/ordering opcodes and all eight checked-integer
+//! opcodes to the same runtime traversal.
 //! The terminator slices lower return, branch, conditional branch, trap, and
 //! built-in variant-switch models. They walk every edge or case argument and
 //! every runtime switch case in Sley.
@@ -33,6 +34,7 @@
 //! machineresearch/sley-2.0/reweave/rw-080-lower-single-op.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-inventory.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-scalar-inventory.md and
+//! machineresearch/sley-2.0/reweave/rw-080-lower-checked-integers.md and
 //! machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
@@ -1147,7 +1149,7 @@ fn inventory_switch_values(values: Vec<ValueRef>) -> Vec<SwitchArgument> {
 /// Real bounded §1.3 scalar-operation inventory algorithm. The inventory is
 /// supplied at execution time, walked by a CFG backedge, and validated row by
 /// row before the dense register frontier advances.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::similar_names, clippy::too_many_lines)]
 fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
     let function = inventory_id(5, 1);
     let mut assembler = InventoryAssembler::new();
@@ -1169,6 +1171,14 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
     let opcode_less_equal = assembler.block_id();
     let opcode_greater = assembler.block_id();
     let opcode_greater_equal = assembler.block_id();
+    let opcode_int_add = assembler.block_id();
+    let opcode_int_sub = assembler.block_id();
+    let opcode_int_mul = assembler.block_id();
+    let opcode_int_div = assembler.block_id();
+    let opcode_int_rem = assembler.block_id();
+    let opcode_int_neg = assembler.block_id();
+    let opcode_int_shl = assembler.block_id();
+    let opcode_int_shr = assembler.block_id();
     let unary_count = assembler.block_id();
     let binary_count = assembler.block_id();
     let unary_reference = assembler.block_id();
@@ -1198,6 +1208,14 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
     let less_equal_tag = assembler.constant(u32_value(u128::from(Opcode::LessEqual.tag())));
     let greater_tag = assembler.constant(u32_value(u128::from(Opcode::GreaterThan.tag())));
     let greater_equal_tag = assembler.constant(u32_value(u128::from(Opcode::GreaterEqual.tag())));
+    let int_add_tag = assembler.constant(u32_value(u128::from(Opcode::IntAddChecked.tag())));
+    let int_sub_tag = assembler.constant(u32_value(u128::from(Opcode::IntSubChecked.tag())));
+    let int_mul_tag = assembler.constant(u32_value(u128::from(Opcode::IntMulChecked.tag())));
+    let int_div_tag = assembler.constant(u32_value(u128::from(Opcode::IntDivChecked.tag())));
+    let int_rem_tag = assembler.constant(u32_value(u128::from(Opcode::IntRemChecked.tag())));
+    let int_neg_tag = assembler.constant(u32_value(u128::from(Opcode::IntNegChecked.tag())));
+    let int_shl_tag = assembler.constant(u32_value(u128::from(Opcode::IntShlChecked.tag())));
+    let int_shr_tag = assembler.constant(u32_value(u128::from(Opcode::IntShrChecked.tag())));
     let opcode_error_code = assembler.constant(u32_value(u128::from(
         sley_vm::LowerErrorCode::OpcodeUnsupported.numeric(),
     )));
@@ -1429,6 +1447,62 @@ fn ordered_scalar_inventory_lowerer() -> LowerScaffold {
         &mut assembler,
         opcode_greater_equal,
         greater_equal_tag,
+        binary_count,
+        opcode_int_add,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_int_add,
+        int_add_tag,
+        binary_count,
+        opcode_int_sub,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_int_sub,
+        int_sub_tag,
+        binary_count,
+        opcode_int_mul,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_int_mul,
+        int_mul_tag,
+        binary_count,
+        opcode_int_div,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_int_div,
+        int_div_tag,
+        binary_count,
+        opcode_int_rem,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_int_rem,
+        int_rem_tag,
+        binary_count,
+        opcode_int_neg,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_int_neg,
+        int_neg_tag,
+        unary_count,
+        opcode_int_shl,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_int_shl,
+        int_shl_tag,
+        binary_count,
+        opcode_int_shr,
+    );
+    opcode_block(
+        &mut assembler,
+        opcode_int_shr,
+        int_shr_tag,
         binary_count,
         opcode_error,
     );
@@ -3844,18 +3918,27 @@ fn assert_inventory_error(outcome: &sley_vm::ExecutionOutcome, expected: u32) {
     assert_eq!(code.data, ConstData::UInt(u128::from(expected)));
 }
 
-fn native_single_bool(opcode: Opcode) -> sley_vm::Instruction {
+fn native_single_scalar(opcode: Opcode) -> sley_vm::Instruction {
     let function_id = id(1);
     let block_id = id(2);
     let operation_id = id(3);
-    let parameter_count = if opcode == Opcode::BoolNot { 1 } else { 2 };
-    let operand_type = match opcode {
-        Opcode::BoolNot | Opcode::BoolAnd | Opcode::BoolOr | Opcode::Equal | Opcode::NotEqual => {
-            TypeExpr::Bool
+    let signed32 = TypeExpr::SInt(IntegerWidth::from_bits(32));
+    let (parameter_count, operand_type, result_type) = match opcode {
+        Opcode::BoolNot => (1, TypeExpr::Bool, TypeExpr::Bool),
+        Opcode::BoolAnd | Opcode::BoolOr | Opcode::Equal | Opcode::NotEqual => {
+            (2, TypeExpr::Bool, TypeExpr::Bool)
         }
         Opcode::LessThan | Opcode::LessEqual | Opcode::GreaterThan | Opcode::GreaterEqual => {
-            u32_type()
+            (2, u32_type(), TypeExpr::Bool)
         }
+        Opcode::IntAddChecked
+        | Opcode::IntSubChecked
+        | Opcode::IntMulChecked
+        | Opcode::IntDivChecked
+        | Opcode::IntRemChecked
+        | Opcode::IntShlChecked
+        | Opcode::IntShrChecked => (2, u32_type(), arithmetic_result_type(u32_type())),
+        Opcode::IntNegChecked => (1, signed32.clone(), arithmetic_result_type(signed32)),
         other => panic!("scalar reference fixture does not support {other:?}"),
     };
     let parameter_ids: Vec<EntityId> = (0..parameter_count)
@@ -3865,7 +3948,7 @@ fn native_single_bool(opcode: Opcode) -> sley_vm::Instruction {
         entity_id: function_id,
         type_parameters: Vec::new(),
         parameters: parameter_ids.clone(),
-        result_type: TypeExpr::Bool,
+        result_type: result_type.clone(),
         effects: Vec::new(),
         entry_block: block_id,
         blocks: vec![block_id],
@@ -3893,7 +3976,7 @@ fn native_single_bool(opcode: Opcode) -> sley_vm::Instruction {
             .copied()
             .map(ValueRef::Parameter)
             .collect(),
-        result_types: vec![TypeExpr::Bool],
+        result_types: vec![result_type],
         immediate: Immediate::None,
     };
     let block = Block {
@@ -4378,7 +4461,7 @@ fn assert_single_lower_error(outcome: &sley_vm::ExecutionOutcome, expected: u32)
 fn lower_single_boolean_operations_match_native_dense_registers() {
     let (package, approved) = admit_lower_program(&single_bool_lowerer());
     for opcode in [Opcode::BoolNot, Opcode::BoolAnd, Opcode::BoolOr] {
-        let reference = native_single_bool(opcode);
+        let reference = native_single_scalar(opcode);
         let parameter_count = u32::try_from(reference.operands.len()).expect("small arity");
         let operand_zero = reference.operands[0];
         let operand_one = reference.operands.get(1).copied().unwrap_or(0);
@@ -4487,19 +4570,27 @@ fn lower_ordered_scalar_inventory_matches_native_model_and_frontier() {
 
     assert_inventory_summary(&execute_bool_inventory(&package, &approved, &[], 2), &[], 2);
 
-    for opcode in [
-        Opcode::Equal,
-        Opcode::NotEqual,
-        Opcode::LessThan,
-        Opcode::LessEqual,
-        Opcode::GreaterThan,
-        Opcode::GreaterEqual,
+    for (opcode, arity) in [
+        (Opcode::Equal, 2),
+        (Opcode::NotEqual, 2),
+        (Opcode::LessThan, 2),
+        (Opcode::LessEqual, 2),
+        (Opcode::GreaterThan, 2),
+        (Opcode::GreaterEqual, 2),
+        (Opcode::IntAddChecked, 2),
+        (Opcode::IntSubChecked, 2),
+        (Opcode::IntMulChecked, 2),
+        (Opcode::IntDivChecked, 2),
+        (Opcode::IntRemChecked, 2),
+        (Opcode::IntNegChecked, 1),
+        (Opcode::IntShlChecked, 2),
+        (Opcode::IntShrChecked, 2),
     ] {
-        let expected = native_single_bool(opcode);
+        let expected = native_single_scalar(opcode);
         assert_inventory_summary(
-            &execute_bool_inventory(&package, &approved, &[(opcode.tag(), 2, 0, 1)], 2),
+            &execute_bool_inventory(&package, &approved, &[(opcode.tag(), arity, 0, 1)], arity),
             std::slice::from_ref(&expected),
-            3,
+            arity + 1,
         );
     }
 }
