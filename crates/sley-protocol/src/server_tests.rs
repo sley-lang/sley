@@ -7116,3 +7116,242 @@ fn repair_one_below_session_budget_refuses_before_reserve() {
         "one-below refusal costs only the dispatch unit: no work reserved"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Native test vector emitter (N8 qualification)
+// ---------------------------------------------------------------------------
+
+/// Emits the N8 native wire-shape vectors for
+/// `scripts/generate_native_test_fixtures.py`.
+///
+/// Request lines carry fixed example identities and lock the wire shapes
+/// byte-for-byte; server acceptance of those example identities is NOT
+/// claimed (the 605 example token is unbound, the example roots name no
+/// live session). Response lines are captured from a live server over the
+/// fixed empty-selection fixtures: every field is deterministic across
+/// runs except freshly minted 605 tokens, which the checker treats as
+/// opaque 32-byte fields. Rejection lines are hand-built malformed bodies
+/// no layout-conformant reader may accept as the named shape.
+#[test]
+#[ignore = "fixture refresh emitter for scripts/generate_native_test_fixtures.py"]
+fn emit_native_test_vectors_for_fixture_refresh() {
+    fn hex_of(bytes: &[u8]) -> String {
+        use core::fmt::Write as _;
+        bytes.iter().fold(String::new(), |mut text, byte| {
+            let _ = write!(text, "{byte:02x}");
+            text
+        })
+    }
+    fn emit(kind: &str, name: &str, tag: u32, body: &[u8]) {
+        println!("NATIVE_VECTOR|{kind}|{name}|{tag}|{}", hex_of(body));
+    }
+    fn emit_reject(id: &str, body: &[u8]) {
+        println!("NATIVE_REJECT|{id}|{}", hex_of(body));
+    }
+
+    // Fixed example identities for the shape-stable requests.
+    let example_root = sley_id::StateRoot::from_bytes([0xE0; 32]);
+    let example_tx = sley_id::TransactionId::from_bytes([0xE1; 32]);
+    let example_policy = [0xE4; 32];
+    let example_token = [0xC5; 32];
+    let profile = sley_tests::native_execution_profile_id();
+    let admission = sley_policy::fixed_native_admission_profile()
+        .expect("fixed descriptor builds")
+        .id();
+
+    // A live diagnostic repository for real candidate bytes: the requests
+    // below reuse its fixed genesis root and empty candidate as examples.
+    let (dtemp, mut dserver, dsession) = diagnostic_server("native-vectors-diag");
+    dserver.set_clock_millis(clock_zero);
+    let live_root = diagnostic_head_root(&dtemp);
+    let live_parent = sley_txn::TransactionRepository::new(dtemp.child("repo"))
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .transaction_id();
+    let live_candidate = empty_candidate(&dtemp, live_parent);
+
+    emit(
+        "request",
+        "tests.selected.request",
+        TESTS_SELECTED_TAG,
+        &selected_body(live_root, &[], [0xA1; 16]),
+    );
+    emit(
+        "request",
+        "tests.affected.request",
+        TESTS_AFFECTED_TAG,
+        &encode_record(&[
+            (1, live_candidate.clone()),
+            (2, profile.as_bytes().to_vec()),
+            (3, [0xA2; 16].to_vec()),
+        ])
+        .unwrap(),
+    );
+    emit(
+        "request",
+        "tests.report_read.request",
+        TESTS_REPORT_READ_TAG,
+        &report_read_body(&example_token, 0, 65_536),
+    );
+    emit(
+        "request",
+        "tests.replay.request",
+        TESTS_REPLAY_TAG,
+        &replay_body(example_tx, example_root, example_policy, [0xA6; 16]),
+    );
+    emit(
+        "request",
+        "tests.attempt_status.request",
+        TESTS_ATTEMPT_STATUS_TAG,
+        &attempt_status_body([0xA7; 16], None),
+    );
+    emit(
+        "request",
+        "commit.request",
+        Method::Commit.tag(),
+        &commit_native_body(&live_candidate, live_parent, [0xA3; 16]),
+    );
+
+    // Live diagnostic responses over the fixed empty-selection fixtures.
+    let selected = call_v3_ok(
+        &mut dserver,
+        dsession,
+        10,
+        TESTS_SELECTED_TAG,
+        selected_body(live_root, &[], [0xB1; 16]),
+    );
+    emit(
+        "response",
+        "tests.selected.response",
+        TESTS_SELECTED_TAG,
+        &selected.body,
+    );
+    let selected_fields = fields_of(&selected.body, 6);
+    // Field 5 (index 4) is the minted 605 token; field 6 is the total.
+    let live_read = report_read_body(&selected_fields[4], 0, 65_536);
+    let page = call_v3_ok(
+        &mut dserver,
+        dsession,
+        11,
+        TESTS_REPORT_READ_TAG,
+        live_read,
+    );
+    emit(
+        "response",
+        "tests.report_read.response",
+        TESTS_REPORT_READ_TAG,
+        &page.body,
+    );
+    // 602 drives the real `execute` entry point rather than the diagnostic
+    // synthesis, so it needs an executor that runs empty plans instead of
+    // the diagnostic rejector above.
+    dserver.set_executor(Box::new(EmptyNativeExecutor));
+    let affected = call_v3_ok(
+        &mut dserver,
+        dsession,
+        12,
+        TESTS_AFFECTED_TAG,
+        encode_record(&[
+            (1, live_candidate.clone()),
+            (2, profile.as_bytes().to_vec()),
+            (3, [0xB2; 16].to_vec()),
+        ])
+        .unwrap(),
+    );
+    emit(
+        "response",
+        "tests.affected.response",
+        TESTS_AFFECTED_TAG,
+        &affected.body,
+    );
+
+    // Live commit/status/replay responses over a committing server. The
+    // commit response body itself is the vector: capture it explicitly
+    // rather than through the identity-only helper, since a second
+    // candidate build over the advanced native head is out of scope.
+    let (ctemp, mut cserver, csession) = commit_server("native-vectors-commit");
+    let cparent = sley_txn::TransactionRepository::new(ctemp.child("repo"))
+        .accepted_head()
+        .unwrap()
+        .verified_revision()
+        .transaction_id();
+    let ccandidate = empty_candidate(&ctemp, cparent);
+    let commit_frame = call_v3_ok(
+        &mut cserver,
+        csession,
+        1,
+        Method::Commit.tag(),
+        commit_native_body(&ccandidate, cparent, [0xB3; 16]),
+    );
+    emit(
+        "response",
+        "commit.response",
+        Method::Commit.tag(),
+        &commit_frame.body,
+    );
+    let cfields = fields_of(&commit_frame.body, 6);
+    let transaction_id =
+        sley_id::TransactionId::from_bytes(cfields[0].as_slice().try_into().unwrap());
+    let root = sley_id::StateRoot::from_bytes(cfields[2].as_slice().try_into().unwrap());
+    let fresh = open_v3_session(&mut cserver);
+    let status = call_v3_ok(
+        &mut cserver,
+        fresh,
+        3,
+        TESTS_ATTEMPT_STATUS_TAG,
+        attempt_status_body([0xB3; 16], None),
+    );
+    emit(
+        "response",
+        "tests.attempt_status.response",
+        TESTS_ATTEMPT_STATUS_TAG,
+        &status.body,
+    );
+    let policy = stored_policy_id(&ctemp, transaction_id);
+    let replayed = call_v3_ok(
+        &mut cserver,
+        fresh,
+        4,
+        TESTS_REPLAY_TAG,
+        replay_body(transaction_id, root, policy, [0xB6; 16]),
+    );
+    emit(
+        "response",
+        "tests.replay.response",
+        TESTS_REPLAY_TAG,
+        &replayed.body,
+    );
+    let _ = admission;
+
+    // Hand-built malformed 606 bodies no layout reader may accept.
+    let valid = replay_body(example_tx, example_root, example_policy, [0xA6; 16]);
+    emit_reject("truncated", &valid[..valid.len() - 1]);
+    let mut trailing = valid.clone();
+    trailing.push(0x00);
+    emit_reject("trailing-byte", &trailing);
+    emit_reject("empty", &[]);
+    emit_reject("count-only", &[0x05]);
+    let mut short_count = valid.clone();
+    short_count[0] = 0x04;
+    emit_reject("short-count", &short_count);
+    emit_reject(
+        "tag-gap",
+        &encode_record(&[
+            (1, example_tx.as_bytes().to_vec()),
+            (3, profile.as_bytes().to_vec()),
+        ])
+        .unwrap(),
+    );
+    emit_reject(
+        "narrow-transaction",
+        &encode_record(&[
+            (1, example_tx.as_bytes()[..31].to_vec()),
+            (2, example_root.as_bytes().to_vec()),
+            (3, profile.as_bytes().to_vec()),
+            (4, example_policy.to_vec()),
+            (5, [0xA6; 16].to_vec()),
+        ])
+        .unwrap(),
+    );
+}

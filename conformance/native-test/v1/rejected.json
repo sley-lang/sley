@@ -1,0 +1,43 @@
+{
+  "claim": "sley2-native-test-wire-shape-v1",
+  "contract": "docs/spec/NATIVE_TEST_ADMISSION_V1.md appendix C revision 5",
+  "generator": "scripts/generate_native_test_fixtures.py",
+  "note": "Hand-built malformed 606 bodies. All but narrow-transaction refuse at record framing; narrow-transaction parses but violates the 32-byte transaction width.",
+  "vectors": [
+    {
+      "body_hex": "050120e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e10220e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e00320392927d6c948b9a03a27b87f26ebfe08c65ddf4e831a18e1d82f02dc4abb0bf40420e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e40510a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6",
+      "body_sha256": "e2a617308d3a8596ec4831265032da435ab87d8300426d0cbc384c9077a0bf5f",
+      "name": "truncated"
+    },
+    {
+      "body_hex": "050120e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e10220e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e00320392927d6c948b9a03a27b87f26ebfe08c65ddf4e831a18e1d82f02dc4abb0bf40420e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e40510a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a600",
+      "body_sha256": "b1b9839074c3a3dbc26521cd10dc472001c056044f07e292ee35308e3c96d826",
+      "name": "trailing-byte"
+    },
+    {
+      "body_hex": "",
+      "body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "name": "empty"
+    },
+    {
+      "body_hex": "05",
+      "body_sha256": "e77b9a9ae9e30b0dbdb6f510a264ef9de781501d7b6b92ae89eb059c5ab743db",
+      "name": "count-only"
+    },
+    {
+      "body_hex": "040120e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e10220e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e00320392927d6c948b9a03a27b87f26ebfe08c65ddf4e831a18e1d82f02dc4abb0bf40420e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e40510a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6",
+      "body_sha256": "e1d4d4f39096f695b20e7484145834172c9c0f51ed1de886d958c172e790232a",
+      "name": "short-count"
+    },
+    {
+      "body_hex": "020120e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e10320392927d6c948b9a03a27b87f26ebfe08c65ddf4e831a18e1d82f02dc4abb0bf4",
+      "body_sha256": "6caab7ef1666dc8225352ce22f4ecd9345262ca414a410441feb39aa6a93d518",
+      "name": "tag-gap"
+    },
+    {
+      "body_hex": "05011fe1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e10220e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e00320392927d6c948b9a03a27b87f26ebfe08c65ddf4e831a18e1d82f02dc4abb0bf40420e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e40510a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6a6",
+      "body_sha256": "980443f74d3e8f725d9cfcc60b287996a4a08b9c738031c455b70cfc80040e3a",
+      "name": "narrow-transaction"
+    }
+  ]
+}
