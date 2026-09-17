@@ -115,9 +115,12 @@
     "machineresearch/sley-2.0/reweave/rw-080-codec-envelope.md",
     "machineresearch/sley-2.0/reweave/rw-080-codec-program-outer.md",
     "machineresearch/sley-2.0/reweave/rw-080-codec-program-body.md",
-    "machineresearch/sley-2.0/reweave/rw-080-codec-program-entrypoint-encode.md",
-    "machineresearch/sley-2.0/reweave/rw-080-codec-program-envelope-compose.md",
-    "machineresearch/sley-2.0/reweave/rw-080-codec-program-namespace.md"
+        "machineresearch/sley-2.0/reweave/rw-080-codec-program-entrypoint-encode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-program-envelope-compose.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-program-namespace.md",
+        "machineresearch/sley-2.0/reweave/rw-080-checker-scaffold.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-scaffold.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-single-op.md"
    ],
    "status": "PROVISIONAL_BLOCKED_NOT_AUTHORITY",
    "title": "Codec construction contract plus provisional C0 construction slices 1 to 7 under the 2026-09-07 operator development override"
