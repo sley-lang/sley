@@ -11,6 +11,7 @@
       "conformance/host-abi/v1",
       "conformance/mutation-candidate/v1",
       "conformance/mutation-value/v1",
+      "conformance/native-test/v1",
       "conformance/raw-hash/v1",
       "conformance/release-demo/v1",
       "conformance/repository-exchange/v1",
@@ -31,7 +32,7 @@
       "conformance/semantic-comparison/v1"
     ]
   },
-  "fixture_directories": 25,
+  "fixture_directories": 26,
   "fixtures": [
     {
       "claim": null,
@@ -797,6 +798,57 @@
       ]
     },
     {
+      "claim": "sley2-native-test-wire-shape-v1",
+      "contract": "docs/spec/NATIVE_TEST_ADMISSION_V1.md appendix C revision 5",
+      "coverage": {
+        "command": "python3 scripts/check_native_test_vectors.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/native-test/v1",
+      "files": [
+        {
+          "bytes": 241,
+          "name": "SHA256SUMS",
+          "sha256": "4cae82a614da681ddbfd159504d64e1fc2d2643995250965bd4ed5419051de90"
+        },
+        {
+          "bytes": 2811,
+          "name": "rejected.json",
+          "sha256": "76d8cfcd616165989f84b0253b49646e03cdf83b14125647a9fe20464d3dbd86"
+        },
+        {
+          "bytes": 4376,
+          "name": "requests.json",
+          "sha256": "8c56243c96a07e35b7b4f892e2ff919ee29e60b60d19f9be69a83a8df5ae5b98"
+        },
+        {
+          "bytes": 5496,
+          "name": "responses.json",
+          "sha256": "47fc982b0ff1a0840069e587669d71bf57b308f1810097be9c9bf3ba2fe61673"
+        }
+      ],
+      "shape": {
+        "rejected.json": {
+          "vectors": 7
+        },
+        "requests.json": {
+          "vectors": 6
+        },
+        "responses.json": {
+          "token_fields": 4,
+          "vectors": 6
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
       "claim": null,
       "contract": "sley2-raw-hash-1",
       "coverage": {
@@ -960,14 +1012,14 @@
         "command": "uv run --project oracle/scb1 --frozen python scripts/check_root_backed_query_vector.py",
         "depth": "semantic",
         "kind": "independent_oracle",
-        "runner": "scripts/ (Python, S20-130 independent)"
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
       },
       "directory": "conformance/root-backed-query/v1",
       "files": [
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "b193da7a50f99accc2147a0ecfa9d4cd9f35be910452f885fe7f45f6b7ec7ad2"
+          "sha256": "427e33a34fa9dd070dfe0f519b977e2c51a8a9186133c490fed898d26df4f332"
         },
         {
           "bytes": 43564,
@@ -975,9 +1027,9 @@
           "sha256": "6cb756ebd96cb6d501656c6ca0f70bce57d8a4671bddd4c887286413e752ac05"
         },
         {
-          "bytes": 5371,
+          "bytes": 22099,
           "name": "rejected.json",
-          "sha256": "a7e78d0b92619af853e9b9ec95620a6f2cebc5c3d4463510168779b63b6f5993"
+          "sha256": "59291ac4be72c9eb289e3b13de9df2c95b4368d5262649f7d4afd12e2cc2f691"
         }
       ],
       "shape": {
@@ -1234,13 +1286,43 @@
           },
           "sums_consistent": true,
           "sums_file": true
+        },
+        "v3": {
+          "claim": null,
+          "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/smp1-json-bridge/v3",
+          "files": [
+            {
+              "bytes": 79,
+              "name": "SHA256SUMS",
+              "sha256": "b2190f7f17f8ee310a711637aeab2135c11d003de221635dab542080c00d22b0"
+            },
+            {
+              "bytes": 6782,
+              "name": "methods.json",
+              "sha256": "5f124ab25a1758233997df8974dd33236af5c306e01d7f81d35eb5a9129e1b0a"
+            }
+          ],
+          "shape": {
+            "methods.json": {
+              "methods": 46
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
         }
       },
       "sums_consistent": true,
       "sums_file": true,
       "tracked_versions": [
         "v1",
-        "v2"
+        "v2",
+        "v3"
       ]
     },
     {
@@ -1331,12 +1413,12 @@
         {
           "bytes": 160,
           "name": "SHA256SUMS",
-          "sha256": "49e9fc1f6985d6f84c79addddf53922f3f04326050725c70beeeed82416f2e07"
+          "sha256": "31d66ce16b4d82ec988a6e8ffa326b0becb1cfe6cd821d2f5a2053478aa6e1b0"
         },
         {
-          "bytes": 131191,
+          "bytes": 234543,
           "name": "accepted.json",
-          "sha256": "13b9f27dc174fd97c5b1928a40d558cac76f0837c1826c9e317bf206eef5bc60"
+          "sha256": "bf9ca182c72c0b13f2cccd7c67a0aef2bbed65d2874ec50e1bfacdf1063a81aa"
         },
         {
           "bytes": 3584,
@@ -1346,7 +1428,7 @@
       ],
       "shape": {
         "accepted.json": {
-          "vectors": 29
+          "vectors": 31
         },
         "rejected.json": {
           "mutations": 5
@@ -1360,7 +1442,7 @@
       ]
     }
   ],
-  "independently_checked": 25,
+  "independently_checked": 26,
   "make_target": "conformance",
   "native_only": [],
   "oracle_independence": {
@@ -1380,10 +1462,10 @@
       "popen"
     ],
     "problems": [],
-    "python_sources": 28
+    "python_sources": 29
   },
-  "report_digest": "5398a14b8f90644464a1aa51352c6f2d36e190f78fb6da65c3bc8fac272b6d1d",
+  "report_digest": "4f0708c7d5038e580dce3015098196b7110397edc8b844fb70f73b46ab5734ed",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
-  "tracked_corpus_directories": 29,
+  "tracked_corpus_directories": 31,
   "work_package": "S20-730"
 }
