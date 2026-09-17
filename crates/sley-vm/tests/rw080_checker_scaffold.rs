@@ -22,16 +22,17 @@
 //! case, payload, and argument judgments for an `Option<Bool>` projection.
 //! Construction provenance:
 //! machineresearch/sley-2.0/reweave/rw-080-checker-scaffold.md,
-//! machineresearch/sley-2.0/reweave/rw-080-checker-single-cfg.md, and
-//! machineresearch/sley-2.0/reweave/rw-080-checker-option-switch.md.
+//! machineresearch/sley-2.0/reweave/rw-080-checker-single-cfg.md,
+//! machineresearch/sley-2.0/reweave/rw-080-checker-option-switch.md, and
+//! machineresearch/sley-2.0/reweave/rw-080-checker-operation-inventory.md.
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
-    Block, BuiltinCase, CaseKey, CondBranchTerminator, ConstData, ConstValue, ConstantDefinition,
-    FunctionGraph, Immediate, IntegerWidth, Opcode, Operation, OperationResultRef, Parameter,
-    ParameterRole, Reachability, ReturnTerminator, SwitchArgument, SwitchCase, SwitchEdge,
-    TargetEdge, Terminator, TrapCode, TrapTerminator, TypeExpr, ValueRef, VariantSwitchTerminator,
-    Visibility,
+    Block, BuiltinCase, BuiltinFailureKind, CaseKey, CondBranchTerminator, ConstData, ConstValue,
+    ConstantDefinition, FunctionGraph, Immediate, IntegerWidth, Opcode, Operation,
+    OperationResultRef, Parameter, ParameterRole, Reachability, ReturnTerminator, SwitchArgument,
+    SwitchCase, SwitchEdge, TargetEdge, Terminator, TrapCode, TrapTerminator, TypeExpr, ValueRef,
+    VariantSwitchTerminator, Visibility,
 };
 
 fn id(byte: u8) -> EntityId {
@@ -83,10 +84,49 @@ fn check_result_type() -> TypeExpr {
     }
 }
 
+fn cfg_inventory_row_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![u64_type(), u64_type(), u64_type()])
+}
+
+fn cfg_inventory_type() -> TypeExpr {
+    TypeExpr::Vector(Box::new(cfg_inventory_row_type()))
+}
+
+fn arithmetic_u64_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(u64_type()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)),
+    }
+}
+
 fn bytes_value(bytes: &[u8]) -> ConstValue {
     ConstValue {
         value_type: TypeExpr::Bytes,
         data: ConstData::Bytes(bytes.to_vec()),
+    }
+}
+
+type CfgInventoryRow = (u64, u64, u64);
+
+fn cfg_inventory_value(rows: &[CfgInventoryRow]) -> ConstValue {
+    let value = |number| ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(u128::from(number)),
+    };
+    ConstValue {
+        value_type: cfg_inventory_type(),
+        data: ConstData::Sequence(
+            rows.iter()
+                .map(|(ordinal, reference_kind, reference_index)| ConstValue {
+                    value_type: cfg_inventory_row_type(),
+                    data: ConstData::Sequence(vec![
+                        value(*ordinal),
+                        value(*reference_kind),
+                        value(*reference_index),
+                    ]),
+                })
+                .collect(),
+        ),
     }
 }
 
@@ -335,6 +375,185 @@ impl ScaffoldBuilder {
     fn finish(self) -> (Vec<Block>, Vec<Operation>) {
         (self.blocks, self.operations)
     }
+}
+
+fn checker_inventory_id(namespace: u8, index: u16) -> EntityId {
+    let mut bytes = [0_u8; 32];
+    bytes[0] = namespace;
+    bytes[1..3].copy_from_slice(&index.to_be_bytes());
+    EntityId::from_bytes(bytes)
+}
+
+struct InventoryCheckAssembler {
+    next_block: u16,
+    next_parameter: u16,
+    next_operation: u16,
+    next_constant: u16,
+    parameters: Vec<Parameter>,
+    blocks: Vec<Block>,
+    operations: Vec<Operation>,
+    constants: Vec<ConstantDefinition>,
+}
+
+impl InventoryCheckAssembler {
+    fn new() -> Self {
+        Self {
+            next_block: 1,
+            next_parameter: 1,
+            next_operation: 1,
+            next_constant: 1,
+            parameters: Vec::new(),
+            blocks: Vec::new(),
+            operations: Vec::new(),
+            constants: Vec::new(),
+        }
+    }
+
+    fn block_id(&mut self) -> EntityId {
+        let id = checker_inventory_id(1, self.next_block);
+        self.next_block += 1;
+        id
+    }
+
+    fn parameter(
+        &mut self,
+        owner: EntityId,
+        role: ParameterRole,
+        ordinal: u32,
+        value_type: TypeExpr,
+    ) -> EntityId {
+        let id = checker_inventory_id(2, self.next_parameter);
+        self.next_parameter += 1;
+        self.parameters.push(Parameter {
+            entity_id: id,
+            owner,
+            role,
+            ordinal,
+            value_type,
+        });
+        id
+    }
+
+    fn operation(
+        &mut self,
+        block: EntityId,
+        opcode: Opcode,
+        operands: Vec<ValueRef>,
+        result_type: TypeExpr,
+        immediate: Immediate,
+    ) -> EntityId {
+        let id = checker_inventory_id(3, self.next_operation);
+        self.next_operation += 1;
+        let ordinal = u32::try_from(
+            self.operations
+                .iter()
+                .filter(|operation| operation.block == block)
+                .count(),
+        )
+        .expect("bounded inventory operation ordinal");
+        self.operations.push(Operation {
+            entity_id: id,
+            block,
+            ordinal,
+            opcode,
+            operands,
+            result_types: vec![result_type],
+            immediate,
+        });
+        id
+    }
+
+    fn constant(&mut self, value: ConstValue) -> EntityId {
+        let id = checker_inventory_id(4, self.next_constant);
+        self.next_constant += 1;
+        self.constants.push(ConstantDefinition {
+            entity_id: id,
+            value,
+        });
+        id
+    }
+
+    fn constant_ref(
+        &mut self,
+        block: EntityId,
+        constant: EntityId,
+        value_type: TypeExpr,
+    ) -> EntityId {
+        self.operation(
+            block,
+            Opcode::ConstantRef,
+            Vec::new(),
+            value_type,
+            Immediate::Entity(constant),
+        )
+    }
+
+    fn push_block(
+        &mut self,
+        entity_id: EntityId,
+        function: EntityId,
+        parameters: Vec<EntityId>,
+        operations: Vec<EntityId>,
+        terminator: Terminator,
+    ) {
+        self.blocks.push(Block {
+            entity_id,
+            function,
+            parameters,
+            operations,
+            terminator,
+            reachability: Reachability::Required,
+        });
+    }
+}
+
+fn inventory_operation_value(operation: EntityId) -> ValueRef {
+    ValueRef::OperationResult(OperationResultRef {
+        operation,
+        result_index: 0,
+    })
+}
+
+fn inventory_branch(target: EntityId, arguments: Vec<ValueRef>) -> Terminator {
+    Terminator::Branch(sley_ssmc::BranchTerminator {
+        edge: TargetEdge { target, arguments },
+    })
+}
+
+fn inventory_cond(
+    condition: ValueRef,
+    if_true: EntityId,
+    true_arguments: Vec<ValueRef>,
+    if_false: EntityId,
+    false_arguments: Vec<ValueRef>,
+) -> Terminator {
+    Terminator::CondBranch(CondBranchTerminator {
+        condition,
+        if_true: TargetEdge {
+            target: if_true,
+            arguments: true_arguments,
+        },
+        if_false: TargetEdge {
+            target: if_false,
+            arguments: false_arguments,
+        },
+    })
+}
+
+fn inventory_switch(
+    value: ValueRef,
+    cases: Vec<(BuiltinCase, EntityId, Vec<SwitchArgument>)>,
+) -> Terminator {
+    Terminator::VariantSwitch(VariantSwitchTerminator {
+        value,
+        cases: cases
+            .into_iter()
+            .map(|(case, target, arguments)| SwitchCase {
+                case_key: CaseKey::Builtin(case),
+                edge: SwitchEdge { target, arguments },
+            })
+            .collect(),
+    })
 }
 
 fn checker_scaffold() -> CheckerScaffold {
@@ -1025,6 +1244,657 @@ fn option_switch_cfg_checker() -> CheckerScaffold {
     }
 }
 
+/// Walks an arbitrary runtime operation inventory twice. The first pass owns
+/// global ordinal precedence; only after it succeeds may the second pass
+/// resolve parameter and operation-result uses in program order.
+#[allow(clippy::too_many_lines)]
+fn ordered_operation_inventory_checker() -> CheckerScaffold {
+    let function = checker_inventory_id(5, 1);
+    let mut assembler = InventoryCheckAssembler::new();
+    let rows = assembler.parameter(function, ParameterRole::Function, 0, cfg_inventory_type());
+    let parameter_count = assembler.parameter(function, ParameterRole::Function, 1, u64_type());
+
+    let entry = assembler.block_id();
+    let ordinal_check = assembler.block_id();
+    let ordinal_get = assembler.block_id();
+    let ordinal_unpack = assembler.block_id();
+    let ordinal_compare = assembler.block_id();
+    let ordinal_advance = assembler.block_id();
+    let reference_start = assembler.block_id();
+    let reference_check = assembler.block_id();
+    let reference_get = assembler.block_id();
+    let reference_unpack = assembler.block_id();
+    let reference_kind_parameter = assembler.block_id();
+    let reference_kind_operation = assembler.block_id();
+    let parameter_reference_check = assembler.block_id();
+    let operation_reference_exists = assembler.block_id();
+    let operation_reference_prior = assembler.block_id();
+    let reference_advance = assembler.block_id();
+    let success = assembler.block_id();
+    let ordinal_error = assembler.block_id();
+    let value_error = assembler.block_id();
+    let use_before_error = assembler.block_id();
+    let resource_error = assembler.block_id();
+    let invariant_trap = assembler.block_id();
+
+    let zero = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(0),
+    });
+    let one = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(1),
+    });
+    let parameter_kind = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(1),
+    });
+    let operation_kind = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(2),
+    });
+    let ordinal_code = assembler.constant(u32_value(u128::from(
+        sley_check::cfg::CfgErrorCode::GraphOrdinalMismatch.numeric(),
+    )));
+    let value_code = assembler.constant(u32_value(u128::from(
+        sley_check::cfg::CfgErrorCode::ValueUnresolved.numeric(),
+    )));
+    let use_before_code = assembler.constant(u32_value(u128::from(
+        sley_check::cfg::CfgErrorCode::UseBeforeDefinition.numeric(),
+    )));
+    let resource_code = assembler.constant(u32_value(u128::from(
+        sley_check::cfg::CfgErrorCode::ResourceLimit.numeric(),
+    )));
+    let reachable_one = assembler.constant(u32_value(1));
+    let edges_zero = assembler.constant(u32_value(0));
+    let work_zero = assembler.constant(ConstValue {
+        value_type: u64_type(),
+        data: ConstData::UInt(0),
+    });
+
+    let entry_zero = assembler.constant_ref(entry, zero, u64_type());
+    assembler.push_block(
+        entry,
+        function,
+        Vec::new(),
+        vec![entry_zero],
+        inventory_branch(ordinal_check, vec![inventory_operation_value(entry_zero)]),
+    );
+
+    let ordinal_check_index =
+        assembler.parameter(ordinal_check, ParameterRole::Block, 0, u64_type());
+    let ordinal_length = assembler.operation(
+        ordinal_check,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(rows)],
+        u64_type(),
+        Immediate::None,
+    );
+    let ordinal_has_row = assembler.operation(
+        ordinal_check,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(ordinal_check_index),
+            inventory_operation_value(ordinal_length),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        ordinal_check,
+        function,
+        vec![ordinal_check_index],
+        vec![ordinal_length, ordinal_has_row],
+        inventory_cond(
+            inventory_operation_value(ordinal_has_row),
+            ordinal_get,
+            vec![ValueRef::Parameter(ordinal_check_index)],
+            reference_start,
+            Vec::new(),
+        ),
+    );
+
+    let ordinal_get_index = assembler.parameter(ordinal_get, ParameterRole::Block, 0, u64_type());
+    let ordinal_row = assembler.operation(
+        ordinal_get,
+        Opcode::VectorGet,
+        vec![
+            ValueRef::Parameter(rows),
+            ValueRef::Parameter(ordinal_get_index),
+        ],
+        TypeExpr::Option(Box::new(cfg_inventory_row_type())),
+        Immediate::None,
+    );
+    assembler.push_block(
+        ordinal_get,
+        function,
+        vec![ordinal_get_index],
+        vec![ordinal_row],
+        inventory_switch(
+            inventory_operation_value(ordinal_row),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    ordinal_unpack,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(ordinal_get_index)),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let ordinal_unpack_row = assembler.parameter(
+        ordinal_unpack,
+        ParameterRole::Block,
+        0,
+        cfg_inventory_row_type(),
+    );
+    let ordinal_unpack_index =
+        assembler.parameter(ordinal_unpack, ParameterRole::Block, 1, u64_type());
+    let found_ordinal = assembler.operation(
+        ordinal_unpack,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(ordinal_unpack_row)],
+        u64_type(),
+        Immediate::Index(0),
+    );
+    assembler.push_block(
+        ordinal_unpack,
+        function,
+        vec![ordinal_unpack_row, ordinal_unpack_index],
+        vec![found_ordinal],
+        inventory_branch(
+            ordinal_compare,
+            vec![
+                inventory_operation_value(found_ordinal),
+                ValueRef::Parameter(ordinal_unpack_index),
+            ],
+        ),
+    );
+
+    let ordinal_compare_value =
+        assembler.parameter(ordinal_compare, ParameterRole::Block, 0, u64_type());
+    let ordinal_compare_index =
+        assembler.parameter(ordinal_compare, ParameterRole::Block, 1, u64_type());
+    let ordinal_matches = assembler.operation(
+        ordinal_compare,
+        Opcode::Equal,
+        vec![
+            ValueRef::Parameter(ordinal_compare_value),
+            ValueRef::Parameter(ordinal_compare_index),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        ordinal_compare,
+        function,
+        vec![ordinal_compare_value, ordinal_compare_index],
+        vec![ordinal_matches],
+        inventory_cond(
+            inventory_operation_value(ordinal_matches),
+            ordinal_advance,
+            vec![ValueRef::Parameter(ordinal_compare_index)],
+            ordinal_error,
+            Vec::new(),
+        ),
+    );
+
+    let ordinal_advance_index =
+        assembler.parameter(ordinal_advance, ParameterRole::Block, 0, u64_type());
+    let ordinal_one = assembler.constant_ref(ordinal_advance, one, u64_type());
+    let next_ordinal_index = assembler.operation(
+        ordinal_advance,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(ordinal_advance_index),
+            inventory_operation_value(ordinal_one),
+        ],
+        arithmetic_u64_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        ordinal_advance,
+        function,
+        vec![ordinal_advance_index],
+        vec![ordinal_one, next_ordinal_index],
+        inventory_switch(
+            inventory_operation_value(next_ordinal_index),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    ordinal_check,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let reference_zero = assembler.constant_ref(reference_start, zero, u64_type());
+    assembler.push_block(
+        reference_start,
+        function,
+        Vec::new(),
+        vec![reference_zero],
+        inventory_branch(
+            reference_check,
+            vec![inventory_operation_value(reference_zero)],
+        ),
+    );
+
+    let reference_check_index =
+        assembler.parameter(reference_check, ParameterRole::Block, 0, u64_type());
+    let reference_length = assembler.operation(
+        reference_check,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(rows)],
+        u64_type(),
+        Immediate::None,
+    );
+    let reference_has_row = assembler.operation(
+        reference_check,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(reference_check_index),
+            inventory_operation_value(reference_length),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        reference_check,
+        function,
+        vec![reference_check_index],
+        vec![reference_length, reference_has_row],
+        inventory_cond(
+            inventory_operation_value(reference_has_row),
+            reference_get,
+            vec![ValueRef::Parameter(reference_check_index)],
+            success,
+            Vec::new(),
+        ),
+    );
+
+    let reference_get_index =
+        assembler.parameter(reference_get, ParameterRole::Block, 0, u64_type());
+    let reference_row = assembler.operation(
+        reference_get,
+        Opcode::VectorGet,
+        vec![
+            ValueRef::Parameter(rows),
+            ValueRef::Parameter(reference_get_index),
+        ],
+        TypeExpr::Option(Box::new(cfg_inventory_row_type())),
+        Immediate::None,
+    );
+    assembler.push_block(
+        reference_get,
+        function,
+        vec![reference_get_index],
+        vec![reference_row],
+        inventory_switch(
+            inventory_operation_value(reference_row),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    reference_unpack,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        SwitchArgument::Value(ValueRef::Parameter(reference_get_index)),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let reference_unpack_row = assembler.parameter(
+        reference_unpack,
+        ParameterRole::Block,
+        0,
+        cfg_inventory_row_type(),
+    );
+    let reference_unpack_index =
+        assembler.parameter(reference_unpack, ParameterRole::Block, 1, u64_type());
+    let reference_kind = assembler.operation(
+        reference_unpack,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(reference_unpack_row)],
+        u64_type(),
+        Immediate::Index(1),
+    );
+    let reference_index = assembler.operation(
+        reference_unpack,
+        Opcode::TupleGet,
+        vec![ValueRef::Parameter(reference_unpack_row)],
+        u64_type(),
+        Immediate::Index(2),
+    );
+    assembler.push_block(
+        reference_unpack,
+        function,
+        vec![reference_unpack_row, reference_unpack_index],
+        vec![reference_kind, reference_index],
+        inventory_branch(
+            reference_kind_parameter,
+            vec![
+                inventory_operation_value(reference_kind),
+                inventory_operation_value(reference_index),
+                ValueRef::Parameter(reference_unpack_index),
+            ],
+        ),
+    );
+
+    let kind_block = |assembler: &mut InventoryCheckAssembler,
+                      block: EntityId,
+                      expected: EntityId,
+                      matched: EntityId,
+                      unmatched: EntityId| {
+        let kind = assembler.parameter(block, ParameterRole::Block, 0, u64_type());
+        let referenced = assembler.parameter(block, ParameterRole::Block, 1, u64_type());
+        let current = assembler.parameter(block, ParameterRole::Block, 2, u64_type());
+        let expected_value = assembler.constant_ref(block, expected, u64_type());
+        let matches = assembler.operation(
+            block,
+            Opcode::Equal,
+            vec![
+                ValueRef::Parameter(kind),
+                inventory_operation_value(expected_value),
+            ],
+            TypeExpr::Bool,
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            vec![kind, referenced, current],
+            vec![expected_value, matches],
+            inventory_cond(
+                inventory_operation_value(matches),
+                matched,
+                vec![
+                    ValueRef::Parameter(referenced),
+                    ValueRef::Parameter(current),
+                ],
+                unmatched,
+                if unmatched == value_error {
+                    Vec::new()
+                } else {
+                    vec![
+                        ValueRef::Parameter(kind),
+                        ValueRef::Parameter(referenced),
+                        ValueRef::Parameter(current),
+                    ]
+                },
+            ),
+        );
+    };
+    kind_block(
+        &mut assembler,
+        reference_kind_parameter,
+        parameter_kind,
+        parameter_reference_check,
+        reference_kind_operation,
+    );
+    kind_block(
+        &mut assembler,
+        reference_kind_operation,
+        operation_kind,
+        operation_reference_exists,
+        value_error,
+    );
+
+    let parameter_reference = assembler.parameter(
+        parameter_reference_check,
+        ParameterRole::Block,
+        0,
+        u64_type(),
+    );
+    let parameter_current = assembler.parameter(
+        parameter_reference_check,
+        ParameterRole::Block,
+        1,
+        u64_type(),
+    );
+    let parameter_valid = assembler.operation(
+        parameter_reference_check,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(parameter_reference),
+            ValueRef::Parameter(parameter_count),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        parameter_reference_check,
+        function,
+        vec![parameter_reference, parameter_current],
+        vec![parameter_valid],
+        inventory_cond(
+            inventory_operation_value(parameter_valid),
+            reference_advance,
+            vec![ValueRef::Parameter(parameter_current)],
+            value_error,
+            Vec::new(),
+        ),
+    );
+
+    let exists_reference = assembler.parameter(
+        operation_reference_exists,
+        ParameterRole::Block,
+        0,
+        u64_type(),
+    );
+    let exists_current = assembler.parameter(
+        operation_reference_exists,
+        ParameterRole::Block,
+        1,
+        u64_type(),
+    );
+    let operation_count = assembler.operation(
+        operation_reference_exists,
+        Opcode::VectorLen,
+        vec![ValueRef::Parameter(rows)],
+        u64_type(),
+        Immediate::None,
+    );
+    let operation_exists = assembler.operation(
+        operation_reference_exists,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(exists_reference),
+            inventory_operation_value(operation_count),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        operation_reference_exists,
+        function,
+        vec![exists_reference, exists_current],
+        vec![operation_count, operation_exists],
+        inventory_cond(
+            inventory_operation_value(operation_exists),
+            operation_reference_prior,
+            vec![
+                ValueRef::Parameter(exists_reference),
+                ValueRef::Parameter(exists_current),
+            ],
+            value_error,
+            Vec::new(),
+        ),
+    );
+
+    let prior_reference = assembler.parameter(
+        operation_reference_prior,
+        ParameterRole::Block,
+        0,
+        u64_type(),
+    );
+    let prior_current = assembler.parameter(
+        operation_reference_prior,
+        ParameterRole::Block,
+        1,
+        u64_type(),
+    );
+    let operation_is_prior = assembler.operation(
+        operation_reference_prior,
+        Opcode::LessThan,
+        vec![
+            ValueRef::Parameter(prior_reference),
+            ValueRef::Parameter(prior_current),
+        ],
+        TypeExpr::Bool,
+        Immediate::None,
+    );
+    assembler.push_block(
+        operation_reference_prior,
+        function,
+        vec![prior_reference, prior_current],
+        vec![operation_is_prior],
+        inventory_cond(
+            inventory_operation_value(operation_is_prior),
+            reference_advance,
+            vec![ValueRef::Parameter(prior_current)],
+            use_before_error,
+            Vec::new(),
+        ),
+    );
+
+    let reference_advance_index =
+        assembler.parameter(reference_advance, ParameterRole::Block, 0, u64_type());
+    let reference_one = assembler.constant_ref(reference_advance, one, u64_type());
+    let next_reference_index = assembler.operation(
+        reference_advance,
+        Opcode::IntAddChecked,
+        vec![
+            ValueRef::Parameter(reference_advance_index),
+            inventory_operation_value(reference_one),
+        ],
+        arithmetic_u64_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        reference_advance,
+        function,
+        vec![reference_advance_index],
+        vec![reference_one, next_reference_index],
+        inventory_switch(
+            inventory_operation_value(next_reference_index),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    reference_check,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let success_reachable = assembler.constant_ref(success, reachable_one, u32_type());
+    let success_edges = assembler.constant_ref(success, edges_zero, u32_type());
+    let success_work = assembler.constant_ref(success, work_zero, u64_type());
+    let plan = assembler.operation(
+        success,
+        Opcode::TupleNew,
+        vec![
+            inventory_operation_value(success_reachable),
+            inventory_operation_value(success_edges),
+            inventory_operation_value(success_work),
+        ],
+        check_plan_type(),
+        Immediate::None,
+    );
+    let accepted = assembler.operation(
+        success,
+        Opcode::ResultOk,
+        vec![inventory_operation_value(plan)],
+        check_result_type(),
+        Immediate::None,
+    );
+    assembler.push_block(
+        success,
+        function,
+        Vec::new(),
+        vec![
+            success_reachable,
+            success_edges,
+            success_work,
+            plan,
+            accepted,
+        ],
+        Terminator::Return(ReturnTerminator {
+            value: inventory_operation_value(accepted),
+        }),
+    );
+
+    for (block, code) in [
+        (ordinal_error, ordinal_code),
+        (value_error, value_code),
+        (use_before_error, use_before_code),
+        (resource_error, resource_code),
+    ] {
+        let code_value = assembler.constant_ref(block, code, u32_type());
+        let rejected = assembler.operation(
+            block,
+            Opcode::ResultErr,
+            vec![inventory_operation_value(code_value)],
+            check_result_type(),
+            Immediate::None,
+        );
+        assembler.push_block(
+            block,
+            function,
+            Vec::new(),
+            vec![code_value, rejected],
+            Terminator::Return(ReturnTerminator {
+                value: inventory_operation_value(rejected),
+            }),
+        );
+    }
+    assembler.push_block(
+        invariant_trap,
+        function,
+        Vec::new(),
+        Vec::new(),
+        Terminator::Trap(TrapTerminator {
+            code: TrapCode::InternalInvariant,
+            payload: None,
+        }),
+    );
+
+    let graph = FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![rows, parameter_count],
+        result_type: check_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler
+            .blocks
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    CheckerScaffold {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        constants: assembler.constants,
+    }
+}
+
 fn generous_limits() -> sley_vm::ExecutionLimits {
     sley_vm::ExecutionLimits {
         max_instructions: 10_000,
@@ -1256,6 +2126,29 @@ fn execute_option_switch_cfg(
         },
     )
     .expect("v2 executes Option-switch CFG checker")
+}
+
+fn execute_operation_inventory(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    rows: &[CfgInventoryRow],
+    parameter_count: u64,
+) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: vec![
+                cfg_inventory_value(rows),
+                ConstValue {
+                    value_type: u64_type(),
+                    data: ConstData::UInt(u128::from(parameter_count)),
+                },
+            ],
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes ordered operation-inventory checker")
 }
 
 fn native_single_cfg(
@@ -1526,6 +2419,116 @@ fn native_option_switch_cfg(
             CfgValidationError::Cfg(error) => error.code(),
             CfgValidationError::Type(error) => {
                 panic!("Option-switch reference must not reach type error: {error}")
+            }
+        },
+    )
+}
+
+#[allow(clippy::too_many_lines)]
+fn native_operation_inventory_cfg(
+    rows: &[CfgInventoryRow],
+    parameter_count: u64,
+) -> Result<sley_check::cfg::CfgReport, sley_check::cfg::CfgErrorCode> {
+    use sley_check::cfg::{CfgValidationError, validate_function_graph};
+
+    let function_id = id(1);
+    let block_id = id(2);
+    let parameter_ids: Vec<_> = (0..parameter_count)
+        .map(|index| {
+            checker_inventory_id(
+                10,
+                u16::try_from(index + 1).expect("bounded native parameter index"),
+            )
+        })
+        .collect();
+    let operation_ids: Vec<_> = (0..rows.len())
+        .map(|index| {
+            checker_inventory_id(
+                11,
+                u16::try_from(index + 1).expect("bounded native operation index"),
+            )
+        })
+        .collect();
+    let function = FunctionGraph {
+        entity_id: function_id,
+        type_parameters: Vec::new(),
+        parameters: parameter_ids.clone(),
+        result_type: TypeExpr::Bool,
+        effects: Vec::new(),
+        entry_block: block_id,
+        blocks: vec![block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let parameters = parameter_ids
+        .iter()
+        .enumerate()
+        .map(|(ordinal, entity_id)| Parameter {
+            entity_id: *entity_id,
+            owner: function_id,
+            role: ParameterRole::Function,
+            ordinal: u32::try_from(ordinal).expect("bounded native parameter ordinal"),
+            value_type: TypeExpr::Bool,
+        })
+        .collect::<Vec<_>>();
+    let operations = rows
+        .iter()
+        .enumerate()
+        .map(|(index, (ordinal, reference_kind, reference_index))| {
+            let operand = match *reference_kind {
+                1 => parameter_ids
+                    .get(usize::try_from(*reference_index).unwrap_or(usize::MAX))
+                    .copied()
+                    .map_or(ValueRef::Parameter(id(98)), ValueRef::Parameter),
+                2 => operation_ids
+                    .get(usize::try_from(*reference_index).unwrap_or(usize::MAX))
+                    .copied()
+                    .map_or(
+                        ValueRef::OperationResult(OperationResultRef {
+                            operation: id(97),
+                            result_index: 0,
+                        }),
+                        |operation| {
+                            ValueRef::OperationResult(OperationResultRef {
+                                operation,
+                                result_index: 0,
+                            })
+                        },
+                    ),
+                _ => ValueRef::Parameter(id(96)),
+            };
+            Operation {
+                entity_id: operation_ids[index],
+                block: block_id,
+                ordinal: u32::try_from(*ordinal).expect("bounded native operation ordinal"),
+                opcode: Opcode::BoolNot,
+                operands: vec![operand],
+                result_types: vec![TypeExpr::Bool],
+                immediate: Immediate::None,
+            }
+        })
+        .collect::<Vec<_>>();
+    let return_value = parameter_ids
+        .first()
+        .copied()
+        .map(ValueRef::Parameter)
+        .expect("bounded inventory fixture has a parameter");
+    let block = Block {
+        entity_id: block_id,
+        function: function_id,
+        parameters: Vec::new(),
+        operations: operation_ids,
+        terminator: Terminator::Return(ReturnTerminator {
+            value: return_value,
+        }),
+        reachability: Reachability::Required,
+    };
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    validate_function_graph(&types, &function, &parameters, &[block], &operations).map_err(
+        |error| match error {
+            CfgValidationError::Cfg(error) => error.code(),
+            CfgValidationError::Type(error) => {
+                panic!("operation-inventory reference must not reach type error: {error}")
             }
         },
     )
@@ -1832,6 +2835,53 @@ fn checker_option_switch_cfg_preserves_native_first_failure_codes() {
         assert_cfg_error(
             &execute_option_switch_cfg(&package, &approved, facts),
             expected,
+        );
+    }
+}
+
+#[test]
+fn checker_operation_inventory_matches_native_report() {
+    let rows = [(0, 1, 0), (1, 2, 0), (2, 2, 1)];
+    let (package, approved) = admit_checker_program(&ordered_operation_inventory_checker());
+    let native = native_operation_inventory_cfg(&rows, 2).expect("native inventory accepts");
+    let first = execute_operation_inventory(&package, &approved, &rows, 2);
+    let second = execute_operation_inventory(&package, &approved, &rows, 2);
+    assert_cfg_ok(&first, &native);
+    assert_eq!(first.termination, second.termination);
+
+    let empty_native = native_operation_inventory_cfg(&[], 2).expect("empty inventory accepts");
+    assert_cfg_ok(
+        &execute_operation_inventory(&package, &approved, &[], 2),
+        &empty_native,
+    );
+}
+
+#[test]
+fn checker_operation_inventory_preserves_two_pass_precedence() {
+    use sley_check::cfg::CfgErrorCode;
+
+    let (package, approved) = admit_checker_program(&ordered_operation_inventory_checker());
+    let cases: &[(&[CfgInventoryRow], CfgErrorCode)] = &[
+        (&[(0, 1, 9), (2, 1, 0)], CfgErrorCode::GraphOrdinalMismatch),
+        (&[(0, 1, 9)], CfgErrorCode::ValueUnresolved),
+        (&[(0, 3, 0)], CfgErrorCode::ValueUnresolved),
+        (&[(0, 2, 1), (1, 1, 0)], CfgErrorCode::UseBeforeDefinition),
+        (&[(0, 1, 0), (1, 2, 1)], CfgErrorCode::UseBeforeDefinition),
+        (&[(0, 2, 3), (1, 1, 0)], CfgErrorCode::ValueUnresolved),
+        (
+            &[(0, 1, 0), (1, 1, 9), (2, 2, 2)],
+            CfgErrorCode::ValueUnresolved,
+        ),
+    ];
+    for (rows, expected) in cases {
+        assert_eq!(
+            native_operation_inventory_cfg(rows, 2),
+            Err(*expected),
+            "native operation-inventory oracle"
+        );
+        assert_cfg_error(
+            &execute_operation_inventory(&package, &approved, rows, 2),
+            *expected,
         );
     }
 }
