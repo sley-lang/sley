@@ -4,6 +4,9 @@ Status: PROVISIONAL C0 CONSTRUCTION. This is a real bounded Sley lowering
 algorithm under the operator development override. It is not RW-110
 completion, C1, self-hosting evidence, or runtime authority.
 
+Successor note: `rw-080-lower-function-metadata.md` attaches lossless function
+identity, register-type, and result-type encodings to this model.
+
 ## Scope and behavior
 
 `complete_function_lowerer` walks an arbitrary runtime vector of compact block
@@ -47,10 +50,9 @@ ordered failure propagation. All twenty-seven tests in
 
 ## Explicit remainder
 
-The compact function model does not yet carry exact function identity,
-register types, or result type. Operation immediates still use the bounded
-two-word projection recorded by earlier slices. The Sley closure has not yet
-built the transitive callee table, emitted SLEYBC02, or assembled an execution
-package. Those remain RW-110 construction layers. The driver remains RW-120
-work. RW-080 and R2 stay provisional pending the recorded independent
-acceptance debt.
+The successor attaches exact function identity, register types, and result
+type. Operation immediates still use the bounded two-word projection recorded
+by earlier slices. The Sley closure has not yet built the transitive callee
+table, emitted SLEYBC02, or assembled an execution package. Those remain
+RW-110 construction layers. The driver remains RW-120 work. RW-080 and R2
+stay provisional pending the recorded independent acceptance debt.
