@@ -11,10 +11,11 @@
 //! lowering-leg index as payload, proving dispatch reached the leg),
 //! and any other marker returns a typed `LoweringError`-family value.
 //! The witness bytes are unread by design (proven: distinct witness
-//! bytes behave identically), so the scaffold lowers nothing, checks
-//! nothing, and assembles no package. The `build_package` entry is
-//! deliberately absent: `BuildError` has no frozen native vocabulary
-//! (zero hits repo-wide), so a builder scaffold would invent codes.
+//! bytes behave identically), so the original scaffold lowers nothing,
+//! checks nothing, and assembles no package. Bounded descendants in this
+//! file now implement lowering, image emission, and package-byte assembly.
+//! The package entry preserves the existing `UInt32` helper-error transport;
+//! it does not invent or freeze the still-absent canonical `BuildError`.
 //! The later `single_bool_lowerer` is the first real bounded algorithm:
 //! inputs supplied after admission select BoolNot/BoolAnd/BoolOr and their
 //! checked arity; Sley derives the dense operand and result registers and
@@ -411,17 +412,6 @@ fn byte_vector_lower_result_type() -> TypeExpr {
 fn bytes_lower_result_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(TypeExpr::Bytes),
-        error: Box::new(u32_type()),
-    }
-}
-
-fn package_sections_type() -> TypeExpr {
-    TypeExpr::Tuple(vec![TypeExpr::Bytes; 4])
-}
-
-fn package_sections_result_type() -> TypeExpr {
-    TypeExpr::Result {
-        ok: Box::new(package_sections_type()),
         error: Box::new(u32_type()),
     }
 }
@@ -15623,11 +15613,10 @@ fn push_package_section_append_stage(
     );
 }
 
-/// Emits the three empty counted inventory sections plus the complete
-/// dependency section from canonical checked global/contract row bytes. Every
-/// identity, gate claim, fingerprint, and execution limit is a typed runtime
-/// input; only the frozen profile fields and the three returned empty section
-/// placeholders are constants in this Sley program.
+/// Emits the complete dependency section from canonical checked
+/// global/contract row bytes. Every identity, gate claim, fingerprint, and
+/// execution limit is a typed runtime input; only the frozen profile fields
+/// are constants in this Sley program.
 #[allow(clippy::too_many_lines)]
 fn package_dependency_sections_encoder() -> LowerScaffold {
     let narrow_u32 = inventory_id(5, 19);
@@ -15740,7 +15729,6 @@ fn package_dependency_sections_encoder() -> LowerScaffold {
     let two_u32 = assembler.constant(u32_value(2));
     let zero_u64 = assembler.constant(u64_value(0));
     let empty_octets = assembler.constant(u8vec_value(&[]));
-    let empty_counted_section = assembler.constant(bytes_value(&0_u64.to_be_bytes()));
     let unit = assembler.constant(ConstValue {
         value_type: TypeExpr::Unit,
         data: ConstData::Unit,
@@ -16061,31 +16049,18 @@ fn package_dependency_sections_encoder() -> LowerScaffold {
     );
 
     let dependency = assembler.parameter(success_block, ParameterRole::Block, 0, TypeExpr::Bytes);
-    let empty = assembler.constant_ref(success_block, empty_counted_section, TypeExpr::Bytes);
-    let sections = assembler.operation(
-        success_block,
-        Opcode::TupleNew,
-        vec![
-            operation_value(empty),
-            operation_value(empty),
-            operation_value(empty),
-            ValueRef::Parameter(dependency),
-        ],
-        package_sections_type(),
-        Immediate::None,
-    );
     let success = assembler.operation(
         success_block,
         Opcode::ResultOk,
-        vec![operation_value(sections)],
-        package_sections_result_type(),
+        vec![ValueRef::Parameter(dependency)],
+        bytes_lower_result_type(),
         Immediate::None,
     );
     assembler.push_block(
         success_block,
         function,
         vec![dependency],
-        vec![empty, sections, success],
+        vec![success],
         Terminator::Return(ReturnTerminator {
             value: operation_value(success),
         }),
@@ -16096,7 +16071,7 @@ fn package_dependency_sections_encoder() -> LowerScaffold {
         forward_error,
         Opcode::ResultErr,
         vec![ValueRef::Parameter(forwarded)],
-        package_sections_result_type(),
+        bytes_lower_result_type(),
         Immediate::None,
     );
     assembler.push_block(
@@ -16113,7 +16088,7 @@ fn package_dependency_sections_encoder() -> LowerScaffold {
         resource_error,
         Opcode::ResultErr,
         vec![operation_value(resource)],
-        package_sections_result_type(),
+        bytes_lower_result_type(),
         Immediate::None,
     );
     assembler.push_block(
@@ -16145,7 +16120,7 @@ fn package_dependency_sections_encoder() -> LowerScaffold {
             cancel_present,
             cancel_at_fuel,
         ],
-        result_type: package_sections_result_type(),
+        result_type: bytes_lower_result_type(),
         effects: Vec::new(),
         entry_block: entry,
         blocks: assembler
@@ -17186,7 +17161,7 @@ fn package_builder() -> LowerScaffold {
             ValueRef::Parameter(cancel_present),
             ValueRef::Parameter(cancel_at_fuel),
         ],
-        package_sections_result_type(),
+        bytes_lower_result_type(),
         Immediate::Function(FunctionRefValue {
             function: dependency_entry,
             type_arguments: Vec::new(),
@@ -17222,15 +17197,7 @@ fn package_builder() -> LowerScaffold {
     let compose_constants = assembler.parameter(compose, ParameterRole::Block, 0, TypeExpr::Bytes);
     let compose_layouts = assembler.parameter(compose, ParameterRole::Block, 1, TypeExpr::Bytes);
     let compose_imports = assembler.parameter(compose, ParameterRole::Block, 2, TypeExpr::Bytes);
-    let dependency_sections =
-        assembler.parameter(compose, ParameterRole::Block, 3, package_sections_type());
-    let dependency_section = assembler.operation(
-        compose,
-        Opcode::TupleGet,
-        vec![ValueRef::Parameter(dependency_sections)],
-        TypeExpr::Bytes,
-        Immediate::Index(3),
-    );
+    let dependency_section = assembler.parameter(compose, ParameterRole::Block, 3, TypeExpr::Bytes);
     let envelope = assembler.operation(
         compose,
         Opcode::CallDirect,
@@ -17239,7 +17206,7 @@ fn package_builder() -> LowerScaffold {
             ValueRef::Parameter(compose_constants),
             ValueRef::Parameter(compose_layouts),
             ValueRef::Parameter(compose_imports),
-            operation_value(dependency_section),
+            ValueRef::Parameter(dependency_section),
             ValueRef::Parameter(image_digest),
             ValueRef::Parameter(constants_digest),
             ValueRef::Parameter(layouts_digest),
@@ -17262,9 +17229,9 @@ fn package_builder() -> LowerScaffold {
             compose_constants,
             compose_layouts,
             compose_imports,
-            dependency_sections,
+            dependency_section,
         ],
-        vec![dependency_section, envelope],
+        vec![envelope],
         Terminator::Return(ReturnTerminator {
             value: operation_value(envelope),
         }),
@@ -19347,35 +19314,6 @@ fn execute_package_builder(
         },
     )
     .expect("v2 executes composed package builder")
-}
-
-fn successful_package_sections(outcome: &sley_vm::ExecutionOutcome) -> [Vec<u8>; 4] {
-    use sley_ssmc::ResultConst;
-
-    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
-        panic!(
-            "package-section encoder must terminate with a value, got {:?}",
-            outcome.termination
-        )
-    };
-    let ConstData::Result(ResultConst::Ok(sections)) = &value.data else {
-        panic!(
-            "package-section encoder must return Ok, got {:?}",
-            value.data
-        )
-    };
-    let ConstData::Sequence(sections) = &sections.data else {
-        panic!("package-section encoder result must be a tuple")
-    };
-    sections
-        .iter()
-        .map(|section| match &section.data {
-            ConstData::Bytes(bytes) => bytes.clone(),
-            other => panic!("package section must be Bytes, got {other:?}"),
-        })
-        .collect::<Vec<_>>()
-        .try_into()
-        .expect("package-section tuple has four fields")
 }
 
 fn successful_bytes_result(outcome: &sley_vm::ExecutionOutcome, subject: &str) -> Vec<u8> {
@@ -23150,12 +23088,12 @@ fn package_section_encoders_match_nonempty_native_inventories_and_dependency() {
         &global_rows,
         &contract_rows,
     );
-    let encoded = successful_package_sections(&dependency_outcome);
+    let encoded = successful_bytes_result(&dependency_outcome, "dependency-section encoder");
     assert_eq!(
-        encoded[3],
+        encoded,
         sley_vm::exec_package::encode_dependency_section(&expected).unwrap()
     );
-    let decoded = sley_vm::decode_dependency_section(&encoded[3]).unwrap();
+    let decoded = sley_vm::decode_dependency_section(&encoded).unwrap();
     assert_eq!(decoded.entry, expected.entry);
     assert_eq!(
         decoded.gate_closure_fingerprints,
@@ -23210,7 +23148,7 @@ fn package_envelope_composer_matches_native_bytes_and_hydrates() {
         &global_rows,
         &contract_rows,
     );
-    let dependency = successful_package_sections(&dependency_outcome)[3].clone();
+    let dependency = successful_bytes_result(&dependency_outcome, "dependency-section encoder");
     let sections = [constants, layouts, imports, dependency];
     let digests = sley_vm::package_digests_v2(&expected).unwrap();
 

@@ -14,8 +14,8 @@ execution limits; and the five host-mechanic SHA-256 results. It returns
 `Result<Bytes, UInt32>` containing the complete `EXEC_PACKAGE_V2` envelope.
 
 The entry calls the generic inventory builder three times with the required
-constant versus framed-row mode, calls the dependency builder, extracts its
-dependency bytes, and calls the envelope composer. Every child failure is
+constant versus framed-row mode, calls the dependency builder, and passes its
+returned bytes directly to the envelope composer. Every child failure is
 forwarded unchanged. The independently assembled fixture graphs are rebased
 into disjoint artifact and function namespaces before composition; the three
 allowlisted byte bridges remain shared dependencies.
@@ -40,3 +40,13 @@ This closes the bounded §1.3 package-construction remainder recorded by slices
 37–39. It does not promote the provisional C0 fixture into C1 or satisfy the
 RW-080 contract/surface review. R2 remains NOT_READY under the recorded
 independent-review debt; no acceptance is inferred from these tests.
+
+## Local maintainability review
+
+A strict local review removed the dependency builder's historical four-section
+tuple. Once inventory sections gained their own builder, three constant empty
+tuple fields became accidental coupling; the dependency closure now returns
+`Result<Bytes, UInt32>` directly. The composed entry no longer extracts tuple
+slot 3. This is author self-review only and does not satisfy the independent
+acceptance gate. Further RW-080 modules must use separate test units rather
+than adding another subsystem to the already large lowerer evidence file.

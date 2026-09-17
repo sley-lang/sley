@@ -5,10 +5,9 @@ Status: PROVISIONAL SCAFFOLD (2026-09-08, operator development override
 scaffold for the third RW-080 toolchain module. It is not accepted
 runtime authority: no BOOTSTRAP_READY, C1, SH1/SH2, or release claim
 follows. Independent acceptance (Nabu round-12, premium round 2, R2
-READY) remains pending; the real lowering plus package assembly arrive
-at the RW-110 gate. This file is the §3 construction manifest for the
-scaffold closure; behavior is proven by
-`crates/sley-vm/tests/rw080_lower_scaffold.rs` (4 tests green).
+READY) remains pending. This file is the §3 construction manifest for the
+original scaffold closure; its behavior and later bounded descendants are
+proven by `crates/sley-vm/tests/rw080_lower_scaffold.rs`.
 
 ## 1. Why this unit was runnable (selection)
 
@@ -50,8 +49,8 @@ touched, new files only.
   binds profile v2).
 - Contract §1.3 interfaces fixed: `lower(function_closure) ->
   Result<LoweredModel, LoweringError>` (frozen `LowerErrorCode`
-  vocabulary); `build_package` deliberately excluded (no frozen
-  `BuildError`; see §5). E1/E2 data, checked integers, bridge for
+  vocabulary); the original scaffold excluded `build_package` because no
+  canonical `BuildError` was frozen (see §5). E1/E2 data, checked integers, bridge for
   byte emission, raw hash for digest inputs; B2V1/V2B1/PSH1/RHW1
   only; scaffold = entry plus vocabulary plus one admitted trivial
   closure.
@@ -83,16 +82,17 @@ touched, new files only.
   and any other marker returning the typed vocabulary representative
   (`PROFILE_UNSUPPORTED=26000`, leg 1). UInt32 carries the 26xxx
   codes, which do not fit the precedents' UInt8.
-- IS NOT: no closure lowered, no callee table built, no package
+- ORIGINAL SCAFFOLD IS NOT: no closure lowered, no callee table built, no package
   assembled, no image emitted, no verification performed. All
   lowering legs trap before reading `witness` (proven: distinct
   witness bytes behave identically). The marker stands in for the
   checked-closure inventory the real entry will traverse — the same
   stand-in class as the §1.1 scaffold's unread `Bytes` input and the
-  §1.2 scaffold's marker. The real `LoweredModel`, callee table, and
-  `build_package` bytes arrive with the functioning lowerer; the
-  scaffold needs one success value and one returnable error code to
-  prove both exits return values.
+  §1.2 scaffold's marker. The scaffold needs one success value and one
+  returnable error code to prove both exits return values. Later slices in
+  the same executable evidence file provide bounded real lowering, a callee
+  table, image bytes, package sections, and one-invocation package-byte
+  assembly; they do not retroactively turn this marker entry into that work.
 - Ownership note: this scaffold touches no codec slice and no
   checker leg. It reuses no builder, record, or fixture from the
   §1.1 Namespace/EntryPoint program path or the §1.2 scaffold; the
@@ -159,16 +159,18 @@ test limits (recorded in-fixture, not normative).
   both repaired against the §1.2 precedent before the first green
   run (`E0308`/`E0560`); no test expectation was written from
   candidate output or rewritten to match it.
-- `build_package` excluded with reason: no frozen `BuildError`
-  vocabulary exists, and the entry's inputs (checked closure bytes,
-  test-plan digest) are unproducible before the §1.2 real corpus.
+- The original `build_package` scaffold was excluded because no frozen
+  `BuildError` vocabulary exists and its checked inputs were then
+  unproducible. Later slices implement bounded package-byte construction with
+  the existing UInt32 helper-error transport. They do not freeze or claim the
+  canonical driver-facing `BuildError` contract.
   The §1.4 driver scaffold is excluded for the same reason plus the
   unproducible manifest.
-- Next: real single-function lowering over checked closures plus the
-  `build_package` assembler and the RW-110 corpus — only after the
-  §1.2 real checker produces checked inputs, or further explicit
-  operator direction. This scaffold does not advance or retard the
-  §1.1 program path.
+- Descendant status: real single-function and complete-image lowering plus
+  package-byte assembly are present under the operator override. The full
+  RW-110 corpus, canonical `BuildError`, §1.4 driver, and independent review
+  remain later gates. This scaffold does not advance or retard the §1.1
+  program path.
 - F1 repair (post-review descendant of `a525f66`): independent
   review found the fixture function identity (202) sharing a byte
   with marker constant K2 (202). The function moved 202 → 216, an
