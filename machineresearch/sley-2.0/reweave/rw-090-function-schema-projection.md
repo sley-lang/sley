@@ -14,7 +14,11 @@ Sley:
 - the outer union tag is exactly entity kind 5;
 - record fields 1 through 8 are all present;
 - no unknown record field remains after the eight required fields are removed;
-- fields 1, 2, 4, 6, and 7 are exact canonical list containers; and
+- field 1 is an exact canonical list container;
+- fields 2 and 6 are lists of exact 32-byte entity identities;
+- fields 4 and 7 are strictly increasing sets of exact 32-byte entity
+  identities;
+- field 5 is an exact 32-byte entity identity; and
 - structural decoder failures retain their canonical `SCB_*` error codes.
 
 The projection returns
@@ -25,26 +29,28 @@ parameters, entity identities, `TypeExpr`, set ordering, and visibility.
 
 ## Executable surface
 
-The composite image contains five reachable functions: the Function schema
-entry, generic record decoder, generic union decoder, generic list decoder,
-and shared canonical uvar decoder. It contains 1,003 parameters, 160 blocks,
-289 operations, and 77 constants. Its encoded image is 44,746 bytes. The
+The composite image contains seven reachable functions: the Function schema
+entry, entity-identity collection validator, fixed-32 validator, generic
+record decoder, generic union decoder, generic list decoder, and shared
+canonical uvar decoder. It contains 1,044 parameters, 179 blocks, 321
+operations, and 91 constants. Its encoded image is 48,480 bytes. The
 approved package digest is
-`a7dcf6d9a4279389b700bb37067ed47933fbb3c4da10df508ddac8fcbad1cc80`.
+`6ba03c846a78ea40d2dce63527f2ca1005b93ce727dec4498a0ccb09bed0900a`
+under the declared codec-profile execution limits.
 
 ## Validation
 
 Focused tests compare all eight projected payloads with the native SCB cursor
 over a non-empty Function body. Negative cases cover a wrong entity kind, a
-missing field, an unknown field, and a non-minimal list count inside the
-Function record.
+missing field, an unknown field, a non-minimal list count, a short parameter
+identity, an unordered effect set, and a short entry-block identity.
 
 ```text
 cargo test -p sley-vm --test rw120_toolchain_integration function_schema_decoder -- --nocapture
 ```
 
 The slice does not yet claim a complete Function decoder. Fixed-width entity
-IDs, set ordering, recursive `TypeExpr`, type-parameter records, and visibility
-are still raw canonical payloads. The fixed representative Function codec and
-the canonical toolchain root therefore remain unchanged until those semantic
-decoders are composed and tested.
+Recursive `TypeExpr`, type-parameter records, and visibility are still raw
+canonical payloads. The fixed representative Function codec and the canonical
+toolchain root therefore remain unchanged until those semantic decoders are
+composed and tested.
