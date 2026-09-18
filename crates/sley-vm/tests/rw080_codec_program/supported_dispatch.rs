@@ -43,16 +43,9 @@ pub(super) fn all_supported_program_value_type() -> TypeExpr {
     }
 }
 
-fn supported_program_result_type() -> TypeExpr {
+pub(super) fn supported_program_result_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(all_supported_program_value_type()),
-        error: Box::new(TypeExpr::Bytes),
-    }
-}
-
-fn dependency_supported_result_type() -> TypeExpr {
-    TypeExpr::Result {
-        ok: Box::new(dependency_program_value_type()),
         error: Box::new(TypeExpr::Bytes),
     }
 }
@@ -145,8 +138,7 @@ fn build_supported_program_decode(
     let normalize_namespace = assembler.id(ns.b);
     let normalize_policy = assembler.id(ns.b);
     let normalize_entrypoint = assembler.id(ns.b);
-    let normalize_dependency = assembler.id(ns.b);
-    let normalize_package = assembler.id(ns.b);
+    let normalize_fixed_body = assembler.id(ns.b);
     let forward_error = assembler.id(ns.b);
     let unsupported = assembler.id(ns.b);
     let unknown = assembler.id(ns.b);
@@ -652,7 +644,7 @@ fn build_supported_program_decode(
         call_dependency,
         Opcode::CallDirect,
         vec![pav(dependency_payload), pav(dependency_unit)],
-        vec![dependency_supported_result_type()],
+        vec![result_type.clone()],
         Immediate::Function(FunctionRefValue {
             function: dependency_program_decoder,
             type_arguments: Vec::new(),
@@ -664,21 +656,7 @@ fn build_supported_program_decode(
         function,
         vec![dependency_payload, dependency_unit],
         vec![dependency_result],
-        switch(
-            op_result(dependency_result),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    normalize_dependency,
-                    vec![SwitchArgument::CasePayload],
-                ),
-                (
-                    BuiltinCase::Err,
-                    forward_error,
-                    vec![SwitchArgument::CasePayload],
-                ),
-            ],
-        ),
+        ret(op_result(dependency_result)),
     );
 
     let package_payload =
@@ -705,76 +683,76 @@ fn build_supported_program_decode(
         cond(
             op_result(package_result),
             edge(
-                normalize_package,
+                normalize_fixed_body,
                 vec![pav(package_payload), pav(package_entity)],
             ),
             edge(unsupported, Vec::new()),
         ),
     );
 
-    let package_body = assembler.param(
+    let fixed_body = assembler.param(
         ns.p,
-        normalize_package,
+        normalize_fixed_body,
         ParameterRole::Block,
         TypeExpr::Bytes,
     );
-    let package_entity = assembler.param(
+    let fixed_entity = assembler.param(
         ns.p,
-        normalize_package,
+        normalize_fixed_body,
         ParameterRole::Block,
         TypeExpr::Bytes,
     );
-    let package_empty = assembler.cref(ns.o, normalize_package, empty_bytes, TypeExpr::Bytes);
-    let package_value = assembler.op(
+    let fixed_empty = assembler.cref(ns.o, normalize_fixed_body, empty_bytes, TypeExpr::Bytes);
+    let fixed_value = assembler.op(
         ns.o,
-        normalize_package,
+        normalize_fixed_body,
         Opcode::TupleNew,
         vec![
             pav(declared_kind),
-            pav(package_entity),
-            pav(package_body),
-            op_result(package_empty),
+            pav(fixed_entity),
+            pav(fixed_body),
+            op_result(fixed_empty),
         ],
         vec![tagged_entity_set_program_value_type()],
         Immediate::None,
     );
-    let package_arm = assembler.op(
+    let fixed_arm = assembler.op(
         ns.o,
-        normalize_package,
+        normalize_fixed_body,
         Opcode::ResultErr,
-        vec![op_result(package_value)],
+        vec![op_result(fixed_value)],
         vec![non_dependency_program_value_type()],
         Immediate::None,
     );
-    let package_supported = assembler.op(
+    let fixed_supported = assembler.op(
         ns.o,
-        normalize_package,
+        normalize_fixed_body,
         Opcode::ResultOk,
-        vec![op_result(package_arm)],
+        vec![op_result(fixed_arm)],
         vec![all_supported_program_value_type()],
         Immediate::None,
     );
-    let package_ok = assembler.op(
+    let fixed_ok = assembler.op(
         ns.o,
-        normalize_package,
+        normalize_fixed_body,
         Opcode::ResultOk,
-        vec![op_result(package_supported)],
+        vec![op_result(fixed_supported)],
         vec![result_type.clone()],
         Immediate::None,
     );
     push_preallocated_block(
         assembler,
-        normalize_package,
+        normalize_fixed_body,
         function,
-        vec![package_body, package_entity],
+        vec![fixed_body, fixed_entity],
         vec![
-            package_empty,
-            package_value,
-            package_arm,
-            package_supported,
-            package_ok,
+            fixed_empty,
+            fixed_value,
+            fixed_arm,
+            fixed_supported,
+            fixed_ok,
         ],
-        ret(op_result(package_ok)),
+        ret(op_result(fixed_ok)),
     );
 
     let namespace_payload = assembler.param(
@@ -1024,37 +1002,6 @@ fn build_supported_program_decode(
         ret(op_result(entrypoint_ok)),
     );
 
-    let dependency_value = assembler.param(
-        ns.p,
-        normalize_dependency,
-        ParameterRole::Block,
-        dependency_program_value_type(),
-    );
-    let dependency_arm = assembler.op(
-        ns.o,
-        normalize_dependency,
-        Opcode::ResultErr,
-        vec![pav(dependency_value)],
-        vec![all_supported_program_value_type()],
-        Immediate::None,
-    );
-    let dependency_ok = assembler.op(
-        ns.o,
-        normalize_dependency,
-        Opcode::ResultOk,
-        vec![op_result(dependency_arm)],
-        vec![result_type.clone()],
-        Immediate::None,
-    );
-    push_preallocated_block(
-        assembler,
-        normalize_dependency,
-        function,
-        vec![dependency_value],
-        vec![dependency_arm, dependency_ok],
-        ret(op_result(dependency_ok)),
-    );
-
     let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
     let forwarded_error = assembler.op(
         ns.o,
@@ -1198,7 +1145,6 @@ pub(super) fn supported_decode_image() -> Image {
             &mut assembler,
             dependency_program_ns,
             dependency_program_function,
-            dependency_supported_result_type(),
         );
     let graph = build_supported_program_decode(
         &mut assembler,

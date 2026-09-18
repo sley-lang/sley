@@ -2928,16 +2928,18 @@ fn build_empty_package_program_encode(
     }
 }
 
-/// Rebuilds a stored canonical empty-set Package from an already validated
-/// body witness. The caller owns body-shape validation; this graph retains the
-/// exact entity-width check and the canonical object hash construction.
+/// Rebuilds a stored canonical object from an already validated fixed-body
+/// witness. The caller owns body-shape validation; this graph retains the exact
+/// entity-width check and canonical object hash construction.
 #[allow(clippy::too_many_lines)]
-pub(super) fn build_package_witness_program_encode(
+fn build_fixed_body_witness_program_encode(
     a: &mut Asm,
     ns: Ns,
     fid: EntityId,
     exact_fid: EntityId,
     concat_fid: EntityId,
+    payload_length: u64,
+    body_length: u64,
 ) -> FunctionGraph {
     use sley_vm::host_abi::BRIDGE_CODE_RHW1;
 
@@ -2947,10 +2949,12 @@ pub(super) fn build_package_witness_program_encode(
     prefix_bytes.extend_from_slice(&sley_scb1::encode_uvar(1));
     prefix_bytes.extend_from_slice(&sley_scb1::encode_uvar(200));
     prefix_bytes.extend_from_slice(&[9; 32]);
-    prefix_bytes.extend_from_slice(&sley_scb1::encode_uvar(114));
+    prefix_bytes.extend_from_slice(&sley_scb1::encode_uvar(payload_length));
     prefix_bytes.extend_from_slice(&[2, 1, 32]);
     let prefix = a.kbytes(ns.k, &prefix_bytes);
-    let entity_tail = a.kbytes(ns.k, &[2, 77]);
+    let mut entity_tail_bytes = vec![2];
+    entity_tail_bytes.extend_from_slice(&sley_scb1::encode_uvar(body_length));
+    let entity_tail = a.kbytes(ns.k, &entity_tail_bytes);
     let object_domain = a.kbytes(ns.k, b"sley2.object.v1");
     let resource_code = a.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
     let entity = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
@@ -3165,6 +3169,26 @@ pub(super) fn build_package_witness_program_encode(
         contracts: Vec::new(),
         visibility: Visibility::Private,
     }
+}
+
+pub(super) fn build_package_witness_program_encode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    exact_fid: EntityId,
+    concat_fid: EntityId,
+) -> FunctionGraph {
+    build_fixed_body_witness_program_encode(a, ns, fid, exact_fid, concat_fid, 114, 77)
+}
+
+pub(super) fn build_workspace_witness_program_encode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    exact_fid: EntityId,
+    concat_fid: EntityId,
+) -> FunctionGraph {
+    build_fixed_body_witness_program_encode(a, ns, fid, exact_fid, concat_fid, 86, 49)
 }
 
 #[allow(clippy::too_many_lines)]

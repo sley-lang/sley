@@ -61,6 +61,8 @@ mod policy_binding;
 mod supported_dispatch;
 #[path = "rw080_codec_program/supported_encode_dispatch.rs"]
 mod supported_encode_dispatch;
+#[path = "rw080_codec_program/workspace.rs"]
+mod workspace;
 
 fn eid(ns: u8, idx: u16) -> EntityId {
     let mut bytes = [0u8; 32];

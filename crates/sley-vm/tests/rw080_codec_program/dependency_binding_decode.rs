@@ -3592,7 +3592,6 @@ fn build_program_supported_return(
     result_type: &TypeExpr,
 ) -> EntityId {
     let block = assembler.id(ns.b);
-    let wrap = assembler.id(ns.b);
     let types = vec![
         TypeExpr::Bytes,
         TypeExpr::Bytes,
@@ -3609,42 +3608,42 @@ fn build_program_supported_return(
         vec![tuple_type.clone()],
         Immediate::None,
     );
-    append_block(
-        assembler,
+    let dependency_arm = assembler.op(
+        ns.o,
         block,
-        control.function,
-        parameters,
-        vec![tuple],
-        branch(edge(wrap, vec![op_result(tuple)])),
+        Opcode::ResultErr,
+        vec![op_result(tuple)],
+        vec![super::supported_dispatch::all_supported_program_value_type()],
+        Immediate::None,
     );
-    let dependency_tuple = assembler.param(ns.p, wrap, ParameterRole::Block, tuple_type);
     let ok = assembler.op(
         ns.o,
-        wrap,
+        block,
         Opcode::ResultOk,
-        vec![pav(dependency_tuple)],
+        vec![op_result(dependency_arm)],
         vec![result_type.clone()],
         Immediate::None,
     );
     append_block(
         assembler,
-        wrap,
+        block,
         control.function,
-        vec![dependency_tuple],
-        vec![ok],
+        parameters,
+        vec![tuple, dependency_arm, ok],
         ret(op_result(ok)),
     );
     block
 }
 
-/// Decodes the exact empty-set Package body without retaining the
-/// generic Package body graph family in the supported-dispatch image. Larger
-/// Package bodies remain outside this bounded profile and fail closed.
+/// Checks one fixed-shape body template while ignoring the two dynamic byte
+/// ranges. The bounded Workspace and Package profiles share this graph shape.
 #[allow(clippy::too_many_lines)]
-pub(super) fn build_empty_package_supported_body_check(
+fn build_fixed_supported_body_check(
     assembler: &mut Asm,
     ns: Ns,
     function: EntityId,
+    canonical_template: &[u8],
+    dynamic_ranges: [(u64, u64); 2],
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
     let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
@@ -3678,18 +3677,13 @@ pub(super) fn build_empty_package_supported_body_check(
         invariant_trap: refused,
         constant1,
     };
-    let mut canonical_template = vec![2, 75, 4, 1, 32];
-    canonical_template.extend_from_slice(&[0; 32]);
-    canonical_template.extend_from_slice(&[2, 32]);
-    canonical_template.extend_from_slice(&[0; 32]);
-    canonical_template.extend_from_slice(&[3, 1, 0, 4, 1, 0]);
     let canonical_checks = build_masked_program_canonical_check(
         assembler,
         ns,
         compact_control,
         unit,
-        &canonical_template,
-        [(5, 37), (39, 71)],
+        canonical_template,
+        dynamic_ranges,
         refused,
         accepted,
     );
@@ -3730,7 +3724,10 @@ pub(super) fn build_empty_package_supported_body_check(
         vec![u64_type()],
         Immediate::None,
     );
-    let expected_length_constant = assembler.ku64(ns.k, 77);
+    let expected_length_constant = assembler.ku64(
+        ns.k,
+        u128::try_from(canonical_template.len()).expect("body template length fits u128"),
+    );
     let expected_length = assembler.cref(ns.o, converted, expected_length_constant, u64_type());
     let canonical_length = assembler.op(
         ns.o,
@@ -3768,6 +3765,47 @@ pub(super) fn build_empty_package_supported_body_check(
     }
 }
 
+/// Decodes the exact empty-set Package body without retaining the generic
+/// Package body graph family in the supported-dispatch image. Larger Package
+/// bodies remain outside this bounded profile and fail closed.
+pub(super) fn build_empty_package_supported_body_check(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+) -> FunctionGraph {
+    let mut canonical_template = vec![2, 75, 4, 1, 32];
+    canonical_template.extend_from_slice(&[0; 32]);
+    canonical_template.extend_from_slice(&[2, 32]);
+    canonical_template.extend_from_slice(&[0; 32]);
+    canonical_template.extend_from_slice(&[3, 1, 0, 4, 1, 0]);
+    build_fixed_supported_body_check(
+        assembler,
+        ns,
+        function,
+        &canonical_template,
+        [(5, 37), (39, 71)],
+    )
+}
+
+/// Decodes the exact empty-set Workspace body. The root namespace is the only
+/// dynamic body range; a terminal no-op range keeps the shared two-range loop.
+pub(super) fn build_empty_workspace_supported_body_check(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+) -> FunctionGraph {
+    let mut canonical_template = vec![1, 47, 5, 1, 1, 0, 2, 32];
+    canonical_template.extend_from_slice(&[0; 32]);
+    canonical_template.extend_from_slice(&[3, 1, 0, 4, 1, 0, 5, 1, 0]);
+    build_fixed_supported_body_check(
+        assembler,
+        ns,
+        function,
+        &canonical_template,
+        [(8, 40), (49, 49)],
+    )
+}
+
 /// Decodes the complete outer payload for kind 18. Its canonical fixed-shape
 /// path never materializes an intermediate body `Bytes`; any framing mismatch
 /// returns the provisional scope refusal while the standalone body decoder
@@ -3776,8 +3814,8 @@ pub(super) fn build_dependency_supported_program_decode(
     assembler: &mut Asm,
     ns: Ns,
     function: EntityId,
-    result_type: TypeExpr,
 ) -> FunctionGraph {
+    let result_type = super::supported_dispatch::supported_program_result_type();
     build_dependency_program_decode_with_result(assembler, ns, function, result_type)
 }
 

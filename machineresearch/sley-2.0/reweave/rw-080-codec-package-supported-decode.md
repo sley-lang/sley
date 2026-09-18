@@ -69,16 +69,18 @@ value units and 100,000 output units), the five successful fixtures measure:
 
 | Kind | Stored bytes | Fuel | Instructions | Peak value units |
 |---|---:|---:|---:|---:|
-| EntryPoint 16 | 153 | 27,822 | 3,490 | 602,676 |
-| Namespace 3 | 155 | 29,136 | 3,659 | 620,996 |
-| DependencyBinding 18 | 219 | 28,277 | 3,296 | 999,972 |
-| PolicyBinding 17 | 186 | 41,675 | 4,686 | 876,956 |
-| Package 2, empty sets | 190 | 30,192 | 3,485 | 849,463 |
+| EntryPoint 16 | 153 | 27,822 | 3,490 | 602,665 |
+| Namespace 3 | 155 | 29,136 | 3,659 | 620,985 |
+| DependencyBinding 18 | 219 | 28,270 | 3,295 | 999,848 |
+| PolicyBinding 17 | 186 | 41,675 | 4,686 | 876,945 |
+| Package 2, empty sets | 190 | 30,192 | 3,485 | 849,452 |
 
-The kind-18 fixture remains the tight valid case with 28 value units of
-headroom. No protected limit changed. One-dependency and one-export Package
+The kind-18 fixture remains the tight valid case with 152 value units of
+headroom. Program slice 24 removes its intermediate dependency result and
+constructs the final supported sum in the compact callee. No protected limit
+changed. One-dependency and one-export Package
 objects are each 224 bytes and reach the explicit value-unit boundary at
-26,027 fuel, 2,984 instructions and 999,883 recorded peak units.
+26,027 fuel, 2,984 instructions and 999,872 recorded peak units.
 
 Program slice 23 adds the paired supported encoder for this exact semantic
 witness; see `rw-080-codec-package-supported-encode.md`.
