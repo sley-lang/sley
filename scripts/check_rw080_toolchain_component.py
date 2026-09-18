@@ -24,6 +24,8 @@ EXPECTED_TOKENS = [
     3,
     4,
     5,
+    6,
+    7,
     10,
     11,
     20,
@@ -31,9 +33,12 @@ EXPECTED_TOKENS = [
     22,
     23,
     24,
+    25,
+    26,
     30,
     31,
     32,
+    33,
     40,
     41,
     42,
@@ -44,6 +49,8 @@ EXPECTED_TOKENS = [
     47,
     48,
     49,
+    50,
+    51,
     60,
     61,
     62,
@@ -55,6 +62,8 @@ EXPECTED_TOKENS = [
     70,
     71,
     72,
+    80,
+    81,
 ]
 ENTRY_TOKENS = {
     "driver": 63,
@@ -177,6 +186,19 @@ def main() -> int:
             problems.append(f"driver-{field}")
     if driver.get("scaffold_result") != "typed BuildError::Incomplete":
         problems.append("driver-scaffold-result")
+
+    anchors = manifest.get("anchors", {})
+    for name, token in {"contract_root": 80, "test_root": 81}.items():
+        anchor = anchors.get(name, {})
+        object_row = by_token.get(token, {})
+        if anchor.get("seed_local_token") != token:
+            problems.append(f"{name}-token")
+        if anchor.get("entity_id") != object_row.get("entity_id"):
+            problems.append(f"{name}-entity")
+        if anchor.get("object_id") != object_row.get("object_id"):
+            problems.append(f"{name}-object")
+        if anchor.get("stored_bytes_sha256") != object_row.get("stored_bytes_sha256"):
+            problems.append(f"{name}-digest")
 
     state = manifest.get("state_root", {})
     try:

@@ -6,23 +6,22 @@
 //! the canonical state root `S` and not a compiler correctness claim.
 
 use sha2::{Digest, Sha256};
-use sley_id::{
-    CandidateNonce, EntityId, GenesisNonce, ObjectId, PolicyRootId, SchemaEpochId, WorkspaceId,
-};
+use sley_id::{CandidateNonce, EntityId, GenesisNonce, PolicyRootId, SchemaEpochId, WorkspaceId};
 use sley_mutate::{
     EntityObject, EntityObjectRecord, build_entity_object, import_entity_object,
     value::{
-        BlockBody, ConstantBody, EntityBodyValue, EntityIdSet, EntryExposure, EntryPointBody,
-        FunctionBody, NamespaceBody, OperationBody, PackageBody, ParameterBody, TypeDefBody,
-        WorkspaceBody,
+        BlockBody, ConstantBody, ContractBody, EntityBodyValue, EntityIdSet, EntryExposure,
+        EntryPointBody, FunctionBody, NamespaceBody, OperationBody, PackageBody, ParameterBody,
+        TestCaseBody, TypeDefBody, WorkspaceBody,
     },
 };
 use sley_ssmc::{
-    Block, ConstData, ConstValue, ConstantDefinition, FieldConst, FunctionGraph, FunctionRefValue,
-    Immediate, IntegerWidth, MemberId, NamedType, Opcode, Operation, OperationResultRef, Parameter,
-    ParameterRole, Reachability, RecordConst, RecordField, ResultConst, ReturnTerminator,
-    Terminator, TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase, VariantConst,
-    Visibility,
+    Block, ConstData, ConstValue, ConstantDefinition, ContractDefinition, ContractKind,
+    EffectEnvironment, ExpectedOutcome, FieldConst, FunctionGraph, FunctionRefValue, Immediate,
+    IntegerWidth, MemberId, NamedType, Opcode, Operation, OperationResultRef, Parameter,
+    ParameterRole, Reachability, RecordConst, RecordField, ResourceLimits, ResultConst,
+    ReturnTerminator, Terminator, TestCaseDefinition, TypeDefForm, TypeDefinition, TypeExpr,
+    ValueRef, VariantCase, VariantConst, Visibility,
 };
 use std::fmt::Write;
 
@@ -31,6 +30,8 @@ const CODEC: u8 = 2;
 const CHECKER: u8 = 3;
 const LOWERER: u8 = 4;
 const BUILDER: u8 = 5;
+const PREDICATE: u8 = 6;
+const CONTRACT_TARGET: u8 = 7;
 
 const GENESIS_SEED: [u8; 32] = [0x80; 32];
 const CANDIDATE_SEED: [u8; 32] = [0x87; 32];
@@ -50,11 +51,9 @@ const RAW_BLAKE3_V1: [u8; 32] = [
     0x78, 0x52, 0x05, 0xfb, 0x49, 0x49, 0x02, 0x37, 0xcb, 0xec, 0x7f, 0xfe, 0x2f, 0xc4, 0xc2, 0xb0,
     0xf9, 0x80, 0x14, 0xb9, 0xaa, 0xe7, 0x6c, 0xc5, 0x47, 0x95, 0x92, 0x1e, 0x5d, 0x96, 0x9f, 0x72,
 ];
-const CONTRACT_ROOT_PREIMAGE: &[u8] = b"SLEY2/RW080/PARTIAL/EMPTY-CONTRACT-ROOT/V1";
-const TEST_ROOT_PREIMAGE: &[u8] = b"SLEY2/RW080/PARTIAL/EMPTY-TEST-ROOT/V1";
-const ENTITY_TOKENS: [u8; 36] = [
-    1, 2, 3, 4, 5, 10, 11, 20, 21, 22, 23, 24, 30, 31, 32, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
-    60, 61, 62, 63, 64, 65, 66, 67, 70, 71, 72,
+const ENTITY_TOKENS: [u8; 45] = [
+    1, 2, 3, 4, 5, 6, 7, 10, 11, 20, 21, 22, 23, 24, 25, 26, 30, 31, 32, 33, 40, 41, 42, 43, 44,
+    45, 46, 47, 48, 49, 50, 51, 60, 61, 62, 63, 64, 65, 66, 67, 70, 71, 72, 80, 81,
 ];
 
 fn workspace() -> WorkspaceId {
@@ -67,16 +66,18 @@ fn candidate_nonce() -> CandidateNonce {
 
 fn seed_position(byte: u8) -> (u32, u64) {
     match byte {
-        1..=5 => (5, u64::from(byte - 1)),
+        1..=7 => (5, u64::from(byte - 1)),
         10..=11 => (6, u64::from(byte - 10)),
-        20..=24 => (7, u64::from(byte - 20)),
-        30..=32 => (9, u64::from(byte - 30)),
-        40..=49 => (8, u64::from(byte - 40)),
+        20..=26 => (7, u64::from(byte - 20)),
+        30..=33 => (9, u64::from(byte - 30)),
+        40..=51 => (8, u64::from(byte - 40)),
         60 => (1, 0),
         61 => (2, 0),
         62 => (3, 0),
         63..=67 => (16, u64::from(byte - 63)),
         70..=72 => (4, u64::from(byte - 70)),
+        80 => (13, 0),
+        81 => (14, 0),
         _ => panic!("unknown aggregate seed-local identity {byte}"),
     }
 }
@@ -90,14 +91,6 @@ fn epoch() -> SchemaEpochId {
     sley_state_root::conformance_epoch_id().expect("state-root conformance epoch is frozen")
 }
 
-fn contract_root() -> ObjectId {
-    ObjectId::derive(CONTRACT_ROOT_PREIMAGE)
-}
-
-fn test_root() -> ObjectId {
-    ObjectId::derive(TEST_ROOT_PREIMAGE)
-}
-
 fn policy_root() -> PolicyRootId {
     PolicyRootId::from_bytes([
         0x3b, 0x8e, 0xab, 0x80, 0xac, 0xdc, 0x87, 0x4b, 0xd3, 0xf3, 0x95, 0x89, 0x81, 0xd0, 0xda,
@@ -108,7 +101,18 @@ fn policy_root() -> PolicyRootId {
 
 fn seed_owner(token: u8) -> &'static str {
     match token {
-        DRIVER | 10 | 20 | 40..=44 | 48..=49 | 60..=63 | 70..=72 => "driver",
+        DRIVER
+        | PREDICATE
+        | CONTRACT_TARGET
+        | 10
+        | 20
+        | 25..=26
+        | 33
+        | 40..=44
+        | 48..=51
+        | 60..=63
+        | 70..=72
+        | 80..=81 => "driver",
         CODEC | 21 | 30 | 45 | 64 => "codec",
         CHECKER | 22 | 31 | 46 | 65 => "checker",
         LOWERER | 23 | 32 | 47 | 66 => "lowerer",
@@ -201,6 +205,18 @@ fn build_manifest_value(
     }
 }
 
+fn construction_test_manifest_value() -> ConstValue {
+    let state_root: [u8; 32] =
+        <Sha256 as Digest>::digest(b"SLEY2/RW080/CONTRACT-TEST/EXPECTED-STATE/V1").into();
+    let package_digest: [u8; 32] =
+        <Sha256 as Digest>::digest(b"SLEY2/RW080/CONTRACT-TEST/EXPECTED-PACKAGE/V1").into();
+    build_manifest_value(
+        b"SLEY2/RW080/CONTRACT-TEST/OBJECT-CLOSURE/V1",
+        &state_root,
+        &package_digest,
+    )
+}
+
 fn incomplete_build_result() -> ConstValue {
     ConstValue {
         value_type: build_result_type(),
@@ -255,7 +271,7 @@ fn record_field(member_id: u8, value_type: TypeExpr) -> RecordField {
 
 fn toolchain_type_definitions() -> Vec<TypeDefinition> {
     let bytes_vector = || TypeExpr::Vector(Box::new(TypeExpr::Bytes));
-    vec![
+    let mut definitions = vec![
         TypeDefinition {
             entity_id: id(70),
             type_parameters: Vec::new(),
@@ -316,7 +332,9 @@ fn toolchain_type_definitions() -> Vec<TypeDefinition> {
             invariants: Vec::new(),
             visibility: Visibility::Private,
         },
-    ]
+    ];
+    definitions.sort_unstable_by_key(|definition| definition.entity_id);
+    definitions
 }
 
 fn op_result(operation: u8) -> ValueRef {
@@ -353,6 +371,8 @@ struct ToolchainImage {
     blocks: Vec<Block>,
     operations: Vec<Operation>,
     constants: Vec<ConstantDefinition>,
+    contracts: Vec<ContractDefinition>,
+    tests: Vec<TestCaseDefinition>,
 }
 
 fn direct_call(
@@ -427,6 +447,8 @@ fn toolchain_operations() -> Vec<Operation> {
         constant_ref(45, 21, 30, uint(8)),
         constant_ref(46, 22, 31, uint(8)),
         constant_ref(47, 23, 32, uint(32)),
+        constant_ref(50, 25, 33, TypeExpr::Bool),
+        constant_ref(51, 26, 33, TypeExpr::Bool),
     ]
 }
 
@@ -453,6 +475,8 @@ fn toolchain_blocks() -> Vec<Block> {
         returning_block(22, CHECKER, vec![id(46)], op_result(46)),
         returning_block(23, LOWERER, vec![id(47)], op_result(47)),
         returning_block(24, BUILDER, Vec::new(), ValueRef::Parameter(id(11))),
+        returning_block(25, PREDICATE, vec![id(50)], op_result(50)),
+        returning_block(26, CONTRACT_TARGET, vec![id(51)], op_result(51)),
     ]
 }
 
@@ -470,13 +494,39 @@ fn aggregate_toolchain_graph() -> ToolchainImage {
         contracts: Vec::new(),
         visibility: Visibility::Private,
     };
+    let mut contract_target = leaf_graph(CONTRACT_TARGET, 26, TypeExpr::Bool);
+    contract_target.contracts = vec![id(80)];
     let functions = vec![
         driver.clone(),
         leaf_graph(CODEC, 21, uint(8)),
         leaf_graph(CHECKER, 22, uint(8)),
         leaf_graph(LOWERER, 23, uint(32)),
         leaf_graph(BUILDER, 24, TypeExpr::Bytes),
+        leaf_graph(PREDICATE, 25, TypeExpr::Bool),
+        contract_target,
     ];
+    let mut constants = vec![
+        ConstantDefinition {
+            entity_id: id(30),
+            value: uint_value(8, 6),
+        },
+        ConstantDefinition {
+            entity_id: id(31),
+            value: uint_value(8, 0),
+        },
+        ConstantDefinition {
+            entity_id: id(32),
+            value: uint_value(32, 0),
+        },
+        ConstantDefinition {
+            entity_id: id(33),
+            value: ConstValue {
+                value_type: TypeExpr::Bool,
+                data: ConstData::Bool(true),
+            },
+        },
+    ];
+    constants.sort_unstable_by_key(|constant| constant.entity_id);
     ToolchainImage {
         types: sley_check::TypeEnvironment::new(type_definitions.clone()).unwrap(),
         type_definitions,
@@ -500,20 +550,31 @@ fn aggregate_toolchain_graph() -> ToolchainImage {
         ],
         blocks: toolchain_blocks(),
         operations: toolchain_operations(),
-        constants: vec![
-            ConstantDefinition {
-                entity_id: id(30),
-                value: uint_value(8, 6),
+        constants,
+        contracts: vec![ContractDefinition {
+            entity_id: id(80),
+            target: id(CONTRACT_TARGET),
+            contract_kind: ContractKind::Precondition,
+            predicate: id(PREDICATE),
+            bindings: Vec::new(),
+            resource_limits: None,
+        }],
+        tests: vec![TestCaseDefinition {
+            entity_id: id(81),
+            target: id(DRIVER),
+            inputs: vec![construction_test_manifest_value()],
+            effect_environment: EffectEnvironment::Replay(Vec::new()),
+            expected: ExpectedOutcome::Value(incomplete_build_result()),
+            observations: Vec::new(),
+            resource_limits: ResourceLimits {
+                fuel: 200_000,
+                memory_bytes: 2_000_000,
+                output_bytes: 100_000,
+                effect_count: 0,
+                call_depth: 32,
+                wall_timeout_millis: 1_000,
             },
-            ConstantDefinition {
-                entity_id: id(31),
-                value: uint_value(8, 0),
-            },
-            ConstantDefinition {
-                entity_id: id(32),
-                value: uint_value(32, 0),
-            },
-        ],
+        }],
     }
 }
 
@@ -536,6 +597,7 @@ fn canonical_component_metadata() -> Vec<EntityObject> {
         .iter()
         .copied()
         .chain((70..=72).map(id))
+        .chain([id(PREDICATE), id(CONTRACT_TARGET), id(80), id(81)])
         .collect::<Vec<_>>();
     let mut objects = vec![
         canonical_object(
@@ -544,8 +606,8 @@ fn canonical_component_metadata() -> Vec<EntityObject> {
                 packages: EntityIdSet::from_unsorted(vec![id(61)]).unwrap(),
                 root_namespace: id(62),
                 capability_requirements: EntityIdSet::from_unsorted(Vec::new()).unwrap(),
-                contracts: EntityIdSet::from_unsorted(Vec::new()).unwrap(),
-                tests: EntityIdSet::from_unsorted(Vec::new()).unwrap(),
+                contracts: EntityIdSet::from_unsorted(vec![id(80)]).unwrap(),
+                tests: EntityIdSet::from_unsorted(vec![id(81)]).unwrap(),
             }),
         ),
         canonical_object(
@@ -581,6 +643,39 @@ fn canonical_component_metadata() -> Vec<EntityObject> {
             }),
         ));
     }
+    objects
+}
+
+fn canonical_contract_test_objects(image: &ToolchainImage) -> Vec<EntityObject> {
+    let mut objects = image
+        .contracts
+        .iter()
+        .map(|contract| {
+            canonical_object(
+                contract.entity_id,
+                EntityBodyValue::Contract(ContractBody {
+                    target: contract.target,
+                    contract_kind: contract.contract_kind,
+                    predicate: contract.predicate,
+                    bindings: contract.bindings.clone(),
+                    resource_limits: contract.resource_limits,
+                }),
+            )
+        })
+        .collect::<Vec<_>>();
+    objects.extend(image.tests.iter().map(|test| {
+        canonical_object(
+            test.entity_id,
+            EntityBodyValue::TestCase(TestCaseBody {
+                target: test.target,
+                inputs: test.inputs.clone(),
+                effect_environment: test.effect_environment.clone(),
+                expected: test.expected.clone(),
+                observations: test.observations.clone(),
+                resource_limits: test.resource_limits,
+            }),
+        )
+    }));
     objects
 }
 
@@ -659,18 +754,22 @@ fn canonical_component_objects(image: &ToolchainImage) -> Vec<EntityObject> {
             }),
         )
     }));
+    objects.extend(canonical_contract_test_objects(image));
     objects.extend(canonical_component_metadata());
     objects.sort_unstable_by_key(|object| object.record().entity_id);
     objects
 }
 
 fn canonical_component_root(objects: &[EntityObject]) -> sley_state_root::AcceptedStateRoot {
-    let mut builder = sley_state_root::StateRootBuilder::new(
-        workspace(),
-        contract_root(),
-        test_root(),
-        policy_root(),
-    );
+    let anchor = |token| {
+        objects
+            .iter()
+            .find(|object| object.record().entity_id == id(token))
+            .expect("semantic root anchor is retained")
+            .object_id()
+    };
+    let mut builder =
+        sley_state_root::StateRootBuilder::new(workspace(), anchor(80), anchor(81), policy_root());
     for object in objects {
         builder = builder.entity_binding(object.record().entity_id, object.object_id());
     }
@@ -700,6 +799,14 @@ fn admitted_toolchain_graph() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedEx
     let image = aggregate_toolchain_graph();
     let objects = canonical_component_objects(&image);
     let component_root = canonical_component_root(&objects);
+    let executable_functions = image
+        .functions
+        .iter()
+        .filter(|function| {
+            !matches!(function.entity_id, value if value == id(PREDICATE) || value == id(CONTRACT_TARGET))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
     let lowered = sley_vm::lower_function(sley_vm::LoweringInput {
         types: &image.types,
         function: &image.entry,
@@ -711,7 +818,7 @@ fn admitted_toolchain_graph() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedEx
         profile: sley_vm::CacheProfile::EXTENDED_V1,
         constants: &image.constants,
         globals: &[],
-        functions: &image.functions,
+        functions: &executable_functions,
         contracts: &[],
         adapters: &[],
     })
@@ -721,7 +828,7 @@ fn admitted_toolchain_graph() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedEx
         schema_epoch: epoch(),
         entry: &image.entry,
         presented_image_bytes: &lowered.bytes,
-        functions: &image.functions,
+        functions: &executable_functions,
         parameters: &image.parameters,
         blocks: &image.blocks,
         operations: &image.operations,
@@ -751,7 +858,7 @@ fn admitted_toolchain_graph() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedEx
         schema_epoch: epoch(),
         state_root: component_root.root,
         entry: image.entry.entity_id,
-        functions: &image.functions,
+        functions: &executable_functions,
         parameters: &image.parameters,
         blocks: &image.blocks,
         operations: &image.operations,
@@ -909,6 +1016,14 @@ fn assert_component_metadata(objects: &[EntityObject]) {
             EntityBodyValue::TypeDef(_)
         ));
     }
+    assert!(matches!(
+        component_body(objects, 80),
+        EntityBodyValue::Contract(_)
+    ));
+    assert!(matches!(
+        component_body(objects, 81),
+        EntityBodyValue::TestCase(_)
+    ));
 }
 
 #[test]
@@ -941,16 +1056,24 @@ fn aggregate_component_objects_and_state_root_round_trip_exactly() {
     assert!(root.record.interpretation_flags.is_empty());
     assert_eq!(root.record.workspace_id, workspace());
     assert_eq!(root.record.schema_epoch_id, epoch());
-    assert_eq!(root.record.contract_root, contract_root());
-    assert_eq!(root.record.test_root, test_root());
+    let contract_anchor = objects
+        .iter()
+        .find(|object| object.record().entity_id == id(80))
+        .expect("contract anchor object exists");
+    let test_anchor = objects
+        .iter()
+        .find(|object| object.record().entity_id == id(81))
+        .expect("test anchor object exists");
+    assert_eq!(root.record.contract_root, contract_anchor.object_id());
+    assert_eq!(root.record.test_root, test_anchor.object_id());
     assert_eq!(root.record.policy_root, policy_root());
     assert_component_metadata(&objects);
     assert_eq!(
         root.root.into_bytes(),
         [
-            0x9b, 0x8a, 0x13, 0xee, 0xe1, 0x85, 0xd9, 0x45, 0x2a, 0x3d, 0x19, 0xdb, 0xdc, 0x72,
-            0x70, 0x15, 0xf2, 0x53, 0x62, 0x26, 0xec, 0x4f, 0xa0, 0x6a, 0xb2, 0xf7, 0xa0, 0x96,
-            0xe9, 0xfd, 0xad, 0x3f,
+            0x76, 0xa9, 0xdd, 0xd6, 0x0e, 0xba, 0x89, 0x9a, 0xf6, 0x4c, 0xd8, 0x8f, 0x26, 0xe4,
+            0xcf, 0x24, 0xe5, 0x36, 0xc8, 0xd0, 0x01, 0xe0, 0xc0, 0xa3, 0x0f, 0xa4, 0x67, 0x8f,
+            0xc0, 0xb2, 0x17, 0x2a,
         ],
         "the partial component root is pinned"
     );
@@ -968,15 +1091,13 @@ fn aggregate_component_objects_and_state_root_round_trip_exactly() {
     );
     if std::env::var_os("SLEY_EMIT_RW080_COMPONENT_MANIFEST").is_some() {
         println!(
-            "RW080_MANIFEST_META workspace={} genesis_seed={} candidate_seed={} epoch={} contract_root={} contract_preimage={} test_root={} test_preimage={} policy_root={} state_root={} state_root_bytes={}",
+            "RW080_MANIFEST_META workspace={} genesis_seed={} candidate_seed={} epoch={} contract_root={} contract_token=80 test_root={} test_token=81 policy_root={} state_root={} state_root_bytes={}",
             hex(workspace().as_bytes()),
             hex(&GENESIS_SEED),
             hex(&CANDIDATE_SEED),
             hex(epoch().as_bytes()),
-            hex(contract_root().as_bytes()),
-            hex(CONTRACT_ROOT_PREIMAGE),
-            hex(test_root().as_bytes()),
-            hex(TEST_ROOT_PREIMAGE),
+            hex(contract_anchor.object_id().as_bytes()),
+            hex(test_anchor.object_id().as_bytes()),
             hex(policy_root().as_bytes()),
             hex(root.root.as_bytes()),
             hex(&root.stored_bytes),
@@ -1027,9 +1148,9 @@ fn retained_component_manifest_is_digest_pinned() {
     assert_eq!(
         digest,
         [
-            0x96, 0xeb, 0x33, 0x61, 0x7a, 0xa7, 0xc0, 0xb5, 0x0b, 0x10, 0x3e, 0x9c, 0xed, 0x33,
-            0xe4, 0x57, 0xf8, 0xe4, 0x5c, 0xaa, 0xb7, 0x53, 0x46, 0xe8, 0x2b, 0xb8, 0x92, 0x18,
-            0xf2, 0x8a, 0xc5, 0x18,
+            0xe0, 0xaf, 0x16, 0x83, 0x32, 0x00, 0x65, 0xb9, 0x3f, 0x67, 0xc2, 0x35, 0x33, 0x7d,
+            0x14, 0xe3, 0xa6, 0xd8, 0x82, 0xc7, 0x20, 0x1e, 0x93, 0x69, 0x7e, 0x5d, 0x87, 0x0c,
+            0x83, 0x27, 0xea, 0xb6,
         ]
     );
     assert!(manifest.contains("\"is_canonical_s\": false"));
@@ -1076,9 +1197,9 @@ fn aggregate_toolchain_package_has_stable_component_identity() {
     assert_eq!(
         digests.package_digest,
         [
-            0x6e, 0x53, 0xba, 0xbe, 0x85, 0x1b, 0x2e, 0x99, 0x11, 0x85, 0x24, 0x02, 0xcd, 0xda,
-            0xd1, 0x6c, 0xb6, 0xc8, 0x0b, 0x61, 0x15, 0x03, 0x41, 0x6a, 0x7c, 0xc0, 0x1c, 0x20,
-            0xee, 0x98, 0xb7, 0x2a,
+            0xa9, 0x3c, 0xb6, 0xf6, 0x73, 0x5a, 0x81, 0x66, 0x62, 0x05, 0xc3, 0xa4, 0x20, 0x50,
+            0x9a, 0x68, 0xee, 0x17, 0xef, 0x36, 0x59, 0xee, 0xde, 0xae, 0x21, 0x65, 0x5a, 0xe1,
+            0x24, 0xec, 0xef, 0x93,
         ],
         "the provisional aggregate component identity is pinned"
     );
@@ -1090,4 +1211,107 @@ fn aggregate_toolchain_package_has_stable_component_identity() {
         package.gate_closure_fingerprints.len(),
         hex(&digests.package_digest),
     );
+}
+
+#[test]
+fn aggregate_contract_and_test_roots_are_semantic_retained_objects() {
+    struct OwnedUnit {
+        function: FunctionGraph,
+        parameters: Vec<Parameter>,
+        blocks: Vec<Block>,
+        operations: Vec<Operation>,
+    }
+
+    let image = aggregate_toolchain_graph();
+    assert_eq!(image.contracts.len(), 1);
+    assert_eq!(image.tests.len(), 1);
+    let mut owned_units = image
+        .functions
+        .iter()
+        .map(|function| {
+            let blocks = image
+                .blocks
+                .iter()
+                .filter(|block| block.function == function.entity_id)
+                .cloned()
+                .collect::<Vec<_>>();
+            let block_ids = blocks
+                .iter()
+                .map(|block| block.entity_id)
+                .collect::<Vec<_>>();
+            OwnedUnit {
+                function: function.clone(),
+                parameters: image
+                    .parameters
+                    .iter()
+                    .filter(|parameter| parameter.owner == function.entity_id)
+                    .cloned()
+                    .collect(),
+                blocks,
+                operations: image
+                    .operations
+                    .iter()
+                    .filter(|operation| block_ids.contains(&operation.block))
+                    .cloned()
+                    .collect(),
+            }
+        })
+        .collect::<Vec<_>>();
+    owned_units.sort_unstable_by_key(|unit| unit.function.entity_id);
+    let units = owned_units
+        .iter()
+        .map(|unit| sley_check::effects::FunctionUnit {
+            function: &unit.function,
+            parameters: &unit.parameters,
+            blocks: &unit.blocks,
+            operations: &unit.operations,
+        })
+        .collect::<Vec<_>>();
+    let report = sley_check::contracts::validate_contract_test_program(
+        &image.types,
+        &units,
+        &[],
+        &[],
+        &[],
+        &image.type_definitions,
+        &image.constants,
+        &[],
+        &image.contracts,
+        &image.tests,
+        &[id(DRIVER)],
+        &[id(81)],
+    )
+    .expect("retained contract and test pass the canonical semantic validator");
+    assert_eq!(report.contracts, vec![id(80)]);
+    assert_eq!(report.tests, vec![id(81)]);
+    assert_eq!(report.selected_tests, vec![id(81)]);
+    assert_eq!(
+        report.selection_finality,
+        sley_check::contracts::TestPlanFinality::PolicyIncomplete
+    );
+
+    let objects = canonical_component_objects(&image);
+    let root = canonical_component_root(&objects);
+    let contract_object = objects
+        .iter()
+        .find(|object| object.record().entity_id == id(80))
+        .expect("contract root object is retained");
+    let test_object = objects
+        .iter()
+        .find(|object| object.record().entity_id == id(81))
+        .expect("test root object is retained");
+    assert_eq!(root.record.contract_root, contract_object.object_id());
+    assert_eq!(root.record.test_root, test_object.object_id());
+
+    let (package, approved) = admitted_toolchain_graph();
+    let outcome = sley_vm::execute_approved_package_v2(
+        &package,
+        &approved,
+        sley_vm::ExecutionRequest {
+            inputs: image.tests[0].inputs.clone(),
+            limits: generous_limits(),
+        },
+    )
+    .expect("the retained test case executes");
+    assert_driver_result(&outcome);
 }
