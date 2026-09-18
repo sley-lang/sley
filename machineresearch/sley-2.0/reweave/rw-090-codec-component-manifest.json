@@ -32,7 +32,8 @@
     "native_depth_charging": "the recursive TypeExpr/ConstValue driver takes the native nesting depth of its root (per-site entries at native depths 2/3/5/6 for TypeExpr, 2..6 for ConstValue roots) and both child projectors report per-slot native container offsets plus the deepest mandatory container, so the 64-level bound is charged as sley-mutate charges it; pinned by arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site (Sley == native across the boundary at seven sites); after the 92fa6646 re-review the constant projector receives the node depth from the driver and charges each node's value_type at depth + 1 (nested value_type parity pinned), leaving only RW090-DEV-01",
     "native_parity_mechanized": "every per-kind rejection case (kinds 4, 5, 6-15) asserts the Sley code equals sley_mutate::import_entity_object on the same stored bytes (assert_native_body_parity); kinds 1, 2, 3, 5, 16, 17 and 18 gained canonical-entry refusal cases with the same parity (arbitrary_dispatch_refuses_identity_kind_boundaries_with_native_codes); the fixed-32 identity validator now distinguishes a short payload (SCB_LENGTH_OVERFLOW) from a long one (SCB_TRAILING_BYTES) as the native cursor does",
     "encode_leg_unknown_kind": "selector 1 refuses kinds 0 and 19 with SSMC_ENTITY_KIND_UNKNOWN (arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies)",
-    "identity_reuse": "RW080-ID-02 candidate clarification filed in rw-080-contract.md section 6 (component re-mint replacement semantics); architecture acceptance pending"
+    "identity_reuse": "RW080-ID-02 candidate clarification filed in rw-080-contract.md section 6 (component re-mint replacement semantics); architecture acceptance pending",
+    "round_2": "92fa6646 (Ariadne REVISE_0_P0_0_P1_1_P2_3_P3_1_P4, Nabu REVISE_0_P0_0_P1_1_P2_0_P3_4_P4_PRIOR_P3_P4_CLOSED, Vulcan REVISE_0_P0_0_P1_1_P2_0_P3_4_P4_PRIOR_P3_P4_CLOSED; transcripts evidence/review/verdicts/rw090_arbitrary_codec/*-92fa664.md): shared P2 closed by threading the node depth into the constant projector (value_type charged at depth + 1; RW090-DEV-01 narrowed to FunctionRef type arguments), kind-5 parity added, RW090-DEV-02 pinned, RW090-DEV-03 restated with the kind-18 code and a canonical-entry case, the resource-limit profile decision filed as the rw-080-contract.md section 1.1 clarification, contract_mapping_open recorded; re-review of this generation pending"
   },
   "known_deviations": [
     {
@@ -65,7 +66,8 @@
     "instruction_cost": "roughly 90 instructions per body byte (a 862-byte TestCase costs 73,591)",
     "value_unit_bound": "identity-heavy bodies bind on the value-unit envelope first: a 1,750-byte Workspace (48 packages) terminates with ResourceLimit(ValueUnits) at 33,486 instructions; a 958-byte Workspace validates",
     "outcome_when_exceeded": "a deterministic VM ResourceLimit termination of the admitted invocation; rw-080-contract.md section 1.1 (clarification of 2026-09-18) records that under the bootstrap profile this termination IS the codec's Limit outcome for the driver, so no typed LIMIT value is emitted and nothing traps",
-    "pinned_by": "arbitrary_dispatch_over_budget_body_terminates_with_a_resource_limit"
+    "pinned_by": "arbitrary_dispatch_over_budget_body_terminates_with_a_resource_limit",
+    "value_unit_growth": "not yet measured between the two pinned points (958-byte Workspace validates; 1,750-byte / 48-package Workspace exceeds 100,000,000 value units at 33,486 instructions); the identity-set validation of a Workspace re-validates each package identity through the fixed-32 validator and the ordered-set check, so a superlinear component in the package count is plausible and is an open measurement, not a claim"
   },
   "contract_mapping_open": "rw-080-contract.md section 1.1 names Result<CanonicalObject, CodecError> with a seven-code CodecError vocabulary: the decode leg returns the validated body as opaque canonical bytes (schema projections are judged, not materialized as a typed CanonicalObject), refusals are the exact native SCB_*/SSMC_* code strings (identical to sley-mutate's) rather than the seven-code enum, and resource exhaustion under the bootstrap profile is the VM's deterministic ResourceLimit termination of the admitted invocation (section 1.1 clarification of 2026-09-18) rather than a typed LIMIT value; rw090_complete_codec stays false in canonical-s-manifest.json until these three mappings close",
   "superseded_pre_review_arbitrary_component": {
@@ -78,5 +80,5 @@
     "state_root_stored_sha256": "5a0d017c85ea2846bdaece500b9963ca5f761a50ed7d73bb291ec2a970a1e289",
     "source_commit": "e3a50ca7"
   },
-  "source_commit": "7426bc0b (repairs; the depth threading of the value_type check lands in the records-only descendant's source commit)"
+  "source_commit": "the commit carrying this manifest (second repair re-mint of 2026-09-18; the records-only descendant names the exact id)"
 }

@@ -590,12 +590,15 @@ fn raw_successor_package_binds_and_mismatches_refuse() {
 /// public, literal-constructible struct, so a hand-built v1 approval that
 /// carries the `RHW1` import row must still be refused by the v1 execution
 /// path itself; the version-specific allowlist is not only an admission pin.
-#[test]
-fn v1_execution_refuses_a_hand_built_approval_carrying_rhw1() {
-    use sley_vm::{ApprovedExecutionPackage, ExecutionPackage, execute_approved_package};
-    let program = BridgeProgram::new(vec![frozen_rhw1()]);
-    let lowered = lower_function(program.lowering_input()).expect("successor lowers");
-    let limits = generous_limits();
+/// A literal v1 approval that agrees with every v1 binding of `program`,
+/// minted by no authority: the only thing that can be wrong with it is the
+/// import set it approves.
+fn hand_built_v1_approval(
+    program: &BridgeProgram,
+    limits: ExecutionLimits,
+) -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecutionPackage) {
+    use sley_vm::{ApprovedExecutionPackage, ExecutionPackage};
+    let lowered = lower_function(program.lowering_input()).expect("program lowers");
     let package = ExecutionPackage {
         image_bytes: lowered.bytes.clone(),
         constants: Vec::new(),
@@ -621,8 +624,6 @@ fn v1_execution_refuses_a_hand_built_approval_carrying_rhw1() {
         package.profile,
     )
     .expect("cache key derives");
-    // A literal approval that agrees with every v1 binding, minted by no
-    // authority: the only thing wrong with it is the raw-hash row.
     let forged = ApprovedExecutionPackage {
         package_digest: digests.package_digest,
         image_digest: digests.image_digest,
@@ -642,14 +643,36 @@ fn v1_execution_refuses_a_hand_built_approval_carrying_rhw1() {
         admitted_limits: limits,
         receipt: sley_vm::admit_package(digests.package_digest),
     };
-    let refused = execute_approved_package(
-        &package,
-        &forged,
-        ExecutionRequest {
-            inputs: vec![unit_value(), bytes_value(b"package preimage")],
-            limits,
-        },
-    );
+    (package, forged)
+}
+
+#[test]
+fn v1_execution_refuses_a_hand_built_approval_carrying_rhw1() {
+    use sley_vm::execute_approved_package;
+    let limits = generous_limits();
+    // Positive control first: the identical literal approval shape over a
+    // v1-admitted import set (the `B2V1` conversion row) executes, so the
+    // refusal below is the allowlist's, not a binding mismatch of the
+    // hand-built record itself (Ariadne/premium P4 at 92fa6646).
+    let control = b2v1_program();
+    let (package, forged) = hand_built_v1_approval(&control, limits);
+    let request = || ExecutionRequest {
+        inputs: vec![unit_value(), bytes_value(b"package preimage")],
+        limits,
+    };
+    let executed = execute_approved_package(&package, &forged, request())
+        .expect("the same literal approval over a v1-admitted import set executes");
+    match executed.termination {
+        ExecutionTermination::Success(value) => assert!(
+            matches!(value.data, ConstData::Result(ResultConst::Ok(_))),
+            "control must convert the bytes, got {value:?}"
+        ),
+        other => panic!("control must terminate normally, got {other:?}"),
+    }
+    // The only difference: the approved import set carries the `RHW1` row.
+    let program = BridgeProgram::new(vec![frozen_rhw1()]);
+    let (package, forged) = hand_built_v1_approval(&program, limits);
+    let refused = execute_approved_package(&package, &forged, request());
     match refused {
         Err(sley_vm::PackageExecutionError::Package(code)) => {
             assert_eq!(code.as_str(), "PACKAGE_BINDING_MISMATCH");

@@ -87,6 +87,32 @@ if "SLEYPOBS1" not in execute_rs:
 if "fn validate_package_inputs_structural(" not in execute_rs:
     problems.append("execute-rs-missing:structural-validation")
 
+
+def function_span(text: str, start: str, end: str) -> str:
+    """The production text from one function head to the next named head."""
+    begin = text.find(start)
+    stop = text.find(end, begin + 1) if begin >= 0 else -1
+    return text[begin:stop] if begin >= 0 and stop > begin else ""
+
+
+# AR-08 v1 execution-time allowlist: the v1 path refuses a carried `RHW1`
+# import itself (the approval record is literal-constructible), pinned as a
+# marker so removing the allowlist fails `make quick`, not only the cargo
+# suite (Ariadne/premium P4 at 92fa6646).
+v1_span = function_span(execute_rs, "pub fn execute_approved_package(", "pub fn execute_approved_package_v2(")
+if 'bridge_entry_id(*b"RHW1")' not in v1_span:
+    problems.append("execute-rs-missing:v1-rhw1-execution-allowlist")
+# AR-01 structural path: the v2 execution entry through its structural
+# validation never reaches semantic validation or the compiler (the
+# behavioral trace holds this; the function-scoped scan makes it a gate).
+v2_span = function_span(execute_rs, "pub fn execute_approved_package_v2(", "fn execute_core_package(")
+if "fn validate_package_inputs_structural(" not in v2_span:
+    problems.append("execute-rs-missing:v2-structural-span")
+for forbidden in ["require_hashable(", "lower_function(", "TypeEnvironment::new", "check_constant(",
+                  "judge_bootstrap_profile(", "fingerprint_function("]:
+    if forbidden in v2_span:
+        problems.append(f"execute-rs-v2-forbidden:{forbidden}")
+
 check_rs = CHECK_RS.read_text(encoding="utf-8")
 if "pub fn hydrate_verified_definitions(" not in check_rs:
     problems.append("check-rs-missing:hydrate_verified_definitions")

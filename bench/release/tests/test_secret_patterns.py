@@ -8,6 +8,7 @@ tree from a broken regex. Findings must carry no secret values.
 from __future__ import annotations
 
 import importlib.util
+import json
 import unittest
 from pathlib import Path
 
@@ -78,8 +79,6 @@ class SecretPatternTests(unittest.TestCase):
                 self.assertNotIn(token.decode("utf-8", "replace"), str(entry.values()))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CommitBoundViewTests(unittest.TestCase):
@@ -104,3 +103,34 @@ class CommitBoundViewTests(unittest.TestCase):
 
     def test_non_json_payloads_compare_byte_for_byte(self) -> None:
         self.assertEqual(supply.commit_bound_view(b"not json"), b"not json")
+
+    def test_check_decision_masks_untracked_but_refuses_edits_and_dirty_mints(self) -> None:
+        # The `--check` decision `main()` applies (Ariadne P4 at 92fa6646:
+        # the wiring, not only the view): a working tree with an added
+        # untracked file is not drift; a modified tracked input is; and a
+        # tracked record that is not the generator's canonical bytes, or that
+        # was minted from a dirty tree (nonzero untracked counters), is drift
+        # as well (Vulcan P4 at 92fa6646).
+        tracked = supply.canonical_json(
+            {"a": 1, "untracked_bytes_scanned": 0, "untracked_files_scanned": 0}
+        )
+        working = supply.canonical_json(
+            {"a": 1, "untracked_bytes_scanned": 288_875, "untracked_files_scanned": 19}
+        )
+        self.assertFalse(supply.record_drifted(tracked, working))
+        edited = supply.canonical_json(
+            {"a": 2, "untracked_bytes_scanned": 288_875, "untracked_files_scanned": 19}
+        )
+        self.assertTrue(supply.record_drifted(tracked, edited))
+        reformatted = json.dumps(json.loads(tracked), indent=2).encode()
+        self.assertNotEqual(reformatted, tracked)
+        self.assertTrue(supply.record_drifted(reformatted, working))
+        dirty_mint = supply.canonical_json(
+            {"a": 1, "untracked_bytes_scanned": 10, "untracked_files_scanned": 1}
+        )
+        self.assertTrue(supply.record_drifted(dirty_mint, working))
+        self.assertTrue(supply.record_drifted(b"not json", b"not json"))
+
+
+if __name__ == "__main__":
+    unittest.main()

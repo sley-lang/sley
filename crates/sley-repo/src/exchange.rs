@@ -2350,6 +2350,16 @@ pub(crate) mod tests {
         assert_eq!(branch_listing(target), exported);
         assert_eq!(exported.len(), 2);
         assert!(!exported.iter().any(|(name, _, _)| name == b"orphan"));
+        // Clone-equivalence item 3: every exported branch reports the same
+        // ancestry (transaction ids, state roots, parents) in `S` and `T`.
+        let source_branches = BranchRepository::new(&source.root);
+        let target_branches = BranchRepository::new(target);
+        for (name, _, _) in &exported {
+            let expected = source_branches.branch_ancestry(name, MAX_BRANCHES).unwrap();
+            let actual = target_branches.branch_ancestry(name, MAX_BRANCHES).unwrap();
+            assert!(!expected.is_empty());
+            assert_eq!(actual, expected);
+        }
         let receipts =
             collect_files_with_suffix(&target.join("transactions"), RECEIPT_SUFFIX).unwrap();
         assert_eq!(receipts.len(), exchange.receipts.len());
@@ -2968,6 +2978,21 @@ pub(crate) mod tests {
             !marker.exists(),
             "an aborted fresh import must not leave its marker"
         );
+    }
+
+    #[test]
+    fn gc_witness_recovery_fails_closed_on_a_marked_root() {
+        // The recovery-into-incomplete-clone guard for the GC witness
+        // (`gc.rs` `require_not_incomplete_clone`): a marked root refuses
+        // witness recovery even under a valid exclusive maintenance guard.
+        let source = Source::new("gc-witness-guard");
+        let exchange = source.export();
+        mark(&source.root, exchange.exchange_id);
+        let store = ObjectStore::new(&source.root);
+        let maintenance =
+            ::sley_txn::acquire_exclusive_repository_maintenance(store.root()).unwrap();
+        let error = crate::recover_gc_witness(&store, &maintenance).unwrap_err();
+        assert_eq!(error.symbol(), "TXN_INCOMPLETE_CLONE");
     }
 
     #[test]

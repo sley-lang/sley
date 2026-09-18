@@ -196,6 +196,74 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertEqual([item["host_label"] for item in carried], ["secondary"])
         self.assertEqual(superseded, [])
 
+    def test_the_supersession_listing_persists_until_the_host_re_attests(self) -> None:
+        # Revision 11 (Ariadne P2 at 92fa6646): the listing survived exactly
+        # one build. A plain rebuild of the same candidate must carry the
+        # tracked listing forward; only the superseded host's re-attestation
+        # of the current commit retires its entry.
+        local = repro.local_attestation("primary", self.write_evidence())
+        entry = {
+            "host_label": "secondary",
+            "commit": "c" * 40,
+            "artifact_sha256": "d" * 64,
+            "reason": "attests a commit the re-mint superseded",
+        }
+        report = repro.build_report([local], [entry])
+        path = self.root / "reproducibility-report.json"
+        path.write_text(repro.canonical(report), encoding="utf-8")
+        superseded: list[dict] = []
+        carried = repro.carried_attestations(path, {"primary"}, local["commit"], superseded)
+        self.assertEqual(carried, [])
+        self.assertEqual(superseded, [entry])
+        # A second plain rebuild is idempotent: no duplicate, no drop.
+        path.write_text(repro.canonical(repro.build_report([local], superseded)), encoding="utf-8")
+        superseded = []
+        repro.carried_attestations(path, {"primary"}, local["commit"], superseded)
+        self.assertEqual(superseded, [entry])
+        # The secondary re-attests the current commit explicitly: retired.
+        superseded = []
+        repro.carried_attestations(path, {"primary", "secondary"}, local["commit"], superseded)
+        self.assertEqual(superseded, [])
+        # ... or its re-attestation of the current commit is already tracked.
+        same = self.other_attestation("secondary", local["commit"], local["artifact_sha256"])
+        path.write_text(repro.canonical(repro.build_report([local, same], [entry])), encoding="utf-8")
+        superseded = []
+        carried = repro.carried_attestations(path, {"primary"}, local["commit"], superseded)
+        self.assertEqual([item["host_label"] for item in carried], ["secondary"])
+        self.assertEqual(superseded, [])
+        # A malformed tracked entry fails closed.
+        broken = repro.build_report([local], [dict(entry, commit="zz")])
+        path.write_text(repro.canonical(broken), encoding="utf-8")
+        with self.assertRaises(repro.ReproError):
+            repro.carried_attestations(path, {"primary"}, local["commit"], [])
+
+    def test_verify_report_requires_and_shapes_the_supersession_listing(self) -> None:
+        # Revision 11 (Ariadne P4 at 92fa6646): the hermetic gate validates
+        # the listing's shape, not only the attestations.
+        local = repro.local_attestation("primary", self.write_evidence())
+        entry = {
+            "host_label": "secondary",
+            "commit": "c" * 40,
+            "artifact_sha256": "d" * 64,
+            "reason": "attests a commit the re-mint superseded",
+        }
+        self.assertEqual(repro.verify_report(repro.build_report([local], [entry])), [])
+        missing = repro.build_report([local])
+        del missing["superseded_attestations"]
+        missing["report_digest"] = repro.digest_of(
+            {key: value for key, value in missing.items() if key != "report_digest"}
+        )
+        self.assertIn("no superseded_attestations list", repro.verify_report(missing))
+        for field, value in [("commit", "c" * 39), ("artifact_sha256", "D" * 64),
+                             ("host_label", ""), ("reason", 7)]:
+            report = repro.build_report([local], [dict(entry, **{field: value})])
+            self.assertTrue(
+                any(problem.startswith("superseded attestation invalid") for problem in repro.verify_report(report)),
+                field,
+            )
+        extra = repro.build_report([local], [dict(entry, note="x")])
+        self.assertTrue(repro.verify_report(extra))
+
     def test_the_fresh_local_label_supersedes_its_tracked_attestation(self) -> None:
         tracked = self.write_tracked(
             [self.other_attestation("primary", "c" * 40, "d" * 64)]
@@ -213,6 +281,18 @@ class ReproducibilityTests(unittest.TestCase):
             [repro.local_attestation("primary", self.write_evidence()), replacement, *carried]
         )
         self.assertEqual(report["commits"]["e" * 40]["hosts"], ["secondary"])
+
+    def test_an_explicit_attest_file_of_another_commit_is_refused(self) -> None:
+        # Revision 11 (Vulcan P4 at 92fa6646): the builder refuses, rather
+        # than merging, an explicit attestation of a commit other than the
+        # one the fresh local attestation names.
+        local = repro.local_attestation("primary", self.write_evidence())
+        same = self.other_attestation("secondary", local["commit"], local["artifact_sha256"])
+        repro.explicit_of_current_commit([same], local["commit"])
+        other = self.other_attestation("secondary", "e" * 40, "f" * 64)
+        with self.assertRaises(repro.ReproError) as error:
+            repro.explicit_of_current_commit([same, other], local["commit"])
+        self.assertEqual(error.exception.code, repro.ReproErrorCode.ATTESTATION_CONFLICT)
 
     def test_a_malformed_tracked_report_fails_closed(self) -> None:
         path = self.root / "reproducibility-report.json"
@@ -298,6 +378,21 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertEqual(
             len(repro.admissible_attestations(report)), report["distinct_hosts"]
         )
+
+    def test_realized_codes_recorded_is_derived_from_the_threat_report(self) -> None:
+        # Vulcan P4 at 92fa6646: the summary counter had no in-tree
+        # derivation; the sync script now counts the report's rows.
+        sync = load("sync_evidence_counters")
+        report = {"rows": [{"realized_code_recorded": True}, {"realized_code_recorded": False},
+                           {"nested": [{"realized_code_recorded": True}]}]}
+        self.assertEqual(sync.realized_codes_recorded(report), 2)
+        sync.SUMMARY = self.root / "summary.json"
+        sync.REPRO = self.root / "absent-repro.json"
+        sync.THREAT_REPORT = self.root / "threat.json"
+        sync.THREAT_REPORT.write_text(json.dumps(report))
+        sync.SUMMARY.write_text(json.dumps({"threat_coverage": {"realized_codes_recorded": 25}}))
+        self.assertEqual(sync.main(), 0)
+        self.assertEqual(json.loads(sync.SUMMARY.read_text())["threat_coverage"]["realized_codes_recorded"], 2)
 
     def test_summary_mirrors_follow_single_and_two_host_reports(self) -> None:
         sync = load("sync_evidence_counters")
@@ -612,7 +707,7 @@ class CoverageDepthTests(unittest.TestCase):
                     if target.is_relative_to(ROOT / "crates"):
                         continue
                     embedded.add(str(target.relative_to(ROOT)))
-        # Positive control: the two known embeds are found, so the scan
+        # Positive control: the three known embeds are found, so the scan
         # cannot pass vacuously.
         self.assertIn("docs/spec/SSMC1_EPOCH1_SCHEMA.txt", embedded)
         self.assertIn("conformance/smp1-json-bridge/v2/methods.json", embedded)

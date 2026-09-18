@@ -266,7 +266,7 @@ struct SelectedObject {
     stored: Vec<u8>,
 }
 
-impl<'o> EntityReadSelection<'o> {
+impl EntityReadSelection<'_> {
     /// Returns the deterministic total charge, including the dispatch unit.
     ///
     /// The caller reserves `work_units - 1` after the frame preflight.
@@ -286,14 +286,17 @@ impl<'o> EntityReadSelection<'o> {
     pub const fn object_count(&self) -> u64 {
         self.object_count
     }
+}
 
+#[cfg(test)]
+impl<'o> EntityReadSelection<'o> {
     /// Returns the borrowed selected views in response order.
     ///
-    /// Test and audit access only: capturing, not re-resolution, consumes
-    /// these views, so the selected bytes cannot drift between selection
-    /// and capture.
+    /// Test access only (`cfg(test)`): capturing, not re-resolution,
+    /// consumes these views, so the selected bytes cannot drift between
+    /// selection and capture, and no production caller may observe them.
     #[must_use]
-    pub fn views(&self) -> &[EntityReadObject<'o>] {
+    pub(crate) fn views(&self) -> &[EntityReadObject<'o>] {
         &self.views
     }
 }

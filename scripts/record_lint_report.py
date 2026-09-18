@@ -58,9 +58,22 @@ def main() -> int:
             if re.match(r"\S+:\d+:\d+: (warning|error)", line)
         )
     head = run("git", "rev-parse", "HEAD").stdout.strip()
+    # The report names the commit it was recorded at; a dirty tree cannot
+    # say which tree was linted, so the record carries the fact and the
+    # packaging checker binds the commit to the candidate (Vulcan P4 at
+    # 92fa6646).
+    porcelain = [line for line in run("git", "status", "--porcelain").stdout.splitlines() if line.strip()]
+    lint_inputs = ("crates/", ".cargo/", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml",
+                   "clippy.toml", "rustfmt.toml")
+    dirty_inputs = sorted(
+        line[3:] for line in porcelain if line[3:].split(" -> ")[-1].startswith(lint_inputs)
+    )
     result = {
         "contract": "sley2.lint-report.v1",
         "commit": head,
+        "working_tree_clean": not porcelain,
+        "lint_inputs_clean": not dirty_inputs,
+        "dirty_lint_inputs": dirty_inputs,
         "fmt_clean": fmt.returncode == 0,
         "fmt_detail": (fmt.stderr or fmt.stdout).strip()[:2000],
         "clippy_clean": clippy.returncode == 0,

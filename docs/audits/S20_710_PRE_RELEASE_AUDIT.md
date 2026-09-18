@@ -13,7 +13,7 @@ committed tree at generation time. Re-anchoring at the release candidate
 remains a tracked precondition (`release_candidate_history_reanchored`),
 not a hidden gap.
 
-## Local results
+## Local results (2026-09-05 baseline; superseded by the dated 2026-09-17/18 section below)
 
 - Cargo is locked and inspected offline: 18 workspace crates and 30 registry
   crates, with registry sources, lock checksums, and dependency relationships.

@@ -56,6 +56,21 @@ class FreshnessTests(unittest.TestCase):
         (self.root / ".git").rename(self.root / "saved-git")
         self.assertEqual(checker.history_problems(self.report, self.surface), ["reproducibility-report:history-unavailable"])
 
+    def test_superseded_commits_are_history_and_not_attested(self):
+        # Revision 11: a listed superseded commit must be an ancestor of HEAD
+        # and must not also be a currently attested commit.
+        first = self.source
+        (self.root / "source.txt").write_text("re-mint\n")
+        self.commit()
+        current = self.git("rev-parse", "HEAD").strip()
+        listed = {"host_label": "secondary", "commit": first, "artifact_sha256": "a" * 64, "reason": "superseded"}
+        report = {"attestations": [{"commit": current}], "superseded_attestations": [listed]}
+        self.assertEqual(checker.history_problems(report, self.surface), [])
+        foreign = {"attestations": [{"commit": current}], "superseded_attestations": [dict(listed, commit="f" * 40)]}
+        self.assertTrue(any("superseded-commit-not-in-history" in x for x in checker.history_problems(foreign, self.surface)))
+        double = {"attestations": [{"commit": current}], "superseded_attestations": [dict(listed, commit=current)]}
+        self.assertTrue(any("superseded-commit-still-attested" in x for x in checker.history_problems(double, self.surface)))
+
     def test_toolchain_change_and_unavailability_refuse(self):
         evidence = self.root / "evidence.json"
         evidence.write_text(json.dumps(evidence_record()))

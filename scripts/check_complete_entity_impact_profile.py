@@ -120,7 +120,12 @@ def lock_packages() -> dict:
     """Parse Cargo.lock into {package name: [dependency names]}.
 
     Dependency entries may carry a version or source suffix; only the
-    leading name token is significant for reachability.
+    leading name token is significant for reachability. Cargo.lock folds
+    normal, dev and build dependencies into one list, so the reachable set
+    is an over-approximation of the normal-dependency closure (sley-query's
+    `serde_json` dev-dependency is in its entry): a reported edge may be a
+    dev or build edge, which is the fail-closed direction for the
+    dependency-direction gate.
     """
     packages: dict = {}
     name = None
@@ -269,7 +274,8 @@ def main() -> int:
             reachable = set()
             problems.append(f"dependency-direction:{error.args[0]}")
         for forbidden in sorted(reachable & {"sley-store", "sley-mutate", "sley-policy"}):
-            problems.append(f"dependency-direction:transitive-sley-query-reaches-{forbidden}")
+            # Cargo.lock reachability (normal, dev or build edges alike).
+            problems.append(f"dependency-direction:lock-reachable-sley-query-reaches-{forbidden}")
         if status == COMPLETE_STATUS:
             for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
                 if not str(section.get(key, "")).startswith("PASS"):

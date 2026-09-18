@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from r2_execution_evidence import LIB_SUITES, REQUIRED_INPUTS, REQUIRED_TESTS, SUCCESSOR_SUITES, lifecycle_output_problems, source_digest, test_output_problems
+from r2_execution_evidence import LIB_SUITES, REQUIRED_INPUTS, REQUIRED_TESTS, SUCCESSOR_SUITES, lifecycle_output_problems, source_digest, source_tree_state, test_output_problems
 
 
 class LifecycleEvidence(unittest.TestCase):
@@ -86,6 +86,35 @@ class SourceInventory(unittest.TestCase):
             source.unlink()
             with self.assertRaises(ValueError):
                 source_digest(root)
+
+    def test_tree_state_reports_dirty_source_but_not_summaries(self):
+        # The digest binds the working tree, not the commit; the gate prints
+        # HEAD and the inventory's porcelain state so a transcript cannot bind
+        # uncommitted source without a signal (Ariadne/premium P3 at 92fa6646).
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(['git', 'init', '--quiet', str(root)], check=True)
+            for name in REQUIRED_INPUTS | {'crates/example/lib.rs', 'machine-summary.json'}:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('initial\n')
+            subprocess.run(['git', 'add', '.'], cwd=root, check=True)
+            subprocess.run(['git', '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '-m', 'initial'],
+                           cwd=root, check=True)
+            head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=root).decode().strip()
+            state = source_tree_state(root)
+            self.assertEqual(state, {'head': head, 'dirty': [], 'clean': True})
+            (root / 'machine-summary.json').write_text('{"status":"PASS"}')
+            (root / 'evidence.json').write_text('{}')
+            self.assertTrue(source_tree_state(root)['clean'])
+            (root / 'crates/example/lib.rs').write_text('changed\n')
+            state = source_tree_state(root)
+            self.assertFalse(state['clean'])
+            self.assertEqual(state['dirty'], [' M crates/example/lib.rs'])
+            (root / 'crates/example/new.rs').write_text('new source\n')
+            self.assertIn('?? crates/example/new.rs', source_tree_state(root)['dirty'])
+            (root / 'crates/example/lib.rs').unlink()
+            self.assertIn(' D crates/example/lib.rs', source_tree_state(root)['dirty'])
 
     def test_inventory_requires_build_inputs(self):
         with tempfile.TemporaryDirectory() as directory:

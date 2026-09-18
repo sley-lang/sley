@@ -27,6 +27,22 @@ GA_ACCEPTANCE = ROOT / "evidence/release/ga-acceptance-report.json"
 REPRO = ROOT / "evidence/release/reproducibility-report.json"
 CYCLONEDX = ROOT / "evidence/release/sbom/cyclonedx-1.6.json"
 PROVENANCE = ROOT / "evidence/release/provenance.json"
+THREAT_REPORT = ROOT / "evidence/security/threat-coverage-report.json"
+
+
+def realized_codes_recorded(report: object) -> int:
+    """Rows of the threat-coverage report that record a realized code."""
+    count = 0
+    stack = [report]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            if node.get("realized_code_recorded") is True:
+                count += 1
+            stack.extend(node.values())
+        elif isinstance(node, list):
+            stack.extend(node)
+    return count
 
 
 def main() -> int:
@@ -109,6 +125,15 @@ def main() -> int:
             if summary["ga_acceptance"].get(key) != value:
                 summary["ga_acceptance"][key] = value
                 changed.append(f"ga_acceptance.{key}")
+
+    # threat_coverage.realized_codes_recorded is derived from the tracked
+    # report: the count of rows recording a realized code (the 25 -> 27 step
+    # at 7426bc0b was a hand edit; Vulcan P4 at 92fa6646).
+    if THREAT_REPORT.exists() and isinstance(summary.get("threat_coverage"), dict):
+        realized = realized_codes_recorded(json.loads(THREAT_REPORT.read_text(encoding="utf-8")))
+        if summary["threat_coverage"].get("realized_codes_recorded") != realized:
+            summary["threat_coverage"]["realized_codes_recorded"] = realized
+            changed.append("threat_coverage.realized_codes_recorded")
 
     if changed:
         SUMMARY.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")

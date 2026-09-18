@@ -312,7 +312,11 @@ The import target is a path. It MUST be one of:
   `EXCHANGE_TARGET_INCOMPLETE_MISMATCH`.
 
 Target inspection and every write use symlink discipline: the importer
-resolves and pins the target directory once, requires the target, `exchange/`,
+verifies the target directory and every path component it touches without
+following symlinks at each operation (an `lstat`-per-component discipline on
+path strings; no directory handle is pinned across operations, so the
+realized guarantee is that every component and marker is verified
+non-symlink before each use), requires the target, `exchange/`,
 `exchange/v1/`, and every layout component it creates or writes through to be
 a real directory that it created or verified non-symlink, opens the marker
 and its temporary without following symlinks, and treats any symlink or
@@ -406,8 +410,11 @@ unknown-entry rule fires on an X-07 clone.
 
 The head is the completion witness and the marker is the write guard. On a
 marked root (an `exchange/v1/` directory containing any entry whose name
-ends in `.stage`, read without following symlinks) no reader resolves an
-accepted head, and every frozen acceptance-establishing,
+ends in `.stage`, read without following symlinks) none of the frozen
+S20-540 readers listed below resolves an accepted head (the later native
+attempt-status and promotion-claim readers in `sley-txn` report the raw head
+pointer for a journal a fresh clone does not have and are outside this
+list), and every frozen acceptance-establishing,
 ref-mutating, or deleting path fails closed with `TXN_INCOMPLETE_CLONE`:
 `sley-txn` `initialize_trusted_genesis`, `commit`, and `recover`, and
 `sley-repo` `create_branch`, `advance_branch`, `recover_refs`,

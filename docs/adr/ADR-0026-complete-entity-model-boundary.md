@@ -64,6 +64,11 @@ freeze.
    snapshot builders fail closed with
    `INDEX_SNAPSHOT_COMPLETENESS_UNSUPPORTED` on any other kind. The full
    S20-300 snapshot is a later package.
+   Lineage note (2026-09-18): the dependency direction this decision
+   assumes was breached once during S20-250 implementation (AT-MW-02) and
+   restored by `7169639c`/`4a04c7ff` (narrow read views); `601ad531`
+   (rebased twin of `0bcc9c6`) binds the Cargo.lock closure in the checker,
+   so the direction is a gated fact rather than a recorded intention.
 6. **Contract form.** The full profile is a new document,
    `docs/spec/COMPLETE_ENTITY_IMPACT_PROFILE_V1.md`, composed over the
    unchanged restricted profile, because `scripts/check_fingerprint_impact_profile.py`

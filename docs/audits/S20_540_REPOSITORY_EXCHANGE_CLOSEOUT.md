@@ -58,7 +58,7 @@ The dependency direction stays `sley-repo -> sley-txn -> sley-store`.
   (persistent fuzz slice).
 - Conformance: `conformance/repository-exchange/v1/accepted.json` (one
   clone-equivalent source exchange: two receipts, two visible branches, 7,754
-  stored bytes, six leaves) and `rejected.json` (five rejection inputs with
+  stored bytes, six leaves) and `rejected.json` (six rejection inputs with
   the codes the importer returns before any write), drift-gated by
   `scripts/generate_repository_exchange_fixtures.py --check` in `make quick`;
   `scripts/check_repository_exchange_vector.py` reproduces the trailer, the
@@ -177,7 +177,8 @@ remediation with no open P0 or P1 finding.
   the contract's literal export step 4, narrower than the importable class.
 - A marked incomplete clone may carry only the known repository layout
   entries (`exchange`, `objects`, `transactions`, `heads`, `locks`,
-  `branches`, `refs`); any other root entry is `EXCHANGE_TARGET_NOT_EMPTY`.
+  `branches`, `refs`, and `index`, the cache the importer purges rather than
+  adopts); any other root entry is `EXCHANGE_TARGET_NOT_EMPTY`.
   This is a fail-closed implementation rule stricter than the contract's
   incomplete-clone bullet, which names only receipts, origins, refs, and the
   head.

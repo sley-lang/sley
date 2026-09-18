@@ -32,7 +32,7 @@ IMPLEMENTATION_STATUSES = (IN_PROGRESS_STATUS, REVIEW_PENDING_STATUS, COMPLETE_S
 # The contract revision the spec header, ADR-0040, and the summary pointer
 # must all name: one constant instead of three hand-synchronised copies
 # (Ariadne P4 carried from 0bcc9c6, closed at revision 7).
-CONTRACT_REVISION = 10
+CONTRACT_REVISION = 11
 
 CODES = (
     (73000, "REPRO_EVIDENCE_MISSING"),
@@ -186,6 +186,14 @@ def history_problems(report: dict, surface: tuple[str, ...]) -> list[str]:
                 f"reproducibility-report:stale:{commit[:12]}:"
                 f"{len(names)}-surface-files-changed:{','.join(names[:8])}"
             )
+    # A listed superseded commit is history of this tree too (revision 11);
+    # its shape is verify_report's, so only ancestry is checked here.
+    for entry in report.get("superseded_attestations", []) or []:
+        commit = entry.get("commit", "") if isinstance(entry, dict) else ""
+        if commit in commits:
+            problems.append(f"reproducibility-report:superseded-commit-still-attested:{commit[:12]}")
+        elif git_text(["merge-base", "--is-ancestor", commit, head]) is None:
+            problems.append(f"reproducibility-report:superseded-commit-not-in-history:{commit[:12]}")
     worktree = git_text(["status", "--porcelain", "--", *surface])
     if worktree is None:
         problems.append("reproducibility-report:history-unavailable")

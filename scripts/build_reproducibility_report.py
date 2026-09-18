@@ -351,7 +351,32 @@ def verify_report(report: object) -> list[str]:
                 validate_attestation(attestation)
             except ReproError as error:
                 problems.append(f"attestation invalid: {error.detail}")
+    # The supersession listing is part of the section 2 shape (revision 10)
+    # and the hermetic gate checks it like the attestations (revision 11).
+    superseded = report.get("superseded_attestations")
+    if not isinstance(superseded, list):
+        problems.append("no superseded_attestations list")
+    else:
+        for entry in superseded:
+            problem = superseded_entry_problem(entry)
+            if problem:
+                problems.append(f"superseded attestation invalid: {problem}")
     return problems
+
+
+def superseded_entry_problem(entry: object) -> str | None:
+    """The section 2 shape of one `superseded_attestations` entry."""
+    if not isinstance(entry, dict) or set(entry) != {"host_label", "commit", "artifact_sha256", "reason"}:
+        return "entry keys"
+    if not isinstance(entry["host_label"], str) or not entry["host_label"]:
+        return "host_label"
+    if not isinstance(entry["commit"], str) or not re.fullmatch(r"[0-9a-f]{40}", entry["commit"]):
+        return "commit"
+    if not isinstance(entry["artifact_sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", entry["artifact_sha256"]):
+        return "artifact_sha256"
+    if not isinstance(entry["reason"], str) or not entry["reason"]:
+        return "reason"
+    return None
 
 
 def carried_attestations(
@@ -369,7 +394,7 @@ def carried_attestations(
     file that is not a report, or that carries a malformed attestation,
     fails closed instead of being silently skipped.
 
-    Supersession at a re-mint (contract section 2, revision 10): when the
+    Supersession at a re-mint (contract section 2, revisions 10 and 11): when the
     fresh local attestation names a commit, a tracked attestation of ANOTHER
     commit describes a superseded candidate and is not carried onto the new
     one; it is appended to `superseded` so the report names what the re-mint
@@ -395,23 +420,70 @@ def carried_attestations(
             f"{display(report_path)} has no attestation list",
         )
     carried: list[dict] = []
+    listed: list[dict] = []
     for attestation in attestations:
         checked = validate_attestation(attestation)
         if checked["host_label"] in skip_labels:
             continue
         if current_commit is not None and checked["commit"] != current_commit:
-            if superseded is not None:
-                superseded.append(
-                    {
-                        "host_label": checked["host_label"],
-                        "commit": checked["commit"],
-                        "artifact_sha256": checked["artifact_sha256"],
-                        "reason": "attests a commit the re-mint superseded",
-                    }
-                )
+            listed.append(
+                {
+                    "host_label": checked["host_label"],
+                    "commit": checked["commit"],
+                    "artifact_sha256": checked["artifact_sha256"],
+                    "reason": "attests a commit the re-mint superseded",
+                }
+            )
             continue
         carried.append(checked)
+    if superseded is not None:
+        # The tracked listing persists across plain rebuilds (revision 11):
+        # an entry is retired only when its host re-attests the current
+        # commit (fresh, explicit, or carried), never by a re-run of the
+        # build, and never carried back into `attestations`.
+        tracked_listing = tracked.get("superseded_attestations", [])
+        if not isinstance(tracked_listing, list):
+            raise ReproError(
+                ReproErrorCode.ATTESTATION_INVALID,
+                f"{display(report_path)} has a malformed superseded_attestations list",
+            )
+        for entry in tracked_listing:
+            problem = superseded_entry_problem(entry)
+            if problem:
+                raise ReproError(
+                    ReproErrorCode.ATTESTATION_INVALID,
+                    f"{display(report_path)} superseded attestation invalid: {problem}",
+                )
+            listed.append(dict(entry))
+        re_attested = skip_labels | {item["host_label"] for item in carried}
+        seen: set[tuple[str, str]] = set()
+        for entry in sorted(listed, key=lambda item: (item["host_label"], item["commit"])):
+            key = (entry["host_label"], entry["commit"])
+            if entry["host_label"] in re_attested or key in seen:
+                continue
+            if current_commit is not None and entry["commit"] == current_commit:
+                continue
+            seen.add(key)
+            superseded.append(entry)
     return carried
+
+
+def explicit_of_current_commit(explicit: list[dict], current_commit: str) -> None:
+    """An explicit `--attest` file names the commit the fresh local one names.
+
+    The supersession rule listed only carried attestations of another commit;
+    an explicit file of another commit used to be merged as-is and produced a
+    two-commit report with no selectable candidate, refused only downstream
+    by the checker (Vulcan P4 at 92fa6646). The builder is the refusing
+    owner: it is `REPRO_ATTESTATION_CONFLICT`, and no report is written.
+    """
+    for attestation in explicit:
+        if attestation["commit"] != current_commit:
+            raise ReproError(
+                ReproErrorCode.ATTESTATION_CONFLICT,
+                f"explicit attestation {attestation['host_label']!r} names commit "
+                f"{attestation['commit']}, the fresh local attestation names {current_commit}",
+            )
 
 
 def main() -> int:
@@ -430,6 +502,7 @@ def main() -> int:
             print(canonical({"result": "PASS", "attestation": str(args.emit_attestation)}), end="")
             return 0
         explicit = [load_attestation(path) for path in args.attest]
+        explicit_of_current_commit(explicit, local["commit"])
         skip = {args.host_label} | {attestation["host_label"] for attestation in explicit}
         superseded: list[dict] = []
         carried = carried_attestations(args.output, skip, local["commit"], superseded)

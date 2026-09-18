@@ -560,6 +560,41 @@ def commit_bound_view(payload: bytes) -> bytes:
     return canonical_json(document)
 
 
+def tracked_canonical_form(payload: bytes) -> bytes:
+    """The tracked bytes re-canonicalized with the counters masked.
+
+    Equal to `commit_bound_view(payload)` exactly when the tracked record is
+    the generator's own canonical form; a reformatted record differs.
+    """
+    try:
+        document = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return b""
+    if not isinstance(document, dict) or canonical_json(document) != payload:
+        return b""
+    return commit_bound_view(payload)
+
+
+def working_tree_counters_clear(payload: bytes) -> bool:
+    """A tracked record carries zero untracked-file counters (clean-tree mint)."""
+    try:
+        document = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    if not isinstance(document, dict):
+        return False
+    return all(document.get(field, 0) == 0 for field in WORKING_TREE_FIELDS)
+
+
+def record_drifted(tracked: bytes, expected: bytes) -> bool:
+    """The `--check` decision for one tracked record against the generator."""
+    return (
+        commit_bound_view(tracked) != commit_bound_view(expected)
+        or commit_bound_view(tracked) != tracked_canonical_form(tracked)
+        or not working_tree_counters_clear(tracked)
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
@@ -568,9 +603,13 @@ def main() -> int:
     drift: list[str] = []
     for path, expected in outputs.items():
         if arguments.check:
-            if not path.exists() or commit_bound_view(path.read_bytes()) != commit_bound_view(
-                expected
-            ):
+            # Commit-bound comparison with the working-tree counters masked;
+            # the tracked bytes must still be exactly the generator's
+            # canonical form (no reformatted or hand-edited record passes),
+            # and a record committed from a dirty tree — nonzero untracked
+            # counters — is drift in its own right (Vulcan P4 at 92fa6646).
+            tracked = path.read_bytes() if path.exists() else None
+            if tracked is None or record_drifted(tracked, expected):
                 drift.append(path.relative_to(ROOT).as_posix())
         else:
             path.parent.mkdir(parents=True, exist_ok=True)

@@ -232,6 +232,18 @@ def main() -> int:
                 candidate_toolchain.get("rustc"),
             ) not in attested:
                 problems.append("machine-summary:candidate-attestation-mismatch")
+            # The lint report names the tree it linted: its commit is the
+            # candidate commit and its lint inputs were clean when recorded
+            # (Vulcan P4 at 92fa6646).
+            lint_path = ROOT / "evidence/build/lint-report.json"
+            try:
+                lint = json.loads(lint_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                lint = {}
+            if lint.get("commit") != section.get("candidate_commit"):
+                problems.append("lint-report:commit-differs-from-candidate")
+            if lint.get("lint_inputs_clean") is not True or lint.get("result") != "PASS":
+                problems.append("lint-report:not-a-clean-pass")
 
     present = []
     if SCRIPT.exists():

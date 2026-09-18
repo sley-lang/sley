@@ -68,7 +68,7 @@
    "status": "canonical input frozen",
    "value": "48f8af2422b3e56b2924f56b11ca07f141b87541cdba6584cf1c6e87602577dd",
    "manifest": "canonical-s-manifest.json",
-   "scope": "RW-080 graph-root input with the arbitrary RW-090 codec after the 178873d7 Council repairs (re-mint 2026-09-18): the codec judges arbitrary canonical bodies on both program legs and selector 1 re-frames handed body bytes (typed-field construction remains native); checker/lowerer semantic gates and bootstrap gates remain open",
+   "scope": "RW-080 graph-root input with the arbitrary RW-090 codec after the 178873d7 and 92fa6646 Council repairs (re-mint 2026-09-18): the codec judges arbitrary canonical bodies on both program legs with native nesting-depth charging at every node and selector 1 re-frames handed body bytes (typed-field construction remains native; RW090-DEV-01..03 disclosed); checker/lowerer semantic gates and bootstrap gates remain open",
    "digest": "48f8af2422b3e56b2924f56b11ca07f141b87541cdba6584cf1c6e87602577dd",
    "provenance": {
     "artifact": "canonical-s-manifest.json",

@@ -10,6 +10,9 @@ repository under test.
 
 from __future__ import annotations
 
+import contextlib
+import io
+import json
 import importlib.util
 import sys
 import unittest
@@ -38,6 +41,17 @@ class LockReachableTests(unittest.TestCase):
         packages = {"sley-query": ["x"], "x": ["y"], "y": []}
         with mock.patch.object(checker, "lock_packages", return_value=packages):
             self.assertEqual(checker.lock_reachable("sley-query"), {"x", "y"})
+
+    def test_main_reports_an_absent_lock_root_as_a_named_problem(self) -> None:
+        # The gate's conversion of the refusal into a problem (Nabu P4 at
+        # 92fa6646): a refactor that swallowed the KeyError would leave the
+        # unit test green while the gate reverted to vacuous.
+        with mock.patch.object(checker, "lock_packages", return_value={"a": ["b"], "b": []}):
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                code = checker.main()
+        self.assertEqual(code, 1)
+        report = json.loads(out.getvalue())
+        self.assertIn("dependency-direction:lock-root-absent:sley-query", report["problems"])
 
     def test_real_lock_names_the_root(self) -> None:
         self.assertIn("sley-query", checker.lock_packages())

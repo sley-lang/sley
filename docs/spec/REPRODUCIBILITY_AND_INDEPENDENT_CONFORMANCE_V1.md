@@ -1,6 +1,6 @@
 # Reproducibility and Independent Conformance v1
 
-Status: S20-730 contract draft, revision 10 (2026-09-18); Council review
+Status: S20-730 contract draft, revision 11 (2026-09-18); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the independent oracles that closed the two
 native-only families (section 5). Revision 3 carries previously merged
@@ -133,9 +133,22 @@ Rules:
   new candidate and does not drop it silently either; the report lists it
   under `superseded_attestations` (`host_label`, `commit`,
   `artifact_sha256`, `reason`), and the superseded host re-attests the new
-  candidate through section 5.1 (revision 10). A tracked file that is not a
-  report, or that carries a malformed attestation, is
-  `REPRO_ATTESTATION_INVALID`;
+  candidate through section 5.1 (revision 10). The listing persists across
+  plain rebuilds of the same candidate: a rebuild carries the tracked
+  report's `superseded_attestations` forward (deduplicated by host label and
+  commit, sorted), and an entry is retired only when its host re-attests the
+  commit the fresh local attestation names — as the fresh local attestation,
+  an explicit `--attest` file, or a tracked attestation of that commit —
+  never by a re-run of the build (revision 11). A tracked file that is not a
+  report, or that carries a malformed attestation or a malformed
+  `superseded_attestations` entry, is `REPRO_ATTESTATION_INVALID`; the
+  hermetic integrity gate (`verify_report`) requires the listing and checks
+  every entry against the shape above (revision 11). An explicit `--attest`
+  file whose commit differs from the commit the fresh local attestation
+  names is `REPRO_ATTESTATION_CONFLICT`, and no report is written: the
+  builder, not the downstream checker, refuses a two-commit report
+  (revision 11); the section checker additionally requires every listed
+  superseded commit to be an ancestor of `HEAD` (revision 11);
 - the result is `MULTI_HOST_REPRODUCIBLE` exactly when some commit carries
   at least `required_hosts` agreeing attestations; otherwise it is
   `SINGLE_HOST_REPRODUCIBLE` and `second_host.status` is
@@ -501,7 +514,10 @@ carry-forward rule had no supersession path: at a re-mint the documented
 superseded commit onto the new candidate (distinct hosts across two
 commits, no selectable attestation, a stale-report checker failure), and
 the primary-only reports at 75ad17aa and 9316df19 were produced by an
-undocumented step. Section 2 now carries only attestations of the commit
+undocumented step (the tracked report was replaced by a primary-only report
+built from the local evidence with the secondary attestation left out, i.e.
+a manual removal, not a builder path; the 45b2cd98 secondary therefore
+never appears in `superseded_attestations`). Section 2 now carries only attestations of the commit
 the fresh local attestation names; attestations of another commit are
 listed as `superseded_attestations` rather than dropped silently or kept
 wrongly. `build_reproducibility_report.carried_attestations` implements
@@ -518,3 +534,24 @@ package format had no standalone envelope corpus. The fixture's
 `status: PROVISIONAL_RW_080_CONSTRUCTION_REVIEW_PENDING` names the
 RW-080 review state of the construction that emitted it, not the coverage
 class, which is complete for the family (Nabu/Vulcan P4 note).
+
+## 13. Revision 11 (2026-09-18): the supersession listing persists
+
+The 92fa6646 Council round (Ariadne P2) found that the revision-10 listing
+survived exactly one build: `carried_attestations` derived it only from the
+tracked `attestations`, so the next plain `make release-candidate-build`
+(or a section 5.1 step-4 merge) recomputed an empty listing and rewrote the
+report without it — the silent drop revision 10 said could not happen.
+Section 2 now carries the tracked listing forward and retires an entry only
+when its host re-attests the current commit
+(`bench/release/tests/test_reproducibility.py::
+test_the_supersession_listing_persists_until_the_host_re_attests`). The
+same round (Ariadne P4) found `verify_report` validating attestation shapes
+but not the listing; the hermetic gate now requires the key and checks each
+entry's shape
+(`test_verify_report_requires_and_shapes_the_supersession_listing`). Two
+Vulcan/Nabu P4s of the same round close alongside: an explicit `--attest`
+file of another commit is refused by the builder
+(`test_an_explicit_attest_file_of_another_commit_is_refused`), and the
+section checker requires each listed superseded commit to be an ancestor of
+`HEAD`.

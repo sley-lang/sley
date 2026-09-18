@@ -29,6 +29,20 @@ expected_capsule_ids = [
 ]
 if summary.get("restricted_query_capsule_profile", {}).get("fixed_capsule_ids") != expected_capsule_ids:
     problems.append("machine-summary fixed capsule vector drift")
+# The source side of the pin: capsule.rs stores the four ids as byte arrays
+# in `all_four_query_capsule_vectors_are_fixed`, so the hex is reconstructed
+# from every `0x..` byte run and each expected id must appear (Vulcan P4 at
+# 92fa6646: the other epoch-1 checkers pin source and summary, this one
+# pinned only the summary).
+import re  # noqa: E402
+
+source_hex = {
+    "".join(f"{int(byte, 16):02x}" for byte in re.findall(r"0x([0-9a-fA-F]{2})", run))
+    for run in re.findall(r"\[((?:\s*0x[0-9a-fA-F]{2}\s*,?)+)\s*\]", code)
+}
+for capsule_id in expected_capsule_ids:
+    if capsule_id not in source_hex:
+        problems.append(f"capsule.rs no longer carries fixed capsule id {capsule_id[:12]}")
 
 for token in [
     "Status: S20-320 restricted epoch-1 normative specification.",

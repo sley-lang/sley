@@ -42,6 +42,17 @@ Fingerprints, `value_hash`, and the restricted profile's bytes are unchanged.
 The dependency direction `sley-query -> sley-check -> sley-ssmc` is unchanged;
 `sley-repo` now depends on `sley-policy` and `sley-query` in production.
 
+Lineage (recorded 2026-09-18; Nabu carried #4 at 92fa6646): the S20-250
+implementation once breached the AT-MW-02 dependency boundary by reading
+entity bodies through the store from `sley-query`; commit `7169639c`
+(rebased twin `4a04c7ff` after the 2026-09-14 attribution rewrite,
+"s20-250: restore query dependency direction via narrow read views")
+restored the direction through narrow read views, and commit `601ad531`
+(tree-identical rebased twin of the reviewed `0bcc9c6`) bound the lock
+closure with `scripts/check_complete_entity_impact_profile.py`'s
+`lock_reachable("sley-query")` walk, which refuses an absent root and
+reports every Cargo.lock-reachable forbidden crate.
+
 ## Evidence
 
 - Contract draft revision 1 at `4701733`; revision 2 names the adapter

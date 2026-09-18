@@ -29,7 +29,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from r2_execution_evidence import run_lifecycle, run_successor, source_digest
+from r2_execution_evidence import run_lifecycle, run_successor, source_digest, source_tree_state
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -111,6 +111,18 @@ try:
 except (OSError, ValueError, subprocess.SubprocessError) as error:
     current_source = ""
     lifecycle = {"pass": False, "problems": [str(error)]}
+# The digest binds the working tree; relate it to a commit so a transcript
+# cannot bind uncommitted source silently (P3 at 92fa6646): the gate prints
+# HEAD and the inventory's porcelain state and fails closed when it is dirty.
+try:
+    tree_state = source_tree_state(ROOT)
+except (OSError, subprocess.SubprocessError) as error:
+    tree_state = {"head": "", "dirty": [str(error)], "clean": False}
+print(f"R2_SOURCE_SHA256: {current_source or 'unavailable'}")
+print(f"R2_SOURCE_HEAD: {tree_state['head'] or 'unavailable'}")
+print(f"R2_SOURCE_TREE: {'clean' if tree_state['clean'] else 'dirty ' + json.dumps(tree_state['dirty'])}")
+check("R2_source_tree_clean", tree_state["clean"],
+      f"HEAD {tree_state['head'][:12]} " + ("clean" if tree_state["clean"] else json.dumps(tree_state["dirty"])))
 check("RW060_lifecycle", lifecycle["pass"], json.dumps(lifecycle, sort_keys=True))
 successor = run_successor(ROOT, current_source)
 check("RW075_current_execution", successor["pass"], json.dumps(successor, sort_keys=True))

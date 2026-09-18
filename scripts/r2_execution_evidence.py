@@ -54,6 +54,15 @@ SUCCESSOR_SUITES = {
 }
 
 
+def selected_source(name: str) -> bool:
+    """Name the source inventory: code, build inputs, gate scripts, profiles."""
+    return bool(name) and (
+        name in REQUIRED_INPUTS | {"host-boundary.json", "Makefile"}
+        or name.startswith(("crates/", ".cargo/", "conformance/", "docs/spec/"))
+        or name.startswith("scripts/") and name.endswith(".py")
+    )
+
+
 def source_digest(root: Path) -> str:
     """Bind code, build inputs, gate scripts and frozen R2 profiles.
 
@@ -65,11 +74,7 @@ def source_digest(root: Path) -> str:
         ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
         cwd=root,
     ).decode().split("\0")
-    selected = sorted({name for name in names if name and (
-        name in REQUIRED_INPUTS | {"host-boundary.json", "Makefile"}
-        or name.startswith(("crates/", ".cargo/", "conformance/", "docs/spec/"))
-        or name.startswith("scripts/") and name.endswith(".py")
-    )})
+    selected = sorted({name for name in names if selected_source(name)})
     if not REQUIRED_INPUTS <= set(selected):
         raise ValueError("missing required source inventory")
     manifest = {}
@@ -80,6 +85,36 @@ def source_digest(root: Path) -> str:
         manifest[name] = hashlib.sha256(path.read_bytes()).hexdigest()
     encoded = json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(b"SLEY/R2/SOURCE/1\0" + encoded).hexdigest()
+
+
+def source_tree_state(root: Path) -> dict:
+    """Relate the digest to a commit: HEAD plus the inventory's dirty entries.
+
+    The digest binds the working tree, so a transcript could otherwise bind
+    uncommitted source without any gate signal (Ariadne/premium P3 at
+    92fa6646). Modified, added, deleted, renamed and untracked entries within
+    the source inventory are listed; everything else (evidence, summaries) is
+    ignored, matching the digest's own selection.
+    """
+    head = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root).decode().strip()
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain", "--untracked-files=all", "-z"], cwd=root,
+    ).decode().split("\0")
+    dirty: list[str] = []
+    entries = iter(status)
+    for entry in entries:
+        if len(entry) < 4:
+            continue
+        code, name = entry[:2], entry[3:]
+        if "R" in code or "C" in code:
+            # A rename or copy carries its source path as the next record.
+            origin = next(entries, "")
+            if selected_source(origin):
+                dirty.append(f"{code} {origin} -> {name}")
+                continue
+        if selected_source(name):
+            dirty.append(f"{code} {name}")
+    return {"head": head, "dirty": sorted(dirty), "clean": not dirty}
 
 
 def test_output_problems(output: str, required: set[str], *, filtered: bool = False) -> list[str]:
