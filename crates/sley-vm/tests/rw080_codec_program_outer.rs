@@ -14712,7 +14712,7 @@ fn build_program_envelope_encode_with_mode(
 // loop (prev bytes reread from the output accumulator; member 0
 // compares against its own just-pushed bytes with the verdict skipped).
 // Sley owns parsing and decisions; bridge uses B2V1/PSH1/V2B1 only.
-fn namespace_decode_result_type() -> TypeExpr {
+fn entity_set_decode_result_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(TypeExpr::Tuple(vec![
             TypeExpr::Bytes,
@@ -14734,13 +14734,41 @@ fn build_namespace_decode(
     fid: EntityId,
     decode_fid: EntityId,
 ) -> FunctionGraph {
+    build_entity_set_decode(a, ns, fid, decode_fid, EntitySetBodyKind::Namespace)
+}
+
+fn build_policy_binding_decode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    decode_fid: EntityId,
+) -> FunctionGraph {
+    build_entity_set_decode(a, ns, fid, decode_fid, EntitySetBodyKind::PolicyBinding)
+}
+
+#[allow(
+    clippy::many_single_char_names,
+    clippy::similar_names,
+    clippy::too_many_lines
+)]
+fn build_entity_set_decode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    decode_fid: EntityId,
+    body_kind: EntitySetBodyKind,
+) -> FunctionGraph {
     let bstart = a.blocks.len();
-    let res_t = namespace_decode_result_type();
+    let res_t = entity_set_decode_result_type();
     let dec_t = decode_result_type();
     let c0 = a.ku64(ns.k, 0);
     let c1 = a.ku64(ns.k, 1);
     let c2 = a.ku64(ns.k, 2);
-    let c3 = a.ku64(ns.k, 3);
+    let body_tag = match body_kind {
+        EntitySetBodyKind::Namespace => 3,
+        EntitySetBodyKind::PolicyBinding => 17,
+    };
+    let c_body_tag = a.ku64(ns.k, body_tag);
     let c18 = a.ku64(ns.k, 18);
     let c32 = a.ku64(ns.k, 32);
     let c_max_fields = a.ku64(ns.k, 65_535);
@@ -14774,6 +14802,10 @@ fn build_namespace_decode(
     let b_mapdup = err_block(a, ns, fid, res_t.clone(), e_mapdup);
     let b_mapord = err_block(a, ns, fid, res_t.clone(), e_mapord);
     let trap = trap_block(a, ns, fid);
+    let optional_parent_reachability = match body_kind {
+        EntitySetBodyKind::Namespace => Reachability::Required,
+        EntitySetBodyKind::PolicyBinding => Reachability::ExplicitlyUnreachable,
+    };
     // Late-section block ids are minted up front (Rust declaration
     // order): the parent-union, field-2, and member-list sections below
     // reference them from earlier edges.
@@ -15012,19 +15044,20 @@ fn build_namespace_decode(
         )),
         reachability: Reachability::Required,
     });
-    // Union tag dispatch: 3 valid; 1,2,4..18 scope; 0/19+ union-invalid.
+    // Union tag dispatch: the selected body tag is valid; other 1..18
+    // tags are scoped out; 0/19+ are union-invalid.
     let d_tag = a.param(ns.p, u_tag, ParameterRole::Block, u64_type());
     let d_pos = a.param(ns.p, u_tag, ParameterRole::Block, u64_type());
     let d_vec = a.param(ns.p, u_tag, ParameterRole::Block, u8vec_type());
     let d_len = a.param(ns.p, u_tag, ParameterRole::Block, u64_type());
     let d_in = a.param(ns.p, u_tag, ParameterRole::Block, TypeExpr::Bytes);
     let d_unit = a.param(ns.p, u_tag, ParameterRole::Block, TypeExpr::Unit);
-    let d_k3 = a.cref(ns.o, u_tag, c3, u64_type());
+    let d_expected = a.cref(ns.o, u_tag, c_body_tag, u64_type());
     let d_eq = a.op(
         ns.o,
         u_tag,
         Opcode::Equal,
-        vec![pav(d_tag), op_result(d_k3)],
+        vec![pav(d_tag), op_result(d_expected)],
         vec![TypeExpr::Bool],
         Immediate::None,
     );
@@ -15032,7 +15065,7 @@ fn build_namespace_decode(
         entity_id: u_tag,
         function: fid,
         parameters: vec![d_tag, d_pos, d_vec, d_len, d_in, d_unit],
-        operations: vec![d_k3, d_eq],
+        operations: vec![d_expected, d_eq],
         terminator: cond(
             op_result(d_eq),
             edge(
@@ -15127,7 +15160,7 @@ fn build_namespace_decode(
         ),
         reachability: Reachability::Required,
     });
-    // 1..18 except 3 (3 already routed valid): scope.
+    // 1..18 except the selected tag (already routed valid): scope.
     let hi_tag = a.param(ns.p, u_hi, ParameterRole::Block, u64_type());
     let hi_pos = a.param(ns.p, u_hi, ParameterRole::Block, u64_type());
     let hi_vec = a.param(ns.p, u_hi, ParameterRole::Block, u8vec_type());
@@ -15929,18 +15962,33 @@ fn build_namespace_decode(
         terminator: cond(
             op_result(u1_gt),
             edge(b_len, Vec::new()),
-            edge(
-                par_tag,
-                vec![
-                    pav(u1_len),
-                    pav(u1_end),
-                    pav(u1_uend),
-                    pav(u1_vec),
-                    pav(u1_ilen),
-                    pav(u1_in),
-                    pav(u1_unit),
-                ],
-            ),
+            match body_kind {
+                EntitySetBodyKind::Namespace => edge(
+                    par_tag,
+                    vec![
+                        pav(u1_len),
+                        pav(u1_end),
+                        pav(u1_uend),
+                        pav(u1_vec),
+                        pav(u1_ilen),
+                        pav(u1_in),
+                        pav(u1_unit),
+                    ],
+                ),
+                EntitySetBodyKind::PolicyBinding => edge(
+                    par_some,
+                    vec![
+                        pav(u1_len),
+                        pav(u1_end),
+                        pav(u1_end),
+                        pav(u1_uend),
+                        pav(u1_vec),
+                        pav(u1_ilen),
+                        pav(u1_in),
+                        pav(u1_unit),
+                    ],
+                ),
+            },
         ),
         reachability: Reachability::Required,
     });
@@ -15993,7 +16041,7 @@ fn build_namespace_decode(
                 (BuiltinCase::Err, trap, Vec::new()),
             ],
         ),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // par_tag_ok params: [pstart, len1, end1, uend, vec, ilen, in, unit, w32].
     let pk_start = a.param(ns.p, par_tag_ok, ParameterRole::Block, u64_type());
@@ -16061,7 +16109,7 @@ fn build_namespace_decode(
                 ),
             ],
         ),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     let pk_er = a.op(
         ns.o,
@@ -16077,7 +16125,7 @@ fn build_namespace_decode(
         parameters: vec![pk_ebytes],
         operations: vec![pk_er],
         terminator: ret(op_result(pk_er)),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // par_len params: [tagtup, len1, end1, uend, vec, ilen, in, unit].
     // TupleGet tag/pos then branch into the length call block.
@@ -16119,7 +16167,7 @@ fn build_namespace_decode(
                 pav(pk_ounit),
             ],
         )),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // pl_call_blk params: [ptag, ppos, len1, end1, uend, vec, ilen, in, unit].
     let pc_tag = a.param(ns.p, pl_call_blk, ParameterRole::Block, u64_type());
@@ -16190,7 +16238,7 @@ fn build_namespace_decode(
                 ),
             ],
         ),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     let pc_er = a.op(
         ns.o,
@@ -16206,7 +16254,7 @@ fn build_namespace_decode(
         parameters: vec![pc_ebytes],
         operations: vec![pc_er],
         terminator: ret(op_result(pc_er)),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     let pc_glen = a.op(
         ns.o,
@@ -16259,7 +16307,7 @@ fn build_namespace_decode(
                 ],
             ),
         ),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // par_bnd params: [ptag, plen, ppos2, len1, end1, uend, vec, ilen, in, unit].
     let pb_tag = a.param(ns.p, par_bnd, ParameterRole::Block, u64_type());
@@ -16309,7 +16357,7 @@ fn build_namespace_decode(
                 (BuiltinCase::Err, trap, Vec::new()),
             ],
         ),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // par_unwrap params: [pend, ptag, plen, len1, end1, uend, vec, ilen, in, unit].
     // Bounds within the field-1 payload (pend<=end1) else LENGTH.
@@ -16357,7 +16405,7 @@ fn build_namespace_decode(
                 ],
             ),
         ),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // par_disp params: [ptag, plen, pend, end1, uend, vec, ilen, in, unit].
     // ptag==0 -> par_none; else par_t1 (==1 -> par_some else UNION).
@@ -16416,7 +16464,7 @@ fn build_namespace_decode(
                 ],
             ),
         ),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // par_t1: ptag==1 -> par_some else UNION_INVALID.
     let p1_tag = a.param(ns.p, par_t1, ParameterRole::Block, u64_type());
@@ -16461,7 +16509,7 @@ fn build_namespace_decode(
             ),
             edge(b_union, Vec::new()),
         ),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // par_none params: [plen, pend, end1, uend, vec, ilen, in, unit].
     // Tag 0 demands an empty payload (plen==0 else UNION), then exact
@@ -16506,7 +16554,7 @@ fn build_namespace_decode(
             ),
             edge(b_union, Vec::new()),
         ),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // par_none_fit params: [pend, end1, uend, vec, ilen, in, unit].
     let pf_end = a.param(ns.p, par_none_fit, ParameterRole::Block, u64_type());
@@ -16544,7 +16592,7 @@ fn build_namespace_decode(
             ),
             edge(b_trail, Vec::new()),
         ),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // par_empty params: [end1, uend, vec, ilen, in, unit].
     // Parent is None: the empty-Bytes constant flows to field-2.
@@ -16572,7 +16620,7 @@ fn build_namespace_decode(
                 pav(pe_uend),
             ],
         )),
-        reachability: Reachability::Required,
+        reachability: optional_parent_reachability,
     });
     // par_some params: [plen, pend, end1, uend, vec, ilen, in, unit].
     // Tag 1 demands exactly 32 payload bytes (nested `EntityId` exact:
@@ -19467,7 +19515,7 @@ fn build_namespace_decode(
         c0,
         c1,
         c2,
-        c3,
+        c_body_tag,
         c18,
         c32,
         c_max_fields,
@@ -23512,7 +23560,7 @@ fn build_program_ns_decode(
     let res_t = program_ns_decode_result_type();
     let env_t = encode_result_type();
     let out_t = outer_decode_result_type();
-    let nst_t = namespace_decode_result_type();
+    let nst_t = entity_set_decode_result_type();
 
     let p_stored = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
     let p_unit = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Unit);
@@ -25610,7 +25658,7 @@ fn namespace_encode_call(
     )
 }
 
-fn assert_ns_decode_ok(
+fn assert_entity_set_decode_ok(
     outcome: &sley_vm::ExecutionOutcome,
     expected_parent: &[u8],
     expected_members: &[u8],
@@ -25623,29 +25671,31 @@ fn assert_ns_decode_ok(
                     assert_eq!(
                         items.len(),
                         3,
-                        "namespace Ok carries (parent, members, count)"
+                        "entity-set body Ok carries (head, elements, count)"
                     );
                     match (&items[0].data, &items[1].data, &items[2].data) {
                         (ConstData::Bytes(par), ConstData::Bytes(mem), ConstData::UInt(cnt)) => {
-                            assert_eq!(par, expected_parent, "parent bytes match");
-                            assert_eq!(mem, expected_members, "members bytes match");
+                            assert_eq!(par, expected_parent, "head identity bytes match");
+                            assert_eq!(mem, expected_members, "set element bytes match");
                             assert_eq!(
                                 u64::try_from(*cnt).expect("count fits u64"),
                                 expected_count,
-                                "member count matches"
+                                "set element count matches"
                             );
                             outcome.fuel_used
                         }
                         other => {
-                            panic!("namespace tuple must carry (Bytes, Bytes, UInt), got {other:?}")
+                            panic!(
+                                "entity-set tuple must carry (Bytes, Bytes, UInt), got {other:?}"
+                            )
                         }
                     }
                 }
-                other => panic!("namespace must succeed with tuple, got {other:?}"),
+                other => panic!("entity-set body must succeed with tuple, got {other:?}"),
             },
-            other => panic!("namespace must succeed, got {other:?}"),
+            other => panic!("entity-set body must succeed, got {other:?}"),
         },
-        other => panic!("namespace must succeed, got {other:?}"),
+        other => panic!("entity-set body must succeed, got {other:?}"),
     }
 }
 
@@ -27748,7 +27798,7 @@ fn namespace_probe_valid_and_encode_bytes() {
         let (exp_par, exp_mem, exp_cnt) = ns_semantics(parent, members);
         // Native decode semantic result == Sley decode semantic result.
         let dec = namespace_decode_call(&dec_pkg, &dec_approved, &hex_encode(&body));
-        assert_ns_decode_ok(&dec, &exp_par, &exp_mem, exp_cnt);
+        assert_entity_set_decode_ok(&dec, &exp_par, &exp_mem, exp_cnt);
         eprintln!(
             "NS_DEC body{}B fuel={} instr={} peak={}",
             body.len(),
@@ -27774,7 +27824,7 @@ fn namespace_probe_valid_and_encode_bytes() {
         assert_encode_ok(&enc_again, &body);
         // decode(encode(x)) returns the exact canonical semantic object.
         let dec_back = namespace_decode_call(&dec_pkg, &dec_approved, &hex_encode(&body));
-        assert_ns_decode_ok(&dec_back, &exp_par, &exp_mem, exp_cnt);
+        assert_entity_set_decode_ok(&dec_back, &exp_par, &exp_mem, exp_cnt);
         eprintln!(
             "NS_ENC body{}B fuel={} instr={} peak={}",
             body.len(),

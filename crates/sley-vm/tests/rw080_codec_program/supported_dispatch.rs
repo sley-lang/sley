@@ -109,7 +109,7 @@ fn build_supported_program_decode(
     let envelope_result_type = encode_result_type();
     let outer_result_type = outer_decode_result_type();
     let entrypoint_result_type = entrypoint_decode_result_type();
-    let namespace_result_type = namespace_decode_result_type();
+    let namespace_result_type = entity_set_decode_result_type();
     let dependency_result_type =
         super::dependency_binding_decode::dependency_program_decode_result_type();
     let declared_kind = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
