@@ -3,7 +3,8 @@
     "blockers": [
       "signing_key_and_transparency_log_unauthorized",
       "final_argus_and_vulcan_dispositions",
-      "council_reviews"
+      "council_reviews",
+      "second_host_attestation_operator_lane"
     ],
     "publication_authorized": false,
     "signature_algorithm": null,
@@ -18,13 +19,13 @@
         "buildType": "urn:sley2:buildtype:release-candidate/v1",
         "externalParameters": {
           "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-          "commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
+          "commit": "c75277b61af7b8438f4265b05baeef19ee63f2de",
           "invocation": "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
           "make_target": "release-candidate-build",
           "working_tree_clean": true
         },
         "internalParameters": {
-          "artifact_size_bytes": 2444860,
+          "artifact_size_bytes": 2507941,
           "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
           "locked": true,
           "member_count": 15,
@@ -39,13 +40,13 @@
         "resolvedDependencies": [
           {
             "digest": {
-              "sha1": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6"
+              "sha1": "c75277b61af7b8438f4265b05baeef19ee63f2de"
             },
             "uri": "urn:sley2:git-commit"
           },
           {
             "digest": {
-              "sha256": "055cafd657a7d666b96781c2f484dbb9568d1eb6081c46a8841a59584e0d5c52"
+              "sha256": "d98a3235138633bd903a7d98d0ebb90ba4f7255f900b2e47d270114b07932794"
             },
             "name": "Cargo.lock"
           },
@@ -57,19 +58,19 @@
           },
           {
             "digest": {
-              "sha256": "99a440ff961d3ada5bea5d6d854d1663d13331e7040a0121c36fd732a52aaea7"
+              "sha256": "3be5e5547fe0ae8d1b290aaac3ab03eee509657278af21c14b983ece6a0355de"
             },
             "name": "evidence/security/T52/pre-release-inventory.json"
           },
           {
             "digest": {
-              "sha256": "7124b8ea2e5641f6c238ff7ec0e746b695473841b022e09497e3204f54be616f"
+              "sha256": "5d280c9900b6de7da45c93dcb2a58d23ea784e2b9cb2d0dd9e119615f564c2c6"
             },
             "name": "evidence/release/sbom/cyclonedx-1.6.json"
           },
           {
             "digest": {
-              "sha256": "eca529ec728759da950e8c0b61b1f97bd80e41efa0d196bff4574ad907407959"
+              "sha256": "52561c61e86493c9b12a6c84cd92b3c801b1acc2bdb001881649ab5f18792362"
             },
             "name": "evidence/release/sbom/spdx-2.3.json"
           }
@@ -82,19 +83,19 @@
         "byproducts": [
           {
             "digest": {
-              "sha256": "83c1a0dc68ebf916b436d5ef146031a82a01a566e4671d1eb9a01933e09e8803"
+              "sha256": "c3eb8428d81d23a55572cad66156cb793c04241778b0bcef0463ed452aa7c062"
             },
             "name": "evidence/release/reproducibility-report.json"
           },
           {
             "digest": {
-              "sha256": "f9ffea3911ee371f051d58d47331945bffdff4b9d8d991ad37485111396ea2f8"
+              "sha256": "498b94a03d85e069c803d1f7f1dcf509efa29a5dbda739eef406bc8c6e22a1c0"
             },
             "name": "evidence/conformance/independent-conformance-report.json"
           }
         ],
         "metadata": {
-          "invocationId": "74dfe30f3cce0236df7984229ab9684da0105ac0813290e4544d8c8af2019670"
+          "invocationId": "3caf47534bc34e2271ad5dbd602c66349da7fb51e4c29a5b01831c55b19f7064"
         }
       }
     },
@@ -102,11 +103,11 @@
     "subject": [
       {
         "digest": {
-          "sha256": "10a978f86486bf3b1ea9d999c06d9deb043a6830f2e83ea670ccefda119654c9"
+          "sha256": "3d115ce3c3d00ec1e43e80541df6a8a4d337accbbee3d7e498b125481a4845de"
         },
         "name": "sley-2.0.0-linux-x86_64.tar.gz"
       }
     ]
   },
-  "statement_digest": "1218ae0dfbcc4e18190c12d45ffbd904c5aa0459e421b08e63abbb606c7b651d"
+  "statement_digest": "be646b0ed327a7bb9ff4f40229b92edbacea30ee62713689e8f2efc3880614e0"
 }

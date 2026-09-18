@@ -3,13 +3,14 @@
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
     "1 review obligations are open",
-    "19 GA acceptance criteria are not evidenced",
+    "20 GA acceptance criteria are not evidenced",
     "no succession trial has been executed",
+    "only one host has attested the candidate",
     "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "60ad158dd768e6b622ed40845a6e19fcd62d2e39dada52783c520aae6a0486c4",
+  "dossier_digest": "0199b608a6f0088523affee1ef9597128666303c3713fa9a3dca439b7dbd1078",
   "entries": [
     {
       "evidence": [
@@ -34,7 +35,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6"
+      "value": "c75277b61af7b8438f4265b05baeef19ee63f2de"
     },
     {
       "evidence": [
@@ -283,7 +284,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "10a978f86486bf3b1ea9d999c06d9deb043a6830f2e83ea670ccefda119654c9"
+      "value": "3d115ce3c3d00ec1e43e80541df6a8a4d337accbbee3d7e498b125481a4845de"
     },
     {
       "evidence": [
@@ -292,19 +293,19 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2444860
+      "value": 2507941
     },
     {
       "evidence": [
         "evidence/release/reproducibility-report.json"
       ],
       "item": "reproducibility result",
-      "note": "multi-host reproducibility across distinct attested hosts",
+      "note": "single-host reproducibility; the second host is an operator-gated lane",
       "state": "EVIDENCED",
       "value": {
-        "distinct_hosts": 2,
-        "result": "MULTI_HOST_REPRODUCIBLE",
-        "second_host": "ATTESTED"
+        "distinct_hosts": 1,
+        "result": "SINGLE_HOST_REPRODUCIBLE",
+        "second_host": "GATED_OPERATOR_LANE"
       }
     },
     {
@@ -317,7 +318,7 @@
       "note": "both standards documents exist as drafts; the root license text is operator-approved, which the documents state in band",
       "state": "EVIDENCED",
       "value": {
-        "components": 53,
+        "components": 63,
         "cyclonedx_spec_version": "1.6",
         "license_disposition_blocked": 0,
         "root_license_text_approved": true,
@@ -431,7 +432,7 @@
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 33 evidenced, 17 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 32 evidenced, 17 awaiting review, and 3 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -455,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "02f930cf2a4ad8686da8639116753f278bea1c2b78569185ae6981e7e2e48856",
+  "entries_digest": "39070d6bb4f5623eb979696dd4cc323d28ae2c1a807b51007038e441b4828302",
   "evidenced": 24,
   "gated": 10,
   "gates": {

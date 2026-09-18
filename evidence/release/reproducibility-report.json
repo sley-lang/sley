@@ -2,30 +2,13 @@
   "attestations": [
     {
       "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "artifact_sha256": "10a978f86486bf3b1ea9d999c06d9deb043a6830f2e83ea670ccefda119654c9",
-      "artifact_size_bytes": 2444860,
-      "commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
+      "artifact_sha256": "3d115ce3c3d00ec1e43e80541df6a8a4d337accbbee3d7e498b125481a4845de",
+      "artifact_size_bytes": 2507941,
+      "commit": "c75277b61af7b8438f4265b05baeef19ee63f2de",
       "contract": "sley2.reproducibility-attestation.v1",
       "differing_members": [],
       "host_label": "primary",
-      "manifest_digest": "74dfe30f3cce0236df7984229ab9684da0105ac0813290e4544d8c8af2019670",
-      "member_count": 15,
-      "reproducibility": "REPRODUCIBLE",
-      "toolchain": {
-        "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
-        "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
-      },
-      "working_tree_clean": true
-    },
-    {
-      "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "artifact_sha256": "10a978f86486bf3b1ea9d999c06d9deb043a6830f2e83ea670ccefda119654c9",
-      "artifact_size_bytes": 2444860,
-      "commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
-      "contract": "sley2.reproducibility-attestation.v1",
-      "differing_members": [],
-      "host_label": "secondary",
-      "manifest_digest": "74dfe30f3cce0236df7984229ab9684da0105ac0813290e4544d8c8af2019670",
+      "manifest_digest": "3caf47534bc34e2271ad5dbd602c66349da7fb51e4c29a5b01831c55b19f7064",
       "member_count": 15,
       "reproducibility": "REPRODUCIBLE",
       "toolchain": {
@@ -36,29 +19,29 @@
     }
   ],
   "blockers": [
+    "second_host_attestation_operator_lane",
     "standards_sbom_and_provenance_s20_710_full",
     "succession_thresholds_s20_640",
     "council_reviews"
   ],
   "commits": {
-    "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6": {
-      "artifact_sha256": "10a978f86486bf3b1ea9d999c06d9deb043a6830f2e83ea670ccefda119654c9",
+    "c75277b61af7b8438f4265b05baeef19ee63f2de": {
+      "artifact_sha256": "3d115ce3c3d00ec1e43e80541df6a8a4d337accbbee3d7e498b125481a4845de",
       "hosts": [
-        "primary",
-        "secondary"
+        "primary"
       ]
     }
   },
   "contract": "sley2.reproducibility-report.v1",
-  "distinct_hosts": 2,
+  "distinct_hosts": 1,
   "ga_claimed": false,
   "publication_authorized": false,
-  "report_digest": "2e2ecc2e25be1bab8d72f6c2a8fb73b95c9be5f9771ee9effdd939761a559937",
+  "report_digest": "c53d8bc70dd325922a3e13a4c195e7aadce370fb35093eb37509fa50f60974fa",
   "required_hosts": 2,
-  "result": "MULTI_HOST_REPRODUCIBLE",
+  "result": "SINGLE_HOST_REPRODUCIBLE",
   "second_host": {
-    "note": "at least two hosts attested the same commit and artifact digest",
-    "status": "ATTESTED"
+    "note": "the second host build is an operator-gated lane; only the primary host attested",
+    "status": "GATED_OPERATOR_LANE"
   },
   "work_package": "S20-730"
 }

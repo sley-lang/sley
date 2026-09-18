@@ -268,7 +268,7 @@
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit 45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
+      "evidence": "attested commit c75277b61af7b8438f4265b05baeef19ee63f2de; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
       "group": "26.8 packaging",
       "state": "GATED"
     },
@@ -286,15 +286,15 @@
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "attested manifest digest 74dfe30f3cce, artifact digest 10a978f86486, 2444860 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
+      "evidence": "attested manifest digest 3caf47534bc3, artifact digest 3d115ce3c3d0, 2507941 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
     {
       "criterion": "second clean build establishes reproducibility",
-      "evidence": "reproducibility report result MULTI_HOST_REPRODUCIBLE across 2 of 2 required hosts, 2 attestations",
+      "evidence": "reproducibility report result SINGLE_HOST_REPRODUCIBLE across 1 of 2 required hosts, 1 attestations",
       "group": "26.8 packaging",
-      "state": "EVIDENCED"
+      "state": "GATED"
     },
     {
       "criterion": "the source working tree is clean",
@@ -337,17 +337,18 @@
   "ga_claimed": false,
   "gated": [
     "every section 22 threshold passes",
-    "artifact is built from the final candidate commit"
+    "artifact is built from the final candidate commit",
+    "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "9a499ad6d753edfa00615e5160a2a1efecb12e2bdcfb125f9e4b122d73aa6cd4",
   "register_digest": "deb0046a70821fa1f5aea5b8ccf413677ac81dd8808121bcf7496db56ba70724",
-  "report_digest": "21ef4a12d9bd7565ba3435511eb30dd36a5dedb1f640ac430ebf07cf0cf4e0f2",
+  "report_digest": "57f378fd4909993c74b4e4622f564cfcc4f69c87d3eefeddd9229f5902a7b74c",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,
-    "EVIDENCED": 33,
-    "GATED": 2
+    "EVIDENCED": 32,
+    "GATED": 3
   },
   "thresholds_source": "evidence/release/succession-accounting-report.json"
 }

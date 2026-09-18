@@ -3854,8 +3854,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "10a978f86486bf3b1ea9d999c06d9deb043a6830f2e83ea670ccefda119654c9",
-    "candidate_artifact_size_bytes": 2444860,
+    "candidate_artifact_sha256": "3d115ce3c3d00ec1e43e80541df6a8a4d337accbbee3d7e498b125481a4845de",
+    "candidate_artifact_size_bytes": 2507941,
     "candidate_member_count": 15,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -3863,14 +3863,15 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "74dfe30f3cce0236df7984229ab9684da0105ac0813290e4544d8c8af2019670",
-    "candidate_commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
+    "candidate_manifest_digest": "3caf47534bc34e2271ad5dbd602c66349da7fb51e4c29a5b01831c55b19f7064",
+    "candidate_commit": "c75277b61af7b8438f4265b05baeef19ee63f2de",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
+    "candidate_evidence_commit": "c75277b61af7b8438f4265b05baeef19ee63f2de",
+    "candidate_second_host_note": "Candidate c75277b6 minted 2026-09-18 in a detached linked worktree (two clean musl builds, REPRODUCIBLE) after the RW-090 codec re-mint; the secondary attestation is pending because greyforgelab is under an exclusive ZJX qualification lease until 2026-09-21T03:24Z. The superseded 45b2cd98 secondary attestation was not carried into the rebuilt report (it names a candidate 60 surface files behind) and remains in git history and the second-host lane ledger. Next: bundle main, clone detached at c75277b6 on the lab, make release-candidate-build, build_reproducibility_report.py --host-label secondary --emit-attestation, merge with --attest, file the lane receipt, re-pin attested_hosts.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
@@ -4072,14 +4073,14 @@
     "checker": "scripts/check_reproducibility_and_independent_conformance.py",
     "reproducibility_report": "evidence/release/reproducibility-report.json",
     "independent_conformance_report": "evidence/conformance/independent-conformance-report.json",
-    "reproducibility_result": "MULTI_HOST_REPRODUCIBLE",
-    "second_host_status": "ATTESTED",
+    "reproducibility_result": "SINGLE_HOST_REPRODUCIBLE",
+    "second_host_status": "GATED_OPERATOR_LANE",
     "required_hosts": 2,
-    "attested_hosts": 2,
+    "attested_hosts": 1,
     "second_host_lane_record": "evidence/release/second-host-lane-records.json",
-    "fixture_directories": 26,
-    "tracked_corpus_directories": 31,
-    "independently_checked_families": 26,
+    "fixture_directories": 27,
+    "tracked_corpus_directories": 32,
+    "independently_checked_families": 27,
     "native_only_families": [],
     "independent_conformance_result": "INDEPENDENT_CONFORMANCE_COMPLETE",
     "new_stable_error_codes": 8,
@@ -4087,6 +4088,7 @@
     "ga_claimed": false,
     "publication_authorized": false,
     "blockers": [
+      "second_host_attestation_operator_lane",
       "standards_sbom_and_provenance_s20_710_full",
       "succession_thresholds_s20_640",
       "council_reviews"
@@ -4148,7 +4150,7 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since (surface: build_release_candidate.ARTIFACT_INPUT_PATHS, completed at revision 7 with the root license files and the compile-time embedded inputs); attested toolchain must match",
-    "attested_commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
+    "attested_commit": "c75277b61af7b8438f4265b05baeef19ee63f2de",
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
@@ -4207,7 +4209,8 @@
     "blockers": [
       "signing_key_and_transparency_log_unauthorized",
       "final_argus_and_vulcan_dispositions",
-      "council_reviews"
+      "council_reviews",
+      "second_host_attestation_operator_lane"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
     "ariadne_contract_review": "PASS_P3_CLOSED",
@@ -4335,8 +4338,9 @@
     "decision_state": "BLOCKED",
     "decision_reasons": [
       "1 review obligations are open",
-      "19 GA acceptance criteria are not evidenced",
+      "20 GA acceptance criteria are not evidenced",
       "no succession trial has been executed",
+      "only one host has attested the candidate",
       "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
       "the release-check and v2 product gates are fail-closed"
     ],
@@ -4707,12 +4711,13 @@
     "criterion_count": 52,
     "states": {
       "AWAITS_REVIEW": 17,
-      "EVIDENCED": 33,
-      "GATED": 2
+      "EVIDENCED": 32,
+      "GATED": 3
     },
     "gated": [
       "every section 22 threshold passes",
-      "artifact is built from the final candidate commit"
+      "artifact is built from the final candidate commit",
+      "second clean build establishes reproducibility"
     ],
     "ga_claimed": false,
     "interpretation": "neither AWAITS_REVIEW nor GATED is a pass, and no combination of states is a GA claim; every state is derived from the fact its evidence names, package completion and lane clearance are the finding register's predicates, and the report is digest-bound to the register",
