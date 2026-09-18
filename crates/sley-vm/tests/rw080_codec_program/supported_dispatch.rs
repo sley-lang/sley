@@ -1,7 +1,8 @@
 //! Supported-kind codec dispatch kept separate from the large retained
 //! per-format construction record in the parent integration test.
 //! Construction provenance:
-//! `machineresearch/sley-2.0/reweave/rw-080-codec-supported-dispatch.md`.
+//! `machineresearch/sley-2.0/reweave/rw-080-codec-supported-dispatch.md` and
+//! `machineresearch/sley-2.0/reweave/rw-080-codec-package-supported-decode.md`.
 
 use super::*;
 use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1};
@@ -45,6 +46,13 @@ pub(super) fn all_supported_program_value_type() -> TypeExpr {
 fn supported_program_result_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(all_supported_program_value_type()),
+        error: Box::new(TypeExpr::Bytes),
+    }
+}
+
+fn dependency_supported_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(dependency_program_value_type()),
         error: Box::new(TypeExpr::Bytes),
     }
 }
@@ -108,6 +116,7 @@ fn build_supported_program_decode(
     entrypoint_decoder: EntityId,
     entity_set_decoder: EntityId,
     dependency_program_decoder: EntityId,
+    package_decoder: EntityId,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
     let result_type = supported_program_result_type();
@@ -124,6 +133,7 @@ fn build_supported_program_decode(
     let validated = assembler.id(ns.b);
     let call_outer = assembler.id(ns.b);
     let outer_success = assembler.id(ns.b);
+    let check_namespace = assembler.id(ns.b);
     let check_policy = assembler.id(ns.b);
     let check_entrypoint = assembler.id(ns.b);
     let check_known = assembler.id(ns.b);
@@ -131,14 +141,18 @@ fn build_supported_program_decode(
     let call_policy = assembler.id(ns.b);
     let call_entrypoint = assembler.id(ns.b);
     let call_dependency = assembler.id(ns.b);
+    let call_package = assembler.id(ns.b);
     let normalize_namespace = assembler.id(ns.b);
     let normalize_policy = assembler.id(ns.b);
     let normalize_entrypoint = assembler.id(ns.b);
+    let normalize_dependency = assembler.id(ns.b);
+    let normalize_package = assembler.id(ns.b);
     let forward_error = assembler.id(ns.b);
     let unsupported = assembler.id(ns.b);
     let unknown = assembler.id(ns.b);
 
     let zero = assembler.ku64(ns.k, 0);
+    let package_kind = assembler.ku64(ns.k, 2);
     let namespace_kind = assembler.ku64(ns.k, 3);
     let policy_kind = assembler.ku64(ns.k, 17);
     let entrypoint_kind = assembler.ku64(ns.k, 16);
@@ -281,12 +295,12 @@ fn build_supported_program_decode(
         vec![TypeExpr::Bytes],
         Immediate::Index(1),
     );
-    let namespace_kind_value = assembler.cref(ns.o, outer_success, namespace_kind, u64_type());
-    let is_namespace = assembler.op(
+    let package_kind_value = assembler.cref(ns.o, outer_success, package_kind, u64_type());
+    let is_package = assembler.op(
         ns.o,
         outer_success,
         Opcode::Equal,
-        vec![pav(outer_kind), op_result(namespace_kind_value)],
+        vec![pav(outer_kind), op_result(package_kind_value)],
         vec![TypeExpr::Bool],
         Immediate::None,
     );
@@ -295,16 +309,11 @@ fn build_supported_program_decode(
         outer_success,
         function,
         vec![outer_payload, outer_kind, outer_unit],
-        vec![
-            outer_entity_id,
-            outer_body,
-            namespace_kind_value,
-            is_namespace,
-        ],
+        vec![outer_entity_id, outer_body, package_kind_value, is_package],
         cond(
-            op_result(is_namespace),
+            op_result(is_package),
             edge(
-                call_namespace,
+                call_package,
                 vec![
                     op_result(outer_body),
                     op_result(outer_entity_id),
@@ -312,12 +321,65 @@ fn build_supported_program_decode(
                 ],
             ),
             edge(
-                check_policy,
+                check_namespace,
                 vec![
                     pav(outer_kind),
                     op_result(outer_body),
                     op_result(outer_entity_id),
                     pav(outer_unit),
+                ],
+            ),
+        ),
+    );
+
+    let namespace_candidate_kind =
+        assembler.param(ns.p, check_namespace, ParameterRole::Block, u64_type());
+    let namespace_candidate_body =
+        assembler.param(ns.p, check_namespace, ParameterRole::Block, TypeExpr::Bytes);
+    let namespace_candidate_entity_id =
+        assembler.param(ns.p, check_namespace, ParameterRole::Block, TypeExpr::Bytes);
+    let namespace_candidate_unit =
+        assembler.param(ns.p, check_namespace, ParameterRole::Block, TypeExpr::Unit);
+    let namespace_kind_value = assembler.cref(ns.o, check_namespace, namespace_kind, u64_type());
+    let is_namespace = assembler.op(
+        ns.o,
+        check_namespace,
+        Opcode::Equal,
+        vec![
+            pav(namespace_candidate_kind),
+            op_result(namespace_kind_value),
+        ],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    push_preallocated_block(
+        assembler,
+        check_namespace,
+        function,
+        vec![
+            namespace_candidate_kind,
+            namespace_candidate_body,
+            namespace_candidate_entity_id,
+            namespace_candidate_unit,
+        ],
+        vec![namespace_kind_value, is_namespace],
+        cond(
+            op_result(is_namespace),
+            edge(
+                call_namespace,
+                vec![
+                    pav(namespace_candidate_body),
+                    pav(namespace_candidate_entity_id),
+                    pav(namespace_candidate_unit),
+                ],
+            ),
+            edge(
+                check_policy,
+                vec![
+                    pav(namespace_candidate_kind),
+                    pav(namespace_candidate_body),
+                    pav(namespace_candidate_entity_id),
+                    pav(namespace_candidate_unit),
                 ],
             ),
         ),
@@ -468,16 +530,11 @@ fn build_supported_program_decode(
         assembler.param(ns.p, call_namespace, ParameterRole::Block, TypeExpr::Bytes);
     let namespace_unit =
         assembler.param(ns.p, call_namespace, ParameterRole::Block, TypeExpr::Unit);
-    let namespace_decode_kind = assembler.cref(ns.o, call_namespace, namespace_kind, u64_type());
     let namespace_result = assembler.op(
         ns.o,
         call_namespace,
         Opcode::CallDirect,
-        vec![
-            pav(namespace_body),
-            op_result(namespace_decode_kind),
-            pav(namespace_unit),
-        ],
+        vec![pav(namespace_body), pav(declared_kind), pav(namespace_unit)],
         vec![namespace_result_type.clone()],
         Immediate::Function(FunctionRefValue {
             function: entity_set_decoder,
@@ -489,7 +546,7 @@ fn build_supported_program_decode(
         call_namespace,
         function,
         vec![namespace_body, namespace_entity_id, namespace_unit],
-        vec![namespace_decode_kind, namespace_result],
+        vec![namespace_result],
         switch(
             op_result(namespace_result),
             vec![
@@ -511,16 +568,11 @@ fn build_supported_program_decode(
     let policy_entity_id =
         assembler.param(ns.p, call_policy, ParameterRole::Block, TypeExpr::Bytes);
     let policy_unit = assembler.param(ns.p, call_policy, ParameterRole::Block, TypeExpr::Unit);
-    let policy_decode_kind = assembler.cref(ns.o, call_policy, policy_kind, u64_type());
     let policy_result = assembler.op(
         ns.o,
         call_policy,
         Opcode::CallDirect,
-        vec![
-            pav(policy_body),
-            op_result(policy_decode_kind),
-            pav(policy_unit),
-        ],
+        vec![pav(policy_body), pav(declared_kind), pav(policy_unit)],
         vec![policy_result_type],
         Immediate::Function(FunctionRefValue {
             function: entity_set_decoder,
@@ -532,7 +584,7 @@ fn build_supported_program_decode(
         call_policy,
         function,
         vec![policy_body, policy_entity_id, policy_unit],
-        vec![policy_decode_kind, policy_result],
+        vec![policy_result],
         switch(
             op_result(policy_result),
             vec![
@@ -599,7 +651,7 @@ fn build_supported_program_decode(
         call_dependency,
         Opcode::CallDirect,
         vec![pav(dependency_payload), pav(dependency_unit)],
-        vec![result_type.clone()],
+        vec![dependency_supported_result_type()],
         Immediate::Function(FunctionRefValue {
             function: dependency_program_decoder,
             type_arguments: Vec::new(),
@@ -611,7 +663,110 @@ fn build_supported_program_decode(
         function,
         vec![dependency_payload, dependency_unit],
         vec![dependency_result],
-        ret(op_result(dependency_result)),
+        switch(
+            op_result(dependency_result),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    normalize_dependency,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let package_payload =
+        assembler.param(ns.p, call_package, ParameterRole::Block, TypeExpr::Bytes);
+    let package_entity = assembler.param(ns.p, call_package, ParameterRole::Block, TypeExpr::Bytes);
+    let package_unit = assembler.param(ns.p, call_package, ParameterRole::Block, TypeExpr::Unit);
+    let package_result = assembler.op(
+        ns.o,
+        call_package,
+        Opcode::CallDirect,
+        vec![pav(package_payload), pav(package_unit)],
+        vec![TypeExpr::Bool],
+        Immediate::Function(FunctionRefValue {
+            function: package_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    push_preallocated_block(
+        assembler,
+        call_package,
+        function,
+        vec![package_payload, package_entity, package_unit],
+        vec![package_result],
+        cond(
+            op_result(package_result),
+            edge(
+                normalize_package,
+                vec![pav(package_payload), pav(package_entity)],
+            ),
+            edge(unsupported, Vec::new()),
+        ),
+    );
+
+    let package_body = assembler.param(
+        ns.p,
+        normalize_package,
+        ParameterRole::Block,
+        TypeExpr::Bytes,
+    );
+    let package_entity = assembler.param(
+        ns.p,
+        normalize_package,
+        ParameterRole::Block,
+        TypeExpr::Bytes,
+    );
+    let package_value = assembler.op(
+        ns.o,
+        normalize_package,
+        Opcode::TupleNew,
+        vec![
+            pav(declared_kind),
+            pav(package_entity),
+            pav(package_body),
+            pav(package_body),
+        ],
+        vec![tagged_entity_set_program_value_type()],
+        Immediate::None,
+    );
+    let package_arm = assembler.op(
+        ns.o,
+        normalize_package,
+        Opcode::ResultErr,
+        vec![op_result(package_value)],
+        vec![non_dependency_program_value_type()],
+        Immediate::None,
+    );
+    let package_supported = assembler.op(
+        ns.o,
+        normalize_package,
+        Opcode::ResultOk,
+        vec![op_result(package_arm)],
+        vec![all_supported_program_value_type()],
+        Immediate::None,
+    );
+    let package_ok = assembler.op(
+        ns.o,
+        normalize_package,
+        Opcode::ResultOk,
+        vec![op_result(package_supported)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    push_preallocated_block(
+        assembler,
+        normalize_package,
+        function,
+        vec![package_body, package_entity],
+        vec![package_value, package_arm, package_supported, package_ok],
+        ret(op_result(package_ok)),
     );
 
     let namespace_payload = assembler.param(
@@ -861,6 +1016,37 @@ fn build_supported_program_decode(
         ret(op_result(entrypoint_ok)),
     );
 
+    let dependency_value = assembler.param(
+        ns.p,
+        normalize_dependency,
+        ParameterRole::Block,
+        dependency_program_value_type(),
+    );
+    let dependency_arm = assembler.op(
+        ns.o,
+        normalize_dependency,
+        Opcode::ResultErr,
+        vec![pav(dependency_value)],
+        vec![all_supported_program_value_type()],
+        Immediate::None,
+    );
+    let dependency_ok = assembler.op(
+        ns.o,
+        normalize_dependency,
+        Opcode::ResultOk,
+        vec![op_result(dependency_arm)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    push_preallocated_block(
+        assembler,
+        normalize_dependency,
+        function,
+        vec![dependency_value],
+        vec![dependency_arm, dependency_ok],
+        ret(op_result(dependency_ok)),
+    );
+
     let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
     let forwarded_error = assembler.op(
         ns.o,
@@ -954,6 +1140,12 @@ pub(super) fn supported_decode_image() -> Image {
         b: 157,
         o: 158,
     };
+    let package_program_ns = Ns {
+        k: 206,
+        p: 207,
+        b: 208,
+        o: 209,
+    };
     let dispatch_ns = Ns {
         k: 151,
         p: 152,
@@ -967,6 +1159,7 @@ pub(super) fn supported_decode_image() -> Image {
     let namespace_function = eid(9, 49);
     let function = eid(9, 50);
     let dependency_program_function = eid(9, 51);
+    let package_function = eid(9, 52);
     let (decode_graph, _) = build_decode(&mut assembler, decode_ns, decode_function);
     let validate_graph = build_program_validate(
         &mut assembler,
@@ -987,13 +1180,17 @@ pub(super) fn supported_decode_image() -> Image {
         namespace_function,
         decode_function,
     );
+    let package_graph = super::dependency_binding_decode::build_empty_package_supported_body_check(
+        &mut assembler,
+        package_program_ns,
+        package_function,
+    );
     let dependency_program_graph =
         super::dependency_binding_decode::build_dependency_supported_program_decode(
             &mut assembler,
             dependency_program_ns,
             dependency_program_function,
-            &all_supported_program_value_type(),
-            supported_program_result_type(),
+            dependency_supported_result_type(),
         );
     let graph = build_supported_program_decode(
         &mut assembler,
@@ -1004,6 +1201,7 @@ pub(super) fn supported_decode_image() -> Image {
         entrypoint_function,
         namespace_function,
         dependency_program_function,
+        package_function,
     );
     let mut image = Image {
         types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
@@ -1015,6 +1213,7 @@ pub(super) fn supported_decode_image() -> Image {
             entrypoint_graph,
             namespace_graph,
             dependency_program_graph,
+            package_graph,
             decode_graph,
         ],
         parameters: assembler.parameters,
@@ -1065,7 +1264,8 @@ pub(super) fn supported_decode_ok(outcome: &sley_vm::ExecutionOutcome) -> ConstV
 }
 
 #[test]
-fn codec_supported_kind_dispatch_decodes_all_four_supported_kinds() {
+#[allow(clippy::too_many_lines)]
+fn codec_supported_kind_dispatch_decodes_all_five_supported_kinds() {
     let image = supported_decode_image();
     let (package, approved) = admit(&image);
 
@@ -1170,6 +1370,90 @@ fn codec_supported_kind_dispatch_decodes_all_four_supported_kinds() {
     assert_eq!(fields[1].data, ConstData::Bytes(vec![0xe1; 32]));
     assert_eq!(fields[2].data, ConstData::Bytes(vec![0xe2; 32]));
     assert_eq!(fields[3].data, ConstData::Bytes(vec![0xe3; 32]));
+
+    let package_stored =
+        super::package::package_stored([0xf1; 32], [0xf2; 32], [0xf3; 32], &[], &[]);
+    let package_outcome = supported_decode_call(&package, &approved, 2, &package_stored);
+    let package_value = supported_decode_ok(&package_outcome);
+    eprintln!(
+        "SUPPORTED_DEC kind2 stored{}B fuel={} instr={} peak={}",
+        package_stored.len(),
+        package_outcome.fuel_used,
+        package_outcome.instruction_count,
+        package_outcome.peak_value_units
+    );
+    let ConstData::Result(ResultConst::Ok(non_dependency_package)) = package_value.data else {
+        panic!("Package must use the non-DependencyBinding arm")
+    };
+    let ConstData::Result(ResultConst::Err(package_fields)) = non_dependency_package.data else {
+        panic!("Package must use the Package arm")
+    };
+    let ConstData::Sequence(fields) = package_fields.data else {
+        panic!("Package arm must carry entity and validated body bytes")
+    };
+    assert_eq!(fields.len(), 4);
+    assert_eq!(fields[0].data, ConstData::UInt(2));
+    assert_eq!(fields[1].data, ConstData::Bytes(vec![0xf1; 32]));
+    assert_eq!(
+        fields[2].data,
+        ConstData::Bytes(ns_body_of(&package_stored))
+    );
+    assert_eq!(
+        fields[3].data,
+        ConstData::Bytes(ns_body_of(&package_stored))
+    );
+}
+
+#[test]
+fn codec_supported_package_kind_reaches_value_envelope_outside_the_empty_profile() {
+    let (package, approved) = admit(&supported_decode_image());
+    for (name, dependencies, exports) in [
+        ("one_dependency", vec![[4; 32]], Vec::new()),
+        ("one_export", Vec::new(), vec![[5; 32]]),
+    ] {
+        let stored =
+            super::package::package_stored([1; 32], [2; 32], [3; 32], &dependencies, &exports);
+        let outcome = supported_decode_call(&package, &approved, 2, &stored);
+        eprintln!(
+            "SUPPORTED_DEC_PACKAGE_SCOPE {name} stored{}B fuel={} instr={} peak={}",
+            stored.len(),
+            outcome.fuel_used,
+            outcome.instruction_count,
+            outcome.peak_value_units
+        );
+        match &outcome.termination {
+            sley_vm::ExecutionTermination::ResourceLimit(kind) => assert_eq!(
+                *kind,
+                sley_vm::ResourceKind::ValueUnits,
+                "nonempty Package bodies must bind on the protected value-unit envelope",
+            ),
+            other => panic!(
+                "nonempty Package bodies must fail closed at the value envelope, got {other:?}"
+            ),
+        }
+    }
+}
+
+#[test]
+fn codec_supported_package_kind_rejects_same_length_noncanonical_body() {
+    let (package, approved) = admit(&supported_decode_image());
+    let base = super::package::package_stored([1; 32], [2; 32], [3; 32], &[], &[]);
+    let body = ns_body_of(&base);
+    let body_offset = base.len() - 32 - body.len();
+    let mut malformed = base.clone();
+    malformed[body_offset + 73] = 1;
+    let malformed = program_recompute(&malformed);
+    assert_eq!(malformed.len(), base.len());
+
+    let outcome = supported_decode_call(&package, &approved, 2, &malformed);
+    assert_refusal(&outcome, "SSMC_RESERVED_FIELD_PRESENT");
+    eprintln!(
+        "SUPPORTED_DEC_PACKAGE_SCOPE same_length_noncanonical stored{}B fuel={} instr={} peak={}",
+        malformed.len(),
+        outcome.fuel_used,
+        outcome.instruction_count,
+        outcome.peak_value_units
+    );
 }
 
 #[test]
@@ -1188,6 +1472,10 @@ fn codec_supported_kind_dispatch_fails_closed_on_mismatch_and_unknown_kind() {
     );
     assert_refusal(
         &supported_decode_call(&package, &approved, 17, &entrypoint),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_decode_call(&package, &approved, 2, &entrypoint),
         "SSMC_RESERVED_FIELD_PRESENT",
     );
     assert_refusal(

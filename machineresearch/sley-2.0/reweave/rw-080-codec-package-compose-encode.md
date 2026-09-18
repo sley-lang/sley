@@ -21,8 +21,10 @@ Successful output is byte-identical to native
 outer entity identity check: workspace, root namespace, dependencies and
 exports retain their field-order refusal precedence before `entity_id`.
 
-The supported whole-program semantic encoder still advertises kinds 3, 16,
-17 and 18. Adding kind 2 remains a separate bounded slice.
+The supported whole-program semantic decoder subsequently added an exact
+canonical empty-set kind-2 profile in program slice 22. The supported semantic
+encoder still advertises kinds 3, 16, 17 and 18; adding its matching kind-2
+arm remains a separate bounded slice.
 
 ## 2. Bounded construction
 

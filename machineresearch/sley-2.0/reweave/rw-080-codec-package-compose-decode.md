@@ -40,8 +40,11 @@ through unchanged, so envelope errors precede outer errors and outer errors
 precede body errors. A valid Namespace stored object reaches the Package body
 scope refusal `SSMC_RESERVED_FIELD_PRESENT` after both earlier layers pass.
 
-The supported whole-program semantic dispatcher still advertises kinds 3,
-16, 17 and 18. Adding kind 2 remains a separate bounded slice.
+The supported whole-program semantic dispatcher subsequently added the exact
+canonical empty-set kind-2 profile in program slice 22. Its deliberately
+bounded representation and capacity evidence are recorded in
+`rw-080-codec-package-supported-decode.md`; this slice remains the strict
+general composed Package decoder.
 
 ## 2. Allocation refinement
 

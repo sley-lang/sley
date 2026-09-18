@@ -3777,7 +3777,7 @@ fn package_program_decode_call(
     execute(package, approved, vec![bytes_input(stored), unit_input()])
 }
 
-fn package_stored(
+pub(super) fn package_stored(
     entity: [u8; 32],
     workspace: [u8; 32],
     root_namespace: [u8; 32],

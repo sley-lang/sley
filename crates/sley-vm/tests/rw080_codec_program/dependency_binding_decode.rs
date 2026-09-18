@@ -2337,6 +2337,254 @@ fn build_program_canonical_check(
     entry
 }
 
+/// Compares a fixed template byte by byte while skipping dynamic ranges.
+/// One counted loop replaces a separate graph stage for every framing byte.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn build_masked_program_canonical_check(
+    assembler: &mut Asm,
+    ns: Ns,
+    control: CompactBlocks,
+    unit: EntityId,
+    template: &[u8],
+    skips: [(u64, u64); 2],
+    fallback: EntityId,
+    success: EntityId,
+) -> EntityId {
+    let entry = assembler.id(ns.b);
+    let check = assembler.id(ns.b);
+    let skip_first = assembler.id(ns.b);
+    let skip_second = assembler.id(ns.b);
+    let compare = assembler.id(ns.b);
+    let next = assembler.id(ns.b);
+    let template_constant = assembler.kbytes(ns.k, template);
+    let zero_constant = assembler.ku64(ns.k, 0);
+    let one_constant = assembler.ku64(ns.k, 1);
+    let length_constant = assembler.ku64(
+        ns.k,
+        u128::try_from(template.len()).expect("template length fits u128"),
+    );
+    let skip_constants = skips.map(|(start, destination)| {
+        (
+            assembler.ku64(ns.k, u128::from(start)),
+            assembler.ku64(ns.k, u128::from(destination)),
+        )
+    });
+    let option_u8 = TypeExpr::Option(Box::new(u8_type()));
+
+    let source = assembler.param(ns.p, entry, ParameterRole::Block, u8vec_type());
+    let template_bytes = assembler.cref(ns.o, entry, template_constant, TypeExpr::Bytes);
+    let template_vector = assembler.op(
+        ns.o,
+        entry,
+        Opcode::AdapterInvoke,
+        vec![pav(unit), op_result(template_bytes)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    let zero = assembler.cref(ns.o, entry, zero_constant, u64_type());
+    append_block(
+        assembler,
+        entry,
+        control.function,
+        vec![source],
+        vec![template_bytes, template_vector, zero],
+        switch(
+            op_result(template_vector),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    check,
+                    vec![oav(zero), sav(source), SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, fallback, Vec::new()),
+            ],
+        ),
+    );
+
+    let check_index = assembler.param(ns.p, check, ParameterRole::Block, u64_type());
+    let check_source = assembler.param(ns.p, check, ParameterRole::Block, u8vec_type());
+    let check_template = assembler.param(ns.p, check, ParameterRole::Block, u8vec_type());
+    let length = assembler.cref(ns.o, check, length_constant, u64_type());
+    let more = assembler.op(
+        ns.o,
+        check,
+        Opcode::LessThan,
+        vec![pav(check_index), op_result(length)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        check,
+        control.function,
+        vec![check_index, check_source, check_template],
+        vec![length, more],
+        cond(
+            op_result(more),
+            edge(
+                skip_first,
+                vec![pav(check_index), pav(check_source), pav(check_template)],
+            ),
+            edge(success, Vec::new()),
+        ),
+    );
+
+    let first_index = assembler.param(ns.p, skip_first, ParameterRole::Block, u64_type());
+    let first_source = assembler.param(ns.p, skip_first, ParameterRole::Block, u8vec_type());
+    let first_template = assembler.param(ns.p, skip_first, ParameterRole::Block, u8vec_type());
+    let first_start = assembler.cref(ns.o, skip_first, skip_constants[0].0, u64_type());
+    let first_destination = assembler.cref(ns.o, skip_first, skip_constants[0].1, u64_type());
+    let at_first_skip = assembler.op(
+        ns.o,
+        skip_first,
+        Opcode::Equal,
+        vec![pav(first_index), op_result(first_start)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        skip_first,
+        control.function,
+        vec![first_index, first_source, first_template],
+        vec![first_start, first_destination, at_first_skip],
+        cond(
+            op_result(at_first_skip),
+            edge(
+                check,
+                vec![
+                    op_result(first_destination),
+                    pav(first_source),
+                    pav(first_template),
+                ],
+            ),
+            edge(
+                skip_second,
+                vec![pav(first_index), pav(first_source), pav(first_template)],
+            ),
+        ),
+    );
+
+    let second_index = assembler.param(ns.p, skip_second, ParameterRole::Block, u64_type());
+    let second_source = assembler.param(ns.p, skip_second, ParameterRole::Block, u8vec_type());
+    let second_template = assembler.param(ns.p, skip_second, ParameterRole::Block, u8vec_type());
+    let second_start = assembler.cref(ns.o, skip_second, skip_constants[1].0, u64_type());
+    let second_destination = assembler.cref(ns.o, skip_second, skip_constants[1].1, u64_type());
+    let at_second_skip = assembler.op(
+        ns.o,
+        skip_second,
+        Opcode::Equal,
+        vec![pav(second_index), op_result(second_start)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        skip_second,
+        control.function,
+        vec![second_index, second_source, second_template],
+        vec![second_start, second_destination, at_second_skip],
+        cond(
+            op_result(at_second_skip),
+            edge(
+                check,
+                vec![
+                    op_result(second_destination),
+                    pav(second_source),
+                    pav(second_template),
+                ],
+            ),
+            edge(
+                compare,
+                vec![pav(second_index), pav(second_source), pav(second_template)],
+            ),
+        ),
+    );
+
+    let compare_index = assembler.param(ns.p, compare, ParameterRole::Block, u64_type());
+    let compare_source = assembler.param(ns.p, compare, ParameterRole::Block, u8vec_type());
+    let compare_template = assembler.param(ns.p, compare, ParameterRole::Block, u8vec_type());
+    let actual = assembler.op(
+        ns.o,
+        compare,
+        Opcode::VectorGet,
+        vec![pav(compare_source), pav(compare_index)],
+        vec![option_u8.clone()],
+        Immediate::None,
+    );
+    let expected = assembler.op(
+        ns.o,
+        compare,
+        Opcode::VectorGet,
+        vec![pav(compare_template), pav(compare_index)],
+        vec![option_u8],
+        Immediate::None,
+    );
+    let matches = assembler.op(
+        ns.o,
+        compare,
+        Opcode::Equal,
+        vec![op_result(actual), op_result(expected)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        compare,
+        control.function,
+        vec![compare_index, compare_source, compare_template],
+        vec![actual, expected, matches],
+        cond(
+            op_result(matches),
+            edge(
+                next,
+                vec![
+                    pav(compare_index),
+                    pav(compare_source),
+                    pav(compare_template),
+                ],
+            ),
+            edge(fallback, Vec::new()),
+        ),
+    );
+
+    let next_index = assembler.param(ns.p, next, ParameterRole::Block, u64_type());
+    let next_source = assembler.param(ns.p, next, ParameterRole::Block, u8vec_type());
+    let next_template = assembler.param(ns.p, next, ParameterRole::Block, u8vec_type());
+    let one = assembler.cref(ns.o, next, one_constant, u64_type());
+    let advanced = assembler.op(
+        ns.o,
+        next,
+        Opcode::IntAddChecked,
+        vec![pav(next_index), op_result(one)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        next,
+        control.function,
+        vec![next_index, next_source, next_template],
+        vec![one, advanced],
+        switch(
+            op_result(advanced),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    check,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(next_source),
+                        sav(next_template),
+                    ],
+                ),
+                (BuiltinCase::Err, fallback, Vec::new()),
+            ],
+        ),
+    );
+    entry
+}
+
 fn build_canonical_return(
     assembler: &mut Asm,
     ns: Ns,
@@ -3341,10 +3589,10 @@ fn build_program_supported_return(
     assembler: &mut Asm,
     ns: Ns,
     control: CompactBlocks,
-    all_value_type: &TypeExpr,
     result_type: &TypeExpr,
 ) -> EntityId {
     let block = assembler.id(ns.b);
+    let wrap = assembler.id(ns.b);
     let types = vec![
         TypeExpr::Bytes,
         TypeExpr::Bytes,
@@ -3358,23 +3606,7 @@ fn build_program_supported_return(
         block,
         Opcode::TupleNew,
         parameter_values(&parameters),
-        vec![tuple_type],
-        Immediate::None,
-    );
-    let dependency_arm = assembler.op(
-        ns.o,
-        block,
-        Opcode::ResultErr,
-        vec![op_result(tuple)],
-        vec![all_value_type.clone()],
-        Immediate::None,
-    );
-    let ok = assembler.op(
-        ns.o,
-        block,
-        Opcode::ResultOk,
-        vec![op_result(dependency_arm)],
-        vec![result_type.clone()],
+        vec![tuple_type.clone()],
         Immediate::None,
     );
     append_block(
@@ -3382,10 +3614,158 @@ fn build_program_supported_return(
         block,
         control.function,
         parameters,
-        vec![tuple, dependency_arm, ok],
+        vec![tuple],
+        branch(edge(wrap, vec![op_result(tuple)])),
+    );
+    let dependency_tuple = assembler.param(ns.p, wrap, ParameterRole::Block, tuple_type);
+    let ok = assembler.op(
+        ns.o,
+        wrap,
+        Opcode::ResultOk,
+        vec![pav(dependency_tuple)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        wrap,
+        control.function,
+        vec![dependency_tuple],
+        vec![ok],
         ret(op_result(ok)),
     );
     block
+}
+
+/// Decodes the exact empty-set Package body without retaining the
+/// generic Package body graph family in the supported-dispatch image. Larger
+/// Package bodies remain outside this bounded profile and fail closed.
+#[allow(clippy::too_many_lines)]
+pub(super) fn build_empty_package_supported_body_check(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let accepted = assembler.id(ns.b);
+    let refused = assembler.id(ns.b);
+    let true_constant = assembler.kbool(ns.k, true);
+    let false_constant = assembler.kbool(ns.k, false);
+    let true_value = assembler.cref(ns.o, accepted, true_constant, TypeExpr::Bool);
+    append_block(
+        assembler,
+        accepted,
+        function,
+        Vec::new(),
+        vec![true_value],
+        ret(op_result(true_value)),
+    );
+    let false_value = assembler.cref(ns.o, refused, false_constant, TypeExpr::Bool);
+    append_block(
+        assembler,
+        refused,
+        function,
+        Vec::new(),
+        vec![false_value],
+        ret(op_result(false_value)),
+    );
+    let constant1 = assembler.ku64(ns.k, 1);
+    let compact_control = CompactBlocks {
+        function,
+        resource_error: refused,
+        invariant_trap: refused,
+        constant1,
+    };
+    let mut canonical_template = vec![2, 75, 4, 1, 32];
+    canonical_template.extend_from_slice(&[0; 32]);
+    canonical_template.extend_from_slice(&[2, 32]);
+    canonical_template.extend_from_slice(&[0; 32]);
+    canonical_template.extend_from_slice(&[3, 1, 0, 4, 1, 0]);
+    let canonical_checks = build_masked_program_canonical_check(
+        assembler,
+        ns,
+        compact_control,
+        unit,
+        &canonical_template,
+        [(5, 37), (39, 71)],
+        refused,
+        accepted,
+    );
+    let entry = assembler.id(ns.b);
+    let converted = assembler.id(ns.b);
+    let payload_vector = assembler.op(
+        ns.o,
+        entry,
+        Opcode::AdapterInvoke,
+        vec![pav(unit), pav(body)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![payload_vector],
+        switch(
+            op_result(payload_vector),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    converted,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, refused, Vec::new()),
+            ],
+        ),
+    );
+    let converted_vector = assembler.param(ns.p, converted, ParameterRole::Block, u8vec_type());
+    let payload_length = assembler.op(
+        ns.o,
+        converted,
+        Opcode::VectorLen,
+        vec![pav(converted_vector)],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let expected_length_constant = assembler.ku64(ns.k, 77);
+    let expected_length = assembler.cref(ns.o, converted, expected_length_constant, u64_type());
+    let canonical_length = assembler.op(
+        ns.o,
+        converted,
+        Opcode::Equal,
+        vec![op_result(payload_length), op_result(expected_length)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        converted,
+        function,
+        vec![converted_vector],
+        vec![payload_length, expected_length, canonical_length],
+        cond(
+            op_result(canonical_length),
+            edge(canonical_checks, vec![pav(converted_vector)]),
+            edge(refused, Vec::new()),
+        ),
+    );
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type: TypeExpr::Bool,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
 }
 
 /// Decodes the complete outer payload for kind 18. Its canonical fixed-shape
@@ -3396,16 +3776,9 @@ pub(super) fn build_dependency_supported_program_decode(
     assembler: &mut Asm,
     ns: Ns,
     function: EntityId,
-    all_value_type: &TypeExpr,
     result_type: TypeExpr,
 ) -> FunctionGraph {
-    build_dependency_program_decode_with_result(
-        assembler,
-        ns,
-        function,
-        all_value_type,
-        result_type,
-    )
+    build_dependency_program_decode_with_result(assembler, ns, function, result_type)
 }
 
 #[allow(clippy::too_many_lines)]
@@ -3413,7 +3786,6 @@ fn build_dependency_program_decode_with_result(
     assembler: &mut Asm,
     ns: Ns,
     function: EntityId,
-    all_value_type: &TypeExpr,
     result_type: TypeExpr,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
@@ -3432,13 +3804,8 @@ fn build_dependency_program_decode_with_result(
         constant1,
     };
 
-    let canonical_return = build_program_supported_return(
-        assembler,
-        ns,
-        compact_control,
-        all_value_type,
-        &result_type,
-    );
+    let canonical_return =
+        build_program_supported_return(assembler, ns, compact_control, &result_type);
     let copy_namespace = build_compact_copy_loop(
         assembler,
         ns,
