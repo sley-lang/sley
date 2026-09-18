@@ -2,7 +2,7 @@
 
 Date: 2026-09-18
 
-Status: SUPERSEDED BY THE RE-MINT (same day). The dry run below preceded the codec re-mint recorded in `rw-120-c0-c1-candidate.md`; the installed canonical `S` (`b1992814…`, with the handoff driver) and the preserved C0/C1 artifacts are recorded there and in the manifests. The numbers below remain valid for the driver-only and merge-only evidence sets.
+Status: SUPERSEDED BY THE RE-MINTS (same day). The dry run below preceded the codec re-mint recorded in `rw-120-c0-c1-candidate.md`; the canonical `S` was first re-minted as `b1992814…` (pre-review arbitrary generation, e3a50ca7) after the 178873d7 Council repairs as `1d64fcd1…` (7426bc0b), and after the 92fa6646 re-review round as `48f8af24…` (source commit in `canonical-s-manifest.json`), which is the installed canonical `S`. The table below is retained as the dry-run evidence of the first re-mint.
 
 ## What was computed
 
@@ -55,11 +55,18 @@ second re-mint: handoff `S` `1d64fcd1…` (203 functions, 9,761 parameters,
 3,236 blocks, 6,492 operations, 669 constants, 20,382 objects, 5,131,018
 bytes, bundle `56b600b1…`, stored root 1,345,643 bytes `8191381e…`), driver
 `S` `9533add0…` (203/9,760/3,234/6,488, 20,375 objects), merged component
-root `1751abdb…` (202/9,685/3,233/6,483, 20,292 objects). The figures in the
-table above are the pre-review arbitrary generation, superseded twice over
-(bounded → arbitrary → repaired arbitrary) under RW080-ID-02 replacement
-semantics; `rw-120-c0-c1-candidate.md` and the generation manifests carry the
-current values.
+root `1751abdb…` (202/9,685/3,233/6,483, 20,292 objects). The 92fa6646
+re-review round (one shared P2: the constant projector charged `value_type`
+from a fixed depth instead of the node depth) led to the third re-mint:
+handoff `S` `48f8af24…` (202 functions, 9,763 parameters, 3,236 blocks,
+6,492 operations, 669 constants, 20,383 objects, 5,131,404 bytes, bundle
+`d7d2fcb5…`, stored root 1,345,709 bytes `76235656…`), driver `S`
+`74831205…` (202/9,762/3,234/6,488, 20,376 objects), merged component root
+`95f3ca02…` (201/9,687/3,233/6,483, 20,293 objects). The figures in the
+table above are the pre-review arbitrary generation, superseded three times
+over (bounded → arbitrary → repaired arbitrary → re-review repaired) under
+RW080-ID-02 replacement semantics; `rw-120-c0-c1-candidate.md` and the
+generation manifests carry the current values.
 
 The checker and lowerer remain bounded; the codec is arbitrary on both
 program legs. Independent re-review of the repairs is pending.

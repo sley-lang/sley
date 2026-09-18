@@ -1108,11 +1108,11 @@ fn canonical_codec_objects_round_trip_and_bind_the_complete_graph() {
     // Pinned so the component manifest's figures are asserted, not only
     // printed (Ariadne P4 at 178873d7): rw-090-codec-component-manifest.json
     // codec_object_count / codec_object_stored_bytes / codec_bundle_sha256.
-    assert_eq!(objects.len(), 14_727);
-    assert_eq!(stored_bytes, 3_731_690);
+    assert_eq!(objects.len(), 14_728);
+    assert_eq!(stored_bytes, 3_732_076);
     assert_eq!(
         hex(&digest),
-        "e6633dcc886d970c823cd95d7c22a63a076066ce87b26b3188cd8799a1add291"
+        "d4512319c23d62918bf9e3679f24f45e994ff108ee4d50ed72e44ff56b864dff"
     );
 }
 
@@ -1202,15 +1202,15 @@ fn canonical_codec_component_retains_validated_contract_test_and_executes_from_i
     let objects = canonical_codec_component_objects(&image, &witnesses);
     let root = canonical_codec_component_root(&objects);
     let stored_digest = assert_component_reimports(&objects, &root);
-    assert_eq!(objects.len(), 14_739);
+    assert_eq!(objects.len(), 14_740);
     assert_eq!(
         hex(root.root.as_bytes()),
-        "2958619ac0b70cbf4a33e14f26df7fdfe306d527c6f6adf31962bf75e31b7af8"
+        "3398fa0dc92df884a62d491edfdc0b292fee7f95dbf15460eec237dc01f674c6"
     );
-    assert_eq!(root.stored_bytes.len(), 973_071);
+    assert_eq!(root.stored_bytes.len(), 973_137);
     assert_eq!(
         hex(&stored_digest),
-        "e39142274572c908ae5c7eb05f98dea31c8285f26c0ceb56e5f9bcfa4a65fbe1"
+        "f9e9f656a5e2c09aaf0139395bc2684420a06052737b826da9afc8fe661ac770"
     );
     validate_retained_schema_test(&schema_image, &witnesses, schema_decode);
 

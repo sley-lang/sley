@@ -5393,12 +5393,12 @@
       "crates/sley-vm/tests/rw080_codec_program/canonical_codec.rs",
       "crates/sley-vm/tests/rw120_toolchain_integration.rs"
     ],
-    "canonical_codec": "arbitrary four-leg codec: both program legs judge arbitrary canonical bodies of all 18 entity kinds (selector 1 validates and re-frames handed body bytes; typed-field construction remains native); bounded generation retained under bounded_* names",
-    "canonical_s": "1d64fcd1298bbab91e8c42a1b673fba683e1a0e2075f560ecfc6aaf849e16c58",
-    "c0_sha256": "afaa6bef94f4f06b65c5eb3c3dbcb1549178b85641b223d2e443044c87ff06f0",
-    "c1_candidate_sha256": "18d1264f8dd352c37305918feefca165fc789f8ec64136211ff92f730998484f",
+    "canonical_codec": "arbitrary four-leg codec: both program legs judge arbitrary canonical bodies of all 18 entity kinds with native nesting-depth charging at every node (selector 1 validates and re-frames handed body bytes; typed-field construction remains native); residual deviations RW090-DEV-01..03 pinned in rw-090-codec-component-manifest.json known_deviations; bounded generation retained under bounded_* names",
+    "canonical_s": "48f8af2422b3e56b2924f56b11ca07f141b87541cdba6584cf1c6e87602577dd",
+    "c0_sha256": "03378aa03709ddb1ab938ec3b21a2e2a9a35e6f061d839cbdf6a6a0989bf1d0e",
+    "c1_candidate_sha256": "2b35e6e76fe325b96869c0ca65ac0070a5e98683866042596891ab6a614a0210",
     "official_c1": null,
-    "source_commit": "7426bc0b",
+    "source_commit": "the commit carrying this generation (second repair re-mint 2026-09-18; exact id filled by the records-only descendant)",
     "checkers": [
       "scripts/check_reweave_canonical_s.py",
       "scripts/check_reweave_seed_artifacts.py",
@@ -5451,7 +5451,20 @@
     "p1_open_count": 1,
     "vulcan_surface_review_revision_1": "REVISE_0_P0_0_P1_1_P2_3_P3_2_P4",
     "vulcan_surface_review_revision_1_note": "REVISE_0_P0_0_P1_1_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-178873d.md (sha256 158659bc1b1d7a59dbf9f1d92e1d06929534b23bc6160605d1c0d4c786496586) (transcript FIELD line reads vulcan_surface_review). Scope verified at 178873d7; all four checkers PASS (exit 0) and every pinned S, component, C0 and C1 figure agrees across test sources, the four re-minted manifests and the verifiers, with official C1 correctly null and records-only closure holding for the post-re-mint commits. Kinds 1\u201317 are genuinely arbitrary on both program legs with exact SCB_* codes and correct precedence, but kind 18 still runs the retained fixed-shape decoder whose refusals are SSMC_RESERVED_FIELD_PRESENT rather than the oracle's SCB_* codes, which the re-mint records do not disclose (P2). Secondary gaps are hand-pinne",
-    "review_repairs": "178873d7 round findings repaired at 7426bc0b (rw-090-codec-component-manifest.json review_repairs); re-review pending"
+    "review_repairs": "178873d7 round findings repaired at 7426bc0b (rw-090-codec-component-manifest.json review_repairs); re-review pending",
+    "superseded_generations": {
+      "first_repair_7426bc0b": {
+        "canonical_s": "1d64fcd1298bbab91e8c42a1b673fba683e1a0e2075f560ecfc6aaf849e16c58",
+        "c0_sha256": "afaa6bef94f4f06b65c5eb3c3dbcb1549178b85641b223d2e443044c87ff06f0",
+        "c1_candidate_sha256": "18d1264f8dd352c37305918feefca165fc789f8ec64136211ff92f730998484f"
+      },
+      "pre_review_e3a50ca7": {
+        "canonical_s": "b1992814cfc2332215d65e1ede6a619fc2ebb8122b8105e5fc527ca8b10548c3"
+      },
+      "bounded_cf210232": {
+        "canonical_s": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47"
+      }
+    }
   },
   "completion_authorization_note": {
     "date": "2026-09-15",

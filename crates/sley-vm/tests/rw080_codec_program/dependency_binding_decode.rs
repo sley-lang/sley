@@ -7726,6 +7726,9 @@ fn build_type_expr_children_decode(
     let option_bytes_type = TypeExpr::Option(Box::new(TypeExpr::Bytes));
     let tuple_type = children_tuple_type();
     let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    // Uniform projector signature with the constant projector: the node
+    // depth is charged by the driver's per-slot offsets here and unused.
+    let depth = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
     let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
     let union_code = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
 
@@ -8662,7 +8665,7 @@ fn build_type_expr_children_decode(
     FunctionGraph {
         entity_id: function,
         type_parameters: Vec::new(),
-        parameters: vec![body, unit],
+        parameters: vec![body, depth, unit],
         result_type,
         effects: Vec::new(),
         entry_block: entry,
@@ -9633,7 +9636,11 @@ fn build_type_expr_recursive_core(
         ns.o,
         children_call,
         Opcode::CallDirect,
-        vec![pav(children_call_parameters[0]), pav(unit)],
+        vec![
+            pav(children_call_parameters[0]),
+            pav(children_call_parameters[5]),
+            pav(unit),
+        ],
         vec![type_expr_children_result_type()],
         Immediate::Function(FunctionRefValue {
             function: children_decoder,
@@ -15307,17 +15314,17 @@ fn function_schema_decoder_projects_all_runtime_fields() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 16);
-    assert_eq!(image.parameters.len(), 1_520);
+    assert_eq!(image.parameters.len(), 1_521);
     assert_eq!(image.blocks.len(), 343);
     assert_eq!(image.operations.len(), 641);
     assert_eq!(image.constants.len(), 218);
-    assert_eq!(package.image_bytes.len(), 87_376);
+    assert_eq!(package.image_bytes.len(), 87_390);
     assert_eq!(
         approved.package_digest,
         [
-            0xbe, 0xc7, 0x3d, 0x3c, 0xb2, 0x9f, 0xc1, 0x7c, 0xe4, 0xf0, 0x37, 0x8c, 0x7c, 0x0d,
-            0x79, 0xee, 0x6c, 0x68, 0xcd, 0x96, 0x26, 0x97, 0x58, 0xff, 0x0d, 0xb5, 0x8c, 0x42,
-            0x09, 0x84, 0xbd, 0x64,
+            0x71, 0xf7, 0x25, 0xf2, 0xc6, 0x0c, 0x0a, 0x1d, 0xeb, 0x31, 0x26, 0x56, 0x0c, 0x7a,
+            0xef, 0xc2, 0x1f, 0x85, 0x56, 0xcf, 0x2f, 0xab, 0x3d, 0xbd, 0xd1, 0xa2, 0x3f, 0x75,
+            0x5e, 0xe8, 0x2e, 0xef,
         ]
     );
     let outcome = execute_with_limits(
@@ -15682,6 +15689,7 @@ fn function_schema_decoder_enforces_kind_fields_and_list_boundaries() {
             expected,
             "{name} precedence"
         );
+        assert_native_body_parity(&input, expected, name);
     }
 }
 
@@ -16003,7 +16011,7 @@ fn type_expr_children_shape(value_type: TypeExpr) -> (usize, usize) {
     let outcome = execute_with_limits(
         &package,
         &approved,
-        vec![bytes_input(&encoded), unit_input()],
+        vec![bytes_input(&encoded), u64_input(0), unit_input()],
         codec_profile_limits(),
     );
     let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
@@ -16095,7 +16103,7 @@ fn type_expr_children_error(
     let outcome = execute_with_limits(
         package,
         approved,
-        vec![bytes_input(input), unit_input()],
+        vec![bytes_input(input), u64_input(0), unit_input()],
         codec_profile_limits(),
     );
     let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
@@ -16127,17 +16135,17 @@ fn type_expr_children_decoder_preserves_composite_errors() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 12);
-    assert_eq!(image.parameters.len(), 1_144);
+    assert_eq!(image.parameters.len(), 1_145);
     assert_eq!(image.blocks.len(), 268);
     assert_eq!(image.operations.len(), 507);
     assert_eq!(image.constants.len(), 176);
-    assert_eq!(package.image_bytes.len(), 66_586);
+    assert_eq!(package.image_bytes.len(), 66_596);
     assert_eq!(
         approved.package_digest,
         [
-            0x5f, 0x7e, 0xf0, 0x43, 0x5d, 0x61, 0xb0, 0x3f, 0x9a, 0xec, 0xbb, 0xe4, 0x4e, 0x84,
-            0x3f, 0x6b, 0xf7, 0x03, 0xe5, 0x69, 0x7f, 0x02, 0x84, 0x7d, 0x0c, 0x71, 0xd3, 0xfc,
-            0x05, 0x84, 0x1c, 0xa5,
+            0x2d, 0xa6, 0x52, 0x20, 0x88, 0x19, 0xda, 0xdf, 0xf7, 0x23, 0x16, 0xca, 0xf6, 0x8f,
+            0xfe, 0x90, 0x94, 0x18, 0x9f, 0x59, 0xc5, 0xd1, 0x94, 0x00, 0xa0, 0x43, 0xaa, 0x8c,
+            0x1c, 0xb1, 0x06, 0x61,
         ]
     );
     let bool_type = type_expr_body(TypeExpr::Bool);
@@ -16255,17 +16263,17 @@ fn type_expr_recursive_decoder_accepts_nested_composites() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 14);
-    assert_eq!(image.parameters.len(), 1_360);
+    assert_eq!(image.parameters.len(), 1_361);
     assert_eq!(image.blocks.len(), 302);
     assert_eq!(image.operations.len(), 566);
     assert_eq!(image.constants.len(), 193);
-    assert_eq!(package.image_bytes.len(), 76_742);
+    assert_eq!(package.image_bytes.len(), 76_756);
     assert_eq!(
         approved.package_digest,
         [
-            0xdc, 0xb7, 0x69, 0x74, 0xfd, 0xa2, 0x29, 0xf3, 0xf1, 0x20, 0x85, 0xe5, 0x1d, 0x38,
-            0xe1, 0x12, 0xbf, 0x47, 0x40, 0xa1, 0x81, 0xa1, 0x41, 0x0d, 0xb7, 0x9b, 0xac, 0xa8,
-            0x2b, 0x54, 0x57, 0x21,
+            0x55, 0xbb, 0xc9, 0x7f, 0x46, 0xea, 0x3b, 0x91, 0x8b, 0x49, 0x69, 0x51, 0xcf, 0x4b,
+            0xc2, 0x8f, 0x8e, 0x3a, 0x0c, 0x89, 0x11, 0x1a, 0x54, 0xf2, 0x26, 0xfb, 0x16, 0x6f,
+            0x7b, 0xdd, 0xfd, 0x2b,
         ]
     );
     let nested = TypeExpr::FunctionRef(FunctionType {
@@ -16693,17 +16701,17 @@ fn parameter_schema_decoder_accepts_arbitrary_structural_values() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 16);
-    assert_eq!(image.parameters.len(), 1_411);
+    assert_eq!(image.parameters.len(), 1_412);
     assert_eq!(image.blocks.len(), 328);
     assert_eq!(image.operations.len(), 622);
     assert_eq!(image.constants.len(), 212);
-    assert_eq!(package.image_bytes.len(), 83_038);
+    assert_eq!(package.image_bytes.len(), 83_052);
     assert_eq!(
         approved.package_digest,
         [
-            0x8f, 0xbb, 0x0b, 0x75, 0x42, 0x55, 0x80, 0xed, 0x87, 0x52, 0x9d, 0x14, 0xe8, 0xc8,
-            0xe4, 0x2e, 0xd7, 0x8e, 0x0f, 0x03, 0x18, 0x6e, 0xc7, 0xb2, 0x21, 0x07, 0x59, 0x1e,
-            0x67, 0xb4, 0xce, 0x1d,
+            0xfb, 0x63, 0x36, 0xe5, 0x2f, 0x5f, 0x9e, 0x87, 0xae, 0xdf, 0x68, 0x0e, 0xe5, 0x0b,
+            0x38, 0x96, 0x11, 0x34, 0x96, 0x3c, 0x77, 0x46, 0x76, 0x86, 0x30, 0x45, 0xd0, 0xf5,
+            0xd4, 0x82, 0xfe, 0x17,
         ]
     );
     let outcome = execute_with_limits(
@@ -16840,17 +16848,17 @@ fn global_value_schema_decoder_accepts_arbitrary_structural_values() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 15);
-    assert_eq!(image.parameters.len(), 1_378);
+    assert_eq!(image.parameters.len(), 1_379);
     assert_eq!(image.blocks.len(), 312);
     assert_eq!(image.operations.len(), 585);
     assert_eq!(image.constants.len(), 197);
-    assert_eq!(package.image_bytes.len(), 79_008);
+    assert_eq!(package.image_bytes.len(), 79_022);
     assert_eq!(
         approved.package_digest,
         [
-            0xbd, 0x84, 0xf9, 0x73, 0x10, 0x2d, 0xed, 0x92, 0x85, 0xbe, 0x9f, 0x25, 0xec, 0x50,
-            0x89, 0x49, 0x10, 0xb2, 0xad, 0x14, 0xd6, 0x5c, 0x23, 0x9d, 0xa5, 0xb1, 0x13, 0xda,
-            0xac, 0x2e, 0x7c, 0xe1,
+            0x1f, 0xb7, 0xc8, 0xac, 0x77, 0x5d, 0xa3, 0x82, 0x53, 0x02, 0x9e, 0x9f, 0x3e, 0x9e,
+            0xc7, 0x90, 0x44, 0x27, 0xe8, 0x90, 0x4a, 0x46, 0x86, 0x00, 0xdb, 0x97, 0xd8, 0x8a,
+            0x84, 0x6f, 0xb8, 0x9d,
         ]
     );
     let outcome = execute_with_limits(
@@ -16977,17 +16985,17 @@ fn adapter_import_schema_decoder_accepts_arbitrary_structural_values() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 16);
-    assert_eq!(image.parameters.len(), 1_446);
+    assert_eq!(image.parameters.len(), 1_447);
     assert_eq!(image.blocks.len(), 332);
     assert_eq!(image.operations.len(), 633);
     assert_eq!(image.constants.len(), 215);
-    assert_eq!(package.image_bytes.len(), 84_704);
+    assert_eq!(package.image_bytes.len(), 84_718);
     assert_eq!(
         approved.package_digest,
         [
-            0x5f, 0xdf, 0xce, 0x72, 0xe1, 0x16, 0x85, 0xac, 0x28, 0xba, 0x2b, 0x42, 0x7e, 0x9f,
-            0x44, 0x19, 0x11, 0x10, 0xb7, 0x0f, 0x67, 0x59, 0x1a, 0x6f, 0xbd, 0x4d, 0x37, 0x30,
-            0xdc, 0x03, 0x58, 0x29,
+            0x3c, 0xe7, 0x68, 0x08, 0xd5, 0xaa, 0x1d, 0xdc, 0xe1, 0x08, 0x39, 0x52, 0x1d, 0x92,
+            0xf6, 0x4f, 0xfc, 0xe7, 0x3e, 0xb7, 0x79, 0x60, 0x92, 0x30, 0x0a, 0x9e, 0x48, 0x67,
+            0x1d, 0x0b, 0xa3, 0x15,
         ]
     );
     let outcome = execute_with_limits(
@@ -17124,17 +17132,17 @@ fn effect_def_schema_decoder_accepts_arbitrary_structural_values() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 16);
-    assert_eq!(image.parameters.len(), 1_446);
+    assert_eq!(image.parameters.len(), 1_447);
     assert_eq!(image.blocks.len(), 332);
     assert_eq!(image.operations.len(), 635);
     assert_eq!(image.constants.len(), 217);
-    assert_eq!(package.image_bytes.len(), 84_856);
+    assert_eq!(package.image_bytes.len(), 84_870);
     assert_eq!(
         approved.package_digest,
         [
-            0x7e, 0x19, 0x10, 0xfd, 0x14, 0xda, 0x64, 0x5d, 0x46, 0xbe, 0x7e, 0x2a, 0x31, 0x4b,
-            0x66, 0x6a, 0x7f, 0xa6, 0x1b, 0x2e, 0x1e, 0x3e, 0x1e, 0x3b, 0xd4, 0x66, 0xbb, 0x6d,
-            0x71, 0x02, 0x75, 0x05,
+            0x79, 0x18, 0xd8, 0xed, 0x74, 0xe9, 0x1a, 0xf6, 0x46, 0xfc, 0x86, 0x94, 0xca, 0x38,
+            0xd6, 0x76, 0x61, 0xa3, 0x41, 0x4f, 0x91, 0x41, 0x89, 0x2b, 0xc1, 0x02, 0xe4, 0xbe,
+            0x0d, 0xe3, 0x43, 0x37,
         ]
     );
     let outcome = execute_with_limits(
@@ -17527,17 +17535,17 @@ fn type_def_schema_decoder_accepts_both_forms() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 23);
-    assert_eq!(image.parameters.len(), 1_501);
+    assert_eq!(image.parameters.len(), 1_502);
     assert_eq!(image.blocks.len(), 388);
     assert_eq!(image.operations.len(), 704);
     assert_eq!(image.constants.len(), 232);
-    assert_eq!(package.image_bytes.len(), 93_662);
+    assert_eq!(package.image_bytes.len(), 93_676);
     assert_eq!(
         approved.package_digest,
         [
-            0x8e, 0x39, 0x01, 0xd3, 0x73, 0xbb, 0x38, 0x3a, 0xeb, 0x48, 0x4f, 0x49, 0x8a, 0xc2,
-            0x72, 0x69, 0xb9, 0xfd, 0x49, 0x4f, 0xb4, 0x86, 0xb5, 0xce, 0xdc, 0x0a, 0x5d, 0x8e,
-            0x30, 0xac, 0xd9, 0xdb,
+            0x22, 0x2a, 0xfe, 0xee, 0x9d, 0xdc, 0xa7, 0x0e, 0x27, 0x19, 0xa2, 0x91, 0x11, 0x31,
+            0x82, 0xe8, 0xcb, 0x04, 0x34, 0xf8, 0x01, 0x3b, 0x64, 0x77, 0x9a, 0x10, 0x55, 0xf3,
+            0x3a, 0x11, 0xd9, 0xde,
         ]
     );
 
@@ -20878,7 +20886,7 @@ fn build_const_value_children_decode(
     ns: Ns,
     function: EntityId,
     record2_decoder: EntityId,
-    type_expr_decoder: EntityId,
+    type_expr_core: EntityId,
     union_decoder: EntityId,
     arms: &[ConstDataArm; 16],
 ) -> FunctionGraph {
@@ -20894,6 +20902,9 @@ fn build_const_value_children_decode(
         error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
     };
     let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    // The driver hands every node its native depth, so the node's
+    // `value_type` is charged at depth + 1 through the TypeExpr core.
+    let depth = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
     let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
     let union_code = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
     let forward_error = forward_error_block(assembler, ns, function, &result_type);
@@ -20908,6 +20919,7 @@ fn build_const_value_children_decode(
     let union_ready = assembler.id(ns.b);
     let union_call = assembler.id(ns.b);
     let type_check = assembler.id(ns.b);
+    let type_depth_ready = assembler.id(ns.b);
 
     let success_parameters = block_parameters(
         assembler,
@@ -21323,7 +21335,7 @@ fn build_const_value_children_decode(
         assembler,
         ns.p,
         type_check,
-        std::slice::from_ref(&pair_type),
+        &[pair_type.clone(), u64_type()],
     );
     let value_type = assembler.op(
         ns.o,
@@ -21345,10 +21357,10 @@ fn build_const_value_children_decode(
         ns.o,
         type_check,
         Opcode::CallDirect,
-        vec![op_result(value_type), pav(unit)],
+        vec![op_result(value_type), pav(type_parameters[1]), pav(unit)],
         vec![bytes_validation_result_type()],
         Immediate::Function(FunctionRefValue {
-            function: type_expr_decoder,
+            function: type_expr_core,
             type_arguments: Vec::new(),
         }),
     );
@@ -21367,6 +21379,42 @@ fn build_const_value_children_decode(
                     forward_error,
                     vec![SwitchArgument::CasePayload],
                 ),
+            ],
+        ),
+    );
+
+    // value_type sits one level below the node (its record field).
+    let type_depth_parameters = block_parameters(
+        assembler,
+        ns.p,
+        type_depth_ready,
+        std::slice::from_ref(&pair_type),
+    );
+    let one_constant = assembler.ku64(ns.k, 1);
+    let one = assembler.cref(ns.o, type_depth_ready, one_constant, u64_type());
+    let type_depth = assembler.op(
+        ns.o,
+        type_depth_ready,
+        Opcode::IntAddChecked,
+        vec![pav(depth), op_result(one)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        type_depth_ready,
+        function,
+        type_depth_parameters.clone(),
+        vec![one, type_depth],
+        switch(
+            op_result(type_depth),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    type_check,
+                    vec![sav(type_depth_parameters[0]), SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
             ],
         ),
     );
@@ -21394,7 +21442,7 @@ fn build_const_value_children_decode(
             vec![
                 (
                     BuiltinCase::Ok,
-                    type_check,
+                    type_depth_ready,
                     vec![SwitchArgument::CasePayload],
                 ),
                 (
@@ -21409,7 +21457,7 @@ fn build_const_value_children_decode(
     FunctionGraph {
         entity_id: function,
         type_parameters: Vec::new(),
-        parameters: vec![body, unit],
+        parameters: vec![body, depth, unit],
         result_type,
         effects: Vec::new(),
         entry_block: entry,
@@ -21634,19 +21682,19 @@ fn build_const_value_closure(assembler: &mut Asm) -> (ConstValueClosure, Vec<Fun
     );
     // The standalone constant closure roots its `ConstValue` at depth 0, so
     // the node's `value_type` field sits at depth 1.
-    let type_expr_recursive_graphs = build_type_expr_recursive_decode_at(
-        assembler,
-        Ns {
-            k: 123,
-            p: 123,
-            b: 123,
-            o: 123,
-        },
-        type_expr_recursive_function,
-        type_expr_children_function,
-        1,
-    )
-    .1;
+    let (type_expr_recursive_core, type_expr_recursive_graphs) =
+        build_type_expr_recursive_decode_at(
+            assembler,
+            Ns {
+                k: 123,
+                p: 123,
+                b: 123,
+                o: 123,
+            },
+            type_expr_recursive_function,
+            type_expr_children_function,
+            1,
+        );
     let empty_payload_graph = build_empty_payload_validate(
         assembler,
         Ns {
@@ -21870,7 +21918,7 @@ fn build_const_value_closure(assembler: &mut Asm) -> (ConstValueClosure, Vec<Fun
         },
         const_children_function,
         record2_function,
-        type_expr_recursive_function,
+        type_expr_recursive_core,
         union_function,
         &[
             ConstDataArm::Unit(empty_payload_function),
@@ -22278,17 +22326,17 @@ fn const_value_decoder_accepts_every_family_recursively() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 33);
-    assert_eq!(image.parameters.len(), 2_010);
-    assert_eq!(image.blocks.len(), 554);
-    assert_eq!(image.operations.len(), 1_172);
-    assert_eq!(image.constants.len(), 441);
-    assert_eq!(package.image_bytes.len(), 141_198);
+    assert_eq!(image.parameters.len(), 2_014);
+    assert_eq!(image.blocks.len(), 555);
+    assert_eq!(image.operations.len(), 1_174);
+    assert_eq!(image.constants.len(), 442);
+    assert_eq!(package.image_bytes.len(), 141_478);
     assert_eq!(
         approved.package_digest,
         [
-            0x34, 0xdc, 0xca, 0xf8, 0x2e, 0xce, 0xfe, 0xb6, 0xe7, 0xf6, 0xa9, 0xbd, 0x67, 0x70,
-            0x14, 0x11, 0x68, 0x45, 0x4f, 0x80, 0x74, 0x67, 0xdc, 0x51, 0xfb, 0x58, 0x64, 0x67,
-            0x2e, 0x07, 0xf3, 0x39,
+            0x4f, 0x08, 0xdc, 0x11, 0x1d, 0xea, 0x0d, 0xc6, 0xf5, 0xba, 0x98, 0xc9, 0x82, 0xf0,
+            0x3d, 0x9a, 0xa9, 0x7a, 0x5f, 0x09, 0xa7, 0x7c, 0x0a, 0x93, 0x4d, 0xf1, 0x1a, 0xbb,
+            0x0b, 0x71, 0x51, 0x7c,
         ]
     );
 
@@ -22818,17 +22866,17 @@ fn constant_schema_decoder_accepts_recursive_values() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 35);
-    assert_eq!(image.parameters.len(), 2_031);
-    assert_eq!(image.blocks.len(), 574);
-    assert_eq!(image.operations.len(), 1_207);
-    assert_eq!(image.constants.len(), 451);
-    assert_eq!(package.image_bytes.len(), 145_012);
+    assert_eq!(image.parameters.len(), 2_035);
+    assert_eq!(image.blocks.len(), 575);
+    assert_eq!(image.operations.len(), 1_209);
+    assert_eq!(image.constants.len(), 452);
+    assert_eq!(package.image_bytes.len(), 145_292);
     assert_eq!(
         approved.package_digest,
         [
-            0x13, 0x09, 0x58, 0x2a, 0xbe, 0x0c, 0x96, 0xd3, 0xd2, 0xb6, 0x3a, 0x61, 0x05, 0xe2,
-            0xa0, 0x26, 0x91, 0x45, 0x28, 0xb2, 0xaf, 0x47, 0x8b, 0x33, 0xd4, 0xad, 0x58, 0xc6,
-            0x3f, 0x7f, 0xcf, 0x9b,
+            0x48, 0x16, 0x3b, 0x2a, 0x3c, 0x9c, 0x08, 0x23, 0xfc, 0x71, 0x19, 0x23, 0x5a, 0xe5,
+            0x38, 0x0e, 0x2e, 0x49, 0xdd, 0x69, 0x84, 0x3f, 0xfc, 0x9b, 0x7c, 0x17, 0x8b, 0x18,
+            0xbe, 0x0f, 0xed, 0xb0,
         ]
     );
 
@@ -22940,17 +22988,17 @@ fn capability_requirement_schema_decoder_accepts_scope_lists() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 36);
-    assert_eq!(image.parameters.len(), 2_059);
-    assert_eq!(image.blocks.len(), 586);
-    assert_eq!(image.operations.len(), 1_228);
-    assert_eq!(image.constants.len(), 458);
-    assert_eq!(package.image_bytes.len(), 147_792);
+    assert_eq!(image.parameters.len(), 2_063);
+    assert_eq!(image.blocks.len(), 587);
+    assert_eq!(image.operations.len(), 1_230);
+    assert_eq!(image.constants.len(), 459);
+    assert_eq!(package.image_bytes.len(), 148_072);
     assert_eq!(
         approved.package_digest,
         [
-            0xe4, 0xa5, 0xa7, 0xa2, 0x42, 0x18, 0x62, 0xed, 0xb6, 0x1c, 0xd1, 0xeb, 0xaa, 0xe7,
-            0xf1, 0x64, 0x31, 0xb1, 0xad, 0x72, 0x23, 0xe5, 0xb5, 0xa0, 0x60, 0x98, 0x12, 0x8f,
-            0xc7, 0x3b, 0x16, 0xb6,
+            0x0b, 0xf2, 0x2f, 0xd4, 0x80, 0xa9, 0x13, 0x77, 0xb5, 0x1e, 0x1f, 0xbf, 0x56, 0xbc,
+            0x3f, 0xfd, 0xf6, 0x37, 0x9e, 0x55, 0xab, 0x4c, 0x79, 0xf8, 0xd9, 0x85, 0x50, 0x93,
+            0x14, 0xea, 0xb0, 0xb4,
         ]
     );
 
@@ -24084,17 +24132,17 @@ fn operation_schema_decoder_accepts_every_immediate() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 27);
-    assert_eq!(image.parameters.len(), 1_545);
+    assert_eq!(image.parameters.len(), 1_546);
     assert_eq!(image.blocks.len(), 409);
     assert_eq!(image.operations.len(), 731);
     assert_eq!(image.constants.len(), 232);
-    assert_eq!(package.image_bytes.len(), 97_682);
+    assert_eq!(package.image_bytes.len(), 97_696);
     assert_eq!(
         approved.package_digest,
         [
-            0x07, 0x7f, 0xf3, 0xd4, 0x2d, 0xdb, 0xa3, 0x96, 0x8a, 0xdb, 0xf8, 0xab, 0x53, 0x0b,
-            0xbf, 0xb5, 0x0d, 0x55, 0xb1, 0x3f, 0xd9, 0x85, 0xd9, 0x26, 0x69, 0x42, 0xbb, 0x46,
-            0xb0, 0xf0, 0x98, 0x76,
+            0x3e, 0x5e, 0x99, 0x4e, 0xf6, 0x43, 0x4b, 0x73, 0xbf, 0xea, 0xdc, 0x3c, 0x6a, 0x15,
+            0xe6, 0x57, 0xca, 0xcd, 0x2b, 0x8e, 0xaf, 0x69, 0x0f, 0x9d, 0xed, 0x5c, 0x17, 0x93,
+            0xf8, 0xa5, 0xd6, 0xa7,
         ]
     );
     for immediate in every_operation_immediate() {
@@ -24524,17 +24572,17 @@ fn test_case_schema_decoder_accepts_both_environments_and_outcomes() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 48);
-    assert_eq!(image.parameters.len(), 2_280);
-    assert_eq!(image.blocks.len(), 692);
-    assert_eq!(image.operations.len(), 1_398);
-    assert_eq!(image.constants.len(), 503);
-    assert_eq!(package.image_bytes.len(), 169_632);
+    assert_eq!(image.parameters.len(), 2_284);
+    assert_eq!(image.blocks.len(), 693);
+    assert_eq!(image.operations.len(), 1_400);
+    assert_eq!(image.constants.len(), 504);
+    assert_eq!(package.image_bytes.len(), 169_912);
     assert_eq!(
         approved.package_digest,
         [
-            0xfe, 0x7d, 0x8f, 0xe7, 0x2e, 0xa9, 0xad, 0x84, 0xfe, 0xd3, 0x3a, 0x32, 0xd0, 0x56,
-            0x04, 0x14, 0x2b, 0x97, 0x67, 0x88, 0x2b, 0x9a, 0x1f, 0x90, 0x5a, 0x93, 0x4e, 0xc3,
-            0x02, 0x57, 0x6a, 0x1a,
+            0xa6, 0xa3, 0x40, 0x8e, 0xdf, 0x9d, 0xf8, 0xb4, 0xdb, 0x1b, 0x02, 0x4c, 0xcc, 0x2a,
+            0x1a, 0x24, 0x3e, 0xf6, 0xe1, 0x01, 0xca, 0xa0, 0xb0, 0x70, 0x1a, 0xba, 0xd9, 0x7c,
+            0xc4, 0x74, 0xe3, 0xcf,
         ]
     );
 
@@ -25023,13 +25071,12 @@ fn const_value_recipe(
     prims: &Primitives,
     graphs: &mut Vec<FunctionGraph>,
 ) -> ConstEntries {
-    // The shared child projector validates every node's `value_type` and a
-    // FunctionRef's type arguments at the offsets of the primary root (a
-    // Constant body's value at depth 2): value_type at 3, type arguments at
-    // 6. Roots at other depths and nested nodes therefore see the TypeExpr
-    // bound charged from depth 2; the deviation is recorded in
-    // rw-090-codec-component-manifest.json `known_deviations`.
-    let value_type_type_expr = prims.type_expr_at(assembler, alloc, 3, graphs);
+    // The shared child projector charges every node's `value_type` at the
+    // node's own depth + 1 (the driver hands it the depth). A FunctionRef
+    // constant's type arguments are validated by a fixed depth-6 entry (the
+    // depth of a Constant body's root value's arguments); nested or
+    // deeper-rooted FunctionRef constants therefore see that bound charged
+    // from depth 6 — RW090-DEV-01 in rw-090-codec-component-manifest.json.
     let type_arguments_type_expr = prims.type_expr_at(assembler, alloc, 6, graphs);
     let bool_function = prims.id(assembler);
     let uvar128_function = prims.id(assembler);
@@ -25168,7 +25215,7 @@ fn const_value_recipe(
         alloc.next(),
         const_children_function,
         prims.record(2),
-        value_type_type_expr,
+        prims.type_expr_core,
         prims.union,
         &[
             ConstDataArm::Unit(prims.empty_payload),
@@ -26441,18 +26488,18 @@ fn arbitrary_dispatch_accepts_representative_and_rich_bodies_for_all_kinds() {
         package.image_bytes.len(),
         approved.package_digest,
     );
-    assert_eq!(image.functions.len(), 122);
-    assert_eq!(image.parameters.len(), 6_803);
+    assert_eq!(image.functions.len(), 121);
+    assert_eq!(image.parameters.len(), 6_805);
     assert_eq!(image.blocks.len(), 1_860);
     assert_eq!(image.operations.len(), 3_380);
     assert_eq!(image.constants.len(), 129);
-    assert_eq!(package.image_bytes.len(), 447_594);
+    assert_eq!(package.image_bytes.len(), 447_588);
     assert_eq!(
         approved.package_digest,
         [
-            0x6b, 0x98, 0xdc, 0xbb, 0xa4, 0xbb, 0x2a, 0xee, 0xf4, 0xab, 0x6f, 0x8e, 0x1b, 0x19,
-            0x03, 0x90, 0xb7, 0xc0, 0xd6, 0x7d, 0x01, 0x2f, 0xb0, 0xba, 0xc0, 0x4e, 0x33, 0x77,
-            0xaa, 0xa6, 0x1f, 0x38,
+            0xe7, 0x0d, 0x1c, 0x08, 0xfe, 0x4f, 0x75, 0x76, 0x6e, 0x8f, 0x3a, 0xa8, 0x41, 0x57,
+            0x5e, 0xf5, 0x5d, 0x96, 0x81, 0x2a, 0x4e, 0x57, 0x67, 0xdc, 0xa5, 0xc2, 0xe0, 0x0c,
+            0x17, 0xb5, 0xbc, 0x55,
         ]
     );
 
@@ -26504,7 +26551,7 @@ fn arbitrary_dispatch_accepts_representative_and_rich_bodies_for_all_kinds() {
         "ARBITRARY_ALL_KIND peak fuel={} instructions={} value_units={}",
         peak.0, peak.1, peak.2
     );
-    assert_eq!(peak, (660_293, 73_591, 35_704_544));
+    assert_eq!(peak, (660_344, 73_591, 35_705_378));
 }
 
 #[test]
@@ -26892,111 +26939,136 @@ fn arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site() {
         );
     }
 
-    // Known deviation (rw-090-codec-component-manifest.json known_deviations):
-    // a TypeExpr inside a NESTED ConstValue is charged from the constant's
-    // root (depth 3) rather than the node's own depth, so a type chain that
-    // the native codec refuses beneath a deep constant node is still accepted
-    // here. Pinned so the gap is visible until the const projector threads
-    // the node depth into the TypeExpr core.
+    // Nested constant nodes charge their `value_type` at the node's own
+    // depth (the driver hands the projector the depth): under one Sequence
+    // level the node sits at 5 and its type at 6, so both codecs refuse an
+    // Option chain from 58 levels and accept 57.
     {
         let mut fields = constant_fields.clone();
-        // Constant root at 2; the node under one Sequence level sits at 5, so
-        // its `value_type` is at 6 and an Option chain of 59 levels reaches
-        // depth 64 natively, while the root-charged decoder allows up to 61.
-        fields[0] = sequence_const_chain(1, &option_type_chain(59));
+        let mut observed = None;
+        for k in 55..=60 {
+            fields[0] = sequence_const_chain(1, &option_type_chain(k));
+            let stored_bytes = stored(&parameter_schema_with_fields(9, &fields));
+            let native = native_stored_verdict(&stored_bytes);
+            let sley = arbitrary_stored_verdict(&package, &approved, 9, &stored_bytes);
+            assert_eq!(sley, native, "nested value_type parity at {k} levels");
+            if native != "OK" && observed.is_none() {
+                observed = Some(k);
+            }
+        }
+        assert_eq!(observed, Some(58), "nested value_type native boundary");
+    }
+
+    // Known deviation RW090-DEV-01 (rw-090-codec-component-manifest.json):
+    // a FunctionRef constant's type arguments are validated by a fixed
+    // depth-6 entry (a Constant root value's arguments), so a FunctionRef
+    // nested under one Sequence level (arguments natively at depth 9) is
+    // charged three levels short: 56 Option levels are refused natively and
+    // accepted here; 58 are refused by both. Pinned so the gap is visible.
+    {
+        let function_ref = |levels: usize| {
+            let arguments = sley_scb1::encode_list(&[option_type_chain(levels)])
+                .expect("type argument list encodes");
+            let value = sley_scb1::encode_record(&[(1, vec![0x8b; 32]), (2, arguments)])
+                .expect("FunctionRefValue encodes");
+            let data = sley_scb1::encode_union(15, &value).expect("FunctionRef ConstData encodes");
+            let unit_type = sley_scb1::encode_union(1, &[]).expect("Unit TypeExpr encodes");
+            let node = sley_scb1::encode_record(&[(1, unit_type.clone()), (2, data)])
+                .expect("ConstValue record encodes");
+            let list = sley_scb1::encode_list(&[node]).expect("Sequence list encodes");
+            let outer_data = sley_scb1::encode_union(9, &list).expect("Sequence encodes");
+            sley_scb1::encode_record(&[(1, unit_type), (2, outer_data)])
+                .expect("ConstValue record encodes")
+        };
+        let mut fields = constant_fields.clone();
+        fields[0] = function_ref(56);
         let stored_bytes = stored(&parameter_schema_with_fields(9, &fields));
         assert_eq!(native_stored_verdict(&stored_bytes), "SCB_RESOURCE_LIMIT");
         assert_eq!(
             arbitrary_stored_verdict(&package, &approved, 9, &stored_bytes),
             "OK",
-            "known deviation: nested-const TypeExpr depth is charged from the root"
+            "known deviation RW090-DEV-01: nested FunctionRef type arguments"
         );
-        fields[0] = sequence_const_chain(1, &option_type_chain(61));
+        fields[0] = function_ref(58);
         let stored_bytes = stored(&parameter_schema_with_fields(9, &fields));
         assert_eq!(native_stored_verdict(&stored_bytes), "SCB_RESOURCE_LIMIT");
         assert_eq!(
             arbitrary_stored_verdict(&package, &approved, 9, &stored_bytes),
             "SCB_RESOURCE_LIMIT",
-            "the root-charged bound still applies"
+            "the fixed depth-6 bound still applies"
         );
     }
 }
 
-/// Resource bound of the canonical entry under `codec_profile_limits`
-/// (RW-090 Vulcan P3): a valid body the native codec accepts but whose
-/// validation exceeds the profile's budget terminates the VM with a
-/// deterministic resource limit, not with a typed refusal. Identity-heavy
-/// bodies bind on the value-unit envelope first (a 1,750-byte Workspace
-/// here, at 33,486 instructions); instruction-heavy bodies bind on the
-/// 100,000-instruction ceiling (roughly 90 instructions per body byte). Both
-/// bounds are disclosed in rw-090-codec-component-manifest.json
-/// (`resource_bound`).
+/// Known deviation RW090-DEV-02 (rw-090-codec-component-manifest.json): the
+/// constant map decoder checks entry order on the raw entry bytes before it
+/// validates each entry, while the native codec validates entry i before
+/// comparing keys. The accepted set is identical; a map whose earlier entry
+/// is malformed AND whose later entry is misordered relative to it is refused
+/// by both, with different codes. Pinned so the gap cannot drift silently.
 #[test]
-fn arbitrary_dispatch_over_budget_body_terminates_with_a_resource_limit() {
-    use sley_mutate::value::{EntityBodyValue, EntityIdSet, WorkspaceBody};
-
+fn arbitrary_dispatch_pins_the_map_double_fault_precedence_deviation() {
     let image = super::all_kind_digest_dispatch::arbitrary_all_kind_decode_image();
     let (package, approved) = admit_with_limits(&image, codec_profile_limits());
-    let workspace = |members: u8| {
-        let packages = EntityIdSet::from_unsorted(
-            (1..=members)
-                .map(|fill| EntityId::from_bytes([fill; 32]))
-                .collect(),
-        )
-        .expect("ascending identities form a canonical set");
-        entity_body_bytes(
-            [0xa1; 32],
-            EntityBodyValue::Workspace(WorkspaceBody {
-                packages,
-                root_namespace: EntityId::from_bytes([0xf1; 32]),
-                capability_requirements: EntityIdSet::from_unsorted(vec![]).unwrap(),
-                contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
-                tests: EntityIdSet::from_unsorted(vec![]).unwrap(),
-            }),
-        )
+    let stored = |body: &[u8]| super::all_kind_digest_dispatch::stored_from_body([0xce; 32], body);
+    let unit_type = sley_scb1::encode_union(1, &[]).expect("Unit TypeExpr encodes");
+    let bool_type = sley_scb1::encode_union(2, &[]).expect("Bool TypeExpr encodes");
+    let bool_const = |byte: u8| {
+        sley_scb1::encode_record(&[
+            (1, bool_type.clone()),
+            (
+                2,
+                sley_scb1::encode_union(2, &[byte]).expect("Bool ConstData encodes"),
+            ),
+        ])
+        .expect("ConstValue record encodes")
     };
-    let stored = |body: &[u8]| super::all_kind_digest_dispatch::stored_from_body([0xa1; 32], body);
-    // 24 packages: 958 bytes stored, inside the budget; 48 packages: 1,750
-    // bytes, over it. Both are accepted by the native codec.
-    let inside = stored(&workspace(24));
-    let over = stored(&workspace(48));
-    for body in [&inside, &over] {
-        sley_mutate::import_entity_object(program_epoch9(), body)
-            .expect("the native codec accepts both workspaces");
-    }
-    let (verdict, outcome) = arbitrary_dispatch_decode(&package, &approved, 1, &inside);
-    assert!(
-        verdict.is_ok(),
-        "the 958-byte workspace validates inside the budget"
-    );
-    eprintln!(
-        "RESOURCE_BOUND inside stored={}B instructions={} fuel={}",
-        inside.len(),
-        outcome.instruction_count,
-        outcome.fuel_used
-    );
-    let outcome = execute_with_limits(
-        &package,
-        &approved,
-        vec![u64_input(1), bytes_input(&over), unit_input()],
-        codec_profile_limits(),
-    );
-    eprintln!(
-        "RESOURCE_BOUND over stored={}B termination={:?} instructions={}",
-        over.len(),
-        outcome.termination,
-        outcome.instruction_count
-    );
-    assert_eq!(over.len(), 1_750);
-    assert!(
-        matches!(
-            outcome.termination,
-            sley_vm::ExecutionTermination::ResourceLimit(sley_vm::ResourceKind::ValueUnits)
+    let unit_const = sley_scb1::encode_record(&[
+        (1, unit_type.clone()),
+        (
+            2,
+            sley_scb1::encode_union(1, &[]).expect("Unit ConstData encodes"),
         ),
-        "an over-budget identity-heavy body is the VM's value-unit limit: {:?}",
-        outcome.termination
+    ])
+    .expect("ConstValue record encodes");
+    let entry = |key: Vec<u8>| {
+        sley_scb1::encode_record(&[(1, key), (2, unit_const.clone())])
+            .expect("MapEntryConst encodes")
+    };
+    // Entry 0 carries an invalid boolean byte (2); entry 1 is a valid `false`
+    // whose raw bytes sort before entry 0's, so it is misordered as well.
+    let entries = sley_scb1::encode_list(&[entry(bool_const(2)), entry(bool_const(0))])
+        .expect("map entries encode");
+    let map = sley_scb1::encode_union(12, &entries).expect("Map ConstData encodes");
+    let value = sley_scb1::encode_record(&[
+        (
+            1,
+            sley_scb1::encode_union(
+                12,
+                &sley_scb1::encode_record(&[(1, bool_type.clone()), (2, unit_type.clone())])
+                    .expect("MapType encodes"),
+            )
+            .expect("OrderedMap TypeExpr encodes"),
+        ),
+        (2, map),
+    ])
+    .expect("ConstValue record encodes");
+    let fields = exact_entity_body_fields(
+        &constant_schema_body(const_of(TypeExpr::Unit, ConstData::Unit)),
+        9,
+        1,
     );
-    assert_eq!(outcome.instruction_count, 33_486);
+    let mut double_fault = fields.clone();
+    double_fault[0] = value;
+    let stored_bytes = stored(&parameter_schema_with_fields(9, &double_fault));
+    let native = native_stored_verdict(&stored_bytes);
+    let sley = arbitrary_stored_verdict(&package, &approved, 9, &stored_bytes);
+    eprintln!("MAP_DOUBLE_FAULT native={native} sley={sley}");
+    assert_eq!(native, "SCB_BOOL_INVALID", "native validates entry 0 first");
+    assert_eq!(
+        sley, "SCB_MAP_ORDER",
+        "the Sley decoder checks raw order first"
+    );
 }
 
 #[test]
@@ -27052,6 +27124,15 @@ fn arbitrary_dispatch_forwards_schema_refusals_and_refuses_unknown_kinds() {
             1,
             parameter_schema_with_fields(1, &workspace_fields[..4]),
             b"SCB_FIELD_MISSING",
+        ),
+        (
+            // Declared kind 18 with a kind-1 body: the strict DependencyBinding
+            // decoder's tag validator answers with its scope code (a body tag
+            // outside 1..=18 would be SCB_UNION_INVALID); RW090-DEV-03.
+            "declared_kind_18_mismatch",
+            18,
+            parameter_schema_with_fields(1, &workspace_fields),
+            b"SSMC_RESERVED_FIELD_PRESENT",
         ),
         (
             "unknown_kind_zero",

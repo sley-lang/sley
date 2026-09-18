@@ -752,19 +752,19 @@ fn arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies() {
         package.image_bytes.len(),
         approved.package_digest,
     );
-    assert_eq!(image.functions.len(), 133);
-    assert_eq!(image.parameters.len(), 7_789);
+    assert_eq!(image.functions.len(), 132);
+    assert_eq!(image.parameters.len(), 7_791);
     assert_eq!(image.blocks.len(), 2_131);
     assert_eq!(image.operations.len(), 4_531);
     assert_eq!(image.constants.len(), 138);
     assert_eq!(image.adapters.len(), 4);
-    assert_eq!(package.image_bytes.len(), 568_680);
+    assert_eq!(package.image_bytes.len(), 568_674);
     assert_eq!(
         approved.package_digest,
         [
-            0x21, 0xe8, 0x3f, 0xd4, 0x51, 0x2c, 0x53, 0x02, 0xf7, 0xeb, 0xee, 0x3a, 0xb1, 0x46,
-            0x7a, 0x52, 0xe8, 0xc1, 0x1f, 0x83, 0xed, 0xe6, 0x1c, 0x90, 0xbf, 0xf2, 0x9f, 0x39,
-            0x6b, 0xf8, 0x2e, 0xbb,
+            0xa8, 0xd8, 0x87, 0x73, 0xa1, 0x6d, 0x50, 0x4a, 0xa0, 0xed, 0x40, 0x65, 0xfa, 0x01,
+            0x84, 0x33, 0x49, 0x1f, 0x92, 0x2c, 0x0d, 0x9e, 0xcc, 0x0c, 0x7f, 0x00, 0xe4, 0xd2,
+            0x77, 0x1f, 0x98, 0x49,
         ]
     );
 
@@ -835,7 +835,7 @@ fn arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies() {
         "ARBITRARY_CODEC_MAIN peak fuel={} instructions={} value_units={}",
         peak.0, peak.1, peak.2
     );
-    assert_eq!(peak, (660_320, 75_558, 45_355_806));
+    assert_eq!(peak, (660_371, 75_558, 45_356_640));
 
     // The schema legs and the typed refusal paths are unchanged.
     let record = sley_state_root::conformance_epoch_record()

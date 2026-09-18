@@ -63,6 +63,15 @@ Minimum gate: graph root, construction manifest, no source DSL.
   plus mutation-value/candidate/result/receipt vectors) — byte-identical
   outputs and identical rejection codes.
 
+Clarification (2026-09-18, RW-090 review): under the bootstrap profile the
+codec runs as an admitted VM invocation whose instruction, fuel and
+value-unit ceilings are bound at admission (`codec_profile_limits`). A body
+whose validation exceeds those ceilings terminates the invocation with the
+VM's deterministic `ResourceLimit` outcome; that termination is the codec's
+`Limit` result for the driver (fail closed, no receipt, no trap), so no typed
+`LIMIT` value is emitted from inside the invocation. The measured bounds are
+disclosed in `rw-090-codec-component-manifest.json` `resource_bound`.
+
 ### 1.2 Semantic checker and test planner (Sley program; reference: `sley-ssmc` + `sley-check` native)
 
 - Canonical entry point: `check_program(program_closure) ->
@@ -443,7 +452,11 @@ source commit of each, which every manifest of the generation carries
 `c0-c1-seed-artifacts.json` `superseded_candidate`,
 `bootstrap-manifest.json` `superseded_generations`). A future generation
 that must coexist with the current one (rather than replace it) derives
-under a fresh candidate nonce; the dry-run then reproduces both.
+under a fresh candidate nonce; the dry-run then reproduces both. The
+(superseded root, replacement root, source commit) pairs are carried by the
+canonical `S`, seed and bootstrap manifests; the component manifest carries
+its superseded component roots (`superseded_bounded_component`,
+`superseded_pre_review_arbitrary_component`) with their source commits.
 
 This record grants no construction permission and records no review PASS;
 architecture review binds the exact delta and either adopts the

@@ -2,14 +2,14 @@
   "schema": "sley2-canonical-s-manifest-v1",
   "status": "CANONICAL_INPUT",
   "meaning": "immutable canonical state root and complete dependency closure of the retained Sley codec, checker, lowerer, package builder, and build driver",
-  "state_root": "1d64fcd1298bbab91e8c42a1b673fba683e1a0e2075f560ecfc6aaf849e16c58",
-  "object_count": 20382,
-  "object_bytes": 5131018,
-  "object_bundle_sha256": "56b600b146130d8338d7b71defed705d6edab16d678f4ade9f630032fb742537",
-  "stored_root_bytes": 1345643,
-  "stored_root_sha256": "8191381eaedea2cbc7daffb16cc8fdc5adfa95bf389da3695e352507b3443eb5",
-  "function_count": 203,
-  "parameter_count": 9761,
+  "state_root": "48f8af2422b3e56b2924f56b11ca07f141b87541cdba6584cf1c6e87602577dd",
+  "object_count": 20383,
+  "object_bytes": 5131404,
+  "object_bundle_sha256": "d7d2fcb57d19676c269559bc2a938c04ada682a46b4c34f197b5126901ded25a",
+  "stored_root_bytes": 1345709,
+  "stored_root_sha256": "76235656984ec59963b8b39a425cb6af721069a25cafca0b6988dfea3ffb2e8c",
+  "function_count": 202,
+  "parameter_count": 9763,
   "block_count": 3236,
   "operation_count": 6492,
   "constant_count": 669,
@@ -57,7 +57,7 @@
     "crates/sley-vm/tests/rw080_lower_scaffold.rs",
     "crates/sley-vm/tests/rw080_lower_program/canonical.rs"
   ],
-  "seed_constructor_sha256": "acc5d4fd687de5290bda6c755a9d9eb215b653b72c6f37635bc749d50b2295eb",
+  "seed_constructor_sha256": "45f1bbbb0f4674281130bb9375f0301d3f71c07ede5ae12df8f033b774c227cb",
   "executable_verifier": "scripts/check_reweave_canonical_s.py",
   "construction_test": "cargo test -p sley-vm --test rw120_toolchain_integration integrated_driver_hands_lowered_bytes_to_the_package_builder -- --nocapture",
   "scope": {
@@ -71,7 +71,7 @@
     "rw130_fixed_point": false,
     "r2_ready": false
   },
-  "codec_generation": "arbitrary four-leg codec after the 178873d7 Council repairs (re-mint 2026-09-18, source commit 7426bc0b): both program legs judge arbitrary canonical bodies of all 18 kinds; selector 1 re-frames handed body bytes, typed-field construction remains native",
+  "codec_generation": "arbitrary four-leg codec after the 178873d7 and 92fa6646 Council repairs (re-mint 2026-09-18): both program legs judge arbitrary canonical bodies of all 18 kinds with native nesting-depth charging at every node (RW090-DEV-01 residual disclosed); selector 1 re-frames handed body bytes, typed-field construction remains native",
   "superseded_bounded_s": {
     "state_root": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47",
     "object_count": 11876,
@@ -106,5 +106,22 @@
     "note": "arbitrary-codec generation before the 178873d7 Council repairs (strict kind-18 route, native depth charging); replaced 2026-09-18 under RW080-ID-02 replacement semantics; its C0/C1 artifacts stay read-only in the artifact store under C0/e3a50ca7 and C1/e3a50ca7"
   },
   "seed_constructor_digest_method": "SHA-256 over (relative path || NUL || bytes || NUL) for every source the seed binary crates/sley-vm/tests/rw120_toolchain_integration.rs reaches through #[path], in include order (revision of 2026-09-18; previously component.rs and handoff.rs only)",
-  "source_commit": "7426bc0b"
+  "source_commit": "the commit carrying this manifest (second repair re-mint of 2026-09-18; named in the records-only descendant)",
+  "superseded_first_repair_s": {
+    "state_root": "1d64fcd1298bbab91e8c42a1b673fba683e1a0e2075f560ecfc6aaf849e16c58",
+    "object_count": 20382,
+    "object_bytes": 5131018,
+    "object_bundle_sha256": "56b600b146130d8338d7b71defed705d6edab16d678f4ade9f630032fb742537",
+    "stored_root_bytes": 1345643,
+    "stored_root_sha256": "8191381eaedea2cbc7daffb16cc8fdc5adfa95bf389da3695e352507b3443eb5",
+    "function_count": 203,
+    "parameter_count": 9761,
+    "block_count": 3236,
+    "operation_count": 6492,
+    "constant_count": 669,
+    "adapter_import_count": 4,
+    "entry_point_count": 5,
+    "source_commit": "7426bc0b",
+    "note": "arbitrary-codec generation after the 178873d7 repairs but before the 92fa6646 re-review repair (node-depth value_type charging); replaced 2026-09-18 under RW080-ID-02 replacement semantics; its C0/C1 artifacts stay read-only in the artifact store under C0/afaa6bef and C1/18d1264f"
+  }
 }

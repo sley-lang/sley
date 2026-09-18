@@ -571,25 +571,25 @@ fn merged_component_root_executes_all_four_canonical_programs() {
         evidence.root
     );
     let (object_bytes, object_digest, root_digest) = component_digests(&evidence);
-    assert_eq!(merged.functions.len(), 202);
-    assert_eq!(merged.parameters.len(), 9_685);
+    assert_eq!(merged.functions.len(), 201);
+    assert_eq!(merged.parameters.len(), 9_687);
     assert_eq!(merged.blocks.len(), 3_233);
     assert_eq!(merged.operations.len(), 6_483);
     assert_eq!(merged.constants.len(), 669);
-    assert_eq!(evidence.objects.len(), 20_292);
-    assert_eq!(object_bytes, 5_109_325);
+    assert_eq!(evidence.objects.len(), 20_293);
+    assert_eq!(object_bytes, 5_109_711);
     assert_eq!(
         object_digest,
-        "54138451589836525e8581e90896367aaf6b853513ef12d02b8f0004327647d7"
+        "0c9703d091302c7d693b34032bf9b640079c928a81de8a1f495034a7e5da1248"
     );
     assert_eq!(
         hex(evidence.root.root.as_bytes()),
-        "1751abdb119fe2f6703dbbe4e19a373db3e9b16bfb64f73d2bccd866b106f0a8"
+        "95f3ca026a3482a6d20ccac47eb41a3967b701eab7cd064c9b553716c691cf40"
     );
-    assert_eq!(evidence.root.stored_bytes.len(), 1_339_670);
+    assert_eq!(evidence.root.stored_bytes.len(), 1_339_736);
     assert_eq!(
         root_digest,
-        "2fa1d6838a7d15d7697b6eec6d3595f6f9179c7c15e9422c58bb232b9b072a2d"
+        "b51ba7ca953d63bd8cba9982b3cc0c88281ea52b1024e5f0afcd827bdef138f2"
     );
     eprintln!(
         "RW120_COMPONENT functions={} parameters={} blocks={} operations={} constants={} objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={}",
@@ -622,29 +622,29 @@ fn integrated_driver_calls_all_four_real_programs_in_one_execution() {
     );
     assert_eq!(execution.value, fixture.expected);
     let (object_bytes, object_digest, root_digest) = component_digests(&evidence);
-    assert_eq!(fixture.program.functions.len(), 203);
-    assert_eq!(fixture.program.parameters.len(), 9_760);
+    assert_eq!(fixture.program.functions.len(), 202);
+    assert_eq!(fixture.program.parameters.len(), 9_762);
     assert_eq!(fixture.program.blocks.len(), 3_234);
     assert_eq!(fixture.program.operations.len(), 6_488);
-    assert_eq!(evidence.objects.len(), 20_375);
-    assert_eq!(object_bytes, 5_129_021);
+    assert_eq!(evidence.objects.len(), 20_376);
+    assert_eq!(object_bytes, 5_129_407);
     assert_eq!(
         object_digest,
-        "58a8a30f3d5b4a7938c60728e885e11f4c92f09d46aa353580be4ea4d7f9e156"
+        "c501299d61cd3354b45206a38b50fb2ce496011d7d7de5591280302ab1c927c8"
     );
     assert_eq!(
         hex(evidence.root.root.as_bytes()),
-        "9533add078c2d706d00101c018cb8ae6258de40d6f05945d9fa2ae04d6efb6e8"
+        "748312058f8a13f7a27c03e91cf1d7a1eaf0b9f8cefd56ed39ed88fab0394af5"
     );
-    assert_eq!(evidence.root.stored_bytes.len(), 1_345_181);
+    assert_eq!(evidence.root.stored_bytes.len(), 1_345_247);
     assert_eq!(
         root_digest,
-        "5fdb2f47ccd2a6840662a8872d5a9bcc66311dfc908abd637a606c450f0c9f67"
+        "d3a5b0a01d64b59ab85150a6fae6b50fe3280b8cc6764acb7dbb0442bb19d039"
     );
-    assert_eq!(execution.image_bytes, 816_828);
+    assert_eq!(execution.image_bytes, 816_822);
     assert_eq!(
         hex(&execution.package_digest),
-        "151505310328ec97e627ebc25ec62d9d3a85adef8056d5bffc33f0c42b677fdb"
+        "9514c3193c74af11e717ca548b05fe8cb58185cb96a2bed2e7987c9122763da0"
     );
     assert_eq!(execution.gate_operation_count, 6_488);
     assert_eq!(execution.gate_bridge_uses, 217);
@@ -678,8 +678,8 @@ fn integrated_driver_calls_all_four_real_programs_in_one_execution() {
 fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
     let fixture = handoff::fixture();
     assert_eq!(fixture.program.entry_points.len(), 5);
-    assert_eq!(fixture.program.functions.len(), 203);
-    assert_eq!(fixture.program.parameters.len(), 9_761);
+    assert_eq!(fixture.program.functions.len(), 202);
+    assert_eq!(fixture.program.parameters.len(), 9_763);
     assert_eq!(fixture.program.blocks.len(), 3_236);
     assert_eq!(fixture.program.operations.len(), 6_492);
     assert_eq!(fixture.program.constants.len(), 669);
@@ -693,25 +693,25 @@ fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
     );
     assert_eq!(execution.value, fixture.expected);
     let (object_bytes, object_digest, root_digest) = component_digests(&evidence);
-    assert_eq!(evidence.objects.len(), 20_382);
-    assert_eq!(object_bytes, 5_131_018);
+    assert_eq!(evidence.objects.len(), 20_383);
+    assert_eq!(object_bytes, 5_131_404);
     assert_eq!(
         object_digest,
-        "56b600b146130d8338d7b71defed705d6edab16d678f4ade9f630032fb742537"
+        "d7d2fcb57d19676c269559bc2a938c04ada682a46b4c34f197b5126901ded25a"
     );
     assert_eq!(
         hex(evidence.root.root.as_bytes()),
-        "1d64fcd1298bbab91e8c42a1b673fba683e1a0e2075f560ecfc6aaf849e16c58"
+        "48f8af2422b3e56b2924f56b11ca07f141b87541cdba6584cf1c6e87602577dd"
     );
-    assert_eq!(evidence.root.stored_bytes.len(), 1_345_643);
+    assert_eq!(evidence.root.stored_bytes.len(), 1_345_709);
     assert_eq!(
         root_digest,
-        "8191381eaedea2cbc7daffb16cc8fdc5adfa95bf389da3695e352507b3443eb5"
+        "76235656984ec59963b8b39a425cb6af721069a25cafca0b6988dfea3ffb2e8c"
     );
-    assert_eq!(execution.image_bytes, 817_286);
+    assert_eq!(execution.image_bytes, 817_280);
     assert_eq!(
         hex(&execution.package_digest),
-        "f7d2c2b673ff2fb8b0ed78c9e3f30c6dc0ac15e6d980f20d294a77c93664d200"
+        "9e684e1c84c955e0451bfd9443436224cac5358e51e4cbe8b6f518bb9dc2503c"
     );
     assert_eq!(execution.gate_operation_count, 6_492);
     assert_eq!(execution.gate_bridge_uses, 217);
@@ -782,26 +782,26 @@ fn integrated_driver_reconstructs_its_complete_executable_package() {
     assert_eq!(decoded.state_root, evidence.root.root);
     let loaded = sley_vm::host_abi::load_image(&decoded.image_bytes).unwrap();
     assert_eq!(loaded.entry.function, fixture.entry);
-    assert_eq!(loaded.callees.len(), 202);
+    assert_eq!(loaded.callees.len(), 201);
     let envelope_digest: [u8; 32] = Sha256::digest(envelope).into();
     let image_digest: [u8; 32] = Sha256::digest(&decoded.image_bytes).into();
-    assert_eq!(decoded.image_bytes.len(), 817_286);
+    assert_eq!(decoded.image_bytes.len(), 817_280);
     assert_eq!(
         hex(&image_digest),
-        "3e51ae323d69e7c287962834ebc7fa82dc47558fd81cd5e25487e71c84ee3189"
+        "b9b18cabbb5609dfa52049ce0358c0f6d65c10ced0ef371882c35b4f85368d37"
     );
-    assert_eq!(envelope.len(), 860_150);
+    assert_eq!(envelope.len(), 860_112);
     assert_eq!(
         hex(&envelope_digest),
-        "18d1264f8dd352c37305918feefca165fc789f8ec64136211ff92f730998484f"
+        "2b35e6e76fe325b96869c0ca65ac0070a5e98683866042596891ab6a614a0210"
     );
     assert_eq!(
         hex(&decoded.digests.package_digest),
-        "29cd6f2a4a5b3a1498b5958447a217367075fa68c3d7b7d8004980ee5443d3c8"
+        "fade888f2037e7202d18f7ade5ef7e6f5a38f038028cf6fe6759ba6c98504d11"
     );
-    assert_eq!(execution.instruction_count, 25_881_022);
-    assert_eq!(execution.fuel_used, 123_242_045);
-    assert_eq!(execution.peak_value_units, 15_798_780_873_178);
+    assert_eq!(execution.instruction_count, 25_881_896);
+    assert_eq!(execution.fuel_used, 123_242_409);
+    assert_eq!(execution.peak_value_units, 15_797_684_686_117);
     eprintln!(
         "RW120_C1 root={} callees={} image_bytes={} image_sha256={} envelope_bytes={} envelope_sha256={} package_digest={} instructions={} fuel={} peak={} seconds={seconds:.2}",
         hex(evidence.root.root.as_bytes()),
@@ -823,7 +823,7 @@ fn canonical_component_programs_are_available_to_one_integration_crate() {
     let codec = codec::integration_codec_program();
     let checker = checker::integration_checker_program();
     let (lowerer, builder) = lower::integration_lowerer_programs();
-    assert_eq!(codec.functions.len(), 133);
+    assert_eq!(codec.functions.len(), 132);
     assert_eq!(checker.functions.len(), 8);
     assert_eq!(lowerer.functions.len(), 35);
     assert_eq!(builder.functions.len(), 26);
@@ -833,8 +833,8 @@ fn canonical_component_programs_are_available_to_one_integration_crate() {
 fn canonical_programs_merge_without_semantic_identity_collisions() {
     let merged = component::merged_program();
     assert_eq!(merged.entry_points.len(), 4);
-    assert_eq!(merged.functions.len(), 202);
-    assert_eq!(merged.parameters.len(), 9_685);
+    assert_eq!(merged.functions.len(), 201);
+    assert_eq!(merged.parameters.len(), 9_687);
     assert_eq!(merged.blocks.len(), 3_233);
     assert_eq!(merged.operations.len(), 6_483);
     assert_eq!(merged.constants.len(), 669);
