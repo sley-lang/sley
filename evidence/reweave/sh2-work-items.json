@@ -186,7 +186,8 @@
         "machineresearch/sley-2.0/reweave/rw-080-package-builder.md",
         "machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md",
         "machineresearch/sley-2.0/reweave/rw-080-lower-variant-switch.md",
-        "machineresearch/sley-2.0/reweave/rw-080-toolchain-aggregate.md"
+        "machineresearch/sley-2.0/reweave/rw-080-toolchain-aggregate.md",
+        "machineresearch/sley-2.0/reweave/rw-080-toolchain-component-manifest.json"
       ],
       "status": "PROVISIONAL_BLOCKED_NOT_AUTHORITY",
       "title": "RW-080 construction contract plus provisional C0 construction slices 1 to 87 under the 2026-09-07 operator development override"

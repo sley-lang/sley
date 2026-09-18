@@ -5,7 +5,17 @@
 //! remains scaffold-only; the graph is a component construction witness, not
 //! the canonical state root `S` and not a compiler correctness claim.
 
-use sley_id::{EntityId, SchemaEpochId, StateRoot};
+use sha2::{Digest, Sha256};
+use sley_id::{
+    CandidateNonce, EntityId, GenesisNonce, ObjectId, PolicyRootId, SchemaEpochId, WorkspaceId,
+};
+use sley_mutate::{
+    EntityObject, EntityObjectRecord, build_entity_object, import_entity_object,
+    value::{
+        BlockBody, ConstantBody, EntityBodyValue, EntityIdSet, FunctionBody, OperationBody,
+        ParameterBody,
+    },
+};
 use sley_ssmc::{
     Block, ConstData, ConstValue, ConstantDefinition, FunctionGraph, FunctionRefValue, Immediate,
     IntegerWidth, Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability,
@@ -19,16 +29,64 @@ const CHECKER: u8 = 3;
 const LOWERER: u8 = 4;
 const BUILDER: u8 = 5;
 
+const GENESIS_SEED: [u8; 32] = [0x80; 32];
+const CANDIDATE_SEED: [u8; 32] = [0x87; 32];
+const CONTRACT_ROOT_PREIMAGE: &[u8] = b"SLEY2/RW080/PARTIAL/EMPTY-CONTRACT-ROOT/V1";
+const TEST_ROOT_PREIMAGE: &[u8] = b"SLEY2/RW080/PARTIAL/EMPTY-TEST-ROOT/V1";
+const POLICY_ROOT_PREIMAGE: &[u8] = b"SLEY2/RW080/PARTIAL/CONSTRUCTION-POLICY/V1";
+const ENTITY_TOKENS: [u8; 23] = [
+    1, 2, 3, 4, 5, 10, 11, 20, 21, 22, 23, 24, 30, 31, 32, 40, 41, 42, 43, 44, 45, 46, 47,
+];
+
+fn workspace() -> WorkspaceId {
+    WorkspaceId::derive(GenesisNonce::from_bytes(GENESIS_SEED))
+}
+
+fn candidate_nonce() -> CandidateNonce {
+    CandidateNonce::from_bytes(CANDIDATE_SEED)
+}
+
+fn seed_position(byte: u8) -> (u32, u64) {
+    match byte {
+        1..=5 => (5, u64::from(byte - 1)),
+        10..=11 => (6, u64::from(byte - 10)),
+        20..=24 => (7, u64::from(byte - 20)),
+        30..=32 => (9, u64::from(byte - 30)),
+        40..=47 => (8, u64::from(byte - 40)),
+        _ => panic!("unknown aggregate seed-local identity {byte}"),
+    }
+}
+
 fn id(byte: u8) -> EntityId {
-    EntityId::from_bytes([byte; 32])
+    let (kind, ordinal) = seed_position(byte);
+    EntityId::derive(workspace(), candidate_nonce(), kind, ordinal)
 }
 
 fn epoch() -> SchemaEpochId {
-    SchemaEpochId::from_bytes([8; 32])
+    sley_state_root::conformance_epoch_id().expect("state-root conformance epoch is frozen")
 }
 
-fn fixture_root() -> StateRoot {
-    StateRoot::from_bytes([9; 32])
+fn contract_root() -> ObjectId {
+    ObjectId::derive(CONTRACT_ROOT_PREIMAGE)
+}
+
+fn test_root() -> ObjectId {
+    ObjectId::derive(TEST_ROOT_PREIMAGE)
+}
+
+fn policy_root() -> PolicyRootId {
+    PolicyRootId::derive(POLICY_ROOT_PREIMAGE)
+}
+
+fn seed_owner(token: u8) -> &'static str {
+    match token {
+        DRIVER | 10 | 20 | 40..=44 => "driver",
+        CODEC | 21 | 30 | 45 => "codec",
+        CHECKER | 22 | 31 | 46 => "checker",
+        LOWERER | 23 | 32 | 47 => "lowerer",
+        BUILDER | 11 | 24 => "package-builder",
+        _ => panic!("unknown aggregate owner token {token}"),
+    }
 }
 
 fn uint(bits: u16) -> TypeExpr {
@@ -224,6 +282,104 @@ fn aggregate_toolchain_graph() -> ToolchainImage {
     }
 }
 
+fn canonical_object(entity_id: EntityId, body: EntityBodyValue) -> EntityObject {
+    build_entity_object(
+        epoch(),
+        &EntityObjectRecord {
+            entity_id,
+            body,
+            label: None,
+            semantic_fingerprint: None,
+        },
+    )
+    .expect("aggregate entity object is canonical")
+}
+
+fn canonical_component_objects(image: &ToolchainImage) -> Vec<EntityObject> {
+    let mut objects = Vec::new();
+    objects.extend(image.functions.iter().map(|function| {
+        canonical_object(
+            function.entity_id,
+            EntityBodyValue::Function(FunctionBody {
+                type_parameters: function.type_parameters.clone(),
+                parameters: function.parameters.clone(),
+                result_type: function.result_type.clone(),
+                effects: EntityIdSet::from_unsorted(function.effects.clone())
+                    .expect("aggregate effects are unique"),
+                entry_block: function.entry_block,
+                blocks: function.blocks.clone(),
+                contracts: EntityIdSet::from_unsorted(function.contracts.clone())
+                    .expect("aggregate contracts are unique"),
+                visibility: function.visibility,
+            }),
+        )
+    }));
+    objects.extend(image.parameters.iter().map(|parameter| {
+        canonical_object(
+            parameter.entity_id,
+            EntityBodyValue::Parameter(ParameterBody {
+                owner: parameter.owner,
+                role: parameter.role,
+                ordinal: parameter.ordinal,
+                value_type: parameter.value_type.clone(),
+            }),
+        )
+    }));
+    objects.extend(image.blocks.iter().map(|block| {
+        canonical_object(
+            block.entity_id,
+            EntityBodyValue::Block(BlockBody {
+                function: block.function,
+                parameters: block.parameters.clone(),
+                operations: block.operations.clone(),
+                terminator: block.terminator.clone(),
+                reachability: block.reachability,
+            }),
+        )
+    }));
+    objects.extend(image.operations.iter().map(|operation| {
+        canonical_object(
+            operation.entity_id,
+            EntityBodyValue::Operation(OperationBody {
+                block: operation.block,
+                ordinal: operation.ordinal,
+                opcode: operation.opcode.tag(),
+                operands: operation.operands.clone(),
+                result_types: operation.result_types.clone(),
+                immediate: operation.immediate.clone(),
+            }),
+        )
+    }));
+    objects.extend(image.constants.iter().map(|constant| {
+        canonical_object(
+            constant.entity_id,
+            EntityBodyValue::Constant(ConstantBody {
+                value: constant.value.clone(),
+            }),
+        )
+    }));
+    objects.sort_unstable_by_key(|object| object.record().entity_id);
+    objects
+}
+
+fn canonical_component_root(objects: &[EntityObject]) -> sley_state_root::AcceptedStateRoot {
+    let mut builder = sley_state_root::StateRootBuilder::new(
+        workspace(),
+        contract_root(),
+        test_root(),
+        policy_root(),
+    );
+    for object in objects {
+        builder = builder.entity_binding(object.record().entity_id, object.object_id());
+    }
+    for entry in [DRIVER, CODEC, CHECKER, LOWERER, BUILDER] {
+        builder = builder.entry_point(id(entry));
+    }
+    builder
+        .build(&sley_state_root::conformance_registry().expect("state-root registry is frozen"))
+        .expect("aggregate component root is canonical")
+}
+
 fn generous_limits() -> sley_vm::ExecutionLimits {
     sley_vm::ExecutionLimits {
         max_instructions: 20_000,
@@ -240,6 +396,8 @@ fn admitted_toolchain_graph() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedEx
         bootstrap::BootstrapProfileVersion,
     };
     let image = aggregate_toolchain_graph();
+    let objects = canonical_component_objects(&image);
+    let component_root = canonical_component_root(&objects);
     let lowered = sley_vm::lower_function(sley_vm::LoweringInput {
         types: &image.types,
         function: &image.entry,
@@ -247,7 +405,7 @@ fn admitted_toolchain_graph() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedEx
         blocks: &image.blocks,
         operations: &image.operations,
         schema_epoch: epoch(),
-        state_root: fixture_root(),
+        state_root: component_root.root,
         profile: sley_vm::CacheProfile::EXTENDED_V1,
         constants: &image.constants,
         globals: &[],
@@ -279,7 +437,7 @@ fn admitted_toolchain_graph() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedEx
         contracts: Vec::new(),
         entry: image.entry.entity_id,
         schema_epoch: epoch(),
-        state_root: fixture_root(),
+        state_root: component_root.root,
         profile: sley_vm::CacheProfile::EXTENDED_V1,
         admitted_limits: generous_limits(),
         gate_operation_count: gate.operation_count(),
@@ -289,7 +447,7 @@ fn admitted_toolchain_graph() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedEx
     let closure = V2Closure {
         types: &image.types,
         schema_epoch: epoch(),
-        state_root: fixture_root(),
+        state_root: component_root.root,
         entry: image.entry.entity_id,
         functions: &image.functions,
         parameters: &image.parameters,
@@ -371,6 +529,159 @@ fn aggregate_toolchain_graph_admits_and_runs_the_driver_surface() {
 }
 
 #[test]
+fn aggregate_entities_use_contract_derived_identities() {
+    for token in ENTITY_TOKENS {
+        let (kind, ordinal) = seed_position(token);
+        assert_eq!(
+            id(token),
+            EntityId::derive(workspace(), candidate_nonce(), kind, ordinal)
+        );
+    }
+}
+
+#[test]
+fn aggregate_component_objects_and_state_root_round_trip_exactly() {
+    let image = aggregate_toolchain_graph();
+    let objects = canonical_component_objects(&image);
+    let root = canonical_component_root(&objects);
+    assert_eq!(objects.len(), ENTITY_TOKENS.len());
+    for object in &objects {
+        assert_eq!(
+            import_entity_object(epoch(), object.stored_bytes()).expect("object reimports"),
+            *object
+        );
+    }
+    let registry = sley_state_root::conformance_registry().expect("state-root registry is frozen");
+    assert_eq!(
+        sley_state_root::import_state_root(&registry, &root.stored_bytes)
+            .expect("component root reimports"),
+        root
+    );
+    let expected_bindings = objects
+        .iter()
+        .map(|object| (object.record().entity_id, object.object_id()))
+        .collect::<Vec<_>>();
+    assert_eq!(root.record.entity_bindings, expected_bindings);
+    assert_eq!(root.record.entry_points.len(), 5);
+    assert!(root.record.dependency_roots.is_empty());
+    assert!(root.record.interpretation_flags.is_empty());
+    assert_eq!(root.record.workspace_id, workspace());
+    assert_eq!(root.record.schema_epoch_id, epoch());
+    assert_eq!(root.record.contract_root, contract_root());
+    assert_eq!(root.record.test_root, test_root());
+    assert_eq!(root.record.policy_root, policy_root());
+    assert_eq!(
+        root.root.into_bytes(),
+        [
+            0xf3, 0x16, 0xdf, 0xf8, 0xdf, 0x46, 0x34, 0xcd, 0xe2, 0x30, 0x2d, 0x7c, 0x2a, 0x69,
+            0x24, 0xdf, 0x44, 0x00, 0x57, 0x99, 0x17, 0xb1, 0x2f, 0xa5, 0x5c, 0xa9, 0x5d, 0xf4,
+            0xee, 0x1d, 0xfa, 0xbe,
+        ],
+        "the partial component root is pinned"
+    );
+    println!(
+        "rw080_component objects={} object_bytes={} root_bytes={} workspace={} epoch={} root={}",
+        objects.len(),
+        objects
+            .iter()
+            .map(|object| object.stored_bytes().len())
+            .sum::<usize>(),
+        root.stored_bytes.len(),
+        hex(workspace().as_bytes()),
+        hex(epoch().as_bytes()),
+        hex(root.root.as_bytes()),
+    );
+    if std::env::var_os("SLEY_EMIT_RW080_COMPONENT_MANIFEST").is_some() {
+        println!(
+            "RW080_MANIFEST_META workspace={} genesis_seed={} candidate_seed={} epoch={} contract_root={} contract_preimage={} test_root={} test_preimage={} policy_root={} policy_preimage={} state_root={} state_root_bytes={}",
+            hex(workspace().as_bytes()),
+            hex(&GENESIS_SEED),
+            hex(&CANDIDATE_SEED),
+            hex(epoch().as_bytes()),
+            hex(contract_root().as_bytes()),
+            hex(CONTRACT_ROOT_PREIMAGE),
+            hex(test_root().as_bytes()),
+            hex(TEST_ROOT_PREIMAGE),
+            hex(policy_root().as_bytes()),
+            hex(POLICY_ROOT_PREIMAGE),
+            hex(root.root.as_bytes()),
+            hex(&root.stored_bytes),
+        );
+        for token in ENTITY_TOKENS {
+            let (kind, ordinal) = seed_position(token);
+            let object = objects
+                .iter()
+                .find(|object| object.record().entity_id == id(token))
+                .expect("every seed identity has one retained object");
+            println!(
+                "RW080_MANIFEST_OBJECT token={token} owner={} kind={kind} ordinal={ordinal} entity_id={} object_id={} stored_bytes={}",
+                seed_owner(token),
+                hex(object.record().entity_id.as_bytes()),
+                hex(object.object_id().as_bytes()),
+                hex(object.stored_bytes()),
+            );
+        }
+    }
+}
+
+#[test]
+fn aggregate_component_root_changes_with_semantic_input() {
+    let base = aggregate_toolchain_graph();
+    let base_objects = canonical_component_objects(&base);
+    let base_root = canonical_component_root(&base_objects);
+    let mut changed = aggregate_toolchain_graph();
+    changed.constants[0].value = uint_value(8, 7);
+    let changed_objects = canonical_component_objects(&changed);
+    let changed_root = canonical_component_root(&changed_objects);
+    assert_ne!(changed_root.root, base_root.root);
+    let changed_bindings = base_objects
+        .iter()
+        .zip(&changed_objects)
+        .filter(|(left, right)| left.object_id() != right.object_id())
+        .collect::<Vec<_>>();
+    assert_eq!(changed_bindings.len(), 1);
+    assert_eq!(changed_bindings[0].0.record().entity_id, id(30));
+}
+
+#[test]
+fn retained_component_manifest_is_digest_pinned() {
+    let bytes = include_bytes!(
+        "../../../machineresearch/sley-2.0/reweave/rw-080-toolchain-component-manifest.json"
+    );
+    let manifest = std::str::from_utf8(bytes).expect("component manifest is UTF-8 JSON");
+    let digest: [u8; 32] = <Sha256 as Digest>::digest(bytes).into();
+    assert_eq!(
+        digest,
+        [
+            0x34, 0xa1, 0xf0, 0x22, 0xff, 0x64, 0x70, 0x2f, 0x3d, 0xbc, 0xd2, 0x84, 0xa5, 0xec,
+            0x4b, 0x73, 0x9b, 0xd4, 0x17, 0x0d, 0xf6, 0x48, 0x7c, 0xfc, 0x00, 0x3d, 0xd5, 0x91,
+            0xd8, 0x4c, 0xd7, 0x73,
+        ]
+    );
+    assert!(manifest.contains("\"is_canonical_s\": false"));
+    assert!(manifest.contains("\"complete_toolchain_closure\": false"));
+    assert!(manifest.contains(&hex(workspace().as_bytes())));
+    assert!(manifest.contains(&hex(epoch().as_bytes())));
+    let image = aggregate_toolchain_graph();
+    let objects = canonical_component_objects(&image);
+    let root = canonical_component_root(&objects);
+    assert!(manifest.contains(&hex(root.root.as_bytes())));
+    let root_sha256: [u8; 32] = <Sha256 as Digest>::digest(&root.stored_bytes).into();
+    assert!(manifest.contains(&hex(&root_sha256)));
+    for object in &objects {
+        assert!(manifest.contains(&hex(object.record().entity_id.as_bytes())));
+        assert!(manifest.contains(&hex(object.object_id().as_bytes())));
+        let object_sha256: [u8; 32] = <Sha256 as Digest>::digest(object.stored_bytes()).into();
+        assert!(manifest.contains(&hex(&object_sha256)));
+    }
+    let (package, _) = admitted_toolchain_graph();
+    let package_digest = sley_vm::package_digests_v2(&package)
+        .expect("component package digests")
+        .package_digest;
+    assert!(manifest.contains(&hex(&package_digest)));
+}
+
+#[test]
 fn aggregate_toolchain_package_has_stable_component_identity() {
     let (package, _) = admitted_toolchain_graph();
     let envelope = sley_vm::encode_package_envelope_v2(&package).expect("package encodes");
@@ -378,16 +689,18 @@ fn aggregate_toolchain_package_has_stable_component_identity() {
     let digests = sley_vm::package_digests_v2(&package).expect("package digests");
     assert_eq!(decoded.entry, id(DRIVER));
     assert_eq!(decoded.schema_epoch, epoch());
-    assert_eq!(decoded.state_root, fixture_root());
+    let image = aggregate_toolchain_graph();
+    let expected_root = canonical_component_root(&canonical_component_objects(&image));
+    assert_eq!(decoded.state_root, expected_root.root);
     assert_eq!(decoded.digests, digests);
     assert_eq!(package.gate_bridge_uses, 0);
     assert_eq!(package.gate_closure_fingerprints.len(), 5);
     assert_eq!(
         digests.package_digest,
         [
-            0x25, 0xcf, 0x82, 0xa3, 0xfb, 0xf5, 0xc0, 0x7b, 0x49, 0x26, 0xcb, 0x03, 0xe1, 0xac,
-            0xbb, 0x0d, 0x6a, 0x12, 0xe5, 0x2b, 0xb5, 0x3f, 0xd7, 0xd6, 0x7a, 0xbf, 0xa5, 0xaf,
-            0x03, 0xd0, 0x5c, 0xac,
+            0x07, 0x8e, 0x4c, 0xa9, 0x20, 0xc0, 0x45, 0x2c, 0x29, 0x07, 0x30, 0xbc, 0x68, 0x83,
+            0x82, 0x9d, 0xc2, 0x81, 0xc8, 0x0c, 0xd1, 0xbe, 0x54, 0x59, 0x53, 0xac, 0x58, 0xe2,
+            0x8a, 0xa9, 0x58, 0xca,
         ],
         "the provisional aggregate component identity is pinned"
     );

@@ -16,5 +16,8 @@ blake3 = "=1.8.2"
 
 sley-scb1 = { path = "../sley-scb1" }
 
+[dev-dependencies]
+sley-state-root = { path = "../sley-state-root" }
+
 [lints]
 workspace = true
