@@ -3327,26 +3327,6 @@ fn build_fixed_body_witness_program_encode(
     }
 }
 
-pub(super) fn build_workspace_witness_program_encode(
-    a: &mut Asm,
-    ns: Ns,
-    fid: EntityId,
-    exact_fid: EntityId,
-    concat_fid: EntityId,
-) -> FunctionGraph {
-    build_fixed_body_witness_program_encode(
-        a,
-        ns,
-        fid,
-        exact_fid,
-        concat_fid,
-        FixedBodyWitnessProfile::Single {
-            payload_length: 86,
-            body_length: 49,
-        },
-    )
-}
-
 pub(super) fn build_single_fixed_body_witness_program_encode(
     a: &mut Asm,
     ns: Ns,

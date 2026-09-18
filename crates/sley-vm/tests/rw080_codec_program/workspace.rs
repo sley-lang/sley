@@ -363,7 +363,9 @@ fn workspace_stored_from_body(entity: [u8; 32], body: &[u8]) -> Vec<u8> {
     preimage
 }
 
-fn workspace_decode_image() -> Image {
+pub(super) fn fixed_body_decode_image(
+    build_checker: fn(&mut Asm, Ns, EntityId) -> FunctionGraph,
+) -> Image {
     let mut assembler = Asm::new();
     let root_ns = Ns {
         k: 214,
@@ -404,12 +406,7 @@ fn workspace_decode_image() -> Image {
     let (uvar_graph, _) = build_decode(&mut assembler, uvar_ns, uvar);
     let validate_graph = build_program_validate(&mut assembler, validate_ns, validate, uvar);
     let outer_graph = build_outer_decode(&mut assembler, outer_ns, outer, uvar);
-    let checker_graph =
-        super::dependency_binding_decode::build_empty_workspace_supported_body_check(
-            &mut assembler,
-            checker_ns,
-            checker,
-        );
+    let checker_graph = build_checker(&mut assembler, checker_ns, checker);
     let root_graph =
         build_fixed_body_program_decode(&mut assembler, root_ns, root, validate, outer, checker);
     let mut image = Image {
@@ -447,12 +444,22 @@ fn workspace_decode_image() -> Image {
     };
     assert!(
         super::supported_dispatch::deduplicate_identical_constants(&mut image) > 0,
-        "workspace decode closure shares immutable constants"
+        "fixed-body decode closure shares immutable constants"
     );
     image
 }
 
-fn workspace_encode_image() -> Image {
+fn workspace_decode_image() -> Image {
+    fixed_body_decode_image(
+        super::dependency_binding_decode::build_empty_workspace_supported_body_check,
+    )
+}
+
+pub(super) fn fixed_body_encode_image(
+    build_checker: fn(&mut Asm, Ns, EntityId) -> FunctionGraph,
+    payload_length: u64,
+    body_length: u64,
+) -> Image {
     let mut assembler = Asm::new();
     let root_ns = Ns {
         k: 214,
@@ -490,21 +497,18 @@ fn workspace_encode_image() -> Image {
     let exact = eid(12, 4);
     let concat = eid(12, 5);
 
-    let checker_graph =
-        super::dependency_binding_decode::build_empty_workspace_supported_body_check(
-            &mut assembler,
-            checker_ns,
-            checker,
-        );
+    let checker_graph = build_checker(&mut assembler, checker_ns, checker);
     let concat_graph = super::package::build_concat_bytes(&mut assembler, concat_ns, concat);
     let exact_graph =
         super::package::build_exact_identity_validate(&mut assembler, exact_ns, exact);
-    let witness_graph = super::package::build_workspace_witness_program_encode(
+    let witness_graph = super::package::build_single_fixed_body_witness_program_encode(
         &mut assembler,
         witness_ns,
         witness,
         exact,
         concat,
+        payload_length,
+        body_length,
     );
     let root_graph =
         build_fixed_body_program_encode(&mut assembler, root_ns, root, checker, witness);
@@ -543,9 +547,17 @@ fn workspace_encode_image() -> Image {
     };
     assert!(
         super::supported_dispatch::deduplicate_identical_constants(&mut image) > 0,
-        "workspace encode closure shares immutable constants"
+        "fixed-body encode closure shares immutable constants"
     );
     image
+}
+
+fn workspace_encode_image() -> Image {
+    fixed_body_encode_image(
+        super::dependency_binding_decode::build_empty_workspace_supported_body_check,
+        86,
+        49,
+    )
 }
 
 fn decoded_workspace(outcome: &sley_vm::ExecutionOutcome) -> (Vec<u8>, Vec<u8>) {

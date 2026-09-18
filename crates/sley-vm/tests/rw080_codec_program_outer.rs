@@ -57,6 +57,8 @@ mod dependency_binding_decode;
 mod global_value;
 #[path = "rw080_codec_program/package.rs"]
 mod package;
+#[path = "rw080_codec_program/parameter.rs"]
+mod parameter;
 #[path = "rw080_codec_program/policy_binding.rs"]
 mod policy_binding;
 #[path = "rw080_codec_program/supported_dispatch.rs"]
