@@ -17152,3 +17152,2077 @@ fn type_def_schema_decoder_rejects_every_nested_boundary() {
         );
     }
 }
+
+fn option_u8_type() -> TypeExpr {
+    TypeExpr::Option(Box::new(u8_type()))
+}
+
+fn u8_const(assembler: &mut Asm, ns: Ns, block: EntityId, value: u8) -> EntityId {
+    let constant = assembler.ku8(ns.k, u128::from(value));
+    assembler.cref(ns.o, block, constant, u8_type())
+}
+
+fn u64_const(assembler: &mut Asm, ns: Ns, block: EntityId, value: u64) -> EntityId {
+    let constant = assembler.ku64(ns.k, u128::from(value));
+    assembler.cref(ns.o, block, constant, u64_type())
+}
+
+fn bool_op(
+    assembler: &mut Asm,
+    ns: Ns,
+    block: EntityId,
+    opcode: Opcode,
+    operands: Vec<ValueRef>,
+) -> EntityId {
+    assembler.op(
+        ns.o,
+        block,
+        opcode,
+        operands,
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    )
+}
+
+/// `Return(ResultErr(payload))` block forwarding one callee error payload.
+fn forward_error_block(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    result_type: &TypeExpr,
+) -> EntityId {
+    let block = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, block, ParameterRole::Block, TypeExpr::Bytes);
+    let result = assembler.op(
+        ns.o,
+        block,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        block,
+        function,
+        vec![forwarded],
+        vec![result],
+        ret(op_result(result)),
+    );
+    block
+}
+
+/// `Return(ResultOk(unit))` block for unit-result validators.
+fn unit_success_block(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    unit: EntityId,
+    result_type: &TypeExpr,
+) -> EntityId {
+    let block = assembler.id(ns.b);
+    let ok = assembler.op(
+        ns.o,
+        block,
+        Opcode::ResultOk,
+        vec![pav(unit)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        block,
+        function,
+        Vec::new(),
+        vec![ok],
+        ret(op_result(ok)),
+    );
+    block
+}
+
+/// Entry block converting the body to a byte vector through the frozen
+/// `B2V1` bridge and continuing at `vector_ready(vector)`.
+fn vector_entry_block(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    body: EntityId,
+    unit: EntityId,
+    resource_error: EntityId,
+    vector_ready: EntityId,
+) -> EntityId {
+    let entry = assembler.id(ns.b);
+    let converted = assembler.op(
+        ns.o,
+        entry,
+        Opcode::AdapterInvoke,
+        vec![pav(unit), pav(body)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![converted],
+        switch(
+            op_result(converted),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    vector_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+    entry
+}
+
+fn unit_validator_graph(
+    assembler: &Asm,
+    function: EntityId,
+    body: EntityId,
+    unit: EntityId,
+    entry: EntityId,
+    block_start: usize,
+) -> FunctionGraph {
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type: unit_validation_result_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+/// Validates one strict SCB1 boolean byte: `0` or `1`, nothing else.
+#[allow(clippy::too_many_lines)]
+fn build_bool_validate(assembler: &mut Asm, ns: Ns, function: EntityId) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let length_code = assembler.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
+    let bool_code = assembler.kbytes(ns.k, b"SCB_BOOL_INVALID");
+    let trailing_code = assembler.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let resource_code = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+    let length_error = err_block(assembler, ns, function, result_type.clone(), length_code);
+    let bool_error = err_block(assembler, ns, function, result_type.clone(), bool_code);
+    let trailing_error = err_block(assembler, ns, function, result_type.clone(), trailing_code);
+    let resource_error = err_block(assembler, ns, function, result_type.clone(), resource_code);
+    let success = unit_success_block(assembler, ns, function, unit, &result_type);
+    let trailing_check = assembler.id(ns.b);
+    let value_check = assembler.id(ns.b);
+    let vector_ready = assembler.id(ns.b);
+
+    let trailing_parameters = block_parameters(assembler, ns.p, trailing_check, &[u8vec_type()]);
+    let length = assembler.op(
+        ns.o,
+        trailing_check,
+        Opcode::VectorLen,
+        vec![pav(trailing_parameters[0])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let one = u64_const(assembler, ns, trailing_check, 1);
+    let more = bool_op(
+        assembler,
+        ns,
+        trailing_check,
+        Opcode::GreaterThan,
+        vec![op_result(length), op_result(one)],
+    );
+    append_block(
+        assembler,
+        trailing_check,
+        function,
+        trailing_parameters,
+        vec![length, one, more],
+        cond(
+            op_result(more),
+            edge(trailing_error, Vec::new()),
+            edge(success, Vec::new()),
+        ),
+    );
+
+    let value_parameters =
+        block_parameters(assembler, ns.p, value_check, &[u8_type(), u8vec_type()]);
+    let one_byte = u8_const(assembler, ns, value_check, 1);
+    let invalid = bool_op(
+        assembler,
+        ns,
+        value_check,
+        Opcode::GreaterThan,
+        vec![pav(value_parameters[0]), op_result(one_byte)],
+    );
+    append_block(
+        assembler,
+        value_check,
+        function,
+        value_parameters.clone(),
+        vec![one_byte, invalid],
+        cond(
+            op_result(invalid),
+            edge(bool_error, Vec::new()),
+            edge(trailing_check, vec![pav(value_parameters[1])]),
+        ),
+    );
+
+    let vector_parameters = block_parameters(assembler, ns.p, vector_ready, &[u8vec_type()]);
+    let zero = u64_const(assembler, ns, vector_ready, 0);
+    let first = assembler.op(
+        ns.o,
+        vector_ready,
+        Opcode::VectorGet,
+        vec![pav(vector_parameters[0]), op_result(zero)],
+        vec![option_u8_type()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        vector_ready,
+        function,
+        vector_parameters.clone(),
+        vec![zero, first],
+        switch(
+            op_result(first),
+            vec![
+                (BuiltinCase::None, length_error, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    value_check,
+                    vec![SwitchArgument::CasePayload, sav(vector_parameters[0])],
+                ),
+            ],
+        ),
+    );
+
+    let entry = vector_entry_block(
+        assembler,
+        ns,
+        function,
+        body,
+        unit,
+        resource_error,
+        vector_ready,
+    );
+    unit_validator_graph(assembler, function, body, unit, entry, block_start)
+}
+
+/// Validates one canonical 128-bit unsigned varint occupying the whole body,
+/// with the native strict-decoder precedence: overflow before minimality
+/// before trailing bytes.
+#[allow(clippy::too_many_lines)]
+fn build_uvar128_validate(assembler: &mut Asm, ns: Ns, function: EntityId) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let length_code = assembler.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
+    let overflow_code = assembler.kbytes(ns.k, b"SCB_INTEGER_OVERFLOW");
+    let minimal_code = assembler.kbytes(ns.k, b"SCB_VARINT_NON_MINIMAL");
+    let trailing_code = assembler.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let resource_code = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+    let length_error = err_block(assembler, ns, function, result_type.clone(), length_code);
+    let overflow_error = err_block(assembler, ns, function, result_type.clone(), overflow_code);
+    let minimal_error = err_block(assembler, ns, function, result_type.clone(), minimal_code);
+    let trailing_error = err_block(assembler, ns, function, result_type.clone(), trailing_code);
+    let resource_error = err_block(assembler, ns, function, result_type.clone(), resource_code);
+    let invariant_trap = trap_block(assembler, ns, function);
+    let success = unit_success_block(assembler, ns, function, unit, &result_type);
+    let fetch = assembler.id(ns.b);
+    let classify = assembler.id(ns.b);
+    let continuation = assembler.id(ns.b);
+    let continuation_check = assembler.id(ns.b);
+    let advance = assembler.id(ns.b);
+    let last = assembler.id(ns.b);
+    let last_minimal = assembler.id(ns.b);
+    let last_consumed = assembler.id(ns.b);
+    let trailing_compare = assembler.id(ns.b);
+    let vector_ready = assembler.id(ns.b);
+    let index_types = vec![u64_type(), u8vec_type()];
+    let byte_types = vec![u8_type(), u64_type(), u8vec_type()];
+
+    let fetch_parameters = block_parameters(assembler, ns.p, fetch, &index_types);
+    let item = assembler.op(
+        ns.o,
+        fetch,
+        Opcode::VectorGet,
+        vec![pav(fetch_parameters[1]), pav(fetch_parameters[0])],
+        vec![option_u8_type()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        fetch,
+        function,
+        fetch_parameters.clone(),
+        vec![item],
+        switch(
+            op_result(item),
+            vec![
+                (BuiltinCase::None, length_error, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    classify,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(fetch_parameters[0]),
+                        sav(fetch_parameters[1]),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let classify_parameters = block_parameters(assembler, ns.p, classify, &byte_types);
+    let high_bit = u8_const(assembler, ns, classify, 0x80);
+    let continues = bool_op(
+        assembler,
+        ns,
+        classify,
+        Opcode::GreaterEqual,
+        vec![pav(classify_parameters[0]), op_result(high_bit)],
+    );
+    append_block(
+        assembler,
+        classify,
+        function,
+        classify_parameters.clone(),
+        vec![high_bit, continues],
+        cond(
+            op_result(continues),
+            edge(continuation, parameter_values(&classify_parameters)),
+            edge(last, parameter_values(&classify_parameters)),
+        ),
+    );
+
+    let continuation_parameters = block_parameters(assembler, ns.p, continuation, &byte_types);
+    let continuation_bit = u8_const(assembler, ns, continuation, 0x80);
+    let payload = assembler.op(
+        ns.o,
+        continuation,
+        Opcode::IntSubChecked,
+        vec![pav(continuation_parameters[0]), op_result(continuation_bit)],
+        vec![arith_result(u8_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        continuation,
+        function,
+        continuation_parameters.clone(),
+        vec![continuation_bit, payload],
+        switch(
+            op_result(payload),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    continuation_check,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(continuation_parameters[1]),
+                        sav(continuation_parameters[2]),
+                    ],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let check_parameters = block_parameters(assembler, ns.p, continuation_check, &byte_types);
+    let nineteen = u64_const(assembler, ns, continuation_check, 19);
+    let eighteen = u64_const(assembler, ns, continuation_check, 18);
+    let three = u8_const(assembler, ns, continuation_check, 3);
+    let too_long = bool_op(
+        assembler,
+        ns,
+        continuation_check,
+        Opcode::GreaterEqual,
+        vec![pav(check_parameters[1]), op_result(nineteen)],
+    );
+    let at_top = bool_op(
+        assembler,
+        ns,
+        continuation_check,
+        Opcode::Equal,
+        vec![pav(check_parameters[1]), op_result(eighteen)],
+    );
+    let too_big = bool_op(
+        assembler,
+        ns,
+        continuation_check,
+        Opcode::GreaterThan,
+        vec![pav(check_parameters[0]), op_result(three)],
+    );
+    let top_overflow = bool_op(
+        assembler,
+        ns,
+        continuation_check,
+        Opcode::BoolAnd,
+        vec![op_result(at_top), op_result(too_big)],
+    );
+    let overflow = bool_op(
+        assembler,
+        ns,
+        continuation_check,
+        Opcode::BoolOr,
+        vec![op_result(too_long), op_result(top_overflow)],
+    );
+    append_block(
+        assembler,
+        continuation_check,
+        function,
+        check_parameters.clone(),
+        vec![
+            nineteen,
+            eighteen,
+            three,
+            too_long,
+            at_top,
+            too_big,
+            top_overflow,
+            overflow,
+        ],
+        cond(
+            op_result(overflow),
+            edge(overflow_error, Vec::new()),
+            edge(
+                advance,
+                vec![pav(check_parameters[1]), pav(check_parameters[2])],
+            ),
+        ),
+    );
+
+    let advance_parameters = block_parameters(assembler, ns.p, advance, &index_types);
+    let step = u64_const(assembler, ns, advance, 1);
+    let next = assembler.op(
+        ns.o,
+        advance,
+        Opcode::IntAddChecked,
+        vec![pav(advance_parameters[0]), op_result(step)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        advance,
+        function,
+        advance_parameters.clone(),
+        vec![step, next],
+        switch(
+            op_result(next),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    fetch,
+                    vec![SwitchArgument::CasePayload, sav(advance_parameters[1])],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let last_parameters = block_parameters(assembler, ns.p, last, &byte_types);
+    let last_nineteen = u64_const(assembler, ns, last, 19);
+    let last_eighteen = u64_const(assembler, ns, last, 18);
+    let last_three = u8_const(assembler, ns, last, 3);
+    let zero_byte = u8_const(assembler, ns, last, 0);
+    let last_too_long = bool_op(
+        assembler,
+        ns,
+        last,
+        Opcode::GreaterEqual,
+        vec![pav(last_parameters[1]), op_result(last_nineteen)],
+    );
+    let nonzero = bool_op(
+        assembler,
+        ns,
+        last,
+        Opcode::NotEqual,
+        vec![pav(last_parameters[0]), op_result(zero_byte)],
+    );
+    let long_overflow = bool_op(
+        assembler,
+        ns,
+        last,
+        Opcode::BoolAnd,
+        vec![op_result(last_too_long), op_result(nonzero)],
+    );
+    let last_at_top = bool_op(
+        assembler,
+        ns,
+        last,
+        Opcode::Equal,
+        vec![pav(last_parameters[1]), op_result(last_eighteen)],
+    );
+    let last_too_big = bool_op(
+        assembler,
+        ns,
+        last,
+        Opcode::GreaterThan,
+        vec![pav(last_parameters[0]), op_result(last_three)],
+    );
+    let last_top_overflow = bool_op(
+        assembler,
+        ns,
+        last,
+        Opcode::BoolAnd,
+        vec![op_result(last_at_top), op_result(last_too_big)],
+    );
+    let last_overflow = bool_op(
+        assembler,
+        ns,
+        last,
+        Opcode::BoolOr,
+        vec![op_result(long_overflow), op_result(last_top_overflow)],
+    );
+    append_block(
+        assembler,
+        last,
+        function,
+        last_parameters.clone(),
+        vec![
+            last_nineteen,
+            last_eighteen,
+            last_three,
+            zero_byte,
+            last_too_long,
+            nonzero,
+            long_overflow,
+            last_at_top,
+            last_too_big,
+            last_top_overflow,
+            last_overflow,
+        ],
+        cond(
+            op_result(last_overflow),
+            edge(overflow_error, Vec::new()),
+            edge(last_minimal, parameter_values(&last_parameters)),
+        ),
+    );
+
+    let minimal_parameters = block_parameters(assembler, ns.p, last_minimal, &byte_types);
+    let zero_index = u64_const(assembler, ns, last_minimal, 0);
+    let minimal_zero_byte = u8_const(assembler, ns, last_minimal, 0);
+    let not_first = bool_op(
+        assembler,
+        ns,
+        last_minimal,
+        Opcode::GreaterThan,
+        vec![pav(minimal_parameters[1]), op_result(zero_index)],
+    );
+    let zero_payload = bool_op(
+        assembler,
+        ns,
+        last_minimal,
+        Opcode::Equal,
+        vec![pav(minimal_parameters[0]), op_result(minimal_zero_byte)],
+    );
+    let non_minimal = bool_op(
+        assembler,
+        ns,
+        last_minimal,
+        Opcode::BoolAnd,
+        vec![op_result(not_first), op_result(zero_payload)],
+    );
+    append_block(
+        assembler,
+        last_minimal,
+        function,
+        minimal_parameters.clone(),
+        vec![
+            zero_index,
+            minimal_zero_byte,
+            not_first,
+            zero_payload,
+            non_minimal,
+        ],
+        cond(
+            op_result(non_minimal),
+            edge(minimal_error, Vec::new()),
+            edge(
+                last_consumed,
+                vec![pav(minimal_parameters[1]), pav(minimal_parameters[2])],
+            ),
+        ),
+    );
+
+    let consumed_parameters = block_parameters(assembler, ns.p, last_consumed, &index_types);
+    let consumed_step = u64_const(assembler, ns, last_consumed, 1);
+    let consumed = assembler.op(
+        ns.o,
+        last_consumed,
+        Opcode::IntAddChecked,
+        vec![pav(consumed_parameters[0]), op_result(consumed_step)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        last_consumed,
+        function,
+        consumed_parameters.clone(),
+        vec![consumed_step, consumed],
+        switch(
+            op_result(consumed),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    trailing_compare,
+                    vec![SwitchArgument::CasePayload, sav(consumed_parameters[1])],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let trailing_parameters = block_parameters(assembler, ns.p, trailing_compare, &index_types);
+    let total = assembler.op(
+        ns.o,
+        trailing_compare,
+        Opcode::VectorLen,
+        vec![pav(trailing_parameters[1])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let more = bool_op(
+        assembler,
+        ns,
+        trailing_compare,
+        Opcode::LessThan,
+        vec![pav(trailing_parameters[0]), op_result(total)],
+    );
+    append_block(
+        assembler,
+        trailing_compare,
+        function,
+        trailing_parameters,
+        vec![total, more],
+        cond(
+            op_result(more),
+            edge(trailing_error, Vec::new()),
+            edge(success, Vec::new()),
+        ),
+    );
+
+    let vector_parameters = block_parameters(assembler, ns.p, vector_ready, &[u8vec_type()]);
+    let start = u64_const(assembler, ns, vector_ready, 0);
+    append_block(
+        assembler,
+        vector_ready,
+        function,
+        vector_parameters.clone(),
+        vec![start],
+        branch(edge(
+            fetch,
+            vec![op_result(start), pav(vector_parameters[0])],
+        )),
+    );
+
+    let entry = vector_entry_block(
+        assembler,
+        ns,
+        function,
+        body,
+        unit,
+        resource_error,
+        vector_ready,
+    );
+    unit_validator_graph(assembler, function, body, unit, entry, block_start)
+}
+
+/// Validates exactly `width` big-endian bytes holding a canonical IEEE bit
+/// pattern: negative zero and every NaN other than the canonical quiet NaN
+/// are refused, matching `validate_f32_bits` / `validate_f64_bits`.
+#[allow(clippy::too_many_lines)]
+fn build_float_bits_validate(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    width: usize,
+) -> FunctionGraph {
+    assert!(matches!(width, 4 | 8), "float widths are 4 or 8 bytes");
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let length_code = assembler.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
+    let float_code = assembler.kbytes(ns.k, b"SCB_FLOAT_NON_CANONICAL");
+    let trailing_code = assembler.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let resource_code = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+    let length_error = err_block(assembler, ns, function, result_type.clone(), length_code);
+    let float_error = err_block(assembler, ns, function, result_type.clone(), float_code);
+    let trailing_error = err_block(assembler, ns, function, result_type.clone(), trailing_code);
+    let resource_error = err_block(assembler, ns, function, result_type.clone(), resource_code);
+    let invariant_trap = trap_block(assembler, ns, function);
+    let success = unit_success_block(assembler, ns, function, unit, &result_type);
+    let trailing_check = assembler.id(ns.b);
+    let analyze = assembler.id(ns.b);
+    let fetches = (0..width).map(|_| assembler.id(ns.b)).collect::<Vec<_>>();
+    let vector_ready = assembler.id(ns.b);
+    let width_u64 = u64::try_from(width).expect("float width fits u64");
+
+    let trailing_parameters = block_parameters(assembler, ns.p, trailing_check, &[u8vec_type()]);
+    let length = assembler.op(
+        ns.o,
+        trailing_check,
+        Opcode::VectorLen,
+        vec![pav(trailing_parameters[0])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let expected_length = u64_const(assembler, ns, trailing_check, width_u64);
+    let more = bool_op(
+        assembler,
+        ns,
+        trailing_check,
+        Opcode::GreaterThan,
+        vec![op_result(length), op_result(expected_length)],
+    );
+    append_block(
+        assembler,
+        trailing_check,
+        function,
+        trailing_parameters,
+        vec![length, expected_length, more],
+        cond(
+            op_result(more),
+            edge(trailing_error, Vec::new()),
+            edge(success, Vec::new()),
+        ),
+    );
+
+    let mut analyze_types = vec![u8vec_type()];
+    analyze_types.extend(std::iter::repeat_n(u8_type(), width));
+    let analyze_parameters = block_parameters(assembler, ns.p, analyze, &analyze_types);
+    let bytes = &analyze_parameters[1..];
+    let mut operations = Vec::new();
+    let byte_is = |assembler: &mut Asm, index: usize, value: u8, operations: &mut Vec<EntityId>| {
+        let constant = u8_const(assembler, ns, analyze, value);
+        let equal = bool_op(
+            assembler,
+            ns,
+            analyze,
+            Opcode::Equal,
+            vec![pav(bytes[index]), op_result(constant)],
+        );
+        operations.extend([constant, equal]);
+        equal
+    };
+    let (exponent_floor, canonical_nan_second) = if width == 4 {
+        (0x80_u8, 0xc0_u8)
+    } else {
+        (0xf0_u8, 0xf8_u8)
+    };
+    let sign_only = byte_is(assembler, 0, 0x80, &mut operations);
+    let positive_max_exponent = byte_is(assembler, 0, 0x7f, &mut operations);
+    let negative_max_exponent = byte_is(assembler, 0, 0xff, &mut operations);
+    let second_zero = byte_is(assembler, 1, 0, &mut operations);
+    let second_exponent_only = byte_is(assembler, 1, exponent_floor, &mut operations);
+    let second_canonical_nan = byte_is(assembler, 1, canonical_nan_second, &mut operations);
+    let rest_zero_checks = (2..width)
+        .map(|index| byte_is(assembler, index, 0, &mut operations))
+        .collect::<Vec<_>>();
+    let exponent_floor_value = u8_const(assembler, ns, analyze, exponent_floor);
+    let second_high = bool_op(
+        assembler,
+        ns,
+        analyze,
+        Opcode::GreaterEqual,
+        vec![pav(bytes[1]), op_result(exponent_floor_value)],
+    );
+    operations.extend([exponent_floor_value, second_high]);
+    let fold = |assembler: &mut Asm,
+                opcode: Opcode,
+                values: &[EntityId],
+                operations: &mut Vec<EntityId>| {
+        let mut accumulator = values[0];
+        for value in &values[1..] {
+            accumulator = bool_op(
+                assembler,
+                ns,
+                analyze,
+                opcode,
+                vec![op_result(accumulator), op_result(*value)],
+            );
+            operations.push(accumulator);
+        }
+        accumulator
+    };
+    let rest_zero = fold(
+        assembler,
+        Opcode::BoolAnd,
+        &rest_zero_checks,
+        &mut operations,
+    );
+    let negative_zero = fold(
+        assembler,
+        Opcode::BoolAnd,
+        &[sign_only, second_zero, rest_zero],
+        &mut operations,
+    );
+    let max_exponent_first = fold(
+        assembler,
+        Opcode::BoolOr,
+        &[positive_max_exponent, negative_max_exponent],
+        &mut operations,
+    );
+    let max_exponent = fold(
+        assembler,
+        Opcode::BoolAnd,
+        &[max_exponent_first, second_high],
+        &mut operations,
+    );
+    let second_mantissa_zero_and_rest = fold(
+        assembler,
+        Opcode::BoolAnd,
+        &[second_exponent_only, rest_zero],
+        &mut operations,
+    );
+    let mantissa_nonzero = bool_op(
+        assembler,
+        ns,
+        analyze,
+        Opcode::BoolNot,
+        vec![op_result(second_mantissa_zero_and_rest)],
+    );
+    operations.push(mantissa_nonzero);
+    let canonical_nan = fold(
+        assembler,
+        Opcode::BoolAnd,
+        &[positive_max_exponent, second_canonical_nan, rest_zero],
+        &mut operations,
+    );
+    let not_canonical_nan = bool_op(
+        assembler,
+        ns,
+        analyze,
+        Opcode::BoolNot,
+        vec![op_result(canonical_nan)],
+    );
+    operations.push(not_canonical_nan);
+    let bad_nan = fold(
+        assembler,
+        Opcode::BoolAnd,
+        &[max_exponent, mantissa_nonzero, not_canonical_nan],
+        &mut operations,
+    );
+    let non_canonical = fold(
+        assembler,
+        Opcode::BoolOr,
+        &[negative_zero, bad_nan],
+        &mut operations,
+    );
+    append_block(
+        assembler,
+        analyze,
+        function,
+        analyze_parameters.clone(),
+        operations,
+        cond(
+            op_result(non_canonical),
+            edge(float_error, Vec::new()),
+            edge(trailing_check, vec![pav(analyze_parameters[0])]),
+        ),
+    );
+
+    for (index, block) in fetches.iter().copied().enumerate() {
+        let mut types = vec![u8vec_type()];
+        types.extend(std::iter::repeat_n(u8_type(), index));
+        let parameters = block_parameters(assembler, ns.p, block, &types);
+        let position = u64_const(
+            assembler,
+            ns,
+            block,
+            u64::try_from(index).expect("byte index fits u64"),
+        );
+        let item = assembler.op(
+            ns.o,
+            block,
+            Opcode::VectorGet,
+            vec![pav(parameters[0]), op_result(position)],
+            vec![option_u8_type()],
+            Immediate::None,
+        );
+        let destination = fetches.get(index + 1).copied().unwrap_or(analyze);
+        let mut arguments = parameters.iter().copied().map(sav).collect::<Vec<_>>();
+        arguments.push(SwitchArgument::CasePayload);
+        append_block(
+            assembler,
+            block,
+            function,
+            parameters,
+            vec![position, item],
+            switch(
+                op_result(item),
+                vec![
+                    (BuiltinCase::None, invariant_trap, Vec::new()),
+                    (BuiltinCase::Some, destination, arguments),
+                ],
+            ),
+        );
+    }
+
+    let vector_parameters = block_parameters(assembler, ns.p, vector_ready, &[u8vec_type()]);
+    let total = assembler.op(
+        ns.o,
+        vector_ready,
+        Opcode::VectorLen,
+        vec![pav(vector_parameters[0])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let required = u64_const(assembler, ns, vector_ready, width_u64);
+    let short = bool_op(
+        assembler,
+        ns,
+        vector_ready,
+        Opcode::LessThan,
+        vec![op_result(total), op_result(required)],
+    );
+    append_block(
+        assembler,
+        vector_ready,
+        function,
+        vector_parameters.clone(),
+        vec![total, required, short],
+        cond(
+            op_result(short),
+            edge(length_error, Vec::new()),
+            edge(fetches[0], vec![pav(vector_parameters[0])]),
+        ),
+    );
+
+    let entry = vector_entry_block(
+        assembler,
+        ns,
+        function,
+        body,
+        unit,
+        resource_error,
+        vector_ready,
+    );
+    unit_validator_graph(assembler, function, body, unit, entry, block_start)
+}
+
+/// One UTF-8 lead-byte tier: the comparison and bound selecting it, and the
+/// continuation shape `(count, first_low, first_high)` it demands; `None`
+/// marks a refused lead range.
+type LeadByteTier = (Opcode, u8, Option<(u64, u8, u8)>);
+
+/// Validates one length-prefixed byte payload occupying the whole body
+/// (`read_bytes`), optionally requiring the payload to be valid UTF-8
+/// (`read_text`). Precedence follows the native reader: length prefix
+/// errors, then the 16 MiB payload cap, then a short payload, then UTF-8,
+/// then trailing bytes.
+#[allow(clippy::too_many_lines)]
+fn build_sized_payload_validate(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    decode_function: EntityId,
+    utf8: bool,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let length_code = assembler.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
+    let trailing_code = assembler.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let resource_code = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+    let forward_error = forward_error_block(assembler, ns, function, &result_type);
+    let length_error = err_block(assembler, ns, function, result_type.clone(), length_code);
+    let trailing_error = err_block(assembler, ns, function, result_type.clone(), trailing_code);
+    let resource_error = err_block(assembler, ns, function, result_type.clone(), resource_code);
+    let invariant_trap = trap_block(assembler, ns, function);
+    let success = unit_success_block(assembler, ns, function, unit, &result_type);
+    let trailing_check = assembler.id(ns.b);
+    let range_check = assembler.id(ns.b);
+    let bounds = assembler.id(ns.b);
+    let length_ready = assembler.id(ns.b);
+    let vector_ready = assembler.id(ns.b);
+    let scan_types = vec![u64_type(), u64_type(), u8vec_type()];
+    let lead_types = vec![u8_type(), u64_type(), u64_type(), u8vec_type()];
+    let expect_types = vec![
+        u64_type(),
+        u64_type(),
+        u8vec_type(),
+        u64_type(),
+        u8_type(),
+        u8_type(),
+    ];
+
+    let trailing_parameters =
+        block_parameters(assembler, ns.p, trailing_check, &[u64_type(), u8vec_type()]);
+    let total = assembler.op(
+        ns.o,
+        trailing_check,
+        Opcode::VectorLen,
+        vec![pav(trailing_parameters[1])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let more = bool_op(
+        assembler,
+        ns,
+        trailing_check,
+        Opcode::LessThan,
+        vec![pav(trailing_parameters[0]), op_result(total)],
+    );
+    append_block(
+        assembler,
+        trailing_check,
+        function,
+        trailing_parameters,
+        vec![total, more],
+        cond(
+            op_result(more),
+            edge(trailing_error, Vec::new()),
+            edge(success, Vec::new()),
+        ),
+    );
+
+    let payload_start = if utf8 {
+        let utf8_code = assembler.kbytes(ns.k, b"SCB_UTF8_INVALID");
+        let utf8_error = err_block(assembler, ns, function, result_type.clone(), utf8_code);
+        let scan = assembler.id(ns.b);
+        let fetch = assembler.id(ns.b);
+        let classify = assembler.id(ns.b);
+        let ascii_check = assembler.id(ns.b);
+        let tiers = std::array::from_fn::<_, 8, _>(|_| assembler.id(ns.b));
+        let expect = assembler.id(ns.b);
+        let expect_fetch = assembler.id(ns.b);
+        let expect_get = assembler.id(ns.b);
+        let expect_check = assembler.id(ns.b);
+        let expect_advance = assembler.id(ns.b);
+        let expect_decrement = assembler.id(ns.b);
+
+        let scan_parameters = block_parameters(assembler, ns.p, scan, &scan_types);
+        let done = bool_op(
+            assembler,
+            ns,
+            scan,
+            Opcode::Equal,
+            vec![pav(scan_parameters[0]), pav(scan_parameters[1])],
+        );
+        append_block(
+            assembler,
+            scan,
+            function,
+            scan_parameters.clone(),
+            vec![done],
+            cond(
+                op_result(done),
+                edge(
+                    trailing_check,
+                    vec![pav(scan_parameters[1]), pav(scan_parameters[2])],
+                ),
+                edge(fetch, parameter_values(&scan_parameters)),
+            ),
+        );
+
+        let fetch_parameters = block_parameters(assembler, ns.p, fetch, &scan_types);
+        let item = assembler.op(
+            ns.o,
+            fetch,
+            Opcode::VectorGet,
+            vec![pav(fetch_parameters[2]), pav(fetch_parameters[0])],
+            vec![option_u8_type()],
+            Immediate::None,
+        );
+        let mut fetch_arguments = vec![SwitchArgument::CasePayload];
+        fetch_arguments.extend(fetch_parameters.iter().copied().map(sav));
+        append_block(
+            assembler,
+            fetch,
+            function,
+            fetch_parameters,
+            vec![item],
+            switch(
+                op_result(item),
+                vec![
+                    (BuiltinCase::None, invariant_trap, Vec::new()),
+                    (BuiltinCase::Some, classify, fetch_arguments),
+                ],
+            ),
+        );
+
+        let classify_parameters = block_parameters(assembler, ns.p, classify, &lead_types);
+        let step = u64_const(assembler, ns, classify, 1);
+        let next = assembler.op(
+            ns.o,
+            classify,
+            Opcode::IntAddChecked,
+            vec![pav(classify_parameters[1]), op_result(step)],
+            vec![arith_result(u64_type())],
+            Immediate::None,
+        );
+        append_block(
+            assembler,
+            classify,
+            function,
+            classify_parameters.clone(),
+            vec![step, next],
+            switch(
+                op_result(next),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        ascii_check,
+                        vec![
+                            sav(classify_parameters[0]),
+                            SwitchArgument::CasePayload,
+                            sav(classify_parameters[2]),
+                            sav(classify_parameters[3]),
+                        ],
+                    ),
+                    (BuiltinCase::Err, invariant_trap, Vec::new()),
+                ],
+            ),
+        );
+
+        let ascii_parameters = block_parameters(assembler, ns.p, ascii_check, &lead_types);
+        let ascii_limit = u8_const(assembler, ns, ascii_check, 0x80);
+        let ascii = bool_op(
+            assembler,
+            ns,
+            ascii_check,
+            Opcode::LessThan,
+            vec![pav(ascii_parameters[0]), op_result(ascii_limit)],
+        );
+        append_block(
+            assembler,
+            ascii_check,
+            function,
+            ascii_parameters.clone(),
+            vec![ascii_limit, ascii],
+            cond(
+                op_result(ascii),
+                edge(
+                    scan,
+                    vec![
+                        pav(ascii_parameters[1]),
+                        pav(ascii_parameters[2]),
+                        pav(ascii_parameters[3]),
+                    ],
+                ),
+                edge(tiers[0], parameter_values(&ascii_parameters)),
+            ),
+        );
+
+        // Lead-byte tiers in ascending order: (comparison, bound, matched
+        // continuation shape). `None` sends the match to the UTF-8 refusal.
+        let tier_rules: [LeadByteTier; 8] = [
+            (Opcode::LessThan, 0xc2, None),
+            (Opcode::LessEqual, 0xdf, Some((1, 0x80, 0xbf))),
+            (Opcode::Equal, 0xe0, Some((2, 0xa0, 0xbf))),
+            (Opcode::Equal, 0xed, Some((2, 0x80, 0x9f))),
+            (Opcode::LessEqual, 0xef, Some((2, 0x80, 0xbf))),
+            (Opcode::Equal, 0xf0, Some((3, 0x90, 0xbf))),
+            (Opcode::LessEqual, 0xf3, Some((3, 0x80, 0xbf))),
+            (Opcode::Equal, 0xf4, Some((3, 0x80, 0x8f))),
+        ];
+        for (index, (block, (opcode, bound, shape))) in
+            tiers.iter().copied().zip(tier_rules).enumerate()
+        {
+            let parameters = block_parameters(assembler, ns.p, block, &lead_types);
+            let bound_value = u8_const(assembler, ns, block, bound);
+            let matched = bool_op(
+                assembler,
+                ns,
+                block,
+                opcode,
+                vec![pav(parameters[0]), op_result(bound_value)],
+            );
+            let mut operations = vec![bound_value, matched];
+            let matched_edge = match shape {
+                None => edge(utf8_error, Vec::new()),
+                Some((remaining, low, high)) => {
+                    let remaining_value = u64_const(assembler, ns, block, remaining);
+                    let low_value = u8_const(assembler, ns, block, low);
+                    let high_value = u8_const(assembler, ns, block, high);
+                    operations.extend([remaining_value, low_value, high_value]);
+                    edge(
+                        expect,
+                        vec![
+                            pav(parameters[1]),
+                            pav(parameters[2]),
+                            pav(parameters[3]),
+                            op_result(remaining_value),
+                            op_result(low_value),
+                            op_result(high_value),
+                        ],
+                    )
+                }
+            };
+            let fallback_edge = match tiers.get(index + 1) {
+                Some(next_tier) => edge(*next_tier, parameter_values(&parameters)),
+                None => edge(utf8_error, Vec::new()),
+            };
+            append_block(
+                assembler,
+                block,
+                function,
+                parameters,
+                operations,
+                cond(op_result(matched), matched_edge, fallback_edge),
+            );
+        }
+
+        let expect_parameters = block_parameters(assembler, ns.p, expect, &expect_types);
+        let none_left = u64_const(assembler, ns, expect, 0);
+        let complete = bool_op(
+            assembler,
+            ns,
+            expect,
+            Opcode::Equal,
+            vec![pav(expect_parameters[3]), op_result(none_left)],
+        );
+        append_block(
+            assembler,
+            expect,
+            function,
+            expect_parameters.clone(),
+            vec![none_left, complete],
+            cond(
+                op_result(complete),
+                edge(
+                    scan,
+                    vec![
+                        pav(expect_parameters[0]),
+                        pav(expect_parameters[1]),
+                        pav(expect_parameters[2]),
+                    ],
+                ),
+                edge(expect_fetch, parameter_values(&expect_parameters)),
+            ),
+        );
+
+        let fetch_check_parameters = block_parameters(assembler, ns.p, expect_fetch, &expect_types);
+        let at_end = bool_op(
+            assembler,
+            ns,
+            expect_fetch,
+            Opcode::Equal,
+            vec![
+                pav(fetch_check_parameters[0]),
+                pav(fetch_check_parameters[1]),
+            ],
+        );
+        append_block(
+            assembler,
+            expect_fetch,
+            function,
+            fetch_check_parameters.clone(),
+            vec![at_end],
+            cond(
+                op_result(at_end),
+                edge(utf8_error, Vec::new()),
+                edge(expect_get, parameter_values(&fetch_check_parameters)),
+            ),
+        );
+
+        let get_parameters = block_parameters(assembler, ns.p, expect_get, &expect_types);
+        let continuation = assembler.op(
+            ns.o,
+            expect_get,
+            Opcode::VectorGet,
+            vec![pav(get_parameters[2]), pav(get_parameters[0])],
+            vec![option_u8_type()],
+            Immediate::None,
+        );
+        let mut get_arguments = vec![SwitchArgument::CasePayload];
+        get_arguments.extend(get_parameters.iter().copied().map(sav));
+        append_block(
+            assembler,
+            expect_get,
+            function,
+            get_parameters,
+            vec![continuation],
+            switch(
+                op_result(continuation),
+                vec![
+                    (BuiltinCase::None, invariant_trap, Vec::new()),
+                    (BuiltinCase::Some, expect_check, get_arguments),
+                ],
+            ),
+        );
+
+        let mut check_types = vec![u8_type()];
+        check_types.extend(expect_types.iter().cloned());
+        let check_parameters = block_parameters(assembler, ns.p, expect_check, &check_types);
+        let above_low = bool_op(
+            assembler,
+            ns,
+            expect_check,
+            Opcode::GreaterEqual,
+            vec![pav(check_parameters[0]), pav(check_parameters[5])],
+        );
+        let below_high = bool_op(
+            assembler,
+            ns,
+            expect_check,
+            Opcode::LessEqual,
+            vec![pav(check_parameters[0]), pav(check_parameters[6])],
+        );
+        let in_range = bool_op(
+            assembler,
+            ns,
+            expect_check,
+            Opcode::BoolAnd,
+            vec![op_result(above_low), op_result(below_high)],
+        );
+        append_block(
+            assembler,
+            expect_check,
+            function,
+            check_parameters.clone(),
+            vec![above_low, below_high, in_range],
+            cond(
+                op_result(in_range),
+                edge(
+                    expect_advance,
+                    vec![
+                        pav(check_parameters[1]),
+                        pav(check_parameters[2]),
+                        pav(check_parameters[3]),
+                        pav(check_parameters[4]),
+                    ],
+                ),
+                edge(utf8_error, Vec::new()),
+            ),
+        );
+
+        let advance_types = vec![u64_type(), u64_type(), u8vec_type(), u64_type()];
+        let advance_parameters = block_parameters(assembler, ns.p, expect_advance, &advance_types);
+        let advance_step = u64_const(assembler, ns, expect_advance, 1);
+        let advanced = assembler.op(
+            ns.o,
+            expect_advance,
+            Opcode::IntAddChecked,
+            vec![pav(advance_parameters[0]), op_result(advance_step)],
+            vec![arith_result(u64_type())],
+            Immediate::None,
+        );
+        append_block(
+            assembler,
+            expect_advance,
+            function,
+            advance_parameters.clone(),
+            vec![advance_step, advanced],
+            switch(
+                op_result(advanced),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        expect_decrement,
+                        vec![
+                            SwitchArgument::CasePayload,
+                            sav(advance_parameters[1]),
+                            sav(advance_parameters[2]),
+                            sav(advance_parameters[3]),
+                        ],
+                    ),
+                    (BuiltinCase::Err, invariant_trap, Vec::new()),
+                ],
+            ),
+        );
+
+        let decrement_parameters =
+            block_parameters(assembler, ns.p, expect_decrement, &advance_types);
+        let decrement_step = u64_const(assembler, ns, expect_decrement, 1);
+        let remaining = assembler.op(
+            ns.o,
+            expect_decrement,
+            Opcode::IntSubChecked,
+            vec![pav(decrement_parameters[3]), op_result(decrement_step)],
+            vec![arith_result(u64_type())],
+            Immediate::None,
+        );
+        let continuation_low = u8_const(assembler, ns, expect_decrement, 0x80);
+        let continuation_high = u8_const(assembler, ns, expect_decrement, 0xbf);
+        append_block(
+            assembler,
+            expect_decrement,
+            function,
+            decrement_parameters.clone(),
+            vec![
+                decrement_step,
+                remaining,
+                continuation_low,
+                continuation_high,
+            ],
+            switch(
+                op_result(remaining),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        expect,
+                        vec![
+                            sav(decrement_parameters[0]),
+                            sav(decrement_parameters[1]),
+                            sav(decrement_parameters[2]),
+                            SwitchArgument::CasePayload,
+                            oav(continuation_low),
+                            oav(continuation_high),
+                        ],
+                    ),
+                    (BuiltinCase::Err, invariant_trap, Vec::new()),
+                ],
+            ),
+        );
+        Some(scan)
+    } else {
+        None
+    };
+
+    let range_parameters = block_parameters(assembler, ns.p, range_check, &scan_types);
+    let range_total = assembler.op(
+        ns.o,
+        range_check,
+        Opcode::VectorLen,
+        vec![pav(range_parameters[2])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let overruns = bool_op(
+        assembler,
+        ns,
+        range_check,
+        Opcode::GreaterThan,
+        vec![pav(range_parameters[1]), op_result(range_total)],
+    );
+    let accepted_edge = match payload_start {
+        Some(scan) => edge(scan, parameter_values(&range_parameters)),
+        None => edge(
+            trailing_check,
+            vec![pav(range_parameters[1]), pav(range_parameters[2])],
+        ),
+    };
+    append_block(
+        assembler,
+        range_check,
+        function,
+        range_parameters.clone(),
+        vec![range_total, overruns],
+        cond(
+            op_result(overruns),
+            edge(length_error, Vec::new()),
+            accepted_edge,
+        ),
+    );
+
+    let bounds_parameters = block_parameters(assembler, ns.p, bounds, &scan_types);
+    let end = assembler.op(
+        ns.o,
+        bounds,
+        Opcode::IntAddChecked,
+        vec![pav(bounds_parameters[1]), pav(bounds_parameters[0])],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        bounds,
+        function,
+        bounds_parameters.clone(),
+        vec![end],
+        switch(
+            op_result(end),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    range_check,
+                    vec![
+                        sav(bounds_parameters[1]),
+                        SwitchArgument::CasePayload,
+                        sav(bounds_parameters[2]),
+                    ],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let length_parameters = block_parameters(
+        assembler,
+        ns.p,
+        length_ready,
+        &[TypeExpr::Tuple(vec![u64_type(), u64_type()]), u8vec_type()],
+    );
+    let payload_length = assembler.op(
+        ns.o,
+        length_ready,
+        Opcode::TupleGet,
+        vec![pav(length_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(0),
+    );
+    let payload_offset = assembler.op(
+        ns.o,
+        length_ready,
+        Opcode::TupleGet,
+        vec![pav(length_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(1),
+    );
+    let payload_cap = u64_const(assembler, ns, length_ready, 16_777_216);
+    let too_large = bool_op(
+        assembler,
+        ns,
+        length_ready,
+        Opcode::GreaterThan,
+        vec![op_result(payload_length), op_result(payload_cap)],
+    );
+    append_block(
+        assembler,
+        length_ready,
+        function,
+        length_parameters.clone(),
+        vec![payload_length, payload_offset, payload_cap, too_large],
+        cond(
+            op_result(too_large),
+            edge(resource_error, Vec::new()),
+            edge(
+                bounds,
+                vec![
+                    op_result(payload_length),
+                    op_result(payload_offset),
+                    pav(length_parameters[1]),
+                ],
+            ),
+        ),
+    );
+
+    let vector_parameters = block_parameters(assembler, ns.p, vector_ready, &[u8vec_type()]);
+    let start = u64_const(assembler, ns, vector_ready, 0);
+    let width_constant = assembler.ku32(ns.k, 64);
+    let width = assembler.cref(ns.o, vector_ready, width_constant, u32_type());
+    let decoded = assembler.op(
+        ns.o,
+        vector_ready,
+        Opcode::CallDirect,
+        vec![pav(body), op_result(start), op_result(width), pav(unit)],
+        vec![decode_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: decode_function,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        vector_ready,
+        function,
+        vector_parameters.clone(),
+        vec![start, width, decoded],
+        switch(
+            op_result(decoded),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    length_ready,
+                    vec![SwitchArgument::CasePayload, sav(vector_parameters[0])],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let entry = vector_entry_block(
+        assembler,
+        ns,
+        function,
+        body,
+        unit,
+        resource_error,
+        vector_ready,
+    );
+    unit_validator_graph(assembler, function, body, unit, entry, block_start)
+}
+
+/// Admits one unit-result leaf validator as a standalone image so each
+/// primitive can be exercised directly.
+fn leaf_validator_image(
+    uses_decode: bool,
+    build: impl FnOnce(&mut Asm, Ns, EntityId, EntityId) -> FunctionGraph,
+) -> Image {
+    let mut assembler = Asm::new();
+    let decode_function = assembler.id(100);
+    let function = assembler.id(100);
+    // The bootstrap gate admits exactly the reached closure, so the uvar
+    // decoder rides only when the validator calls it.
+    let decode_graph = uses_decode.then(|| {
+        build_decode(
+            &mut assembler,
+            Ns {
+                k: 101,
+                p: 101,
+                b: 101,
+                o: 101,
+            },
+            decode_function,
+        )
+        .0
+    });
+    let graph = build(
+        &mut assembler,
+        Ns {
+            k: 102,
+            p: 102,
+            b: 102,
+            o: 102,
+        },
+        function,
+        decode_function,
+    );
+    let mut functions = vec![graph.clone()];
+    functions.extend(decode_graph);
+    // Likewise only the referenced bridge row may ride the admission.
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph,
+        functions,
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![frozen_import(
+            BRIDGE_CODE_B2V1,
+            TypeExpr::Bytes,
+            u8vec_type(),
+        )],
+        constants: assembler.constants,
+    }
+}
+
+fn leaf_validator_outcome(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    body: &[u8],
+) -> Result<(), Vec<u8>> {
+    let outcome = execute_with_limits(
+        package,
+        approved,
+        vec![bytes_input(body), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!(
+            "leaf validator must return a typed result: {:?}",
+            outcome.termination
+        )
+    };
+    let ConstData::Result(result) = value.data else {
+        panic!("leaf validator must return a Result: {value:?}")
+    };
+    match result {
+        ResultConst::Ok(_) => Ok(()),
+        ResultConst::Err(error) => {
+            let ConstData::Bytes(code) = error.data else {
+                panic!("leaf refusal must be Bytes")
+            };
+            Err(code)
+        }
+    }
+}
+
+/// Runs one native strict read over the whole body, the way every nested
+/// `decode_nested_exact` does: cursor, read, then `check_finished`.
+fn native_leaf_verdict(
+    body: &[u8],
+    read: impl FnOnce(&mut sley_scb1::ScbValueCursor<'_>) -> Result<(), sley_scb1::ScbError>,
+) -> Result<(), Vec<u8>> {
+    let verdict = (|| {
+        let mut cursor = sley_scb1::ScbValueCursor::new(body)?;
+        read(&mut cursor)?;
+        cursor.check_finished()
+    })();
+    verdict.map_err(|error| error.code().as_str().as_bytes().to_vec())
+}
+
+/// Every case is checked twice: against the expected code the case names,
+/// and against the native reader's verdict on the same bytes, so the Sley
+/// validator is pinned to native precedence rather than to the author's
+/// reading of it.
+/// One leaf case: name, body, and the expected refusal code (`None` accepts).
+type LeafCase<'a> = (&'a str, Vec<u8>, Option<&'a [u8]>);
+
+fn assert_leaf_cases(
+    name: &str,
+    image: &Image,
+    native: impl Fn(&mut sley_scb1::ScbValueCursor<'_>) -> Result<(), sley_scb1::ScbError>,
+    cases: &[LeafCase<'_>],
+) {
+    let (package, approved) = admit_with_limits(image, codec_profile_limits());
+    for (case, body, expected) in cases {
+        let outcome = leaf_validator_outcome(&package, &approved, body);
+        match expected {
+            None => assert_eq!(outcome, Ok(()), "{name} {case} must be accepted"),
+            Some(code) => assert_eq!(
+                outcome.as_ref().map_err(Vec::as_slice),
+                Err(*code),
+                "{name} {case} refusal"
+            ),
+        }
+        assert_eq!(
+            outcome,
+            native_leaf_verdict(body, &native),
+            "{name} {case} native parity"
+        );
+    }
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn const_leaf_validators_match_native_primitive_rules() {
+    let bool_image = leaf_validator_image(false, |assembler, ns, function, _| {
+        build_bool_validate(assembler, ns, function)
+    });
+    assert_leaf_cases(
+        "bool",
+        &bool_image,
+        |cursor| cursor.read_bool().map(drop),
+        &[
+            ("false", sley_scb1::encode_bool(false), None),
+            ("true", sley_scb1::encode_bool(true), None),
+            ("empty", Vec::new(), Some(b"SCB_LENGTH_OVERFLOW")),
+            ("two", vec![2], Some(b"SCB_BOOL_INVALID")),
+            ("trailing", vec![1, 0], Some(b"SCB_TRAILING_BYTES")),
+            (
+                "invalid_then_trailing",
+                vec![9, 0],
+                Some(b"SCB_BOOL_INVALID"),
+            ),
+        ],
+    );
+
+    let uvar_image = leaf_validator_image(false, |assembler, ns, function, _| {
+        build_uvar128_validate(assembler, ns, function)
+    });
+    let mut twenty_zero_payload = vec![0x80; 19];
+    twenty_zero_payload.push(0x00);
+    let mut twenty_nonzero_payload = vec![0x80; 19];
+    twenty_nonzero_payload.push(0x01);
+    let mut twenty_continuations = vec![0x80; 20];
+    twenty_continuations.push(0x00);
+    let mut top_overflow = vec![0x80; 18];
+    top_overflow.push(0x04);
+    let mut top_overflow_continued = vec![0x80; 18];
+    top_overflow_continued.push(0x84);
+    top_overflow_continued.push(0x00);
+    assert_leaf_cases(
+        "uvar128",
+        &uvar_image,
+        |cursor| cursor.read_uvar128(128).map(drop),
+        &[
+            ("zero", sley_scb1::encode_uvar128(0), None),
+            ("small", sley_scb1::encode_uvar128(127), None),
+            ("two_bytes", sley_scb1::encode_uvar128(128), None),
+            (
+                "u64_max",
+                sley_scb1::encode_uvar128(u128::from(u64::MAX)),
+                None,
+            ),
+            ("u128_max", sley_scb1::encode_uvar128(u128::MAX), None),
+            ("sint_min", sley_scb1::encode_sint128(i128::MIN), None),
+            ("empty", Vec::new(), Some(b"SCB_LENGTH_OVERFLOW")),
+            ("truncated", vec![0x80], Some(b"SCB_LENGTH_OVERFLOW")),
+            (
+                "non_minimal",
+                vec![0x80, 0x00],
+                Some(b"SCB_VARINT_NON_MINIMAL"),
+            ),
+            ("trailing", vec![0x01, 0x00], Some(b"SCB_TRAILING_BYTES")),
+            ("top_overflow", top_overflow, Some(b"SCB_INTEGER_OVERFLOW")),
+            (
+                "top_overflow_continued",
+                top_overflow_continued,
+                Some(b"SCB_INTEGER_OVERFLOW"),
+            ),
+            (
+                "twenty_zero_payload",
+                twenty_zero_payload,
+                Some(b"SCB_VARINT_NON_MINIMAL"),
+            ),
+            (
+                "twenty_nonzero_payload",
+                twenty_nonzero_payload,
+                Some(b"SCB_INTEGER_OVERFLOW"),
+            ),
+            (
+                "twenty_continuations",
+                twenty_continuations,
+                Some(b"SCB_INTEGER_OVERFLOW"),
+            ),
+        ],
+    );
+
+    let f32_image = leaf_validator_image(false, |assembler, ns, function, _| {
+        build_float_bits_validate(assembler, ns, function, 4)
+    });
+    assert_leaf_cases(
+        "f32",
+        &f32_image,
+        |cursor| cursor.read_f32_bits().map(drop),
+        &[
+            ("zero", sley_scb1::encode_f32_bits(0).unwrap(), None),
+            (
+                "one",
+                sley_scb1::encode_f32_bits(1.0f32.to_bits()).unwrap(),
+                None,
+            ),
+            (
+                "negative_one",
+                sley_scb1::encode_f32_bits((-1.0f32).to_bits()).unwrap(),
+                None,
+            ),
+            (
+                "infinity",
+                sley_scb1::encode_f32_bits(f32::INFINITY.to_bits()).unwrap(),
+                None,
+            ),
+            (
+                "negative_infinity",
+                sley_scb1::encode_f32_bits(f32::NEG_INFINITY.to_bits()).unwrap(),
+                None,
+            ),
+            (
+                "canonical_nan",
+                sley_scb1::encode_f32_bits(0x7fc0_0000).unwrap(),
+                None,
+            ),
+            (
+                "max_finite",
+                sley_scb1::encode_f32_bits(f32::MAX.to_bits()).unwrap(),
+                None,
+            ),
+            (
+                "negative_zero",
+                0x8000_0000u32.to_be_bytes().to_vec(),
+                Some(b"SCB_FLOAT_NON_CANONICAL"),
+            ),
+            (
+                "signalling_nan",
+                0x7f80_0001u32.to_be_bytes().to_vec(),
+                Some(b"SCB_FLOAT_NON_CANONICAL"),
+            ),
+            (
+                "negative_nan",
+                0xffc0_0000u32.to_be_bytes().to_vec(),
+                Some(b"SCB_FLOAT_NON_CANONICAL"),
+            ),
+            (
+                "payload_nan",
+                0x7fc0_0001u32.to_be_bytes().to_vec(),
+                Some(b"SCB_FLOAT_NON_CANONICAL"),
+            ),
+            (
+                "short",
+                vec![0x3f, 0x80, 0x00],
+                Some(b"SCB_LENGTH_OVERFLOW"),
+            ),
+            (
+                "trailing",
+                vec![0x3f, 0x80, 0x00, 0x00, 0x00],
+                Some(b"SCB_TRAILING_BYTES"),
+            ),
+            (
+                "non_canonical_then_trailing",
+                vec![0x80, 0x00, 0x00, 0x00, 0x00],
+                Some(b"SCB_FLOAT_NON_CANONICAL"),
+            ),
+        ],
+    );
+
+    let f64_image = leaf_validator_image(false, |assembler, ns, function, _| {
+        build_float_bits_validate(assembler, ns, function, 8)
+    });
+    assert_leaf_cases(
+        "f64",
+        &f64_image,
+        |cursor| cursor.read_f64_bits().map(drop),
+        &[
+            ("zero", sley_scb1::encode_f64_bits(0).unwrap(), None),
+            (
+                "one",
+                sley_scb1::encode_f64_bits(1.0f64.to_bits()).unwrap(),
+                None,
+            ),
+            (
+                "negative_infinity",
+                sley_scb1::encode_f64_bits(f64::NEG_INFINITY.to_bits()).unwrap(),
+                None,
+            ),
+            (
+                "canonical_nan",
+                sley_scb1::encode_f64_bits(0x7ff8_0000_0000_0000).unwrap(),
+                None,
+            ),
+            (
+                "negative_zero",
+                0x8000_0000_0000_0000u64.to_be_bytes().to_vec(),
+                Some(b"SCB_FLOAT_NON_CANONICAL"),
+            ),
+            (
+                "signalling_nan",
+                0x7ff0_0000_0000_0001u64.to_be_bytes().to_vec(),
+                Some(b"SCB_FLOAT_NON_CANONICAL"),
+            ),
+            (
+                "negative_nan",
+                0xfff8_0000_0000_0000u64.to_be_bytes().to_vec(),
+                Some(b"SCB_FLOAT_NON_CANONICAL"),
+            ),
+            (
+                "high_mantissa_nan",
+                0x7ff8_0000_0000_0001u64.to_be_bytes().to_vec(),
+                Some(b"SCB_FLOAT_NON_CANONICAL"),
+            ),
+            ("short", vec![0; 7], Some(b"SCB_LENGTH_OVERFLOW")),
+            ("trailing", vec![0; 9], Some(b"SCB_TRAILING_BYTES")),
+        ],
+    );
+
+    let bytes_image = leaf_validator_image(true, |assembler, ns, function, decode| {
+        build_sized_payload_validate(assembler, ns, function, decode, false)
+    });
+    let mut oversized = sley_scb1::encode_uvar(16_777_217);
+    oversized.push(0);
+    let mut over_cap_exact = sley_scb1::encode_uvar(16_777_216);
+    over_cap_exact.push(0);
+    assert_leaf_cases(
+        "bytes",
+        &bytes_image,
+        |cursor| cursor.read_bytes().map(drop),
+        &[
+            ("empty", sley_scb1::encode_bytes(&[]).unwrap(), None),
+            (
+                "payload",
+                sley_scb1::encode_bytes(&[0xff, 0x00, 0x80]).unwrap(),
+                None,
+            ),
+            (
+                "invalid_utf8_allowed",
+                sley_scb1::encode_bytes(&[0xc0, 0x80]).unwrap(),
+                None,
+            ),
+            ("missing_prefix", Vec::new(), Some(b"SCB_LENGTH_OVERFLOW")),
+            (
+                "short_payload",
+                vec![0x03, 0x01, 0x02],
+                Some(b"SCB_LENGTH_OVERFLOW"),
+            ),
+            (
+                "trailing",
+                vec![0x01, 0x01, 0x02],
+                Some(b"SCB_TRAILING_BYTES"),
+            ),
+            (
+                "non_minimal_prefix",
+                vec![0x80, 0x00],
+                Some(b"SCB_VARINT_NON_MINIMAL"),
+            ),
+            ("oversized", oversized, Some(b"SCB_RESOURCE_LIMIT")),
+            ("cap_short", over_cap_exact, Some(b"SCB_LENGTH_OVERFLOW")),
+        ],
+    );
+
+    let text_image = leaf_validator_image(true, |assembler, ns, function, decode| {
+        build_sized_payload_validate(assembler, ns, function, decode, true)
+    });
+    let text = |value: &str| sley_scb1::encode_text(value).unwrap();
+    let raw = |bytes: &[u8]| sley_scb1::encode_bytes(bytes).unwrap();
+    assert_leaf_cases(
+        "text",
+        &text_image,
+        |cursor| cursor.read_text().map(drop),
+        &[
+            ("empty", text(""), None),
+            ("ascii", text("sley"), None),
+            ("two_byte", text("é"), None),
+            ("three_byte", text("€"), None),
+            ("four_byte", text("😀"), None),
+            ("e0_floor", raw(&[0xe0, 0xa0, 0x80]), None),
+            ("ed_ceiling", raw(&[0xed, 0x9f, 0xbf]), None),
+            ("f0_floor", raw(&[0xf0, 0x90, 0x80, 0x80]), None),
+            ("f4_ceiling", raw(&[0xf4, 0x8f, 0xbf, 0xbf]), None),
+            ("mixed", text("a\u{7ff}\u{ffff}\u{10ffff}z"), None),
+            (
+                "stray_continuation",
+                raw(&[0x80]),
+                Some(b"SCB_UTF8_INVALID"),
+            ),
+            (
+                "overlong_two",
+                raw(&[0xc0, 0x80]),
+                Some(b"SCB_UTF8_INVALID"),
+            ),
+            ("overlong_c1", raw(&[0xc1, 0xbf]), Some(b"SCB_UTF8_INVALID")),
+            (
+                "overlong_three",
+                raw(&[0xe0, 0x9f, 0xbf]),
+                Some(b"SCB_UTF8_INVALID"),
+            ),
+            (
+                "surrogate",
+                raw(&[0xed, 0xa0, 0x80]),
+                Some(b"SCB_UTF8_INVALID"),
+            ),
+            (
+                "overlong_four",
+                raw(&[0xf0, 0x8f, 0xbf, 0xbf]),
+                Some(b"SCB_UTF8_INVALID"),
+            ),
+            (
+                "above_max",
+                raw(&[0xf4, 0x90, 0x80, 0x80]),
+                Some(b"SCB_UTF8_INVALID"),
+            ),
+            (
+                "f5_lead",
+                raw(&[0xf5, 0x80, 0x80, 0x80]),
+                Some(b"SCB_UTF8_INVALID"),
+            ),
+            ("ff_lead", raw(&[0xff]), Some(b"SCB_UTF8_INVALID")),
+            (
+                "truncated_sequence",
+                raw(&[0xe2, 0x82]),
+                Some(b"SCB_UTF8_INVALID"),
+            ),
+            (
+                "bad_continuation",
+                raw(&[0xe2, 0x28, 0xa1]),
+                Some(b"SCB_UTF8_INVALID"),
+            ),
+            (
+                "short_payload",
+                vec![0x02, 0x61],
+                Some(b"SCB_LENGTH_OVERFLOW"),
+            ),
+            (
+                "invalid_then_trailing",
+                vec![0x01, 0x80, 0x61],
+                Some(b"SCB_UTF8_INVALID"),
+            ),
+            (
+                "trailing",
+                vec![0x01, 0x61, 0x61],
+                Some(b"SCB_TRAILING_BYTES"),
+            ),
+        ],
+    );
+}
