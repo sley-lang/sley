@@ -30,9 +30,17 @@ recorded in today's per-kind slices.
 The image contains 108 reachable functions, 5,790 parameters, 1,701 blocks,
 3,034 operations, and 137 deduplicated constants. Its encoded image is
 397,266 bytes. The approved package digest is
-`89eb112f7c574f1fbd6b18f34dbf4c15849ca40ac91537c811c327aa9544af61`
+`e05708870d3d2844cde2bf173c3812067a8b6a8cf22ab77b33e05209cb1e20b4`
 under the declared codec-profile execution limits (100,000 instructions,
 10,000,000 fuel, 100,000,000 value units, 10,000,000 output units).
+
+The schema closure takes identity namespace 13 and block namespaces from
+`89..=91`, `96..=129`, `154..=225`, and `238..=255`, leaving every namespace
+the four-leg `codec_main` composition already occupies untouched, so this
+exact image merges into `codec_main` (`rw-090-arbitrary-codec-main.md`). The
+digest above supersedes the first derivation of this slice, which had
+reserved only the decode image's own namespaces; the graphs are identical
+and only construction identities moved.
 
 ## Measured evidence
 

@@ -552,7 +552,18 @@ fn build_codec_main(
 }
 
 pub(super) fn codec_main_image() -> Image {
-    let decode = super::all_kind_digest_dispatch::all_kind_decode_image();
+    compose_codec_main(super::all_kind_digest_dispatch::all_kind_decode_image())
+}
+
+/// The four-leg composition with selector 0 routed to the arbitrary-schema
+/// all-kind decoder. The bounded `codec_main_image` and the canonical codec
+/// component derived from it are unchanged; this is the candidate for the
+/// next component derivation.
+pub(super) fn arbitrary_codec_main_image() -> Image {
+    compose_codec_main(super::all_kind_digest_dispatch::arbitrary_all_kind_decode_image())
+}
+
+fn compose_codec_main(decode: Image) -> Image {
     let encode = super::all_kind_digest_dispatch::all_kind_encode_image();
     let schema_decode = super::schema_codec::schema_decode_image();
     let schema_encode = super::schema_codec::schema_encode_image();
@@ -712,4 +723,163 @@ fn codec_main_executes_schema_legs_and_forwards_typed_refusals() {
     assert_refusal(&malformed, "SCHEMA_RECORD_INVALID");
     let unknown = codec_call(&package, &approved, 4, 0, [&[], &[], &[], &[], &[]]);
     assert_refusal(&unknown, "VERSION");
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies() {
+    let image = arbitrary_codec_main_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "ARBITRARY_CODEC_MAIN functions={} parameters={} blocks={} operations={} constants={} adapters={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        image.adapters.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 133);
+    assert_eq!(image.parameters.len(), 6_240);
+    assert_eq!(image.blocks.len(), 1_908);
+    assert_eq!(image.operations.len(), 4_162);
+    assert_eq!(image.constants.len(), 176);
+    assert_eq!(image.adapters.len(), 4);
+    assert_eq!(package.image_bytes.len(), 500_596);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x0a, 0xef, 0x4b, 0x47, 0xd8, 0xa4, 0x87, 0x24, 0xa5, 0x52, 0x1d, 0xa5, 0x55, 0x2a,
+            0x51, 0x38, 0x12, 0x75, 0x4b, 0x3c, 0x48, 0x2e, 0x50, 0x4b, 0x0b, 0x29, 0x88, 0xcb,
+            0x4e, 0xb0, 0x00, 0xde,
+        ]
+    );
+
+    // Selector 0 accepts every representative object the bounded profile
+    // accepts, plus every rich body the bounded profile refuses; selector 1
+    // still re-emits the representative objects byte for byte.
+    let representative = super::all_kind_digest_dispatch::fixed_profile_bodies();
+    for (kind, body) in &representative {
+        let entity = [0x30 + u8::try_from(*kind).expect("entity kind fits u8"); 32];
+        let stored = super::all_kind_digest_dispatch::stored_from_body(entity, body);
+        let decoded = codec_call(&package, &approved, 0, *kind, [&stored, &[], &[], &[], &[]]);
+        let fields = codec_ok(&decoded);
+        assert_eq!(fields[0].data, ConstData::UInt(0));
+        assert_eq!(fields[1].data, ConstData::UInt(u128::from(*kind)));
+        assert_eq!(fields[2].data, ConstData::Bytes(entity.to_vec()));
+        let (body_input, first, second, third) = if *kind == 18 {
+            (Vec::new(), vec![0xb1; 32], vec![0xb2; 32], vec![0xb3; 32])
+        } else {
+            (body.clone(), Vec::new(), Vec::new(), Vec::new())
+        };
+        let encoded = codec_call(
+            &package,
+            &approved,
+            1,
+            *kind,
+            [&entity, &body_input, &first, &second, &third],
+        );
+        let fields = codec_ok(&encoded);
+        assert_eq!(fields[2].data, ConstData::Bytes(stored));
+    }
+    let bounded = admit_with_limits(&codec_main_image(), codec_profile_limits());
+    let mut peak = (0_u64, 0_u64, 0_u64);
+    for (kind, body) in super::dependency_binding_decode::rich_schema_bodies() {
+        let entity = [0x40 + u8::try_from(kind).expect("entity kind fits u8"); 32];
+        let stored = super::all_kind_digest_dispatch::stored_from_body(entity, &body);
+        let decoded = codec_call(&package, &approved, 0, kind, [&stored, &[], &[], &[], &[]]);
+        let fields = codec_ok(&decoded);
+        assert_eq!(fields[1].data, ConstData::UInt(u128::from(kind)));
+        assert_eq!(fields[2].data, ConstData::Bytes(entity.to_vec()));
+        assert_eq!(fields[3].data, ConstData::Bytes(body.clone()));
+        peak = (
+            peak.0.max(decoded.fuel_used),
+            peak.1.max(decoded.instruction_count),
+            peak.2.max(decoded.peak_value_units),
+        );
+        let refused = codec_call(
+            &bounded.0,
+            &bounded.1,
+            0,
+            kind,
+            [&stored, &[], &[], &[], &[]],
+        );
+        assert_refusal(&refused, "SSMC_RESERVED_FIELD_PRESENT");
+    }
+    eprintln!(
+        "ARBITRARY_CODEC_MAIN peak fuel={} instructions={} value_units={}",
+        peak.0, peak.1, peak.2
+    );
+    assert_eq!(peak, (656_175, 72_993, 35_732_855));
+
+    // The schema legs and the typed refusal paths are unchanged.
+    let record = sley_state_root::conformance_epoch_record()
+        .canonical_bytes()
+        .expect("conformance record is canonical");
+    let preimage = sley_schema::bootstrap_preimage(&record).expect("bootstrap preimage");
+    let epoch = sley_state_root::conformance_epoch_id().expect("conformance epoch");
+    let decoded = codec_call(&package, &approved, 2, 0, [&preimage, &[], &[], &[], &[]]);
+    let fields = codec_ok(&decoded);
+    assert_eq!(fields[2].data, ConstData::Bytes(epoch.as_bytes().to_vec()));
+    assert_eq!(fields[3].data, ConstData::Bytes(record.clone()));
+    let encoded = codec_call(
+        &package,
+        &approved,
+        3,
+        0,
+        [epoch.as_bytes(), &record, &[], &[], &[]],
+    );
+    assert_eq!(codec_ok(&encoded)[2].data, ConstData::Bytes(preimage));
+    let unknown = codec_call(&package, &approved, 4, 0, [&[], &[], &[], &[], &[]]);
+    assert_refusal(&unknown, "VERSION");
+    let (_, workspace_body) = representative
+        .iter()
+        .find(|(kind, _)| *kind == 1)
+        .expect("Workspace profile exists");
+    let mut malformed = workspace_body.clone();
+    malformed.push(0);
+    let stored = super::all_kind_digest_dispatch::stored_from_body([0xcc; 32], &malformed);
+    let refused = codec_call(&package, &approved, 0, 1, [&stored, &[], &[], &[], &[]]);
+    assert_refusal(&refused, "SCB_TRAILING_BYTES");
+}
+
+#[test]
+fn arbitrary_codec_main_children_use_disjoint_identity_namespaces() {
+    let children = [
+        (
+            "decode",
+            super::all_kind_digest_dispatch::arbitrary_all_kind_decode_image(),
+        ),
+        (
+            "encode",
+            super::all_kind_digest_dispatch::all_kind_encode_image(),
+        ),
+        ("schema_decode", super::schema_codec::schema_decode_image()),
+        ("schema_encode", super::schema_codec::schema_encode_image()),
+    ];
+    let mut owners: std::collections::BTreeMap<u8, std::collections::BTreeSet<&str>> =
+        std::collections::BTreeMap::new();
+    for (name, image) in &children {
+        let ids = image
+            .functions
+            .iter()
+            .map(|graph| graph.entity_id)
+            .chain(image.parameters.iter().map(|p| p.entity_id))
+            .chain(image.blocks.iter().map(|b| b.entity_id))
+            .chain(image.operations.iter().map(|o| o.entity_id))
+            .chain(image.constants.iter().map(|c| c.entity_id));
+        for id in ids {
+            owners.entry(id.as_bytes()[0]).or_default().insert(name);
+        }
+    }
+    // The two schema legs deliberately share identity namespace 12 with
+    // distinct ordinals; the arbitrary decoder must share nothing.
+    let shared = owners
+        .iter()
+        .filter(|(_, names)| names.len() > 1 && names.contains("decode"))
+        .map(|(namespace, names)| format!("{namespace}: {names:?}"))
+        .collect::<Vec<_>>();
+    assert!(shared.is_empty(), "shared identity namespaces: {shared:?}");
 }

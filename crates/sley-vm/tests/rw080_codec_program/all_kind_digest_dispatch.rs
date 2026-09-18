@@ -949,9 +949,13 @@ pub(super) fn all_kind_decode_image() -> Image {
 }
 
 /// The all-kind decoder with every body judged by its arbitrary schema
-/// decoder instead of a pinned digest. Namespaces `130..=153` and the
-/// identity namespaces `14`/`15` stay reserved for this image's own
-/// functions; the schema closure fills the rest.
+/// decoder instead of a pinned digest. The schema closure avoids every
+/// namespace the four-leg `codec_main` composition already uses (this
+/// image's own `130..=153` and identity namespaces `14`/`15`, the encode
+/// image's `0..=11`, `17..=88`, `92..=95`, the schema legs' `226..=233` with
+/// identity namespace `12`, and the composer's `234..=237` with identity
+/// namespace `16`), and takes identity namespace `13`, so the same image
+/// merges into `codec_main` unchanged.
 pub(super) fn arbitrary_all_kind_decode_image() -> Image {
     let mut assembler = Asm::new();
     let root = eid(14, 1);
@@ -1020,8 +1024,8 @@ pub(super) fn arbitrary_all_kind_decode_image() -> Image {
     let schema_graphs = super::dependency_binding_decode::build_arbitrary_schema_body_check(
         &mut assembler,
         checker,
-        vec![14..=15, 130..=153],
-        16,
+        vec![0..=88, 92..=95, 130..=153, 226..=237],
+        13,
     );
     let mut functions = vec![
         root_graph.clone(),
