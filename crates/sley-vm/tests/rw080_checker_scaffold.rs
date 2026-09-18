@@ -48,6 +48,8 @@ use sley_ssmc::{
     TrapCode, TrapTerminator, TypeExpr, ValueRef, VariantSwitchTerminator, Visibility,
 };
 
+#[path = "rw080_checker_program/canonical.rs"]
+mod canonical;
 #[path = "rw080_checker_program/composed.rs"]
 mod composed;
 
@@ -3902,6 +3904,14 @@ fn admitted_scaffold() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecution
 fn admit_checker_program(
     scaffold: &CheckerScaffold,
 ) -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecutionPackage) {
+    admit_checker_program_with_bindings(scaffold, epoch(), root())
+}
+
+fn admit_checker_program_with_bindings(
+    scaffold: &CheckerScaffold,
+    schema_epoch: SchemaEpochId,
+    state_root: StateRoot,
+) -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecutionPackage) {
     use sley_vm::{
         ExecutionPackage, V2Closure, approve_package_v2, bootstrap::BootstrapProfileInput,
         bootstrap::BootstrapProfileVersion,
@@ -3912,8 +3922,8 @@ fn admit_checker_program(
         parameters: &scaffold.parameters,
         blocks: &scaffold.blocks,
         operations: &scaffold.operations,
-        schema_epoch: epoch(),
-        state_root: root(),
+        schema_epoch,
+        state_root,
         profile: sley_vm::CacheProfile::EXTENDED_V1,
         constants: &scaffold.constants,
         globals: &[],
@@ -3924,7 +3934,7 @@ fn admit_checker_program(
     .expect("scaffold lowers under the reference lowerer");
     let gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
         types: &scaffold.types,
-        schema_epoch: epoch(),
+        schema_epoch,
         entry: &scaffold.entry,
         presented_image_bytes: &lowered.bytes,
         functions: &scaffold.functions,
@@ -3945,8 +3955,8 @@ fn admit_checker_program(
         globals: Vec::new(),
         contracts: Vec::new(),
         entry: scaffold.entry.entity_id,
-        schema_epoch: epoch(),
-        state_root: root(),
+        schema_epoch,
+        state_root,
         profile: sley_vm::CacheProfile::EXTENDED_V1,
         admitted_limits: limits,
         gate_operation_count: gate.operation_count(),
@@ -3957,8 +3967,8 @@ fn admit_checker_program(
     // reference re-lowers before minting; excluded from clean stages.
     let closure = V2Closure {
         types: &scaffold.types,
-        schema_epoch: epoch(),
-        state_root: root(),
+        schema_epoch,
+        state_root,
         entry: scaffold.entry.entity_id,
         functions: &scaffold.functions,
         parameters: &scaffold.parameters,

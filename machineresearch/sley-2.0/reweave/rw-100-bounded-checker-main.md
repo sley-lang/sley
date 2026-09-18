@@ -58,6 +58,33 @@ effect failures, proving exact error forwarding, and separately checks the
 unknown-selector refusal. Admission uses Bootstrap Profile V2 and the normal
 admit, approve, execute boundary.
 
+## Canonical component root
+
+The merged program is rewritten a second time into contract-derived
+construction identities using the retained genesis/candidate seeds and
+category ordinals beginning at 20,000. Every ownership edge, graph reference,
+type, constant, operand, terminator, and immediate follows the same rewrite.
+The component adds workspace/package/namespace metadata, one local EntryPoint,
+two Boolean contract-witness functions, one retained precondition, and one
+retained exact TestCase.
+
+The TestCase selects the unary type-chain slice and expects the exact
+normalized report `(3, 4, 0, 0, 0)`. The complete composed graph plus witness
+functions passes the native contract/test validator, and that exact test
+executes through a package bound to the resulting root.
+
+Pinned facts:
+
+- objects/entity bindings: 842;
+- stored object bytes: 206,250;
+- object-bundle SHA-256:
+  `a3a5085970bd9fc7b52f7166e8b7e55a452efa085f9b264167665912c2ed32ef`;
+- component root:
+  `6466a198aeeb3790fb26cc274e377f1a4a58029f0ac852997781b4a95fbe124f`;
+- stored root bytes: 55,869;
+- stored-root SHA-256:
+  `0217400d3e9fa6b37aaaae2d1277aab12abaeb2c90ba17b08aa8ff4298f32d05`.
+
 Validation commands:
 
 - `cargo test -p sley-vm --test rw080_checker_scaffold bounded_checker_main -- --nocapture`
@@ -73,5 +100,5 @@ inventories, validate the full opcode signature table, compute general CFG
 dominance, close arbitrary cyclic multi-effect call graphs, validate adapters,
 capabilities, contracts, or resource ceilings, or construct the mandatory
 test plan. Those surfaces must be implemented and compared with the native
-checker corpus before RW-100 can pass. Canonical object materialization and a
-retained checker component root also remain open.
+checker corpus before RW-100 can pass. The component root above retains the
+bounded profile only; it is not `S`.

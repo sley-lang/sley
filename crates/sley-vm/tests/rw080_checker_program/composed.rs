@@ -1,10 +1,14 @@
 //! Bounded composition of the seven executable RW-100 checker slices.
 
 use super::*;
+use sley_id::{CandidateNonce, GenesisNonce, WorkspaceId};
 use std::collections::{BTreeMap, BTreeSet};
 
 const CHILD_COUNT: usize = 7;
 const INVALID_SELECTOR: u32 = u32::MAX;
+const GENESIS_SEED: [u8; 32] = [0x80; 32];
+const CANDIDATE_SEED: [u8; 32] = [0x87; 32];
+const CANONICAL_BASE: u64 = 20_000;
 
 fn composed_plan_type() -> TypeExpr {
     TypeExpr::Tuple(vec![
@@ -231,69 +235,71 @@ fn rebase_mapping(image: &CheckerScaffold, child: u8) -> BTreeMap<EntityId, Enti
     ids
 }
 
-fn rebase_checker(mut image: CheckerScaffold, child: u8) -> CheckerScaffold {
-    let ids = rebase_mapping(&image, child);
+fn remap_checker(
+    mut image: CheckerScaffold,
+    ids: &BTreeMap<EntityId, EntityId>,
+) -> CheckerScaffold {
     let remap_graph = |graph: &mut FunctionGraph| {
-        graph.entity_id = mapped(&ids, graph.entity_id);
+        graph.entity_id = mapped(ids, graph.entity_id);
         graph
             .parameters
             .iter_mut()
-            .for_each(|entity| *entity = mapped(&ids, *entity));
-        remap_type(&mut graph.result_type, &ids);
+            .for_each(|entity| *entity = mapped(ids, *entity));
+        remap_type(&mut graph.result_type, ids);
         graph
             .effects
             .iter_mut()
-            .for_each(|entity| *entity = mapped(&ids, *entity));
-        graph.entry_block = mapped(&ids, graph.entry_block);
+            .for_each(|entity| *entity = mapped(ids, *entity));
+        graph.entry_block = mapped(ids, graph.entry_block);
         graph
             .blocks
             .iter_mut()
-            .for_each(|entity| *entity = mapped(&ids, *entity));
+            .for_each(|entity| *entity = mapped(ids, *entity));
         graph
             .contracts
             .iter_mut()
-            .for_each(|entity| *entity = mapped(&ids, *entity));
+            .for_each(|entity| *entity = mapped(ids, *entity));
     };
     remap_graph(&mut image.entry);
     image.functions.iter_mut().for_each(remap_graph);
     for parameter in &mut image.parameters {
-        parameter.entity_id = mapped(&ids, parameter.entity_id);
-        parameter.owner = mapped(&ids, parameter.owner);
-        remap_type(&mut parameter.value_type, &ids);
+        parameter.entity_id = mapped(ids, parameter.entity_id);
+        parameter.owner = mapped(ids, parameter.owner);
+        remap_type(&mut parameter.value_type, ids);
     }
     for block in &mut image.blocks {
-        block.entity_id = mapped(&ids, block.entity_id);
-        block.function = mapped(&ids, block.function);
+        block.entity_id = mapped(ids, block.entity_id);
+        block.function = mapped(ids, block.function);
         block
             .parameters
             .iter_mut()
-            .for_each(|entity| *entity = mapped(&ids, *entity));
+            .for_each(|entity| *entity = mapped(ids, *entity));
         block
             .operations
             .iter_mut()
-            .for_each(|entity| *entity = mapped(&ids, *entity));
-        remap_terminator(&mut block.terminator, &ids);
+            .for_each(|entity| *entity = mapped(ids, *entity));
+        remap_terminator(&mut block.terminator, ids);
     }
     for operation in &mut image.operations {
-        operation.entity_id = mapped(&ids, operation.entity_id);
-        operation.block = mapped(&ids, operation.block);
+        operation.entity_id = mapped(ids, operation.entity_id);
+        operation.block = mapped(ids, operation.block);
         operation
             .operands
             .iter_mut()
-            .for_each(|operand| remap_value(operand, &ids));
+            .for_each(|operand| remap_value(operand, ids));
         operation
             .result_types
             .iter_mut()
-            .for_each(|result| remap_type(result, &ids));
+            .for_each(|result| remap_type(result, ids));
         match &mut operation.immediate {
-            Immediate::Entity(entity) => *entity = mapped(&ids, *entity),
-            Immediate::Variant(value) => value.definition = mapped(&ids, value.definition),
+            Immediate::Entity(entity) => *entity = mapped(ids, *entity),
+            Immediate::Variant(value) => value.definition = mapped(ids, value.definition),
             Immediate::Function(value) => {
-                value.function = mapped(&ids, value.function);
+                value.function = mapped(ids, value.function);
                 value
                     .type_arguments
                     .iter_mut()
-                    .for_each(|argument| remap_type(argument, &ids));
+                    .for_each(|argument| remap_type(argument, ids));
             }
             Immediate::None
             | Immediate::Index(_)
@@ -302,10 +308,78 @@ fn rebase_checker(mut image: CheckerScaffold, child: u8) -> CheckerScaffold {
         }
     }
     for constant in &mut image.constants {
-        constant.entity_id = mapped(&ids, constant.entity_id);
-        remap_constant(&mut constant.value, &ids);
+        constant.entity_id = mapped(ids, constant.entity_id);
+        remap_constant(&mut constant.value, ids);
     }
     image
+}
+
+fn rebase_checker(image: CheckerScaffold, child: u8) -> CheckerScaffold {
+    let ids = rebase_mapping(&image, child);
+    remap_checker(image, &ids)
+}
+
+fn construction_workspace() -> WorkspaceId {
+    WorkspaceId::derive(GenesisNonce::from_bytes(GENESIS_SEED))
+}
+
+fn construction_candidate() -> CandidateNonce {
+    CandidateNonce::from_bytes(CANDIDATE_SEED)
+}
+
+fn insert_derived_category(
+    ids: &mut BTreeMap<EntityId, EntityId>,
+    kind: u32,
+    values: impl IntoIterator<Item = EntityId>,
+) {
+    let mut values = values.into_iter().collect::<Vec<_>>();
+    values.sort_unstable();
+    for (index, entity) in values.into_iter().enumerate() {
+        let ordinal = CANONICAL_BASE + u64::try_from(index).expect("checker entity count fits u64");
+        assert!(
+            ids.insert(
+                entity,
+                EntityId::derive(
+                    construction_workspace(),
+                    construction_candidate(),
+                    kind,
+                    ordinal,
+                ),
+            )
+            .is_none(),
+            "checker entity belongs to one derived category"
+        );
+    }
+}
+
+fn canonical_mapping(image: &CheckerScaffold) -> BTreeMap<EntityId, EntityId> {
+    let mut ids = BTreeMap::new();
+    insert_derived_category(
+        &mut ids,
+        5,
+        image.functions.iter().map(|value| value.entity_id),
+    );
+    insert_derived_category(
+        &mut ids,
+        6,
+        image.parameters.iter().map(|value| value.entity_id),
+    );
+    insert_derived_category(
+        &mut ids,
+        7,
+        image.blocks.iter().map(|value| value.entity_id),
+    );
+    insert_derived_category(
+        &mut ids,
+        8,
+        image.operations.iter().map(|value| value.entity_id),
+    );
+    insert_derived_category(
+        &mut ids,
+        9,
+        image.constants.iter().map(|value| value.entity_id),
+    );
+    ids
 }
 
 fn child_programs() -> Vec<CheckerScaffold> {
@@ -735,6 +809,12 @@ pub(super) fn bounded_checker_program() -> CheckerScaffold {
     }
 }
 
+pub(super) fn canonical_checker_program() -> CheckerScaffold {
+    let program = bounded_checker_program();
+    let ids = canonical_mapping(&program);
+    remap_checker(program, &ids)
+}
+
 fn bool_value(value: bool) -> ConstValue {
     ConstValue {
         value_type: TypeExpr::Bool,
@@ -811,6 +891,10 @@ fn composed_inputs(selector: u8, children: &[Vec<ConstValue>]) -> Vec<ConstValue
     let mut inputs = vec![u8_value(u128::from(selector))];
     inputs.extend(children.iter().flatten().cloned());
     inputs
+}
+
+pub(super) fn valid_bounded_inputs(selector: u8) -> Vec<ConstValue> {
+    composed_inputs(selector, &valid_child_inputs())
 }
 
 fn execute_inputs(scaffold: &CheckerScaffold, inputs: Vec<ConstValue>) -> ConstValue {
