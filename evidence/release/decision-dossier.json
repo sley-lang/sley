@@ -2,6 +2,7 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
+    "1 review dispositions are unclassified",
     "15 review obligations are open",
     "20 GA acceptance criteria are not evidenced",
     "no succession trial has been executed",
@@ -10,7 +11,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "4be2bc3179a00423bbf1ae71ad50f878aed8fb798f7bbdaab4e01d7d84e490e4",
+  "dossier_digest": "8fa8a3deef40b889e60f656378c3fc675686cd46e615797f4836817ee9e2aa42",
   "entries": [
     {
       "evidence": [
@@ -35,7 +36,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "a7852028b9748a7de2d05b13516a4623b2c912a2"
+      "value": "7426bc0b5afb49d5d45081c00909b8d61f9b4b38"
     },
     {
       "evidence": [
@@ -284,7 +285,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "85324ebb392efdba2bfc476bc3841b427c7f3edfd47d23db6cbc3da679ffb250"
+      "value": "b9e2382f37acc10bf6baaf0d84790c6b3b47ab79b6952c8fffae7d92266ef7f9"
     },
     {
       "evidence": [
@@ -293,7 +294,7 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2507938
+      "value": 2507941
     },
     {
       "evidence": [
@@ -341,7 +342,7 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 458,
+        "obligations": 459,
         "open_reviews": 15,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
@@ -353,11 +354,12 @@
         },
         "states": {
           "HISTORICAL_ROUND": 148,
+          "OTHER": 1,
           "PASS": 295,
           "PENDING": 15
         },
         "unclaimed_carried_findings": 0,
-        "unclassified": 0
+        "unclassified": 1
       }
     },
     {
@@ -456,7 +458,7 @@
       }
     }
   ],
-  "entries_digest": "6ab531993e5378419c248bd54e13ba125c68559a27b59e8a52e207f2202d8dbd",
+  "entries_digest": "d83305e77054217d761ae8ce0aaf2b66f7908037b41656bf5cb1f61edb923f79",
   "evidenced": 24,
   "gated": 10,
   "gates": {

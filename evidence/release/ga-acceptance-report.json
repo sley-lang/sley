@@ -244,7 +244,7 @@
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 0 open P0/P1/P2 findings across 458 obligations",
+      "evidence": "finding register declares 0 open P0/P1/P2 findings across 459 obligations",
       "group": "26.6 policy and security",
       "state": "EVIDENCED"
     },
@@ -268,7 +268,7 @@
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit a7852028b9748a7de2d05b13516a4623b2c912a2; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
+      "evidence": "attested commit 7426bc0b5afb49d5d45081c00909b8d61f9b4b38; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
       "group": "26.8 packaging",
       "state": "GATED"
     },
@@ -286,7 +286,7 @@
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "attested manifest digest 7f99298d838e, artifact digest 85324ebb392e, 2507938 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
+      "evidence": "attested manifest digest 6aafa337bc27, artifact digest b9e2382f37ac, 2507941 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
@@ -322,7 +322,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 15 open, 0 unclassified, and 0 unclaimed-carried obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 15 open, 1 unclassified, and 0 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -341,9 +341,9 @@
     "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "6a919aced97d58b92ea69c7960f7511dc4d8ecafedd0da2aa4750211ce81ff9c",
-  "register_digest": "fbced893539babd00e892c5281f77852fb18a4893feb9f7d7d2995b3dbd7f37f",
-  "report_digest": "1c620be96893795ca31ea6a0009c94bfc86bd09044cef6192d9bb0f11fdef528",
+  "obligations_digest": "7c3979488d9c7f1c393322919eed244dd4eaf7a4f9b19c4888e6de83ea095321",
+  "register_digest": "a03f0a67eb05919dca3eb7088847ca634009172dec0ae2be999a72990247a6c0",
+  "report_digest": "302343138a33cc2bd989edd3b8defcdf9fe624ad106ecd89e5766756a3ec609d",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

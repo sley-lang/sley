@@ -101,7 +101,7 @@
       "status": "IMPLEMENTED_SCOPED_S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY"
     }
   ],
-  "obligation_count": 458,
+  "obligation_count": 459,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -4287,6 +4287,18 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "178873d7 round findings repaired at 7426bc0b (rw-090-codec-component-manifest.json review_repairs); re-review pending",
+      "field": "review_repairs",
+      "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": null,
+      "section": "rw090_arbitrary_codec",
+      "severities": [],
+      "state": "OTHER",
+      "superseded_by": null
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "PENDING",
       "field": "vulcan_surface_review",
       "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
@@ -6726,7 +6738,7 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "obligations_digest": "6a919aced97d58b92ea69c7960f7511dc4d8ecafedd0da2aa4750211ce81ff9c",
+  "obligations_digest": "7c3979488d9c7f1c393322919eed244dd4eaf7a4f9b19c4888e6de83ea095321",
   "open_reviews": [
     {
       "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
@@ -7036,7 +7048,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "fbced893539babd00e892c5281f77852fb18a4893feb9f7d7d2995b3dbd7f37f",
+  "register_digest": "a03f0a67eb05919dca3eb7088847ca634009172dec0ae2be999a72990247a6c0",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
@@ -7048,6 +7060,7 @@
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
     "HISTORICAL_ROUND": 148,
+    "OTHER": 1,
     "PASS": 295,
     "PENDING": 15
   },
@@ -7942,6 +7955,12 @@
     }
   ],
   "unclaimed_carried_findings": [],
-  "unclassified": [],
+  "unclassified": [
+    {
+      "disposition": "178873d7 round findings repaired at 7426bc0b (rw-090-codec-component-manifest.json review_repairs); re-review pending",
+      "field": "review_repairs",
+      "section": "rw090_arbitrary_codec"
+    }
+  ],
   "work_package": "S20-740"
 }
