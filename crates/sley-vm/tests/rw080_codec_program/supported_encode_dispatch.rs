@@ -846,6 +846,7 @@ fn supported_encode_image() -> Image {
         uvar,
         ParentCopyMode::CountedConstant,
         EntitySetBodyKind::Dynamic,
+        EntitySetEncodeOutput::Body,
     );
     let entity_set_program_graph = build_entity_set_program_encode(
         &mut assembler,

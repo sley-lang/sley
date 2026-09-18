@@ -53,6 +53,8 @@ use sley_ssmc::{
 mod dependency_binding;
 #[path = "rw080_codec_program/dependency_binding_decode.rs"]
 mod dependency_binding_decode;
+#[path = "rw080_codec_program/package.rs"]
+mod package;
 #[path = "rw080_codec_program/policy_binding.rs"]
 mod policy_binding;
 #[path = "rw080_codec_program/supported_dispatch.rs"]
@@ -19674,6 +19676,12 @@ enum EntitySetBodyKind {
     Dynamic,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EntitySetEncodeOutput {
+    Body,
+    CanonicalSet,
+}
+
 fn build_namespace_encode(
     a: &mut Asm,
     ns: Ns,
@@ -19687,6 +19695,7 @@ fn build_namespace_encode(
         encode_fid,
         ParentCopyMode::Unrolled,
         EntitySetBodyKind::Namespace,
+        EntitySetEncodeOutput::Body,
     )
 }
 
@@ -19703,6 +19712,24 @@ fn build_policy_binding_encode(
         encode_fid,
         ParentCopyMode::Unrolled,
         EntitySetBodyKind::PolicyBinding,
+        EntitySetEncodeOutput::Body,
+    )
+}
+
+fn build_identity_set_encode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    encode_fid: EntityId,
+) -> FunctionGraph {
+    build_entity_set_encode_with_mode(
+        a,
+        ns,
+        fid,
+        encode_fid,
+        ParentCopyMode::Unrolled,
+        EntitySetBodyKind::PolicyBinding,
+        EntitySetEncodeOutput::CanonicalSet,
     )
 }
 
@@ -19713,7 +19740,15 @@ fn build_namespace_encode_with_mode(
     encode_fid: EntityId,
     mode: ParentCopyMode,
 ) -> FunctionGraph {
-    build_entity_set_encode_with_mode(a, ns, fid, encode_fid, mode, EntitySetBodyKind::Namespace)
+    build_entity_set_encode_with_mode(
+        a,
+        ns,
+        fid,
+        encode_fid,
+        mode,
+        EntitySetBodyKind::Namespace,
+        EntitySetEncodeOutput::Body,
+    )
 }
 
 #[allow(
@@ -19728,6 +19763,7 @@ fn build_entity_set_encode_with_mode(
     encode_fid: EntityId,
     mode: ParentCopyMode,
     body_kind: EntitySetBodyKind,
+    output: EntitySetEncodeOutput,
 ) -> FunctionGraph {
     use sley_vm::host_abi::{BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
     let bstart = a.blocks.len();
@@ -19838,6 +19874,8 @@ fn build_entity_set_encode_with_mode(
     let item_verdict2 = a.id(ns.b);
     let item_next = a.id(ns.b);
     let item_next2 = a.id(ns.b);
+    let set_done = a.id(ns.b);
+    let set_return = a.id(ns.b);
     let f2len_derive = a.id(ns.b);
     let f2len_ok = a.id(ns.b);
     let f2len_err = a.id(ns.b);
@@ -21679,7 +21717,11 @@ fn build_entity_set_encode_with_mode(
                     pav(is_unit),
                 ],
             ),
-            edge(f2len_derive, vec![pav(is_ml), pav(is_pu), pav(is_unit)]),
+            if output == EntitySetEncodeOutput::CanonicalSet {
+                edge(set_done, vec![pav(is_ml), pav(is_unit)])
+            } else {
+                edge(f2len_derive, vec![pav(is_ml), pav(is_pu), pav(is_unit)])
+            },
         ),
         reachability: Reachability::Required,
     });
@@ -22761,6 +22803,69 @@ fn build_entity_set_encode_with_mode(
         ),
         reachability: Reachability::Required,
     });
+
+    if output == EntitySetEncodeOutput::CanonicalSet {
+        let done_set = a.param(ns.p, set_done, ParameterRole::Block, u8vec_type());
+        let done_unit = a.param(ns.p, set_done, ParameterRole::Block, TypeExpr::Unit);
+        let done_convert = a.op(
+            ns.o,
+            set_done,
+            Opcode::AdapterInvoke,
+            vec![pav(done_unit), pav(done_set)],
+            vec![index_result(TypeExpr::Bytes)],
+            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_V2B1))),
+        );
+        a.blocks.push(Block {
+            entity_id: set_done,
+            function: fid,
+            parameters: vec![done_set, done_unit],
+            operations: vec![done_convert],
+            terminator: switch(
+                op_result(done_convert),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        set_return,
+                        vec![SwitchArgument::CasePayload],
+                    ),
+                    (BuiltinCase::Err, b_res, Vec::new()),
+                ],
+            ),
+            reachability: Reachability::Required,
+        });
+        let return_bytes = a.param(ns.p, set_return, ParameterRole::Block, TypeExpr::Bytes);
+        let return_ok = a.op(
+            ns.o,
+            set_return,
+            Opcode::ResultOk,
+            vec![pav(return_bytes)],
+            vec![res_t.clone()],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: set_return,
+            function: fid,
+            parameters: vec![return_bytes],
+            operations: vec![return_ok],
+            terminator: ret(op_result(return_ok)),
+            reachability: Reachability::Required,
+        });
+
+        return FunctionGraph {
+            entity_id: fid,
+            type_parameters: Vec::new(),
+            parameters: vec![j_par, j_mem, j_unit],
+            result_type: res_t,
+            effects: Vec::new(),
+            entry_block: entry,
+            blocks: a.blocks[bstart..]
+                .iter()
+                .map(|block| block.entity_id)
+                .collect(),
+            contracts: Vec::new(),
+            visibility: Visibility::Private,
+        };
+    }
     // f2len_derive params: [Ml, Pu, unit]. Canonical field-2 length.
     let fd_ml = a.param(ns.p, f2len_derive, ParameterRole::Block, u8vec_type());
     let fd_pu = a.param(ns.p, f2len_derive, ParameterRole::Block, u8vec_type());
