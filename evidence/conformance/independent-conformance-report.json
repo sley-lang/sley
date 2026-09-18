@@ -7,6 +7,7 @@
       "conformance/candidate-result/v1",
       "conformance/complete-root-index-snapshot/v1",
       "conformance/context-capsule/v1",
+      "conformance/exec-package-envelope/v2",
       "conformance/exec-package/v1",
       "conformance/host-abi/v1",
       "conformance/mutation-candidate/v1",
@@ -32,7 +33,7 @@
       "conformance/semantic-comparison/v1"
     ]
   },
-  "fixture_directories": 26,
+  "fixture_directories": 27,
   "fixtures": [
     {
       "claim": null,
@@ -580,6 +581,46 @@
       "sums_file": true,
       "tracked_versions": [
         "v1",
+        "v2"
+      ]
+    },
+    {
+      "claim": null,
+      "contract": "sley2-exec-package-2",
+      "coverage": {
+        "command": "python3 scripts/check_exec_package_envelope_v2.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/exec-package-envelope/v2",
+      "files": [
+        {
+          "bytes": 80,
+          "name": "SHA256SUMS",
+          "sha256": "5d6c4d391eb32d6af8cf84fa1a14cfb4787b266ed2bedb9eeba3515d0fa9b7fb"
+        },
+        {
+          "bytes": 1211,
+          "name": "accepted.hex",
+          "sha256": "5e3befd320687e0d3c1ca646646d6c8a2cef78d4f94d5ecac3fccdcda271ed60"
+        },
+        {
+          "bytes": 1352,
+          "name": "envelope.json",
+          "sha256": "5a5be4bd33b9aafb55e356197bdda798fa9626f38b831dfb6375751e53347829"
+        }
+      ],
+      "shape": {
+        "envelope.json": {
+          "header": 3,
+          "vector": 10
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
         "v2"
       ]
     },
@@ -1442,7 +1483,7 @@
       ]
     }
   ],
-  "independently_checked": 26,
+  "independently_checked": 27,
   "make_target": "conformance",
   "native_only": [],
   "oracle_independence": {
@@ -1462,10 +1503,10 @@
       "popen"
     ],
     "problems": [],
-    "python_sources": 29
+    "python_sources": 30
   },
-  "report_digest": "4f0708c7d5038e580dce3015098196b7110397edc8b844fb70f73b46ab5734ed",
+  "report_digest": "a2f17841f1735a8e82a93447f55e3f1b309c08f784ec4ac60394ad6161a100f4",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
-  "tracked_corpus_directories": 31,
+  "tracked_corpus_directories": 32,
   "work_package": "S20-730"
 }

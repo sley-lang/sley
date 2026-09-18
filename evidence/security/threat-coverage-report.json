@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "3420a90cc62e28183b4ebb0e452681fb7649734ad0ff202387d58f957608adb2",
+  "report_digest": "32b4c125df9c162c1d68c9c29495efaa9da0359157d205ecd6cf4d7be8e025c5",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -33,10 +33,10 @@
         "crates/sley-repo/src/native_exchange.rs#tests",
         "crates/sley-repo/src/refs.rs#tests"
       ],
-      "exercised_source_count": 29,
+      "exercised_source_count": 49,
       "expected_failure_code": "SCB_MALFORMED",
       "id": "T01",
-      "located_file_count": 30,
+      "located_file_count": 50,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -89,10 +89,10 @@
         "crates/sley-state-root/src/lib.rs#tests",
         "crates/sley-txn/src/repository.rs#tests"
       ],
-      "exercised_source_count": 20,
+      "exercised_source_count": 25,
       "expected_failure_code": "SCB_NON_CANONICAL",
       "id": "T02",
-      "located_file_count": 24,
+      "located_file_count": 29,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -141,10 +141,10 @@
         "crates/sley-store/src/lib.rs#tests",
         "crates/sley-txn/src/codec.rs#tests"
       ],
-      "exercised_source_count": 22,
+      "exercised_source_count": 23,
       "expected_failure_code": "SCB_DIGEST_MISMATCH",
       "id": "T03",
-      "located_file_count": 21,
+      "located_file_count": 22,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -253,12 +253,13 @@
         "crates/sley-repo/src/refs.rs#tests",
         "crates/sley-schema/src/lib.rs#tests",
         "crates/sley-state-root/src/lib.rs#tests",
-        "crates/sley-txn/src/repository.rs#tests"
+        "crates/sley-txn/src/repository.rs#tests",
+        "crates/sley-vm/tests/rw080_codec_program/schema_codec.rs"
       ],
-      "exercised_source_count": 5,
+      "exercised_source_count": 6,
       "expected_failure_code": "SCHEMA_EPOCH_MISMATCH",
       "id": "T06",
-      "located_file_count": 6,
+      "located_file_count": 7,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py"
@@ -599,10 +600,10 @@
         "crates/sley-test-runner/src/worker.rs#tests",
         "crates/sley-txn/src/repository.rs#tests"
       ],
-      "exercised_source_count": 19,
+      "exercised_source_count": 23,
       "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
       "id": "T16",
-      "located_file_count": 38,
+      "located_file_count": 42,
       "located_in": {
         "checkers": [
           "scripts/check_error_symbol_registration.py",
@@ -1145,12 +1146,13 @@
       "exercised_in": [
         "crates/sley-policy/src/candidate_validation.rs#tests",
         "crates/sley-tests/src/report.rs#tests",
-        "crates/sley-vm/src/lib.rs#tests"
+        "crates/sley-vm/src/lib.rs#tests",
+        "crates/sley-vm/tests/rw080_lower_scaffold.rs"
       ],
-      "exercised_source_count": 3,
+      "exercised_source_count": 4,
       "expected_failure_code": "VM_RESOURCE_LIMIT",
       "id": "T32",
-      "located_file_count": 8,
+      "located_file_count": 9,
       "located_in": {
         "checkers": [
           "scripts/check_vm_execution_profile.py",
@@ -1182,12 +1184,13 @@
     },
     {
       "exercised_in": [
-        "crates/sley-repo/tests/rw060_source_free_lifecycle.rs"
+        "crates/sley-repo/tests/rw060_source_free_lifecycle.rs",
+        "crates/sley-vm/tests/rw080_lower_scaffold.rs"
       ],
-      "exercised_source_count": 1,
+      "exercised_source_count": 2,
       "expected_failure_code": "VM_NONDETERMINISM_DETECTED",
       "id": "T33",
-      "located_file_count": 5,
+      "located_file_count": 6,
       "located_in": {
         "checkers": [
           "scripts/check_vm_lowering_profile.py"
@@ -1221,14 +1224,15 @@
       "exercised_in": [
         "crates/sley-repo/src/refs.rs#tests",
         "crates/sley-txn/src/repository.rs#tests",
+        "crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs",
         "conformance/scb1/v1/rejected.json",
         "oracle/scb1/src/sley2_scb1_oracle/codec.py",
         "oracle/scb1/src/sley2_scb1_oracle/mutation_value.py"
       ],
-      "exercised_source_count": 5,
+      "exercised_source_count": 6,
       "expected_failure_code": "VM_FLOAT_PROFILE_MISMATCH",
       "id": "T34",
-      "located_file_count": 7,
+      "located_file_count": 8,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
@@ -1237,7 +1241,8 @@
         "implementation": [
           "crates/sley-repo/src/refs.rs",
           "crates/sley-scb1/src/lib.rs",
-          "crates/sley-txn/src/repository.rs"
+          "crates/sley-txn/src/repository.rs",
+          "crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs"
         ],
         "oracle": [
           "oracle/scb1/src/sley2_scb1_oracle/codec.py",
@@ -1261,17 +1266,20 @@
       "threat": "floating host divergence"
     },
     {
-      "exercised_in": [],
-      "exercised_source_count": 0,
+      "exercised_in": [
+        "crates/sley-vm/tests/rw080_lower_scaffold.rs"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "CACHE_BINDING_MISMATCH",
       "id": "T35",
-      "located_file_count": 2,
+      "located_file_count": 3,
       "located_in": {
         "checkers": [
           "scripts/check_vm_lowering_profile.py"
         ],
         "implementation": [
-          "crates/sley-vm/src/lib.rs"
+          "crates/sley-vm/src/lib.rs",
+          "crates/sley-vm/tests/rw080_lower_scaffold.rs"
         ]
       },
       "owner": "sley-query",

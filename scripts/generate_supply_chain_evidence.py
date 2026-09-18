@@ -49,6 +49,12 @@ PERMISSIVE_CARGO_LICENSES = {
     "MIT OR Apache-2.0 OR Zlib",
     "(MIT OR Apache-2.0) AND Unicode-3.0",
     "MIT/Apache-2.0",
+    # Ed25519 signing dependencies (2026-09-17): the dalek crates and subtle
+    # are BSD-3-Clause, fiat-crypto adds the BSD-1-Clause alternative, and
+    # ed25519/signature/zeroize spell the dual license in the other order.
+    "BSD-3-Clause",
+    "Apache-2.0 OR MIT",
+    "MIT OR Apache-2.0 OR BSD-1-Clause",
 }
 
 SECRET_PATTERNS = {
@@ -131,7 +137,11 @@ def license_disposition(
             return "BLOCKED_MISSING_APPROVED_ROOT_LICENSE_TEXT", expression
         return "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE", expression
     if expression in PERMISSIVE_CARGO_LICENSES:
-        normalized = "MIT OR Apache-2.0" if expression == "MIT/Apache-2.0" else expression
+        normalized = (
+            "MIT OR Apache-2.0"
+            if expression in {"MIT/Apache-2.0", "Apache-2.0 OR MIT"}
+            else expression
+        )
         return "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW", normalized
     return "BLOCKED_UNREVIEWED_LICENSE_EXPRESSION", expression
 

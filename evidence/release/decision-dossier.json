@@ -9,7 +9,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "e71fc61c9e7488d6eb241c90bb8ccd7aec959fc96957e17754bfeccb982248a4",
+  "dossier_digest": "60ad158dd768e6b622ed40845a6e19fcd62d2e39dada52783c520aae6a0486c4",
   "entries": [
     {
       "evidence": [
@@ -92,7 +92,7 @@
       "state": "EVIDENCED",
       "value": {
         "cross_implementation_agreement": "PASS",
-        "independently_checked_families": 26,
+        "independently_checked_families": 27,
         "native_only_families": [],
         "status": "S20_130_COMPLETE"
       }
@@ -108,7 +108,7 @@
       "value": {
         "language": "Python",
         "oracle": "oracle/scb1",
-        "python_sources": 29,
+        "python_sources": 30,
         "rust_dependency_check": "PASS"
       }
     },
@@ -146,8 +146,8 @@
         },
         "property_tests": 0,
         "python_tests": 500,
-        "rust_ignored_emitters": 37,
-        "rust_unit_tests": 1907
+        "rust_ignored_emitters": 38,
+        "rust_unit_tests": 1951
       }
     },
     {
@@ -455,7 +455,7 @@
       }
     }
   ],
-  "entries_digest": "3d2b9f9a07fb9648db505466013a9a952034349ad6eabe371ed0437600b5413a",
+  "entries_digest": "02f930cf2a4ad8686da8639116753f278bea1c2b78569185ae6981e7e2e48856",
   "evidenced": 24,
   "gated": 10,
   "gates": {

@@ -63,6 +63,7 @@ COVERAGE: dict[str, str | None] = {
     "complete-root-index-snapshot": f"{ORACLE_RUNNER} python scripts/check_complete_root_index_snapshot_vector.py",
     "context-capsule": f"{ORACLE_RUNNER} python scripts/check_context_capsule_vector.py",
     "exec-package": "python3 scripts/check_exec_package_v1.py",
+    "exec-package-envelope": "python3 scripts/check_exec_package_envelope_v2.py",
     "host-abi": "python3 scripts/check_host_abi_v1.py",
     "raw-hash": "python3 scripts/check_exec_package_v1.py",
     "merge": f"{ORACLE_RUNNER} python scripts/check_merge_vector.py",
@@ -85,10 +86,12 @@ COVERAGE: dict[str, str | None] = {
 }
 # Pinned corpus version per family (contract section 3). Every family pins
 # `v1` except `entity-read`, whose S20-310 vectors pin `v2` by the
-# entity-read contract. A family without an entry pins `v1`; a family whose
+# entity-read contract, and `exec-package-envelope`, whose only corpus is the
+# EXEC_PACKAGE_V2 `v2` framing vectors. A family without an entry pins `v1`; a family whose
 # pinned version directory is absent is CONFORMANCE_FIXTURE_UNREADABLE.
 CORPUS_VERSION: dict[str, str] = {
     "entity-read": "v2",
+    "exec-package-envelope": "v2",
 }
 # Coverage depth per family (contract section 5): "semantic" when the checker
 # recomputes an outcome or judgment from frozen inputs with independent logic
@@ -110,6 +113,7 @@ DEPTH: dict[str, str] = {
     "complete-root-index-snapshot": "codec_and_identity",
     "context-capsule": "codec_and_identity",
     "exec-package": "codec_and_identity",
+    "exec-package-envelope": "codec_and_identity",
     "host-abi": "codec_and_identity",
     "raw-hash": "codec_and_identity",
     "merge": "semantic",

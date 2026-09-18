@@ -163,6 +163,7 @@ conformance:
 	python3 scripts/check_bootstrap_profile_1.py
 	python3 scripts/check_host_abi_v1.py
 	python3 scripts/check_exec_package_v1.py
+	python3 scripts/check_exec_package_envelope_v2.py
 	uv run --project oracle/scb1 --frozen python scripts/check_release_demo_vector.py
 
 adversarial:

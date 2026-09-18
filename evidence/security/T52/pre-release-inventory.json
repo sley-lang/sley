@@ -1,6 +1,6 @@
 {
   "blockers": [],
-  "cargo_lock_sha256": "055cafd657a7d666b96781c2f484dbb9568d1eb6081c46a8841a59584e0d5c52",
+  "cargo_lock_sha256": "d98a3235138633bd903a7d98d0ebb90ba4f7255f900b2e47d270114b07932794",
   "contract": "s20-710-pre-release-inventory-v1",
   "full_release_sbom": false,
   "history_anchor_commit": "7804f665e0ee65de240c43fe3b56dc89cf7e9d80",
@@ -128,6 +128,32 @@
       "workspace": false
     },
     {
+      "bom_ref": "pkg:cargo/curve25519-dalek-derive@0.1.1",
+      "checksum_sha256": "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3",
+      "ecosystem": "cargo",
+      "license_declared": "MIT/Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "curve25519-dalek-derive",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.1.1",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/curve25519-dalek@5.0.0",
+      "checksum_sha256": "b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23",
+      "ecosystem": "cargo",
+      "license_declared": "BSD-3-Clause",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "BSD-3-Clause",
+      "name": "curve25519-dalek",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "5.0.0",
+      "workspace": false
+    },
+    {
       "bom_ref": "pkg:cargo/digest@0.11.3",
       "checksum_sha256": "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2",
       "ecosystem": "cargo",
@@ -138,6 +164,45 @@
       "name": "digest",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "0.11.3",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/ed25519-dalek@3.0.0",
+      "checksum_sha256": "6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de",
+      "ecosystem": "cargo",
+      "license_declared": "BSD-3-Clause",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "BSD-3-Clause",
+      "name": "ed25519-dalek",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "3.0.0",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/ed25519@3.0.0",
+      "checksum_sha256": "29fcf32e6c73d1079f83ab4d782de2d81620346a5f38c6237a86a22f8368980a",
+      "ecosystem": "cargo",
+      "license_declared": "Apache-2.0 OR MIT",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "ed25519",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "3.0.0",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/fiat-crypto@0.3.0",
+      "checksum_sha256": "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0 OR BSD-1-Clause",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0 OR BSD-1-Clause",
+      "name": "fiat-crypto",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.3.0",
       "workspace": false
     },
     {
@@ -232,6 +297,19 @@
       "workspace": false
     },
     {
+      "bom_ref": "pkg:cargo/rustc_version@0.4.1",
+      "checksum_sha256": "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "rustc_version",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "0.4.1",
+      "workspace": false
+    },
+    {
       "bom_ref": "pkg:cargo/ryu@1.0.23",
       "checksum_sha256": "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f",
       "ecosystem": "cargo",
@@ -242,6 +320,19 @@
       "name": "ryu",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "1.0.23",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/semver@1.0.28",
+      "checksum_sha256": "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd",
+      "ecosystem": "cargo",
+      "license_declared": "MIT OR Apache-2.0",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "semver",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.0.28",
       "workspace": false
     },
     {
@@ -320,6 +411,19 @@
       "name": "shlex",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "2.0.1",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/signature@3.0.0",
+      "checksum_sha256": "28d567dcbaf0049cb8ac2608a76cd95ff9e4412e1899d389ee400918ca7537f5",
+      "ecosystem": "cargo",
+      "license_declared": "Apache-2.0 OR MIT",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "signature",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "3.0.0",
       "workspace": false
     },
     {
@@ -583,6 +687,19 @@
       "workspace": true
     },
     {
+      "bom_ref": "pkg:cargo/subtle@2.6.1",
+      "checksum_sha256": "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292",
+      "ecosystem": "cargo",
+      "license_declared": "BSD-3-Clause",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "BSD-3-Clause",
+      "name": "subtle",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "2.6.1",
+      "workspace": false
+    },
+    {
       "bom_ref": "pkg:cargo/syn@2.0.119",
       "checksum_sha256": "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297",
       "ecosystem": "cargo",
@@ -658,6 +775,19 @@
       "name": "unicode-normalization",
       "source": "registry+https://github.com/rust-lang/crates.io-index",
       "version": "0.1.24",
+      "workspace": false
+    },
+    {
+      "bom_ref": "pkg:cargo/zeroize@1.9.0",
+      "checksum_sha256": "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e",
+      "ecosystem": "cargo",
+      "license_declared": "Apache-2.0 OR MIT",
+      "license_disposition": "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "license_evidence": "cargo-metadata-declared-expression",
+      "license_normalized_for_review": "MIT OR Apache-2.0",
+      "name": "zeroize",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "version": "1.9.0",
       "workspace": false
     },
     {
@@ -811,12 +941,80 @@
       "to": "pkg:cargo/hybrid-array@0.4.14"
     },
     {
+      "from": "pkg:cargo/curve25519-dalek-derive@0.1.1",
+      "to": "pkg:cargo/proc-macro2@1.0.107"
+    },
+    {
+      "from": "pkg:cargo/curve25519-dalek-derive@0.1.1",
+      "to": "pkg:cargo/quote@1.0.47"
+    },
+    {
+      "from": "pkg:cargo/curve25519-dalek-derive@0.1.1",
+      "to": "pkg:cargo/syn@2.0.119"
+    },
+    {
+      "from": "pkg:cargo/curve25519-dalek@5.0.0",
+      "to": "pkg:cargo/cfg-if@1.0.4"
+    },
+    {
+      "from": "pkg:cargo/curve25519-dalek@5.0.0",
+      "to": "pkg:cargo/cpufeatures@0.3.1"
+    },
+    {
+      "from": "pkg:cargo/curve25519-dalek@5.0.0",
+      "to": "pkg:cargo/curve25519-dalek-derive@0.1.1"
+    },
+    {
+      "from": "pkg:cargo/curve25519-dalek@5.0.0",
+      "to": "pkg:cargo/digest@0.11.3"
+    },
+    {
+      "from": "pkg:cargo/curve25519-dalek@5.0.0",
+      "to": "pkg:cargo/fiat-crypto@0.3.0"
+    },
+    {
+      "from": "pkg:cargo/curve25519-dalek@5.0.0",
+      "to": "pkg:cargo/rustc_version@0.4.1"
+    },
+    {
+      "from": "pkg:cargo/curve25519-dalek@5.0.0",
+      "to": "pkg:cargo/subtle@2.6.1"
+    },
+    {
+      "from": "pkg:cargo/curve25519-dalek@5.0.0",
+      "to": "pkg:cargo/zeroize@1.9.0"
+    },
+    {
       "from": "pkg:cargo/digest@0.11.3",
       "to": "pkg:cargo/block-buffer@0.12.1"
     },
     {
       "from": "pkg:cargo/digest@0.11.3",
       "to": "pkg:cargo/crypto-common@0.2.2"
+    },
+    {
+      "from": "pkg:cargo/ed25519-dalek@3.0.0",
+      "to": "pkg:cargo/curve25519-dalek@5.0.0"
+    },
+    {
+      "from": "pkg:cargo/ed25519-dalek@3.0.0",
+      "to": "pkg:cargo/ed25519@3.0.0"
+    },
+    {
+      "from": "pkg:cargo/ed25519-dalek@3.0.0",
+      "to": "pkg:cargo/sha2@0.11.0"
+    },
+    {
+      "from": "pkg:cargo/ed25519-dalek@3.0.0",
+      "to": "pkg:cargo/subtle@2.6.1"
+    },
+    {
+      "from": "pkg:cargo/ed25519-dalek@3.0.0",
+      "to": "pkg:cargo/zeroize@1.9.0"
+    },
+    {
+      "from": "pkg:cargo/ed25519@3.0.0",
+      "to": "pkg:cargo/signature@3.0.0"
     },
     {
       "from": "pkg:cargo/hybrid-array@0.4.14",
@@ -829,6 +1027,10 @@
     {
       "from": "pkg:cargo/quote@1.0.47",
       "to": "pkg:cargo/proc-macro2@1.0.107"
+    },
+    {
+      "from": "pkg:cargo/rustc_version@0.4.1",
+      "to": "pkg:cargo/semver@1.0.28"
     },
     {
       "from": "pkg:cargo/serde@1.0.228",
@@ -1260,6 +1462,10 @@
     },
     {
       "from": "pkg:cargo/sley-test-runner@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/ed25519-dalek@3.0.0"
+    },
+    {
+      "from": "pkg:cargo/sley-test-runner@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/sha2@0.11.0"
     },
     {
@@ -1301,6 +1507,10 @@
     {
       "from": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/blake3@1.8.2"
+    },
+    {
+      "from": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/ed25519-dalek@3.0.0"
     },
     {
       "from": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
@@ -1360,7 +1570,15 @@
     },
     {
       "from": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+    },
+    {
+      "from": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true"
     },
     {
       "from": "pkg:cargo/syn@2.0.119",
