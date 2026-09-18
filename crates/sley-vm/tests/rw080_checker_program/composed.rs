@@ -2,6 +2,7 @@
 
 use super::*;
 use sley_id::{CandidateNonce, GenesisNonce, WorkspaceId};
+use sley_ssmc::ResultConst;
 use std::collections::{BTreeMap, BTreeSet};
 
 const CHILD_COUNT: usize = 7;
@@ -895,6 +896,25 @@ fn composed_inputs(selector: u8, children: &[Vec<ConstValue>]) -> Vec<ConstValue
 
 pub(super) fn valid_bounded_inputs(selector: u8) -> Vec<ConstValue> {
     composed_inputs(selector, &valid_child_inputs())
+}
+
+pub(super) fn integration_test_case() -> (Vec<ConstValue>, ConstValue) {
+    (
+        valid_bounded_inputs(3),
+        ConstValue {
+            value_type: composed_result_type(),
+            data: ConstData::Result(ResultConst::Ok(Box::new(ConstValue {
+                value_type: composed_plan_type(),
+                data: ConstData::Sequence(vec![
+                    u8_value(3),
+                    u64_value(4),
+                    u32_value(0),
+                    u32_value(0),
+                    u64_value(0),
+                ]),
+            }))),
+        },
+    )
 }
 
 fn execute_inputs(scaffold: &CheckerScaffold, inputs: Vec<ConstValue>) -> ConstValue {

@@ -283,7 +283,7 @@ fn remap_graph(graph: &mut FunctionGraph, ids: &BTreeMap<EntityId, EntityId>) {
         .for_each(|entity| *entity = mapped(ids, *entity));
 }
 
-fn canonical_codec_image() -> (Image, BTreeMap<EntityId, EntityId>) {
+pub(super) fn canonical_codec_image() -> (Image, BTreeMap<EntityId, EntityId>) {
     let mut image = super::codec_main::codec_main_image();
     let ids = construction_mapping(&image);
     remap_graph(&mut image.entry, &ids);
@@ -491,7 +491,7 @@ fn codec_schema_fixture() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
     (source_epoch().as_bytes().to_vec(), record, preimage)
 }
 
-fn codec_schema_decode_inputs() -> Vec<ConstValue> {
+pub(super) fn codec_schema_decode_inputs() -> Vec<ConstValue> {
     let (_, _, preimage) = codec_schema_fixture();
     vec![
         u8_input(2),
@@ -510,7 +510,7 @@ fn schema_decode_inputs() -> Vec<ConstValue> {
     vec![bytes_input(&preimage), unit_input()]
 }
 
-fn codec_schema_decode_expected() -> ConstValue {
+pub(super) fn codec_schema_decode_expected() -> ConstValue {
     let (epoch, record, _) = codec_schema_fixture();
     let tuple_type = match codec_result_type() {
         TypeExpr::Result { ok, .. } => *ok,
@@ -1038,7 +1038,7 @@ fn canonical_codec_graph_uses_derived_language_identities_and_still_executes() {
 fn canonical_codec_objects_round_trip_and_bind_the_complete_graph() {
     use sha2::{Digest, Sha256};
 
-    let (image, _) = canonical_codec_image();
+    let image = super::integration_codec_program();
     let objects = canonical_codec_objects(&image);
     let expected = image.functions.len()
         + image.parameters.len()
@@ -1143,18 +1143,10 @@ fn canonical_codec_component_retains_validated_contract_test_and_executes_from_i
     };
     assert_eq!(&actual, expected);
 
-    let (codec_package, codec_approved) =
-        admit_with_bindings(&image, codec_profile_limits(), source_epoch(), root.root);
-    let codec_outcome = execute_with_limits(
-        &codec_package,
-        &codec_approved,
-        codec_schema_decode_inputs(),
-        codec_profile_limits(),
+    assert_eq!(
+        super::integration_execute_codec(&image, root.root),
+        super::integration_codec_expected()
     );
-    let sley_vm::ExecutionTermination::Success(codec_actual) = codec_outcome.termination else {
-        panic!("exported codec must execute successfully from its retained root")
-    };
-    assert_eq!(codec_actual, codec_schema_decode_expected());
 
     eprintln!(
         "RW090_CODEC_COMPONENT objects={} root={} root_bytes={} root_sha256={}",

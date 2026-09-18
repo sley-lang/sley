@@ -481,7 +481,7 @@ fn hex(bytes: &[u8]) -> String {
 
 #[test]
 fn canonical_checker_component_round_trips_validates_and_executes() {
-    let program = super::composed::canonical_checker_program();
+    let program = super::integration_checker_program();
     let witnesses = checker_witnesses(&program);
     let objects = checker_component_objects(&program, &witnesses);
     let root = checker_component_root(&objects);
@@ -507,24 +507,14 @@ fn canonical_checker_component_round_trips_validates_and_executes() {
     }
     validate_checker_test(&program, &witnesses);
 
-    let (package, approved) =
-        admit_checker_program_with_bindings(&program, source_epoch(), root.root);
-    let outcome = sley_vm::execute_approved_package_v2(
-        &package,
-        &approved,
-        sley_vm::ExecutionRequest {
-            inputs: witnesses.tests[0].inputs.clone(),
-            limits: generous_limits(),
-        },
-    )
-    .expect("v2 executes retained checker test");
-    let sley_vm::ExecutionTermination::Success(actual) = outcome.termination else {
-        panic!("retained checker test returns a typed value")
-    };
+    let (inputs, integration_expected) = super::integration_checker_test();
+    assert_eq!(inputs, witnesses.tests[0].inputs);
+    let actual = super::integration_execute_checker(&program, root.root, inputs);
     let ExpectedOutcome::Value(expected) = &witnesses.tests[0].expected else {
         unreachable!("checker witness has an exact value expectation")
     };
     assert_eq!(&actual, expected);
+    assert_eq!(actual, integration_expected);
 
     let mut bundle_hasher = Sha256::new();
     for object in &objects {

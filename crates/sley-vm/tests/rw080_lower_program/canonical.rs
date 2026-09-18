@@ -323,6 +323,13 @@ fn canonicalize(mut scaffold: LowerScaffold, base: u64) -> LowerScaffold {
     scaffold
 }
 
+pub(super) fn canonical_lowerer_programs() -> (LowerScaffold, LowerScaffold) {
+    (
+        canonicalize(complete_function_image_encoder(), LOWER_BASE),
+        canonicalize(package_builder(), BUILDER_BASE),
+    )
+}
+
 fn canonical_object(entity_id: EntityId, body: EntityBodyValue) -> EntityObject {
     build_entity_object(
         source_epoch(),
@@ -413,7 +420,7 @@ fn scaffold_objects(scaffold: &LowerScaffold) -> Vec<EntityObject> {
     objects
 }
 
-fn lower_fixture() -> (Vec<ConstValue>, ConstValue) {
+pub(super) fn lower_fixture() -> (Vec<ConstValue>, ConstValue) {
     let native = native_direct_call_lowered();
     let root = complete_function_fact(&native.bytecode);
     let callees = native
@@ -770,19 +777,6 @@ fn validate_retained_test(
     assert_eq!(report.selected_tests, vec![witnesses.test.entity_id]);
 }
 
-fn execute_builder_from_root(builder: &LowerScaffold, state_root: StateRoot) {
-    let native = native_complete_lowered();
-    let expected = package_inventory_fixture(native.bytes, native.bytecode.function);
-    let digests = sley_vm::package_digests_v2(&expected).unwrap();
-    let (package, approved) =
-        admit_lower_program_with_bindings(builder, source_epoch(), state_root);
-    let outcome = execute_package_builder(&package, &approved, &expected, &digests);
-    assert_eq!(
-        successful_bytes_result(&outcome, "root-bound package builder"),
-        sley_vm::encode_package_envelope_v2(&expected).unwrap()
-    );
-}
-
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().fold(String::new(), |mut output, byte| {
         write!(output, "{byte:02x}").expect("writing to a string cannot fail");
@@ -792,8 +786,7 @@ fn hex(bytes: &[u8]) -> String {
 
 #[test]
 fn canonical_lowerer_builder_component_round_trips_validates_and_executes() {
-    let lower = canonicalize(complete_function_image_encoder(), LOWER_BASE);
-    let builder = canonicalize(package_builder(), BUILDER_BASE);
+    let (lower, builder) = super::integration_lowerer_programs();
     let witnesses = lower_witnesses(&lower);
     let objects = component_objects(&lower, &builder, &witnesses);
     let root = component_root(&objects);
@@ -819,24 +812,15 @@ fn canonical_lowerer_builder_component_round_trips_validates_and_executes() {
     }
     validate_retained_test(&lower, &builder, &witnesses);
 
-    let (package, approved) = admit_lower_program_with_bindings(&lower, source_epoch(), root.root);
-    let outcome = sley_vm::execute_approved_package_v2(
-        &package,
-        &approved,
-        sley_vm::ExecutionRequest {
-            inputs: witnesses.test.inputs.clone(),
-            limits: generous_limits(),
-        },
-    )
-    .expect("v2 executes retained lowerer test");
-    let sley_vm::ExecutionTermination::Success(actual) = outcome.termination else {
-        panic!("retained lowerer test returns a typed value")
-    };
+    let (actual, integration_expected) = super::integration_execute_lowerer(&lower, root.root);
     let ExpectedOutcome::Value(expected) = &witnesses.test.expected else {
         unreachable!("lowerer witness has an exact value expectation")
     };
     assert_eq!(&actual, expected);
-    execute_builder_from_root(&builder, root.root);
+    assert_eq!(actual, integration_expected);
+    let (actual_package, expected_package) =
+        super::integration_execute_builder(&builder, root.root);
+    assert_eq!(actual_package, expected_package);
 
     let mut bundle_hasher = Sha256::new();
     let object_bytes = objects

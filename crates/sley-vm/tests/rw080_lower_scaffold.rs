@@ -1039,15 +1039,63 @@ const ENTRY_BLOCK: u8 = 230;
 const ACCEPT_BLOCK: u8 = 245;
 const UNKNOWN_BLOCK: u8 = 246;
 
-struct LowerScaffold {
-    types: sley_check::TypeEnvironment,
-    entry: FunctionGraph,
-    functions: Vec<FunctionGraph>,
-    parameters: Vec<Parameter>,
-    blocks: Vec<Block>,
-    operations: Vec<Operation>,
-    constants: Vec<ConstantDefinition>,
-    adapters: Vec<AdapterImport>,
+pub(crate) struct LowerScaffold {
+    pub(crate) types: sley_check::TypeEnvironment,
+    pub(crate) entry: FunctionGraph,
+    pub(crate) functions: Vec<FunctionGraph>,
+    pub(crate) parameters: Vec<Parameter>,
+    pub(crate) blocks: Vec<Block>,
+    pub(crate) operations: Vec<Operation>,
+    pub(crate) constants: Vec<ConstantDefinition>,
+    pub(crate) adapters: Vec<AdapterImport>,
+}
+
+pub(crate) fn integration_lowerer_programs() -> (LowerScaffold, LowerScaffold) {
+    canonical::canonical_lowerer_programs()
+}
+
+pub(crate) fn integration_execute_lowerer(
+    lowerer: &LowerScaffold,
+    state_root: StateRoot,
+) -> (ConstValue, ConstValue) {
+    let (inputs, expected) = canonical::lower_fixture();
+    let (package, approved) = admit_lower_program_with_bindings(
+        lowerer,
+        sley_state_root::conformance_epoch_id().unwrap(),
+        state_root,
+    );
+    let outcome = sley_vm::execute_approved_package_v2(
+        &package,
+        &approved,
+        sley_vm::ExecutionRequest {
+            inputs,
+            limits: generous_limits(),
+        },
+    )
+    .expect("integrated lowerer executes");
+    let sley_vm::ExecutionTermination::Success(actual) = outcome.termination else {
+        panic!("integrated lowerer returns a typed result")
+    };
+    (actual, expected)
+}
+
+pub(crate) fn integration_execute_builder(
+    builder: &LowerScaffold,
+    state_root: StateRoot,
+) -> (Vec<u8>, Vec<u8>) {
+    let native = native_complete_lowered();
+    let expected = package_inventory_fixture(native.bytes, native.bytecode.function);
+    let digests = sley_vm::package_digests_v2(&expected).unwrap();
+    let (package, approved) = admit_lower_program_with_bindings(
+        builder,
+        sley_state_root::conformance_epoch_id().unwrap(),
+        state_root,
+    );
+    let outcome = execute_package_builder(&package, &approved, &expected, &digests);
+    (
+        successful_bytes_result(&outcome, "integrated package builder"),
+        sley_vm::encode_package_envelope_v2(&expected).unwrap(),
+    )
 }
 
 fn rebase_value_ref(value: &mut ValueRef, ids: &BTreeMap<EntityId, EntityId>) {

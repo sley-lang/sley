@@ -214,14 +214,47 @@ const CHAIN_BLOCK_1: u8 = 246;
 const CHAIN_BLOCK_2: u8 = 247;
 const CHAIN_BLOCK_3: u8 = 248;
 
-struct CheckerScaffold {
-    types: sley_check::TypeEnvironment,
-    entry: FunctionGraph,
-    functions: Vec<FunctionGraph>,
-    parameters: Vec<Parameter>,
-    blocks: Vec<Block>,
-    operations: Vec<Operation>,
-    constants: Vec<ConstantDefinition>,
+pub(crate) struct CheckerScaffold {
+    pub(crate) types: sley_check::TypeEnvironment,
+    pub(crate) entry: FunctionGraph,
+    pub(crate) functions: Vec<FunctionGraph>,
+    pub(crate) parameters: Vec<Parameter>,
+    pub(crate) blocks: Vec<Block>,
+    pub(crate) operations: Vec<Operation>,
+    pub(crate) constants: Vec<ConstantDefinition>,
+}
+
+pub(crate) fn integration_checker_program() -> CheckerScaffold {
+    composed::canonical_checker_program()
+}
+
+pub(crate) fn integration_checker_test() -> (Vec<ConstValue>, ConstValue) {
+    composed::integration_test_case()
+}
+
+pub(crate) fn integration_execute_checker(
+    scaffold: &CheckerScaffold,
+    state_root: StateRoot,
+    inputs: Vec<ConstValue>,
+) -> ConstValue {
+    let (package, approved) = admit_checker_program_with_bindings(
+        scaffold,
+        sley_state_root::conformance_epoch_id().unwrap(),
+        state_root,
+    );
+    let outcome = sley_vm::execute_approved_package_v2(
+        &package,
+        &approved,
+        sley_vm::ExecutionRequest {
+            inputs,
+            limits: generous_limits(),
+        },
+    )
+    .expect("integrated checker executes");
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("integrated checker returns a typed result")
+    };
+    value
 }
 
 struct ScaffoldBuilder {

@@ -25707,15 +25707,42 @@ fn build_fixture_reqbool_decode(
 
 // ── images, admission, execution ─────────────────────────────────────
 
-struct Image {
-    types: sley_check::TypeEnvironment,
-    entry: FunctionGraph,
-    functions: Vec<FunctionGraph>,
-    parameters: Vec<Parameter>,
-    blocks: Vec<Block>,
-    operations: Vec<Operation>,
-    adapters: Vec<AdapterImport>,
-    constants: Vec<ConstantDefinition>,
+pub(crate) struct Image {
+    pub(crate) types: sley_check::TypeEnvironment,
+    pub(crate) entry: FunctionGraph,
+    pub(crate) functions: Vec<FunctionGraph>,
+    pub(crate) parameters: Vec<Parameter>,
+    pub(crate) blocks: Vec<Block>,
+    pub(crate) operations: Vec<Operation>,
+    pub(crate) adapters: Vec<AdapterImport>,
+    pub(crate) constants: Vec<ConstantDefinition>,
+}
+
+pub(crate) fn integration_codec_program() -> Image {
+    canonical_codec::canonical_codec_image().0
+}
+
+pub(crate) fn integration_execute_codec(image: &Image, state_root: StateRoot) -> ConstValue {
+    let (package, approved) = admit_with_bindings(
+        image,
+        codec_profile_limits(),
+        sley_state_root::conformance_epoch_id().unwrap(),
+        state_root,
+    );
+    let outcome = execute_with_limits(
+        &package,
+        &approved,
+        canonical_codec::codec_schema_decode_inputs(),
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("integrated codec returns a typed result")
+    };
+    value
+}
+
+pub(crate) fn integration_codec_expected() -> ConstValue {
+    canonical_codec::codec_schema_decode_expected()
 }
 
 fn codec_limits() -> sley_vm::ExecutionLimits {
