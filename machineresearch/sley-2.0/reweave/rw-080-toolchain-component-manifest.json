@@ -28,12 +28,12 @@
   },
   "complete_toolchain_closure": false,
   "component_package": {
-    "envelope_bytes": 2063,
+    "envelope_bytes": 3393,
     "gate_bridge_uses": 0,
     "gate_closure_fingerprints": 5,
-    "gate_operation_count": 8,
-    "image_bytes": 1154,
-    "package_digest": "eec3cc8941a759d838679de0eab9bd1041dc19374cc15041c4e5b79880544ded"
+    "gate_operation_count": 10,
+    "image_bytes": 1530,
+    "package_digest": "6e53babe851b2e9911852402cddad16cb6c80b611503416a7cc01c20ee98b72a"
   },
   "construction": {
     "candidate_nonce_hex": "8787878787878787878787878787878787878787878787878787878787878787",
@@ -44,6 +44,14 @@
     "workspace_id": "e5609e37de7dabca456dee35f634085a6e4c015ce142ff0efa83aa2342788ae1"
   },
   "contract": "sley2.rw080-toolchain-component-manifest.v1",
+  "driver_contract": {
+    "build_error_type": "15f59c0ce25c3d78073324db6aff05df05e9a2f0155c831ca71f2528887873a3",
+    "build_manifest_type": "4bf5336108051faf2045815879d8d27db27d7045c1a3e3ff294a4c698026a914",
+    "built_toolchain_type": "d56fb1513936cc8c4962a30fab761812841928b2e5c142ac53e358a9fd5bfcf7",
+    "incomplete_member_id": "cfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcfcf",
+    "scaffold_result": "typed BuildError::Incomplete",
+    "status": "dispatch scaffold only; no BuiltToolchain or fixed-point success is produced"
+  },
   "entry_functions": {
     "checker": "a13584b13225f097ca59dabbc3abeb2a3794fe81354aeb0a89b3b2609fbe86f4",
     "codec": "abc68218beda73f0607c05d2c5deb8efe64b5ed247f158eee0e4f2775ff7a811",
@@ -59,12 +67,12 @@
     "package_builder": "ef2a88c6da5003261fb5a8cc379c7f0564b350a54b3023d136d2ff2223c266f3"
   },
   "is_canonical_s": false,
-  "manifest_digest": "2e192f12d88c14d6c69f77e28be34fe26783e5298929e83acbf4f6578a89268a",
+  "manifest_digest": "2096803e95bc12e43f4132bdf29764ec4b56ddfa29a0bed6c3e531984bf605c4",
   "object_bundle": {
     "format": "base64(gzip(concat exact EntityObject stored bytes in objects array order)); gzip mtime=0",
-    "gzip_base64": "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",
-    "uncompressed_bytes": 6560,
-    "uncompressed_sha256": "6b66b307d314fcf0846e0be8b8e97396b4173a3fa60412706c13cf8809a7aa55"
+    "gzip_base64": "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",
+    "uncompressed_bytes": 8483,
+    "uncompressed_sha256": "73250d47e5a684d71c18cddb59a6276de1c483bc59e474fe91c532b8542072b9"
   },
   "objects": [
     {
@@ -74,14 +82,14 @@
       "entity_id": "6dd80dbd3d421fa90f4706c4d75212d614822e861f565c18d0b833e8f4812670",
       "entity_kind": 5,
       "identity_origin": "derived",
-      "object_id": "66ac47a60b669bb7f3db7e05f81891517dbb8a4d6010f7f4c1682299775c6275",
+      "object_id": "7f035be22652a26a12ad5965819953ba5b97600dd32624576b1aed4b2835f278",
       "seed_local_token": 1,
       "semantic_owner": "driver",
-      "stored_bytes_length": 257,
-      "stored_bytes_sha256": "d1d18fd62fac890ce4bbf9702c7e67ba7ceeb27d9193989b9138b9b34b6a3c0c"
+      "stored_bytes_length": 326,
+      "stored_bytes_sha256": "83e5e043f630b5f7e51296b2e332807e2bb77d04f08cd2ecd63c94f69683c580"
     },
     {
-      "bundle_offset": 257,
+      "bundle_offset": 326,
       "construction_method": "seed-assembled",
       "creation_ordinal": 1,
       "entity_id": "abc68218beda73f0607c05d2c5deb8efe64b5ed247f158eee0e4f2775ff7a811",
@@ -94,7 +102,7 @@
       "stored_bytes_sha256": "625f55314d93786c0b93865465e21d5a41e9fcceb0de6f7735b6b64137781d65"
     },
     {
-      "bundle_offset": 464,
+      "bundle_offset": 533,
       "construction_method": "seed-assembled",
       "creation_ordinal": 2,
       "entity_id": "a13584b13225f097ca59dabbc3abeb2a3794fe81354aeb0a89b3b2609fbe86f4",
@@ -107,7 +115,7 @@
       "stored_bytes_sha256": "63212e310ac96e551d8ea637564587d856c44e980c51e47750a49e6ad4718631"
     },
     {
-      "bundle_offset": 671,
+      "bundle_offset": 740,
       "construction_method": "seed-assembled",
       "creation_ordinal": 3,
       "entity_id": "83c5ce436a7d32aab9826b011c847a96bf13d0b07b0aeda01759a0be3d7782c8",
@@ -120,7 +128,7 @@
       "stored_bytes_sha256": "4d22e427a4a1d60810b6a7d3c48608aaef92c9248f6d66d8e1ca12974dfe5038"
     },
     {
-      "bundle_offset": 878,
+      "bundle_offset": 947,
       "construction_method": "seed-assembled",
       "creation_ordinal": 4,
       "entity_id": "f515326a06744b2b6dda366a1d6d30387d839052aae6949282366a9bc12af43b",
@@ -133,20 +141,20 @@
       "stored_bytes_sha256": "af6e3f6bdfa8b4205fd54b8e52ca4eca22a3ea8fe94aa24c45b702d4d2c85e13"
     },
     {
-      "bundle_offset": 1117,
+      "bundle_offset": 1186,
       "construction_method": "seed-assembled",
       "creation_ordinal": 0,
       "entity_id": "05e485673ce3dddee86c6f78ee5c14de44e0114bc9bfd461afd6c3e017220db1",
       "entity_kind": 6,
       "identity_origin": "derived",
-      "object_id": "734b835951c2fe16e761a832a35c0c0698ee24d70b1abe28214f92b54a35cd33",
+      "object_id": "0baa3c69f58fb5aadfaf2c10a63296d39af95204f73044d7e3050c6fe9b3f7d6",
       "seed_local_token": 10,
       "semantic_owner": "driver",
-      "stored_bytes_length": 160,
-      "stored_bytes_sha256": "23920b98da05cff9c4fa4aeff15f9be2670fe120b77a3ddc98823ec4238b33e6"
+      "stored_bytes_length": 198,
+      "stored_bytes_sha256": "b050906082500e5440b5cc70d1f1e58016c9c78aae0f1e1222708fffcf43453a"
     },
     {
-      "bundle_offset": 1277,
+      "bundle_offset": 1384,
       "construction_method": "seed-assembled",
       "creation_ordinal": 1,
       "entity_id": "29095d40ff775107d3e1fcb96a6f7e5491b42b1893253f28f2a20836addbb55e",
@@ -159,20 +167,20 @@
       "stored_bytes_sha256": "54eb9b974d0961ea6f052312b3d29671fdd9a81f2f2f5104eb632b67e311ea0b"
     },
     {
-      "bundle_offset": 1437,
+      "bundle_offset": 1544,
       "construction_method": "seed-assembled",
       "creation_ordinal": 0,
       "entity_id": "6822513f44033b21c5ec3d92b9744cb042ebe4b05212945a2abaf267f5e4f893",
       "entity_kind": 7,
       "identity_origin": "derived",
-      "object_id": "3c30fd05e5e651a62f6798e8b5cdd2b91eba1f2d119fad6726839bbc1c389b08",
+      "object_id": "a95b3b706cc9c67ebcfbaeae5a17aceb022e68be494fb0542dc816f9c6753c47",
       "seed_local_token": 20,
       "semantic_owner": "driver",
-      "stored_bytes_length": 375,
-      "stored_bytes_sha256": "dd81cc8a4ec6138de4d3214fc678e2b782650903498275437de2f21ba0ee097a"
+      "stored_bytes_length": 441,
+      "stored_bytes_sha256": "fe863fa103362b3a201f644097c3f25b8df2ffde20c7c4a0a2544ba699984f76"
     },
     {
-      "bundle_offset": 1812,
+      "bundle_offset": 1985,
       "construction_method": "seed-assembled",
       "creation_ordinal": 1,
       "entity_id": "f628af0b0d260bcb0fb0df58fcce541f2da1f616aae85f743acaa3900a7c98ca",
@@ -185,7 +193,7 @@
       "stored_bytes_sha256": "7f944b29775540fd10b51d4ca7b44067edd56816363716134704ec813220c347"
     },
     {
-      "bundle_offset": 2052,
+      "bundle_offset": 2225,
       "construction_method": "seed-assembled",
       "creation_ordinal": 2,
       "entity_id": "ada846b433a3409a5de0718a8b17d42e02e4006779b6e6e6deea939567698127",
@@ -198,7 +206,7 @@
       "stored_bytes_sha256": "43f9f7071950809039e591bd2add0d82335806c73080c40c5e13950b0113abfa"
     },
     {
-      "bundle_offset": 2292,
+      "bundle_offset": 2465,
       "construction_method": "seed-assembled",
       "creation_ordinal": 3,
       "entity_id": "12d788f2f1c594eb07f8439385fcb1a57fff3d8407d783e99369e123104e0d0a",
@@ -211,7 +219,7 @@
       "stored_bytes_sha256": "d4822bdfee0f56e9e03291253649a9dff6cb158a422a437559f6dd8c74af334e"
     },
     {
-      "bundle_offset": 2532,
+      "bundle_offset": 2705,
       "construction_method": "seed-assembled",
       "creation_ordinal": 4,
       "entity_id": "886ab20d76eb065835bb0edec12e4e3f9ff3703b28be677e730412c8291e21cb",
@@ -224,7 +232,7 @@
       "stored_bytes_sha256": "95455546f43d4d512b31e15330a88bb6ab011b66b9bf4b7c6fcd71cc5ac27b2f"
     },
     {
-      "bundle_offset": 2732,
+      "bundle_offset": 2905,
       "construction_method": "seed-assembled",
       "creation_ordinal": 0,
       "entity_id": "314408e14a190cd6295f227d0eb8b31d9a950b0c87a82b56eea464ed22e85417",
@@ -237,7 +245,7 @@
       "stored_bytes_sha256": "afcc806273817c3fb7d60e4fec209988d0e189bcc7ccb920bfe3753b5f5076fd"
     },
     {
-      "bundle_offset": 2861,
+      "bundle_offset": 3034,
       "construction_method": "seed-assembled",
       "creation_ordinal": 1,
       "entity_id": "e6a0597b51814e313c89d751ea8f20684fa77e2c7a1c4a34d2576bd6abec3538",
@@ -250,7 +258,7 @@
       "stored_bytes_sha256": "49e232a200d0b2a9772ae573eb1e7ffab47f069fe2e3e96e3473e1196e7f2363"
     },
     {
-      "bundle_offset": 2990,
+      "bundle_offset": 3163,
       "construction_method": "seed-assembled",
       "creation_ordinal": 2,
       "entity_id": "5cebb8b17f4d7e210d08919db66c9b097b23c02a848332ca2f721b737c25840e",
@@ -263,72 +271,72 @@
       "stored_bytes_sha256": "7a07ab433535b3113b782234005f5e9f8423a03c4239edf1fb8cb5fdb2b04e5f"
     },
     {
-      "bundle_offset": 3119,
+      "bundle_offset": 3292,
       "construction_method": "seed-assembled",
       "creation_ordinal": 0,
       "entity_id": "381b8ef33e9f8591c312465ba6839dd8007f897d912b558b24178e0814b881e8",
       "entity_kind": 8,
       "identity_origin": "derived",
-      "object_id": "955bb28349e0b735fb095b26ed8fe93764d0d1dca841f1dc2ef884b3a79a051b",
+      "object_id": "ae36eaf65f0f5492d2e4fd5b656396697fe07d917bcb723329a20337f7c7cc27",
       "seed_local_token": 40,
       "semantic_owner": "driver",
-      "stored_bytes_length": 244,
-      "stored_bytes_sha256": "9242f7e8eba5cc1b750b3ff5d8ad52a280222a1aa3b961c0afb69c377ff83152"
+      "stored_bytes_length": 237,
+      "stored_bytes_sha256": "62369477913b1de74006886e06d18653877c92a92b98ebc0f4af428091dab9a7"
     },
     {
-      "bundle_offset": 3363,
+      "bundle_offset": 3529,
       "construction_method": "seed-assembled",
       "creation_ordinal": 1,
       "entity_id": "4b4438ec75d237ca7002ef81e1908611e231a1ef8277c9016166e367f95445e1",
       "entity_kind": 8,
       "identity_origin": "derived",
-      "object_id": "5bf21b1e706e63e4ce1fbb9d2607031d4e73fd1c7a167ec5b6a605310afb0ba6",
+      "object_id": "78fba8186642987ee1bd548620546cb4200af9dcfedf414451b87b1e826ef8c6",
       "seed_local_token": 41,
       "semantic_owner": "driver",
-      "stored_bytes_length": 209,
-      "stored_bytes_sha256": "d3fe414f0915e69a59edec5fa2caadcedcc04c57eea03455b4633b6e4f201f96"
+      "stored_bytes_length": 251,
+      "stored_bytes_sha256": "c900728b75d290356794e4ac326123f69e4c534f24523622130adae2e73beed5"
     },
     {
-      "bundle_offset": 3572,
+      "bundle_offset": 3780,
       "construction_method": "seed-assembled",
       "creation_ordinal": 2,
       "entity_id": "2543dfc4d192757705e4fa680b18e3a9b076f918aba5ca67f8e4ba3f91315f41",
       "entity_kind": 8,
       "identity_origin": "derived",
-      "object_id": "80cdc0607ef14d26c5063b268386a767426243e47a9bc3469e2bfddc08de3db0",
+      "object_id": "eafd929fb6b73d74f6f97221221ca6e0524d35707907acbac78561882ad8424a",
       "seed_local_token": 42,
       "semantic_owner": "driver",
       "stored_bytes_length": 209,
-      "stored_bytes_sha256": "8d0af08a0b84b124cc2c8414427499e0a3f93c91867fce28a9b32cb9c190e0e5"
+      "stored_bytes_sha256": "d0f804107f213ff9ab084ca8a5016e6696432da85a75b2555ef1ebdcf3aeab13"
     },
     {
-      "bundle_offset": 3781,
+      "bundle_offset": 3989,
       "construction_method": "seed-assembled",
       "creation_ordinal": 3,
       "entity_id": "32ec79eee67400667408a784715806d0b1d942b8337b34d5c4e4a968b713a879",
       "entity_kind": 8,
       "identity_origin": "derived",
-      "object_id": "ca0b56b4084e0ced44a4d06a6354f17e607ecc58cc56f1552f71ed5a333062c8",
+      "object_id": "4868ff9ba1c115abaa52ce665038df2d5b53018ea683ea16e95b72a549a7ce2d",
       "seed_local_token": 43,
       "semantic_owner": "driver",
       "stored_bytes_length": 209,
-      "stored_bytes_sha256": "83f057eba1daccafcb1c15914534e9232472efaa642033fd40d4e0095eef221b"
+      "stored_bytes_sha256": "56af7ba57cd2269ba18866c592629563b07f1936a55beb3cc5176cff71ca0b70"
     },
     {
-      "bundle_offset": 3990,
+      "bundle_offset": 4198,
       "construction_method": "seed-assembled",
       "creation_ordinal": 4,
       "entity_id": "2ab6f0b90f85701007e47e2f51031f1b727121d55c858dc264d592ac9a9d77f0",
       "entity_kind": 8,
       "identity_origin": "derived",
-      "object_id": "c98ed85397c56634eaef9fc967bac2c647d5841f8c10f566943e238766498648",
+      "object_id": "bea0d32701eced389c64abae67d6f1a81a03712e49086b2609b26b8019963846",
       "seed_local_token": 44,
       "semantic_owner": "driver",
-      "stored_bytes_length": 353,
-      "stored_bytes_sha256": "1d6ca73cd60e610b9957fb5ce206bfd7a170ad34ac460c0bb109f30016323a8a"
+      "stored_bytes_length": 209,
+      "stored_bytes_sha256": "58c2f46e9121c367c59ca25d1f89a1ee3c4cb870e003594b12e02aade56de909"
     },
     {
-      "bundle_offset": 4343,
+      "bundle_offset": 4407,
       "construction_method": "seed-assembled",
       "creation_ordinal": 5,
       "entity_id": "cdad8006aa48f0f6824aebe6cd5920e5e03d878c09c16aedb619fddf50d487fd",
@@ -341,7 +349,7 @@
       "stored_bytes_sha256": "666f0f15d11ddbec20c07ddfc0caee6fde0e2374e94079e309931aa82f70e5d3"
     },
     {
-      "bundle_offset": 4545,
+      "bundle_offset": 4609,
       "construction_method": "seed-assembled",
       "creation_ordinal": 6,
       "entity_id": "70f6bb91456fc773ab29d54959390dec4cd143eb2e3d15e2d68bd5dd9ff3f6f3",
@@ -354,7 +362,7 @@
       "stored_bytes_sha256": "e11401d11dcdf21da090eed6f44e7e5b07b77e15f3bc5a115b12362dfa27228f"
     },
     {
-      "bundle_offset": 4747,
+      "bundle_offset": 4811,
       "construction_method": "seed-assembled",
       "creation_ordinal": 7,
       "entity_id": "3322d9b1291ccfaabc8eda670481dd6e15de52ab50a05404b1927f75de6cdb64",
@@ -367,7 +375,33 @@
       "stored_bytes_sha256": "fd74adc8f40dbf73b917f527db1fe41deef4564a37528046c04aaa5bd1cd1428"
     },
     {
-      "bundle_offset": 4949,
+      "bundle_offset": 5013,
+      "construction_method": "seed-assembled",
+      "creation_ordinal": 8,
+      "entity_id": "a309d19e6e7a9a6a81d240426e011c926567851e918c615ed888efee76401e32",
+      "entity_kind": 8,
+      "identity_origin": "derived",
+      "object_id": "b776a43085388ac80fbe4f99d8d88a45c00bf3b741f4b3f7e7af3e020ef50560",
+      "seed_local_token": 48,
+      "semantic_owner": "driver",
+      "stored_bytes_length": 279,
+      "stored_bytes_sha256": "2ddd5f035da3e9976fed308fa8c94406daead99eb6e9a9b41f05378c424d7668"
+    },
+    {
+      "bundle_offset": 5292,
+      "construction_method": "seed-assembled",
+      "creation_ordinal": 9,
+      "entity_id": "1577b0c7ed06755949f436830450fa08bf673121e00a739613eb32603b7523bd",
+      "entity_kind": 8,
+      "identity_origin": "derived",
+      "object_id": "f8fa0f506f2faac871abf52c11e0758553919cecf254b2345355e0c113db4731",
+      "seed_local_token": 49,
+      "semantic_owner": "driver",
+      "stored_bytes_length": 299,
+      "stored_bytes_sha256": "1396b73f0a380c9e95d3c07f2abc54787d942c35cc9625ae2cb9006c9af5a87c"
+    },
+    {
+      "bundle_offset": 5591,
       "construction_method": "seed-assembled",
       "creation_ordinal": 0,
       "entity_id": "5a37d796c98d3aa1ef0f0700fd88964efc24e8ec02a12205cfe0f9cb78a68e0b",
@@ -380,7 +414,7 @@
       "stored_bytes_sha256": "56a6de386647a1f3d9ccb10e44419851bb4e66adf533b5db5992ee829c9980e8"
     },
     {
-      "bundle_offset": 5144,
+      "bundle_offset": 5786,
       "construction_method": "seed-assembled",
       "creation_ordinal": 0,
       "entity_id": "d4f7ae6dbc2e7ef2c36e985d671753d4eff0d0ef4c30561f02d02a3745302e66",
@@ -393,20 +427,20 @@
       "stored_bytes_sha256": "2bff9ca5de9b25793fd16f08eff6350d0f5230d49d52655b0747c90af31538e4"
     },
     {
-      "bundle_offset": 5503,
+      "bundle_offset": 6145,
       "construction_method": "seed-assembled",
       "creation_ordinal": 0,
       "entity_id": "c915f45fa76ed9f409b40d81407350d375e023a8b823123f7ae6a6c4a62780d3",
       "entity_kind": 3,
       "identity_origin": "derived",
-      "object_id": "d5cabeaee7afb9cdda1964ad5f3d84d6a05615b624a11fc5b06ea240c16daf0a",
+      "object_id": "ebd0a0835db042c6c3bec859a16bfc40d0882b0eeb201a0aeaf7d9abc2603c69",
       "seed_local_token": 62,
       "semantic_owner": "driver",
-      "stored_bytes_length": 292,
-      "stored_bytes_sha256": "8fcb81b548179bab92256ff59d1af73702ab064e73dcf02946685610004b3c99"
+      "stored_bytes_length": 391,
+      "stored_bytes_sha256": "5d769aad1efc1eaa6937cab1ff8c66f55732b5ccf188aa2286ce5e9a4fc26f0d"
     },
     {
-      "bundle_offset": 5795,
+      "bundle_offset": 6536,
       "construction_method": "seed-assembled",
       "creation_ordinal": 0,
       "entity_id": "d74379a92ad33a7ad01b7904c13effdf82e83efd3340f4f046563edff847f023",
@@ -419,7 +453,7 @@
       "stored_bytes_sha256": "38fb004e332cfbc9117a5c5eb1f94415d5470f52cfe25077952455a7ce103e26"
     },
     {
-      "bundle_offset": 5948,
+      "bundle_offset": 6689,
       "construction_method": "seed-assembled",
       "creation_ordinal": 1,
       "entity_id": "eca232bfde317e20de8f9e747225a96d82cdc774b1c260499437e3e17e48887a",
@@ -432,7 +466,7 @@
       "stored_bytes_sha256": "5e6db25a2b377ac00a5012eb9f484cf99c24cd83e8acf878afb1aa662dc9bcac"
     },
     {
-      "bundle_offset": 6101,
+      "bundle_offset": 6842,
       "construction_method": "seed-assembled",
       "creation_ordinal": 2,
       "entity_id": "b5a8d8409bddb784d003f4d9bf0635dd88a80b22c78b9dec38c0aa10f9f5e44f",
@@ -445,7 +479,7 @@
       "stored_bytes_sha256": "9d598e4380bb0c8bcf7c7fd19f1031fae460f030d86ad7b74efaed474620d9b6"
     },
     {
-      "bundle_offset": 6254,
+      "bundle_offset": 6995,
       "construction_method": "seed-assembled",
       "creation_ordinal": 3,
       "entity_id": "ce86d9f366b8df5feb1763febc9ebafafead99da88d6840e1051c83828a69a4e",
@@ -458,7 +492,7 @@
       "stored_bytes_sha256": "fc60a402667764b6e680336d366c19f88d0f5a8a1ed0c633cafa6bdde5379dc5"
     },
     {
-      "bundle_offset": 6407,
+      "bundle_offset": 7148,
       "construction_method": "seed-assembled",
       "creation_ordinal": 4,
       "entity_id": "ef2a88c6da5003261fb5a8cc379c7f0564b350a54b3023d136d2ff2223c266f3",
@@ -469,6 +503,45 @@
       "semantic_owner": "package-builder",
       "stored_bytes_length": 153,
       "stored_bytes_sha256": "597a346715e321aefa70d0c4ae47e31a6638af614aa56169a67aaf97aa055d56"
+    },
+    {
+      "bundle_offset": 7301,
+      "construction_method": "seed-assembled",
+      "creation_ordinal": 0,
+      "entity_id": "4bf5336108051faf2045815879d8d27db27d7045c1a3e3ff294a4c698026a914",
+      "entity_kind": 4,
+      "identity_origin": "derived",
+      "object_id": "6d79690125d2379e75274dc01cb46a2a5c9cd8c09bd53ac2102a1fddfb5b34c1",
+      "seed_local_token": 70,
+      "semantic_owner": "driver",
+      "stored_bytes_length": 526,
+      "stored_bytes_sha256": "61940721e5af743ea0dfabf8d69cce78b64daa6633ed9776a2f206d55aa94470"
+    },
+    {
+      "bundle_offset": 7827,
+      "construction_method": "seed-assembled",
+      "creation_ordinal": 1,
+      "entity_id": "d56fb1513936cc8c4962a30fab761812841928b2e5c142ac53e358a9fd5bfcf7",
+      "entity_kind": 4,
+      "identity_origin": "derived",
+      "object_id": "b8f3b50b9d10ed6aa9a693ae88f5ebf759295ad0eb557fee897c6e9e2253c089",
+      "seed_local_token": 71,
+      "semantic_owner": "driver",
+      "stored_bytes_length": 268,
+      "stored_bytes_sha256": "b73aea54912b7e4154c7df4e05daede1b68b6034a543e510ae452970aa2586f3"
+    },
+    {
+      "bundle_offset": 8095,
+      "construction_method": "seed-assembled",
+      "creation_ordinal": 2,
+      "entity_id": "15f59c0ce25c3d78073324db6aff05df05e9a2f0155c831ca71f2528887873a3",
+      "entity_kind": 4,
+      "identity_origin": "derived",
+      "object_id": "acb4893bb44c869ab75422bc538116062ef0363eae93b08955aa1fd75e42f1f3",
+      "seed_local_token": 72,
+      "semantic_owner": "driver",
+      "stored_bytes_length": 388,
+      "stored_bytes_sha256": "43eea169c168cc61dcb0d1f87699210cde0416d9e4904d204118d16fd567823b"
     }
   ],
   "pinned_dependencies": {
@@ -477,17 +550,17 @@
     "host_abi_v2": "bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5",
     "raw_blake3_v1": "785205fb49490237cbec7ffe2fc4c2b0f98014b9aae76cc54795921e5d969f72"
   },
-  "scope": "five scaffold surfaces plus workspace/package/namespace/entry-point metadata in one admitted closure; mature leaf algorithms, typed build manifest/errors, complete runtime/layout dependencies, and canonical S remain open",
+  "scope": "five scaffold surfaces plus workspace/package/namespace/entry-point metadata and typed driver manifest/result/error layouts in one admitted closure; mature leaf algorithms, successful BuiltToolchain assembly, complete runtime dependencies, and canonical S remain open",
   "source": "crates/sley-vm/tests/rw080_toolchain_graph.rs",
   "state_root": {
     "dependency_root_count": 0,
-    "entity_binding_count": 31,
+    "entity_binding_count": 36,
     "entry_point_count": 5,
-    "root": "39b91dd84a4a4ed1414b034b522833d5f06c12b35d54bd46ecfc531d52d4d30d",
+    "root": "9b8a13eee185d9452a3d19dbdc727015f2536226ec4fa06ab2f7a096e9fdad3f",
     "stored_bytes_format": "base64(gzip(exact AcceptedStateRoot stored bytes)); gzip mtime=0",
-    "stored_bytes_gzip_base64": "H4sIAAAAAAAC/4WS+SMT/AOAc8y1zJGrlH1seJe9CSM6hhwpV65Wrqj2bn2Vo9CijNlcHYRVIrly51glZ85ck/uWmOyVtw2bOYt8/4T+geeH53lc7KzcXCzM9YSyhAq2t8Kih9W2GJ0p9FyNlSlyZ0jN9PCDu3qiemcvTsXCpuQlhcC/Pq+MpsNLmFZ+S4brBhLu/nZCnrPmu7Cf1GKk+d0Hs8LgTxiRXRk4gLCjiafmvk4v3Ay4u+SpMG3JkrPtahy+Uj7aylJGSDNAkC3Vzanlt9L3K4X6uZ57xVKXNMagBxpQ6ueTK20MezBAfixuhd9G54hvWqREbzPyInaxNPEx6n8p/5tFyjpIS4Hsv2b/fsGO5AvmAhe76RYipI9ktl7UnWHtKrV4a7PwJKBpMfNpIDmEBGH/vA5VmSuquLOlUpLHJG6ya02T9LxPg8ieJh8y316rTeykFjWmgGh+1YIdlt565hV6Z0piGlsBDkt6me2SnMSHZrdrfAPIrknv0SopmqaolRyJY6VfKi+Dqn24W76yzfukhgzhyiOWSHR73pbFlbNpxW18wxbD3Ryg/YFXIxMdKCvOJh91EoGr3r6lPuIZ/bgFP5L8Ji2DxANdCeMuz9sIBj+WM7uItS3t1iM0+CPZNQLdBBlLOBdzFuhZSsza7N87etgbEQ6rfnco7Sl0b2whGrf0Gr+IWHBVBjllOViohu1mzwql3QZFPc5QD3oGC4gJu4ZVwQbUjz8H+tzQpfngPYRgiQLarUti/YwJ82rMPYORT+yi61X7CkMBE4p7L+Gwd9Hydb/vNVc+2Yf8+dJnHP/C0VuL7hjdq50Ag5hgHD7YV1yfMEkUpXz1V5x2LnHMchVlJEeETN/8ggdSHTms7/72jjfojZMY1g/epku3/nLFobEdYUb1Y9UFHDBWTRCYZEYntcqf8cinZozviYgPT0JfeKihnCChUE1ZAE893lLPsaoMf0l6aC0m/meE7x+YKjzNn9LZpL0rSIOoAltLY27IoBEzUHiZMvskRu6bXvZyFKlL6AphjrjlajULPFZU1QL9r7F74XUZWuIihxyCdg6GKZHbPuRD9KR+QfOBu9HYs67HJ7KXZcT37MQ9c9jWWOAKZyMgfayt7rv5CVBwsTb8B+VXwR200TqKcXdgxVMQEbhKDLyzU7LRrpyhHAo8OdWMCHuyurREUsaHm+mS95BN2jSqPvPobdWg+5o0GIiJRtlvJs6eCT21Nu4BUbuR1f8sPkfJvevj4sr3o/TKZHAd4WRqKXJSvY2LTa4Jtqsw57ArnOXp7tq1K8Q19mYKOKW7A/l33in/KDF1obJnsEatFn5ELrOUqEVNrz9onC4B/MalP2LN4UUy1mKfxpzlRxWidGLgOE+V/mrMwipFKxAQ3ljnQwnpVYIvZMimSpJTeN0Dex/ZjdXm64gXJM+rISBwvS7JKqAjqOTwyDm349JcuwELjg5W8dvow5GvmYJ1AWCg+O/HH16++hb4NaqbDIbeOO4ykVX0wtk9TS3AW+nyCqC29Vr4husX10TdEDpIC3vWuK+/4p7UYpayW1YDlhTVCbgW/Ko0cg7RmTIodtGo7O/5gCPNqlmyKAb7vpX8y/UFEOf7VvoOR+ySYR1sulnHwTRTEHgS1UAkB4nKdx5WU+8GDanOTYICWJ7Sy3MOuR71eIGkQaT3I6w4O/cuxUuCSgDZhjSGvibvOdNtsq61hKNtRP9NMbThSMW/e+uT2RCzChDpGnMb8pxH6PFQWkA0V6ETl/fpjhYmtgwiKonMwzSBkvYolYbJIJ7Pfchg23T18rzt5UFr/qUlFnuF5L1RKAdOVLfaHTt9QQ4dVzUmUtnukp2C+fytyqAWrn5fU4dptwNKC8+8x+SapXmxbj14qDysI8zeQwz9MD8//SPlKfF/lL+ADnKAvi9m/8f0lP8UUIpo/OPX3Yk1JRy9fySfa0XEPa8FlYXjZulfq2j9IqsTjWKGX+MKoYiOhxlc46Zi2a019nkgbCjXwkkLCSfV/cqd5p5CbxgZSyvxWDXnO72qJBUpfaBLcdW7wH9iVfK9NMUsyHEohIUsrEbKm4bN53/K/ytyCIwwG8q+l9f0TO7Hl3pjaaNZOMUPGtnwtgr/HLNmv3Ip0FMaKVZ8lrceZcOZ73ED/7KwsY8km30XP+zfmXEcjt0BtLWYp8wn6s0i249+hMrFbSiQPpfY36Rv1GnjMCfI0ATQGzMhIFTPeHOUr/2uf1X783fpi8m4URpM1qnTGJWf5gDgy1aban3xty4Xj7smqqfhYQ3N5k50ueAX0KYjZZ1yJDC8UeZXr0NeafVP9SIquwwv8/qX7XRxcOF+bSMrXR0CIDscdIzKKy8a5XH5biSxh0OUdp5SZ1nfvCWuLVvG/TwYswgt0h46EdavGirabLI7E7VgsoMxW+WdwZnMbFrzkICqkutk2jdohZuxv12Z2l08QirX+Rz8AOUPcxf131TMAfNZbvecKA56p+LHnH4kguvnC8h/hx20MRi8eGO0hGtoDCw8usZkzMIO3FZ50yLV66Bb3oFMuD1XHXMgYkt5YZWVD7g5+o3TemQwnfgq+LZmkV9UT0cwo8XnHN1obpZ8Ni4MmLh3hagveaJe5F4IK8F88WJPGOfn/HrdUZOgMqcoQLDAsnZc+6SjiBa8svCz0csICP6dY56tLnLg2OAuAtlCEIDGyiq7yd/6r6cM0GlRphnl6AveJv9gKcwr20+wr+cIHLCmqO8rFmyL9ps85nvIT9c4nPrEuXienhx1zDe9WXv1JJDCZZSG9lEtCvXk6s23hEkwQvtOGwKRCSvq4Ag8bm6BdVQ5VFoL2i1TMXNpu9cVfiR7Xal4wTv4BDP3idT9VCaARfqlcjM7sbYnv7W4fVLk4+XxYwd+xfY4J/ZWbmodZormC0H+fPYfp/lj0T/q/pNNiNAeMcCMdcniKwR4tmwgVK33v2ygXV+23oC+cxubaf2tEHVpSBygbvCCDayafGLXNN2Khp9LCLU2YY+wPT2H8T8vuHzn4iXAyYSSyDdTsbZDgqfxlP5JymAvUkHctIuEDVl8ApfufCkptOd4zaFxGxuHgdO2IrbOKMwI76b8Oy/Xj2e42y6HnIeHpP8PfPGIdKkJAAA=",
-    "stored_bytes_sha256": "d0e803659a21d82234a01bd9f9edcd3cc932cb736fad341550cc2fc23d8ef633",
-    "stored_bytes_uncompressed_length": 2473
+    "stored_bytes_gzip_base64": "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",
+    "stored_bytes_sha256": "25a36144a42f01fc7808bcbefb1f090cbcef2e91ef32aa6bbe975ef9a0a57d80",
+    "stored_bytes_uncompressed_length": 2803
   },
   "status": "PROVISIONAL_C0_PARTIAL_COMPONENT_NOT_AUTHORITY",
   "work_package": "RW-080"

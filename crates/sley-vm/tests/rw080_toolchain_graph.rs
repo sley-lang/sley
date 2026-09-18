@@ -13,13 +13,16 @@ use sley_mutate::{
     EntityObject, EntityObjectRecord, build_entity_object, import_entity_object,
     value::{
         BlockBody, ConstantBody, EntityBodyValue, EntityIdSet, EntryExposure, EntryPointBody,
-        FunctionBody, NamespaceBody, OperationBody, PackageBody, ParameterBody, WorkspaceBody,
+        FunctionBody, NamespaceBody, OperationBody, PackageBody, ParameterBody, TypeDefBody,
+        WorkspaceBody,
     },
 };
 use sley_ssmc::{
-    Block, ConstData, ConstValue, ConstantDefinition, FunctionGraph, FunctionRefValue, Immediate,
-    IntegerWidth, Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability,
-    ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
+    Block, ConstData, ConstValue, ConstantDefinition, FieldConst, FunctionGraph, FunctionRefValue,
+    Immediate, IntegerWidth, MemberId, NamedType, Opcode, Operation, OperationResultRef, Parameter,
+    ParameterRole, Reachability, RecordConst, RecordField, ResultConst, ReturnTerminator,
+    Terminator, TypeDefForm, TypeDefinition, TypeExpr, ValueRef, VariantCase, VariantConst,
+    Visibility,
 };
 use std::fmt::Write;
 
@@ -31,11 +34,27 @@ const BUILDER: u8 = 5;
 
 const GENESIS_SEED: [u8; 32] = [0x80; 32];
 const CANDIDATE_SEED: [u8; 32] = [0x87; 32];
+const BOOTSTRAP_PROFILE_V2: [u8; 32] = [
+    0xfb, 0x2d, 0x8c, 0xc8, 0x7e, 0xe7, 0xde, 0x68, 0xcd, 0xe8, 0x19, 0x7a, 0x77, 0x00, 0x3a, 0x41,
+    0x7a, 0x00, 0x62, 0xac, 0xb6, 0xed, 0x08, 0x7d, 0x85, 0xf8, 0x99, 0xda, 0x1a, 0x84, 0x74, 0x59,
+];
+const HOST_ABI_V2: [u8; 32] = [
+    0xbc, 0x56, 0x46, 0x53, 0x30, 0x2a, 0x73, 0xeb, 0x5f, 0x99, 0x84, 0x27, 0x25, 0x0a, 0x2b, 0xb7,
+    0xcd, 0x87, 0xf5, 0x68, 0x5e, 0xf1, 0x26, 0x19, 0xbd, 0x4a, 0xe1, 0xf1, 0xb2, 0xaf, 0x70, 0xd5,
+];
+const EXEC_PACKAGE_V2: [u8; 32] = [
+    0xf4, 0x95, 0x8c, 0x5e, 0x3d, 0x57, 0x76, 0x21, 0x73, 0xb8, 0x81, 0x28, 0x8b, 0x00, 0x8a, 0xf1,
+    0x7d, 0x45, 0xb5, 0xf0, 0x7a, 0x43, 0x1f, 0xcc, 0x44, 0x2d, 0x9e, 0xec, 0x57, 0x70, 0xda, 0x94,
+];
+const RAW_BLAKE3_V1: [u8; 32] = [
+    0x78, 0x52, 0x05, 0xfb, 0x49, 0x49, 0x02, 0x37, 0xcb, 0xec, 0x7f, 0xfe, 0x2f, 0xc4, 0xc2, 0xb0,
+    0xf9, 0x80, 0x14, 0xb9, 0xaa, 0xe7, 0x6c, 0xc5, 0x47, 0x95, 0x92, 0x1e, 0x5d, 0x96, 0x9f, 0x72,
+];
 const CONTRACT_ROOT_PREIMAGE: &[u8] = b"SLEY2/RW080/PARTIAL/EMPTY-CONTRACT-ROOT/V1";
 const TEST_ROOT_PREIMAGE: &[u8] = b"SLEY2/RW080/PARTIAL/EMPTY-TEST-ROOT/V1";
-const ENTITY_TOKENS: [u8; 31] = [
-    1, 2, 3, 4, 5, 10, 11, 20, 21, 22, 23, 24, 30, 31, 32, 40, 41, 42, 43, 44, 45, 46, 47, 60, 61,
-    62, 63, 64, 65, 66, 67,
+const ENTITY_TOKENS: [u8; 36] = [
+    1, 2, 3, 4, 5, 10, 11, 20, 21, 22, 23, 24, 30, 31, 32, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+    60, 61, 62, 63, 64, 65, 66, 67, 70, 71, 72,
 ];
 
 fn workspace() -> WorkspaceId {
@@ -52,11 +71,12 @@ fn seed_position(byte: u8) -> (u32, u64) {
         10..=11 => (6, u64::from(byte - 10)),
         20..=24 => (7, u64::from(byte - 20)),
         30..=32 => (9, u64::from(byte - 30)),
-        40..=47 => (8, u64::from(byte - 40)),
+        40..=49 => (8, u64::from(byte - 40)),
         60 => (1, 0),
         61 => (2, 0),
         62 => (3, 0),
         63..=67 => (16, u64::from(byte - 63)),
+        70..=72 => (4, u64::from(byte - 70)),
         _ => panic!("unknown aggregate seed-local identity {byte}"),
     }
 }
@@ -88,7 +108,7 @@ fn policy_root() -> PolicyRootId {
 
 fn seed_owner(token: u8) -> &'static str {
     match token {
-        DRIVER | 10 | 20 | 40..=44 | 60..=63 => "driver",
+        DRIVER | 10 | 20 | 40..=44 | 48..=49 | 60..=63 | 70..=72 => "driver",
         CODEC | 21 | 30 | 45 | 64 => "codec",
         CHECKER | 22 | 31 | 46 | 65 => "checker",
         LOWERER | 23 | 32 | 47 | 66 => "lowerer",
@@ -113,6 +133,190 @@ fn bytes_value(bytes: &[u8]) -> ConstValue {
         value_type: TypeExpr::Bytes,
         data: ConstData::Bytes(bytes.to_vec()),
     }
+}
+
+fn bytes_vector(values: impl IntoIterator<Item = Vec<u8>>) -> ConstValue {
+    ConstValue {
+        value_type: TypeExpr::Vector(Box::new(TypeExpr::Bytes)),
+        data: ConstData::Sequence(
+            values
+                .into_iter()
+                .map(|value| bytes_value(&value))
+                .collect(),
+        ),
+    }
+}
+
+fn build_manifest_value(
+    object_closure: &[u8],
+    state_root: &[u8; 32],
+    package_digest: &[u8; 32],
+) -> ConstValue {
+    let entry_points = (63..=67)
+        .map(|token| id(token).as_bytes().to_vec())
+        .collect::<Vec<_>>();
+    ConstValue {
+        value_type: build_manifest_type(),
+        data: ConstData::Record(RecordConst {
+            definition: id(70),
+            fields: vec![
+                FieldConst {
+                    member_id: member(0xA0),
+                    value: bytes_value(object_closure),
+                },
+                FieldConst {
+                    member_id: member(0xA1),
+                    value: bytes_vector(entry_points),
+                },
+                FieldConst {
+                    member_id: member(0xA2),
+                    value: bytes_vector(vec![package_digest.to_vec()]),
+                },
+                FieldConst {
+                    member_id: member(0xA3),
+                    value: bytes_value(&BOOTSTRAP_PROFILE_V2),
+                },
+                FieldConst {
+                    member_id: member(0xA4),
+                    value: bytes_value(&HOST_ABI_V2),
+                },
+                FieldConst {
+                    member_id: member(0xA5),
+                    value: bytes_value(&EXEC_PACKAGE_V2),
+                },
+                FieldConst {
+                    member_id: member(0xA6),
+                    value: bytes_value(&RAW_BLAKE3_V1),
+                },
+                FieldConst {
+                    member_id: member(0xA7),
+                    value: bytes_value(epoch().as_bytes()),
+                },
+                FieldConst {
+                    member_id: member(0xA8),
+                    value: bytes_value(state_root),
+                },
+            ],
+        }),
+    }
+}
+
+fn incomplete_build_result() -> ConstValue {
+    ConstValue {
+        value_type: build_result_type(),
+        data: ConstData::Result(ResultConst::Err(Box::new(ConstValue {
+            value_type: build_error_type(),
+            data: ConstData::Variant(VariantConst {
+                definition: id(72),
+                member_id: member(0xCF),
+                payload: None,
+            }),
+        }))),
+    }
+}
+
+fn member(byte: u8) -> MemberId {
+    MemberId::from_bytes([byte; 32])
+}
+
+fn named(token: u8) -> TypeExpr {
+    TypeExpr::Named(NamedType {
+        definition: id(token),
+        arguments: Vec::new(),
+    })
+}
+
+fn build_manifest_type() -> TypeExpr {
+    named(70)
+}
+
+fn built_toolchain_type() -> TypeExpr {
+    named(71)
+}
+
+fn build_error_type() -> TypeExpr {
+    named(72)
+}
+
+fn build_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(built_toolchain_type()),
+        error: Box::new(build_error_type()),
+    }
+}
+
+fn record_field(member_id: u8, value_type: TypeExpr) -> RecordField {
+    RecordField {
+        member_id: member(member_id),
+        value_type,
+        visibility: Visibility::Private,
+    }
+}
+
+fn toolchain_type_definitions() -> Vec<TypeDefinition> {
+    let bytes_vector = || TypeExpr::Vector(Box::new(TypeExpr::Bytes));
+    vec![
+        TypeDefinition {
+            entity_id: id(70),
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Record(vec![
+                record_field(0xA0, TypeExpr::Bytes),
+                record_field(0xA1, bytes_vector()),
+                record_field(0xA2, bytes_vector()),
+                record_field(0xA3, TypeExpr::Bytes),
+                record_field(0xA4, TypeExpr::Bytes),
+                record_field(0xA5, TypeExpr::Bytes),
+                record_field(0xA6, TypeExpr::Bytes),
+                record_field(0xA7, TypeExpr::Bytes),
+                record_field(0xA8, TypeExpr::Bytes),
+            ]),
+            invariants: Vec::new(),
+            visibility: Visibility::Private,
+        },
+        TypeDefinition {
+            entity_id: id(71),
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Record(vec![
+                record_field(0xB0, bytes_vector()),
+                record_field(0xB1, bytes_vector()),
+                record_field(0xB2, TypeExpr::Bool),
+            ]),
+            invariants: Vec::new(),
+            visibility: Visibility::Private,
+        },
+        TypeDefinition {
+            entity_id: id(72),
+            type_parameters: Vec::new(),
+            form: TypeDefForm::Variant(vec![
+                VariantCase {
+                    member_id: member(0xC0),
+                    payload_type: Some(uint(8)),
+                },
+                VariantCase {
+                    member_id: member(0xC1),
+                    payload_type: Some(uint(8)),
+                },
+                VariantCase {
+                    member_id: member(0xC2),
+                    payload_type: Some(uint(32)),
+                },
+                VariantCase {
+                    member_id: member(0xC3),
+                    payload_type: Some(TypeExpr::Bytes),
+                },
+                VariantCase {
+                    member_id: member(0xC4),
+                    payload_type: Some(TypeExpr::Bytes),
+                },
+                VariantCase {
+                    member_id: member(0xCF),
+                    payload_type: None,
+                },
+            ]),
+            invariants: Vec::new(),
+            visibility: Visibility::Private,
+        },
+    ]
 }
 
 fn op_result(operation: u8) -> ValueRef {
@@ -142,6 +346,7 @@ fn leaf_graph(function: u8, block: u8, result_type: TypeExpr) -> FunctionGraph {
 
 struct ToolchainImage {
     types: sley_check::TypeEnvironment,
+    type_definitions: Vec<TypeDefinition>,
     entry: FunctionGraph,
     functions: Vec<FunctionGraph>,
     parameters: Vec<Parameter>,
@@ -183,25 +388,40 @@ fn constant_ref(operation: u8, block: u8, constant: u8, result_type: TypeExpr) -
     }
 }
 
-fn toolchain_operations(result_type: TypeExpr) -> Vec<Operation> {
+fn toolchain_operations() -> Vec<Operation> {
     vec![
-        direct_call(
-            40,
-            0,
-            BUILDER,
-            vec![ValueRef::Parameter(id(10))],
-            TypeExpr::Bytes,
-        ),
-        direct_call(41, 1, CODEC, Vec::new(), uint(8)),
-        direct_call(42, 2, CHECKER, Vec::new(), uint(8)),
-        direct_call(43, 3, LOWERER, Vec::new(), uint(32)),
         Operation {
-            entity_id: id(44),
+            entity_id: id(40),
             block: id(20),
-            ordinal: 4,
-            opcode: Opcode::TupleNew,
-            operands: vec![op_result(40), op_result(41), op_result(42), op_result(43)],
-            result_types: vec![result_type],
+            ordinal: 0,
+            opcode: Opcode::RecordGet,
+            operands: vec![ValueRef::Parameter(id(10))],
+            result_types: vec![TypeExpr::Bytes],
+            immediate: Immediate::Field(member(0xA0)),
+        },
+        direct_call(41, 1, BUILDER, vec![op_result(40)], TypeExpr::Bytes),
+        direct_call(42, 2, CODEC, Vec::new(), uint(8)),
+        direct_call(43, 3, CHECKER, Vec::new(), uint(8)),
+        direct_call(44, 4, LOWERER, Vec::new(), uint(32)),
+        Operation {
+            entity_id: id(48),
+            block: id(20),
+            ordinal: 5,
+            opcode: Opcode::VariantNew,
+            operands: Vec::new(),
+            result_types: vec![build_error_type()],
+            immediate: Immediate::Variant(sley_ssmc::VariantImmediate {
+                definition: id(72),
+                member_id: member(0xCF),
+            }),
+        },
+        Operation {
+            entity_id: id(49),
+            block: id(20),
+            ordinal: 6,
+            opcode: Opcode::ResultErr,
+            operands: vec![op_result(48)],
+            result_types: vec![build_result_type()],
             immediate: Immediate::None,
         },
         constant_ref(45, 21, 30, uint(8)),
@@ -223,7 +443,12 @@ fn returning_block(block: u8, function: u8, operations: Vec<EntityId>, value: Va
 
 fn toolchain_blocks() -> Vec<Block> {
     vec![
-        returning_block(20, DRIVER, (40..=44).map(id).collect(), op_result(44)),
+        returning_block(
+            20,
+            DRIVER,
+            [40, 41, 42, 43, 44, 48, 49].map(id).to_vec(),
+            op_result(49),
+        ),
         returning_block(21, CODEC, vec![id(45)], op_result(45)),
         returning_block(22, CHECKER, vec![id(46)], op_result(46)),
         returning_block(23, LOWERER, vec![id(47)], op_result(47)),
@@ -232,7 +457,8 @@ fn toolchain_blocks() -> Vec<Block> {
 }
 
 fn aggregate_toolchain_graph() -> ToolchainImage {
-    let result_type = TypeExpr::Tuple(vec![TypeExpr::Bytes, uint(8), uint(8), uint(32)]);
+    let type_definitions = toolchain_type_definitions();
+    let result_type = build_result_type();
     let driver = FunctionGraph {
         entity_id: id(DRIVER),
         type_parameters: Vec::new(),
@@ -252,7 +478,8 @@ fn aggregate_toolchain_graph() -> ToolchainImage {
         leaf_graph(BUILDER, 24, TypeExpr::Bytes),
     ];
     ToolchainImage {
-        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        types: sley_check::TypeEnvironment::new(type_definitions.clone()).unwrap(),
+        type_definitions,
         entry: driver,
         functions,
         parameters: vec![
@@ -261,7 +488,7 @@ fn aggregate_toolchain_graph() -> ToolchainImage {
                 owner: id(DRIVER),
                 role: ParameterRole::Function,
                 ordinal: 0,
-                value_type: TypeExpr::Bytes,
+                value_type: build_manifest_type(),
             },
             Parameter {
                 entity_id: id(11),
@@ -272,7 +499,7 @@ fn aggregate_toolchain_graph() -> ToolchainImage {
             },
         ],
         blocks: toolchain_blocks(),
-        operations: toolchain_operations(result_type),
+        operations: toolchain_operations(),
         constants: vec![
             ConstantDefinition {
                 entity_id: id(30),
@@ -305,6 +532,11 @@ fn canonical_object(entity_id: EntityId, body: EntityBodyValue) -> EntityObject 
 
 fn canonical_component_metadata() -> Vec<EntityObject> {
     let entry_points = (63..=67).map(id).collect::<Vec<_>>();
+    let namespace_members = entry_points
+        .iter()
+        .copied()
+        .chain((70..=72).map(id))
+        .collect::<Vec<_>>();
     let mut objects = vec![
         canonical_object(
             id(60),
@@ -329,7 +561,7 @@ fn canonical_component_metadata() -> Vec<EntityObject> {
             id(62),
             EntityBodyValue::Namespace(NamespaceBody {
                 parent: None,
-                members: EntityIdSet::from_unsorted(entry_points).unwrap(),
+                members: EntityIdSet::from_unsorted(namespace_members).unwrap(),
             }),
         ),
     ];
@@ -354,6 +586,18 @@ fn canonical_component_metadata() -> Vec<EntityObject> {
 
 fn canonical_component_objects(image: &ToolchainImage) -> Vec<EntityObject> {
     let mut objects = Vec::new();
+    objects.extend(image.type_definitions.iter().map(|definition| {
+        canonical_object(
+            definition.entity_id,
+            EntityBodyValue::TypeDef(TypeDefBody {
+                type_parameters: definition.type_parameters.clone(),
+                form: definition.form.clone(),
+                invariants: EntityIdSet::from_unsorted(definition.invariants.clone())
+                    .expect("aggregate invariants are unique"),
+                visibility: definition.visibility,
+            }),
+        )
+    }));
     objects.extend(image.functions.iter().map(|function| {
         canonical_object(
             function.entity_id,
@@ -489,7 +733,7 @@ fn admitted_toolchain_graph() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedEx
     let package = ExecutionPackage {
         image_bytes: lowered.bytes,
         constants: image.constants.clone(),
-        type_definitions: Vec::new(),
+        type_definitions: image.type_definitions.clone(),
         imports: Vec::new(),
         globals: Vec::new(),
         contracts: Vec::new(),
@@ -526,39 +770,32 @@ fn admitted_toolchain_graph() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedEx
 fn execute_driver(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
-    manifest: &[u8],
+    object_closure: &[u8],
 ) -> sley_vm::ExecutionOutcome {
+    let manifest = build_manifest_value(
+        object_closure,
+        package.state_root.as_bytes(),
+        &approved.package_digest,
+    );
     sley_vm::execute_approved_package_v2(
         package,
         approved,
         sley_vm::ExecutionRequest {
-            inputs: vec![bytes_value(manifest)],
+            inputs: vec![manifest],
             limits: generous_limits(),
         },
     )
     .expect("aggregate driver executes")
 }
 
-fn assert_driver_result(outcome: &sley_vm::ExecutionOutcome, manifest: &[u8]) {
+fn assert_driver_result(outcome: &sley_vm::ExecutionOutcome) {
     let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
         panic!(
             "aggregate driver must return, got {:?}",
             outcome.termination
         );
     };
-    assert_eq!(
-        value.value_type,
-        TypeExpr::Tuple(vec![TypeExpr::Bytes, uint(8), uint(8), uint(32)])
-    );
-    assert_eq!(
-        value.data,
-        ConstData::Sequence(vec![
-            bytes_value(manifest),
-            uint_value(8, 6),
-            uint_value(8, 0),
-            uint_value(32, 0),
-        ])
-    );
+    assert_eq!(*value, incomplete_build_result());
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -573,7 +810,7 @@ fn aggregate_toolchain_graph_admits_and_runs_the_driver_surface() {
     let (package, approved) = admitted_toolchain_graph();
     for manifest in [b"manifest-a".as_slice(), b"\0manifest-b\xff".as_slice()] {
         let outcome = execute_driver(&package, &approved, manifest);
-        assert_driver_result(&outcome, manifest);
+        assert_driver_result(&outcome);
         assert!(outcome.fuel_used > 0);
         assert!(outcome.instruction_count > 0);
         println!(
@@ -584,6 +821,47 @@ fn aggregate_toolchain_graph_admits_and_runs_the_driver_surface() {
             outcome.peak_value_units,
         );
     }
+}
+
+#[test]
+fn aggregate_driver_uses_typed_manifest_result_and_error_contract() {
+    let image = aggregate_toolchain_graph();
+    assert_eq!(image.entry.parameters, vec![id(10)]);
+    assert_eq!(image.parameters[0].value_type, build_manifest_type());
+    assert_eq!(
+        image.entry.result_type,
+        TypeExpr::Result {
+            ok: Box::new(built_toolchain_type()),
+            error: Box::new(build_error_type()),
+        }
+    );
+    assert_eq!(image.type_definitions, toolchain_type_definitions());
+    let operation = |token| {
+        image
+            .operations
+            .iter()
+            .find(|operation| operation.entity_id == id(token))
+            .expect("driver operation exists")
+    };
+    assert_eq!(operation(40).opcode, Opcode::RecordGet);
+    assert_eq!(operation(40).immediate, Immediate::Field(member(0xA0)));
+    assert_eq!(operation(41).opcode, Opcode::CallDirect);
+    assert_eq!(operation(41).operands, vec![op_result(40)]);
+    assert_eq!(operation(48).opcode, Opcode::VariantNew);
+    assert_eq!(operation(49).opcode, Opcode::ResultErr);
+    let identity = [0xD1; 32];
+    image
+        .types
+        .check_constant(&build_manifest_value(
+            b"typed-closure",
+            &identity,
+            &identity,
+        ))
+        .expect("typed build manifest is a canonical value");
+    image
+        .types
+        .check_constant(&incomplete_build_result())
+        .expect("typed incomplete BuildError is a canonical result");
 }
 
 #[test]
@@ -625,6 +903,12 @@ fn assert_component_metadata(objects: &[EntityObject]) {
             EntityBodyValue::EntryPoint(_)
         ));
     }
+    for token in 70..=72 {
+        assert!(matches!(
+            component_body(objects, token),
+            EntityBodyValue::TypeDef(_)
+        ));
+    }
 }
 
 #[test]
@@ -664,9 +948,9 @@ fn aggregate_component_objects_and_state_root_round_trip_exactly() {
     assert_eq!(
         root.root.into_bytes(),
         [
-            0x39, 0xb9, 0x1d, 0xd8, 0x4a, 0x4a, 0x4e, 0xd1, 0x41, 0x4b, 0x03, 0x4b, 0x52, 0x28,
-            0x33, 0xd5, 0xf0, 0x6c, 0x12, 0xb3, 0x5d, 0x54, 0xbd, 0x46, 0xec, 0xfc, 0x53, 0x1d,
-            0x52, 0xd4, 0xd3, 0x0d,
+            0x9b, 0x8a, 0x13, 0xee, 0xe1, 0x85, 0xd9, 0x45, 0x2a, 0x3d, 0x19, 0xdb, 0xdc, 0x72,
+            0x70, 0x15, 0xf2, 0x53, 0x62, 0x26, 0xec, 0x4f, 0xa0, 0x6a, 0xb2, 0xf7, 0xa0, 0x96,
+            0xe9, 0xfd, 0xad, 0x3f,
         ],
         "the partial component root is pinned"
     );
@@ -743,9 +1027,9 @@ fn retained_component_manifest_is_digest_pinned() {
     assert_eq!(
         digest,
         [
-            0xce, 0xa0, 0x72, 0xa2, 0xa2, 0x7e, 0x63, 0x73, 0x4a, 0x33, 0x6e, 0x6e, 0xa6, 0x3b,
-            0xf5, 0x7a, 0x20, 0xfa, 0x0f, 0xbf, 0x3c, 0x1c, 0xf8, 0x9e, 0x6b, 0x78, 0xf3, 0xa5,
-            0xc4, 0x0d, 0x5c, 0x97,
+            0x96, 0xeb, 0x33, 0x61, 0x7a, 0xa7, 0xc0, 0xb5, 0x0b, 0x10, 0x3e, 0x9c, 0xed, 0x33,
+            0xe4, 0x57, 0xf8, 0xe4, 0x5c, 0xaa, 0xb7, 0x53, 0x46, 0xe8, 0x2b, 0xb8, 0x92, 0x18,
+            0xf2, 0x8a, 0xc5, 0x18,
         ]
     );
     assert!(manifest.contains("\"is_canonical_s\": false"));
@@ -777,9 +1061,13 @@ fn aggregate_toolchain_package_has_stable_component_identity() {
     let envelope = sley_vm::encode_package_envelope_v2(&package).expect("package encodes");
     let decoded = sley_vm::decode_package_envelope_v2(&envelope).expect("package decodes");
     let digests = sley_vm::package_digests_v2(&package).expect("package digests");
+    let image = aggregate_toolchain_graph();
     assert_eq!(decoded.entry, id(DRIVER));
     assert_eq!(decoded.schema_epoch, epoch());
-    let image = aggregate_toolchain_graph();
+    assert_eq!(
+        sley_vm::decode_layouts_section(&decoded.layouts_bytes).expect("layouts decode"),
+        image.type_definitions
+    );
     let expected_root = canonical_component_root(&canonical_component_objects(&image));
     assert_eq!(decoded.state_root, expected_root.root);
     assert_eq!(decoded.digests, digests);
@@ -788,9 +1076,9 @@ fn aggregate_toolchain_package_has_stable_component_identity() {
     assert_eq!(
         digests.package_digest,
         [
-            0xee, 0xc3, 0xcc, 0x89, 0x41, 0xa7, 0x59, 0xd8, 0x38, 0x67, 0x9d, 0xe0, 0xea, 0xb9,
-            0xbd, 0x10, 0x41, 0xdc, 0x19, 0x37, 0x4c, 0xc1, 0x50, 0x41, 0xc4, 0xe5, 0xb7, 0x98,
-            0x80, 0x54, 0x4d, 0xed,
+            0x6e, 0x53, 0xba, 0xbe, 0x85, 0x1b, 0x2e, 0x99, 0x11, 0x85, 0x24, 0x02, 0xcd, 0xda,
+            0xd1, 0x6c, 0xb6, 0xc8, 0x0b, 0x61, 0x15, 0x03, 0x41, 0x6a, 0x7c, 0xc0, 0x1c, 0x20,
+            0xee, 0x98, 0xb7, 0x2a,
         ],
         "the provisional aggregate component identity is pinned"
     );

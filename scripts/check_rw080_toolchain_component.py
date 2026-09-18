@@ -42,6 +42,8 @@ EXPECTED_TOKENS = [
     45,
     46,
     47,
+    48,
+    49,
     60,
     61,
     62,
@@ -50,6 +52,9 @@ EXPECTED_TOKENS = [
     65,
     66,
     67,
+    70,
+    71,
+    72,
 ]
 ENTRY_TOKENS = {
     "driver": 63,
@@ -161,6 +166,17 @@ def main() -> int:
     for name, token in FUNCTION_TOKENS.items():
         if functions.get(name) != by_token.get(token, {}).get("entity_id"):
             problems.append(f"entry-function-{name}")
+
+    driver = manifest.get("driver_contract", {})
+    for field, token in {
+        "build_manifest_type": 70,
+        "built_toolchain_type": 71,
+        "build_error_type": 72,
+    }.items():
+        if driver.get(field) != by_token.get(token, {}).get("entity_id"):
+            problems.append(f"driver-{field}")
+    if driver.get("scaffold_result") != "typed BuildError::Incomplete":
+        problems.append("driver-scaffold-result")
 
     state = manifest.get("state_root", {})
     try:
