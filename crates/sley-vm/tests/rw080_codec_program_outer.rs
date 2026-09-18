@@ -49,6 +49,8 @@ use sley_ssmc::{
     VariantSwitchTerminator, Visibility,
 };
 
+#[path = "rw080_codec_program/adapter_import.rs"]
+mod adapter_import;
 #[path = "rw080_codec_program/constant.rs"]
 mod constant;
 #[path = "rw080_codec_program/dependency_binding.rs"]
