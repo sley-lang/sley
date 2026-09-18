@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "32b4c125df9c162c1d68c9c29495efaa9da0359157d205ecd6cf4d7be8e025c5",
+  "report_digest": "fb0872138c0165404a8999b67087bb78fd9e0a7b8d1d8a7e63173795c9ea9764",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -1916,10 +1916,11 @@
       "exercised_source_count": 2,
       "expected_failure_code": "RELEASE_ARTIFACT_MISMATCH",
       "id": "T53",
-      "located_file_count": 5,
+      "located_file_count": 6,
       "located_in": {
         "checkers": [
           "scripts/build_release_candidate.py",
+          "scripts/build_reproducibility_report.py",
           "scripts/check_release_candidate_packaging.py",
           "scripts/check_reproducibility_and_independent_conformance.py"
         ],

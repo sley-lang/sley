@@ -2173,41 +2173,48 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "e7ad2ddff63d70c96b1d3c9690026529d2368393",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 1127,
-      "corpus_file_count": 1304,
+      "corpus_file_count": 1127,
       "runs_requested": 2156,
       "runs_floor": 2156,
       "executed_runs": 2156,
       "coverage": {
-        "counters": 1440,
-        "ft_done": 648,
-        "ft_inited": 641,
+        "counters": 1453,
+        "ft_done": 481,
+        "ft_inited": 452,
         "new_events": true,
-        "seed": 770733040
+        "seed": 4166288472
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
+      "owner_lib_sancov_total": 1400,
       "owner_lib_sancov": 54,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "vulcan_review": "PASS_PRIOR_P2_CLOSED_NO_OPEN_P0_P1_P2_WITH_P3_P4_FOLLOWUPS",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_5_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_scb1_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 f732858fd7d8c8823d3f97416fd798c23551869bef771c8e5ba681b99656849c) (transcript FIELD line reads vulcan_review_closure). Two of the eight unclaimed P3/P4 findings are verified closed (register field at af9dba84, docs at c5424aa4); four P3 and two P4 remain open because the target and checker are unchanged since b64ab9e and the runner change did not touch the cited lines. The doc closure copied the overstated re-encode-oracle claim into tracked docs, and the b1218578 runner rewrite left the register's last_local_proof bound to a superseded runner while a canonical on-disk proof cites a non-ancestor commit. Checker exit 0 PASS was reproduced but cannot see any of these. Row not closable at this SHA.",
@@ -2246,41 +2253,48 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 259,
-      "corpus_file_count": 284,
+      "corpus_file_count": 259,
       "runs_requested": 510,
-      "runs_floor": 540,
-      "executed_runs": 540,
+      "runs_floor": 515,
+      "executed_runs": 515,
       "coverage": {
-        "counters": 2799,
-        "ft_done": 510,
-        "ft_inited": 510,
-        "new_events": false,
-        "seed": 3692504723
+        "counters": 2812,
+        "ft_done": 493,
+        "ft_inited": 491,
+        "new_events": true,
+        "seed": 3833312082
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
+      "owner_lib_sancov_total": 1400,
       "owner_lib_sancov": 41,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_4_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_4_P3_3_P4",
@@ -2330,53 +2344,38 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "c7fec9893fa17ee30be463a3eebf491cd115c020",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "M docs/audits/S20_700_SEMANTIC_CHECKERS_PERSISTENT_SLICE.md",
-        " M fuzz/targets/ssmc_graph_cfg_checker.rs",
-        " M fuzz/targets/type_checker.rs",
-        " M machineresearch/sley-2.0/machine-summary.json",
-        " M scripts/check_semantic_checkers_persistent_fuzz_slice.py",
-        " M scripts/run_semantic_checkers_persistent_fuzz.py",
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json",
-        "?? evidence/review/verdicts/s20_600_frozen_legacy_adapter/vulcan_review-9d608c4.md",
-        "?? evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/vulcan_review-9d608c4.md",
-        "?? evidence/review/verdicts/s20_700_query_persistent_fuzz_slice/vulcan_review-9d608c4.md",
-        "?? evidence/review/verdicts/s20_700_schema_persistent_fuzz_slice/vulcan_review-9d608c4.md",
-        "?? evidence/review/verdicts/s20_700_vm_persistent_fuzz_slice/"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 500,
-      "corpus_file_count": 519,
-      "executed_runs": 775,
+      "corpus_file_count": 500,
+      "executed_runs": 756,
       "coverage": {
-        "counters": 8878,
-        "ft_done": 3761,
-        "ft_inited": 3756,
+        "counters": 9040,
+        "ft_done": 3685,
+        "ft_inited": 3630,
         "new_events": true,
-        "seed": 3404799520
+        "seed": 3622175855
       },
-      "crash_artifacts": [
-        "crash-35737a63df2135aed6a16b0c7cc910872ab490a1",
-        "crash-4b1158f7be0287eb8c0a47441112f3d4ec9fb4f5"
-      ],
+      "crash_artifacts": [],
       "new_crash_artifacts": [],
-      "retested_prior_crashes": [
-        {
-          "artifact": "crash-35737a63df2135aed6a16b0c7cc910872ab490a1",
-          "returncode": 0,
-          "still_crashes": false
-        },
-        {
-          "artifact": "crash-4b1158f7be0287eb8c0a47441112f3d4ec9fb4f5",
-          "returncode": 0,
-          "still_crashes": false
-        }
-      ],
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "retested_prior_crashes": [],
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "runs_floor": 756,
+      "owner_lib_sancov": 149,
+      "coverage_ok": true,
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "vulcan_review_note": "Qualifying re-review of the c7fec98 fix at a525797 (transcript vulcan_review-c7fec98.md, FIELD vulcan_review, ROUND final): all five classes verified executing (static + seed-0493 probe + 775/775 proof), precedence sets match S20-540 order, no-store exemption intact, verdict field Honest. PASS with 3 P3 + 4 P4. VR-C7-01 (tracked proof still 4c30d1b; reseal_lane still exact-class wording) closes with the standard proof-refresh records commit; VR-C7-02/03 are owner items for the next target round; VR-C7-04..07 are P4 notes. Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_4_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 9f41fe3f93805e0cbe17b4694252f107879a97d7e3b7917609b3e6358edbbced) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-c7fec98.md) was located; of its 3 P3 + 4 P4 findings, VR-C7-01 and VR-C7-04 are verified closed by records commit 1f969f99, while VR-C7-02, VR-C7-03, VR-C7-05, VR-C7-06 and VR-C7-07 remain open because the target and checker are byte-identical to c7fec98 and the owners explicitly deferred the target round. One new P4 record note: the tracked proof is bound to a SHA reachable from no branch and the on-disk canonical-toolchain proof is unfolded. The lane's fix itself remains sound and the checker passes at HEAD, but the row cannot be closed as PRIOR_P3_P4_CLOS",
@@ -2412,41 +2411,48 @@
     "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 518,
-      "corpus_file_count": 558,
+      "corpus_file_count": 518,
       "runs_requested": 1036,
       "runs_floor": 1036,
       "executed_runs": 1036,
       "coverage": {
-        "counters": 40576,
-        "ft_done": 7993,
-        "ft_inited": 7993,
-        "new_events": false,
-        "seed": 3891677337
+        "counters": 40027,
+        "ft_done": 7924,
+        "ft_inited": 7861,
+        "new_events": true,
+        "seed": 2528334357
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
-      "owner_lib_sancov": 150,
+      "owner_lib_sancov_total": 1400,
+      "owner_lib_sancov": 149,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     }
   },
   "s20_700_complete_root_persistent_fuzz_slice": {
@@ -2468,41 +2474,48 @@
     "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 491,
-      "corpus_file_count": 1011,
+      "corpus_file_count": 491,
       "runs_requested": 512,
-      "runs_floor": 1267,
-      "executed_runs": 1267,
+      "runs_floor": 747,
+      "executed_runs": 747,
       "coverage": {
         "counters": 7189,
-        "ft_done": 6657,
-        "ft_inited": 6602,
+        "ft_done": 4834,
+        "ft_inited": 4144,
         "new_events": true,
-        "seed": 3496777141
+        "seed": 2496356540
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
+      "owner_lib_sancov_total": 1400,
       "owner_lib_sancov": 111,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "fact_lanes": "bits 2/3/4 select facts-from-bytes (bound/entry-points/dependency-roots); kind-8 encode guard loud"
   },
@@ -2524,41 +2537,48 @@
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
-      "corpus_count": 322,
-      "corpus_file_count": 371,
+      "corpus_count": 330,
+      "corpus_file_count": 330,
       "runs_requested": 644,
       "runs_floor": 644,
       "executed_runs": 644,
       "coverage": {
-        "counters": 4141,
-        "ft_done": 1893,
-        "ft_inited": 1893,
-        "new_events": false,
-        "seed": 3574631846
+        "counters": 4245,
+        "ft_done": 1833,
+        "ft_inited": 1798,
+        "new_events": true,
+        "seed": 2003777748
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
-      "owner_lib_sancov": 150,
+      "owner_lib_sancov_total": 1400,
+      "owner_lib_sancov": 149,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     }
   },
   "s20_700_merge_persistent_fuzz_slice": {
@@ -2580,41 +2600,48 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 319,
-      "corpus_file_count": 442,
+      "corpus_file_count": 319,
       "runs_requested": 638,
-      "runs_floor": 698,
-      "executed_runs": 698,
+      "runs_floor": 638,
+      "executed_runs": 638,
       "coverage": {
-        "counters": 3544,
-        "ft_done": 1525,
-        "ft_inited": 1525,
-        "new_events": false,
-        "seed": 3522464669
+        "counters": 3577,
+        "ft_done": 1212,
+        "ft_inited": 1112,
+        "new_events": true,
+        "seed": 1588449801
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
-      "owner_lib_sancov": 150,
+      "owner_lib_sancov_total": 1400,
+      "owner_lib_sancov": 149,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_4_P3_0_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 a359ecde4a9c057c954048e8e0eed9ab313b6677d71ab83f16fd79e0a2851911) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-7cf25acd25d2.md) was located and its three P3s enumerated; at 178873d7 F2 is verified closed (audit :28-33 now names the five decoder codes, commit 71232591), F3 is untouched, and F1 is mitigated in code by the b1218578 pin-layout repair with an unoverridden clang 18.1.8 PASS on disk, but that proof is unfiled while the tracked record still carries the clang-22 override run and the \"unproven\" clause. Two new P3s: the tracked proof commit is not in HEAD's lineage and predates the HEAD harness, and the slice checker is marker-only so it cannot reject a stale p",
     "p3_open": [
@@ -2695,41 +2722,48 @@
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 480,
-      "corpus_file_count": 564,
+      "corpus_file_count": 480,
       "runs_requested": 960,
       "runs_floor": 960,
       "executed_runs": 960,
       "coverage": {
-        "counters": 1229,
-        "ft_done": 1221,
-        "ft_inited": 1221,
-        "new_events": false,
-        "seed": 3835918057
+        "counters": 1243,
+        "ft_done": 1163,
+        "ft_inited": 975,
+        "new_events": true,
+        "seed": 1053290979
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
+      "owner_lib_sancov_total": 1400,
       "owner_lib_sancov": 111,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 ac28060f28335665321cfc69695887b309e1f494f7f69edd624c2bcdeed4ecff) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) names three P3s; at 178873d7 one is verified closed (rehash-lane rationale, made true by a069a246's digest-before-inversion reorder at snapshot.rs:743-748, matching spec \u00a75) and two remain open (target oracles only partly narrowed at fuzz/targets/complete_root_snapshot_decoder.rs:28,51-57,68-78; checker still marker-only at scripts/check_complete_root_snapshot_persistent_fuzz_slice.py:18-118, exit 0 despite a stale proof). One new P3 is recorded: the tracked last_local_proof (machine-summary.json:2536-2572) cites non-ancestor d3dee564 that p",
     "p3_open": [
@@ -2762,41 +2796,48 @@
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 971,
-      "corpus_file_count": 1573,
+      "corpus_file_count": 971,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
-        "counters": 11281,
-        "ft_done": 7822,
-        "ft_inited": 7775,
+        "counters": 11309,
+        "ft_done": 6059,
+        "ft_inited": 4912,
         "new_events": true,
-        "seed": 3548831711
+        "seed": 876552095
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
+      "owner_lib_sancov_total": 1400,
       "owner_lib_sancov": 111,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "seed_derivation": "generated synthetically; the fixture contributes contract and class-count drift checks only, no seed bytes"
   },
@@ -2818,41 +2859,48 @@
     "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 971,
-      "corpus_file_count": 1494,
+      "corpus_file_count": 971,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
-        "counters": 11749,
-        "ft_done": 7810,
-        "ft_inited": 7714,
+        "counters": 11782,
+        "ft_done": 5946,
+        "ft_inited": 5048,
         "new_events": true,
-        "seed": 3860431069
+        "seed": 1073292142
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
+      "owner_lib_sancov_total": 1400,
       "owner_lib_sancov": 111,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     }
   },
   "s20_700_smp1_persistent_fuzz_slice": {
@@ -2875,42 +2923,48 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "4c30d1beda895365722e4fe1b80279aa455b2446",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 713,
-      "corpus_file_count": 733,
+      "corpus_file_count": 713,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
-        "counters": 4436,
-        "ft_done": 2978,
-        "ft_inited": 2736,
+        "counters": 4486,
+        "ft_done": 2449,
+        "ft_inited": 2149,
         "new_events": true,
-        "seed": 1612794786
+        "seed": 407434749
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1278,
-      "owner_lib_sancov": 121,
+      "owner_lib_sancov_total": 1400,
+      "owner_lib_sancov": 123,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host",
-      "crash_history": "No crash artifacts in this proof's runtime tree; crash history retained in fuzz/regressions/S20_700_SMP1_001.json and the slice transcripts. Prior artifact crash-fc5bb89745e57f18a8aa61b3e32cd8d6693e663a retested clean (returncode 0) at 6750700; the committed regression seed executes every smoke."
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "generated_seed_count": 713,
     "lane_3_seeds": "multi-frame concatenated pairs reach reassemble_stream (proven); bare prefix-stripped bodies removed in 7h (they never decoded as hello records); negotiation executes through check_frame Hello arm on fixture hello frames (shared oracle); see S20-700-SMP1-001 + negotiate divergence packet",
@@ -2949,41 +3003,48 @@
     "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "d3dee56450b88301656ee8aae293655dfbbd97b1",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 643,
-      "corpus_file_count": 816,
+      "corpus_file_count": 643,
       "runs_requested": 1286,
       "runs_floor": 1286,
       "executed_runs": 1286,
       "coverage": {
-        "counters": 7081,
-        "ft_done": 4452,
-        "ft_inited": 4419,
+        "counters": 7117,
+        "ft_done": 4100,
+        "ft_inited": 3955,
         "new_events": true,
-        "seed": 4103148524
+        "seed": 3827050983
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
+      "owner_lib_sancov_total": 1400,
       "owner_lib_sancov": 48,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 4f1f806240e607c0db75d63a4d7340147416a86f12517b77b3d1391e2cac3ed3) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) was located and all eleven P3/P4 findings enumerated; eight are verified closed at 178873d7 by code and audit changes in rounds 7h-7j and the b1218578 pin-layout repair, with the checker passing (exit 0). Two carried P3s (stale \"thirty-one\" count; tautological `known()` oracle) and one carried P4 (unbound checker markers) remain open and untracked, so the row cannot be closed. Two new records defects were found: the durable `last_local_proof` is stale against both runner and governed crate and contradicts the on-disk canonical-layout proof, ",
     "p3_open": [
@@ -3030,58 +3091,23 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "df295d86a080a7332f627a685498ef1355076812",
-      "source_tree_clean_except_retained_slices": false,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "M docs/audits/S20_700_SEMANTIC_CHECKERS_PERSISTENT_SLICE.md",
-        " M fuzz/targets/ssmc_graph_cfg_checker.rs",
-        " M machineresearch/sley-2.0/machine-summary.json",
-        " M scripts/check_semantic_checkers_persistent_fuzz_slice.py",
-        " M scripts/run_semantic_checkers_persistent_fuzz.py",
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
-      "corpus_count": {
-        "graph-cfg": 406,
-        "type-checker": 385
-      },
-      "executed_runs": {
-        "graph-cfg": 955,
-        "type-checker": 955
-      },
-      "coverage": {
-        "graph-cfg": {
-          "counters": 6485,
-          "ft_done": 3997,
-          "ft_inited": 3919,
-          "new_events": true,
-          "seed": 2575874623
-        },
-        "type-checker": {
-          "counters": 3929,
-          "ft_done": 6041,
-          "ft_inited": 6020,
-          "new_events": true,
-          "seed": 2575766586
-        }
-      },
-      "new_crash_artifacts": [],
-      "retested_prior_crashes": [
-        {
-          "artifact": "crash-47e105f95bc7b3581d8589e761bfaeb2c79239b1",
-          "returncode": 0,
-          "still_crashes": false
-        }
-      ],
-      "regression_seeds": [
-        "seed-0004/0005/0006 (round 2)",
-        "seed-0007 (round 3)",
-        "seed-0008..0012 (round 4)",
-        "seed-0013 (round-4 follow-up, VS-R4-005)"
-      ],
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "owner_lib_sancov": 115,
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "vulcan_review_note": "Qualifying round-4 re-review at 5966d83 (transcript vulcan_review-df295d8.md, FIELD vulcan_review, ROUND final): PASS_0_P0_0_P1_0_P2_2_P3_3_P4. Single branch verified exact-or-sound (full per-arm table), multi branch closed by construction (42-entry universe == engine as_str matches), all six falsifying inputs traced to pass, seeds executed, proof binds df295d8 clean. Follow-ups applied post-verdict: arm-22 DOMINANCE removed again (dead in single scope; combos use universe branch), audit counts corrected (406 seeds, 949 proof), VS-R3-004 sentence corrected (closed by regeneration in 56ef0c6 \u2014 the owner wrongly wrote 'refuted'), checker pins tightened (universe-body scope, lib.rs TYPE scan, full seed lists), sixth [9,16] input pinned as seed-0013. Fresh PASS proof 955/955 both targets (override lane). Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_1_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 7b1d268320685a707e7381ee61820da598c5840facb17dd10ba7873c73cfdaba) (transcript FIELD line reads vulcan_review_closure). The round-4 transcript (vulcan_review-df295d8.md) was located and its five P3/P4 findings enumerated; VS-R4-002/003/004/005 are verified closed at HEAD by 634807f8 with the arm-22 derivation, seed-0013 bytes, checker pins, and audit wording independently checked, and the slice checker passes. VS-R4-001 remains half open because the audit's \"945/945 \u2026 fix awaits re-review\" line was never edited despite the commit message and summary note claiming it was. Two new record findings: the tracked PASS proof binds a dirty tree at a rebased-away commit (P3), and the new checker TYPE-scan has a bypassab",
@@ -3121,41 +3147,48 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "4c30d1beda895365722e4fe1b80279aa455b2446",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 525,
-      "corpus_file_count": 531,
+      "corpus_file_count": 525,
       "runs_requested": 1050,
       "runs_floor": 1050,
       "executed_runs": 1050,
       "coverage": {
-        "counters": 3883,
-        "ft_done": 1328,
-        "ft_inited": 1316,
+        "counters": 3896,
+        "ft_done": 1327,
+        "ft_inited": 1236,
         "new_events": true,
-        "seed": 1564590229
+        "seed": 3227127081
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1278,
+      "owner_lib_sancov_total": 1400,
       "owner_lib_sancov": 111,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_5_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_2_P3",
@@ -3224,36 +3257,28 @@
       "build_locked": true,
       "cc": "/usr/lib/llvm18/bin/clang-18",
       "corpus_count": 789,
-      "corpus_file_count": 935,
+      "corpus_file_count": 789,
       "coverage": {
-        "counters": 18753,
-        "ft_done": 10568,
-        "ft_inited": 10553,
+        "counters": 18283,
+        "ft_done": 10499,
+        "ft_inited": 10156,
         "new_events": true,
-        "seed": 1382374593
+        "seed": 3391110604
       },
       "coverage_ok": true,
-      "crash_artifacts": [
-        "crash-b55c33e9bb1f97876e838e7b2a88cb3aca2b2d90"
-      ],
+      "crash_artifacts": [],
       "executed_runs": 1576,
       "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "new_crash_artifacts": [],
-      "owner_lib_sancov": 125,
-      "owner_lib_sancov_total": 1278,
+      "owner_lib_sancov": 131,
+      "owner_lib_sancov_total": 1400,
       "result": "PASS",
-      "retested_prior_crashes": [
-        {
-          "artifact": "crash-b55c33e9bb1f97876e838e7b2a88cb3aca2b2d90",
-          "returncode": 0,
-          "still_crashes": false
-        }
-      ],
+      "retested_prior_crashes": [],
       "rlib_linkage": "cargo-json",
       "runs_floor": 1576,
       "runs_requested": 1576,
       "sancov_scope": "workspace-target-units-via-host-config",
-      "source_commit": "209c661574c82d7adf8e1da21607b890f559d0e9",
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "toolchain_overridden": false,
       "toolchain_versions": {
         "cc": "clang version 18.1.8",
@@ -3261,28 +3286,38 @@
       },
       "unexpected_warnings": [],
       "worktree_dirty_files": [
-        "M scripts/check_semantic_delta_persistent_fuzz_slice.py"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "owner_lib_sancov_symbols": {
-        "libsley_adapter-d8a0f3c14f39b91a.rlib": 37,
-        "libsley_check-d5cf0ba20e74a5ae.rlib": 115,
-        "libsley_conformance-358d0808fc4892fc.rlib": 14,
-        "libsley_id-92ca56df56b1cd1c.rlib": 4,
-        "libsley_json_bridge-0dec76bf7b93377c.rlib": 48,
-        "libsley_mutate-560e2544151ce3d6.rlib": 106,
-        "libsley_policy-f4be17cc304b1099.rlib": 109,
-        "libsley_protocol-dd93b5700caa2022.rlib": 121,
-        "libsley_query-04c8a4b9bb7e73f8.rlib": 111,
-        "libsley_repo-b39f667e617630c3.rlib": 149,
-        "libsley_scb1-32028f29635b7db0.rlib": 54,
-        "libsley_schema-3c7c5f9d6ee04d9d.rlib": 41,
-        "libsley_ssmc-854c319f3131bcaa.rlib": 26,
-        "libsley_state_root-68a25bbfc46133db.rlib": 49,
-        "libsley_store-a91188634b85d3ed.rlib": 46,
-        "libsley_txn-89a12c9044cea3c3.rlib": 123,
-        "libsley_vm-8ad0bce08ba1b9c4.rlib": 125
+        "libsley_adapter-4d1ddda68860c128.rlib": 37,
+        "libsley_check-d6d9cbd4f3af3c06.rlib": 115,
+        "libsley_conformance-3f24c2502c7b6885.rlib": 14,
+        "libsley_id-075da7e34cdd5534.rlib": 4,
+        "libsley_json_bridge-328326d7ce8c3576.rlib": 48,
+        "libsley_mutate-37deda6f877bcfe1.rlib": 110,
+        "libsley_policy-55d3dd9fac1b06cd.rlib": 112,
+        "libsley_protocol-13a41001a263d45e.rlib": 123,
+        "libsley_query-d0f6e281fd286651.rlib": 111,
+        "libsley_repo-2be36c26a07b56df.rlib": 149,
+        "libsley_scb1-073f1b4ed6558a13.rlib": 54,
+        "libsley_schema-6434c71bfc3c119b.rlib": 41,
+        "libsley_ssmc-a502cd2ac7dabe5f.rlib": 26,
+        "libsley_state_root-909327429bb7b420.rlib": 49,
+        "libsley_store-ac8bd780de0ba157.rlib": 46,
+        "libsley_tests-afd040343a3c64f2.rlib": 109,
+        "libsley_txn-91b4e4681ae98dc5.rlib": 121,
+        "libsley_vm-959db0c9424f3907.rlib": 131
       },
-      "note": "P-C wave refresh: proof re-run at 209c661 (PASS 1576/1576, no new crashes); prior crash artifact retested clear."
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "restricted_profile_opcodes": [
       102,
@@ -3333,41 +3368,48 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 821,
-      "corpus_file_count": 998,
+      "corpus_file_count": 821,
       "runs_requested": 1642,
       "runs_floor": 1642,
       "executed_runs": 1642,
       "coverage": {
-        "counters": 7028,
-        "ft_done": 3440,
-        "ft_inited": 3435,
+        "counters": 7042,
+        "ft_done": 3125,
+        "ft_inited": 3070,
         "new_events": true,
-        "seed": 3600023395
+        "seed": 3711162533
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
+      "owner_lib_sancov_total": 1400,
       "owner_lib_sancov": 37,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     },
     "must_reject_classes": [
       "identity-changed (adapter_id)",
@@ -3408,41 +3450,48 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a33e1e8148861976051fa89c60d035265c731ce0",
-      "source_tree_clean_except_retained_slices": true,
+      "source_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
       "worktree_dirty_files": [
-        "?? .forge/slices/rw-080-s1-1-slice-5-entrypoint-kind-16-sley-encode-emission.json",
-        "?? .forge/slices/rw-080-s1-1-slice-6-program-envelope-compose.json"
+        "M evidence/release/candidate-content-checks.json",
+        " M evidence/release/decision-dossier.json",
+        " M evidence/release/ga-acceptance-report.json",
+        " M evidence/release/provenance.json",
+        " M evidence/release/reproducibility-report.json",
+        " M evidence/release/sbom/cyclonedx-1.6.json",
+        " M evidence/release/sbom/spdx-2.3.json",
+        " M evidence/review/finding-register.json",
+        " M evidence/security/T54/secret-scan.json",
+        " M machineresearch/sley-2.0/machine-summary.json"
       ],
       "corpus_count": 32,
-      "corpus_file_count": 217,
+      "corpus_file_count": 32,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
-        "counters": 17701,
-        "ft_done": 3513,
-        "ft_inited": 3499,
+        "counters": 17506,
+        "ft_done": 3267,
+        "ft_inited": 2510,
         "new_events": true,
-        "seed": 3625585595
+        "seed": 3237002273
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1279,
-      "owner_lib_sancov": 106,
+      "owner_lib_sancov_total": 1400,
+      "owner_lib_sancov": 110,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
       "sancov_scope": "workspace-target-units-via-host-config",
       "toolchain_versions": {
-        "cc": "clang version 22.1.8",
+        "cc": "clang version 18.1.8",
         "rust": "rustc 1.95.0-nightly (6a979b3e3 2026-02-26)"
       },
-      "cc": "clang",
-      "libfuzzer_runtime": "/usr/lib/clang/22/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "toolchain": "nightly-2026-02-27 pinned; overrides resolved per evidence cc/libfuzzer_runtime; tracked defaults unchanged; pinned default unproven on this host"
+      "cc": "/usr/lib/llvm18/bin/clang-18",
+      "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
+      "note": "persistent-fuzz smoke refresh 2026-09-18 at the 5bba01b3 candidate (clean detached worktree, fuzz/Cargo.lock regenerated at a03548af); checker-verified in the records-only descendant"
     }
   },
   "s20_360_candidate_validation": {
@@ -4131,8 +4180,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "b9e2382f37acc10bf6baaf0d84790c6b3b47ab79b6952c8fffae7d92266ef7f9",
-    "candidate_artifact_size_bytes": 2507941,
+    "candidate_artifact_sha256": "7b828360e00fcbf70392f3c2a6784117c12c259dac00f366708ebe48f4885aa4",
+    "candidate_artifact_size_bytes": 2507945,
     "candidate_member_count": 15,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -4140,14 +4189,14 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "6aafa337bc276527fdbf67644ebfc5dc6e1f371ac83df5bb645e08ce8d58b2af",
-    "candidate_commit": "7426bc0b5afb49d5d45081c00909b8d61f9b4b38",
+    "candidate_manifest_digest": "c5fd6ed900ba1137964f3cd6957ef72b2c19e5cd5bb8b57ecd68cab759138179",
+    "candidate_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "7426bc0b5afb49d5d45081c00909b8d61f9b4b38",
+    "candidate_evidence_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
     "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) was minted in a detached linked worktree of that commit (two clean musl builds, REPRODUCIBLE) after the RW-090 codec repairs; the secondary attestation is pending because greyforgelab is under an exclusive ZJX qualification lease until 2026-09-21T03:24Z. The superseded 45b2cd98 secondary attestation is not carried and is not in the tracked report (it had already been removed at 9316df19, before contract revision 10 existed, so the report's superseded_attestations list is empty); its supersession is recorded in git history, the second-host lane ledger and the reproducibility section's attestation_supersedes chain. Next, after the lease is released and the host acquired under the coordination rules: bundle main, clone detached at the candidate commit named by candidate_commit on the lab, make release-candidate-build, build_reproducibility_report.py --host-label secondary --emit-attestation, merge with --attest, file the lane receipt, re-pin attested_hosts/reproducibility_result/second_host_status/blockers (runbook script: Work/checkpoints/sley2-finish-20260915/resume-20260918/second_host_attest.sh, which reads the candidate identity from the tracked report and refuses while the lease is held).",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
@@ -4478,11 +4527,11 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since (surface: build_release_candidate.ARTIFACT_INPUT_PATHS, completed at revision 7 with the root license files and the compile-time embedded inputs); attested toolchain must match",
-    "attested_commit": "7426bc0b5afb49d5d45081c00909b8d61f9b4b38",
+    "attested_commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
-    "attestation_supersedes": "chain of attested candidates: 1023a31 -> 43f2f5b -> 5313437 (two hosts) -> 45b2cd98 (two hosts, receipt at b0f56b1e) -> c75277b6 (single host, superseded the same day) -> a7852028 (single host) -> the current candidate (single host; see release_candidate_packaging.candidate_commit). Since contract revision 10 a re-mint lists attestations of a superseded commit under the report's superseded_attestations (persisting until the host re-attests, revision 11) and never carries them; the 45b2cd98 secondary predates the rule (removed at 9316df19 by a manual report replacement, so the list is empty today) and its supersession is recorded here and in the lane ledger.",
+    "attestation_supersedes": "chain of attested candidates: 1023a31 -> 43f2f5b -> 5313437 (two hosts) -> 45b2cd98 (two hosts, receipt at b0f56b1e) -> c75277b6 (single host, superseded the same day) -> a7852028 (single host) -> 7426bc0b (single host) -> 5bba01b3 (single host; the current candidate, see release_candidate_packaging.candidate_commit). Since contract revision 10 a re-mint lists attestations of a superseded commit under the report's superseded_attestations (persisting until the host re-attests, revision 11) and never carries them; the 45b2cd98 secondary predates the rule (removed at 9316df19 by a manual report replacement, so the list is empty today) and its supersession is recorded here and in the lane ledger.",
     "candidate_consumers_note": "The dossier and GA report import the shared S20-730 selector; candidate-content evidence uses the explicit current-build binding during host handoff.",
     "current_delta_review": {
       "ariadne": "REVISE_0_P0_0_P1_1_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED",
@@ -4693,10 +4742,10 @@
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
-    "obligations": 459,
-    "open_reviews": 15,
+    "obligations": 463,
+    "open_reviews": 12,
     "deferred_reviews": 0,
-    "unclassified_dispositions": 1,
+    "unclassified_dispositions": 0,
     "complete_packages": 37,
     "register_result": "FINDING_REGISTER_OPEN",
     "independent_review": "PENDING",
@@ -4746,8 +4795,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "1 review dispositions are unclassified",
-      "15 review obligations are open",
+      "12 review obligations are open",
       "20 GA acceptance criteria are not evidenced",
       "no succession trial has been executed",
       "only one host has attested the candidate",
@@ -5478,7 +5526,7 @@
     "c0_sha256": "03378aa03709ddb1ab938ec3b21a2e2a9a35e6f061d839cbdf6a6a0989bf1d0e",
     "c1_candidate_sha256": "2b35e6e76fe325b96869c0ca65ac0070a5e98683866042596891ab6a614a0210",
     "official_c1": null,
-    "source_commit": "the commit carrying this generation (second repair re-mint 2026-09-18; exact id filled by the records-only descendant)",
+    "source_commit": "0b7a1482 (second repair and third re-mint; C0 03378aa0\u2026 rebuilt byte for byte from fresh detached worktrees of 0b7a1482 and of 5bba01b3, whose rw120 seed closure is identical)",
     "checkers": [
       "scripts/check_reweave_canonical_s.py",
       "scripts/check_reweave_seed_artifacts.py",

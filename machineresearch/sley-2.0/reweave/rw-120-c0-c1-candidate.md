@@ -3,10 +3,10 @@
 Status: PRESERVED SEED ARTIFACTS (re-minted 2026-09-18 with the arbitrary
 RW-090 codec, again the same day after the 178873d7 Council repairs, and a
 third time after the 92fa6646 re-review round). The exact release-built
-native seed executable from the source commit recorded in
-`c0-c1-seed-artifacts.json` (built in a detached clean worktree of that
-commit's tree with a fresh target directory; the independent rebuild
-verification is appended by the records-only descendant) is preserved
+native seed executable from commit `0b7a1482` (built in a detached clean
+worktree of that commit's tree with a fresh target directory, reproduced
+byte for byte from a second fresh detached worktree of `0b7a1482` and from
+one of `5bba01b3`, whose seed closure is identical) is preserved
 read-only outside the repository at the machine artifact store recorded in
 `c0-c1-seed-artifacts.json`, under `C0/03378aa0/`. Its SHA-256 is
 `03378aa03709ddb1ab938ec3b21a2e2a9a35e6f061d839cbdf6a6a0989bf1d0e`

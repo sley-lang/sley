@@ -71,7 +71,7 @@
     "rw130_fixed_point": false,
     "r2_ready": false
   },
-  "codec_generation": "arbitrary four-leg codec after the 178873d7 and 92fa6646 Council repairs (re-mint 2026-09-18): both program legs judge arbitrary canonical bodies of all 18 kinds with native nesting-depth charging at every node (RW090-DEV-01 residual disclosed); selector 1 re-frames handed body bytes, typed-field construction remains native",
+  "codec_generation": "arbitrary four-leg codec after the 178873d7 and 92fa6646 Council repairs (re-mint 2026-09-18, source commit 0b7a1482): both program legs judge arbitrary canonical bodies of all 18 kinds with native nesting-depth charging at every node (RW090-DEV-01 residual disclosed); selector 1 re-frames handed body bytes, typed-field construction remains native",
   "superseded_bounded_s": {
     "state_root": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47",
     "object_count": 11876,
@@ -106,7 +106,7 @@
     "note": "arbitrary-codec generation before the 178873d7 Council repairs (strict kind-18 route, native depth charging); replaced 2026-09-18 under RW080-ID-02 replacement semantics; its C0/C1 artifacts stay read-only in the artifact store under C0/e3a50ca7 and C1/e3a50ca7"
   },
   "seed_constructor_digest_method": "SHA-256 over (relative path || NUL || bytes || NUL) for every source the seed binary crates/sley-vm/tests/rw120_toolchain_integration.rs reaches through #[path], in include order (revision of 2026-09-18; previously component.rs and handoff.rs only)",
-  "source_commit": "the commit carrying this manifest (second repair re-mint of 2026-09-18; named in the records-only descendant)",
+  "source_commit": "0b7a1482",
   "superseded_first_repair_s": {
     "state_root": "1d64fcd1298bbab91e8c42a1b673fba683e1a0e2075f560ecfc6aaf849e16c58",
     "object_count": 20382,

@@ -1,9 +1,12 @@
 {
   "clippy_clean": true,
   "clippy_warnings": 0,
-  "commit": "178873d7f9df2da5e616a986a24db8c2559f8ca0",
+  "commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
   "contract": "sley2.lint-report.v1",
+  "dirty_lint_inputs": [],
   "fmt_clean": true,
   "fmt_detail": "",
-  "result": "PASS"
+  "lint_inputs_clean": true,
+  "result": "PASS",
+  "working_tree_clean": false
 }

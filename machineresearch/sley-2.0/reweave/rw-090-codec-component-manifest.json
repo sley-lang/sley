@@ -80,5 +80,5 @@
     "state_root_stored_sha256": "5a0d017c85ea2846bdaece500b9963ca5f761a50ed7d73bb291ec2a970a1e289",
     "source_commit": "e3a50ca7"
   },
-  "source_commit": "the commit carrying this manifest (second repair re-mint of 2026-09-18; the records-only descendant names the exact id)"
+  "source_commit": "0b7a1482 (second repair re-mint of 2026-09-18)"
 }

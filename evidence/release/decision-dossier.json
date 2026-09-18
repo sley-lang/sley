@@ -2,8 +2,7 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "1 review dispositions are unclassified",
-    "15 review obligations are open",
+    "12 review obligations are open",
     "20 GA acceptance criteria are not evidenced",
     "no succession trial has been executed",
     "only one host has attested the candidate",
@@ -11,7 +10,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "8fa8a3deef40b889e60f656378c3fc675686cd46e615797f4836817ee9e2aa42",
+  "dossier_digest": "37f815730ac0ce51b34d79f2ce9ce8bdd818ac31ca172cce2c838cf7ed5511d4",
   "entries": [
     {
       "evidence": [
@@ -36,7 +35,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "7426bc0b5afb49d5d45081c00909b8d61f9b4b38"
+      "value": "5bba01b326efa1f510e0cfd8c141874a98c09795"
     },
     {
       "evidence": [
@@ -147,9 +146,9 @@
           "scanned_manifests": 22
         },
         "property_tests": 0,
-        "python_tests": 505,
+        "python_tests": 512,
         "rust_ignored_emitters": 38,
-        "rust_unit_tests": 1955
+        "rust_unit_tests": 1956
       }
     },
     {
@@ -285,7 +284,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "b9e2382f37acc10bf6baaf0d84790c6b3b47ab79b6952c8fffae7d92266ef7f9"
+      "value": "7b828360e00fcbf70392f3c2a6784117c12c259dac00f366708ebe48f4885aa4"
     },
     {
       "evidence": [
@@ -294,7 +293,7 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2507941
+      "value": 2507945
     },
     {
       "evidence": [
@@ -342,24 +341,23 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 459,
-        "open_reviews": 15,
+        "obligations": 463,
+        "open_reviews": 12,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 126,
-          "P1": 176,
-          "P2": 201,
-          "P3": 245,
-          "P4": 89
+          "P1": 173,
+          "P2": 203,
+          "P3": 253,
+          "P4": 102
         },
         "states": {
-          "HISTORICAL_ROUND": 148,
-          "OTHER": 1,
-          "PASS": 295,
-          "PENDING": 15
+          "HISTORICAL_ROUND": 149,
+          "PASS": 302,
+          "PENDING": 12
         },
         "unclaimed_carried_findings": 0,
-        "unclassified": 1
+        "unclassified": 0
       }
     },
     {
@@ -458,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "d83305e77054217d761ae8ce0aaf2b66f7908037b41656bf5cb1f61edb923f79",
+  "entries_digest": "bc508890d067e7be4b3c15b100857c3d66e271349af2f2f9ecb6d80adcf9b21d",
   "evidenced": 24,
   "gated": 10,
   "gates": {
