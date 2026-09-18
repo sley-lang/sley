@@ -1079,6 +1079,9 @@ pub(crate) fn integration_execute_lowerer(
     (actual, expected)
 }
 
+// Reached only through the `rw120_toolchain_integration` binary, which
+// includes this file by path; in this binary it is unreferenced.
+#[allow(dead_code)]
 pub(crate) fn integration_lowerer_test() -> (Vec<ConstValue>, ConstValue) {
     canonical::lower_fixture()
 }
@@ -1102,6 +1105,9 @@ pub(crate) fn integration_execute_builder(
     )
 }
 
+// Reached only through the `rw120_toolchain_integration` binary, which
+// includes this file by path; in this binary it is unreferenced.
+#[allow(dead_code)]
 pub(crate) fn integration_builder_test() -> (Vec<ConstValue>, ConstValue) {
     use sley_ssmc::ResultConst;
 
@@ -1118,6 +1124,9 @@ pub(crate) fn integration_builder_test() -> (Vec<ConstValue>, ConstValue) {
     )
 }
 
+// Reached only through the `rw120_toolchain_integration` binary, which
+// includes this file by path; in this binary it is unreferenced.
+#[allow(dead_code)]
 pub(crate) struct IntegrationHandoffTest {
     pub(crate) lower_inputs: Vec<ConstValue>,
     pub(crate) builder_tail_inputs: Vec<ConstValue>,
@@ -1125,6 +1134,9 @@ pub(crate) struct IntegrationHandoffTest {
     pub(crate) expected_builder: ConstValue,
 }
 
+// Reached only through the `rw120_toolchain_integration` binary, which
+// includes this file by path; in this binary it is unreferenced.
+#[allow(dead_code)]
 pub(crate) fn integration_lower_builder_handoff_test() -> IntegrationHandoffTest {
     use sley_ssmc::ResultConst;
 
@@ -1147,6 +1159,9 @@ pub(crate) fn integration_lower_builder_handoff_test() -> IntegrationHandoffTest
     }
 }
 
+// Reached only through the `rw120_toolchain_integration` binary, which
+// includes this file by path; in this binary it is unreferenced.
+#[allow(dead_code)]
 pub(crate) fn integration_toolchain_reconstruction_test(
     lowered: &sley_vm::LoweredFunction,
     package: &sley_vm::ExecutionPackage,

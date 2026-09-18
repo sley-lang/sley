@@ -25723,6 +25723,9 @@ pub(crate) fn integration_codec_program() -> Image {
 }
 
 /// The bounded codec generation retained as history.
+// Reached only through the `rw120_toolchain_integration` binary, which
+// includes this file by path; in this binary it is unreferenced.
+#[allow(dead_code)]
 pub(crate) fn integration_bounded_codec_program() -> Image {
     canonical_codec::bounded_canonical_codec_image().0
 }
@@ -25750,6 +25753,9 @@ pub(crate) fn integration_codec_expected() -> ConstValue {
     canonical_codec::codec_schema_decode_expected()
 }
 
+// Reached only through the `rw120_toolchain_integration` binary, which
+// includes this file by path; in this binary it is unreferenced.
+#[allow(dead_code)]
 pub(crate) fn integration_codec_test() -> (Vec<ConstValue>, ConstValue) {
     (
         canonical_codec::codec_schema_decode_inputs(),
