@@ -1118,6 +1118,35 @@ pub(crate) fn integration_builder_test() -> (Vec<ConstValue>, ConstValue) {
     )
 }
 
+pub(crate) struct IntegrationHandoffTest {
+    pub(crate) lower_inputs: Vec<ConstValue>,
+    pub(crate) builder_tail_inputs: Vec<ConstValue>,
+    pub(crate) expected_lower: ConstValue,
+    pub(crate) expected_builder: ConstValue,
+}
+
+pub(crate) fn integration_lower_builder_handoff_test() -> IntegrationHandoffTest {
+    use sley_ssmc::ResultConst;
+
+    let (lower_inputs, expected_lower) = canonical::lower_fixture();
+    let native = native_direct_call_lowered();
+    let expected_package =
+        package_inventory_fixture(native.bytes.clone(), native.bytecode.function);
+    let digests = sley_vm::package_digests_v2(&expected_package).unwrap();
+    let mut builder_inputs = package_builder_inputs(&expected_package, &digests);
+    assert_eq!(builder_inputs.remove(0), bytes_value(&native.bytes));
+    let encoded = sley_vm::encode_package_envelope_v2(&expected_package).unwrap();
+    IntegrationHandoffTest {
+        lower_inputs,
+        builder_tail_inputs: builder_inputs,
+        expected_lower,
+        expected_builder: ConstValue {
+            value_type: bytes_lower_result_type(),
+            data: ConstData::Result(ResultConst::Ok(Box::new(bytes_value(&encoded)))),
+        },
+    }
+}
+
 fn rebase_value_ref(value: &mut ValueRef, ids: &BTreeMap<EntityId, EntityId>) {
     match value {
         ValueRef::Parameter(entity) => {

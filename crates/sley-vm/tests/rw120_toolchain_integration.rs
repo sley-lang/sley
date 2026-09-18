@@ -8,6 +8,8 @@ mod checker;
 mod codec;
 #[path = "rw120_toolchain_integration/component.rs"]
 mod component;
+#[path = "rw120_toolchain_integration/handoff.rs"]
+mod handoff;
 #[path = "rw080_lower_scaffold.rs"]
 mod lower;
 
@@ -191,6 +193,95 @@ fn integrated_driver_calls_all_four_real_programs_in_one_execution() {
     assert_eq!(execution.gate_bridge_uses, 147);
     eprintln!(
         "RW120_DRIVER objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={}",
+        evidence.objects.len(),
+        object_bytes,
+        hex(&object_digest),
+        hex(evidence.root.root.as_bytes()),
+        evidence.root.stored_bytes.len(),
+        hex(&root_digest),
+        execution.image_bytes,
+        hex(&execution.package_digest),
+        execution.gate_operation_count,
+        execution.gate_bridge_uses,
+    );
+}
+
+#[test]
+fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
+    let fixture = handoff::fixture();
+    assert_eq!(fixture.program.entry_points.len(), 5);
+    assert_eq!(fixture.program.functions.len(), 101);
+    assert_eq!(fixture.program.parameters.len(), 5_148);
+    assert_eq!(fixture.program.blocks.len(), 1_849);
+    assert_eq!(fixture.program.operations.len(), 4_058);
+    assert_eq!(fixture.inputs.len(), 74);
+    let builder_entry = fixture.program.entry_points[3];
+    let builder_call = fixture
+        .program
+        .operations
+        .iter()
+        .find(|operation| {
+            matches!(
+                &operation.immediate,
+                sley_ssmc::Immediate::Function(reference) if reference.function == builder_entry
+            )
+        })
+        .expect("handoff driver directly calls the package builder");
+    let sley_ssmc::ValueRef::Parameter(image_payload) = builder_call.operands[0] else {
+        panic!("package-builder image operand is the lower-success block payload")
+    };
+    let payload = fixture
+        .program
+        .parameters
+        .iter()
+        .find(|parameter| parameter.entity_id == image_payload)
+        .expect("lower-success payload is retained");
+    assert_eq!(payload.role, sley_ssmc::ParameterRole::Block);
+    assert_eq!(payload.value_type, sley_ssmc::TypeExpr::Bytes);
+    assert_ne!(payload.owner, fixture.entry);
+    let evidence = component::component_evidence(&fixture.program);
+    let execution = component::execute_driver(
+        &fixture.program,
+        fixture.entry,
+        evidence.root.root,
+        fixture.inputs,
+    );
+    assert_eq!(execution.value, fixture.expected);
+    let object_bytes = evidence
+        .objects
+        .iter()
+        .map(|object| object.stored_bytes().len())
+        .sum::<usize>();
+    let mut object_hasher = Sha256::new();
+    for object in &evidence.objects {
+        object_hasher.update(object.stored_bytes());
+    }
+    let object_digest: [u8; 32] = object_hasher.finalize().into();
+    let root_digest: [u8; 32] = Sha256::digest(&evidence.root.stored_bytes).into();
+    assert_eq!(evidence.objects.len(), 11_876);
+    assert_eq!(object_bytes, 2_971_077);
+    assert_eq!(
+        hex(&object_digest),
+        "c40eab81641a843f4983c603cd3483bfcca7a3488658b053576e883deb0d336d"
+    );
+    assert_eq!(
+        hex(evidence.root.root.as_bytes()),
+        "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47"
+    );
+    assert_eq!(evidence.root.stored_bytes.len(), 784_246);
+    assert_eq!(
+        hex(&root_digest),
+        "85f94269365956705d3d7206ca2aa9a65099da1d55141fe06e3b60f0ec93bbde"
+    );
+    assert_eq!(execution.image_bytes, 491_378);
+    assert_eq!(
+        hex(&execution.package_digest),
+        "8b45b177d8271d1b2fc1a2edbe78565ec1609b3d86fbe74eb5371bb0d2f13cdf"
+    );
+    assert_eq!(execution.gate_operation_count, 4_058);
+    assert_eq!(execution.gate_bridge_uses, 147);
+    eprintln!(
+        "RW120_HANDOFF objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={}",
         evidence.objects.len(),
         object_bytes,
         hex(&object_digest),
