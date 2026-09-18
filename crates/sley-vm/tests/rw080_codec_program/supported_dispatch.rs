@@ -153,6 +153,7 @@ fn build_supported_program_decode(
 
     let zero = assembler.ku64(ns.k, 0);
     let package_kind = assembler.ku64(ns.k, 2);
+    let empty_bytes = assembler.kbytes(ns.k, b"");
     let namespace_kind = assembler.ku64(ns.k, 3);
     let policy_kind = assembler.ku64(ns.k, 17);
     let entrypoint_kind = assembler.ku64(ns.k, 16);
@@ -723,6 +724,7 @@ fn build_supported_program_decode(
         ParameterRole::Block,
         TypeExpr::Bytes,
     );
+    let package_empty = assembler.cref(ns.o, normalize_package, empty_bytes, TypeExpr::Bytes);
     let package_value = assembler.op(
         ns.o,
         normalize_package,
@@ -731,7 +733,7 @@ fn build_supported_program_decode(
             pav(declared_kind),
             pav(package_entity),
             pav(package_body),
-            pav(package_body),
+            op_result(package_empty),
         ],
         vec![tagged_entity_set_program_value_type()],
         Immediate::None,
@@ -765,7 +767,13 @@ fn build_supported_program_decode(
         normalize_package,
         function,
         vec![package_body, package_entity],
-        vec![package_value, package_arm, package_supported, package_ok],
+        vec![
+            package_empty,
+            package_value,
+            package_arm,
+            package_supported,
+            package_ok,
+        ],
         ret(op_result(package_ok)),
     );
 
@@ -1398,10 +1406,7 @@ fn codec_supported_kind_dispatch_decodes_all_five_supported_kinds() {
         fields[2].data,
         ConstData::Bytes(ns_body_of(&package_stored))
     );
-    assert_eq!(
-        fields[3].data,
-        ConstData::Bytes(ns_body_of(&package_stored))
-    );
+    assert_eq!(fields[3].data, ConstData::Bytes(Vec::new()));
 }
 
 #[test]

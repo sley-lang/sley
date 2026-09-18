@@ -137,3 +137,14 @@ instructions and 956,464 peak value units. The known F5 combined-image size
 envelope is retained and explicitly tested for a one-requirement kind-17
 value. Full construction and refusal evidence is in
 `rw-080-codec-policy-binding-compose-encode.md`.
+
+## 7. Slice-23 additive state
+
+The current entry supports kinds 2, 3, 16, 17 and 18 and consumes the exact
+five-arm sum emitted by the supported decoder. Package kind 2 carries
+`(2, entity_id, canonical_body, empty_reserved)` and emits the native 190-byte
+stored object at 20,283 fuel, 2,139 instructions and 936,965 peak value units.
+Decode-to-encode round trips are byte-exact for all five arms. The specialized
+witness composer, rejection matrix, discarded general composition and current
+resource measurements are recorded in
+`rw-080-codec-package-supported-encode.md`.

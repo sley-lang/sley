@@ -22,9 +22,11 @@ outer entity identity check: workspace, root namespace, dependencies and
 exports retain their field-order refusal precedence before `entity_id`.
 
 The supported whole-program semantic decoder subsequently added an exact
-canonical empty-set kind-2 profile in program slice 22. The supported semantic
-encoder still advertises kinds 3, 16, 17 and 18; adding its matching kind-2
-arm remains a separate bounded slice.
+canonical empty-set kind-2 profile in program slice 22, followed by its paired
+supported encoder in program slice 23. The latter's compact witness and
+specialized bounded composer are recorded in
+`rw-080-codec-package-supported-encode.md`; this slice remains the general
+composed Package encoder.
 
 ## 2. Bounded construction
 

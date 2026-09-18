@@ -16,7 +16,7 @@ fn bytes_vector_type() -> TypeExpr {
 }
 
 #[allow(clippy::similar_names, clippy::too_many_lines)]
-fn build_concat_bytes(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
+pub(super) fn build_concat_bytes(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
     let block_start = a.blocks.len();
     let result_type = encode_result_type();
     let zero = a.ku64(ns.k, 0);
@@ -2104,7 +2104,7 @@ fn build_package_program_decode(
 }
 
 #[allow(clippy::similar_names, clippy::too_many_lines)]
-fn build_exact_identity_validate(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
+pub(super) fn build_exact_identity_validate(a: &mut Asm, ns: Ns, fid: EntityId) -> FunctionGraph {
     let block_start = a.blocks.len();
     let result_type = encode_result_type();
     let exact_length = a.ku64(ns.k, 32);
@@ -2916,6 +2916,245 @@ fn build_empty_package_program_encode(
         entity_id: fid,
         type_parameters: Vec::new(),
         parameters: vec![entity, workspace, root_namespace, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: a.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+/// Rebuilds a stored canonical empty-set Package from an already validated
+/// body witness. The caller owns body-shape validation; this graph retains the
+/// exact entity-width check and the canonical object hash construction.
+#[allow(clippy::too_many_lines)]
+pub(super) fn build_package_witness_program_encode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    exact_fid: EntityId,
+    concat_fid: EntityId,
+) -> FunctionGraph {
+    use sley_vm::host_abi::BRIDGE_CODE_RHW1;
+
+    let block_start = a.blocks.len();
+    let result_type = encode_result_type();
+    let mut prefix_bytes = b"SLEYSCB1".to_vec();
+    prefix_bytes.extend_from_slice(&sley_scb1::encode_uvar(1));
+    prefix_bytes.extend_from_slice(&sley_scb1::encode_uvar(200));
+    prefix_bytes.extend_from_slice(&[9; 32]);
+    prefix_bytes.extend_from_slice(&sley_scb1::encode_uvar(114));
+    prefix_bytes.extend_from_slice(&[2, 1, 32]);
+    let prefix = a.kbytes(ns.k, &prefix_bytes);
+    let entity_tail = a.kbytes(ns.k, &[2, 77]);
+    let object_domain = a.kbytes(ns.k, b"sley2.object.v1");
+    let resource_code = a.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+    let entity = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
+    let body = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Unit);
+
+    let entry = a.id(ns.b);
+    let compose = a.id(ns.b);
+    let hash = a.id(ns.b);
+    let rebuild = a.id(ns.b);
+    let forward_error = a.id(ns.b);
+    let resource = err_block(a, ns, fid, result_type.clone(), resource_code);
+
+    let checked_entity = a.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(entity), pav(unit)],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: exact_fid,
+            type_arguments: Vec::new(),
+        }),
+    );
+    a.blocks.push(Block {
+        entity_id: entry,
+        function: fid,
+        parameters: Vec::new(),
+        operations: vec![checked_entity],
+        terminator: switch(
+            op_result(checked_entity),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    compose,
+                    vec![SwitchArgument::CasePayload, sav(body), sav(unit)],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let valid_entity = a.param(ns.p, compose, ParameterRole::Block, TypeExpr::Bytes);
+    let valid_body = a.param(ns.p, compose, ParameterRole::Block, TypeExpr::Bytes);
+    let compose_unit = a.param(ns.p, compose, ParameterRole::Block, TypeExpr::Unit);
+    let domain = a.cref(ns.o, compose, object_domain, TypeExpr::Bytes);
+    let prefix_value = a.cref(ns.o, compose, prefix, TypeExpr::Bytes);
+    let entity_tail_value = a.cref(ns.o, compose, entity_tail, TypeExpr::Bytes);
+    let parts = a.op(
+        ns.o,
+        compose,
+        Opcode::VectorNew,
+        vec![
+            op_result(domain),
+            op_result(prefix_value),
+            pav(valid_entity),
+            op_result(entity_tail_value),
+            pav(valid_body),
+        ],
+        vec![bytes_vector_type()],
+        Immediate::None,
+    );
+    let hash_input = a.op(
+        ns.o,
+        compose,
+        Opcode::CallDirect,
+        vec![op_result(parts), pav(compose_unit)],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: concat_fid,
+            type_arguments: Vec::new(),
+        }),
+    );
+    a.blocks.push(Block {
+        entity_id: compose,
+        function: fid,
+        parameters: vec![valid_entity, valid_body, compose_unit],
+        operations: vec![domain, prefix_value, entity_tail_value, parts, hash_input],
+        terminator: switch(
+            op_result(hash_input),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    hash,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(valid_entity),
+                        sav(valid_body),
+                        sav(compose_unit),
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let digest_input = a.param(ns.p, hash, ParameterRole::Block, TypeExpr::Bytes);
+    let retained_entity = a.param(ns.p, hash, ParameterRole::Block, TypeExpr::Bytes);
+    let retained_body = a.param(ns.p, hash, ParameterRole::Block, TypeExpr::Bytes);
+    let hash_unit = a.param(ns.p, hash, ParameterRole::Block, TypeExpr::Unit);
+    let digest = a.op(
+        ns.o,
+        hash,
+        Opcode::AdapterInvoke,
+        vec![pav(hash_unit), pav(digest_input)],
+        vec![index_result(TypeExpr::Bytes)],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_RHW1))),
+    );
+    a.blocks.push(Block {
+        entity_id: hash,
+        function: fid,
+        parameters: vec![digest_input, retained_entity, retained_body, hash_unit],
+        operations: vec![digest],
+        terminator: switch(
+            op_result(digest),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    rebuild,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(retained_entity),
+                        sav(retained_body),
+                        sav(hash_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, resource, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let retained_digest = a.param(ns.p, rebuild, ParameterRole::Block, TypeExpr::Bytes);
+    let rebuild_entity = a.param(ns.p, rebuild, ParameterRole::Block, TypeExpr::Bytes);
+    let rebuild_body = a.param(ns.p, rebuild, ParameterRole::Block, TypeExpr::Bytes);
+    let rebuild_unit = a.param(ns.p, rebuild, ParameterRole::Block, TypeExpr::Unit);
+    let rebuild_prefix = a.cref(ns.o, rebuild, prefix, TypeExpr::Bytes);
+    let rebuild_entity_tail = a.cref(ns.o, rebuild, entity_tail, TypeExpr::Bytes);
+    let rebuild_parts = a.op(
+        ns.o,
+        rebuild,
+        Opcode::VectorNew,
+        vec![
+            op_result(rebuild_prefix),
+            pav(rebuild_entity),
+            op_result(rebuild_entity_tail),
+            pav(rebuild_body),
+            pav(retained_digest),
+        ],
+        vec![bytes_vector_type()],
+        Immediate::None,
+    );
+    let stored = a.op(
+        ns.o,
+        rebuild,
+        Opcode::CallDirect,
+        vec![op_result(rebuild_parts), pav(rebuild_unit)],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: concat_fid,
+            type_arguments: Vec::new(),
+        }),
+    );
+    a.blocks.push(Block {
+        entity_id: rebuild,
+        function: fid,
+        parameters: vec![retained_digest, rebuild_entity, rebuild_body, rebuild_unit],
+        operations: vec![rebuild_prefix, rebuild_entity_tail, rebuild_parts, stored],
+        terminator: ret(op_result(stored)),
+        reachability: Reachability::Required,
+    });
+
+    let error_bytes = a.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let error = a.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(error_bytes)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: forward_error,
+        function: fid,
+        parameters: vec![error_bytes],
+        operations: vec![error],
+        terminator: ret(op_result(error)),
+        reachability: Reachability::Required,
+    });
+
+    FunctionGraph {
+        entity_id: fid,
+        type_parameters: Vec::new(),
+        parameters: vec![entity, body, unit],
         result_type,
         effects: Vec::new(),
         entry_block: entry,

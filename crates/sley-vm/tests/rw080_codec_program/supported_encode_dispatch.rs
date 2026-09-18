@@ -4,6 +4,8 @@
 //! `machineresearch/sley-2.0/reweave/rw-080-codec-supported-encode-dispatch.md`.
 //! Kind-18 extension provenance:
 //! `machineresearch/sley-2.0/reweave/rw-080-codec-dependency-binding-compose-encode.md`.
+//! Kind-2 extension provenance:
+//! `machineresearch/sley-2.0/reweave/rw-080-codec-package-supported-encode.md`.
 
 use super::supported_dispatch::{
     all_supported_program_value_type as all_supported_encode_value_type,
@@ -57,6 +59,7 @@ fn build_supported_program_encode(
     let unknown = assembler.id(ns.b);
 
     let zero = assembler.ku64(ns.k, 0);
+    let package_kind = assembler.ku64(ns.k, 2);
     let namespace_kind = assembler.ku64(ns.k, 3);
     let policy_kind = assembler.ku64(ns.k, 17);
     let entrypoint_kind = assembler.ku64(ns.k, 16);
@@ -129,6 +132,23 @@ fn build_supported_program_encode(
         vec![TypeExpr::Bool],
         Immediate::None,
     );
+    let package_kind_value = assembler.cref(ns.o, check_namespace, package_kind, u64_type());
+    let is_package = assembler.op(
+        ns.o,
+        check_namespace,
+        Opcode::Equal,
+        vec![pav(namespace_candidate_kind), op_result(package_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let is_tagged = assembler.op(
+        ns.o,
+        check_namespace,
+        Opcode::BoolOr,
+        vec![op_result(is_entity_set), op_result(is_package)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
     append_block(
         assembler,
         check_namespace,
@@ -144,9 +164,12 @@ fn build_supported_program_encode(
             policy_kind_value,
             is_policy,
             is_entity_set,
+            package_kind_value,
+            is_package,
+            is_tagged,
         ],
         cond(
-            op_result(is_entity_set),
+            op_result(is_tagged),
             edge(
                 unwrap_namespace,
                 vec![
@@ -729,6 +752,174 @@ fn build_entity_set_program_encode(
     )
 }
 
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn build_tagged_program_encode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    entity_set_encoder: EntityId,
+    package_checker: EntityId,
+    package_encoder: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = encode_result_type();
+    let entity = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let kind = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
+    let first = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let second = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let entry = assembler.id(ns.b);
+    let call_entity_set = assembler.id(ns.b);
+    let check_witness = assembler.id(ns.b);
+    let check_package = assembler.id(ns.b);
+    let call_package = assembler.id(ns.b);
+    let mismatch = assembler.id(ns.b);
+    let package_kind = assembler.ku64(ns.k, 2);
+    let empty_bytes = assembler.kbytes(ns.k, b"");
+    let scope_code = assembler.kbytes(ns.k, b"SSMC_RESERVED_FIELD_PRESENT");
+
+    let package_kind_value = assembler.cref(ns.o, entry, package_kind, u64_type());
+    let is_package = assembler.op(
+        ns.o,
+        entry,
+        Opcode::Equal,
+        vec![pav(kind), op_result(package_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![package_kind_value, is_package],
+        cond(
+            op_result(is_package),
+            edge(check_witness, Vec::new()),
+            edge(call_entity_set, Vec::new()),
+        ),
+    );
+
+    let entity_set_result = assembler.op(
+        ns.o,
+        call_entity_set,
+        Opcode::CallDirect,
+        vec![pav(entity), pav(kind), pav(first), pav(second), pav(unit)],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: entity_set_encoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        call_entity_set,
+        function,
+        Vec::new(),
+        vec![entity_set_result],
+        ret(op_result(entity_set_result)),
+    );
+
+    let empty = assembler.cref(ns.o, check_witness, empty_bytes, TypeExpr::Bytes);
+    let witness_matches = assembler.op(
+        ns.o,
+        check_witness,
+        Opcode::Equal,
+        vec![pav(second), op_result(empty)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        check_witness,
+        function,
+        Vec::new(),
+        vec![empty, witness_matches],
+        cond(
+            op_result(witness_matches),
+            edge(check_package, Vec::new()),
+            edge(mismatch, Vec::new()),
+        ),
+    );
+
+    let package_valid = assembler.op(
+        ns.o,
+        check_package,
+        Opcode::CallDirect,
+        vec![pav(first), pav(unit)],
+        vec![TypeExpr::Bool],
+        Immediate::Function(FunctionRefValue {
+            function: package_checker,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        check_package,
+        function,
+        Vec::new(),
+        vec![package_valid],
+        cond(
+            op_result(package_valid),
+            edge(call_package, Vec::new()),
+            edge(mismatch, Vec::new()),
+        ),
+    );
+
+    let package_result = assembler.op(
+        ns.o,
+        call_package,
+        Opcode::CallDirect,
+        vec![pav(entity), pav(first), pav(unit)],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: package_encoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        call_package,
+        function,
+        Vec::new(),
+        vec![package_result],
+        ret(op_result(package_result)),
+    );
+
+    let scope = assembler.cref(ns.o, mismatch, scope_code, TypeExpr::Bytes);
+    let error = assembler.op(
+        ns.o,
+        mismatch,
+        Opcode::ResultErr,
+        vec![op_result(scope)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        mismatch,
+        function,
+        Vec::new(),
+        vec![scope, error],
+        ret(op_result(error)),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![entity, kind, first, second, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 fn supported_encode_image() -> Image {
     let mut assembler = Asm::new();
@@ -804,6 +995,36 @@ fn supported_encode_image() -> Image {
         b: 57,
         o: 58,
     };
+    let package_check_ns = Ns {
+        k: 59,
+        p: 60,
+        b: 61,
+        o: 62,
+    };
+    let tagged_program_ns = Ns {
+        k: 63,
+        p: 64,
+        b: 65,
+        o: 66,
+    };
+    let concat_ns = Ns {
+        k: 67,
+        p: 68,
+        b: 69,
+        o: 70,
+    };
+    let exact_ns = Ns {
+        k: 71,
+        p: 72,
+        b: 73,
+        o: 74,
+    };
+    let package_witness_ns = Ns {
+        k: 75,
+        p: 76,
+        b: 77,
+        o: 78,
+    };
     let entrypoint_body = eid(10, 1);
     let uvar = eid(10, 2);
     let outer = eid(10, 3);
@@ -816,6 +1037,11 @@ fn supported_encode_image() -> Image {
     let composer = eid(10, 10);
     let envelope = eid(10, 11);
     let dispatch = eid(10, 12);
+    let package_check = eid(10, 13);
+    let tagged_program = eid(10, 14);
+    let concat = eid(10, 15);
+    let exact = eid(10, 16);
+    let package_witness = eid(10, 17);
 
     let entrypoint_body_graph =
         build_entrypoint_encode(&mut assembler, entrypoint_ns, entrypoint_body);
@@ -866,12 +1092,36 @@ fn supported_encode_image() -> Image {
         dependency_program,
         octet_getter,
     );
+    let package_check_graph =
+        super::dependency_binding_decode::build_empty_package_supported_body_check(
+            &mut assembler,
+            package_check_ns,
+            package_check,
+        );
+    let concat_graph = super::package::build_concat_bytes(&mut assembler, concat_ns, concat);
+    let exact_graph =
+        super::package::build_exact_identity_validate(&mut assembler, exact_ns, exact);
+    let package_witness_graph = super::package::build_package_witness_program_encode(
+        &mut assembler,
+        package_witness_ns,
+        package_witness,
+        exact,
+        concat,
+    );
+    let tagged_program_graph = build_tagged_program_encode(
+        &mut assembler,
+        tagged_program_ns,
+        tagged_program,
+        entity_set_program,
+        package_check,
+        package_witness,
+    );
     let dispatch_graph = build_supported_program_encode(
         &mut assembler,
         dispatch_ns,
         dispatch,
         entrypoint_program,
-        entity_set_program,
+        tagged_program,
         dependency_program,
     );
 
@@ -881,8 +1131,13 @@ fn supported_encode_image() -> Image {
         functions: vec![
             dispatch_graph,
             entrypoint_program_graph,
+            tagged_program_graph,
+            package_witness_graph,
+            exact_graph,
+            concat_graph,
             entity_set_program_graph,
             dependency_program_graph,
+            package_check_graph,
             octet_getter_graph,
             composer_graph,
             envelope_graph,
@@ -960,6 +1215,18 @@ fn policy_value(entity: &[u8], subject: &[u8], requirements: &[u8]) -> ConstValu
     tagged_entity_set_value(17, entity, subject, requirements)
 }
 
+fn package_value(entity: u8, workspace: u8, root_namespace: u8) -> ConstValue {
+    let stored = super::package::package_stored(
+        [entity; 32],
+        [workspace; 32],
+        [root_namespace; 32],
+        &[],
+        &[],
+    );
+    let body = ns_body_of(&stored);
+    tagged_entity_set_value(2, &[entity; 32], &body, b"")
+}
+
 fn dependency_value(entity: u8, root: &[u8], package: &[u8], namespace: &[u8]) -> ConstValue {
     dependency_value_bytes(&[entity; 32], root, package, namespace)
 }
@@ -998,7 +1265,7 @@ fn supported_encode_call(
 }
 
 #[test]
-fn codec_supported_kind_encode_dispatch_emits_all_four_supported_kinds() {
+fn codec_supported_kind_encode_dispatch_emits_all_five_supported_kinds() {
     let image = supported_encode_image();
     let (package, approved) = admit(&image);
 
@@ -1071,10 +1338,23 @@ fn codec_supported_kind_encode_dispatch_emits_all_four_supported_kinds() {
         dependency_outcome.instruction_count,
         dependency_outcome.peak_value_units
     );
+
+    let package_value = package_value(0xf1, 0xf2, 0xf3);
+    let package_outcome = supported_encode_call(&package, &approved, 2, package_value);
+    eprintln!(
+        "SUPPORTED_ENC kind2 fuel={} instr={} peak={}",
+        package_outcome.fuel_used,
+        package_outcome.instruction_count,
+        package_outcome.peak_value_units
+    );
+    assert_encode_ok(
+        &package_outcome,
+        &super::package::package_stored([0xf1; 32], [0xf2; 32], [0xf3; 32], &[], &[]),
+    );
 }
 
 #[test]
-fn codec_supported_kind_dispatch_round_trips_all_four_value_arms() {
+fn codec_supported_kind_dispatch_round_trips_all_five_value_arms() {
     let decode_image = super::supported_dispatch::supported_decode_image();
     let (decode_package, decode_approved) = admit(&decode_image);
     let encode_image = supported_encode_image();
@@ -1148,6 +1428,21 @@ fn codec_supported_kind_dispatch_round_trips_all_four_value_arms() {
         &supported_encode_call(&encode_package, &encode_approved, 17, decoded_policy),
         &policy,
     );
+
+    let package = super::package::package_stored([0xf1; 32], [0xf2; 32], [0xf3; 32], &[], &[]);
+    let package_value = super::supported_dispatch::supported_decode_ok(
+        &super::supported_dispatch::supported_decode_call(
+            &decode_package,
+            &decode_approved,
+            2,
+            &package,
+        ),
+    );
+    assert_eq!(package_value.value_type, all_supported_encode_value_type());
+    assert_encode_ok(
+        &supported_encode_call(&encode_package, &encode_approved, 2, package_value),
+        &package,
+    );
 }
 
 #[test]
@@ -1209,6 +1504,45 @@ fn codec_supported_kind_encode_dispatch_rejects_mismatched_and_unknown_kinds() {
             &approved,
             18,
             dependency_value(1, &[2; 31], &[3; 32], &[4; 32]),
+        ),
+        "SCB_LENGTH_OVERFLOW",
+    );
+    assert_refusal(
+        &supported_encode_call(&package, &approved, 2, namespace_value(1, None, &[])),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_encode_call(&package, &approved, 3, package_value(1, 2, 3)),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    let package_stored = super::package::package_stored([1; 32], [2; 32], [3; 32], &[], &[]);
+    let package_body = ns_body_of(&package_stored);
+    assert_refusal(
+        &supported_encode_call(
+            &package,
+            &approved,
+            2,
+            tagged_entity_set_value(2, &[1; 32], &package_body, b"nonempty"),
+        ),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    let mut malformed_package_body = package_body;
+    malformed_package_body[73] = 1;
+    assert_refusal(
+        &supported_encode_call(
+            &package,
+            &approved,
+            2,
+            tagged_entity_set_value(2, &[1; 32], &malformed_package_body, b""),
+        ),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_encode_call(
+            &package,
+            &approved,
+            2,
+            tagged_entity_set_value(2, &[1; 31], &ns_body_of(&package_stored), b""),
         ),
         "SCB_LENGTH_OVERFLOW",
     );

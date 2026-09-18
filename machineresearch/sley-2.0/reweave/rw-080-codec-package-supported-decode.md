@@ -28,13 +28,13 @@ Package body subgraphs in the composed image. The selected result uses the
 existing four-field tagged arm:
 
 ```text
-(kind = 2, entity_id, validated_body, validated_body)
+(kind = 2, entity_id, validated_body, empty_reserved)
 ```
 
-The two body slots are an identical canonical witness. This preserves the
-established
+The final slot is canonically empty. This preserves the established
 `Result<Result<Result<EntryPoint, TaggedValue>, DependencyBinding>, Bytes>`
-shape and keeps the kind-18 path inside the frozen value budget. It does not
+shape while avoiding a second live body copy on the matching encode path and
+keeps the kind-18 path inside the frozen value budget. It does not
 claim a general decoded Package value: nonempty dependency or export sets are
 outside this bounded dispatcher profile. The strict standalone and composed
 Package decoders from slices 19 and 20 remain the semantic authority for those
@@ -69,16 +69,19 @@ value units and 100,000 output units), the five successful fixtures measure:
 
 | Kind | Stored bytes | Fuel | Instructions | Peak value units |
 |---|---:|---:|---:|---:|
-| EntryPoint 16 | 153 | 27,822 | 3,490 | 602,607 |
-| Namespace 3 | 155 | 29,136 | 3,659 | 620,927 |
-| DependencyBinding 18 | 219 | 28,277 | 3,296 | 999,903 |
-| PolicyBinding 17 | 186 | 41,675 | 4,686 | 876,887 |
-| Package 2, empty sets | 190 | 30,191 | 3,484 | 849,699 |
+| EntryPoint 16 | 153 | 27,822 | 3,490 | 602,676 |
+| Namespace 3 | 155 | 29,136 | 3,659 | 620,996 |
+| DependencyBinding 18 | 219 | 28,277 | 3,296 | 999,972 |
+| PolicyBinding 17 | 186 | 41,675 | 4,686 | 876,956 |
+| Package 2, empty sets | 190 | 30,192 | 3,485 | 849,463 |
 
-The kind-18 fixture remains the tight valid case with 97 value units of
+The kind-18 fixture remains the tight valid case with 28 value units of
 headroom. No protected limit changed. One-dependency and one-export Package
 objects are each 224 bytes and reach the explicit value-unit boundary at
-26,027 fuel, 2,984 instructions and 999,814 recorded peak units.
+26,027 fuel, 2,984 instructions and 999,883 recorded peak units.
+
+Program slice 23 adds the paired supported encoder for this exact semantic
+witness; see `rw-080-codec-package-supported-encode.md`.
 
 The retained construction studies showed why the bounded checker is needed.
 Adding the generic Package decoder family raised the kind-18 image above 1.08

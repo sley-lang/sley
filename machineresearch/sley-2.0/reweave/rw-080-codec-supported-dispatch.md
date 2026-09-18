@@ -170,10 +170,10 @@ ceiling.
 
 The current entry supports kinds 2, 3, 16, 17 and 18. Package kind 2 uses the
 existing four-field tagged arm and admits the exact canonical empty-set body;
-the arm carries `(2, entity_id, validated_body, validated_body)`. Canonical
-kind 2 measures 30,191 fuel, 3,484 instructions and 849,699 peak value units
+the arm carries `(2, entity_id, validated_body, empty_reserved)`. Canonical
+kind 2 measures 30,192 fuel, 3,485 instructions and 849,463 peak value units
 for the 190-byte fixture. DependencyBinding remains the tight valid case at
-999,903 peak units. A valid nonempty Package is outside this bounded profile
+999,972 peak units. A valid nonempty Package is outside this bounded profile
 and reaches the protected value-unit envelope before a typed scope value can
 be materialized. The complete construction, discarded budget studies and
 capacity measurements are recorded in
