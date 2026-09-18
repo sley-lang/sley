@@ -1,5 +1,12 @@
 # RW-090 canonical codec object construction — provisional record
 
+> 2026-09-18 codec re-mint: the canonical codec component is now the
+> arbitrary four-leg composition (13,214 objects, root `8c933cca…`,
+> `rw-090-arbitrary-canonical-codec-objects.md`); the figures below describe
+> the bounded generation it replaced, retained as history behind the
+> `bounded_*` tests. `rw-090-codec-component-manifest.json` carries the
+> current figures and the superseded ones side by side.
+
 Status: PROVISIONAL (2026-09-18, operator development override
 `rw075_correction.operator_override_2026_09_07`). This slice converts the
 executable four-leg codec fixture into canonical SSMC1 entity objects with

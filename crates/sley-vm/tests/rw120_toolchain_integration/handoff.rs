@@ -404,7 +404,16 @@ fn append_handoff_graph(
 }
 
 pub(super) fn fixture() -> HandoffFixture {
-    let mut program = component::merged_program();
+    fixture_over(component::merged_program())
+}
+
+/// The handoff driver over the bounded-codec union that preceded the
+/// 2026-09-18 codec re-mint, retained as history.
+pub(super) fn bounded_fixture() -> HandoffFixture {
+    fixture_over(component::bounded_merged_program())
+}
+
+fn fixture_over(mut program: component::MergedProgram) -> HandoffFixture {
     let entry = derived_id(5, HANDOFF_BASE);
     let (codec_inputs, expected_codec) = codec::integration_codec_test();
     let (checker_inputs, expected_checker) = checker::integration_checker_test();

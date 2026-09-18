@@ -1,18 +1,28 @@
 {
   "schema": "sley2-rw090-codec-component-manifest-v1",
   "status": "PROVISIONAL",
-  "object_count": 6233,
-  "codec_object_count": 6221,
-  "codec_object_stored_bytes": 1571749,
-  "codec_bundle_sha256": "981f68e6114b556e9f20f09d8e4f5393a039cb6b7678774328b2b2f62705fcdb",
-  "state_root": "87afab53ad6634ae0e169cbe767e641c292a363e7ba435808ce9be64ee36e555",
-  "state_root_stored_bytes": 411675,
-  "state_root_stored_sha256": "ea8ed0afe3a82d47dc91058196665be766b16733fbde4ea1fd94edb505292a2f",
+  "object_count": 13214,
+  "codec_object_count": 13202,
+  "codec_object_stored_bytes": 3347761,
+  "codec_bundle_sha256": "a46cf3de2c3ce96061c8ca8182671ae7e466770589545f84759d372b9ff1b187",
+  "state_root": "8c933ccab89b6e150e1070ad534b498dad736bd0ae689a5d30fc600084b2d78a",
+  "state_root_stored_bytes": 872421,
+  "state_root_stored_sha256": "5a0d017c85ea2846bdaece500b9963ca5f761a50ed7d73bb291ec2a970a1e289",
   "entry_point_identity": "EntityId::derive(workspace,candidate,16,5)",
   "contract_identity": "EntityId::derive(workspace,candidate,13,1)",
   "test_identity": "EntityId::derive(workspace,candidate,14,1)",
   "retained_test_target": "canonical frozen-schema decode function",
   "whole_codec_effect_validation": "OPEN_RHW1_BYTES_TO_BYTES_PROFILE_BOUNDARY",
   "canonical_state_root_s": false,
-  "r2_ready": false
+  "r2_ready": false,
+  "codec_generation": "arbitrary four-leg codec (both program legs judge arbitrary canonical bodies; codec re-mint 2026-09-18)",
+  "superseded_bounded_component": {
+    "object_count": 6233,
+    "codec_object_count": 6221,
+    "codec_object_stored_bytes": 1571749,
+    "codec_bundle_sha256": "981f68e6114b556e9f20f09d8e4f5393a039cb6b7678774328b2b2f62705fcdb",
+    "state_root": "87afab53ad6634ae0e169cbe767e641c292a363e7ba435808ce9be64ee36e555",
+    "state_root_stored_bytes": 411675,
+    "state_root_stored_sha256": "ea8ed0afe3a82d47dc91058196665be766b16733fbde4ea1fd94edb505292a2f"
+  }
 }

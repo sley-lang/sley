@@ -283,15 +283,16 @@ fn remap_graph(graph: &mut FunctionGraph, ids: &BTreeMap<EntityId, EntityId>) {
         .for_each(|entity| *entity = mapped(ids, *entity));
 }
 
+/// The canonical codec component: the arbitrary four-leg composition under
+/// the construction identities (codec re-mint of 2026-09-18).
 pub(super) fn canonical_codec_image() -> (Image, BTreeMap<EntityId, EntityId>) {
-    canonical_image_of(super::codec_main::codec_main_image())
+    canonical_image_of(super::codec_main::arbitrary_codec_main_image())
 }
 
-/// The arbitrary four-leg composition under the retained construction
-/// identities: the exact component a codec re-mint would substitute for
-/// the retained one (same nonce, same ordinals, different graph).
-pub(super) fn arbitrary_canonical_codec_image() -> (Image, BTreeMap<EntityId, EntityId>) {
-    canonical_image_of(super::codec_main::arbitrary_codec_main_image())
+/// The bounded generation that preceded the re-mint, retained as history
+/// under the same construction identities.
+pub(super) fn bounded_canonical_codec_image() -> (Image, BTreeMap<EntityId, EntityId>) {
+    canonical_image_of(super::codec_main::codec_main_image())
 }
 
 /// Rewrites one composed codec image into derived construction identities.
@@ -1133,8 +1134,8 @@ fn canonical_codec_object_identity_changes_with_semantic_input() {
 }
 
 #[test]
-fn canonical_codec_component_retains_validated_contract_test_and_executes_from_its_root() {
-    let (image, ids) = canonical_codec_image();
+fn bounded_codec_component_retains_validated_contract_test_and_executes_from_its_root() {
+    let (image, ids) = bounded_canonical_codec_image();
     let source_schema_decode = super::schema_codec::schema_decode_image().entry.entity_id;
     let schema_decode = ids[&source_schema_decode];
     let schema_image = schema_decode_component_image(&image, schema_decode);
@@ -1170,7 +1171,7 @@ fn canonical_codec_component_retains_validated_contract_test_and_executes_from_i
     );
 
     eprintln!(
-        "RW090_CODEC_COMPONENT objects={} root={} root_bytes={} root_sha256={}",
+        "RW090_BOUNDED_CODEC_COMPONENT objects={} root={} root_bytes={} root_sha256={}",
         objects.len(),
         hex(root.root.as_bytes()),
         root.stored_bytes.len(),
@@ -1178,13 +1179,12 @@ fn canonical_codec_component_retains_validated_contract_test_and_executes_from_i
     );
 }
 
-/// The canonical codec component derived from the arbitrary four-leg
-/// composition under the retained construction identities: the component a
-/// codec re-mint would substitute. Evidence only; the retained component
-/// above is untouched.
+/// The canonical codec component (arbitrary four-leg composition) binds
+/// every object under an accepted root and executes the retained schema
+/// contract and test from it.
 #[test]
-fn arbitrary_canonical_codec_component_binds_and_executes_from_its_root() {
-    let (image, ids) = arbitrary_canonical_codec_image();
+fn canonical_codec_component_retains_validated_contract_test_and_executes_from_its_root() {
+    let (image, ids) = canonical_codec_image();
     let source_schema_decode = super::schema_codec::schema_decode_image().entry.entity_id;
     let schema_decode = ids[&source_schema_decode];
     let schema_image = schema_decode_component_image(&image, schema_decode);
@@ -1229,7 +1229,7 @@ fn arbitrary_canonical_codec_component_binds_and_executes_from_its_root() {
     );
 
     eprintln!(
-        "RW090_ARBITRARY_CODEC_COMPONENT objects={} stored_object_bytes={} root={} root_bytes={} root_sha256={}",
+        "RW090_CODEC_COMPONENT objects={} stored_object_bytes={} root={} root_bytes={} root_sha256={}",
         objects.len(),
         objects
             .iter()

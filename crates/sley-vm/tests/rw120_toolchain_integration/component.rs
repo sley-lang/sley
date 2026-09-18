@@ -55,10 +55,10 @@ pub(super) fn merged_program() -> MergedProgram {
     merged_program_with(codec::integration_codec_program())
 }
 
-/// The same union with the arbitrary codec substituted for the retained one:
-/// the canonical `S` a codec re-mint would produce.
-pub(super) fn arbitrary_merged_program() -> MergedProgram {
-    merged_program_with(codec::integration_arbitrary_codec_program())
+/// The bounded-codec union that preceded the 2026-09-18 codec re-mint,
+/// retained as history.
+pub(super) fn bounded_merged_program() -> MergedProgram {
+    merged_program_with(codec::integration_bounded_codec_program())
 }
 
 fn merged_program_with(codec: codec::Image) -> MergedProgram {
@@ -225,8 +225,8 @@ pub(super) fn driver_fixture() -> DriverFixture {
     driver_fixture_over(merged_program())
 }
 
-pub(super) fn arbitrary_driver_fixture() -> DriverFixture {
-    driver_fixture_over(arbitrary_merged_program())
+pub(super) fn bounded_driver_fixture() -> DriverFixture {
+    driver_fixture_over(bounded_merged_program())
 }
 
 fn driver_fixture_over(mut program: MergedProgram) -> DriverFixture {

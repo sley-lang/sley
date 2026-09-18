@@ -76,8 +76,8 @@ fn reconstruction_case(
 }
 
 #[test]
-fn canonical_component_programs_are_available_to_one_integration_crate() {
-    let codec = codec::integration_codec_program();
+fn bounded_component_programs_are_available_to_one_integration_crate() {
+    let codec = codec::integration_bounded_codec_program();
     let checker = checker::integration_checker_program();
     let (lowerer, builder) = lower::integration_lowerer_programs();
     assert_eq!(codec.functions.len(), 31);
@@ -87,8 +87,8 @@ fn canonical_component_programs_are_available_to_one_integration_crate() {
 }
 
 #[test]
-fn canonical_programs_merge_without_semantic_identity_collisions() {
-    let merged = component::merged_program();
+fn bounded_programs_merge_without_semantic_identity_collisions() {
+    let merged = component::bounded_merged_program();
     assert_eq!(merged.entry_points.len(), 4);
     assert_eq!(merged.functions.len(), 100);
     assert_eq!(merged.parameters.len(), 5_072);
@@ -108,9 +108,9 @@ fn canonical_programs_merge_without_semantic_identity_collisions() {
 }
 
 #[test]
-fn merged_component_root_executes_all_four_canonical_programs() {
+fn bounded_merged_component_root_executes_all_four_programs() {
     component::validate_component_test();
-    let merged = component::merged_program();
+    let merged = component::bounded_merged_program();
     let evidence = component::component_evidence(&merged);
     assert_eq!(
         evidence.root.record.entity_bindings.len(),
@@ -127,7 +127,7 @@ fn merged_component_root_executes_all_four_canonical_programs() {
         unreachable!("integrated checker test has an exact value expectation")
     };
     assert_eq!(&actual, expected);
-    let codec = codec::integration_codec_program();
+    let codec = codec::integration_bounded_codec_program();
     assert_eq!(
         codec::integration_execute_codec(&codec, evidence.root.root),
         codec::integration_codec_expected()
@@ -184,7 +184,7 @@ fn merged_component_root_executes_all_four_canonical_programs() {
         "b28ab1c1d237d3f4cf6694cba67e23c07101065d01828ffc7e28060a63daba9c"
     );
     eprintln!(
-        "RW120_COMPONENT objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={}",
+        "RW120_BOUNDED_COMPONENT objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={}",
         evidence.objects.len(),
         object_bytes,
         hex(&object_digest),
@@ -195,8 +195,8 @@ fn merged_component_root_executes_all_four_canonical_programs() {
 }
 
 #[test]
-fn integrated_driver_calls_all_four_real_programs_in_one_execution() {
-    let fixture = component::driver_fixture();
+fn bounded_integrated_driver_calls_all_four_real_programs_in_one_execution() {
+    let fixture = component::bounded_driver_fixture();
     assert_eq!(fixture.program.entry_points.len(), 5);
     assert_eq!(fixture.program.functions.len(), 101);
     assert_eq!(fixture.program.parameters.len(), 5_147);
@@ -245,7 +245,7 @@ fn integrated_driver_calls_all_four_real_programs_in_one_execution() {
     assert_eq!(execution.gate_operation_count, 4_054);
     assert_eq!(execution.gate_bridge_uses, 147);
     eprintln!(
-        "RW120_DRIVER objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={}",
+        "RW120_BOUNDED_DRIVER objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={}",
         evidence.objects.len(),
         object_bytes,
         hex(&object_digest),
@@ -260,8 +260,8 @@ fn integrated_driver_calls_all_four_real_programs_in_one_execution() {
 }
 
 #[test]
-fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
-    let fixture = handoff::fixture();
+fn bounded_integrated_driver_hands_lowered_bytes_to_the_package_builder() {
+    let fixture = handoff::bounded_fixture();
     assert_eq!(fixture.program.entry_points.len(), 5);
     assert_eq!(fixture.program.functions.len(), 101);
     assert_eq!(fixture.program.parameters.len(), 5_148);
@@ -334,7 +334,7 @@ fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
     assert_eq!(execution.gate_operation_count, 4_058);
     assert_eq!(execution.gate_bridge_uses, 147);
     eprintln!(
-        "RW120_HANDOFF objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={}",
+        "RW120_BOUNDED_HANDOFF objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={}",
         evidence.objects.len(),
         object_bytes,
         hex(&object_digest),
@@ -350,8 +350,8 @@ fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
 
 #[test]
 #[ignore = "qualification: complete fact-fed reconstruction is intentionally measured separately"]
-fn integrated_driver_reconstructs_its_complete_executable_package() {
-    let fixture = handoff::fixture();
+fn bounded_integrated_driver_reconstructs_its_complete_executable_package() {
+    let fixture = handoff::bounded_fixture();
     let evidence = component::component_evidence(&fixture.program);
     let limits = component::reconstruction_limits();
     let reference = component::reference_driver_package_with_limits(
@@ -518,13 +518,12 @@ fn component_digests(evidence: &component::ComponentEvidence) -> (usize, String,
     (object_bytes, hex(&object_digest), hex(&root_digest))
 }
 
-/// The canonical `S` a codec re-mint would produce: the arbitrary codec
-/// component merged with the retained checker, lowerer, and builder, with
-/// all four programs executing from its root. Evidence only — nothing here
-/// is preserved or written into a manifest.
+/// The canonical union: the arbitrary codec component merged with the
+/// retained checker, lowerer, and builder, with all four programs executing
+/// from its root.
 #[test]
-fn arbitrary_merged_component_root_executes_all_four_canonical_programs() {
-    let merged = component::arbitrary_merged_program();
+fn merged_component_root_executes_all_four_canonical_programs() {
+    let merged = component::merged_program();
     assert_eq!(merged.entry_points.len(), 4);
     let evidence = component::component_evidence(&merged);
     assert_eq!(
@@ -541,7 +540,7 @@ fn arbitrary_merged_component_root_executes_all_four_canonical_programs() {
         unreachable!("integrated checker test has an exact value expectation")
     };
     assert_eq!(&actual, expected);
-    let codec = codec::integration_arbitrary_codec_program();
+    let codec = codec::integration_codec_program();
     assert_eq!(
         codec::integration_execute_codec(&codec, evidence.root.root),
         codec::integration_codec_expected()
@@ -593,7 +592,7 @@ fn arbitrary_merged_component_root_executes_all_four_canonical_programs() {
         "953420d1039b8ed0730ab78d9b3fe12513405041e2bf16f50b0beccb9c07f5a0"
     );
     eprintln!(
-        "RW120_ARBITRARY_COMPONENT functions={} parameters={} blocks={} operations={} constants={} objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={}",
+        "RW120_COMPONENT functions={} parameters={} blocks={} operations={} constants={} objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={}",
         merged.functions.len(),
         merged.parameters.len(),
         merged.blocks.len(),
@@ -608,12 +607,11 @@ fn arbitrary_merged_component_root_executes_all_four_canonical_programs() {
     );
 }
 
-/// The integrated driver over the arbitrary-codec `S`: one execution calling
-/// all four real programs, with the gate and package facts a re-mint would
-/// record.
+/// The integrated driver over the canonical union: one execution calling
+/// all four real programs.
 #[test]
-fn arbitrary_integrated_driver_calls_all_four_real_programs_in_one_execution() {
-    let fixture = component::arbitrary_driver_fixture();
+fn integrated_driver_calls_all_four_real_programs_in_one_execution() {
+    let fixture = component::driver_fixture();
     assert_eq!(fixture.program.entry_points.len(), 5);
     let evidence = component::component_evidence(&fixture.program);
     let execution = component::execute_driver(
@@ -651,7 +649,7 @@ fn arbitrary_integrated_driver_calls_all_four_real_programs_in_one_execution() {
     assert_eq!(execution.gate_operation_count, 6_142);
     assert_eq!(execution.gate_bridge_uses, 211);
     eprintln!(
-        "RW120_ARBITRARY_DRIVER functions={} parameters={} blocks={} operations={} objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={} instructions={} fuel={} peak={}",
+        "RW120_DRIVER functions={} parameters={} blocks={} operations={} objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={} instructions={} fuel={} peak={}",
         fixture.program.functions.len(),
         fixture.program.parameters.len(),
         fixture.program.blocks.len(),
@@ -670,4 +668,175 @@ fn arbitrary_integrated_driver_calls_all_four_real_programs_in_one_execution() {
         execution.fuel_used,
         execution.peak_value_units,
     );
+}
+
+/// The canonical `S` construction: the handoff driver hands the lowered
+/// bytes to the package builder from a root binding the complete closure.
+/// `canonical-s-manifest.json` and `check_reweave_canonical_s.py` pin the
+/// facts this test prints.
+#[test]
+fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
+    let fixture = handoff::fixture();
+    assert_eq!(fixture.program.entry_points.len(), 5);
+    assert_eq!(fixture.program.functions.len(), 189);
+    assert_eq!(fixture.program.parameters.len(), 8_748);
+    assert_eq!(fixture.program.blocks.len(), 3_077);
+    assert_eq!(fixture.program.operations.len(), 6_146);
+    assert_eq!(fixture.program.constants.len(), 676);
+    assert_eq!(fixture.inputs.len(), 74);
+    let evidence = component::component_evidence(&fixture.program);
+    let execution = component::execute_driver(
+        &fixture.program,
+        fixture.entry,
+        evidence.root.root,
+        fixture.inputs,
+    );
+    assert_eq!(execution.value, fixture.expected);
+    let (object_bytes, object_digest, root_digest) = component_digests(&evidence);
+    assert_eq!(evidence.objects.len(), 18_857);
+    assert_eq!(object_bytes, 4_747_089);
+    assert_eq!(
+        object_digest,
+        "7e10c8a2474fd6d1aca295f025d06562197a061880343ec47802b196bcf48249"
+    );
+    assert_eq!(
+        hex(evidence.root.root.as_bytes()),
+        "b1992814cfc2332215d65e1ede6a619fc2ebb8122b8105e5fc527ca8b10548c3"
+    );
+    assert_eq!(evidence.root.stored_bytes.len(), 1_244_993);
+    assert_eq!(
+        root_digest,
+        "5fbcdf19be9761daa5dd3ccc617cdf00fdfb68d0ec6d43ad7ccf6cd59ed7bcef"
+    );
+    assert_eq!(execution.image_bytes, 766_958);
+    assert_eq!(
+        hex(&execution.package_digest),
+        "fa27ccc7296778b67ac588ccf26bf29972d68f7f1737029aa9e8f9fdf6162b7d"
+    );
+    assert_eq!(execution.gate_operation_count, 6_146);
+    assert_eq!(execution.gate_bridge_uses, 211);
+    eprintln!(
+        "RW120_HANDOFF functions={} parameters={} blocks={} operations={} constants={} objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={}",
+        fixture.program.functions.len(),
+        fixture.program.parameters.len(),
+        fixture.program.blocks.len(),
+        fixture.program.operations.len(),
+        fixture.program.constants.len(),
+        evidence.objects.len(),
+        object_bytes,
+        object_digest,
+        hex(evidence.root.root.as_bytes()),
+        evidence.root.stored_bytes.len(),
+        root_digest,
+        execution.image_bytes,
+        hex(&execution.package_digest),
+        execution.gate_operation_count,
+        execution.gate_bridge_uses,
+    );
+}
+
+/// The C1 qualification: the Sley toolchain reconstructs its own complete
+/// executable package over canonical `S`. Ignored because it is measured
+/// separately; `SLEY_C1_OUTPUT` preserves the envelope.
+#[test]
+#[ignore = "qualification: complete fact-fed reconstruction is intentionally measured separately"]
+fn integrated_driver_reconstructs_its_complete_executable_package() {
+    let fixture = handoff::fixture();
+    let evidence = component::component_evidence(&fixture.program);
+    let limits = component::reconstruction_limits();
+    let reference = component::reference_driver_package_with_limits(
+        &fixture.program,
+        fixture.entry,
+        evidence.root.root,
+        limits,
+    );
+    let (inputs, expected) = reconstruction_case(&reference);
+    assert_eq!(inputs.len(), 74);
+    let started = std::time::Instant::now();
+    let execution = component::execute_driver_with_limits(
+        &fixture.program,
+        fixture.entry,
+        evidence.root.root,
+        inputs,
+        limits,
+    );
+    let seconds = started.elapsed().as_secs_f64();
+    assert_eq!(execution.value, expected);
+    let sley_ssmc::ConstData::Sequence(results) = &execution.value.data else {
+        unreachable!("integrated driver result is a tuple")
+    };
+    let sley_ssmc::ConstData::Result(sley_ssmc::ResultConst::Ok(envelope)) = &results[3].data
+    else {
+        unreachable!("toolchain package reconstruction succeeds")
+    };
+    let sley_ssmc::ConstData::Bytes(envelope) = &envelope.data else {
+        unreachable!("package builder returns envelope bytes")
+    };
+    assert_eq!(
+        envelope,
+        &sley_vm::encode_package_envelope_v2(&reference.package).unwrap()
+    );
+    let decoded = sley_vm::decode_package_envelope_v2(envelope).unwrap();
+    assert_eq!(decoded.image_bytes, reference.lowered.bytes);
+    assert_eq!(decoded.entry, fixture.entry);
+    assert_eq!(decoded.state_root, evidence.root.root);
+    let loaded = sley_vm::host_abi::load_image(&decoded.image_bytes).unwrap();
+    assert_eq!(loaded.entry.function, fixture.entry);
+    assert_eq!(loaded.callees.len(), 188);
+    let envelope_digest: [u8; 32] = Sha256::digest(envelope).into();
+    let image_digest: [u8; 32] = Sha256::digest(&decoded.image_bytes).into();
+    assert_eq!(decoded.image_bytes.len(), 766_958);
+    assert_eq!(
+        hex(&image_digest),
+        "fb19ba9123ec0d862fde323034c3f98cdbac2927c5f010544030e40a8d8e6ae7"
+    );
+    assert_eq!(envelope.len(), 809_732);
+    assert_eq!(
+        hex(&envelope_digest),
+        "87db2921370298422d0c3b4dbd5b2fe28d9f3b93b07329ac4da7a1a2b0eb2f79"
+    );
+    assert_eq!(
+        hex(&decoded.digests.package_digest),
+        "4d3800996ca8eba63bda1c2a1e5fc10f3c8edad45ed12abc02148753e5637314"
+    );
+    assert_eq!(execution.instruction_count, 24_276_433);
+    assert_eq!(execution.fuel_used, 115_671_319);
+    assert_eq!(execution.peak_value_units, 13_958_049_818_064);
+    eprintln!(
+        "RW120_C1 root={} callees={} image_bytes={} image_sha256={} envelope_bytes={} envelope_sha256={} package_digest={} instructions={} fuel={} peak={} seconds={seconds:.2}",
+        hex(evidence.root.root.as_bytes()),
+        loaded.callees.len(),
+        decoded.image_bytes.len(),
+        hex(&image_digest),
+        envelope.len(),
+        hex(&envelope_digest),
+        hex(&decoded.digests.package_digest),
+        execution.instruction_count,
+        execution.fuel_used,
+        execution.peak_value_units,
+    );
+    preserve_seed_artifact("SLEY_C1_OUTPUT", envelope);
+}
+
+#[test]
+fn canonical_component_programs_are_available_to_one_integration_crate() {
+    let codec = codec::integration_codec_program();
+    let checker = checker::integration_checker_program();
+    let (lowerer, builder) = lower::integration_lowerer_programs();
+    assert_eq!(codec.functions.len(), 119);
+    assert_eq!(checker.functions.len(), 8);
+    assert_eq!(lowerer.functions.len(), 35);
+    assert_eq!(builder.functions.len(), 26);
+}
+
+#[test]
+fn canonical_programs_merge_without_semantic_identity_collisions() {
+    let merged = component::merged_program();
+    assert_eq!(merged.entry_points.len(), 4);
+    assert_eq!(merged.functions.len(), 188);
+    assert_eq!(merged.parameters.len(), 8_672);
+    assert_eq!(merged.blocks.len(), 3_074);
+    assert_eq!(merged.operations.len(), 6_137);
+    assert_eq!(merged.constants.len(), 676);
+    assert_eq!(merged.adapters.len(), 4);
 }

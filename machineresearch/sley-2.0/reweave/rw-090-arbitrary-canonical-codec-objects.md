@@ -2,7 +2,7 @@
 
 Date: 2026-09-18
 
-Status: implemented parallel derivation; evidence for the next component re-mint. The retained codec component (`rw-090-canonical-codec-objects.md`), its manifest, canonical `S`, and the preserved C0/C1 candidate are unchanged.
+Status: CANONICAL CODEC COMPONENT (codec re-mint 2026-09-18). This component replaced the bounded generation of `rw-090-canonical-codec-objects.md` as the codec member of canonical `S`; see `rw-120-c0-c1-candidate.md` for the re-minted candidate.
 
 ## Construction
 
@@ -47,7 +47,6 @@ cargo test -p sley-vm --test rw120_toolchain_integration
 cargo test -p sley-vm --test rw080_codec_program_outer
 ```
 
-This root is a component root, not canonical `S`, and is not written into
-`bootstrap-manifest.json` or any RW-120 manifest. The merged `S` and
-integrated-driver dry run over this component are recorded in
-`rw-120-arbitrary-codec-dry-run.md`.
+This root is a component root, not canonical `S`; canonical `S` binds this
+component together with the retained checker, lowerer, builder, and handoff
+driver (`canonical-s-manifest.json`).
