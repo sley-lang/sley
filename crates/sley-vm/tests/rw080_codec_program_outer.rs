@@ -53,6 +53,8 @@ use sley_ssmc::{
 mod dependency_binding;
 #[path = "rw080_codec_program/dependency_binding_decode.rs"]
 mod dependency_binding_decode;
+#[path = "rw080_codec_program/policy_binding.rs"]
+mod policy_binding;
 #[path = "rw080_codec_program/supported_dispatch.rs"]
 mod supported_dispatch;
 #[path = "rw080_codec_program/supported_encode_dispatch.rs"]
@@ -19517,13 +19519,52 @@ enum ParentCopyMode {
     CountedLength,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EntitySetBodyKind {
+    Namespace,
+    PolicyBinding,
+}
+
 fn build_namespace_encode(
     a: &mut Asm,
     ns: Ns,
     fid: EntityId,
     encode_fid: EntityId,
 ) -> FunctionGraph {
-    build_namespace_encode_with_mode(a, ns, fid, encode_fid, ParentCopyMode::Unrolled)
+    build_entity_set_encode_with_mode(
+        a,
+        ns,
+        fid,
+        encode_fid,
+        ParentCopyMode::Unrolled,
+        EntitySetBodyKind::Namespace,
+    )
+}
+
+fn build_policy_binding_encode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    encode_fid: EntityId,
+) -> FunctionGraph {
+    build_entity_set_encode_with_mode(
+        a,
+        ns,
+        fid,
+        encode_fid,
+        ParentCopyMode::Unrolled,
+        EntitySetBodyKind::PolicyBinding,
+    )
+}
+
+fn build_namespace_encode_with_mode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    encode_fid: EntityId,
+    mode: ParentCopyMode,
+) -> FunctionGraph {
+    build_entity_set_encode_with_mode(a, ns, fid, encode_fid, mode, EntitySetBodyKind::Namespace)
 }
 
 #[allow(
@@ -19531,12 +19572,13 @@ fn build_namespace_encode(
     clippy::similar_names,
     clippy::too_many_lines
 )]
-fn build_namespace_encode_with_mode(
+fn build_entity_set_encode_with_mode(
     a: &mut Asm,
     ns: Ns,
     fid: EntityId,
     encode_fid: EntityId,
     mode: ParentCopyMode,
+    body_kind: EntitySetBodyKind,
 ) -> FunctionGraph {
     use sley_vm::host_abi::{BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
     let bstart = a.blocks.len();
@@ -19545,14 +19587,22 @@ fn build_namespace_encode_with_mode(
     let c1 = a.ku64(ns.k, 1);
     let c2 = a.ku64(ns.k, 2);
     let c32 = a.ku64(ns.k, 32);
-    let c34 = a.ku64(ns.k, 34);
+    let subject_payload_len = match body_kind {
+        EntitySetBodyKind::Namespace => 34,
+        EntitySetBodyKind::PolicyBinding => 32,
+    };
+    let c_subject_payload_len = a.ku64(ns.k, subject_payload_len);
     let w64 = a.ku32(ns.k, 64);
     let b00 = a.ku8(ns.k, 0);
     let b01 = a.ku8(ns.k, 1);
     let b02 = a.ku8(ns.k, 2);
-    let b03 = a.ku8(ns.k, 3);
+    let union_tag = match body_kind {
+        EntitySetBodyKind::Namespace => 3,
+        EntitySetBodyKind::PolicyBinding => 17,
+    };
+    let b_union_tag = a.ku8(ns.k, union_tag);
     let b20 = a.ku8(ns.k, 32);
-    let b22 = a.ku8(ns.k, 34);
+    let b_subject_payload_len = a.ku8(ns.k, subject_payload_len);
     let e_len = a.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
     let e_trail = a.kbytes(ns.k, b"SCB_TRAILING_BYTES");
     let e_res = a.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
@@ -19739,7 +19789,10 @@ fn build_namespace_encode_with_mode(
         operations: vec![v_ln, v_k0, v_k32, v_eq0, v_lt, v_gt],
         terminator: cond(
             op_result(v_eq0),
-            edge(rn_a, vec![pav(v_mem), pav(v_unit)]),
+            match body_kind {
+                EntitySetBodyKind::Namespace => edge(rn_a, vec![pav(v_mem), pav(v_unit)]),
+                EntitySetBodyKind::PolicyBinding => edge(b_len, Vec::new()),
+            },
             edge(
                 par_len_nz,
                 vec![
@@ -19790,74 +19843,77 @@ fn build_namespace_encode_with_mode(
         ),
         reachability: Reachability::Required,
     });
-    // None path: record prefix is built immediately as
-    // `02 01 02 00 00 02` (count, field-1 tag/len, None union,
-    // field-2 tag). The parent union needs no vector: both None bytes
-    // are constants. Rpre threads onward in the Pu slot.
-    let na_mem = a.param(ns.p, rn_a, ParameterRole::Block, TypeExpr::Bytes);
-    let na_unit = a.param(ns.p, rn_a, ParameterRole::Block, TypeExpr::Unit);
-    let na_empty = a.op(
-        ns.o,
-        rn_a,
-        Opcode::VectorNew,
-        Vec::new(),
-        vec![u8vec_type()],
-        Immediate::None,
-    );
-    a.blocks.push(Block {
-        entity_id: rn_a,
-        function: fid,
-        parameters: vec![na_mem, na_unit],
-        operations: vec![na_empty],
-        terminator: branch(edge(
-            rn_b,
-            vec![op_result(na_empty), pav(na_mem), pav(na_unit)],
-        )),
-        reachability: Reachability::Required,
-    });
-    // rn_b..rn_g params: [Rpre, members, unit]. Sequential fixed pushes;
-    // rn_g lands on ml_start with [Rpre, members, unit].
-    let rn_push_const = [
-        (rn_b, b02, rn_c),
-        (rn_c, b01, rn_d),
-        (rn_d, b02, rn_e),
-        (rn_e, b00, rn_f),
-        (rn_f, b00, rn_g),
-        (rn_g, b02, ml_start),
-    ];
-    for (blk, konst, next) in rn_push_const {
-        let q_acc = a.param(ns.p, blk, ParameterRole::Block, u8vec_type());
-        let q_mem = a.param(ns.p, blk, ParameterRole::Block, TypeExpr::Bytes);
-        let q_unit = a.param(ns.p, blk, ParameterRole::Block, TypeExpr::Unit);
-        let q_c = a.cref(ns.o, blk, konst, u8_type());
-        let q_push = a.op(
+    if body_kind == EntitySetBodyKind::Namespace {
+        // None path: record prefix is built immediately as
+        // `02 01 02 00 00 02` (count, field-1 tag/len, None union,
+        // field-2 tag). The parent union needs no vector: both None bytes
+        // are constants. Rpre threads onward in the Pu slot.
+        let na_mem = a.param(ns.p, rn_a, ParameterRole::Block, TypeExpr::Bytes);
+        let na_unit = a.param(ns.p, rn_a, ParameterRole::Block, TypeExpr::Unit);
+        let na_empty = a.op(
             ns.o,
-            blk,
-            Opcode::AdapterInvoke,
-            vec![pav(q_acc), op_result(q_c)],
-            vec![index_result(u8vec_type())],
-            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+            rn_a,
+            Opcode::VectorNew,
+            Vec::new(),
+            vec![u8vec_type()],
+            Immediate::None,
         );
         a.blocks.push(Block {
-            entity_id: blk,
+            entity_id: rn_a,
             function: fid,
-            parameters: vec![q_acc, q_mem, q_unit],
-            operations: vec![q_c, q_push],
-            terminator: switch(
-                op_result(q_push),
-                vec![
-                    (
-                        BuiltinCase::Ok,
-                        next,
-                        vec![SwitchArgument::CasePayload, sav(q_mem), sav(q_unit)],
-                    ),
-                    (BuiltinCase::Err, b_res, Vec::new()),
-                ],
-            ),
+            parameters: vec![na_mem, na_unit],
+            operations: vec![na_empty],
+            terminator: branch(edge(
+                rn_b,
+                vec![op_result(na_empty), pav(na_mem), pav(na_unit)],
+            )),
             reachability: Reachability::Required,
         });
+        // rn_b..rn_g params: [Rpre, members, unit]. Sequential fixed pushes;
+        // rn_g lands on ml_start with [Rpre, members, unit].
+        let rn_push_const = [
+            (rn_b, b02, rn_c),
+            (rn_c, b01, rn_d),
+            (rn_d, b02, rn_e),
+            (rn_e, b00, rn_f),
+            (rn_f, b00, rn_g),
+            (rn_g, b02, ml_start),
+        ];
+        for (blk, konst, next) in rn_push_const {
+            let q_acc = a.param(ns.p, blk, ParameterRole::Block, u8vec_type());
+            let q_mem = a.param(ns.p, blk, ParameterRole::Block, TypeExpr::Bytes);
+            let q_unit = a.param(ns.p, blk, ParameterRole::Block, TypeExpr::Unit);
+            let q_c = a.cref(ns.o, blk, konst, u8_type());
+            let q_push = a.op(
+                ns.o,
+                blk,
+                Opcode::AdapterInvoke,
+                vec![pav(q_acc), op_result(q_c)],
+                vec![index_result(u8vec_type())],
+                Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+            );
+            a.blocks.push(Block {
+                entity_id: blk,
+                function: fid,
+                parameters: vec![q_acc, q_mem, q_unit],
+                operations: vec![q_c, q_push],
+                terminator: switch(
+                    op_result(q_push),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            next,
+                            vec![SwitchArgument::CasePayload, sav(q_mem), sav(q_unit)],
+                        ),
+                        (BuiltinCase::Err, b_res, Vec::new()),
+                    ],
+                ),
+                reachability: Reachability::Required,
+            });
+        }
     }
-    // Some path: parent union is `01 20 <32B>`.
+    // Namespace materializes the optional parent as `01 20 <32B>`;
+    // PolicyBinding copies its mandatory subject directly.
     let s_parvec = a.param(ns.p, pu_s0, ParameterRole::Block, u8vec_type());
     let s_mem = a.param(ns.p, pu_s0, ParameterRole::Block, TypeExpr::Bytes);
     let s_unit = a.param(ns.p, pu_s0, ParameterRole::Block, TypeExpr::Unit);
@@ -19874,84 +19930,92 @@ fn build_namespace_encode_with_mode(
         function: fid,
         parameters: vec![s_parvec, s_mem, s_unit],
         operations: vec![s_empty],
-        terminator: branch(edge(
+        terminator: branch(match body_kind {
+            EntitySetBodyKind::Namespace => edge(
+                pu_s1,
+                vec![op_result(s_empty), pav(s_parvec), pav(s_mem), pav(s_unit)],
+            ),
+            EntitySetBodyKind::PolicyBinding => edge(
+                pcopy_start,
+                vec![op_result(s_empty), pav(s_parvec), pav(s_mem), pav(s_unit)],
+            ),
+        }),
+        reachability: Reachability::Required,
+    });
+    if body_kind == EntitySetBodyKind::Namespace {
+        let s1_acc = a.param(ns.p, pu_s1, ParameterRole::Block, u8vec_type());
+        let s1_parvec = a.param(ns.p, pu_s1, ParameterRole::Block, u8vec_type());
+        let s1_mem = a.param(ns.p, pu_s1, ParameterRole::Block, TypeExpr::Bytes);
+        let s1_unit = a.param(ns.p, pu_s1, ParameterRole::Block, TypeExpr::Unit);
+        let s1_c = a.cref(ns.o, pu_s1, b01, u8_type());
+        let s1_push = a.op(
+            ns.o,
             pu_s1,
-            vec![op_result(s_empty), pav(s_parvec), pav(s_mem), pav(s_unit)],
-        )),
-        reachability: Reachability::Required,
-    });
-    let s1_acc = a.param(ns.p, pu_s1, ParameterRole::Block, u8vec_type());
-    let s1_parvec = a.param(ns.p, pu_s1, ParameterRole::Block, u8vec_type());
-    let s1_mem = a.param(ns.p, pu_s1, ParameterRole::Block, TypeExpr::Bytes);
-    let s1_unit = a.param(ns.p, pu_s1, ParameterRole::Block, TypeExpr::Unit);
-    let s1_c = a.cref(ns.o, pu_s1, b01, u8_type());
-    let s1_push = a.op(
-        ns.o,
-        pu_s1,
-        Opcode::AdapterInvoke,
-        vec![pav(s1_acc), op_result(s1_c)],
-        vec![index_result(u8vec_type())],
-        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
-    );
-    a.blocks.push(Block {
-        entity_id: pu_s1,
-        function: fid,
-        parameters: vec![s1_acc, s1_parvec, s1_mem, s1_unit],
-        operations: vec![s1_c, s1_push],
-        terminator: switch(
-            op_result(s1_push),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    pu_s2,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(s1_parvec),
-                        sav(s1_mem),
-                        sav(s1_unit),
-                    ],
-                ),
-                (BuiltinCase::Err, b_res, Vec::new()),
-            ],
-        ),
-        reachability: Reachability::Required,
-    });
-    let s2_acc = a.param(ns.p, pu_s2, ParameterRole::Block, u8vec_type());
-    let s2_parvec = a.param(ns.p, pu_s2, ParameterRole::Block, u8vec_type());
-    let s2_mem = a.param(ns.p, pu_s2, ParameterRole::Block, TypeExpr::Bytes);
-    let s2_unit = a.param(ns.p, pu_s2, ParameterRole::Block, TypeExpr::Unit);
-    let s2_c = a.cref(ns.o, pu_s2, b20, u8_type());
-    let s2_push = a.op(
-        ns.o,
-        pu_s2,
-        Opcode::AdapterInvoke,
-        vec![pav(s2_acc), op_result(s2_c)],
-        vec![index_result(u8vec_type())],
-        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
-    );
-    a.blocks.push(Block {
-        entity_id: pu_s2,
-        function: fid,
-        parameters: vec![s2_acc, s2_parvec, s2_mem, s2_unit],
-        operations: vec![s2_c, s2_push],
-        terminator: switch(
-            op_result(s2_push),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    pcopy_start,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(s2_parvec),
-                        sav(s2_mem),
-                        sav(s2_unit),
-                    ],
-                ),
-                (BuiltinCase::Err, b_res, Vec::new()),
-            ],
-        ),
-        reachability: Reachability::Required,
-    });
+            Opcode::AdapterInvoke,
+            vec![pav(s1_acc), op_result(s1_c)],
+            vec![index_result(u8vec_type())],
+            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+        );
+        a.blocks.push(Block {
+            entity_id: pu_s1,
+            function: fid,
+            parameters: vec![s1_acc, s1_parvec, s1_mem, s1_unit],
+            operations: vec![s1_c, s1_push],
+            terminator: switch(
+                op_result(s1_push),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        pu_s2,
+                        vec![
+                            SwitchArgument::CasePayload,
+                            sav(s1_parvec),
+                            sav(s1_mem),
+                            sav(s1_unit),
+                        ],
+                    ),
+                    (BuiltinCase::Err, b_res, Vec::new()),
+                ],
+            ),
+            reachability: Reachability::Required,
+        });
+        let s2_acc = a.param(ns.p, pu_s2, ParameterRole::Block, u8vec_type());
+        let s2_parvec = a.param(ns.p, pu_s2, ParameterRole::Block, u8vec_type());
+        let s2_mem = a.param(ns.p, pu_s2, ParameterRole::Block, TypeExpr::Bytes);
+        let s2_unit = a.param(ns.p, pu_s2, ParameterRole::Block, TypeExpr::Unit);
+        let s2_c = a.cref(ns.o, pu_s2, b20, u8_type());
+        let s2_push = a.op(
+            ns.o,
+            pu_s2,
+            Opcode::AdapterInvoke,
+            vec![pav(s2_acc), op_result(s2_c)],
+            vec![index_result(u8vec_type())],
+            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+        );
+        a.blocks.push(Block {
+            entity_id: pu_s2,
+            function: fid,
+            parameters: vec![s2_acc, s2_parvec, s2_mem, s2_unit],
+            operations: vec![s2_c, s2_push],
+            terminator: switch(
+                op_result(s2_push),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        pcopy_start,
+                        vec![
+                            SwitchArgument::CasePayload,
+                            sav(s2_parvec),
+                            sav(s2_mem),
+                            sav(s2_unit),
+                        ],
+                    ),
+                    (BuiltinCase::Err, b_res, Vec::new()),
+                ],
+            ),
+            reachability: Reachability::Required,
+        });
+    }
     // Parent 32B copy: Unrolled default; counted F8 loop shares one shape.
     // Same-type accumulator/parent slots stay stable by position through
     // check/get/push/next; guard LessThan(index,bound), true->Get.
@@ -20295,8 +20359,8 @@ fn build_namespace_encode_with_mode(
         terminator: branch(edge(rs_a, vec![pav(pd_pu), pav(pd_mem), pav(pd_unit)])),
         reachability: Reachability::Required,
     });
-    // Some path: record prefix `02 01 22 Pu... 02` around the complete
-    // 34B parent union. Rpre threads onward in the Pu slot.
+    // Present-value path: record prefix `02 01 <len> Pu... 02` around
+    // either the 34-byte optional parent or 32-byte direct subject.
     let sa_pu = a.param(ns.p, rs_a, ParameterRole::Block, u8vec_type());
     let sa_mem = a.param(ns.p, rs_a, ParameterRole::Block, TypeExpr::Bytes);
     let sa_unit = a.param(ns.p, rs_a, ParameterRole::Block, TypeExpr::Unit);
@@ -20320,7 +20384,11 @@ fn build_namespace_encode_with_mode(
         reachability: Reachability::Required,
     });
     // rs_b..rs_d params: [Rpre, Pu, members, unit]. Fixed prefix pushes.
-    let rs_prefix_const = [(rs_b, b02, rs_c), (rs_c, b01, rs_d), (rs_d, b22, rs_copy)];
+    let rs_prefix_const = [
+        (rs_b, b02, rs_c),
+        (rs_c, b01, rs_d),
+        (rs_d, b_subject_payload_len, rs_copy),
+    ];
     for (blk, konst, next) in rs_prefix_const {
         let w_acc = a.param(ns.p, blk, ParameterRole::Block, u8vec_type());
         let w_pu = a.param(ns.p, blk, ParameterRole::Block, u8vec_type());
@@ -20360,7 +20428,7 @@ fn build_namespace_encode_with_mode(
         });
     }
     // rs_copy params: [Rpre, Pu, members, unit]. Copy the 34B parent
-    // union with a constant bound (no late length read).
+    // value with a constant bound (no late length read).
     let sy_acc = a.param(ns.p, rs_copy, ParameterRole::Block, u8vec_type());
     let sy_pu = a.param(ns.p, rs_copy, ParameterRole::Block, u8vec_type());
     let sy_mem = a.param(ns.p, rs_copy, ParameterRole::Block, TypeExpr::Bytes);
@@ -20389,12 +20457,12 @@ fn build_namespace_encode_with_mode(
     let sy_rp = a.param(ns.p, rs_ccheck, ParameterRole::Block, u8vec_type());
     let sy_rm = a.param(ns.p, rs_ccheck, ParameterRole::Block, TypeExpr::Bytes);
     let sy_ru = a.param(ns.p, rs_ccheck, ParameterRole::Block, TypeExpr::Unit);
-    let sy_k34 = a.cref(ns.o, rs_ccheck, c34, u64_type());
+    let sy_bound = a.cref(ns.o, rs_ccheck, c_subject_payload_len, u64_type());
     let sy_lt = a.op(
         ns.o,
         rs_ccheck,
         Opcode::LessThan,
-        vec![pav(sy_j), op_result(sy_k34)],
+        vec![pav(sy_j), op_result(sy_bound)],
         vec![TypeExpr::Bool],
         Immediate::None,
     );
@@ -20402,7 +20470,7 @@ fn build_namespace_encode_with_mode(
         entity_id: rs_ccheck,
         function: fid,
         parameters: vec![sy_j, sy_ra, sy_rp, sy_rm, sy_ru],
-        operations: vec![sy_k34, sy_lt],
+        operations: vec![sy_bound, sy_lt],
         terminator: cond(
             op_result(sy_lt),
             edge(
@@ -22941,12 +23009,12 @@ fn build_namespace_encode_with_mode(
         )),
         reachability: Reachability::Required,
     });
-    // f_tag params: [acc, ulenvec, R, unit]. Push union tag `03`.
+    // f_tag params: [acc, ulenvec, R, unit]. Push the body union tag.
     let ft_acc = a.param(ns.p, f_tag, ParameterRole::Block, u8vec_type());
     let ft_uv = a.param(ns.p, f_tag, ParameterRole::Block, u8vec_type());
     let ft_r = a.param(ns.p, f_tag, ParameterRole::Block, u8vec_type());
     let ft_unit = a.param(ns.p, f_tag, ParameterRole::Block, TypeExpr::Unit);
-    let ft_c = a.cref(ns.o, f_tag, b03, u8_type());
+    let ft_c = a.cref(ns.o, f_tag, b_union_tag, u8_type());
     let ft_push = a.op(
         ns.o,
         f_tag,
@@ -23396,7 +23464,7 @@ fn build_namespace_encode_with_mode(
     });
     let _ = (c0, c1, c2, c32, w64, trap);
     let _ = (b_len, b_trail, b_res, b_mapdup, b_mapord);
-    let _ = (b00, b01, b02, b03, b20, b22);
+    let _ = (b00, b01, b02, b_union_tag, b20, b_subject_payload_len);
 
     FunctionGraph {
         entity_id: fid,
