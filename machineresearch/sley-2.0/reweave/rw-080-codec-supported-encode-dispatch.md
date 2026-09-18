@@ -101,9 +101,10 @@ and frozen-limit preservation. Independent review was unavailable, so
 the result remains provisional and no gate, ledger, or authority state
 changes.
 
-The next fixed-width format began as slice 10 with the
-DependencyBinding body encoder
-(`rw-080-codec-dependency-binding-encode.md`). Its strict decoder and
-program composition remain before it can extend both supported
-dispatchers. Label/NFC/fingerprint work remains separate because its
-required text and verification machinery has not landed.
+The next fixed-width format now has paired DependencyBinding body
+encode and strict decode records
+(`rw-080-codec-dependency-binding-encode.md` and
+`rw-080-codec-dependency-binding-decode.md`). Program composition
+remains before kind 18 can extend both supported dispatchers.
+Label/NFC/fingerprint work remains separate because its required text
+and verification machinery has not landed.

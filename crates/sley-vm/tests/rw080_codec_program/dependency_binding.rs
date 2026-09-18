@@ -580,7 +580,7 @@ fn dependency_encode_image() -> Image {
     }
 }
 
-fn dependency_stored(root: u8, package: u8, namespace: u8) -> Vec<u8> {
+pub(super) fn dependency_stored(root: u8, package: u8, namespace: u8) -> Vec<u8> {
     use sley_mutate::value::{DependencyBindingBody, EntityBodyValue};
     let record = sley_mutate::EntityObjectRecord {
         entity_id: sley_id::EntityId::from_bytes([0xd1; 32]),

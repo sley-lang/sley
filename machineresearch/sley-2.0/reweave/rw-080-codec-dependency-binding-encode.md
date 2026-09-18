@@ -27,9 +27,9 @@ shape: `12 67 03 01 20 <root32> 02 20 <package32> 03 20
 `sley-mutate::build_entity_object` fixtures and are extracted through
 SCB cursors; the test never uses a hand-built expected body.
 
-This slice owns body encoding only. DependencyBinding body decode,
-full envelope composition, and extension of the supported dispatch sum
-remain later work.
+This slice owns body encoding only. The paired strict body decoder
+landed in slice 11; full envelope composition and extension of the
+supported dispatch sum remain later work.
 
 ## 2. Construction and error behavior
 
@@ -86,6 +86,7 @@ backedge absence, exact native comparison, adapter confinement, and
 frozen limits. Independent review was unavailable; no gate, ledger, or
 runtime-authority promotion is claimed.
 
-The next dependency is the strict kind-18 body decoder. After body
-decode parity, the encode/decode paths can be composed with the shared
-outer/envelope machinery and added as a third supported dispatch arm.
+The strict kind-18 body decoder is recorded in
+`rw-080-codec-dependency-binding-decode.md`. The next dependency is to
+compose both paths with the shared outer/envelope machinery and add a
+third supported dispatch arm.

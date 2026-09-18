@@ -51,6 +51,8 @@ use sley_ssmc::{
 
 #[path = "rw080_codec_program/dependency_binding.rs"]
 mod dependency_binding;
+#[path = "rw080_codec_program/dependency_binding_decode.rs"]
+mod dependency_binding_decode;
 #[path = "rw080_codec_program/supported_dispatch.rs"]
 mod supported_dispatch;
 #[path = "rw080_codec_program/supported_encode_dispatch.rs"]
