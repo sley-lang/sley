@@ -6357,6 +6357,401 @@ pub(super) fn entity_id_collection_decode_image() -> Image {
     }
 }
 
+fn exact_uvar_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(u64_type()),
+        error: Box::new(TypeExpr::Bytes),
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_exact_uvar_decode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    decode_function: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = exact_uvar_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let width = assembler.param(ns.p, function, ParameterRole::Function, u32_type());
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let trailing_code = assembler.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let resource_code = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let trailing_error = err_block(assembler, ns, function, result_type.clone(), trailing_code);
+    let resource_error = err_block(assembler, ns, function, result_type.clone(), resource_code);
+    let success = assembler.id(ns.b);
+    let decoded_ready = assembler.id(ns.b);
+    let vector_ready = assembler.id(ns.b);
+
+    let success_parameters = block_parameters(assembler, ns.p, success, &[u64_type()]);
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![pav(success_parameters[0])],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        success_parameters,
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let decoded_parameters = block_parameters(
+        assembler,
+        ns.p,
+        decoded_ready,
+        &[TypeExpr::Tuple(vec![u64_type(), u64_type()]), u64_type()],
+    );
+    let value = assembler.op(
+        ns.o,
+        decoded_ready,
+        Opcode::TupleGet,
+        vec![pav(decoded_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(0),
+    );
+    let next = assembler.op(
+        ns.o,
+        decoded_ready,
+        Opcode::TupleGet,
+        vec![pav(decoded_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(1),
+    );
+    let exact = assembler.op(
+        ns.o,
+        decoded_ready,
+        Opcode::Equal,
+        vec![op_result(next), pav(decoded_parameters[1])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        decoded_ready,
+        function,
+        decoded_parameters,
+        vec![value, next, exact],
+        cond(
+            op_result(exact),
+            edge(success, vec![op_result(value)]),
+            edge(trailing_error, Vec::new()),
+        ),
+    );
+
+    let vector_parameters = block_parameters(assembler, ns.p, vector_ready, &[u8vec_type()]);
+    let total = assembler.op(
+        ns.o,
+        vector_ready,
+        Opcode::VectorLen,
+        vec![pav(vector_parameters[0])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let zero_constant = assembler.ku64(ns.k, 0);
+    let zero = assembler.cref(ns.o, vector_ready, zero_constant, u64_type());
+    let decoded = assembler.op(
+        ns.o,
+        vector_ready,
+        Opcode::CallDirect,
+        vec![pav(body), op_result(zero), pav(width), pav(unit)],
+        vec![decode_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: decode_function,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        vector_ready,
+        function,
+        vector_parameters,
+        vec![total, zero, decoded],
+        switch(
+            op_result(decoded),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    decoded_ready,
+                    vec![SwitchArgument::CasePayload, oav(total)],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let entry = assembler.id(ns.b);
+    let converted = assembler.op(
+        ns.o,
+        entry,
+        Opcode::AdapterInvoke,
+        vec![pav(unit), pav(body)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![converted],
+        switch(
+            op_result(converted),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    vector_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, width, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_bounded_uvar_decode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    exact_decoder: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = exact_uvar_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let minimum = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
+    let maximum = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let union_code = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let union_error = err_block(assembler, ns, function, result_type.clone(), union_code);
+    let success = assembler.id(ns.b);
+    let range_ready = assembler.id(ns.b);
+
+    let success_parameters = block_parameters(assembler, ns.p, success, &[u64_type()]);
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![pav(success_parameters[0])],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        success_parameters,
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let range_parameters = block_parameters(assembler, ns.p, range_ready, &[u64_type()]);
+    let below = assembler.op(
+        ns.o,
+        range_ready,
+        Opcode::LessThan,
+        vec![pav(range_parameters[0]), pav(minimum)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let above = assembler.op(
+        ns.o,
+        range_ready,
+        Opcode::GreaterThan,
+        vec![pav(range_parameters[0]), pav(maximum)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let outside = assembler.op(
+        ns.o,
+        range_ready,
+        Opcode::BoolOr,
+        vec![op_result(below), op_result(above)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        range_ready,
+        function,
+        range_parameters.clone(),
+        vec![below, above, outside],
+        cond(
+            op_result(outside),
+            edge(union_error, Vec::new()),
+            edge(success, vec![pav(range_parameters[0])]),
+        ),
+    );
+
+    let entry = assembler.id(ns.b);
+    let width32_constant = assembler.ku32(ns.k, 32);
+    let width32 = assembler.cref(ns.o, entry, width32_constant, u32_type());
+    let decoded = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), op_result(width32), pav(unit)],
+        vec![exact_uvar_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: exact_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![width32, decoded],
+        switch(
+            op_result(decoded),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    range_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, minimum, maximum, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+pub(super) fn bounded_uvar_decode_image() -> Image {
+    let mut assembler = Asm::new();
+    let decode_function = assembler.id(215);
+    let exact_function = assembler.id(215);
+    let function = assembler.id(215);
+    let (decode_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 216,
+            p: 216,
+            b: 216,
+            o: 216,
+        },
+        decode_function,
+    );
+    let exact_graph = build_exact_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 217,
+            p: 217,
+            b: 217,
+            o: 217,
+        },
+        exact_function,
+        decode_function,
+    );
+    let graph = build_bounded_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 218,
+            p: 218,
+            b: 218,
+            o: 218,
+        },
+        function,
+        exact_function,
+    );
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph, exact_graph, decode_graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![frozen_import(
+            BRIDGE_CODE_B2V1,
+            TypeExpr::Bytes,
+            u8vec_type(),
+        )],
+        constants: assembler.constants,
+    }
+}
+
 fn function_schema_result_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(TypeExpr::Tuple(vec![TypeExpr::Bytes; 8])),
@@ -6374,6 +6769,7 @@ fn build_function_schema_decode(
     list_decoder: EntityId,
     entity_id_collection_decoder: EntityId,
     fixed32_decoder: EntityId,
+    bounded_uvar_decoder: EntityId,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
     let result_type = function_schema_result_type();
@@ -6410,6 +6806,7 @@ fn build_function_schema_decode(
 
     let success = assembler.id(ns.b);
     let finish = assembler.id(ns.b);
+    let scalar_validation = assembler.id(ns.b);
     let fixed_validation = assembler.id(ns.b);
     let list_validation_blocks = std::array::from_fn::<_, 5, _>(|_| assembler.id(ns.b));
     let get_blocks = std::array::from_fn::<_, 8, _>(|_| assembler.id(ns.b));
@@ -6570,8 +6967,61 @@ fn build_function_schema_decode(
             vec![
                 (
                     BuiltinCase::Ok,
-                    success,
+                    scalar_validation,
                     fixed_validation_parameters
+                        .iter()
+                        .copied()
+                        .map(sav)
+                        .collect(),
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let scalar_validation_parameters = block_parameters(
+        assembler,
+        ns.p,
+        scalar_validation,
+        &vec![TypeExpr::Bytes; 8],
+    );
+    let minimum_constant = assembler.ku64(ns.k, 1);
+    let minimum = assembler.cref(ns.o, scalar_validation, minimum_constant, u64_type());
+    let maximum_constant = assembler.ku64(ns.k, 4);
+    let maximum = assembler.cref(ns.o, scalar_validation, maximum_constant, u64_type());
+    let visibility = assembler.op(
+        ns.o,
+        scalar_validation,
+        Opcode::CallDirect,
+        vec![
+            pav(scalar_validation_parameters[7]),
+            op_result(minimum),
+            op_result(maximum),
+            pav(unit),
+        ],
+        vec![exact_uvar_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: bounded_uvar_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        scalar_validation,
+        function,
+        scalar_validation_parameters.clone(),
+        vec![minimum, maximum, visibility],
+        switch(
+            op_result(visibility),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    success,
+                    scalar_validation_parameters
                         .iter()
                         .copied()
                         .map(sav)
@@ -6805,6 +7255,8 @@ pub(super) fn function_schema_decode_image() -> Image {
     let list_function = assembler.id(200);
     let fixed32_function = assembler.id(200);
     let entity_id_collection_function = assembler.id(200);
+    let exact_uvar_function = assembler.id(200);
+    let bounded_uvar_function = assembler.id(200);
     let function = assembler.id(200);
     let (decode_graph, _) = build_decode(
         &mut assembler,
@@ -6871,7 +7323,7 @@ pub(super) fn function_schema_decode_image() -> Image {
         list_function,
         fixed32_function,
     );
-    let graph = build_function_schema_decode(
+    let exact_uvar_graph = build_exact_uvar_decode(
         &mut assembler,
         Ns {
             k: 207,
@@ -6879,12 +7331,35 @@ pub(super) fn function_schema_decode_image() -> Image {
             b: 207,
             o: 207,
         },
+        exact_uvar_function,
+        decode_function,
+    );
+    let bounded_uvar_graph = build_bounded_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 208,
+            p: 208,
+            b: 208,
+            o: 208,
+        },
+        bounded_uvar_function,
+        exact_uvar_function,
+    );
+    let graph = build_function_schema_decode(
+        &mut assembler,
+        Ns {
+            k: 209,
+            p: 209,
+            b: 209,
+            o: 209,
+        },
         function,
         union_function,
         record_function,
         list_function,
         entity_id_collection_function,
         fixed32_function,
+        bounded_uvar_function,
     );
     Image {
         types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
@@ -6895,6 +7370,8 @@ pub(super) fn function_schema_decode_image() -> Image {
             union_graph,
             entity_id_collection_graph,
             fixed32_graph,
+            bounded_uvar_graph,
+            exact_uvar_graph,
             list_graph,
             decode_graph,
         ],
@@ -7313,18 +7790,18 @@ fn function_schema_decoder_projects_all_runtime_fields() {
         package.image_bytes.len(),
         approved.package_digest,
     );
-    assert_eq!(image.functions.len(), 7);
-    assert_eq!(image.parameters.len(), 1_044);
-    assert_eq!(image.blocks.len(), 179);
-    assert_eq!(image.operations.len(), 321);
-    assert_eq!(image.constants.len(), 91);
-    assert_eq!(package.image_bytes.len(), 48_480);
+    assert_eq!(image.functions.len(), 9);
+    assert_eq!(image.parameters.len(), 1_067);
+    assert_eq!(image.blocks.len(), 192);
+    assert_eq!(image.operations.len(), 346);
+    assert_eq!(image.constants.len(), 98);
+    assert_eq!(package.image_bytes.len(), 51_112);
     assert_eq!(
         approved.package_digest,
         [
-            0x6b, 0xa0, 0x3c, 0x84, 0x6a, 0x78, 0xea, 0x40, 0xd2, 0xdc, 0xe6, 0x35, 0x27, 0xf2,
-            0xca, 0x10, 0x05, 0xb9, 0x3c, 0xe7, 0x27, 0xde, 0xc4, 0x49, 0x8a, 0x0c, 0xcb, 0x09,
-            0xbe, 0xd0, 0x90, 0x0a,
+            0x66, 0xfe, 0x54, 0x48, 0x51, 0x0a, 0x8d, 0xf7, 0xcd, 0xed, 0x71, 0x4a, 0x8e, 0xa3,
+            0xc7, 0x71, 0x31, 0x68, 0xc0, 0xaa, 0xaf, 0x93, 0xa6, 0xf4, 0x26, 0x03, 0x36, 0x66,
+            0xfd, 0xac, 0x3d, 0xc8,
         ]
     );
     let outcome = execute_with_limits(
@@ -7498,6 +7975,38 @@ fn function_schema_decoder_enforces_kind_fields_and_list_boundaries() {
         &sley_scb1::encode_record(&short_entry_fields).expect("record encodes"),
     )
     .expect("union encodes");
+    let mut invalid_visibility_fields = fields
+        .iter()
+        .enumerate()
+        .map(|(index, payload)| {
+            (
+                u32::try_from(index + 1).expect("eight Function fields"),
+                payload.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    invalid_visibility_fields[7].1 = sley_scb1::encode_uvar(5);
+    let invalid_visibility = sley_scb1::encode_union(
+        5,
+        &sley_scb1::encode_record(&invalid_visibility_fields).expect("record encodes"),
+    )
+    .expect("union encodes");
+    let mut nonminimal_visibility_fields = fields
+        .iter()
+        .enumerate()
+        .map(|(index, payload)| {
+            (
+                u32::try_from(index + 1).expect("eight Function fields"),
+                payload.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    nonminimal_visibility_fields[7].1 = vec![0x81, 0];
+    let nonminimal_visibility = sley_scb1::encode_union(
+        5,
+        &sley_scb1::encode_record(&nonminimal_visibility_fields).expect("record encodes"),
+    )
+    .expect("union encodes");
 
     for (name, input, expected) in [
         ("wrong_kind", wrong_kind, b"SCB_UNION_INVALID".as_slice()),
@@ -7522,6 +8031,16 @@ fn function_schema_decoder_enforces_kind_fields_and_list_boundaries() {
             "short_entry_identity",
             short_entry,
             b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "invalid_visibility",
+            invalid_visibility,
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "nonminimal_visibility",
+            nonminimal_visibility,
+            b"SCB_VARINT_NON_MINIMAL".as_slice(),
         ),
     ] {
         eprintln!("FUNCTION_SCHEMA_REJ {name}");
@@ -7633,6 +8152,101 @@ fn entity_id_collection_decoder_rejects_width_duplicates_and_order() {
         };
         let ConstData::Result(ResultConst::Err(error)) = value.data else {
             panic!("invalid identity collection must be refused: {value:?}")
+        };
+        assert_eq!(error.data, ConstData::Bytes(expected.to_vec()), "{name}");
+    }
+}
+
+#[test]
+fn bounded_uvar_decoder_accepts_runtime_values_in_range() {
+    let image = bounded_uvar_decode_image();
+    let (package, approved) = admit(&image);
+    assert_entry_cfg_surface(&image);
+    assert_eq!(image.functions.len(), 3);
+    assert_eq!(image.parameters.len(), 336);
+    assert_eq!(image.blocks.len(), 63);
+    assert_eq!(image.operations.len(), 133);
+    assert_eq!(image.constants.len(), 34);
+    assert_eq!(package.image_bytes.len(), 17_820);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x9a, 0x75, 0xac, 0xf1, 0x1c, 0xf9, 0xf1, 0x2e, 0xd4, 0x8f, 0x02, 0x41, 0x4b, 0xd5,
+            0x92, 0xe1, 0xb8, 0x95, 0x93, 0x05, 0xb9, 0x5d, 0xbc, 0x13, 0x97, 0x61, 0xee, 0x88,
+            0x81, 0x59, 0x72, 0x19,
+        ]
+    );
+    eprintln!(
+        "BOUNDED_UVAR functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    for value in 1_u64..=4 {
+        let encoded = sley_scb1::encode_uvar(value);
+        let outcome = execute(
+            &package,
+            &approved,
+            vec![
+                bytes_input(&encoded),
+                u64_input(1),
+                u64_input(4),
+                unit_input(),
+            ],
+        );
+        let sley_vm::ExecutionTermination::Success(result) = outcome.termination else {
+            panic!("bounded uvar decoder must return")
+        };
+        let ConstData::Result(ResultConst::Ok(decoded)) = result.data else {
+            panic!("in-range uvar must decode: {result:?}")
+        };
+        assert_eq!(decoded.data, ConstData::UInt(u128::from(value)));
+    }
+}
+
+#[test]
+fn bounded_uvar_decoder_rejects_noncanonical_and_out_of_range_values() {
+    let image = bounded_uvar_decode_image();
+    let (package, approved) = admit(&image);
+    let cases = [
+        ("empty", Vec::new(), b"SCB_LENGTH_OVERFLOW".as_slice()),
+        (
+            "nonminimal",
+            vec![0x81, 0],
+            b"SCB_VARINT_NON_MINIMAL".as_slice(),
+        ),
+        ("trailing", vec![1, 0], b"SCB_TRAILING_BYTES".as_slice()),
+        (
+            "below_range",
+            sley_scb1::encode_uvar(0),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "above_range",
+            sley_scb1::encode_uvar(5),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+    ];
+    for (name, input, expected) in cases {
+        let outcome = execute(
+            &package,
+            &approved,
+            vec![
+                bytes_input(&input),
+                u64_input(1),
+                u64_input(4),
+                unit_input(),
+            ],
+        );
+        let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+            panic!("bounded uvar decoder must return")
+        };
+        let ConstData::Result(ResultConst::Err(error)) = value.data else {
+            panic!("invalid bounded uvar must be refused: {value:?}")
         };
         assert_eq!(error.data, ConstData::Bytes(expected.to_vec()), "{name}");
     }
