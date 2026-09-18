@@ -537,6 +537,13 @@ fn supported_encode_call(
     )
 }
 
+fn existing_supported_value(value: ConstValue) -> ConstValue {
+    match value.data {
+        ConstData::Result(ResultConst::Ok(existing)) => *existing,
+        other => panic!("expected an established supported-kind arm, got {other:?}"),
+    }
+}
+
 #[test]
 fn codec_supported_kind_encode_dispatch_emits_entrypoint_and_namespace() {
     let image = supported_encode_image();
@@ -574,14 +581,15 @@ fn codec_supported_kind_dispatch_round_trips_both_value_arms() {
     let (encode_package, encode_approved) = admit(&encode_image);
 
     let entrypoint = program_stored(0xa1, 0xb2, sley_mutate::value::EntryExposure::Local);
-    let decoded_entrypoint = super::supported_dispatch::supported_decode_ok(
-        &super::supported_dispatch::supported_decode_call(
-            &decode_package,
-            &decode_approved,
-            16,
-            &entrypoint,
-        ),
-    );
+    let decoded_entrypoint =
+        existing_supported_value(super::supported_dispatch::supported_decode_ok(
+            &super::supported_dispatch::supported_decode_call(
+                &decode_package,
+                &decode_approved,
+                16,
+                &entrypoint,
+            ),
+        ));
     assert_eq!(decoded_entrypoint.value_type, supported_encode_value_type());
     assert_encode_ok(
         &supported_encode_call(&encode_package, &encode_approved, 16, decoded_entrypoint),
@@ -589,14 +597,15 @@ fn codec_supported_kind_dispatch_round_trips_both_value_arms() {
     );
 
     let namespace = program_ns_stored(0xc1, None, &[]);
-    let decoded_namespace = super::supported_dispatch::supported_decode_ok(
-        &super::supported_dispatch::supported_decode_call(
-            &decode_package,
-            &decode_approved,
-            3,
-            &namespace,
-        ),
-    );
+    let decoded_namespace =
+        existing_supported_value(super::supported_dispatch::supported_decode_ok(
+            &super::supported_dispatch::supported_decode_call(
+                &decode_package,
+                &decode_approved,
+                3,
+                &namespace,
+            ),
+        ));
     assert_eq!(decoded_namespace.value_type, supported_encode_value_type());
     assert_encode_ok(
         &supported_encode_call(&encode_package, &encode_approved, 3, decoded_namespace),

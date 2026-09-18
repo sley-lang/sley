@@ -21,9 +21,25 @@ pub(super) fn supported_program_value_type() -> TypeExpr {
     }
 }
 
-fn supported_program_result_type() -> TypeExpr {
+pub(super) fn dependency_program_value_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+    ])
+}
+
+pub(super) fn extended_supported_program_value_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(supported_program_value_type()),
+        error: Box::new(dependency_program_value_type()),
+    }
+}
+
+fn supported_program_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(extended_supported_program_value_type()),
         error: Box::new(TypeExpr::Bytes),
     }
 }
@@ -77,7 +93,7 @@ pub(super) fn deduplicate_identical_constants(image: &mut Image) -> usize {
 /// the body to a supported SSMC1 kind. Each selected decoder verifies the
 /// actual body tag, so a false declaration fails closed rather than changing
 /// meaning.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn build_supported_program_decode(
     assembler: &mut Asm,
     ns: Ns,
@@ -86,6 +102,7 @@ fn build_supported_program_decode(
     outer_decoder: EntityId,
     entrypoint_decoder: EntityId,
     namespace_decoder: EntityId,
+    dependency_program_decoder: EntityId,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
     let result_type = supported_program_result_type();
@@ -93,19 +110,24 @@ fn build_supported_program_decode(
     let outer_result_type = outer_decode_result_type();
     let entrypoint_result_type = entrypoint_decode_result_type();
     let namespace_result_type = namespace_decode_result_type();
+    let dependency_result_type =
+        super::dependency_binding_decode::dependency_program_decode_result_type();
     let declared_kind = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
     let stored = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
     let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
 
     let entry = assembler.id(ns.b);
     let validated = assembler.id(ns.b);
+    let call_outer = assembler.id(ns.b);
     let outer_success = assembler.id(ns.b);
     let check_entrypoint = assembler.id(ns.b);
     let check_known = assembler.id(ns.b);
     let call_namespace = assembler.id(ns.b);
     let call_entrypoint = assembler.id(ns.b);
+    let call_dependency = assembler.id(ns.b);
     let normalize_namespace = assembler.id(ns.b);
     let normalize_entrypoint = assembler.id(ns.b);
+    let normalize_dependency = assembler.id(ns.b);
     let forward_error = assembler.id(ns.b);
     let unsupported = assembler.id(ns.b);
     let unknown = assembler.id(ns.b);
@@ -113,6 +135,7 @@ fn build_supported_program_decode(
     let zero = assembler.ku64(ns.k, 0);
     let namespace_kind = assembler.ku64(ns.k, 3);
     let entrypoint_kind = assembler.ku64(ns.k, 16);
+    let dependency_kind = assembler.ku64(ns.k, 18);
     let kind_limit = assembler.ku64(ns.k, 19);
     let unsupported_code = assembler.kbytes(ns.k, b"SSMC_RESERVED_FIELD_PRESENT");
     let unknown_code = assembler.kbytes(ns.k, b"SSMC_ENTITY_KIND_UNKNOWN");
@@ -154,11 +177,46 @@ fn build_supported_program_decode(
     let validated_payload = assembler.param(ns.p, validated, ParameterRole::Block, TypeExpr::Bytes);
     let validated_kind = assembler.param(ns.p, validated, ParameterRole::Block, u64_type());
     let validated_unit = assembler.param(ns.p, validated, ParameterRole::Block, TypeExpr::Unit);
-    let outer_result = assembler.op(
+    let dependency_kind_value = assembler.cref(ns.o, validated, dependency_kind, u64_type());
+    let is_dependency = assembler.op(
         ns.o,
         validated,
+        Opcode::Equal,
+        vec![pav(validated_kind), op_result(dependency_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    push_preallocated_block(
+        assembler,
+        validated,
+        function,
+        vec![validated_payload, validated_kind, validated_unit],
+        vec![dependency_kind_value, is_dependency],
+        cond(
+            op_result(is_dependency),
+            edge(
+                call_dependency,
+                vec![pav(validated_payload), pav(validated_unit)],
+            ),
+            edge(
+                call_outer,
+                vec![
+                    pav(validated_payload),
+                    pav(validated_kind),
+                    pav(validated_unit),
+                ],
+            ),
+        ),
+    );
+
+    let outer_input = assembler.param(ns.p, call_outer, ParameterRole::Block, TypeExpr::Bytes);
+    let outer_declared_kind = assembler.param(ns.p, call_outer, ParameterRole::Block, u64_type());
+    let outer_call_unit = assembler.param(ns.p, call_outer, ParameterRole::Block, TypeExpr::Unit);
+    let outer_result = assembler.op(
+        ns.o,
+        call_outer,
         Opcode::CallDirect,
-        vec![pav(validated_payload), pav(validated_unit)],
+        vec![pav(outer_input), pav(outer_call_unit)],
         vec![outer_result_type],
         Immediate::Function(FunctionRefValue {
             function: outer_decoder,
@@ -167,9 +225,9 @@ fn build_supported_program_decode(
     );
     push_preallocated_block(
         assembler,
-        validated,
+        call_outer,
         function,
-        vec![validated_payload, validated_kind, validated_unit],
+        vec![outer_input, outer_declared_kind, outer_call_unit],
         vec![outer_result],
         switch(
             op_result(outer_result),
@@ -179,8 +237,8 @@ fn build_supported_program_decode(
                     outer_success,
                     vec![
                         SwitchArgument::CasePayload,
-                        sav(validated_kind),
-                        sav(validated_unit),
+                        sav(outer_declared_kind),
+                        sav(outer_call_unit),
                     ],
                 ),
                 (
@@ -427,6 +485,44 @@ fn build_supported_program_decode(
         ),
     );
 
+    let dependency_payload =
+        assembler.param(ns.p, call_dependency, ParameterRole::Block, TypeExpr::Bytes);
+    let dependency_unit =
+        assembler.param(ns.p, call_dependency, ParameterRole::Block, TypeExpr::Unit);
+    let dependency_result = assembler.op(
+        ns.o,
+        call_dependency,
+        Opcode::CallDirect,
+        vec![pav(dependency_payload), pav(dependency_unit)],
+        vec![dependency_result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: dependency_program_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    push_preallocated_block(
+        assembler,
+        call_dependency,
+        function,
+        vec![dependency_payload, dependency_unit],
+        vec![dependency_result],
+        switch(
+            op_result(dependency_result),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    normalize_dependency,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
     let namespace_payload = assembler.param(
         ns.p,
         normalize_namespace,
@@ -475,11 +571,19 @@ fn build_supported_program_decode(
         vec![supported_program_value_type()],
         Immediate::None,
     );
-    let namespace_ok = assembler.op(
+    let namespace_extended = assembler.op(
         ns.o,
         normalize_namespace,
         Opcode::ResultOk,
         vec![op_result(namespace_arm)],
+        vec![extended_supported_program_value_type()],
+        Immediate::None,
+    );
+    let namespace_ok = assembler.op(
+        ns.o,
+        normalize_namespace,
+        Opcode::ResultOk,
+        vec![op_result(namespace_extended)],
         vec![result_type.clone()],
         Immediate::None,
     );
@@ -493,6 +597,7 @@ fn build_supported_program_decode(
             namespace_members,
             namespace_tuple,
             namespace_arm,
+            namespace_extended,
             namespace_ok,
         ],
         ret(op_result(namespace_ok)),
@@ -546,11 +651,19 @@ fn build_supported_program_decode(
         vec![supported_program_value_type()],
         Immediate::None,
     );
-    let entrypoint_ok = assembler.op(
+    let entrypoint_extended = assembler.op(
         ns.o,
         normalize_entrypoint,
         Opcode::ResultOk,
         vec![op_result(entrypoint_arm)],
+        vec![extended_supported_program_value_type()],
+        Immediate::None,
+    );
+    let entrypoint_ok = assembler.op(
+        ns.o,
+        normalize_entrypoint,
+        Opcode::ResultOk,
+        vec![op_result(entrypoint_extended)],
         vec![result_type.clone()],
         Immediate::None,
     );
@@ -564,9 +677,41 @@ fn build_supported_program_decode(
             entrypoint_exposure,
             entrypoint_tuple,
             entrypoint_arm,
+            entrypoint_extended,
             entrypoint_ok,
         ],
         ret(op_result(entrypoint_ok)),
+    );
+
+    let dependency_payload = assembler.param(
+        ns.p,
+        normalize_dependency,
+        ParameterRole::Block,
+        dependency_program_value_type(),
+    );
+    let dependency_arm = assembler.op(
+        ns.o,
+        normalize_dependency,
+        Opcode::ResultErr,
+        vec![pav(dependency_payload)],
+        vec![extended_supported_program_value_type()],
+        Immediate::None,
+    );
+    let dependency_ok = assembler.op(
+        ns.o,
+        normalize_dependency,
+        Opcode::ResultOk,
+        vec![op_result(dependency_arm)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    push_preallocated_block(
+        assembler,
+        normalize_dependency,
+        function,
+        vec![dependency_payload],
+        vec![dependency_arm, dependency_ok],
+        ret(op_result(dependency_ok)),
     );
 
     let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
@@ -623,6 +768,7 @@ fn build_supported_program_decode(
     }
 }
 
+#[allow(clippy::too_many_lines)]
 pub(super) fn supported_decode_image() -> Image {
     let mut assembler = Asm::new();
     let decode_ns = Ns {
@@ -655,6 +801,12 @@ pub(super) fn supported_decode_image() -> Image {
         b: 149,
         o: 150,
     };
+    let dependency_program_ns = Ns {
+        k: 155,
+        p: 156,
+        b: 157,
+        o: 158,
+    };
     let dispatch_ns = Ns {
         k: 151,
         p: 152,
@@ -667,6 +819,7 @@ pub(super) fn supported_decode_image() -> Image {
     let entrypoint_function = eid(9, 48);
     let namespace_function = eid(9, 49);
     let function = eid(9, 50);
+    let dependency_program_function = eid(9, 51);
     let (decode_graph, _) = build_decode(&mut assembler, decode_ns, decode_function);
     let validate_graph = build_program_validate(
         &mut assembler,
@@ -687,6 +840,12 @@ pub(super) fn supported_decode_image() -> Image {
         namespace_function,
         decode_function,
     );
+    let dependency_program_graph =
+        super::dependency_binding_decode::build_dependency_program_decode(
+            &mut assembler,
+            dependency_program_ns,
+            dependency_program_function,
+        );
     let graph = build_supported_program_decode(
         &mut assembler,
         dispatch_ns,
@@ -695,6 +854,7 @@ pub(super) fn supported_decode_image() -> Image {
         outer_function,
         entrypoint_function,
         namespace_function,
+        dependency_program_function,
     );
     let mut image = Image {
         types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
@@ -705,6 +865,7 @@ pub(super) fn supported_decode_image() -> Image {
             outer_graph,
             entrypoint_graph,
             namespace_graph,
+            dependency_program_graph,
             decode_graph,
         ],
         parameters: assembler.parameters,
@@ -755,7 +916,7 @@ pub(super) fn supported_decode_ok(outcome: &sley_vm::ExecutionOutcome) -> ConstV
 }
 
 #[test]
-fn codec_supported_kind_dispatch_decodes_namespace_and_entrypoint() {
+fn codec_supported_kind_dispatch_decodes_all_three_supported_kinds() {
     let image = supported_decode_image();
     let (package, approved) = admit(&image);
 
@@ -769,8 +930,11 @@ fn codec_supported_kind_dispatch_decodes_namespace_and_entrypoint() {
         entrypoint_outcome.instruction_count,
         entrypoint_outcome.peak_value_units
     );
-    let ConstData::Result(ResultConst::Ok(entrypoint_fields)) = entrypoint_value.data else {
-        panic!("entrypoint must use the supported-value Ok arm")
+    let ConstData::Result(ResultConst::Ok(existing_entrypoint)) = entrypoint_value.data else {
+        panic!("entrypoint must use the extended-value Ok arm")
+    };
+    let ConstData::Result(ResultConst::Ok(entrypoint_fields)) = existing_entrypoint.data else {
+        panic!("entrypoint must retain the existing supported-value Ok arm")
     };
     let ConstData::Sequence(fields) = entrypoint_fields.data else {
         panic!("entrypoint arm must carry a tuple")
@@ -793,8 +957,11 @@ fn codec_supported_kind_dispatch_decodes_namespace_and_entrypoint() {
         namespace_outcome.instruction_count,
         namespace_outcome.peak_value_units
     );
-    let ConstData::Result(ResultConst::Err(namespace_fields)) = namespace_value.data else {
-        panic!("namespace must use the supported-value Err arm")
+    let ConstData::Result(ResultConst::Ok(existing_namespace)) = namespace_value.data else {
+        panic!("namespace must use the extended-value Ok arm")
+    };
+    let ConstData::Result(ResultConst::Err(namespace_fields)) = existing_namespace.data else {
+        panic!("namespace must retain the existing supported-value Err arm")
     };
     let ConstData::Sequence(fields) = namespace_fields.data else {
         panic!("namespace arm must carry a tuple")
@@ -803,6 +970,28 @@ fn codec_supported_kind_dispatch_decodes_namespace_and_entrypoint() {
     assert_eq!(fields[0].data, ConstData::Bytes(vec![0xc1; 32]));
     assert_eq!(fields[1].data, ConstData::Bytes(parent));
     assert_eq!(fields[2].data, ConstData::Bytes(members));
+
+    let dependency = super::dependency_binding::dependency_stored(0xd2, 0xd3, 0xd4);
+    let dependency_outcome = supported_decode_call(&package, &approved, 18, &dependency);
+    let dependency_value = supported_decode_ok(&dependency_outcome);
+    eprintln!(
+        "SUPPORTED_DEC kind18 stored{}B fuel={} instr={} peak={}",
+        dependency.len(),
+        dependency_outcome.fuel_used,
+        dependency_outcome.instruction_count,
+        dependency_outcome.peak_value_units
+    );
+    let ConstData::Result(ResultConst::Err(dependency_fields)) = dependency_value.data else {
+        panic!("DependencyBinding must use the extended-value Err arm")
+    };
+    let ConstData::Sequence(fields) = dependency_fields.data else {
+        panic!("DependencyBinding arm must carry a tuple")
+    };
+    assert_eq!(fields.len(), 4);
+    assert_eq!(fields[0].data, ConstData::Bytes(vec![0xd1; 32]));
+    assert_eq!(fields[1].data, ConstData::Bytes(vec![0xd2; 32]));
+    assert_eq!(fields[2].data, ConstData::Bytes(vec![0xd3; 32]));
+    assert_eq!(fields[3].data, ConstData::Bytes(vec![0xd4; 32]));
 }
 
 #[test]
@@ -813,6 +1002,10 @@ fn codec_supported_kind_dispatch_fails_closed_on_mismatch_and_unknown_kind() {
 
     assert_refusal(
         &supported_decode_call(&package, &approved, 3, &entrypoint),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_decode_call(&package, &approved, 18, &entrypoint),
         "SSMC_RESERVED_FIELD_PRESENT",
     );
     assert_refusal(
@@ -837,5 +1030,21 @@ fn codec_supported_kind_dispatch_fails_closed_on_mismatch_and_unknown_kind() {
     assert_refusal(
         &supported_decode_call(&package, &approved, 19, &corrupted),
         "SCB_DIGEST_MISMATCH",
+    );
+
+    let dependency = super::dependency_binding::dependency_stored(0xd2, 0xd3, 0xd4);
+    let mut corrupted_dependency = dependency.clone();
+    *corrupted_dependency.last_mut().unwrap() ^= 1;
+    assert_refusal(
+        &supported_decode_call(&package, &approved, 18, &corrupted_dependency),
+        "SCB_DIGEST_MISMATCH",
+    );
+
+    let mut noncanonical_dependency_body = ns_body_of(&dependency);
+    noncanonical_dependency_body[2] = 4;
+    let noncanonical_dependency = ns_wrap_body(0xd1, &noncanonical_dependency_body);
+    assert_refusal(
+        &supported_decode_call(&package, &approved, 18, &noncanonical_dependency),
+        "SSMC_RESERVED_FIELD_PRESENT",
     );
 }

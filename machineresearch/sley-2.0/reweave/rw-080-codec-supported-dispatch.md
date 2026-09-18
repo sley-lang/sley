@@ -7,6 +7,13 @@ Namespace decoders behind one Sley entry. It is development evidence,
 not accepted runtime authority. RW-080 remains BLOCKED and R2 remains
 NOT_READY pending the recorded independent review and acceptance debt.
 
+Current extension: slice 12 adds canonical DependencyBinding kind 18
+without changing the established two-arm value identities. See
+`rw-080-codec-dependency-binding-compose-decode.md` for the additive
+sum, bounded fixed-shape path, scope rule, tests, and current resource
+measurements. Sections 1 through 7 below retain the original slice-8
+record.
+
 ## 1. Bounded scope
 
 `decode_supported_program(declared_kind: UInt64, stored: Bytes,
@@ -136,3 +143,14 @@ add the remaining body kinds, then label/NFC/fingerprint handling and
 verification on the path to a canonical schema-bearing main entry. The
 current explicit-kind entries remain bounded composition proofs for
 kinds 3 and 16.
+
+## 8. Slice-12 additive state
+
+The current entry supports kinds 3, 16, and 18. Its semantic value is
+`Result<Result<EntryPoint, Namespace>, DependencyBinding>`, enclosed by
+the existing codec `Result<..., Bytes>`. DependencyBinding carries
+`(entity_id, dependency_root, external_package, local_namespace)` as four
+exact 32-byte values. Canonical kind 18 measures 28,855 fuel, 3,283
+instructions, and 996,953 peak value units for the 219-byte fixture under
+the unchanged limits. The next matching work is the kind-18 supported
+encode arm.

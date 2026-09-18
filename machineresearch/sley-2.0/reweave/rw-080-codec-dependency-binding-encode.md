@@ -87,6 +87,8 @@ frozen limits. Independent review was unavailable; no gate, ledger, or
 runtime-authority promotion is claimed.
 
 The strict kind-18 body decoder is recorded in
-`rw-080-codec-dependency-binding-decode.md`. The next dependency is to
-compose both paths with the shared outer/envelope machinery and add a
-third supported dispatch arm.
+`rw-080-codec-dependency-binding-decode.md`, and the whole-program decode
+composition is recorded in
+`rw-080-codec-dependency-binding-compose-decode.md`. The next dependency
+is the matching whole-program kind-18 encode composition and third
+supported encode arm.

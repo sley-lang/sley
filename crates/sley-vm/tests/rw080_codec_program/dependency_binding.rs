@@ -250,7 +250,7 @@ fn build_copy_32_chain(
 }
 
 #[allow(clippy::too_many_lines)]
-fn build_dependency_binding_encode(
+pub(super) fn build_dependency_binding_encode(
     assembler: &mut Asm,
     ns: Ns,
     function: EntityId,

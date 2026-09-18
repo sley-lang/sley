@@ -104,7 +104,9 @@ changes.
 The next fixed-width format now has paired DependencyBinding body
 encode and strict decode records
 (`rw-080-codec-dependency-binding-encode.md` and
-`rw-080-codec-dependency-binding-decode.md`). Program composition
-remains before kind 18 can extend both supported dispatchers.
+`rw-080-codec-dependency-binding-decode.md`). Program decode composition
+now extends the supported decoder in
+`rw-080-codec-dependency-binding-compose-decode.md`; matching encode
+composition remains before kind 18 can extend this dispatcher.
 Label/NFC/fingerprint work remains separate because its required text
 and verification machinery has not landed.

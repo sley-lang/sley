@@ -53,6 +53,10 @@ kind-18 arm in both supported dispatchers remain later work.
   `SCB_LENGTH_OVERFLOW`; a fully present overlong nested payload returns
   `SCB_TRAILING_BYTES`. A declaration crossing the bounded union remains
   length overflow, matching native precedence.
+- Canonical 105-byte bodies take a fixed-shape fast path that checks every
+  framing byte before copying the three identities. Any mismatch enters the
+  original bounded parser, so the full native rejection precedence remains
+  observable rather than being replaced by one generic error.
 - B2V1, PSH1, and V2B1 are the only adapters. Indexed-read failure and
   checked-index overflow after established bounds are internal
   invariants; adapter capacity refusal is `SCB_RESOURCE_LIMIT`.
@@ -68,8 +72,8 @@ nonminimal uvar, and all three declared resource-limit gates. Three
 union-scope vectors separately pin known
 unimplemented and closed-union behavior.
 
-Each valid 105-byte body uses 14,059 fuel, 1,692 instructions, and
-251,717 peak value units under the unchanged codec limits. No protected
+Each valid 105-byte body uses 4,463 fuel, 538 instructions, and
+110,902 peak value units under the unchanged codec limits. No protected
 limit, value charging rule, host primitive, hash preimage, or authority
 state changed.
 

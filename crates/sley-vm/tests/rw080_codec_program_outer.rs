@@ -11190,12 +11190,10 @@ fn build_program_validate(
             edge(
                 d0,
                 vec![
-                    pav(k_dend),
                     pav(k_pend),
                     pav(k_plen),
                     pav(k_ppos),
                     pav(k_vec),
-                    pav(k_in),
                     pav(k_unit),
                 ],
             ),
@@ -11217,12 +11215,10 @@ fn build_program_validate(
         vec![u8vec_type()],
         Immediate::None,
     );
-    let dd_dend = a.param(ns.p, d0, ParameterRole::Block, u64_type());
     let dd_pend = a.param(ns.p, d0, ParameterRole::Block, u64_type());
     let dd_plen = a.param(ns.p, d0, ParameterRole::Block, u64_type());
     let dd_ppos = a.param(ns.p, d0, ParameterRole::Block, u64_type());
     let dd_vec = a.param(ns.p, d0, ParameterRole::Block, u8vec_type());
-    let dd_in = a.param(ns.p, d0, ParameterRole::Block, TypeExpr::Bytes);
     let dd_unit = a.param(ns.p, d0, ParameterRole::Block, TypeExpr::Unit);
     let mut d_steps: Vec<EntityId> = Vec::new();
     for _ in 0..15 {
@@ -11232,18 +11228,16 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: d0,
         function: fid,
-        parameters: vec![dd_dend, dd_pend, dd_plen, dd_ppos, dd_vec, dd_in, dd_unit],
+        parameters: vec![dd_pend, dd_plen, dd_ppos, dd_vec, dd_unit],
         operations: vec![d_empty],
         terminator: branch(edge(
             d_steps[0],
             vec![
                 op_result(d_empty),
-                pav(dd_dend),
                 pav(dd_pend),
                 pav(dd_plen),
                 pav(dd_ppos),
                 pav(dd_vec),
-                pav(dd_in),
                 pav(dd_unit),
             ],
         )),
@@ -11252,12 +11246,10 @@ fn build_program_validate(
     for i in 0..15 {
         let st = d_steps[i];
         let s_acc = a.param(ns.p, st, ParameterRole::Block, u8vec_type());
-        let s_dend = a.param(ns.p, st, ParameterRole::Block, u64_type());
         let s_pend = a.param(ns.p, st, ParameterRole::Block, u64_type());
         let s_plen = a.param(ns.p, st, ParameterRole::Block, u64_type());
         let s_ppos = a.param(ns.p, st, ParameterRole::Block, u64_type());
         let s_vec = a.param(ns.p, st, ParameterRole::Block, u8vec_type());
-        let s_in = a.param(ns.p, st, ParameterRole::Block, TypeExpr::Bytes);
         let s_unit = a.param(ns.p, st, ParameterRole::Block, TypeExpr::Unit);
         let bc = a.cref(ns.o, st, domain_bytes[i], u8_type());
         let push = a.op(
@@ -11272,7 +11264,7 @@ fn build_program_validate(
         a.blocks.push(Block {
             entity_id: st,
             function: fid,
-            parameters: vec![s_acc, s_dend, s_pend, s_plen, s_ppos, s_vec, s_in, s_unit],
+            parameters: vec![s_acc, s_pend, s_plen, s_ppos, s_vec, s_unit],
             operations: vec![bc, push],
             terminator: switch(
                 op_result(push),
@@ -11282,12 +11274,10 @@ fn build_program_validate(
                         next,
                         vec![
                             SwitchArgument::CasePayload,
-                            sav(s_dend),
                             sav(s_pend),
                             sav(s_plen),
                             sav(s_ppos),
                             sav(s_vec),
-                            sav(s_in),
                             sav(s_unit),
                         ],
                     ),
@@ -11304,12 +11294,10 @@ fn build_program_validate(
     // is unreachable (trap); PSH1 Err is typed RESOURCE_LIMIT. Loop is
     // CFG backedge Form A over block params.
     let pl_acc = a.param(ns.p, pre_loop, ParameterRole::Block, u8vec_type());
-    let pl_dend = a.param(ns.p, pre_loop, ParameterRole::Block, u64_type());
     let pl_pend = a.param(ns.p, pre_loop, ParameterRole::Block, u64_type());
     let pl_plen = a.param(ns.p, pre_loop, ParameterRole::Block, u64_type());
     let pl_ppos = a.param(ns.p, pre_loop, ParameterRole::Block, u64_type());
     let pl_vec = a.param(ns.p, pre_loop, ParameterRole::Block, u8vec_type());
-    let pl_in = a.param(ns.p, pre_loop, ParameterRole::Block, TypeExpr::Bytes);
     let pl_unit = a.param(ns.p, pre_loop, ParameterRole::Block, TypeExpr::Unit);
     let lp_check = a.id(ns.b);
     let lp_get = a.id(ns.b);
@@ -11320,21 +11308,17 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: pre_loop,
         function: fid,
-        parameters: vec![
-            pl_acc, pl_dend, pl_pend, pl_plen, pl_ppos, pl_vec, pl_in, pl_unit,
-        ],
+        parameters: vec![pl_acc, pl_pend, pl_plen, pl_ppos, pl_vec, pl_unit],
         operations: vec![z0c],
         terminator: branch(edge(
             lp_check,
             vec![
                 op_result(z0c),
                 pav(pl_acc),
-                pav(pl_dend),
                 pav(pl_pend),
                 pav(pl_plen),
                 pav(pl_ppos),
                 pav(pl_vec),
-                pav(pl_in),
                 pav(pl_unit),
             ],
         )),
@@ -11342,12 +11326,10 @@ fn build_program_validate(
     });
     let c_idx = a.param(ns.p, lp_check, ParameterRole::Block, u64_type());
     let c_acc = a.param(ns.p, lp_check, ParameterRole::Block, u8vec_type());
-    let c_dend = a.param(ns.p, lp_check, ParameterRole::Block, u64_type());
     let c_pend = a.param(ns.p, lp_check, ParameterRole::Block, u64_type());
     let c_plen = a.param(ns.p, lp_check, ParameterRole::Block, u64_type());
     let c_ppos = a.param(ns.p, lp_check, ParameterRole::Block, u64_type());
     let c_vec = a.param(ns.p, lp_check, ParameterRole::Block, u8vec_type());
-    let c_in = a.param(ns.p, lp_check, ParameterRole::Block, TypeExpr::Bytes);
     let c_unit = a.param(ns.p, lp_check, ParameterRole::Block, TypeExpr::Unit);
     let c_lt = a.op(
         ns.o,
@@ -11360,9 +11342,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: lp_check,
         function: fid,
-        parameters: vec![
-            c_idx, c_acc, c_dend, c_pend, c_plen, c_ppos, c_vec, c_in, c_unit,
-        ],
+        parameters: vec![c_idx, c_acc, c_pend, c_plen, c_ppos, c_vec, c_unit],
         operations: vec![c_lt],
         terminator: cond(
             op_result(c_lt),
@@ -11371,12 +11351,10 @@ fn build_program_validate(
                 vec![
                     pav(c_idx),
                     pav(c_acc),
-                    pav(c_dend),
                     pav(c_pend),
                     pav(c_plen),
                     pav(c_ppos),
                     pav(c_vec),
-                    pav(c_in),
                     pav(c_unit),
                 ],
             ),
@@ -11384,12 +11362,10 @@ fn build_program_validate(
                 lp_done,
                 vec![
                     pav(c_acc),
-                    pav(c_dend),
                     pav(c_pend),
                     pav(c_plen),
                     pav(c_ppos),
                     pav(c_vec),
-                    pav(c_in),
                     pav(c_unit),
                 ],
             ),
@@ -11398,12 +11374,10 @@ fn build_program_validate(
     });
     let g_idx = a.param(ns.p, lp_get, ParameterRole::Block, u64_type());
     let g_acc = a.param(ns.p, lp_get, ParameterRole::Block, u8vec_type());
-    let g_dend = a.param(ns.p, lp_get, ParameterRole::Block, u64_type());
     let g_pend = a.param(ns.p, lp_get, ParameterRole::Block, u64_type());
     let g_plen = a.param(ns.p, lp_get, ParameterRole::Block, u64_type());
     let g_ppos = a.param(ns.p, lp_get, ParameterRole::Block, u64_type());
     let g_vec = a.param(ns.p, lp_get, ParameterRole::Block, u8vec_type());
-    let g_in = a.param(ns.p, lp_get, ParameterRole::Block, TypeExpr::Bytes);
     let g_unit = a.param(ns.p, lp_get, ParameterRole::Block, TypeExpr::Unit);
     let g_get = a.op(
         ns.o,
@@ -11416,9 +11390,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: lp_get,
         function: fid,
-        parameters: vec![
-            g_idx, g_acc, g_dend, g_pend, g_plen, g_ppos, g_vec, g_in, g_unit,
-        ],
+        parameters: vec![g_idx, g_acc, g_pend, g_plen, g_ppos, g_vec, g_unit],
         operations: vec![g_get],
         terminator: switch(
             op_result(g_get),
@@ -11431,12 +11403,10 @@ fn build_program_validate(
                         SwitchArgument::CasePayload,
                         sav(g_idx),
                         sav(g_acc),
-                        sav(g_dend),
                         sav(g_pend),
                         sav(g_plen),
                         sav(g_ppos),
                         sav(g_vec),
-                        sav(g_in),
                         sav(g_unit),
                     ],
                 ),
@@ -11447,12 +11417,10 @@ fn build_program_validate(
     let u_b = a.param(ns.p, lp_push, ParameterRole::Block, u8_type());
     let u_idx = a.param(ns.p, lp_push, ParameterRole::Block, u64_type());
     let u_acc = a.param(ns.p, lp_push, ParameterRole::Block, u8vec_type());
-    let u_dend = a.param(ns.p, lp_push, ParameterRole::Block, u64_type());
     let u_pend = a.param(ns.p, lp_push, ParameterRole::Block, u64_type());
     let u_plen = a.param(ns.p, lp_push, ParameterRole::Block, u64_type());
     let u_ppos = a.param(ns.p, lp_push, ParameterRole::Block, u64_type());
     let u_vec = a.param(ns.p, lp_push, ParameterRole::Block, u8vec_type());
-    let u_in = a.param(ns.p, lp_push, ParameterRole::Block, TypeExpr::Bytes);
     let u_unit = a.param(ns.p, lp_push, ParameterRole::Block, TypeExpr::Unit);
     let u_push = a.op(
         ns.o,
@@ -11465,9 +11433,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: lp_push,
         function: fid,
-        parameters: vec![
-            u_b, u_idx, u_acc, u_dend, u_pend, u_plen, u_ppos, u_vec, u_in, u_unit,
-        ],
+        parameters: vec![u_b, u_idx, u_acc, u_pend, u_plen, u_ppos, u_vec, u_unit],
         operations: vec![u_push],
         terminator: switch(
             op_result(u_push),
@@ -11478,12 +11444,10 @@ fn build_program_validate(
                     vec![
                         sav(u_idx),
                         SwitchArgument::CasePayload,
-                        sav(u_dend),
                         sav(u_pend),
                         sav(u_plen),
                         sav(u_ppos),
                         sav(u_vec),
-                        sav(u_in),
                         sav(u_unit),
                     ],
                 ),
@@ -11494,12 +11458,10 @@ fn build_program_validate(
     });
     let n_idx = a.param(ns.p, lp_next, ParameterRole::Block, u64_type());
     let n_acc = a.param(ns.p, lp_next, ParameterRole::Block, u8vec_type());
-    let n_dend = a.param(ns.p, lp_next, ParameterRole::Block, u64_type());
     let n_pend = a.param(ns.p, lp_next, ParameterRole::Block, u64_type());
     let n_plen = a.param(ns.p, lp_next, ParameterRole::Block, u64_type());
     let n_ppos = a.param(ns.p, lp_next, ParameterRole::Block, u64_type());
     let n_vec = a.param(ns.p, lp_next, ParameterRole::Block, u8vec_type());
-    let n_in = a.param(ns.p, lp_next, ParameterRole::Block, TypeExpr::Bytes);
     let n_unit = a.param(ns.p, lp_next, ParameterRole::Block, TypeExpr::Unit);
     let n_onec = a.cref(ns.o, lp_next, c1, u64_type());
     let n_add = a.op(
@@ -11513,9 +11475,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: lp_next,
         function: fid,
-        parameters: vec![
-            n_idx, n_acc, n_dend, n_pend, n_plen, n_ppos, n_vec, n_in, n_unit,
-        ],
+        parameters: vec![n_idx, n_acc, n_pend, n_plen, n_ppos, n_vec, n_unit],
         operations: vec![n_onec, n_add],
         terminator: switch(
             op_result(n_add),
@@ -11526,12 +11486,10 @@ fn build_program_validate(
                     vec![
                         SwitchArgument::CasePayload,
                         sav(n_acc),
-                        sav(n_dend),
                         sav(n_pend),
                         sav(n_plen),
                         sav(n_ppos),
                         sav(n_vec),
-                        sav(n_in),
                         sav(n_unit),
                     ],
                 ),
@@ -11545,12 +11503,10 @@ fn build_program_validate(
     // are typed RESOURCE_LIMIT; small envelopes never reach them. The
     // original Bytes input is no longer needed past this point.
     let h_acc = a.param(ns.p, lp_done, ParameterRole::Block, u8vec_type());
-    let h_dend = a.param(ns.p, lp_done, ParameterRole::Block, u64_type());
     let h_pend = a.param(ns.p, lp_done, ParameterRole::Block, u64_type());
     let h_plen = a.param(ns.p, lp_done, ParameterRole::Block, u64_type());
     let h_ppos = a.param(ns.p, lp_done, ParameterRole::Block, u64_type());
     let h_vec = a.param(ns.p, lp_done, ParameterRole::Block, u8vec_type());
-    let h_in = a.param(ns.p, lp_done, ParameterRole::Block, TypeExpr::Bytes);
     let h_unit = a.param(ns.p, lp_done, ParameterRole::Block, TypeExpr::Unit);
     let h_v2b = a.op(
         ns.o,
@@ -11562,7 +11518,6 @@ fn build_program_validate(
     );
     let h_hash = a.id(ns.b);
     let hh_bytes = a.param(ns.p, h_hash, ParameterRole::Block, TypeExpr::Bytes);
-    let hh_dend = a.param(ns.p, h_hash, ParameterRole::Block, u64_type());
     let hh_pend = a.param(ns.p, h_hash, ParameterRole::Block, u64_type());
     let hh_plen = a.param(ns.p, h_hash, ParameterRole::Block, u64_type());
     let hh_ppos = a.param(ns.p, h_hash, ParameterRole::Block, u64_type());
@@ -11571,7 +11526,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: lp_done,
         function: fid,
-        parameters: vec![h_acc, h_dend, h_pend, h_plen, h_ppos, h_vec, h_in, h_unit],
+        parameters: vec![h_acc, h_pend, h_plen, h_ppos, h_vec, h_unit],
         operations: vec![h_v2b],
         terminator: switch(
             op_result(h_v2b),
@@ -11581,7 +11536,6 @@ fn build_program_validate(
                     h_hash,
                     vec![
                         SwitchArgument::CasePayload,
-                        sav(h_dend),
                         sav(h_pend),
                         sav(h_plen),
                         sav(h_ppos),
@@ -11604,7 +11558,6 @@ fn build_program_validate(
     );
     let h_cmp0 = a.id(ns.b);
     let hc_bytes = a.param(ns.p, h_cmp0, ParameterRole::Block, TypeExpr::Bytes);
-    let hc_dend = a.param(ns.p, h_cmp0, ParameterRole::Block, u64_type());
     let hc_pend = a.param(ns.p, h_cmp0, ParameterRole::Block, u64_type());
     let hc_plen = a.param(ns.p, h_cmp0, ParameterRole::Block, u64_type());
     let hc_ppos = a.param(ns.p, h_cmp0, ParameterRole::Block, u64_type());
@@ -11613,9 +11566,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: h_hash,
         function: fid,
-        parameters: vec![
-            hh_bytes, hh_dend, hh_pend, hh_plen, hh_ppos, hh_vec, hh_unit,
-        ],
+        parameters: vec![hh_bytes, hh_pend, hh_plen, hh_ppos, hh_vec, hh_unit],
         operations: vec![h_rhw],
         terminator: switch(
             op_result(h_rhw),
@@ -11625,7 +11576,6 @@ fn build_program_validate(
                     h_cmp0,
                     vec![
                         SwitchArgument::CasePayload,
-                        sav(hh_dend),
                         sav(hh_pend),
                         sav(hh_plen),
                         sav(hh_ppos),
@@ -11663,9 +11613,7 @@ fn build_program_validate(
     a.blocks.push(Block {
         entity_id: h_cmp0,
         function: fid,
-        parameters: vec![
-            hc_bytes, hc_dend, hc_pend, hc_plen, hc_ppos, hc_vec, hc_unit,
-        ],
+        parameters: vec![hc_bytes, hc_pend, hc_plen, hc_ppos, hc_vec, hc_unit],
         operations: vec![hc_b2v],
         terminator: switch(
             op_result(hc_b2v),
@@ -11675,7 +11623,6 @@ fn build_program_validate(
                     dg_get[0],
                     vec![
                         SwitchArgument::CasePayload,
-                        sav(hc_dend),
                         sav(hc_pend),
                         sav(hc_plen),
                         sav(hc_ppos),
@@ -11706,7 +11653,6 @@ fn build_program_validate(
         let cmp_b = dg_inc[i];
         // Add: trailer_idx = payload_end + offset_i.
         let a_dig = a.param(ns.p, add_b, ParameterRole::Block, u8vec_type());
-        let a_dend = a.param(ns.p, add_b, ParameterRole::Block, u64_type());
         let a_pend = a.param(ns.p, add_b, ParameterRole::Block, u64_type());
         let a_plen = a.param(ns.p, add_b, ParameterRole::Block, u64_type());
         let a_ppos = a.param(ns.p, add_b, ParameterRole::Block, u64_type());
@@ -11724,7 +11670,7 @@ fn build_program_validate(
         a.blocks.push(Block {
             entity_id: add_b,
             function: fid,
-            parameters: vec![a_dig, a_dend, a_pend, a_plen, a_ppos, a_vec, a_unit],
+            parameters: vec![a_dig, a_pend, a_plen, a_ppos, a_vec, a_unit],
             operations: vec![a_offc, a_add],
             terminator: switch(
                 op_result(a_add),
@@ -11735,7 +11681,6 @@ fn build_program_validate(
                         vec![
                             SwitchArgument::CasePayload,
                             sav(a_dig),
-                            sav(a_dend),
                             sav(a_pend),
                             sav(a_plen),
                             sav(a_ppos),
@@ -11751,7 +11696,6 @@ fn build_program_validate(
         // GetDig: dig_byte = dig_vec[offset_i] (constant index).
         let d_trail = a.param(ns.p, getd_b, ParameterRole::Block, u64_type());
         let d_dig = a.param(ns.p, getd_b, ParameterRole::Block, u8vec_type());
-        let d_dend = a.param(ns.p, getd_b, ParameterRole::Block, u64_type());
         let d_pend = a.param(ns.p, getd_b, ParameterRole::Block, u64_type());
         let d_plen = a.param(ns.p, getd_b, ParameterRole::Block, u64_type());
         let d_ppos = a.param(ns.p, getd_b, ParameterRole::Block, u64_type());
@@ -11769,9 +11713,7 @@ fn build_program_validate(
         a.blocks.push(Block {
             entity_id: getd_b,
             function: fid,
-            parameters: vec![
-                d_trail, d_dig, d_dend, d_pend, d_plen, d_ppos, d_vec, d_unit,
-            ],
+            parameters: vec![d_trail, d_dig, d_pend, d_plen, d_ppos, d_vec, d_unit],
             operations: vec![d_idxc, d_get],
             terminator: switch(
                 op_result(d_get),
@@ -11784,7 +11726,6 @@ fn build_program_validate(
                             SwitchArgument::CasePayload,
                             sav(d_trail),
                             sav(d_dig),
-                            sav(d_dend),
                             sav(d_pend),
                             sav(d_plen),
                             sav(d_ppos),
@@ -11800,7 +11741,6 @@ fn build_program_validate(
         let t_b = a.param(ns.p, gett_b, ParameterRole::Block, u8_type());
         let t_trail = a.param(ns.p, gett_b, ParameterRole::Block, u64_type());
         let t_dig = a.param(ns.p, gett_b, ParameterRole::Block, u8vec_type());
-        let t_dend = a.param(ns.p, gett_b, ParameterRole::Block, u64_type());
         let t_pend = a.param(ns.p, gett_b, ParameterRole::Block, u64_type());
         let t_plen = a.param(ns.p, gett_b, ParameterRole::Block, u64_type());
         let t_ppos = a.param(ns.p, gett_b, ParameterRole::Block, u64_type());
@@ -11817,9 +11757,7 @@ fn build_program_validate(
         a.blocks.push(Block {
             entity_id: gett_b,
             function: fid,
-            parameters: vec![
-                t_b, t_trail, t_dig, t_dend, t_pend, t_plen, t_ppos, t_vec, t_unit,
-            ],
+            parameters: vec![t_b, t_trail, t_dig, t_pend, t_plen, t_ppos, t_vec, t_unit],
             operations: vec![t_get],
             terminator: switch(
                 op_result(t_get),
@@ -11832,7 +11770,6 @@ fn build_program_validate(
                             sav(t_b),
                             SwitchArgument::CasePayload,
                             sav(t_dig),
-                            sav(t_dend),
                             sav(t_pend),
                             sav(t_plen),
                             sav(t_ppos),
@@ -11848,7 +11785,6 @@ fn build_program_validate(
         let m_db = a.param(ns.p, cmp_b, ParameterRole::Block, u8_type());
         let m_tb = a.param(ns.p, cmp_b, ParameterRole::Block, u8_type());
         let m_dig = a.param(ns.p, cmp_b, ParameterRole::Block, u8vec_type());
-        let m_dend = a.param(ns.p, cmp_b, ParameterRole::Block, u64_type());
         let m_pend = a.param(ns.p, cmp_b, ParameterRole::Block, u64_type());
         let m_plen = a.param(ns.p, cmp_b, ParameterRole::Block, u64_type());
         let m_ppos = a.param(ns.p, cmp_b, ParameterRole::Block, u64_type());
@@ -11867,9 +11803,7 @@ fn build_program_validate(
             a.blocks.push(Block {
                 entity_id: cmp_b,
                 function: fid,
-                parameters: vec![
-                    m_db, m_tb, m_dig, m_dend, m_pend, m_plen, m_ppos, m_vec, m_unit,
-                ],
+                parameters: vec![m_db, m_tb, m_dig, m_pend, m_plen, m_ppos, m_vec, m_unit],
                 operations: vec![m_eq],
                 terminator: cond(
                     op_result(m_eq),
@@ -11891,9 +11825,7 @@ fn build_program_validate(
             a.blocks.push(Block {
                 entity_id: cmp_b,
                 function: fid,
-                parameters: vec![
-                    m_db, m_tb, m_dig, m_dend, m_pend, m_plen, m_ppos, m_vec, m_unit,
-                ],
+                parameters: vec![m_db, m_tb, m_dig, m_pend, m_plen, m_ppos, m_vec, m_unit],
                 operations: vec![m_eq],
                 terminator: cond(
                     op_result(m_eq),
@@ -11901,7 +11833,6 @@ fn build_program_validate(
                         next,
                         vec![
                             pav(m_dig),
-                            pav(m_dend),
                             pav(m_pend),
                             pav(m_plen),
                             pav(m_ppos),
