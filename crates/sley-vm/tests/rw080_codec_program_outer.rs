@@ -51,18 +51,26 @@ use sley_ssmc::{
 
 #[path = "rw080_codec_program/adapter_import.rs"]
 mod adapter_import;
+#[path = "rw080_codec_program/block.rs"]
+mod block;
 #[path = "rw080_codec_program/capability_requirement.rs"]
 mod capability_requirement;
 #[path = "rw080_codec_program/constant.rs"]
 mod constant;
+#[path = "rw080_codec_program/contract.rs"]
+mod contract;
 #[path = "rw080_codec_program/dependency_binding.rs"]
 mod dependency_binding;
 #[path = "rw080_codec_program/dependency_binding_decode.rs"]
 mod dependency_binding_decode;
 #[path = "rw080_codec_program/effect_def.rs"]
 mod effect_def;
+#[path = "rw080_codec_program/function.rs"]
+mod function;
 #[path = "rw080_codec_program/global_value.rs"]
 mod global_value;
+#[path = "rw080_codec_program/operation.rs"]
+mod operation;
 #[path = "rw080_codec_program/package.rs"]
 mod package;
 #[path = "rw080_codec_program/parameter.rs"]
@@ -73,6 +81,10 @@ mod policy_binding;
 mod supported_dispatch;
 #[path = "rw080_codec_program/supported_encode_dispatch.rs"]
 mod supported_encode_dispatch;
+#[path = "rw080_codec_program/test_case.rs"]
+mod test_case;
+#[path = "rw080_codec_program/type_def.rs"]
+mod type_def;
 #[path = "rw080_codec_program/workspace.rs"]
 mod workspace;
 

@@ -5,6 +5,31 @@
 
 use super::*;
 
+pub(super) fn decoded_fixed_body(
+    outcome: &sley_vm::ExecutionOutcome,
+    kind: &str,
+) -> (Vec<u8>, Vec<u8>) {
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!("{kind} decoder must return: {:?}", outcome.termination)
+    };
+    let ConstData::Result(ResultConst::Ok(payload)) = &value.data else {
+        panic!("{kind} decoder must succeed: {:?}", value.data)
+    };
+    let ConstData::Sequence(fields) = &payload.data else {
+        panic!("{kind} decoder returns an entity/body tuple")
+    };
+    let [entity, body] = fields.as_slice() else {
+        panic!("{kind} decoder returns exactly two fields")
+    };
+    let ConstData::Bytes(entity) = &entity.data else {
+        panic!("{kind} entity is Bytes")
+    };
+    let ConstData::Bytes(body) = &body.data else {
+        panic!("{kind} body is Bytes")
+    };
+    (entity.clone(), body.clone())
+}
+
 fn workspace_decode_result_type() -> TypeExpr {
     outer_decode_result_type()
 }
