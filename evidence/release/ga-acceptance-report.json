@@ -118,7 +118,7 @@
     },
     {
       "criterion": "No undefined behavior exists in the program model",
-      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 87 PASS, 4 PENDING, 0 OTHER, 55 historical, 1 unclaimed or unclassified; lane open)",
+      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 87 PASS, 4 PENDING, 0 OTHER, 55 historical, 0 unclaimed or unclassified; lane open)",
       "group": "26.3 semantics",
       "state": "AWAITS_REVIEW"
     },
@@ -244,7 +244,7 @@
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 24 open P0/P1/P2 findings across 466 obligations (24 of them per-package open claims)",
+      "evidence": "finding register declares 25 open P0/P1/P2 findings across 466 obligations (25 of them per-package open claims)",
       "group": "26.6 policy and security",
       "state": "GATED"
     },
@@ -268,7 +268,7 @@
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit 5bba01b326efa1f510e0cfd8c141874a98c09795; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
+      "evidence": "attested commit 867009de751fbe0057ad1f8ea7e10cf0d5efa1d6; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
       "group": "26.8 packaging",
       "state": "GATED"
     },
@@ -286,7 +286,7 @@
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "attested manifest digest c5fd6ed900ba, artifact digest 7b828360e00f, 2507945 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
+      "evidence": "attested manifest digest 615083e4c446, artifact digest f66c7d60da60, 2507942 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
@@ -304,7 +304,7 @@
     },
     {
       "criterion": "Ariadne approves SSMC1 and semantic correctness",
-      "evidence": "finding register ariadne lane: 87 PASS, 4 PENDING, 0 OTHER, 55 historical, 1 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
+      "evidence": "finding register ariadne lane: 87 PASS, 4 PENDING, 0 OTHER, 55 historical, 0 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -322,7 +322,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 14 open, 0 unclassified, and 1 unclaimed-carried obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 14 open, 0 unclassified, and 0 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -342,9 +342,9 @@
     "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "eb84fbda9b3f69fe94c2d600469205b0877d0196dda8981cb8e1b8a586ac0de0",
-  "register_digest": "1bcfaee32deb37e298a7ecce43844b92eb9c15a03c8d4dca082ca3a79ad60ada",
-  "report_digest": "c4a3d1d6c6ac424c1a644275c2ff4477239d5fd95e84e48ca3a932c9ab72e960",
+  "obligations_digest": "0598d97660b9e87a4e6372a40e9d375a775a17d8dbe064863d8f02b3f2339083",
+  "register_digest": "a9c2892f1ff12347fdde46579f09158b2070a40090ee902c5a49504c088a47bb",
+  "report_digest": "c61c135ce21a2646e38fa795ad1c9185990f5162b48abbd885573a9772ac8c57",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

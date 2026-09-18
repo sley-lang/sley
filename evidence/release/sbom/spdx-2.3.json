@@ -8,7 +8,7 @@
     ]
   },
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "urn:sley2:spdx:3be5e5547fe0ae8d1b290aaac3ab03eee509657278af21c14b983ece6a0355de:7b828360e00fcbf70392f3c2a6784117c12c259dac00f366708ebe48f4885aa4",
+  "documentNamespace": "urn:sley2:spdx:3be5e5547fe0ae8d1b290aaac3ab03eee509657278af21c14b983ece6a0355de:f66c7d60da60ec6176eae58986bf0d26b8997818757c4a3d647750535ed07977",
   "name": "sley-2.0.0-alpha.0-linux-x86_64",
   "packages": [
     {
@@ -16,7 +16,7 @@
       "checksums": [
         {
           "algorithm": "SHA256",
-          "checksumValue": "7b828360e00fcbf70392f3c2a6784117c12c259dac00f366708ebe48f4885aa4"
+          "checksumValue": "f66c7d60da60ec6176eae58986bf0d26b8997818757c4a3d647750535ed07977"
         }
       ],
       "comment": "the local Sley 2 release candidate; unsigned, unpublished, and not a GA claim (S20-720, S20-730)",

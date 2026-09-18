@@ -110,6 +110,6 @@
     "source_commit": "0b7a1482",
     "note": "third-repair component (node-depth value_type charging), superseded 2026-09-18 by the fourth re-mint (Map constant-arm over-charge repaired) under RW080-ID-02 replacement semantics"
   },
-  "source_commit": "the commit carrying this manifest (fourth re-mint of 2026-09-18 after the c04539b9 round; named in the records-only descendant)",
+  "source_commit": "867009de (fourth re-mint of 2026-09-18 after the c04539b9 round)",
   "arm_boundaries_observed": "every ConstData container arm is observed against the native codec at the 64-level bound (arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site, per-arm sites under a ten-times-wider budget): Sequence 21 nested nodes, Record 13, Variant 16, Map 16, Option 21, Result 21 (first refused chain length; native and this codec agree across the window)"
 }

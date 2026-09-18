@@ -10,7 +10,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "7e5072e0b534eaa87c36e9f37da621d4926475f8893ae68afd3c9d0894e89830",
+  "dossier_digest": "b7f2642010d1c5b89e5952d9c20ea2dbf695d4a2b8c0599af45db85334c5129f",
   "entries": [
     {
       "evidence": [
@@ -35,7 +35,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "5bba01b326efa1f510e0cfd8c141874a98c09795"
+      "value": "867009de751fbe0057ad1f8ea7e10cf0d5efa1d6"
     },
     {
       "evidence": [
@@ -146,9 +146,9 @@
           "scanned_manifests": 22
         },
         "property_tests": 0,
-        "python_tests": 512,
+        "python_tests": 513,
         "rust_ignored_emitters": 38,
-        "rust_unit_tests": 1956
+        "rust_unit_tests": 1957
       }
     },
     {
@@ -284,7 +284,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "7b828360e00fcbf70392f3c2a6784117c12c259dac00f366708ebe48f4885aa4"
+      "value": "f66c7d60da60ec6176eae58986bf0d26b8997818757c4a3d647750535ed07977"
     },
     {
       "evidence": [
@@ -293,7 +293,7 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2507945
+      "value": 2507942
     },
     {
       "evidence": [
@@ -348,15 +348,15 @@
           "P0": 126,
           "P1": 174,
           "P2": 204,
-          "P3": 258,
-          "P4": 106
+          "P3": 257,
+          "P4": 105
         },
         "states": {
           "HISTORICAL_ROUND": 149,
           "PASS": 303,
           "PENDING": 14
         },
-        "unclaimed_carried_findings": 1,
+        "unclaimed_carried_findings": 0,
         "unclassified": 0
       }
     },
@@ -456,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "a45588245bafb1d0e33c44ea98730eb885bb133eeb6c5ce719db281193f00999",
+  "entries_digest": "e1e1ee5abc3a4724d4cb5bcdbb3515850e27ce82acd2ca6b15e0901221cea884",
   "evidenced": 24,
   "gated": 10,
   "gates": {

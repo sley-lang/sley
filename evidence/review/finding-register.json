@@ -2213,18 +2213,16 @@
       "superseded_by": null
     },
     {
-      "declares_closed_findings": true,
+      "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_P2_P3_P4_CLOSED",
+      "disposition": "PASS_AFTER_P2_VECTOR_REANCHOR",
       "field": "epoch1_reanchor_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
       "reviewer": null,
       "round_date": null,
       "section": "mutation_value_profile",
       "severities": [
-        "P2",
-        "P3",
-        "P4"
+        "P2"
       ],
       "state": "PASS",
       "superseded_by": null
@@ -3094,9 +3092,9 @@
       "superseded_by": null
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_IMPLEMENTATION_AFTER_P1_REMEDIATION",
+      "disposition": "PASS_P1_CLOSED",
       "field": "ariadne_implementation_review",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "ariadne",
@@ -7333,7 +7331,7 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "obligations_digest": "eb84fbda9b3f69fe94c2d600469205b0877d0196dda8981cb8e1b8a586ac0de0",
+  "obligations_digest": "0598d97660b9e87a4e6372a40e9d375a775a17d8dbe064863d8f02b3f2339083",
   "open_reviews": [
     {
       "disposition": "PENDING",
@@ -7483,12 +7481,12 @@
     "finding_register.p0_open_count": 0,
     "json_bridge.p0_open_count": 0,
     "merge.p0_open_count": 0,
-    "mutation_value_profile.p2_open": 0,
-    "mutation_value_profile.p2_open_count": 0,
-    "mutation_value_profile.p3_open": 2,
-    "mutation_value_profile.p3_open_count": 2,
-    "mutation_value_profile.p4_open": 2,
-    "mutation_value_profile.p4_open_count": 2,
+    "mutation_value_profile.p2_open": 1,
+    "mutation_value_profile.p2_open_count": 1,
+    "mutation_value_profile.p3_open": 3,
+    "mutation_value_profile.p3_open_count": 3,
+    "mutation_value_profile.p4_open": 4,
+    "mutation_value_profile.p4_open_count": 4,
     "protocol.p0_open_count": 0,
     "protocol.p1_open": 0,
     "protocol.p1_open_count": 0,
@@ -7634,14 +7632,14 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "1bcfaee32deb37e298a7ecce43844b92eb9c15a03c8d4dca082ca3a79ad60ada",
+  "register_digest": "a9c2892f1ff12347fdde46579f09158b2070a40090ee902c5a49504c088a47bb",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
     "P1": 174,
     "P2": 204,
-    "P3": 258,
-    "P4": 106
+    "P3": 257,
+    "P4": 105
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
@@ -8545,16 +8543,7 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "unclaimed_carried_findings": [
-    {
-      "disposition": "PASS_IMPLEMENTATION_AFTER_P1_REMEDIATION",
-      "field": "ariadne_implementation_review",
-      "section": "repository_exchange",
-      "unclaimed_severities": [
-        "P1"
-      ]
-    }
-  ],
+  "unclaimed_carried_findings": [],
   "unclassified": [],
   "work_package": "S20-740"
 }
