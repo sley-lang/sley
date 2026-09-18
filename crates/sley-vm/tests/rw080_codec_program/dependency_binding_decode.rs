@@ -5097,6 +5097,288 @@ pub(super) fn generic_record_decode_image() -> Image {
     }
 }
 
+fn generic_union_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(TypeExpr::Tuple(vec![u64_type(), TypeExpr::Bytes])),
+        error: Box::new(TypeExpr::Bytes),
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_generic_union_decode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    decode_function: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = generic_union_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let e_length = assembler.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
+    let e_trailing = assembler.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let e_resource = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let length_error = err_block(assembler, ns, function, result_type.clone(), e_length);
+    let trailing_error = err_block(assembler, ns, function, result_type.clone(), e_trailing);
+    let resource_error = err_block(assembler, ns, function, result_type.clone(), e_resource);
+    let control = DecodeBlocks {
+        function,
+        decode_function,
+        forward_error,
+        length_error,
+        trailing_error,
+        resource_error,
+        missing_error: resource_error,
+        unknown_error: resource_error,
+        duplicate_error: resource_error,
+        order_error: resource_error,
+        union_error: resource_error,
+        scope_error: resource_error,
+        invariant_trap: trap_block(assembler, ns, function),
+        width32: assembler.ku32(ns.k, 32),
+        width64: assembler.ku32(ns.k, 64),
+        max_length: assembler.ku64(ns.k, 67_108_864),
+        max_fields: assembler.ku64(ns.k, 65_535),
+        constant0: assembler.ku64(ns.k, 0),
+        constant1: assembler.ku64(ns.k, 1),
+        constant32: assembler.ku64(ns.k, 32),
+    };
+    let output_types = vec![u64_type()];
+    let finish = assembler.id(ns.b);
+    let finish_ok = assembler.id(ns.b);
+    let tag_ready = assembler.id(ns.b);
+    let vector_ready = assembler.id(ns.b);
+
+    let finish_ok_parameters =
+        block_parameters(assembler, ns.p, finish_ok, &[u64_type(), TypeExpr::Bytes]);
+    let tuple_type = TypeExpr::Tuple(vec![u64_type(), TypeExpr::Bytes]);
+    let tuple = assembler.op(
+        ns.o,
+        finish_ok,
+        Opcode::TupleNew,
+        parameter_values(&finish_ok_parameters),
+        vec![tuple_type],
+        Immediate::None,
+    );
+    let ok = assembler.op(
+        ns.o,
+        finish_ok,
+        Opcode::ResultOk,
+        vec![op_result(tuple)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        finish_ok,
+        function,
+        finish_ok_parameters,
+        vec![tuple, ok],
+        ret(op_result(ok)),
+    );
+
+    let finish_types = record_state_types(&output_types)
+        .into_iter()
+        .chain(std::iter::once(TypeExpr::Bytes))
+        .collect::<Vec<_>>();
+    let finish_parameters = block_parameters(assembler, ns.p, finish, &finish_types);
+    let consumed = assembler.op(
+        ns.o,
+        finish,
+        Opcode::Equal,
+        vec![pav(finish_parameters[0]), pav(finish_parameters[1])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        finish,
+        function,
+        finish_parameters.clone(),
+        vec![consumed],
+        cond(
+            op_result(consumed),
+            edge(
+                finish_ok,
+                vec![pav(finish_parameters[6]), pav(finish_parameters[7])],
+            ),
+            edge(control.trailing_error, Vec::new()),
+        ),
+    );
+
+    let field_copy = build_field_copy_loop(assembler, ns, &control, &output_types, finish);
+    let field_length =
+        build_bounded_field_validator(assembler, ns, &control, &output_types, field_copy);
+    let length_decode = build_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width64,
+        &output_types,
+        field_length,
+    );
+
+    let tag_ready_types = decoded_record_state_types(&[]);
+    let tag_ready_parameters = block_parameters(assembler, ns.p, tag_ready, &tag_ready_types);
+    append_block(
+        assembler,
+        tag_ready,
+        function,
+        tag_ready_parameters.clone(),
+        Vec::new(),
+        branch(edge(
+            length_decode,
+            vec![
+                pav(tag_ready_parameters[1]),
+                pav(tag_ready_parameters[2]),
+                pav(tag_ready_parameters[3]),
+                pav(tag_ready_parameters[4]),
+                pav(tag_ready_parameters[5]),
+                pav(tag_ready_parameters[6]),
+                pav(tag_ready_parameters[0]),
+            ],
+        )),
+    );
+    let tag_decode =
+        build_record_uvar_stage(assembler, ns, &control, control.width32, &[], tag_ready);
+
+    let vector_ready_types = vec![u8vec_type(), TypeExpr::Bytes, TypeExpr::Unit];
+    let vector_ready_parameters =
+        block_parameters(assembler, ns.p, vector_ready, &vector_ready_types);
+    let total = assembler.op(
+        ns.o,
+        vector_ready,
+        Opcode::VectorLen,
+        vec![pav(vector_ready_parameters[0])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let zero = assembler.cref(ns.o, vector_ready, control.constant0, u64_type());
+    let unseen_constant = assembler.kbool(ns.k, false);
+    let unseen = assembler.cref(ns.o, vector_ready, unseen_constant, TypeExpr::Bool);
+    append_block(
+        assembler,
+        vector_ready,
+        function,
+        vector_ready_parameters.clone(),
+        vec![total, zero, unseen],
+        branch(edge(
+            tag_decode,
+            vec![
+                op_result(zero),
+                op_result(total),
+                pav(vector_ready_parameters[0]),
+                pav(vector_ready_parameters[1]),
+                pav(vector_ready_parameters[2]),
+                op_result(unseen),
+            ],
+        )),
+    );
+
+    let entry = assembler.id(ns.b);
+    let converted = assembler.op(
+        ns.o,
+        entry,
+        Opcode::AdapterInvoke,
+        vec![pav(unit), pav(body)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![converted],
+        switch(
+            op_result(converted),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    vector_ready,
+                    vec![SwitchArgument::CasePayload, sav(body), sav(unit)],
+                ),
+                (BuiltinCase::Err, control.resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+pub(super) fn generic_union_decode_image() -> Image {
+    let mut assembler = Asm::new();
+    let decode_function = eid(12, 5);
+    let function = eid(12, 6);
+    let (decode_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 246,
+            p: 247,
+            b: 248,
+            o: 249,
+        },
+        decode_function,
+    );
+    let graph = build_generic_union_decode(
+        &mut assembler,
+        Ns {
+            k: 250,
+            p: 251,
+            b: 252,
+            o: 253,
+        },
+        function,
+        decode_function,
+    );
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph, decode_graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    }
+}
+
 fn assert_entry_cfg_surface(image: &Image) {
     let mut reached = std::collections::BTreeSet::new();
     let mut pending = vec![image.entry.entry_block];
@@ -5271,6 +5553,81 @@ fn generic_record_decoder_matches_canonical_error_precedence() {
             sley_scb1::encode_uvar(65_536),
             b"SCB_RESOURCE_LIMIT",
         ),
+    ];
+    for (name, input, expected) in cases {
+        assert_eq!(
+            generic_record_error(&package, &approved, &input),
+            expected,
+            "{name} precedence"
+        );
+    }
+}
+
+#[test]
+fn generic_union_decoder_preserves_runtime_tag_and_payload() {
+    let image = generic_union_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit(&image);
+    assert_eq!(image.functions.len(), 2);
+    assert_eq!(image.parameters.len(), 449);
+    assert_eq!(image.blocks.len(), 74);
+    assert_eq!(image.operations.len(), 146);
+    assert_eq!(image.constants.len(), 40);
+    assert_eq!(package.image_bytes.len(), 21_210);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x94, 0xdb, 0x89, 0x1d, 0x5b, 0x7f, 0xbe, 0xdc, 0x3a, 0x9b, 0x47, 0x85, 0xbb, 0xe9,
+            0x7d, 0xf5, 0xb5, 0xa2, 0x3a, 0x67, 0x9d, 0xe3, 0x61, 0x17, 0xb9, 0xcd, 0x2f, 0x87,
+            0x80, 0xf7, 0x2f, 0xd6,
+        ]
+    );
+    eprintln!(
+        "GENERIC_UNION functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    let encoded = sley_scb1::encode_union(300, b"runtime-payload").expect("union encodes");
+    let outcome = execute(
+        &package,
+        &approved,
+        vec![bytes_input(&encoded), unit_input()],
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("generic union decoder must return")
+    };
+    let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+        panic!("generic union decoder must accept canonical bytes: {value:?}")
+    };
+    assert_eq!(
+        decoded.data,
+        ConstData::Sequence(vec![u64_input(300), bytes_input(b"runtime-payload"),])
+    );
+}
+
+#[test]
+fn generic_union_decoder_rejects_noncanonical_boundaries() {
+    let image = generic_union_decode_image();
+    let (package, approved) = admit(&image);
+    let mut trailing = sley_scb1::encode_union(1, b"").expect("union encodes");
+    trailing.push(0);
+    let mut over_limit = sley_scb1::encode_uvar(1);
+    over_limit.extend(sley_scb1::encode_uvar(67_108_865));
+    let cases: [(&str, Vec<u8>, &[u8]); 5] = [
+        ("empty", Vec::new(), b"SCB_LENGTH_OVERFLOW"),
+        ("trailing", trailing, b"SCB_TRAILING_BYTES"),
+        ("truncated", vec![1, 2, 0], b"SCB_LENGTH_OVERFLOW"),
+        (
+            "nonminimal_tag",
+            vec![0x81, 0, 0],
+            b"SCB_VARINT_NON_MINIMAL",
+        ),
+        ("payload_limit", over_limit, b"SCB_RESOURCE_LIMIT"),
     ];
     for (name, input, expected) in cases {
         assert_eq!(
