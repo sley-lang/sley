@@ -318,7 +318,8 @@ class IndependentConformanceTests(unittest.TestCase):
         )
         self.assertEqual(report["fixture_directories"], len(directories))
         # The pinned corpus version per family is itself pinned: only
-        # entity-read checks its vectors at v2 (S20-310 contract); sibling
+        # entity-read (S20-310 contract) and exec-package-envelope (its only
+        # corpus is EXEC_PACKAGE_V2) check their vectors at v2; sibling
         # v2 corpora are digested, summed, and declared without a depth
         # claim (contract revision 5).
         self.assertEqual(
