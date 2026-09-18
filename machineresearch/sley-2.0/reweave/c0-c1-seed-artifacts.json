@@ -1,0 +1,48 @@
+{
+  "schema": "sley2-reweave-c0-c1-seed-artifacts-v1",
+  "status": "PRESERVED",
+  "source_commit": "cf210232",
+  "canonical_s": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47",
+  "profile": "BOOTSTRAP_PROFILE_2",
+  "profile_digest": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
+  "artifact_store": "/home/gfarch/machinelibrary/Sley2.0-artifacts/reweave",
+  "C0": {
+    "meaning": "preserved native Rust seed executable",
+    "relative_path": "C0/cf210232/sley-c0-seed-linux-x86_64",
+    "sha256": "6bedd5148fa2a7dc10b03255ba7710816d593a26f6e593b376d73dc541176b6f",
+    "bytes": 9595016,
+    "format": "ELF 64-bit LSB PIE, x86-64, dynamically linked",
+    "build_id_sha1": "c00560e3373770b7219ebb9dfdca40c8c62481c8",
+    "dynamic_dependencies": [
+      "libgcc_s.so.1",
+      "libc.so.6",
+      "/lib64/ld-linux-x86-64.so.2"
+    ],
+    "build_command": "cargo test --release -p sley-vm --test rw120_toolchain_integration --no-run --message-format=json",
+    "mode": "0555"
+  },
+  "C1_candidate": {
+    "meaning": "C0-produced Sley execution package for the complete retained 101-function toolchain closure",
+    "relative_path": "C1/cf210232/sley-c1-package.execpkg",
+    "sha256": "a73fe4cf621826f490adbb50862d3104a99fba56ba06e1613fd52e1672ec865c",
+    "bytes": 533671,
+    "format": "EXEC_PACKAGE_V2 envelope",
+    "image_sha256": "dffdfbbd96585d92a1088f46597ec34bf2271248062a3a84437ba844302552c5",
+    "image_bytes": 491378,
+    "execution_package_digest": "d53bde8d226da2aee57bddeaf093464ef7cbd5f857916dee71aa085c5dcd60e1",
+    "transitive_callees": 100,
+    "build_instruction_count": 15480658,
+    "build_fuel_used": 74670072,
+    "build_peak_value_units": 6027165516738,
+    "build_seconds": 179.05,
+    "mode": "0444"
+  },
+  "qualification": {
+    "command": "SLEY_C1_OUTPUT=<new-path> <preserved-C0> --ignored --exact integrated_driver_reconstructs_its_complete_executable_package --nocapture",
+    "result": "PASS",
+    "create_once_output": true,
+    "native_seed_semantics_used": true,
+    "official_c1": false,
+    "reason_official_c1_is_open": "the retained codec/checker/lowerer still have bounded fact-fed semantic gaps, so the package is preserved as a C1 candidate until RW-090 through RW-120 close"
+  }
+}
