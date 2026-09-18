@@ -13,10 +13,13 @@ retained component uses: genesis seed `80`, workspace
 constants at `EntityId::derive(workspace, candidate, kind, 1000 + sorted
 index)`, the codec entry point at kind 16 ordinal 5, the retained schema
 decode contract and test witnesses at their ordinals, and the inherited
-bridge imports. The only difference is the candidate nonce: byte `88`
-repeated, one apart from the retained component's `87`, so the two
-components share ordinals but never an identity (a test asserts the
-function identity sets are disjoint).
+bridge imports, all under the retained candidate nonce (byte `87`). The
+component therefore occupies exactly the identities the retained codec
+component occupies today: it is the substitute a codec re-mint installs,
+not a sibling. (A first derivation of this slice used a distinct nonce
+`88` and root `468dbbc7…`; it is superseded by the replacement-semantics
+derivation below so that the RW-120 dry run reproduces the exact `S` a
+re-mint would produce.)
 
 ## Evidence
 
@@ -27,9 +30,9 @@ function identity sets are disjoint).
   byte-for-byte through `sley_mutate::import_entity_object` under the
   registered source epoch;
 - an accepted state root
-  `468dbbc72a8dd4b1fede9020294e56d65713fdfcd879b222ce534f24926e77c7`
+  `8c933ccab89b6e150e1070ad534b498dad736bd0ae689a5d30fc600084b2d78a`
   (872,421 stored bytes, SHA-256
-  `ca74e6b75678a74565b600eee9720c26be7d848ea574ea4b166389f98c501aa0`)
+  `5a0d017c85ea2846bdaece500b9963ca5f761a50ed7d73bb291ec2a970a1e289`)
   binding every object, reimporting through the frozen state-root
   registry;
 - the retained schema-decode contract and test validate against the
@@ -45,7 +48,6 @@ cargo test -p sley-vm --test rw080_codec_program_outer
 ```
 
 This root is a component root, not canonical `S`, and is not written into
-`bootstrap-manifest.json` or any RW-120 manifest. Replacing the retained
-codec component with this one (re-deriving the merged canonical `S`, the
-integrated driver fixtures, and a C0-built C1 candidate) is the deliberate
-operator-scheduled step that closes RW-090's bounded-codec gap.
+`bootstrap-manifest.json` or any RW-120 manifest. The merged `S` and
+integrated-driver dry run over this component are recorded in
+`rw-120-arbitrary-codec-dry-run.md`.

@@ -501,3 +501,173 @@ fn integrated_driver_reconstructs_the_checker_package() {
         execution.peak_value_units,
     );
 }
+
+/// Digest summary of one component evidence set.
+fn component_digests(evidence: &component::ComponentEvidence) -> (usize, String, String) {
+    let object_bytes = evidence
+        .objects
+        .iter()
+        .map(|object| object.stored_bytes().len())
+        .sum::<usize>();
+    let mut object_hasher = Sha256::new();
+    for object in &evidence.objects {
+        object_hasher.update(object.stored_bytes());
+    }
+    let object_digest: [u8; 32] = object_hasher.finalize().into();
+    let root_digest: [u8; 32] = Sha256::digest(&evidence.root.stored_bytes).into();
+    (object_bytes, hex(&object_digest), hex(&root_digest))
+}
+
+/// The canonical `S` a codec re-mint would produce: the arbitrary codec
+/// component merged with the retained checker, lowerer, and builder, with
+/// all four programs executing from its root. Evidence only — nothing here
+/// is preserved or written into a manifest.
+#[test]
+fn arbitrary_merged_component_root_executes_all_four_canonical_programs() {
+    let merged = component::arbitrary_merged_program();
+    assert_eq!(merged.entry_points.len(), 4);
+    let evidence = component::component_evidence(&merged);
+    assert_eq!(
+        evidence.root.record.entity_bindings.len(),
+        evidence.objects.len()
+    );
+    let checker = checker::integration_checker_program();
+    let actual = checker::integration_execute_checker(
+        &checker,
+        evidence.root.root,
+        evidence.test.inputs.clone(),
+    );
+    let sley_ssmc::ExpectedOutcome::Value(expected) = &evidence.test.expected else {
+        unreachable!("integrated checker test has an exact value expectation")
+    };
+    assert_eq!(&actual, expected);
+    let codec = codec::integration_arbitrary_codec_program();
+    assert_eq!(
+        codec::integration_execute_codec(&codec, evidence.root.root),
+        codec::integration_codec_expected()
+    );
+    let (lowerer, builder) = lower::integration_lowerer_programs();
+    let (actual_lowered, expected_lowered) =
+        lower::integration_execute_lowerer(&lowerer, evidence.root.root);
+    assert_eq!(actual_lowered, expected_lowered);
+    let (actual_package, expected_package) =
+        lower::integration_execute_builder(&builder, evidence.root.root);
+    assert_eq!(actual_package, expected_package);
+    for object in &evidence.objects {
+        assert_eq!(
+            sley_mutate::import_entity_object(
+                sley_state_root::conformance_epoch_id().unwrap(),
+                object.stored_bytes(),
+            )
+            .expect("arbitrary component object reimports"),
+            *object
+        );
+    }
+    assert_eq!(
+        sley_state_root::import_state_root(
+            &sley_state_root::conformance_registry().unwrap(),
+            &evidence.root.stored_bytes,
+        )
+        .expect("arbitrary component root reimports"),
+        evidence.root
+    );
+    let (object_bytes, object_digest, root_digest) = component_digests(&evidence);
+    assert_eq!(merged.functions.len(), 188);
+    assert_eq!(merged.parameters.len(), 8_672);
+    assert_eq!(merged.blocks.len(), 3_074);
+    assert_eq!(merged.operations.len(), 6_137);
+    assert_eq!(merged.constants.len(), 676);
+    assert_eq!(evidence.objects.len(), 18_767);
+    assert_eq!(object_bytes, 4_725_396);
+    assert_eq!(
+        object_digest,
+        "20f4a5248a8aa378df951cd24b0e58faa828dd51eaa943ae0a5e3b9e76a9b41b"
+    );
+    assert_eq!(
+        hex(evidence.root.root.as_bytes()),
+        "5e4e793b550ea527c5f375222c218c969c8c608beb648941efe9330688a3ca7d"
+    );
+    assert_eq!(evidence.root.stored_bytes.len(), 1_239_020);
+    assert_eq!(
+        root_digest,
+        "953420d1039b8ed0730ab78d9b3fe12513405041e2bf16f50b0beccb9c07f5a0"
+    );
+    eprintln!(
+        "RW120_ARBITRARY_COMPONENT functions={} parameters={} blocks={} operations={} constants={} objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={}",
+        merged.functions.len(),
+        merged.parameters.len(),
+        merged.blocks.len(),
+        merged.operations.len(),
+        merged.constants.len(),
+        evidence.objects.len(),
+        object_bytes,
+        object_digest,
+        hex(evidence.root.root.as_bytes()),
+        evidence.root.stored_bytes.len(),
+        root_digest,
+    );
+}
+
+/// The integrated driver over the arbitrary-codec `S`: one execution calling
+/// all four real programs, with the gate and package facts a re-mint would
+/// record.
+#[test]
+fn arbitrary_integrated_driver_calls_all_four_real_programs_in_one_execution() {
+    let fixture = component::arbitrary_driver_fixture();
+    assert_eq!(fixture.program.entry_points.len(), 5);
+    let evidence = component::component_evidence(&fixture.program);
+    let execution = component::execute_driver(
+        &fixture.program,
+        fixture.entry,
+        evidence.root.root,
+        fixture.inputs,
+    );
+    assert_eq!(execution.value, fixture.expected);
+    let (object_bytes, object_digest, root_digest) = component_digests(&evidence);
+    assert_eq!(fixture.program.functions.len(), 189);
+    assert_eq!(fixture.program.parameters.len(), 8_747);
+    assert_eq!(fixture.program.blocks.len(), 3_075);
+    assert_eq!(fixture.program.operations.len(), 6_142);
+    assert_eq!(evidence.objects.len(), 18_850);
+    assert_eq!(object_bytes, 4_745_092);
+    assert_eq!(
+        object_digest,
+        "4a185a532ecfaad23700e558eea9bf1a8bf873b0eb0637b29ba6d24d5f1b985f"
+    );
+    assert_eq!(
+        hex(evidence.root.root.as_bytes()),
+        "14595864bd8f1821027848f69c8c865716a5857cbedbd1b1113079db969a93ef"
+    );
+    assert_eq!(evidence.root.stored_bytes.len(), 1_244_531);
+    assert_eq!(
+        root_digest,
+        "81bfd9dcfd43737f34979667048a021af68eba67d1d86d003fdfc898c20c6dc5"
+    );
+    assert_eq!(execution.image_bytes, 766_500);
+    assert_eq!(
+        hex(&execution.package_digest),
+        "7d07a16a564b891310961eaccc1970a21af3366b9e0815d26a17fca28828744a"
+    );
+    assert_eq!(execution.gate_operation_count, 6_142);
+    assert_eq!(execution.gate_bridge_uses, 211);
+    eprintln!(
+        "RW120_ARBITRARY_DRIVER functions={} parameters={} blocks={} operations={} objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={} instructions={} fuel={} peak={}",
+        fixture.program.functions.len(),
+        fixture.program.parameters.len(),
+        fixture.program.blocks.len(),
+        fixture.program.operations.len(),
+        evidence.objects.len(),
+        object_bytes,
+        object_digest,
+        hex(evidence.root.root.as_bytes()),
+        evidence.root.stored_bytes.len(),
+        root_digest,
+        execution.image_bytes,
+        hex(&execution.package_digest),
+        execution.gate_operation_count,
+        execution.gate_bridge_uses,
+        execution.instruction_count,
+        execution.fuel_used,
+        execution.peak_value_units,
+    );
+}

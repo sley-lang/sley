@@ -52,7 +52,16 @@ fn merge_values<T: Clone + Debug + Eq>(
 }
 
 pub(super) fn merged_program() -> MergedProgram {
-    let codec = codec::integration_codec_program();
+    merged_program_with(codec::integration_codec_program())
+}
+
+/// The same union with the arbitrary codec substituted for the retained one:
+/// the canonical `S` a codec re-mint would produce.
+pub(super) fn arbitrary_merged_program() -> MergedProgram {
+    merged_program_with(codec::integration_arbitrary_codec_program())
+}
+
+fn merged_program_with(codec: codec::Image) -> MergedProgram {
     let checker = checker::integration_checker_program();
     let (lowerer, builder) = lower::integration_lowerer_programs();
     let entry_points = vec![
@@ -213,7 +222,14 @@ fn driver_calls(
 }
 
 pub(super) fn driver_fixture() -> DriverFixture {
-    let mut program = merged_program();
+    driver_fixture_over(merged_program())
+}
+
+pub(super) fn arbitrary_driver_fixture() -> DriverFixture {
+    driver_fixture_over(arbitrary_merged_program())
+}
+
+fn driver_fixture_over(mut program: MergedProgram) -> DriverFixture {
     let entry = derived_id(5, DRIVER_BASE);
     let block_id = derived_id(7, DRIVER_BASE);
     assert!(

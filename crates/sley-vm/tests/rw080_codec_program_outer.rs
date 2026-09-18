@@ -25722,6 +25722,12 @@ pub(crate) fn integration_codec_program() -> Image {
     canonical_codec::canonical_codec_image().0
 }
 
+/// The arbitrary four-leg codec under the retained construction identities
+/// (the re-mint candidate for the codec component).
+pub(crate) fn integration_arbitrary_codec_program() -> Image {
+    canonical_codec::arbitrary_canonical_codec_image().0
+}
+
 pub(crate) fn integration_execute_codec(image: &Image, state_root: StateRoot) -> ConstValue {
     let (package, approved) = admit_with_bindings(
         image,

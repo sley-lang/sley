@@ -40,27 +40,8 @@ fn construction_workspace() -> WorkspaceId {
     WorkspaceId::derive(GenesisNonce::from_bytes(GENESIS_SEED))
 }
 
-/// Candidate nonce for the arbitrary-codec derivation: one byte apart from
-/// the retained component's nonce, so the two components' derived
-/// identities never coincide even though they share ordinals.
-const ARBITRARY_CANDIDATE_SEED: [u8; 32] = [0x88; 32];
-
-thread_local! {
-    static CANDIDATE: std::cell::Cell<[u8; 32]> = const { std::cell::Cell::new(CANDIDATE_SEED) };
-}
-
 fn construction_candidate() -> CandidateNonce {
-    CandidateNonce::from_bytes(CANDIDATE.with(std::cell::Cell::get))
-}
-
-/// Runs `body` with every derived identity taken under `seed` instead of the
-/// retained candidate nonce. Thread-local, so parallel tests never observe
-/// each other's nonce.
-fn with_candidate_seed<T>(seed: [u8; 32], body: impl FnOnce() -> T) -> T {
-    let previous = CANDIDATE.with(|cell| cell.replace(seed));
-    let value = body();
-    CANDIDATE.with(|cell| cell.set(previous));
-    value
+    CandidateNonce::from_bytes(CANDIDATE_SEED)
 }
 
 fn derived_id(kind: u32, ordinal: u64) -> EntityId {
@@ -304,6 +285,13 @@ fn remap_graph(graph: &mut FunctionGraph, ids: &BTreeMap<EntityId, EntityId>) {
 
 pub(super) fn canonical_codec_image() -> (Image, BTreeMap<EntityId, EntityId>) {
     canonical_image_of(super::codec_main::codec_main_image())
+}
+
+/// The arbitrary four-leg composition under the retained construction
+/// identities: the exact component a codec re-mint would substitute for
+/// the retained one (same nonce, same ordinals, different graph).
+pub(super) fn arbitrary_canonical_codec_image() -> (Image, BTreeMap<EntityId, EntityId>) {
+    canonical_image_of(super::codec_main::arbitrary_codec_main_image())
 }
 
 /// Rewrites one composed codec image into derived construction identities.
@@ -1191,81 +1179,64 @@ fn canonical_codec_component_retains_validated_contract_test_and_executes_from_i
 }
 
 /// The canonical codec component derived from the arbitrary four-leg
-/// composition, under its own candidate nonce. Evidence for the next
-/// component derivation; the retained component above is untouched.
+/// composition under the retained construction identities: the component a
+/// codec re-mint would substitute. Evidence only; the retained component
+/// above is untouched.
 #[test]
 fn arbitrary_canonical_codec_component_binds_and_executes_from_its_root() {
-    with_candidate_seed(ARBITRARY_CANDIDATE_SEED, || {
-        let (image, ids) = canonical_image_of(super::codec_main::arbitrary_codec_main_image());
-        let source_schema_decode = super::schema_codec::schema_decode_image().entry.entity_id;
-        let schema_decode = ids[&source_schema_decode];
-        let schema_image = schema_decode_component_image(&image, schema_decode);
-        let witnesses = codec_witnesses(schema_decode);
-        let objects = canonical_codec_component_objects(&image, &witnesses);
-        let root = canonical_codec_component_root(&objects);
-        let stored_digest = assert_component_reimports(&objects, &root);
-        assert_eq!(objects.len(), 13_214);
-        assert_eq!(
-            hex(root.root.as_bytes()),
-            "468dbbc72a8dd4b1fede9020294e56d65713fdfcd879b222ce534f24926e77c7"
-        );
-        assert_eq!(root.stored_bytes.len(), 872_421);
-        assert_eq!(
-            hex(&stored_digest),
-            "ca74e6b75678a74565b600eee9720c26be7d848ea574ea4b166389f98c501aa0"
-        );
-        validate_retained_schema_test(&schema_image, &witnesses, schema_decode);
-        // The two components share ordinals but never an identity.
-        let retained: BTreeSet<EntityId> = with_candidate_seed(CANDIDATE_SEED, || {
-            let (retained_image, _) = canonical_codec_image();
-            retained_image
-                .functions
-                .iter()
-                .map(|graph| graph.entity_id)
-                .collect()
-        });
-        assert!(
-            image
-                .functions
-                .iter()
-                .all(|graph| !retained.contains(&graph.entity_id)),
-            "arbitrary component identities are disjoint from the retained component"
-        );
+    let (image, ids) = arbitrary_canonical_codec_image();
+    let source_schema_decode = super::schema_codec::schema_decode_image().entry.entity_id;
+    let schema_decode = ids[&source_schema_decode];
+    let schema_image = schema_decode_component_image(&image, schema_decode);
+    let witnesses = codec_witnesses(schema_decode);
+    let objects = canonical_codec_component_objects(&image, &witnesses);
+    let root = canonical_codec_component_root(&objects);
+    let stored_digest = assert_component_reimports(&objects, &root);
+    assert_eq!(objects.len(), 13_214);
+    assert_eq!(
+        hex(root.root.as_bytes()),
+        "8c933ccab89b6e150e1070ad534b498dad736bd0ae689a5d30fc600084b2d78a"
+    );
+    assert_eq!(root.stored_bytes.len(), 872_421);
+    assert_eq!(
+        hex(&stored_digest),
+        "5a0d017c85ea2846bdaece500b9963ca5f761a50ed7d73bb291ec2a970a1e289"
+    );
+    validate_retained_schema_test(&schema_image, &witnesses, schema_decode);
 
-        let (package, approved) = admit_with_bindings(
-            &schema_image,
-            codec_profile_limits(),
-            source_epoch(),
-            root.root,
-        );
-        let outcome = execute_with_limits(
-            &package,
-            &approved,
-            witnesses.tests[0].inputs.clone(),
-            codec_profile_limits(),
-        );
-        let sley_vm::ExecutionTermination::Success(actual) = outcome.termination else {
-            panic!("retained codec test must execute successfully")
-        };
-        let ExpectedOutcome::Value(expected) = &witnesses.tests[0].expected else {
-            unreachable!("codec witness has an exact value expectation")
-        };
-        assert_eq!(&actual, expected);
-        assert_eq!(
-            super::integration_execute_codec(&image, root.root),
-            super::integration_codec_expected()
-        );
+    let (package, approved) = admit_with_bindings(
+        &schema_image,
+        codec_profile_limits(),
+        source_epoch(),
+        root.root,
+    );
+    let outcome = execute_with_limits(
+        &package,
+        &approved,
+        witnesses.tests[0].inputs.clone(),
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(actual) = outcome.termination else {
+        panic!("retained codec test must execute successfully")
+    };
+    let ExpectedOutcome::Value(expected) = &witnesses.tests[0].expected else {
+        unreachable!("codec witness has an exact value expectation")
+    };
+    assert_eq!(&actual, expected);
+    assert_eq!(
+        super::integration_execute_codec(&image, root.root),
+        super::integration_codec_expected()
+    );
 
-        eprintln!(
-            "RW090_ARBITRARY_CODEC_COMPONENT objects={} stored_object_bytes={} root={} root_bytes={} root_sha256={}",
-            objects.len(),
-            objects
-                .iter()
-                .map(|object| object.stored_bytes().len())
-                .sum::<usize>(),
-            hex(root.root.as_bytes()),
-            root.stored_bytes.len(),
-            hex(&stored_digest),
-        );
-    });
+    eprintln!(
+        "RW090_ARBITRARY_CODEC_COMPONENT objects={} stored_object_bytes={} root={} root_bytes={} root_sha256={}",
+        objects.len(),
+        objects
+            .iter()
+            .map(|object| object.stored_bytes().len())
+            .sum::<usize>(),
+        hex(root.root.as_bytes()),
+        root.stored_bytes.len(),
+        hex(&stored_digest),
+    );
 }
