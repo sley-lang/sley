@@ -20,7 +20,7 @@ Sley:
   identities;
 - field 5 is an exact 32-byte entity identity; and
 - field 8 is an exact canonical uvar in the visibility range 1 through 4;
-- field 3 is a validated non-recursive `TypeExpr`; and
+- field 3 is a complete depth-bounded recursive `TypeExpr`; and
 - structural decoder failures retain their canonical `SCB_*` error codes.
 
 The projection returns
@@ -31,15 +31,15 @@ parameters, entity identities, `TypeExpr`, set ordering, and visibility.
 
 ## Executable surface
 
-The composite image contains 11 reachable functions: the Function schema
+The composite image contains 15 reachable functions: the Function schema
 entry, entity-identity collection validator, fixed-32 validator, generic
 record decoder, generic union decoder, generic list decoder, and shared
 canonical uvar decoder, plus exact and bounded uvar wrappers and the
-non-recursive `TypeExpr` and type-parameter-list validators. It contains 1,152
-parameters, 238 blocks, 426 operations, and 132 constants. Its encoded image
-is 60,114 bytes. The
+recursive `TypeExpr`, exact-record, and type-parameter-list validators. It
+contains 1,427 parameters, 334 blocks, 601 operations, and 191 constants. Its
+encoded image is 82,222 bytes. The
 approved package digest is
-`083eac185de7fe907054e46f120c81930a3b0e34ccf23e506cd833cca3ba4006`
+`b5ad5270511b9ee6f2e11a7247cb24564553a982f84b7988f3b2d8ae4b61963a`
 under the declared codec-profile execution limits.
 
 ## Validation
@@ -50,14 +50,14 @@ missing field, an unknown field, a non-minimal list count, a short parameter
 identity, an unordered effect set, and a short entry-block identity.
 Visibility cases also cover an out-of-range tag and a non-minimal encoding.
 Type-parameter cases cover a real nonempty declaration, a missing ordinal,
-and an unknown record field. Result-type cases cover a valid leaf, a malformed
-leaf payload, and the explicitly scoped recursive boundary.
+and an unknown record field. Result-type cases cover a valid leaf, a nested
+composite, a malformed leaf payload, and an unknown nested tag.
 
 ```text
 cargo test -p sley-vm --test rw120_toolchain_integration function_schema_decoder -- --nocapture
 ```
 
-The slice does not yet claim a complete Function decoder. Recursive
-`TypeExpr` and the semantic dense-ordinal rule remain open. The fixed
-representative Function codec and the canonical toolchain root therefore
-remain unchanged until those semantic decoders are composed and tested.
+The slice does not yet claim the semantic dense-ordinal rule, nor a complete
+all-entity codec. The fixed representative Function codec and the canonical
+toolchain root therefore remain unchanged until the remaining schema decoders
+are composed and tested.

@@ -8706,6 +8706,984 @@ pub(super) fn type_expr_children_decode_image() -> Image {
     }
 }
 
+fn u64_map_type() -> TypeExpr {
+    TypeExpr::OrderedMap {
+        key: Box::new(u64_type()),
+        value: Box::new(u64_type()),
+    }
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn build_type_expr_append_child(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    resource_error: EntityId,
+    invariant_trap: EntityId,
+    destination: EntityId,
+    carry_types: &[TypeExpr],
+) -> EntityId {
+    let bytes_map_type = generic_record_map_type();
+    let depths_map_type = u64_map_type();
+    let mut input_types = vec![
+        TypeExpr::Bytes,
+        bytes_map_type.clone(),
+        depths_map_type.clone(),
+        u64_type(),
+        u64_type(),
+        u64_type(),
+    ];
+    input_types.extend_from_slice(carry_types);
+    let gate = assembler.id(ns.b);
+    let depth_ready = assembler.id(ns.b);
+    let append = assembler.id(ns.b);
+
+    let append_parameters = block_parameters(assembler, ns.p, append, &input_types);
+    let inserted_work = assembler.op(
+        ns.o,
+        append,
+        Opcode::MapInsert,
+        vec![
+            pav(append_parameters[1]),
+            pav(append_parameters[4]),
+            pav(append_parameters[0]),
+        ],
+        vec![bytes_map_type],
+        Immediate::None,
+    );
+    let inserted_depth = assembler.op(
+        ns.o,
+        append,
+        Opcode::MapInsert,
+        vec![
+            pav(append_parameters[2]),
+            pav(append_parameters[4]),
+            pav(append_parameters[5]),
+        ],
+        vec![depths_map_type],
+        Immediate::None,
+    );
+    let one_constant = assembler.ku64(ns.k, 1);
+    let one = assembler.cref(ns.o, append, one_constant, u64_type());
+    let next_end = assembler.op(
+        ns.o,
+        append,
+        Opcode::IntAddChecked,
+        vec![pav(append_parameters[4]), op_result(one)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    let mut destination_arguments = vec![
+        oav(inserted_work),
+        oav(inserted_depth),
+        sav(append_parameters[3]),
+        SwitchArgument::CasePayload,
+        sav(append_parameters[5]),
+    ];
+    destination_arguments.extend(append_parameters[6..].iter().copied().map(sav));
+    append_block(
+        assembler,
+        append,
+        function,
+        append_parameters,
+        vec![inserted_work, inserted_depth, one, next_end],
+        switch(
+            op_result(next_end),
+            vec![
+                (BuiltinCase::Ok, destination, destination_arguments),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let depth_parameters = block_parameters(assembler, ns.p, depth_ready, &input_types);
+    let one_constant = assembler.ku64(ns.k, 1);
+    let one = assembler.cref(ns.o, depth_ready, one_constant, u64_type());
+    let child_depth = assembler.op(
+        ns.o,
+        depth_ready,
+        Opcode::IntAddChecked,
+        vec![pav(depth_parameters[5]), op_result(one)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    let mut append_arguments = depth_parameters
+        .iter()
+        .copied()
+        .map(sav)
+        .collect::<Vec<_>>();
+    append_arguments[5] = SwitchArgument::CasePayload;
+    append_block(
+        assembler,
+        depth_ready,
+        function,
+        depth_parameters,
+        vec![one, child_depth],
+        switch(
+            op_result(child_depth),
+            vec![
+                (BuiltinCase::Ok, append, append_arguments),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let gate_parameters = block_parameters(assembler, ns.p, gate, &input_types);
+    let maximum_constant = assembler.ku64(ns.k, 63);
+    let maximum = assembler.cref(ns.o, gate, maximum_constant, u64_type());
+    let may_descend = assembler.op(
+        ns.o,
+        gate,
+        Opcode::LessThan,
+        vec![pav(gate_parameters[5]), op_result(maximum)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        gate,
+        function,
+        gate_parameters.clone(),
+        vec![maximum, may_descend],
+        cond(
+            op_result(may_descend),
+            edge(
+                depth_ready,
+                gate_parameters.iter().copied().map(pav).collect(),
+            ),
+            edge(resource_error, Vec::new()),
+        ),
+    );
+    gate
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_type_expr_recursive_decode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    children_decoder: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = bytes_validation_result_type();
+    let bytes_map_type = generic_record_map_type();
+    let depths_map_type = u64_map_type();
+    let option_bytes_type = TypeExpr::Option(Box::new(TypeExpr::Bytes));
+    let option_u64_type = TypeExpr::Option(Box::new(u64_type()));
+    let children_tuple_type = TypeExpr::Tuple(vec![
+        option_bytes_type.clone(),
+        option_bytes_type.clone(),
+        bytes_map_type.clone(),
+    ]);
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let resource_code = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let resource_error = err_block(assembler, ns, function, result_type.clone(), resource_code);
+    let invariant_trap = trap_block(assembler, ns, function);
+    let success = assembler.id(ns.b);
+    let advance_node = assembler.id(ns.b);
+    let list_advance = assembler.id(ns.b);
+    let list_loop = assembler.id(ns.b);
+    let list_init = assembler.id(ns.b);
+    let direct_two = assembler.id(ns.b);
+    let direct_one = assembler.id(ns.b);
+    let children_ready = assembler.id(ns.b);
+    let children_call = assembler.id(ns.b);
+    let depth_lookup = assembler.id(ns.b);
+    let work_lookup = assembler.id(ns.b);
+    let loop_check = assembler.id(ns.b);
+    let initialized = assembler.id(ns.b);
+    let depth_map_ready = assembler.id(ns.b);
+
+    let base_types = vec![
+        bytes_map_type.clone(),
+        depths_map_type.clone(),
+        u64_type(),
+        u64_type(),
+        u64_type(),
+    ];
+    let append_list = build_type_expr_append_child(
+        assembler,
+        ns,
+        function,
+        resource_error,
+        invariant_trap,
+        list_advance,
+        &[bytes_map_type.clone(), u64_type()],
+    );
+    let append_two = build_type_expr_append_child(
+        assembler,
+        ns,
+        function,
+        resource_error,
+        invariant_trap,
+        list_init,
+        std::slice::from_ref(&bytes_map_type),
+    );
+    let append_one = build_type_expr_append_child(
+        assembler,
+        ns,
+        function,
+        resource_error,
+        invariant_trap,
+        direct_two,
+        &[option_bytes_type.clone(), bytes_map_type.clone()],
+    );
+
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![pav(body)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        Vec::new(),
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let advance_parameters = block_parameters(assembler, ns.p, advance_node, &base_types);
+    let one_constant = assembler.ku64(ns.k, 1);
+    let one = assembler.cref(ns.o, advance_node, one_constant, u64_type());
+    let next = assembler.op(
+        ns.o,
+        advance_node,
+        Opcode::IntAddChecked,
+        vec![pav(advance_parameters[2]), op_result(one)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        advance_node,
+        function,
+        advance_parameters.clone(),
+        vec![one, next],
+        switch(
+            op_result(next),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    loop_check,
+                    vec![
+                        sav(advance_parameters[0]),
+                        sav(advance_parameters[1]),
+                        SwitchArgument::CasePayload,
+                        sav(advance_parameters[3]),
+                    ],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let mut list_state_types = base_types.clone();
+    list_state_types.extend([bytes_map_type.clone(), u64_type()]);
+    let list_advance_parameters =
+        block_parameters(assembler, ns.p, list_advance, &list_state_types);
+    let one_constant = assembler.ku64(ns.k, 1);
+    let one = assembler.cref(ns.o, list_advance, one_constant, u64_type());
+    let next = assembler.op(
+        ns.o,
+        list_advance,
+        Opcode::IntAddChecked,
+        vec![pav(list_advance_parameters[6]), op_result(one)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    let mut next_arguments = list_advance_parameters[..6]
+        .iter()
+        .copied()
+        .map(sav)
+        .collect::<Vec<_>>();
+    next_arguments.push(SwitchArgument::CasePayload);
+    append_block(
+        assembler,
+        list_advance,
+        function,
+        list_advance_parameters,
+        vec![one, next],
+        switch(
+            op_result(next),
+            vec![
+                (BuiltinCase::Ok, list_loop, next_arguments),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let list_loop_parameters = block_parameters(assembler, ns.p, list_loop, &list_state_types);
+    let child = assembler.op(
+        ns.o,
+        list_loop,
+        Opcode::MapGet,
+        vec![pav(list_loop_parameters[5]), pav(list_loop_parameters[6])],
+        vec![option_bytes_type.clone()],
+        Immediate::None,
+    );
+    let mut append_list_arguments = vec![SwitchArgument::CasePayload];
+    append_list_arguments.extend(list_loop_parameters[..5].iter().copied().map(sav));
+    append_list_arguments.extend(list_loop_parameters[5..].iter().copied().map(sav));
+    append_block(
+        assembler,
+        list_loop,
+        function,
+        list_loop_parameters.clone(),
+        vec![child],
+        switch(
+            op_result(child),
+            vec![
+                (
+                    BuiltinCase::None,
+                    advance_node,
+                    list_loop_parameters[..5].iter().copied().map(sav).collect(),
+                ),
+                (BuiltinCase::Some, append_list, append_list_arguments),
+            ],
+        ),
+    );
+
+    let mut list_init_types = base_types.clone();
+    list_init_types.push(bytes_map_type.clone());
+    let list_init_parameters = block_parameters(assembler, ns.p, list_init, &list_init_types);
+    let zero_constant = assembler.ku64(ns.k, 0);
+    let zero = assembler.cref(ns.o, list_init, zero_constant, u64_type());
+    let mut list_arguments = list_init_parameters
+        .iter()
+        .copied()
+        .map(pav)
+        .collect::<Vec<_>>();
+    list_arguments.push(op_result(zero));
+    append_block(
+        assembler,
+        list_init,
+        function,
+        list_init_parameters,
+        vec![zero],
+        branch(edge(list_loop, list_arguments)),
+    );
+
+    let mut direct_two_types = base_types.clone();
+    direct_two_types.extend([option_bytes_type.clone(), bytes_map_type.clone()]);
+    let direct_two_parameters = block_parameters(assembler, ns.p, direct_two, &direct_two_types);
+    let mut append_two_arguments = vec![SwitchArgument::CasePayload];
+    append_two_arguments.extend(direct_two_parameters[..5].iter().copied().map(sav));
+    append_two_arguments.push(sav(direct_two_parameters[6]));
+    append_block(
+        assembler,
+        direct_two,
+        function,
+        direct_two_parameters.clone(),
+        Vec::new(),
+        switch(
+            pav(direct_two_parameters[5]),
+            vec![
+                (
+                    BuiltinCase::None,
+                    list_init,
+                    direct_two_parameters[..5]
+                        .iter()
+                        .copied()
+                        .map(sav)
+                        .chain(std::iter::once(sav(direct_two_parameters[6])))
+                        .collect(),
+                ),
+                (BuiltinCase::Some, append_two, append_two_arguments),
+            ],
+        ),
+    );
+
+    let mut direct_one_types = base_types.clone();
+    direct_one_types.extend([
+        option_bytes_type.clone(),
+        option_bytes_type.clone(),
+        bytes_map_type.clone(),
+    ]);
+    let direct_one_parameters = block_parameters(assembler, ns.p, direct_one, &direct_one_types);
+    let mut append_one_arguments = vec![SwitchArgument::CasePayload];
+    append_one_arguments.extend(direct_one_parameters[..5].iter().copied().map(sav));
+    append_one_arguments.extend(direct_one_parameters[6..].iter().copied().map(sav));
+    append_block(
+        assembler,
+        direct_one,
+        function,
+        direct_one_parameters.clone(),
+        Vec::new(),
+        switch(
+            pav(direct_one_parameters[5]),
+            vec![
+                (
+                    BuiltinCase::None,
+                    direct_two,
+                    direct_one_parameters[..5]
+                        .iter()
+                        .copied()
+                        .map(sav)
+                        .chain(direct_one_parameters[6..].iter().copied().map(sav))
+                        .collect(),
+                ),
+                (BuiltinCase::Some, append_one, append_one_arguments),
+            ],
+        ),
+    );
+
+    let mut children_ready_types = base_types.clone();
+    children_ready_types.push(children_tuple_type.clone());
+    let children_ready_parameters =
+        block_parameters(assembler, ns.p, children_ready, &children_ready_types);
+    let first = assembler.op(
+        ns.o,
+        children_ready,
+        Opcode::TupleGet,
+        vec![pav(children_ready_parameters[5])],
+        vec![option_bytes_type.clone()],
+        Immediate::Index(0),
+    );
+    let second = assembler.op(
+        ns.o,
+        children_ready,
+        Opcode::TupleGet,
+        vec![pav(children_ready_parameters[5])],
+        vec![option_bytes_type.clone()],
+        Immediate::Index(1),
+    );
+    let listed = assembler.op(
+        ns.o,
+        children_ready,
+        Opcode::TupleGet,
+        vec![pav(children_ready_parameters[5])],
+        vec![bytes_map_type.clone()],
+        Immediate::Index(2),
+    );
+    let mut direct_arguments = children_ready_parameters[..5]
+        .iter()
+        .copied()
+        .map(pav)
+        .collect::<Vec<_>>();
+    direct_arguments.extend([op_result(first), op_result(second), op_result(listed)]);
+    append_block(
+        assembler,
+        children_ready,
+        function,
+        children_ready_parameters,
+        vec![first, second, listed],
+        branch(edge(direct_one, direct_arguments)),
+    );
+
+    let mut children_call_types = base_types.clone();
+    children_call_types.insert(0, TypeExpr::Bytes);
+    let children_call_parameters =
+        block_parameters(assembler, ns.p, children_call, &children_call_types);
+    let decoded = assembler.op(
+        ns.o,
+        children_call,
+        Opcode::CallDirect,
+        vec![pav(children_call_parameters[0]), pav(unit)],
+        vec![type_expr_children_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: children_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        children_call,
+        function,
+        children_call_parameters.clone(),
+        vec![decoded],
+        switch(
+            op_result(decoded),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    children_ready,
+                    children_call_parameters[1..]
+                        .iter()
+                        .copied()
+                        .map(sav)
+                        .chain(std::iter::once(SwitchArgument::CasePayload))
+                        .collect(),
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let depth_lookup_types = vec![
+        TypeExpr::Bytes,
+        bytes_map_type.clone(),
+        depths_map_type.clone(),
+        u64_type(),
+        u64_type(),
+    ];
+    let depth_lookup_parameters =
+        block_parameters(assembler, ns.p, depth_lookup, &depth_lookup_types);
+    let depth = assembler.op(
+        ns.o,
+        depth_lookup,
+        Opcode::MapGet,
+        vec![
+            pav(depth_lookup_parameters[2]),
+            pav(depth_lookup_parameters[3]),
+        ],
+        vec![option_u64_type],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        depth_lookup,
+        function,
+        depth_lookup_parameters.clone(),
+        vec![depth],
+        switch(
+            op_result(depth),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    children_call,
+                    vec![
+                        sav(depth_lookup_parameters[0]),
+                        sav(depth_lookup_parameters[1]),
+                        sav(depth_lookup_parameters[2]),
+                        sav(depth_lookup_parameters[3]),
+                        sav(depth_lookup_parameters[4]),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let loop_types = vec![
+        bytes_map_type.clone(),
+        depths_map_type.clone(),
+        u64_type(),
+        u64_type(),
+    ];
+    let work_lookup_parameters = block_parameters(assembler, ns.p, work_lookup, &loop_types);
+    let current = assembler.op(
+        ns.o,
+        work_lookup,
+        Opcode::MapGet,
+        vec![
+            pav(work_lookup_parameters[0]),
+            pav(work_lookup_parameters[2]),
+        ],
+        vec![option_bytes_type],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        work_lookup,
+        function,
+        work_lookup_parameters.clone(),
+        vec![current],
+        switch(
+            op_result(current),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    depth_lookup,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(work_lookup_parameters[0]),
+                        sav(work_lookup_parameters[1]),
+                        sav(work_lookup_parameters[2]),
+                        sav(work_lookup_parameters[3]),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let loop_parameters = block_parameters(assembler, ns.p, loop_check, &loop_types);
+    let complete = assembler.op(
+        ns.o,
+        loop_check,
+        Opcode::Equal,
+        vec![pav(loop_parameters[2]), pav(loop_parameters[3])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        loop_check,
+        function,
+        loop_parameters.clone(),
+        vec![complete],
+        cond(
+            op_result(complete),
+            edge(success, Vec::new()),
+            edge(
+                work_lookup,
+                loop_parameters.iter().copied().map(pav).collect(),
+            ),
+        ),
+    );
+
+    let initialized_parameters = block_parameters(
+        assembler,
+        ns.p,
+        initialized,
+        &[bytes_map_type.clone(), depths_map_type.clone()],
+    );
+    let zero_constant = assembler.ku64(ns.k, 0);
+    let zero = assembler.cref(ns.o, initialized, zero_constant, u64_type());
+    let work = assembler.op(
+        ns.o,
+        initialized,
+        Opcode::MapInsert,
+        vec![pav(initialized_parameters[0]), op_result(zero), pav(body)],
+        vec![bytes_map_type.clone()],
+        Immediate::None,
+    );
+    let depths = assembler.op(
+        ns.o,
+        initialized,
+        Opcode::MapInsert,
+        vec![
+            pav(initialized_parameters[1]),
+            op_result(zero),
+            op_result(zero),
+        ],
+        vec![depths_map_type.clone()],
+        Immediate::None,
+    );
+    let one_constant = assembler.ku64(ns.k, 1);
+    let one = assembler.cref(ns.o, initialized, one_constant, u64_type());
+    append_block(
+        assembler,
+        initialized,
+        function,
+        initialized_parameters,
+        vec![zero, work, depths, one],
+        branch(edge(
+            loop_check,
+            vec![
+                op_result(work),
+                op_result(depths),
+                op_result(zero),
+                op_result(one),
+            ],
+        )),
+    );
+
+    let depth_map_parameters = block_parameters(
+        assembler,
+        ns.p,
+        depth_map_ready,
+        std::slice::from_ref(&bytes_map_type),
+    );
+    let depth_map_new_result = TypeExpr::Result {
+        ok: Box::new(depths_map_type),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+    };
+    let depths = assembler.op(
+        ns.o,
+        depth_map_ready,
+        Opcode::MapNew,
+        Vec::new(),
+        vec![depth_map_new_result],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        depth_map_ready,
+        function,
+        depth_map_parameters.clone(),
+        vec![depths],
+        switch(
+            op_result(depths),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    initialized,
+                    vec![sav(depth_map_parameters[0]), SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let entry = assembler.id(ns.b);
+    let work_map_new_result = TypeExpr::Result {
+        ok: Box::new(bytes_map_type),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+    };
+    let work = assembler.op(
+        ns.o,
+        entry,
+        Opcode::MapNew,
+        Vec::new(),
+        vec![work_map_new_result],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![work],
+        switch(
+            op_result(work),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    depth_map_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+pub(super) fn type_expr_recursive_decode_image() -> Image {
+    let mut assembler = Asm::new();
+    let decode_function = assembler.id(245);
+    let record_function = assembler.id(245);
+    let union_function = assembler.id(245);
+    let list_function = assembler.id(245);
+    let fixed32_function = assembler.id(245);
+    let entity_id_collection_function = assembler.id(245);
+    let exact_uvar_function = assembler.id(245);
+    let bounded_uvar_function = assembler.id(245);
+    let leaf_function = assembler.id(245);
+    let record2_function = assembler.id(245);
+    let record3_function = assembler.id(245);
+    let children_function = assembler.id(245);
+    let function = assembler.id(245);
+    let (decode_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 246,
+            p: 246,
+            b: 246,
+            o: 246,
+        },
+        decode_function,
+    );
+    let record_graph = build_generic_record_decode(
+        &mut assembler,
+        Ns {
+            k: 247,
+            p: 247,
+            b: 247,
+            o: 247,
+        },
+        record_function,
+        decode_function,
+    );
+    let union_graph = build_generic_union_decode(
+        &mut assembler,
+        Ns {
+            k: 248,
+            p: 248,
+            b: 248,
+            o: 248,
+        },
+        union_function,
+        decode_function,
+    );
+    let list_graph = build_generic_list_decode(
+        &mut assembler,
+        Ns {
+            k: 249,
+            p: 249,
+            b: 249,
+            o: 249,
+        },
+        list_function,
+        decode_function,
+    );
+    let fixed32_graph = build_fixed32_decode(
+        &mut assembler,
+        Ns {
+            k: 250,
+            p: 250,
+            b: 250,
+            o: 250,
+        },
+        fixed32_function,
+    );
+    let entity_id_collection_graph = build_entity_id_collection_decode(
+        &mut assembler,
+        Ns {
+            k: 251,
+            p: 251,
+            b: 251,
+            o: 251,
+        },
+        entity_id_collection_function,
+        list_function,
+        fixed32_function,
+    );
+    let exact_uvar_graph = build_exact_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 252,
+            p: 252,
+            b: 252,
+            o: 252,
+        },
+        exact_uvar_function,
+        decode_function,
+    );
+    let bounded_uvar_graph = build_bounded_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 253,
+            p: 253,
+            b: 253,
+            o: 253,
+        },
+        bounded_uvar_function,
+        exact_uvar_function,
+    );
+    let leaf_graph = build_type_expr_leaf_decode(
+        &mut assembler,
+        Ns {
+            k: 254,
+            p: 254,
+            b: 254,
+            o: 254,
+        },
+        leaf_function,
+        union_function,
+        fixed32_function,
+        exact_uvar_function,
+        bounded_uvar_function,
+    );
+    let record2_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 255,
+            p: 255,
+            b: 255,
+            o: 255,
+        },
+        record2_function,
+        decode_function,
+        record_function,
+        2,
+    );
+    let record3_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 200,
+            p: 200,
+            b: 200,
+            o: 200,
+        },
+        record3_function,
+        decode_function,
+        record_function,
+        3,
+    );
+    let children_graph = build_type_expr_children_decode(
+        &mut assembler,
+        Ns {
+            k: 201,
+            p: 201,
+            b: 201,
+            o: 201,
+        },
+        children_function,
+        union_function,
+        leaf_function,
+        list_function,
+        record2_function,
+        record3_function,
+        fixed32_function,
+        entity_id_collection_function,
+    );
+    let graph = build_type_expr_recursive_decode(
+        &mut assembler,
+        Ns {
+            k: 202,
+            p: 202,
+            b: 202,
+            o: 202,
+        },
+        function,
+        children_function,
+    );
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![
+            graph,
+            children_graph,
+            record3_graph,
+            record2_graph,
+            leaf_graph,
+            bounded_uvar_graph,
+            exact_uvar_graph,
+            entity_id_collection_graph,
+            fixed32_graph,
+            list_graph,
+            union_graph,
+            record_graph,
+            decode_graph,
+        ],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    }
+}
+
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn build_type_expr_leaf_decode(
     assembler: &mut Asm,
@@ -9142,7 +10120,7 @@ fn build_function_schema_decode(
     type_parameter_list_decoder: EntityId,
     fixed32_decoder: EntityId,
     bounded_uvar_decoder: EntityId,
-    type_expr_leaf_decoder: EntityId,
+    type_expr_decoder: EntityId,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
     let result_type = function_schema_result_type();
@@ -9423,7 +10401,7 @@ fn build_function_schema_decode(
         vec![pav(type_expr_validation_parameters[2]), pav(unit)],
         vec![bytes_validation_result_type()],
         Immediate::Function(FunctionRefValue {
-            function: type_expr_leaf_decoder,
+            function: type_expr_decoder,
             type_arguments: Vec::new(),
         }),
     );
@@ -9664,7 +10642,7 @@ fn build_function_schema_decode(
     }
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::similar_names, clippy::too_many_lines)]
 pub(super) fn function_schema_decode_image() -> Image {
     let mut assembler = Asm::new();
     let decode_function = assembler.id(200);
@@ -9677,6 +10655,10 @@ pub(super) fn function_schema_decode_image() -> Image {
     let bounded_uvar_function = assembler.id(200);
     let type_parameter_list_function = assembler.id(200);
     let type_expr_leaf_function = assembler.id(200);
+    let record2_function = assembler.id(200);
+    let record3_function = assembler.id(200);
+    let type_expr_children_function = assembler.id(200);
+    let type_expr_recursive_function = assembler.id(200);
     let function = assembler.id(200);
     let (decode_graph, _) = build_decode(
         &mut assembler,
@@ -9792,13 +10774,67 @@ pub(super) fn function_schema_decode_image() -> Image {
         exact_uvar_function,
         bounded_uvar_function,
     );
-    let graph = build_function_schema_decode(
+    let record2_graph = build_exact_record_projection(
         &mut assembler,
         Ns {
             k: 211,
             p: 211,
             b: 211,
             o: 211,
+        },
+        record2_function,
+        decode_function,
+        record_function,
+        2,
+    );
+    let record3_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 212,
+            p: 212,
+            b: 212,
+            o: 212,
+        },
+        record3_function,
+        decode_function,
+        record_function,
+        3,
+    );
+    let type_expr_children_graph = build_type_expr_children_decode(
+        &mut assembler,
+        Ns {
+            k: 213,
+            p: 213,
+            b: 213,
+            o: 213,
+        },
+        type_expr_children_function,
+        union_function,
+        type_expr_leaf_function,
+        list_function,
+        record2_function,
+        record3_function,
+        fixed32_function,
+        entity_id_collection_function,
+    );
+    let type_expr_recursive_graph = build_type_expr_recursive_decode(
+        &mut assembler,
+        Ns {
+            k: 214,
+            p: 214,
+            b: 214,
+            o: 214,
+        },
+        type_expr_recursive_function,
+        type_expr_children_function,
+    );
+    let graph = build_function_schema_decode(
+        &mut assembler,
+        Ns {
+            k: 215,
+            p: 215,
+            b: 215,
+            o: 215,
         },
         function,
         union_function,
@@ -9807,7 +10843,7 @@ pub(super) fn function_schema_decode_image() -> Image {
         type_parameter_list_function,
         fixed32_function,
         bounded_uvar_function,
-        type_expr_leaf_function,
+        type_expr_recursive_function,
     );
     Image {
         types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
@@ -9821,6 +10857,10 @@ pub(super) fn function_schema_decode_image() -> Image {
             bounded_uvar_graph,
             type_parameter_list_graph,
             type_expr_leaf_graph,
+            record2_graph,
+            record3_graph,
+            type_expr_children_graph,
+            type_expr_recursive_graph,
             exact_uvar_graph,
             list_graph,
             decode_graph,
@@ -10271,18 +11311,18 @@ fn function_schema_decoder_projects_all_runtime_fields() {
         package.image_bytes.len(),
         approved.package_digest,
     );
-    assert_eq!(image.functions.len(), 11);
-    assert_eq!(image.parameters.len(), 1_152);
-    assert_eq!(image.blocks.len(), 238);
-    assert_eq!(image.operations.len(), 426);
-    assert_eq!(image.constants.len(), 132);
-    assert_eq!(package.image_bytes.len(), 60_114);
+    assert_eq!(image.functions.len(), 15);
+    assert_eq!(image.parameters.len(), 1_427);
+    assert_eq!(image.blocks.len(), 334);
+    assert_eq!(image.operations.len(), 601);
+    assert_eq!(image.constants.len(), 191);
+    assert_eq!(package.image_bytes.len(), 82_222);
     assert_eq!(
         approved.package_digest,
         [
-            0x08, 0x3e, 0xac, 0x18, 0x5d, 0xe7, 0xfe, 0x90, 0x70, 0x54, 0xe4, 0x6f, 0x12, 0x0c,
-            0x81, 0x93, 0x0a, 0x3b, 0x0e, 0x34, 0xcc, 0xf2, 0x3e, 0x50, 0x6c, 0xd8, 0x33, 0xcc,
-            0xa3, 0xba, 0x40, 0x06,
+            0xb5, 0xad, 0x52, 0x70, 0x51, 0x1b, 0x9e, 0xe6, 0xf2, 0xe1, 0x1a, 0x72, 0x47, 0xcb,
+            0x24, 0x56, 0x45, 0x53, 0xa9, 0x82, 0xf8, 0x4b, 0x79, 0x88, 0xf3, 0xb2, 0xd8, 0xae,
+            0x4b, 0x61, 0x96, 0x3a,
         ]
     );
     let outcome = execute_with_limits(
@@ -10304,6 +11344,25 @@ fn function_schema_decoder_projects_all_runtime_fields() {
     for (field, expected) in fields.iter().zip(expected) {
         assert_eq!(field.data, ConstData::Bytes(expected));
     }
+    let composite_body =
+        function_schema_body_with_result(TypeExpr::Option(Box::new(TypeExpr::Tuple(vec![
+            TypeExpr::Bool,
+            TypeExpr::Bytes,
+        ]))));
+    let composite_outcome = execute_with_limits(
+        &package,
+        &approved,
+        vec![bytes_input(&composite_body), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(composite_value) = composite_outcome.termination
+    else {
+        panic!("Function schema decoder must return for recursive result type")
+    };
+    assert!(matches!(
+        composite_value.data,
+        ConstData::Result(ResultConst::Ok(_))
+    ));
 }
 
 fn function_schema_error(
@@ -10545,7 +11604,7 @@ fn function_schema_decoder_enforces_kind_fields_and_list_boundaries() {
         &sley_scb1::encode_record(&malformed_result_fields).expect("record encodes"),
     )
     .expect("union encodes");
-    let mut composite_result_fields = fields
+    let mut nested_invalid_result_fields = fields
         .iter()
         .enumerate()
         .map(|(index, payload)| {
@@ -10555,14 +11614,15 @@ fn function_schema_decoder_enforces_kind_fields_and_list_boundaries() {
             )
         })
         .collect::<Vec<_>>();
-    composite_result_fields[2].1 = sley_scb1::encode_union(
+    let unknown_child = sley_scb1::encode_union(21, &[]).expect("unknown child TypeExpr encodes");
+    nested_invalid_result_fields[2].1 = sley_scb1::encode_union(
         9,
-        &sley_scb1::encode_union(2, &[]).expect("nested Bool TypeExpr encodes"),
+        &sley_scb1::encode_list(&[unknown_child]).expect("Tuple element list encodes"),
     )
-    .expect("Option TypeExpr encodes");
-    let composite_result = sley_scb1::encode_union(
+    .expect("Tuple TypeExpr encodes structurally");
+    let nested_invalid_result = sley_scb1::encode_union(
         5,
-        &sley_scb1::encode_record(&composite_result_fields).expect("record encodes"),
+        &sley_scb1::encode_record(&nested_invalid_result_fields).expect("record encodes"),
     )
     .expect("union encodes");
 
@@ -10616,9 +11676,9 @@ fn function_schema_decoder_enforces_kind_fields_and_list_boundaries() {
             b"SCB_UNION_INVALID".as_slice(),
         ),
         (
-            "composite_result_type_scope",
-            composite_result,
-            b"SSMC_RESERVED_FIELD_PRESENT".as_slice(),
+            "nested_invalid_result_type",
+            nested_invalid_result,
+            b"SCB_UNION_INVALID".as_slice(),
         ),
     ] {
         eprintln!("FUNCTION_SCHEMA_REJ {name}");
@@ -11162,6 +12222,117 @@ fn type_expr_children_decoder_preserves_composite_errors() {
             expected,
             "{name}"
         );
+    }
+}
+
+fn type_expr_recursive_result(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    input: &[u8],
+) -> ConstValue {
+    let outcome = execute_with_limits(
+        package,
+        approved,
+        vec![bytes_input(input), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("recursive TypeExpr decoder must return")
+    };
+    value
+}
+
+#[test]
+fn type_expr_recursive_decoder_accepts_nested_composites() {
+    use sley_ssmc::{FunctionType, NamedType};
+
+    let image = type_expr_recursive_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "TYPE_EXPR_RECURSIVE functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 13);
+    assert_eq!(image.parameters.len(), 1_267);
+    assert_eq!(image.blocks.len(), 293);
+    assert_eq!(image.operations.len(), 526);
+    assert_eq!(image.constants.len(), 166);
+    assert_eq!(package.image_bytes.len(), 71_588);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x4d, 0xb4, 0x85, 0x1e, 0xa7, 0xee, 0xb6, 0xde, 0x33, 0x19, 0xa8, 0x95, 0xaf, 0xd7,
+            0x8a, 0x9d, 0xb0, 0x17, 0x65, 0x45, 0xac, 0xee, 0x6f, 0x97, 0x4f, 0xc4, 0xdb, 0x23,
+            0x66, 0x97, 0x3b, 0xe5,
+        ]
+    );
+    let nested = TypeExpr::FunctionRef(FunctionType {
+        parameters: vec![
+            TypeExpr::Tuple(vec![
+                TypeExpr::Bool,
+                TypeExpr::Vector(Box::new(TypeExpr::UInt(
+                    sley_ssmc::IntegerWidth::from_bits(16),
+                ))),
+            ]),
+            TypeExpr::Named(NamedType {
+                definition: EntityId::from_bytes([0x51; 32]),
+                arguments: vec![TypeExpr::OrderedMap {
+                    key: Box::new(TypeExpr::Text),
+                    value: Box::new(TypeExpr::Option(Box::new(TypeExpr::Bytes))),
+                }],
+            }),
+        ],
+        result: Box::new(TypeExpr::Result {
+            ok: Box::new(TypeExpr::LocalCell(Box::new(TypeExpr::Unit))),
+            error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Capability)),
+        }),
+        effects: vec![EntityId::from_bytes([0x61; 32])],
+    });
+    let encoded = type_expr_body(nested);
+    let value = type_expr_recursive_result(&package, &approved, &encoded);
+    let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+        panic!("nested TypeExpr must validate: {value:?}")
+    };
+    assert_eq!(decoded.data, ConstData::Bytes(encoded));
+
+    let mut allowed = sley_scb1::encode_union(1, &[]).expect("Unit TypeExpr encodes");
+    for _ in 0..63 {
+        allowed = sley_scb1::encode_union(13, &allowed).expect("Option TypeExpr encodes");
+    }
+    let value = type_expr_recursive_result(&package, &approved, &allowed);
+    assert!(matches!(value.data, ConstData::Result(ResultConst::Ok(_))));
+}
+
+#[test]
+fn type_expr_recursive_decoder_rejects_nested_errors_and_depth_overflow() {
+    let image = type_expr_recursive_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    let unknown = sley_scb1::encode_union(21, &[]).expect("unknown TypeExpr encodes");
+    let nested_unknown = sley_scb1::encode_union(13, &unknown).expect("Option TypeExpr encodes");
+    let mut too_deep = sley_scb1::encode_union(1, &[]).expect("Unit TypeExpr encodes");
+    for _ in 0..64 {
+        too_deep = sley_scb1::encode_union(13, &too_deep).expect("Option TypeExpr encodes");
+    }
+    for (name, input, expected) in [
+        (
+            "nested_unknown",
+            nested_unknown,
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        ("depth_overflow", too_deep, b"SCB_RESOURCE_LIMIT".as_slice()),
+    ] {
+        let value = type_expr_recursive_result(&package, &approved, &input);
+        let ConstData::Result(ResultConst::Err(error)) = value.data else {
+            panic!("invalid recursive TypeExpr must be refused: {value:?}")
+        };
+        assert_eq!(error.data, ConstData::Bytes(expected.to_vec()), "{name}");
     }
 }
 

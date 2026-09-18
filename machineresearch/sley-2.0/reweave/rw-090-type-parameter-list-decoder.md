@@ -25,10 +25,11 @@ bytes. The approved package digest is
 
 Function field 1 now invokes this validator. The positive fixture contains a
 real ordinal-zero declaration. Negative cases cover a missing ordinal and an
-unknown record field. After composition, the Function schema image contains
-11 reachable functions, 1,152 parameters, 238 blocks, 426 operations, and 132
-constants. Its image is 60,114 bytes and its package digest is
-`083eac185de7fe907054e46f120c81930a3b0e34ccf23e506cd833cca3ba4006`
+unknown record field. After recursive TypeExpr composition, the Function
+schema image contains 15 reachable functions, 1,427 parameters, 334 blocks,
+601 operations, and 191 constants. Its image is 82,222 bytes and its package
+digest is
+`b5ad5270511b9ee6f2e11a7247cb24564553a982f84b7988f3b2d8ae4b61963a`
 under the codec-profile execution limits.
 
 ## Validation

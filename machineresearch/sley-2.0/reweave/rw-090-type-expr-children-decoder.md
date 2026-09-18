@@ -43,5 +43,6 @@ cases cover a nonminimal tuple list, missing and unknown pair fields, a short
 named definition identity, unordered function effects, and an unknown union
 tag.
 
-This slice validates one node and exposes its children. Full recursive
-validation, depth accounting, and Function field-3 integration remain open.
+This slice validates one node and exposes its children. The recursive decoder
+now consumes this boundary with explicit depth accounting and Function field-3
+integration.

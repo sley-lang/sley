@@ -17,9 +17,10 @@ exact-uvar, and bounded-uvar decoders and accepts these tags:
 - `BuiltinFailure` with a canonical tag in the closed range 1 through 5.
 
 Malformed leaf payloads retain their canonical `SCB_*` failures. Unknown
-union tags return `SCB_UNION_INVALID`. Recursive tags 9 through 15 and 18
-return `SSMC_RESERVED_FIELD_PRESENT` until the recursive validator replaces
-this bootstrap boundary.
+union tags return `SCB_UNION_INVALID`. This leaf component still refuses
+recursive tags 9 through 15 and 18 when invoked directly; the recursive
+decoder dispatches those tags through its child projector and uses this
+component only for leaf nodes.
 
 The standalone reachable closure contains six functions and has 516
 parameters, 122 blocks, 236 operations, and 75 constants. Its image is 30,214
@@ -28,12 +29,12 @@ bytes. The approved package digest is
 
 ## Function integration
 
-The Function schema decoder invokes the leaf validator on field 3 after its
-collection, identity, visibility, and type-parameter structural checks. Its
-current composite image contains 11 reachable functions, 1,152 parameters,
-238 blocks, 426 operations, and 132 constants. The image is 60,114 bytes and
-has package digest
-`083eac185de7fe907054e46f120c81930a3b0e34ccf23e506cd833cca3ba4006`
+The Function schema decoder invokes the complete recursive validator on field
+3 after its collection, identity, visibility, and type-parameter structural
+checks. Its current composite image contains 15 reachable functions, 1,427
+parameters, 334 blocks, 601 operations, and 191 constants. The image is 82,222
+bytes and has package digest
+`b5ad5270511b9ee6f2e11a7247cb24564553a982f84b7988f3b2d8ae4b61963a`
 under the codec-profile execution limits.
 
 The Function corpus accepts its native `Bool` result type, rejects a nonempty
@@ -47,5 +48,6 @@ cargo test -p sley-vm --test rw120_toolchain_integration type_expr_leaf_decoder 
 cargo test -p sley-vm --test rw120_toolchain_integration function_schema_decoder -- --nocapture
 ```
 
-The complete recursive `TypeExpr` language and Function type-parameter
-records remain open.
+The standalone leaf boundary remains useful for focused scalar parity. The
+complete recursive language is covered by the recursive decoder; broader
+all-entity codec work remains open.
