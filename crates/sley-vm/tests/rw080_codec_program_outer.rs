@@ -27222,7 +27222,7 @@ fn outer_runtime_mutations_agree_with_native_payload_layer() {
         }
     }
     eprintln!("OUTER_MUT agree={agree} opaque={opaque_divergence} scope={scope_pins} /100");
-    assert!(agree + opaque_divergence + scope_pins == 100);
+    assert_eq!(agree + opaque_divergence + scope_pins, 100);
 }
 
 #[test]

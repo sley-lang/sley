@@ -291,19 +291,19 @@ fn bootstrap_type_ok(
             if !visiting.insert(named.definition) {
                 return true;
             }
-            let admitted = types
-                .definition(named.definition)
-                .map(|definition| match &definition.form {
-                    sley_ssmc::TypeDefForm::Record(fields) => fields.iter().all(|field| {
-                        bootstrap_type_ok(types, &field.value_type, at_boundary, visiting)
-                    }),
-                    sley_ssmc::TypeDefForm::Variant(cases) => cases.iter().all(|case| {
-                        case.payload_type.as_ref().is_none_or(|payload| {
-                            bootstrap_type_ok(types, payload, at_boundary, visiting)
-                        })
-                    }),
-                })
-                .unwrap_or(false);
+            let admitted =
+                types
+                    .definition(named.definition)
+                    .is_ok_and(|definition| match &definition.form {
+                        sley_ssmc::TypeDefForm::Record(fields) => fields.iter().all(|field| {
+                            bootstrap_type_ok(types, &field.value_type, at_boundary, visiting)
+                        }),
+                        sley_ssmc::TypeDefForm::Variant(cases) => cases.iter().all(|case| {
+                            case.payload_type.as_ref().is_none_or(|payload| {
+                                bootstrap_type_ok(types, payload, at_boundary, visiting)
+                            })
+                        }),
+                    });
             visiting.remove(&named.definition);
             admitted
         }
