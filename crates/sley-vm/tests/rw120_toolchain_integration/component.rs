@@ -110,6 +110,19 @@ pub(super) fn merged_program() -> MergedProgram {
     }
 }
 
+pub(super) fn checker_program() -> MergedProgram {
+    let checker = checker::integration_checker_program();
+    MergedProgram {
+        entry_points: vec![checker.entry.entity_id],
+        functions: checker.functions,
+        parameters: checker.parameters,
+        blocks: checker.blocks,
+        operations: checker.operations,
+        constants: checker.constants,
+        adapters: Vec::new(),
+    }
+}
+
 const DRIVER_BASE: u64 = 90_000;
 
 fn operation_result(operation: EntityId) -> ValueRef {
@@ -721,22 +734,47 @@ pub(super) fn component_evidence(program: &MergedProgram) -> ComponentEvidence {
 
 pub(super) struct DriverExecutionEvidence {
     pub(super) value: ConstValue,
+    pub(super) instruction_count: u64,
+    pub(super) fuel_used: u64,
+    pub(super) peak_value_units: u64,
     pub(super) package_digest: [u8; 32],
     pub(super) image_bytes: usize,
     pub(super) gate_operation_count: u32,
     pub(super) gate_bridge_uses: u32,
 }
 
-pub(super) fn execute_driver(
+pub(super) struct DriverReference {
+    pub(super) lowered: sley_vm::LoweredFunction,
+    pub(super) package: sley_vm::ExecutionPackage,
+}
+
+fn driver_limits() -> sley_vm::ExecutionLimits {
+    sley_vm::ExecutionLimits {
+        max_instructions: 1_000_000,
+        max_fuel: 100_000_000,
+        max_value_units: 1_000_000_000,
+        max_output_units: 100_000_000,
+        cancel_at_fuel: None,
+    }
+}
+
+pub(super) fn reconstruction_limits() -> sley_vm::ExecutionLimits {
+    sley_vm::ExecutionLimits {
+        max_instructions: 100_000_000,
+        max_fuel: 10_000_000_000,
+        max_value_units: 100_000_000_000_000,
+        max_output_units: 10_000_000_000,
+        cancel_at_fuel: None,
+    }
+}
+
+pub(super) fn reference_driver_package_with_limits(
     program: &MergedProgram,
     entry: EntityId,
     state_root: sley_id::StateRoot,
-    inputs: Vec<ConstValue>,
-) -> DriverExecutionEvidence {
-    use sley_vm::{
-        ExecutionPackage, V2Closure, approve_package_v2, bootstrap::BootstrapProfileInput,
-        bootstrap::BootstrapProfileVersion,
-    };
+    limits: sley_vm::ExecutionLimits,
+) -> DriverReference {
+    use sley_vm::bootstrap::{BootstrapProfileInput, BootstrapProfileVersion};
 
     let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
     let entry_function = program
@@ -744,13 +782,6 @@ pub(super) fn execute_driver(
         .iter()
         .find(|function| function.entity_id == entry)
         .expect("integrated driver entry exists");
-    let limits = sley_vm::ExecutionLimits {
-        max_instructions: 1_000_000,
-        max_fuel: 100_000_000,
-        max_value_units: 1_000_000_000,
-        max_output_units: 100_000_000,
-        cancel_at_fuel: None,
-    };
     let lowered = sley_vm::lower_function(sley_vm::LoweringInput {
         types: &types,
         function: entry_function,
@@ -781,8 +812,8 @@ pub(super) fn execute_driver(
         profile_version: BootstrapProfileVersion::V2,
     })
     .expect("integrated driver admits under the frozen successor profile");
-    let package = ExecutionPackage {
-        image_bytes: lowered.bytes,
+    let package = sley_vm::ExecutionPackage {
+        image_bytes: lowered.bytes.clone(),
         constants: program.constants.clone(),
         type_definitions: Vec::new(),
         imports: program.adapters.clone(),
@@ -797,6 +828,29 @@ pub(super) fn execute_driver(
         gate_bridge_uses: gate.bridge_uses(),
         gate_closure_fingerprints: gate.closure_fingerprints().to_vec(),
     };
+    DriverReference { lowered, package }
+}
+
+pub(super) fn execute_driver(
+    program: &MergedProgram,
+    entry: EntityId,
+    state_root: sley_id::StateRoot,
+    inputs: Vec<ConstValue>,
+) -> DriverExecutionEvidence {
+    execute_driver_with_limits(program, entry, state_root, inputs, driver_limits())
+}
+
+pub(super) fn execute_driver_with_limits(
+    program: &MergedProgram,
+    entry: EntityId,
+    state_root: sley_id::StateRoot,
+    inputs: Vec<ConstValue>,
+    limits: sley_vm::ExecutionLimits,
+) -> DriverExecutionEvidence {
+    use sley_vm::{V2Closure, approve_package_v2};
+
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    let package = reference_driver_package_with_limits(program, entry, state_root, limits).package;
     let closure = V2Closure {
         types: &types,
         schema_epoch: epoch(),
@@ -821,11 +875,20 @@ pub(super) fn execute_driver(
         sley_vm::ExecutionRequest { inputs, limits },
     )
     .expect("integrated driver executes");
-    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
-        panic!("integrated driver returns its four typed results")
+    let instruction_count = outcome.instruction_count;
+    let fuel_used = outcome.fuel_used;
+    let peak_value_units = outcome.peak_value_units;
+    let value = match outcome.termination {
+        sley_vm::ExecutionTermination::Success(value) => value,
+        termination => panic!(
+            "integrated driver returns its four typed results, got {termination:?}; instructions={instruction_count} fuel={fuel_used} peak_value_units={peak_value_units}"
+        ),
     };
     DriverExecutionEvidence {
         value,
+        instruction_count,
+        fuel_used,
+        peak_value_units,
         package_digest: approved.package_digest,
         image_bytes: package.image_bytes.len(),
         gate_operation_count: package.gate_operation_count,

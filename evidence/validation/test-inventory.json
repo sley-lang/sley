@@ -196,7 +196,7 @@
   "conformance_rejections": 283,
   "conformance_vectors": 537,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "e3d05ba378d2aea2461b2aca3c3398cc0423c7a7d9b485c78ea2d6be9e2bf2a3",
+  "inventory_digest": "46da615b8b72838f79f8218d1344470bfafbc0f7771bdb7e5c40f4602538c779",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -374,12 +374,12 @@
     },
     {
       "crate": "sley-vm",
-      "ignored": 3,
-      "tests": 418
+      "ignored": 5,
+      "tests": 420
     }
   ],
-  "rust_ignored_emitters": 35,
-  "rust_unit_tests": 1893,
+  "rust_ignored_emitters": 37,
+  "rust_unit_tests": 1895,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

@@ -22,6 +22,35 @@ fn hex(bytes: &[u8]) -> String {
     })
 }
 
+fn reconstruction_case(
+    reference: &component::DriverReference,
+) -> (Vec<sley_ssmc::ConstValue>, sley_ssmc::ConstValue) {
+    let reconstruction =
+        lower::integration_toolchain_reconstruction_test(&reference.lowered, &reference.package);
+    let (codec_inputs, expected_codec) = codec::integration_codec_test();
+    let (checker_inputs, expected_checker) = checker::integration_checker_test();
+    let mut inputs = codec_inputs;
+    inputs.extend(checker_inputs);
+    inputs.extend(reconstruction.lower_inputs);
+    inputs.extend(reconstruction.builder_tail_inputs);
+    let expected_values = vec![
+        expected_codec,
+        expected_checker,
+        reconstruction.expected_lower,
+        reconstruction.expected_builder,
+    ];
+    let expected = sley_ssmc::ConstValue {
+        value_type: sley_ssmc::TypeExpr::Tuple(
+            expected_values
+                .iter()
+                .map(|value| value.value_type.clone())
+                .collect(),
+        ),
+        data: sley_ssmc::ConstData::Sequence(expected_values),
+    };
+    (inputs, expected)
+}
+
 #[test]
 fn canonical_component_programs_are_available_to_one_integration_crate() {
     let codec = codec::integration_codec_program();
@@ -292,5 +321,158 @@ fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
         hex(&execution.package_digest),
         execution.gate_operation_count,
         execution.gate_bridge_uses,
+    );
+}
+
+#[test]
+#[ignore = "qualification: complete fact-fed reconstruction is intentionally measured separately"]
+fn integrated_driver_reconstructs_its_complete_executable_package() {
+    let fixture = handoff::fixture();
+    let evidence = component::component_evidence(&fixture.program);
+    let limits = component::reconstruction_limits();
+    let reference = component::reference_driver_package_with_limits(
+        &fixture.program,
+        fixture.entry,
+        evidence.root.root,
+        limits,
+    );
+    let (inputs, expected) = reconstruction_case(&reference);
+    assert_eq!(inputs.len(), 74);
+    let execution = component::execute_driver_with_limits(
+        &fixture.program,
+        fixture.entry,
+        evidence.root.root,
+        inputs,
+        limits,
+    );
+    assert_eq!(execution.value, expected);
+    let sley_ssmc::ConstData::Sequence(results) = &execution.value.data else {
+        unreachable!("integrated driver result is a tuple")
+    };
+    let sley_ssmc::ConstData::Result(sley_ssmc::ResultConst::Ok(envelope)) = &results[3].data
+    else {
+        unreachable!("toolchain package reconstruction succeeds")
+    };
+    let sley_ssmc::ConstData::Bytes(envelope) = &envelope.data else {
+        unreachable!("package builder returns envelope bytes")
+    };
+    assert_eq!(
+        envelope,
+        &sley_vm::encode_package_envelope_v2(&reference.package).unwrap()
+    );
+    let decoded = sley_vm::decode_package_envelope_v2(envelope).unwrap();
+    assert_eq!(decoded.image_bytes, reference.lowered.bytes);
+    assert_eq!(decoded.entry, fixture.entry);
+    assert_eq!(decoded.state_root, evidence.root.root);
+    let loaded = sley_vm::host_abi::load_image(&decoded.image_bytes).unwrap();
+    assert_eq!(loaded.entry.function, fixture.entry);
+    assert_eq!(loaded.callees.len(), 100);
+    let envelope_digest: [u8; 32] = Sha256::digest(envelope).into();
+    let image_digest: [u8; 32] = Sha256::digest(&decoded.image_bytes).into();
+    assert_eq!(decoded.image_bytes.len(), 491_378);
+    assert_eq!(
+        hex(&image_digest),
+        "dffdfbbd96585d92a1088f46597ec34bf2271248062a3a84437ba844302552c5"
+    );
+    assert_eq!(envelope.len(), 533_671);
+    assert_eq!(
+        hex(&envelope_digest),
+        "a73fe4cf621826f490adbb50862d3104a99fba56ba06e1613fd52e1672ec865c"
+    );
+    assert_eq!(
+        hex(&decoded.digests.package_digest),
+        "d53bde8d226da2aee57bddeaf093464ef7cbd5f857916dee71aa085c5dcd60e1"
+    );
+    assert_eq!(execution.instruction_count, 15_480_658);
+    assert_eq!(execution.fuel_used, 74_670_072);
+    assert_eq!(execution.peak_value_units, 6_027_165_516_738);
+    eprintln!(
+        "RW120_RECONSTRUCTION image_bytes={} image_sha256={} callee_count={} envelope_bytes={} envelope_sha256={} package_digest={} instructions={} fuel={} peak_value_units={}",
+        decoded.image_bytes.len(),
+        hex(&image_digest),
+        loaded.callees.len(),
+        envelope.len(),
+        hex(&envelope_digest),
+        hex(&decoded.digests.package_digest),
+        execution.instruction_count,
+        execution.fuel_used,
+        execution.peak_value_units,
+    );
+}
+
+#[test]
+#[ignore = "qualification: checker-package reconstruction is measured separately"]
+fn integrated_driver_reconstructs_the_checker_package() {
+    let fixture = handoff::fixture();
+    let evidence = component::component_evidence(&fixture.program);
+    let target = component::checker_program();
+    let target_entry = target.entry_points[0];
+    let limits = component::reconstruction_limits();
+    let reference = component::reference_driver_package_with_limits(
+        &target,
+        target_entry,
+        evidence.root.root,
+        limits,
+    );
+    let (inputs, expected) = reconstruction_case(&reference);
+    let execution = component::execute_driver_with_limits(
+        &fixture.program,
+        fixture.entry,
+        evidence.root.root,
+        inputs,
+        limits,
+    );
+    assert_eq!(execution.value, expected);
+    let sley_ssmc::ConstData::Sequence(results) = &execution.value.data else {
+        unreachable!("integrated driver result is a tuple")
+    };
+    let sley_ssmc::ConstData::Result(sley_ssmc::ResultConst::Ok(envelope)) = &results[3].data
+    else {
+        unreachable!("checker package reconstruction succeeds")
+    };
+    let sley_ssmc::ConstData::Bytes(envelope) = &envelope.data else {
+        unreachable!("package builder returns envelope bytes")
+    };
+    assert_eq!(
+        envelope,
+        &sley_vm::encode_package_envelope_v2(&reference.package).unwrap()
+    );
+    let decoded = sley_vm::decode_package_envelope_v2(envelope).unwrap();
+    assert_eq!(decoded.image_bytes, reference.lowered.bytes);
+    assert_eq!(decoded.entry, target_entry);
+    assert_eq!(decoded.state_root, evidence.root.root);
+    let loaded = sley_vm::host_abi::load_image(&decoded.image_bytes).unwrap();
+    assert_eq!(loaded.entry.function, target_entry);
+    assert_eq!(loaded.callees.len(), 7);
+    let envelope_digest: [u8; 32] = Sha256::digest(envelope).into();
+    let image_digest: [u8; 32] = Sha256::digest(&decoded.image_bytes).into();
+    assert_eq!(decoded.image_bytes.len(), 35_032);
+    assert_eq!(
+        hex(&image_digest),
+        "cea90d9e204e1f5f3f6fc0e7a6d7edd3a639e924d02e8c2c794c9500a9f09bd2"
+    );
+    assert_eq!(envelope.len(), 40_280);
+    assert_eq!(
+        hex(&envelope_digest),
+        "08d9db121febb04bdf79e24e201d6e5d402ac8246f69e79c045f3d6e15e2bbed"
+    );
+    assert_eq!(
+        hex(&decoded.digests.package_digest),
+        "c3ec1743ed10de737d1eb1d594255783c6ffc9df76771d8fae3e99352778467c"
+    );
+    assert_eq!(execution.instruction_count, 1_146_281);
+    assert_eq!(execution.fuel_used, 5_491_836);
+    assert_eq!(execution.peak_value_units, 35_065_761_207);
+    eprintln!(
+        "RW120_CHECKER_RECONSTRUCTION image_bytes={} image_sha256={} callee_count={} envelope_bytes={} envelope_sha256={} package_digest={} instructions={} fuel={} peak_value_units={}",
+        decoded.image_bytes.len(),
+        hex(&image_digest),
+        loaded.callees.len(),
+        envelope.len(),
+        hex(&envelope_digest),
+        hex(&decoded.digests.package_digest),
+        execution.instruction_count,
+        execution.fuel_used,
+        execution.peak_value_units,
     );
 }

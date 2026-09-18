@@ -1147,6 +1147,49 @@ pub(crate) fn integration_lower_builder_handoff_test() -> IntegrationHandoffTest
     }
 }
 
+pub(crate) fn integration_toolchain_reconstruction_test(
+    lowered: &sley_vm::LoweredFunction,
+    package: &sley_vm::ExecutionPackage,
+) -> IntegrationHandoffTest {
+    use sley_ssmc::ResultConst;
+
+    assert_eq!(package.image_bytes, lowered.bytes);
+    assert_eq!(package.entry, lowered.bytecode.function);
+    let root = complete_function_fact(&lowered.bytecode);
+    let callees = lowered
+        .callees
+        .iter()
+        .map(complete_function_fact)
+        .collect::<Vec<_>>();
+    let lower_inputs = vec![
+        bytes_value(&root.identity),
+        u32vec_value(&root.parameter_registers),
+        bytesvec_value(&root.register_types),
+        bytes_value(&root.result_type),
+        u32_value(u128::from(root.entry_slot)),
+        u32_value(u128::from(root.block_count)),
+        complete_block_facts_value(&root.blocks),
+        complete_function_facts_value(&callees),
+    ];
+    let expected_lower = ConstValue {
+        value_type: bytes_lower_result_type(),
+        data: ConstData::Result(ResultConst::Ok(Box::new(bytes_value(&lowered.bytes)))),
+    };
+    let digests = sley_vm::package_digests_v2(package).unwrap();
+    let mut builder_inputs = package_builder_inputs(package, &digests);
+    assert_eq!(builder_inputs.remove(0), bytes_value(&lowered.bytes));
+    let encoded = sley_vm::encode_package_envelope_v2(package).unwrap();
+    IntegrationHandoffTest {
+        lower_inputs,
+        builder_tail_inputs: builder_inputs,
+        expected_lower,
+        expected_builder: ConstValue {
+            value_type: bytes_lower_result_type(),
+            data: ConstData::Result(ResultConst::Ok(Box::new(bytes_value(&encoded)))),
+        },
+    }
+}
+
 fn rebase_value_ref(value: &mut ValueRef, ids: &BTreeMap<EntityId, EntityId>) {
     match value {
         ValueRef::Parameter(entity) => {

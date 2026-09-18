@@ -455,6 +455,15 @@ pub fn bridge_fuel_surcharge(
     immediate: &Immediate,
     operands: &[ConstValue],
 ) -> Option<u64> {
+    let operands = operands.iter().collect::<Vec<_>>();
+    bridge_fuel_surcharge_borrowed(adapters, immediate, &operands)
+}
+
+pub(crate) fn bridge_fuel_surcharge_borrowed(
+    adapters: &[AdapterImport],
+    immediate: &Immediate,
+    operands: &[&ConstValue],
+) -> Option<u64> {
     let Immediate::Entity(entry) = immediate else {
         return None;
     };
@@ -513,7 +522,7 @@ pub fn bridge_fuel_surcharge(
 fn bridge_execute(
     entry: BridgeKind,
     carried: &AdapterImport,
-    operands: &[ConstValue],
+    operands: &[&ConstValue],
     result_type: &TypeExpr,
 ) -> Result<ConstValue, ExtendedFault> {
     let TypeExpr::Result { ok, error } = result_type else {
@@ -596,20 +605,7 @@ fn bridge_execute(
             let [scope, request] = operands else {
                 return Err(ExtendedFault);
             };
-            if scope.value_type != carried.response_type
-                || request.value_type != carried.request_type
-            {
-                return Err(ExtendedFault);
-            }
-            let ConstData::Sequence(items) = &scope.data else {
-                return Err(ExtendedFault);
-            };
-            if items.len() >= BRIDGE_MAX_ITEMS {
-                return Ok(capacity());
-            }
-            let mut grown = items.clone();
-            grown.push(request.clone());
-            Ok(done(ConstData::Sequence(grown)))
+            bridge_vector_push_owned(carried, (*scope).clone(), (*request).clone(), result_type)
         }
         BridgeKind::RawHash => {
             // RW-075 correction (AR-02 successor): narrow raw BLAKE3-256
@@ -636,6 +632,65 @@ fn bridge_execute(
             Ok(done(ConstData::Bytes(digest.to_vec())))
         }
     }
+}
+
+fn bridge_vector_push_owned(
+    carried: &AdapterImport,
+    scope: ConstValue,
+    request: ConstValue,
+    result_type: &TypeExpr,
+) -> Result<ConstValue, ExtendedFault> {
+    let TypeExpr::Result { ok, error } = result_type else {
+        return Err(ExtendedFault);
+    };
+    if **ok != carried.response_type
+        || **error != carried.failure_type
+        || scope.value_type != carried.response_type
+        || request.value_type != carried.request_type
+    {
+        return Err(ExtendedFault);
+    }
+    let ConstData::Sequence(mut items) = scope.data else {
+        return Err(ExtendedFault);
+    };
+    if items.len() >= BRIDGE_MAX_ITEMS {
+        return Ok(ConstValue {
+            value_type: result_type.clone(),
+            data: ConstData::Result(ResultConst::Err(Box::new(ConstValue {
+                value_type: error.as_ref().clone(),
+                data: ConstData::BuiltinFailure(BuiltinFailureValue {
+                    kind: BuiltinFailureKind::Index,
+                    code: BRIDGE_CAPACITY_CODE,
+                }),
+            }))),
+        });
+    }
+    items.push(request);
+    Ok(ConstValue {
+        value_type: result_type.clone(),
+        data: ConstData::Result(ResultConst::Ok(Box::new(ConstValue {
+            value_type: ok.as_ref().clone(),
+            data: ConstData::Sequence(items),
+        }))),
+    })
+}
+
+pub(crate) fn execute_vector_push_owned(
+    adapters: &[AdapterImport],
+    immediate: &Immediate,
+    scope: ConstValue,
+    request: ConstValue,
+    result_type: &TypeExpr,
+) -> Result<ConstValue, ExtendedFault> {
+    let Immediate::Entity(entry) = immediate else {
+        return Err(ExtendedFault);
+    };
+    if *entry != bridge_entry_id(crate::host_abi::BRIDGE_CODE_PSH1) {
+        return Err(ExtendedFault);
+    }
+    let (_, carried) =
+        resolve_push_row(adapters, &scope.value_type, &request.value_type).ok_or(ExtendedFault)?;
+    bridge_vector_push_owned(carried, scope, request, result_type)
 }
 
 /// The exact `contract_assert` result type of slice E7a.
@@ -1433,7 +1488,7 @@ fn canonical_f64(value: f64) -> u64 {
 /// round-to-nearest-ties-to-even with canonicalized NaN results.
 fn float_operation(
     opcode: Opcode,
-    operands: &[ConstValue],
+    operands: &[&ConstValue],
     result_type: &TypeExpr,
 ) -> Result<ConstValue, ExtendedFault> {
     let data = match result_type {
@@ -1557,7 +1612,7 @@ fn checked_integer(
     opcode: Opcode,
     signed: bool,
     bits: u16,
-    operands: &[ConstValue],
+    operands: &[&ConstValue],
 ) -> Result<Checked, ExtendedFault> {
     let read = |value: &ConstValue| -> Result<(i128, u128), ExtendedFault> {
         match value.data {
@@ -1780,6 +1835,18 @@ pub fn execute_extended_instruction(
     operands: &[ConstValue],
     result_type: &TypeExpr,
 ) -> Result<ConstValue, ExtendedFault> {
+    let operands = operands.iter().collect::<Vec<_>>();
+    execute_extended_instruction_borrowed(context, opcode, immediate, &operands, result_type)
+}
+
+#[allow(clippy::too_many_lines)] // one arm per opcode of the contract table
+pub(crate) fn execute_extended_instruction_borrowed(
+    context: &mut ExecutionContext<'_>,
+    opcode: Opcode,
+    immediate: &Immediate,
+    operands: &[&ConstValue],
+    result_type: &TypeExpr,
+) -> Result<ConstValue, ExtendedFault> {
     let environment = context.types;
     let constants = context.constants;
     let typed = |data: ConstData| ConstValue {
@@ -1812,7 +1879,7 @@ pub fn execute_extended_instruction(
                     .zip(values)
                     .map(|(field, value)| FieldConst {
                         member_id: field.member_id,
-                        value: value.clone(),
+                        value: (*value).clone(),
                     })
                     .collect(),
             }))
@@ -1835,7 +1902,7 @@ pub fn execute_extended_instruction(
             };
             let payload = match values {
                 [] => None,
-                [value] => Some(Box::new(value.clone())),
+                [value] => Some(Box::new((*value).clone())),
                 _ => return Err(ExtendedFault),
             };
             typed(ConstData::Variant(VariantConst {
@@ -1879,8 +1946,8 @@ pub fn execute_extended_instruction(
                     )))));
                 }
                 entries.push(MapEntryConst {
-                    key: key.clone(),
-                    value: value.clone(),
+                    key: (*key).clone(),
+                    value: (*value).clone(),
                 });
                 seen.push(bytes);
             }
@@ -1913,8 +1980,8 @@ pub fn execute_extended_instruction(
                 .map(|(_, entry)| entry.clone())
                 .collect();
             entries.push(MapEntryConst {
-                key: key.clone(),
-                value: value.clone(),
+                key: (*key).clone(),
+                value: (*value).clone(),
             });
             map_value(result_type, entries)?
         }
@@ -1929,7 +1996,7 @@ pub fn execute_extended_instruction(
         }
         (Opcode::CellNew, [value]) => {
             let index = u128::try_from(context.cells.len()).map_err(|_| ExtendedFault)?;
-            context.cells.push(value.clone());
+            context.cells.push((*value).clone());
             typed(ConstData::UInt(index))
         }
         (Opcode::CellGet, [cell]) => {
@@ -1945,7 +2012,7 @@ pub fn execute_extended_instruction(
             };
             let index = usize::try_from(index).map_err(|_| ExtendedFault)?;
             let slot = context.cells.get_mut(index).ok_or(ExtendedFault)?;
-            *slot = value.clone();
+            *slot = (*value).clone();
             typed(ConstData::Unit)
         }
         (Opcode::ValueHash, [value]) => {
@@ -1967,7 +2034,9 @@ pub fn execute_extended_instruction(
             };
             typed(ConstData::FunctionRef(reference.clone()))
         }
-        (Opcode::TupleNew | Opcode::VectorNew, items) => typed(ConstData::Sequence(items.to_vec())),
+        (Opcode::TupleNew | Opcode::VectorNew, items) => typed(ConstData::Sequence(
+            items.iter().map(|value| (*value).clone()).collect(),
+        )),
         (Opcode::TupleGet, [tuple]) => {
             let (Immediate::Index(index), ConstData::Sequence(items)) = (immediate, &tuple.data)
             else {
@@ -2013,7 +2082,7 @@ pub fn execute_extended_instruction(
             {
                 Some(position) => {
                     let mut updated = items.clone();
-                    updated[position] = replacement.clone();
+                    updated[position] = (*replacement).clone();
                     typed(ConstData::Result(ResultConst::Ok(Box::new(ConstValue {
                         value_type: ok.as_ref().clone(),
                         data: ConstData::Sequence(updated),
@@ -2106,14 +2175,14 @@ pub fn execute_extended_instruction(
             })
         }
         (Opcode::OptionSome, [payload]) => {
-            typed(ConstData::Option(Some(Box::new(payload.clone()))))
+            typed(ConstData::Option(Some(Box::new((*payload).clone()))))
         }
         (Opcode::OptionNone, []) => typed(ConstData::Option(None)),
         (Opcode::ResultOk, [payload]) => typed(ConstData::Result(ResultConst::Ok(Box::new(
-            payload.clone(),
+            (*payload).clone(),
         )))),
         (Opcode::ResultErr, [payload]) => typed(ConstData::Result(ResultConst::Err(Box::new(
-            payload.clone(),
+            (*payload).clone(),
         )))),
         (Opcode::AdapterInvoke, operands) => {
             // Slice E8 plus the RW-075 successor raw-hash entry, resolved

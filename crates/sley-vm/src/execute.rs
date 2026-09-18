@@ -401,13 +401,20 @@ impl From<FingerprintError> for ExecutionError {
 struct RuntimeValue {
     root: Arc<ConstValue>,
     payload_depth: usize,
+    units: u64,
 }
 
 impl RuntimeValue {
     fn new(value: ConstValue) -> Self {
+        let units = value_units_const(&value);
+        Self::with_units(value, units)
+    }
+
+    fn with_units(value: ConstValue, units: u64) -> Self {
         Self {
             root: Arc::new(value),
             payload_depth: 0,
+            units,
         }
     }
 
@@ -428,16 +435,36 @@ impl RuntimeValue {
 
     fn payload_view(&self) -> RuntimeResult<Self> {
         let value = self.value()?;
-        match &value.data {
-            ConstData::Variant(variant) if variant.payload.is_some() => {}
+        let wrapper_units = match &value.data {
+            ConstData::Variant(variant) if variant.payload.is_some() => {
+                67_u64.saturating_add(value_units_type(&value.value_type))
+            }
             ConstData::Option(Some(_))
-            | ConstData::Result(ResultConst::Ok(_) | ResultConst::Err(_)) => {}
+            | ConstData::Result(ResultConst::Ok(_) | ResultConst::Err(_)) => {
+                3_u64.saturating_add(value_units_type(&value.value_type))
+            }
             _ => return Err(RuntimeFault),
-        }
+        };
         Ok(Self {
             root: Arc::clone(&self.root),
             payload_depth: self.payload_depth.checked_add(1).ok_or(RuntimeFault)?,
+            units: self.units.checked_sub(wrapper_units).ok_or(RuntimeFault)?,
         })
+    }
+
+    fn into_value(self) -> RuntimeResult<ConstValue> {
+        let mut value = Arc::try_unwrap(self.root).unwrap_or_else(|root| root.as_ref().clone());
+        for _ in 0..self.payload_depth {
+            value = match value.data {
+                ConstData::Variant(variant) => *variant.payload.ok_or(RuntimeFault)?,
+                ConstData::Option(Some(payload))
+                | ConstData::Result(ResultConst::Ok(payload) | ResultConst::Err(payload)) => {
+                    *payload
+                }
+                _ => return Err(RuntimeFault),
+            };
+        }
+        Ok(value)
     }
 }
 
@@ -1321,6 +1348,8 @@ fn run(
                     runtime,
                     &limits,
                     instruction,
+                    block,
+                    current.pc - 1,
                     current.register_types,
                     source,
                 )? {
@@ -1611,19 +1640,15 @@ fn prepare_frame<'a>(
         peak_call_depth: runtime.peak_call_depth.max(frames.saturating_add(1)),
     };
     for (operand, parameter) in instruction.operands.iter().zip(&callee.parameter_registers) {
-        let value = read_register(runtime, *operand)?.value()?.clone();
-        if !charge_value(
-            &mut child,
-            value_units_const(&value),
-            limits.max_value_units,
-        ) {
+        let value = read_register(runtime, *operand)?.clone();
+        if !charge_value(&mut child, value.units, limits.max_value_units) {
             adopt_frame(runtime, child);
             return Ok(CallStep::Terminated(ExecutionTermination::ResourceLimit(
                 ResourceKind::ValueUnits,
             )));
         }
         let parameter = usize::try_from(*parameter).map_err(|_| RuntimeFault)?;
-        write_register(&mut child, parameter, RuntimeValue::new(value))?;
+        write_register(&mut child, parameter, value)?;
     }
     Ok(CallStep::Enter {
         child,
@@ -1665,45 +1690,115 @@ fn contract_assert_value(held: bool) -> ConstValue {
     }
 }
 
+fn charge_bridge_actions(
+    runtime: &mut Runtime,
+    limits: &ExecutionLimits,
+    fuel: u64,
+) -> Option<ExecutionTermination> {
+    for _ in 0..fuel {
+        if let Some(termination) = charge_action(runtime, limits, None) {
+            return Some(termination);
+        }
+    }
+    None
+}
+
 /// Executes one instruction under the extended profile: reads every operand,
 /// derives the result through the family semantics, charges its value units,
 /// and writes the single result register.
+#[allow(clippy::too_many_lines)] // keeps the owned bridge path beside ordinary instruction charging
 fn execute_extended(
     runtime: &mut Runtime,
     limits: &ExecutionLimits,
     instruction: &crate::Instruction,
+    block: &crate::BytecodeBlock,
+    instruction_index: usize,
     register_types: &[TypeExpr],
     source: &ExecutionSource<'_>,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
     let opcode = sley_ssmc::Opcode::from_tag(instruction.opcode).ok_or(RuntimeFault)?;
-    let mut operands = Vec::with_capacity(instruction.operands.len());
-    for register in &instruction.operands {
-        operands.push(read_register(runtime, *register)?.value()?.clone());
-    }
     let [result_register] = instruction.results.as_slice() else {
         return Err(RuntimeFault);
     };
     let register = usize::try_from(*result_register).map_err(|_| RuntimeFault)?;
     let result_type = register_types.get(register).ok_or(RuntimeFault)?;
-    // Slice E8: bridge fuel is charged up front, before the arm allocates
-    // or converts, so a starved budget terminates without the work being
-    // performed (the E6 call-fuel precedent). Capacity refusal still
-    // answers Err(Index, 2) under adequate budgets.
-    if instruction.opcode == sley_ssmc::Opcode::AdapterInvoke.tag()
-        && let Some(elements) = crate::extended::bridge_fuel_surcharge(
+    let owned_push = opcode == sley_ssmc::Opcode::AdapterInvoke
+        && matches!(
+            instruction.immediate,
+            sley_ssmc::Immediate::Entity(entry)
+                if entry == crate::extended::bridge_entry_id(*b"PSH1")
+        );
+    let (value, stored, known_units) = if owned_push {
+        let [scope_register, request_register] = instruction.operands.as_slice() else {
+            return Err(RuntimeFault);
+        };
+        if let Some(termination) =
+            charge_bridge_actions(runtime, limits, crate::extended::BRIDGE_ELEMENT_FUEL)
+        {
+            return Ok(Some(termination));
+        }
+        let request = read_register(runtime, *request_register)?.clone();
+        let request_units = request.units;
+        let request = request.into_value()?;
+        let scope = if register_is_dead_block_local(block, instruction_index, *scope_register) {
+            take_register(runtime, *scope_register)?
+        } else {
+            read_register(runtime, *scope_register)?.clone()
+        };
+        let scope_units = scope.units;
+        let value = crate::extended::execute_vector_push_owned(
             source.adapters,
             &instruction.immediate,
-            &operands,
+            scope.into_value()?,
+            request,
+            result_type,
         )
-    {
-        let fuel = elements.saturating_mul(crate::extended::BRIDGE_ELEMENT_FUEL);
-        for _ in 0..fuel {
-            if let Some(termination) = charge_action(runtime, limits, None) {
+        .map_err(|_| RuntimeFault)?;
+        let known_units = matches!(value.data, ConstData::Result(ResultConst::Ok(_))).then(|| {
+            4_u64
+                .saturating_add(value_units_type(result_type))
+                .saturating_add(scope_units)
+                .saturating_add(request_units)
+        });
+        (value, 0, known_units)
+    } else {
+        // Slice E8: bridge fuel is charged up front, before the arm allocates
+        // or converts, so a starved budget terminates without the work being
+        // performed (the E6 call-fuel precedent). Capacity refusal still
+        // answers Err(Index, 2) under adequate budgets.
+        let bridge_elements = if opcode == sley_ssmc::Opcode::AdapterInvoke {
+            let operands = instruction
+                .operands
+                .iter()
+                .map(|register| read_register(runtime, *register)?.value())
+                .collect::<RuntimeResult<Vec<_>>>()?;
+            crate::extended::bridge_fuel_surcharge_borrowed(
+                source.adapters,
+                &instruction.immediate,
+                &operands,
+            )
+        } else {
+            None
+        };
+        if let Some(elements) = bridge_elements {
+            let fuel = elements.saturating_mul(crate::extended::BRIDGE_ELEMENT_FUEL);
+            if let Some(termination) = charge_bridge_actions(runtime, limits, fuel) {
                 return Ok(Some(termination));
             }
         }
-    }
-    let value = {
+        let registers = &runtime.registers;
+        let operands = instruction
+            .operands
+            .iter()
+            .map(|register| {
+                let register = usize::try_from(*register).map_err(|_| RuntimeFault)?;
+                registers
+                    .get(register)
+                    .and_then(Option::as_ref)
+                    .ok_or(RuntimeFault)?
+                    .value()
+            })
+            .collect::<RuntimeResult<Vec<_>>>()?;
         let mut context = crate::extended::ExecutionContext {
             types: source.types,
             constants: source.constants,
@@ -1712,14 +1807,21 @@ fn execute_extended(
             adapters: source.adapters,
             cells: &mut runtime.cells,
         };
-        crate::extended::execute_extended_instruction(
+        let value = crate::extended::execute_extended_instruction_borrowed(
             &mut context,
             opcode,
             &instruction.immediate,
             &operands,
             result_type,
         )
-        .map_err(|_| RuntimeFault)?
+        .map_err(|_| RuntimeFault)?;
+        let stored = match opcode {
+            sley_ssmc::Opcode::CellNew | sley_ssmc::Opcode::CellSet => {
+                operands.last().map_or(0, |value| value_units_const(value))
+            }
+            _ => 0,
+        };
+        (value, stored, None)
     };
     if &value.value_type != result_type {
         return Err(RuntimeFault);
@@ -1737,15 +1839,10 @@ fn execute_extended(
     // handle and not the contents, so a loop could hold unbounded host memory
     // with the budget intact; contract E5 counts cell contents as live value
     // units, and this is where they are counted.
-    let stored = match opcode {
-        sley_ssmc::Opcode::CellNew | sley_ssmc::Opcode::CellSet => {
-            operands.last().map_or(0, value_units_const)
-        }
-        _ => 0,
-    };
+    let value_units = known_units.unwrap_or_else(|| value_units_const(&value));
     if !charge_value(
         runtime,
-        value_units_const(&value).saturating_add(stored),
+        value_units.saturating_add(stored),
         limits.max_value_units,
     ) {
         return Ok(Some(ExecutionTermination::ResourceLimit(
@@ -1753,7 +1850,11 @@ fn execute_extended(
         )));
     }
     runtime.instruction_count = runtime.instruction_count.saturating_add(1);
-    write_register(runtime, register, RuntimeValue::new(value))?;
+    write_register(
+        runtime,
+        register,
+        RuntimeValue::with_units(value, value_units),
+    )?;
     Ok(None)
 }
 
@@ -1898,7 +1999,8 @@ fn dispatch_terminator(
             Ok(Some(ExecutionTermination::Success(value)))
         }
         BytecodeTerminator::Branch(edge) => {
-            if let Some(termination) = bind_edge(runtime, blocks, edge, limits)? {
+            let source = blocks.get(runtime.block).ok_or(RuntimeFault)?;
+            if let Some(termination) = bind_edge(runtime, blocks, source, edge, limits)? {
                 return Ok(Some(termination));
             }
             Ok(None)
@@ -1913,20 +2015,40 @@ fn dispatch_terminator(
                 return Ok(Some(ExecutionTermination::InternalInvariant));
             };
             let edge = if condition { if_true } else { if_false };
-            if let Some(termination) = bind_edge(runtime, blocks, edge, limits)? {
+            let source = blocks.get(runtime.block).ok_or(RuntimeFault)?;
+            if let Some(termination) = bind_edge(runtime, blocks, source, edge, limits)? {
                 return Ok(Some(termination));
             }
             Ok(None)
         }
         BytecodeTerminator::VariantSwitch { value, cases } => {
-            let selected = read_register(runtime, *value)?.clone();
+            let carried_as_argument = cases.iter().any(|case| {
+                case.edge.arguments.iter().any(|argument| {
+                    matches!(argument, BytecodeSwitchArgument::Value(register) if register == value)
+                })
+            });
+            let block = blocks.get(runtime.block).ok_or(RuntimeFault)?;
+            let selected = if carried_as_argument
+                || !register_is_block_local(block, block.instructions.len(), *value)
+            {
+                read_register(runtime, *value)?.clone()
+            } else {
+                take_register(runtime, *value)?
+            };
             let (case_key, payload) = selected_case(&selected)?;
             for case in cases {
                 if let Some(termination) = charge_action(runtime, limits, None) {
                     return Ok(Some(termination));
                 }
                 if case.case_key == case_key {
-                    return bind_switch_edge(runtime, blocks, &case.edge, payload.as_ref(), limits);
+                    return bind_switch_edge(
+                        runtime,
+                        blocks,
+                        block,
+                        &case.edge,
+                        payload.as_ref(),
+                        limits,
+                    );
                 }
             }
             Ok(Some(ExecutionTermination::InternalInvariant))
@@ -1956,6 +2078,7 @@ fn dispatch_terminator(
 fn bind_edge(
     runtime: &mut Runtime,
     blocks: &[crate::BytecodeBlock],
+    source: &crate::BytecodeBlock,
     edge: &BytecodeTargetEdge,
     limits: &ExecutionLimits,
 ) -> RuntimeResult<Option<ExecutionTermination>> {
@@ -1964,7 +2087,15 @@ fn bind_edge(
         if let Some(termination) = charge_action(runtime, limits, None) {
             return Ok(Some(termination));
         }
-        values.push(read_register(runtime, *register)?.clone());
+        values.push(
+            if register_is_block_local(source, source.instructions.len(), *register)
+                && edge_use_count(edge, *register) == 1
+            {
+                take_register(runtime, *register)?
+            } else {
+                read_register(runtime, *register)?.clone()
+            },
+        );
     }
     bind_values(runtime, blocks, edge.target, values)?;
     Ok(None)
@@ -1973,6 +2104,7 @@ fn bind_edge(
 fn bind_switch_edge(
     runtime: &mut Runtime,
     blocks: &[crate::BytecodeBlock],
+    source: &crate::BytecodeBlock,
     edge: &BytecodeSwitchEdge,
     payload: Option<&RuntimeValue>,
     limits: &ExecutionLimits,
@@ -1984,7 +2116,22 @@ fn bind_switch_edge(
         }
         match argument {
             BytecodeSwitchArgument::Value(register) => {
-                values.push(read_register(runtime, *register).cloned()?);
+                let selected_uses = edge
+                    .arguments
+                    .iter()
+                    .filter(|argument| {
+                        matches!(argument, BytecodeSwitchArgument::Value(value) if value == register)
+                    })
+                    .count();
+                values.push(
+                    if register_is_block_local(source, source.instructions.len(), *register)
+                        && selected_uses == 1
+                    {
+                        take_register(runtime, *register)?
+                    } else {
+                        read_register(runtime, *register).cloned()?
+                    },
+                );
             }
             BytecodeSwitchArgument::CasePayload => {
                 if let Some(termination) = charge_action(runtime, limits, None) {
@@ -2100,6 +2247,75 @@ fn read_register(runtime: &Runtime, register: Register) -> RuntimeResult<&Runtim
         .get(register)
         .and_then(Option::as_ref)
         .ok_or(RuntimeFault)
+}
+
+fn take_register(runtime: &mut Runtime, register: Register) -> RuntimeResult<RuntimeValue> {
+    let register = usize::try_from(register).map_err(|_| RuntimeFault)?;
+    runtime
+        .registers
+        .get_mut(register)
+        .and_then(Option::take)
+        .ok_or(RuntimeFault)
+}
+
+fn edge_use_count(edge: &BytecodeTargetEdge, register: Register) -> usize {
+    edge.arguments
+        .iter()
+        .filter(|candidate| **candidate == register)
+        .count()
+}
+
+fn terminator_use_count(terminator: &BytecodeTerminator, register: Register) -> usize {
+    match terminator {
+        BytecodeTerminator::Return(value) => usize::from(*value == register),
+        BytecodeTerminator::Branch(edge) => edge_use_count(edge, register),
+        BytecodeTerminator::CondBranch {
+            condition,
+            if_true,
+            if_false,
+        } => {
+            usize::from(*condition == register)
+                + edge_use_count(if_true, register)
+                + edge_use_count(if_false, register)
+        }
+        BytecodeTerminator::VariantSwitch { value, cases } => {
+            usize::from(*value == register)
+                + cases
+                    .iter()
+                    .flat_map(|case| &case.edge.arguments)
+                    .filter(|argument| {
+                        matches!(
+                            argument,
+                            BytecodeSwitchArgument::Value(value) if *value == register
+                        )
+                    })
+                    .count()
+        }
+        BytecodeTerminator::Trap { payload, .. } => usize::from(*payload == Some(register)),
+    }
+}
+
+fn register_is_dead_block_local(
+    block: &crate::BytecodeBlock,
+    instruction_index: usize,
+    register: Register,
+) -> bool {
+    register_is_block_local(block, instruction_index, register)
+        && block.instructions[instruction_index + 1..]
+            .iter()
+            .all(|instruction| !instruction.operands.contains(&register))
+        && terminator_use_count(&block.terminator, register) == 0
+}
+
+fn register_is_block_local(
+    block: &crate::BytecodeBlock,
+    instruction_index: usize,
+    register: Register,
+) -> bool {
+    block.parameter_registers.contains(&register)
+        || block.instructions[..instruction_index]
+            .iter()
+            .any(|instruction| instruction.results.contains(&register))
 }
 
 fn write_register(
@@ -2887,6 +3103,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)]
     fn result_and_named_variant_switch_payloads_are_reference_views() {
         let result_type = TypeExpr::Result {
             ok: Box::new(TypeExpr::Bool),
@@ -2953,7 +3170,7 @@ mod tests {
             ExecutionRequest {
                 inputs: vec![
                     ConstValue {
-                        value_type: named_type,
+                        value_type: named_type.clone(),
                         data: ConstData::Variant(VariantConst {
                             definition,
                             member_id: payload_case,
@@ -2979,6 +3196,29 @@ mod tests {
         let payload = payload.unwrap();
         assert!(Arc::ptr_eq(&runtime.root, &payload.root));
         assert_eq!(payload.payload_depth, 1);
+        assert_eq!(payload.units, value_units_const(payload.value().unwrap()));
+
+        for wrapped in [
+            ConstValue {
+                value_type: TypeExpr::Result {
+                    ok: Box::new(TypeExpr::Bool),
+                    error: Box::new(TypeExpr::Unit),
+                },
+                data: ConstData::Result(ResultConst::Ok(Box::new(bool_value(true)))),
+            },
+            ConstValue {
+                value_type: named_type,
+                data: ConstData::Variant(VariantConst {
+                    definition,
+                    member_id: payload_case,
+                    payload: Some(Box::new(bool_value(true))),
+                }),
+            },
+        ] {
+            let wrapped = RuntimeValue::new(wrapped);
+            let payload = wrapped.payload_view().unwrap();
+            assert_eq!(payload.units, value_units_const(payload.value().unwrap()));
+        }
     }
 
     #[test]
