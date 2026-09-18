@@ -12489,7 +12489,7 @@ fn build_closed_union_validate(
     ns: Ns,
     function: EntityId,
     union_decoder: EntityId,
-    arms: &[EntityId],
+    arms: &[(EntityId, TypeExpr)],
 ) -> FunctionGraph {
     assert!(!arms.is_empty(), "closed union needs arms");
     let block_start = assembler.blocks.len();
@@ -12540,14 +12540,14 @@ fn build_closed_union_validate(
         ret(op_result(ok)),
     );
 
-    for (block, arm) in arm_calls.iter().copied().zip(arms.iter().copied()) {
+    for (block, (arm, arm_result_type)) in arm_calls.iter().copied().zip(arms.iter().cloned()) {
         let parameters = block_parameters(assembler, ns.p, block, &[TypeExpr::Bytes]);
         let validated = assembler.op(
             ns.o,
             block,
             Opcode::CallDirect,
             vec![pav(parameters[0]), pav(unit)],
-            vec![unit_validation_result_type()],
+            vec![arm_result_type],
             Immediate::Function(FunctionRefValue {
                 function: arm,
                 type_arguments: Vec::new(),
@@ -14284,7 +14284,10 @@ fn type_def_schema_decode_image() -> Image {
         },
         type_def_form_function,
         union_function,
-        &[record_fields_function, variant_cases_function],
+        &[
+            (record_fields_function, unit_validation_result_type()),
+            (variant_cases_function, unit_validation_result_type()),
+        ],
     );
     let graph = build_simple_entity_schema_decode(
         &mut assembler,
@@ -22387,4 +22390,1209 @@ fn capability_requirement_schema_decoder_rejects_every_field_boundary() {
             "{name} precedence"
         );
     }
+}
+
+/// Wraps the bounded-varint decoder as a two-argument unit validator so a
+/// closed enum can stand alone as a union arm.
+fn build_bounded_enum_validate(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    bounded_uvar_decoder: EntityId,
+    minimum: u64,
+    maximum: u64,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let forward_error = forward_error_block(assembler, ns, function, &result_type);
+    let success = unit_success_block(assembler, ns, function, unit, &result_type);
+    let entry = assembler.id(ns.b);
+    let minimum_value = u64_const(assembler, ns, entry, minimum);
+    let maximum_value = u64_const(assembler, ns, entry, maximum);
+    let decoded = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![
+            pav(body),
+            op_result(minimum_value),
+            op_result(maximum_value),
+            pav(unit),
+        ],
+        vec![exact_uvar_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: bounded_uvar_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![minimum_value, maximum_value, decoded],
+        switch(
+            op_result(decoded),
+            vec![
+                (BuiltinCase::Ok, success, Vec::new()),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+    unit_validator_graph(assembler, function, body, unit, entry, block_start)
+}
+
+/// Shared validators for the program-structure schemas (Block, Operation):
+/// value references, target edges, and the primitive decoders they use.
+#[derive(Clone, Copy)]
+struct ProgramStructureClosure {
+    decode: EntityId,
+    record: EntityId,
+    union: EntityId,
+    list: EntityId,
+    fixed32: EntityId,
+    entity_ids: EntityId,
+    exact_uvar: EntityId,
+    bounded_uvar: EntityId,
+    record1: EntityId,
+    record2: EntityId,
+    record3: EntityId,
+    value_ref: EntityId,
+    value_refs: EntityId,
+    target_edge: EntityId,
+    empty_payload: EntityId,
+}
+
+impl ProgramStructureClosure {
+    fn decoders(self, exact_record: EntityId) -> SimpleSchemaDecoders {
+        SimpleSchemaDecoders {
+            union: self.union,
+            exact_record,
+            fixed32: self.fixed32,
+            exact_uvar: self.exact_uvar,
+            bounded_uvar: self.bounded_uvar,
+            type_expr: self.fixed32,
+            entity_ids: self.entity_ids,
+        }
+    }
+}
+
+fn ns_of(number: u8) -> Ns {
+    Ns {
+        k: number,
+        p: number,
+        b: number,
+        o: number,
+    }
+}
+
+/// Builds the program-structure closure (identity namespace 64, block
+/// namespaces `65..=79`) and returns its graphs.
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn build_program_structure_closure(
+    assembler: &mut Asm,
+) -> (ProgramStructureClosure, Vec<FunctionGraph>) {
+    let decode_function = assembler.id(64);
+    let record_function = assembler.id(64);
+    let union_function = assembler.id(64);
+    let list_function = assembler.id(64);
+    let fixed32_function = assembler.id(64);
+    let entity_ids_function = assembler.id(64);
+    let exact_uvar_function = assembler.id(64);
+    let bounded_uvar_function = assembler.id(64);
+    let record1_function = assembler.id(64);
+    let record2_function = assembler.id(64);
+    let record3_function = assembler.id(64);
+    let operation_result_function = assembler.id(64);
+    let value_ref_function = assembler.id(64);
+    let value_refs_function = assembler.id(64);
+    let target_edge_function = assembler.id(64);
+    let empty_payload_function = assembler.id(64);
+    let (decode_graph, _) = build_decode(assembler, ns_of(65), decode_function);
+    let record_graph =
+        build_generic_record_decode(assembler, ns_of(66), record_function, decode_function);
+    let union_graph =
+        build_generic_union_decode(assembler, ns_of(67), union_function, decode_function);
+    let list_graph =
+        build_generic_list_decode(assembler, ns_of(68), list_function, decode_function);
+    let fixed32_graph = build_fixed32_decode(assembler, ns_of(69), fixed32_function);
+    let entity_ids_graph = build_entity_id_collection_decode(
+        assembler,
+        ns_of(70),
+        entity_ids_function,
+        list_function,
+        fixed32_function,
+    );
+    let exact_uvar_graph =
+        build_exact_uvar_decode(assembler, ns_of(71), exact_uvar_function, decode_function);
+    let bounded_uvar_graph = build_bounded_uvar_decode(
+        assembler,
+        ns_of(72),
+        bounded_uvar_function,
+        exact_uvar_function,
+    );
+    let record1_graph = build_exact_record_projection(
+        assembler,
+        ns_of(73),
+        record1_function,
+        decode_function,
+        record_function,
+        1,
+    );
+    let record2_graph = build_exact_record_projection(
+        assembler,
+        ns_of(74),
+        record2_function,
+        decode_function,
+        record_function,
+        2,
+    );
+    let record3_graph = build_exact_record_projection(
+        assembler,
+        ns_of(75),
+        record3_function,
+        decode_function,
+        record_function,
+        3,
+    );
+    let closure = ProgramStructureClosure {
+        decode: decode_function,
+        record: record_function,
+        union: union_function,
+        list: list_function,
+        fixed32: fixed32_function,
+        entity_ids: entity_ids_function,
+        exact_uvar: exact_uvar_function,
+        bounded_uvar: bounded_uvar_function,
+        record1: record1_function,
+        record2: record2_function,
+        record3: record3_function,
+        value_ref: value_ref_function,
+        value_refs: value_refs_function,
+        target_edge: target_edge_function,
+        empty_payload: empty_payload_function,
+    };
+    let operation_result_graph = build_projected_record_validate(
+        assembler,
+        ns_of(76),
+        operation_result_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::ExactUvar(32),
+        ],
+        closure.decoders(record2_function),
+    );
+    let value_ref_graph = build_closed_union_validate(
+        assembler,
+        ns_of(77),
+        value_ref_function,
+        union_function,
+        &[
+            (fixed32_function, bytes_validation_result_type()),
+            (operation_result_function, unit_validation_result_type()),
+        ],
+    );
+    let value_refs_graph = build_unit_list_validate(
+        assembler,
+        ns_of(78),
+        value_refs_function,
+        list_function,
+        value_ref_function,
+        unit_validation_result_type(),
+    );
+    let target_edge_graph = build_projected_record_validate(
+        assembler,
+        ns_of(79),
+        target_edge_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(value_refs_function),
+        ],
+        closure.decoders(record2_function),
+    );
+    let empty_payload_graph =
+        build_empty_payload_validate(assembler, ns_of(80), empty_payload_function);
+    (
+        closure,
+        vec![
+            empty_payload_graph,
+            target_edge_graph,
+            value_refs_graph,
+            value_ref_graph,
+            operation_result_graph,
+            record3_graph,
+            record2_graph,
+            record1_graph,
+            bounded_uvar_graph,
+            exact_uvar_graph,
+            entity_ids_graph,
+            fixed32_graph,
+            list_graph,
+            union_graph,
+            record_graph,
+            decode_graph,
+        ],
+    )
+}
+
+/// One program-structure entity schema over the shared closure; the
+/// schema's own validators use block namespaces from `81` upward.
+fn program_structure_schema_image(
+    expected_kind: u64,
+    build: impl FnOnce(
+        &mut Asm,
+        ProgramStructureClosure,
+    ) -> (Vec<SimpleFieldValidator>, Vec<FunctionGraph>),
+) -> Image {
+    let mut assembler = Asm::new();
+    let (closure, mut functions) = build_program_structure_closure(&mut assembler);
+    let (validators, extra) = build(&mut assembler, closure);
+    let schema_record_function = assembler.id(64);
+    let function = assembler.id(64);
+    let schema_record_graph = build_exact_record_projection(
+        &mut assembler,
+        ns_of(98),
+        schema_record_function,
+        closure.decode,
+        closure.record,
+        validators.len(),
+    );
+    let graph = build_simple_entity_schema_decode(
+        &mut assembler,
+        ns_of(99),
+        function,
+        expected_kind,
+        &validators,
+        closure.decoders(schema_record_function),
+    );
+    let mut all = vec![graph.clone(), schema_record_graph];
+    all.extend(extra);
+    all.append(&mut functions);
+    let mut image = Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph,
+        functions: all,
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: codec_bridge_imports(),
+        constants: assembler.constants,
+    };
+    retain_reached_functions(&mut image);
+    image
+}
+
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn block_schema_decode_image() -> Image {
+    program_structure_schema_image(7, |assembler, closure| {
+        let return_function = assembler.id(64);
+        let branch_function = assembler.id(64);
+        let cond_branch_function = assembler.id(64);
+        let builtin_case_function = assembler.id(64);
+        let case_key_function = assembler.id(64);
+        let switch_argument_function = assembler.id(64);
+        let switch_arguments_function = assembler.id(64);
+        let switch_edge_function = assembler.id(64);
+        let switch_case_function = assembler.id(64);
+        let switch_cases_function = assembler.id(64);
+        let variant_switch_function = assembler.id(64);
+        let optional_value_ref_function = assembler.id(64);
+        let trap_function = assembler.id(64);
+        let terminator_function = assembler.id(64);
+        let return_graph = build_projected_record_validate(
+            assembler,
+            ns_of(81),
+            return_function,
+            &[SimpleFieldValidator::Unit(closure.value_ref)],
+            closure.decoders(closure.record1),
+        );
+        let branch_graph = build_projected_record_validate(
+            assembler,
+            ns_of(82),
+            branch_function,
+            &[SimpleFieldValidator::Unit(closure.target_edge)],
+            closure.decoders(closure.record1),
+        );
+        let cond_branch_graph = build_projected_record_validate(
+            assembler,
+            ns_of(83),
+            cond_branch_function,
+            &[
+                SimpleFieldValidator::Unit(closure.value_ref),
+                SimpleFieldValidator::Unit(closure.target_edge),
+                SimpleFieldValidator::Unit(closure.target_edge),
+            ],
+            closure.decoders(closure.record3),
+        );
+        let builtin_case_graph = build_bounded_enum_validate(
+            assembler,
+            ns_of(84),
+            builtin_case_function,
+            closure.bounded_uvar,
+            1,
+            4,
+        );
+        let case_key_graph = build_closed_union_validate(
+            assembler,
+            ns_of(85),
+            case_key_function,
+            closure.union,
+            &[
+                (closure.fixed32, bytes_validation_result_type()),
+                (builtin_case_function, unit_validation_result_type()),
+            ],
+        );
+        let switch_argument_graph = build_closed_union_validate(
+            assembler,
+            ns_of(86),
+            switch_argument_function,
+            closure.union,
+            &[
+                (closure.value_ref, unit_validation_result_type()),
+                (closure.empty_payload, unit_validation_result_type()),
+            ],
+        );
+        let switch_arguments_graph = build_unit_list_validate(
+            assembler,
+            ns_of(87),
+            switch_arguments_function,
+            closure.list,
+            switch_argument_function,
+            unit_validation_result_type(),
+        );
+        let switch_edge_graph = build_projected_record_validate(
+            assembler,
+            ns_of(88),
+            switch_edge_function,
+            &[
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::Unit(switch_arguments_function),
+            ],
+            closure.decoders(closure.record2),
+        );
+        let switch_case_graph = build_projected_record_validate(
+            assembler,
+            ns_of(89),
+            switch_case_function,
+            &[
+                SimpleFieldValidator::Unit(case_key_function),
+                SimpleFieldValidator::Unit(switch_edge_function),
+            ],
+            closure.decoders(closure.record2),
+        );
+        let switch_cases_graph = build_unit_list_validate(
+            assembler,
+            ns_of(90),
+            switch_cases_function,
+            closure.list,
+            switch_case_function,
+            unit_validation_result_type(),
+        );
+        let variant_switch_graph = build_projected_record_validate(
+            assembler,
+            ns_of(91),
+            variant_switch_function,
+            &[
+                SimpleFieldValidator::Unit(closure.value_ref),
+                SimpleFieldValidator::Unit(switch_cases_function),
+            ],
+            closure.decoders(closure.record2),
+        );
+        let optional_value_ref_graph = build_option_unit_validate(
+            assembler,
+            ns_of(92),
+            optional_value_ref_function,
+            closure.union,
+            closure.value_ref,
+            unit_validation_result_type(),
+        );
+        let trap_graph = build_projected_record_validate(
+            assembler,
+            ns_of(93),
+            trap_function,
+            &[
+                SimpleFieldValidator::BoundedUvar {
+                    minimum: 1,
+                    maximum: 4,
+                },
+                SimpleFieldValidator::Unit(optional_value_ref_function),
+            ],
+            closure.decoders(closure.record2),
+        );
+        let terminator_graph = build_closed_union_validate(
+            assembler,
+            ns_of(94),
+            terminator_function,
+            closure.union,
+            &[
+                (return_function, unit_validation_result_type()),
+                (branch_function, unit_validation_result_type()),
+                (cond_branch_function, unit_validation_result_type()),
+                (variant_switch_function, unit_validation_result_type()),
+                (trap_function, unit_validation_result_type()),
+            ],
+        );
+        (
+            vec![
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::EntityIds { ordered: false },
+                SimpleFieldValidator::EntityIds { ordered: false },
+                SimpleFieldValidator::Unit(terminator_function),
+                SimpleFieldValidator::BoundedUvar {
+                    minimum: 1,
+                    maximum: 2,
+                },
+            ],
+            vec![
+                terminator_graph,
+                trap_graph,
+                optional_value_ref_graph,
+                variant_switch_graph,
+                switch_cases_graph,
+                switch_case_graph,
+                switch_edge_graph,
+                switch_arguments_graph,
+                switch_argument_graph,
+                case_key_graph,
+                builtin_case_graph,
+                cond_branch_graph,
+                branch_graph,
+                return_graph,
+            ],
+        )
+    })
+}
+
+/// Wraps the exact-width varint decoder as a two-argument unit validator so
+/// a bare `u32`/`u64` can stand alone as a union arm.
+fn build_exact_width_validate(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    exact_uvar_decoder: EntityId,
+    width: u32,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let forward_error = forward_error_block(assembler, ns, function, &result_type);
+    let success = unit_success_block(assembler, ns, function, unit, &result_type);
+    let entry = assembler.id(ns.b);
+    let width_constant = assembler.ku32(ns.k, u128::from(width));
+    let width_value = assembler.cref(ns.o, entry, width_constant, u32_type());
+    let decoded = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), op_result(width_value), pav(unit)],
+        vec![exact_uvar_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: exact_uvar_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![width_value, decoded],
+        switch(
+            op_result(decoded),
+            vec![
+                (BuiltinCase::Ok, success, Vec::new()),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+    unit_validator_graph(assembler, function, body, unit, entry, block_start)
+}
+
+#[allow(clippy::too_many_lines)]
+fn operation_schema_decode_image() -> Image {
+    program_structure_schema_image(8, |assembler, closure| {
+        let type_expr_leaf_function = assembler.id(64);
+        let type_expr_children_function = assembler.id(64);
+        let type_expr_function = assembler.id(64);
+        let result_types_function = assembler.id(64);
+        let index_function = assembler.id(64);
+        let variant_immediate_function = assembler.id(64);
+        let function_ref_function = assembler.id(64);
+        let immediate_function = assembler.id(64);
+        let type_expr_leaf_graph = build_type_expr_leaf_decode(
+            assembler,
+            ns_of(81),
+            type_expr_leaf_function,
+            closure.union,
+            closure.fixed32,
+            closure.exact_uvar,
+            closure.bounded_uvar,
+        );
+        let type_expr_children_graph = build_type_expr_children_decode(
+            assembler,
+            ns_of(82),
+            type_expr_children_function,
+            closure.union,
+            type_expr_leaf_function,
+            closure.list,
+            closure.record2,
+            closure.record3,
+            closure.fixed32,
+            closure.entity_ids,
+        );
+        let type_expr_graph = build_type_expr_recursive_decode(
+            assembler,
+            ns_of(83),
+            type_expr_function,
+            type_expr_children_function,
+        );
+        let result_types_graph = build_unit_list_validate(
+            assembler,
+            ns_of(84),
+            result_types_function,
+            closure.list,
+            type_expr_function,
+            bytes_validation_result_type(),
+        );
+        let index_graph = build_exact_width_validate(
+            assembler,
+            ns_of(85),
+            index_function,
+            closure.exact_uvar,
+            32,
+        );
+        let variant_immediate_graph = build_projected_record_validate(
+            assembler,
+            ns_of(86),
+            variant_immediate_function,
+            &[SimpleFieldValidator::Fixed32, SimpleFieldValidator::Fixed32],
+            closure.decoders(closure.record2),
+        );
+        let function_ref_graph = build_projected_record_validate(
+            assembler,
+            ns_of(87),
+            function_ref_function,
+            &[
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::Unit(result_types_function),
+            ],
+            closure.decoders(closure.record2),
+        );
+        let immediate_graph = build_closed_union_validate(
+            assembler,
+            ns_of(88),
+            immediate_function,
+            closure.union,
+            &[
+                (closure.empty_payload, unit_validation_result_type()),
+                (closure.fixed32, bytes_validation_result_type()),
+                (index_function, unit_validation_result_type()),
+                (closure.fixed32, bytes_validation_result_type()),
+                (variant_immediate_function, unit_validation_result_type()),
+                (closure.fixed32, bytes_validation_result_type()),
+                (function_ref_function, unit_validation_result_type()),
+            ],
+        );
+        (
+            vec![
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::ExactUvar(32),
+                SimpleFieldValidator::ExactUvar(32),
+                SimpleFieldValidator::Unit(closure.value_refs),
+                SimpleFieldValidator::Unit(result_types_function),
+                SimpleFieldValidator::Unit(immediate_function),
+            ],
+            vec![
+                immediate_graph,
+                function_ref_graph,
+                variant_immediate_graph,
+                index_graph,
+                result_types_graph,
+                type_expr_graph,
+                type_expr_children_graph,
+                type_expr_leaf_graph,
+            ],
+        )
+    })
+}
+
+fn block_schema_body(terminator: sley_ssmc::Terminator) -> Vec<u8> {
+    use sley_mutate::value::{BlockBody, EntityBodyValue};
+
+    let record = sley_mutate::EntityObjectRecord {
+        entity_id: EntityId::from_bytes([0x71; 32]),
+        body: EntityBodyValue::Block(BlockBody {
+            function: EntityId::from_bytes([0x72; 32]),
+            parameters: vec![
+                EntityId::from_bytes([0x74; 32]),
+                EntityId::from_bytes([0x73; 32]),
+            ],
+            operations: vec![EntityId::from_bytes([0x75; 32])],
+            terminator,
+            reachability: Reachability::ExplicitlyUnreachable,
+        }),
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        .expect("native builds schema Block fixture")
+        .stored_bytes()
+        .to_vec();
+    ns_body_of(&stored)
+}
+
+fn operation_schema_body(immediate: Immediate) -> Vec<u8> {
+    use sley_mutate::value::{EntityBodyValue, OperationBody};
+
+    let record = sley_mutate::EntityObjectRecord {
+        entity_id: EntityId::from_bytes([0x81; 32]),
+        body: EntityBodyValue::Operation(OperationBody {
+            block: EntityId::from_bytes([0x82; 32]),
+            ordinal: u32::MAX,
+            opcode: Opcode::CallDirect.tag(),
+            operands: vec![
+                ValueRef::Parameter(EntityId::from_bytes([0x83; 32])),
+                ValueRef::OperationResult(OperationResultRef {
+                    operation: EntityId::from_bytes([0x84; 32]),
+                    result_index: u32::MAX,
+                }),
+            ],
+            result_types: vec![
+                TypeExpr::Tuple(vec![TypeExpr::Bool, TypeExpr::Bytes]),
+                TypeExpr::Option(Box::new(TypeExpr::Unit)),
+            ],
+            immediate,
+        }),
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        .expect("native builds schema Operation fixture")
+        .stored_bytes()
+        .to_vec();
+    ns_body_of(&stored)
+}
+
+fn every_block_terminator() -> Vec<sley_ssmc::Terminator> {
+    use sley_ssmc::{
+        BranchTerminator, CaseKey, CondBranchTerminator, MemberId, ReturnTerminator, SwitchCase,
+        SwitchEdge, TargetEdge, Terminator, TrapCode, TrapTerminator, VariantSwitchTerminator,
+    };
+
+    let parameter = ValueRef::Parameter(EntityId::from_bytes([0x73; 32]));
+    let result = ValueRef::OperationResult(OperationResultRef {
+        operation: EntityId::from_bytes([0x75; 32]),
+        result_index: 1,
+    });
+    let edge = |fill: u8, arguments: Vec<ValueRef>| TargetEdge {
+        target: EntityId::from_bytes([fill; 32]),
+        arguments,
+    };
+    vec![
+        Terminator::Return(ReturnTerminator { value: result }),
+        Terminator::Branch(BranchTerminator {
+            edge: edge(0x76, vec![parameter, result]),
+        }),
+        Terminator::CondBranch(CondBranchTerminator {
+            condition: parameter,
+            if_true: edge(0x76, Vec::new()),
+            if_false: edge(0x77, vec![result]),
+        }),
+        Terminator::VariantSwitch(VariantSwitchTerminator {
+            value: result,
+            cases: vec![
+                SwitchCase {
+                    case_key: CaseKey::Builtin(BuiltinCase::Err),
+                    edge: SwitchEdge {
+                        target: EntityId::from_bytes([0x78; 32]),
+                        arguments: vec![
+                            SwitchArgument::CasePayload,
+                            SwitchArgument::Value(parameter),
+                        ],
+                    },
+                },
+                SwitchCase {
+                    case_key: CaseKey::Member(MemberId::from_bytes([0x79; 32])),
+                    edge: SwitchEdge {
+                        target: EntityId::from_bytes([0x7a; 32]),
+                        arguments: Vec::new(),
+                    },
+                },
+            ],
+        }),
+        Terminator::Trap(TrapTerminator {
+            code: TrapCode::AdapterContractViolation,
+            payload: Some(parameter),
+        }),
+        Terminator::Trap(TrapTerminator {
+            code: TrapCode::Unreachable,
+            payload: None,
+        }),
+    ]
+}
+
+fn every_operation_immediate() -> Vec<Immediate> {
+    use sley_ssmc::{MemberId, VariantImmediate};
+
+    vec![
+        Immediate::None,
+        Immediate::Entity(EntityId::from_bytes([0x85; 32])),
+        Immediate::Index(u32::MAX),
+        Immediate::Field(MemberId::from_bytes([0x86; 32])),
+        Immediate::Variant(VariantImmediate {
+            definition: EntityId::from_bytes([0x87; 32]),
+            member_id: MemberId::from_bytes([0x88; 32]),
+        }),
+        Immediate::Observation([0x89; 32]),
+        Immediate::Function(FunctionRefValue {
+            function: EntityId::from_bytes([0x8a; 32]),
+            type_arguments: vec![TypeExpr::Vector(Box::new(TypeExpr::Text))],
+        }),
+    ]
+}
+
+#[test]
+fn block_schema_decoder_accepts_every_terminator() {
+    let image = block_schema_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "BLOCK_SCHEMA functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 32);
+    assert_eq!(image.parameters.len(), 1_226);
+    assert_eq!(image.blocks.len(), 366);
+    assert_eq!(image.operations.len(), 607);
+    assert_eq!(image.constants.len(), 159);
+    assert_eq!(package.image_bytes.len(), 81_298);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x20, 0xe2, 0xcc, 0x94, 0x89, 0xf3, 0xf8, 0x0e, 0xd2, 0xc3, 0xdc, 0xd9, 0xd1, 0x10,
+            0x43, 0xf8, 0x2f, 0x9b, 0xbb, 0x70, 0x71, 0x83, 0x3e, 0x4a, 0x23, 0xae, 0x7d, 0x04,
+            0xcd, 0xf0, 0xf7, 0xd2,
+        ]
+    );
+    for terminator in every_block_terminator() {
+        assert_schema_projection(&package, &approved, &block_schema_body(terminator), 7, 5);
+    }
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn block_schema_decoder_rejects_every_terminator_boundary() {
+    use sley_ssmc::{ReturnTerminator, Terminator};
+
+    let body = block_schema_body(Terminator::Return(ReturnTerminator {
+        value: ValueRef::Parameter(EntityId::from_bytes([0x73; 32])),
+    }));
+    let fields = exact_entity_body_fields(&body, 7, 5);
+    let image = block_schema_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+
+    let union = |tag: u32, payload: &[u8]| sley_scb1::encode_union(tag, payload).unwrap();
+    let record = |fields: &[(u32, Vec<u8>)]| sley_scb1::encode_record(fields).unwrap();
+    let list = |elements: &[Vec<u8>]| sley_scb1::encode_list(elements).unwrap();
+    let parameter_ref = union(1, &[0x73; 32]);
+    let edge = |arguments: Vec<u8>| record(&[(1, vec![0x76; 32]), (2, arguments)]);
+
+    let mut unknown_fields = fields.clone();
+    unknown_fields.push(Vec::new());
+    let mut short_parameter = fields.clone();
+    short_parameter[1] = list(&[vec![0x74; 31]]);
+    let mut unknown_terminator = fields.clone();
+    unknown_terminator[3] = union(6, &[]);
+    let mut return_unknown_ref = fields.clone();
+    return_unknown_ref[3] = union(1, &record(&[(1, union(3, &[]))]));
+    let mut return_wide_result_index = fields.clone();
+    return_wide_result_index[3] = union(
+        1,
+        &record(&[(
+            1,
+            union(
+                2,
+                &record(&[
+                    (1, vec![0x75; 32]),
+                    (2, sley_scb1::encode_uvar(u64::from(u32::MAX) + 1)),
+                ]),
+            ),
+        )]),
+    );
+    let mut branch_missing_arguments = fields.clone();
+    branch_missing_arguments[3] = union(2, &record(&[(1, record(&[(1, vec![0x76; 32])]))]));
+    let mut cond_bad_argument = fields.clone();
+    cond_bad_argument[3] = union(
+        3,
+        &record(&[
+            (1, parameter_ref.clone()),
+            (2, edge(list(&[]))),
+            (3, edge(list(&[union(2, &record(&[(1, vec![0x75; 32])]))]))),
+        ]),
+    );
+    let mut switch_bad_builtin_case = fields.clone();
+    switch_bad_builtin_case[3] = union(
+        4,
+        &record(&[
+            (1, parameter_ref.clone()),
+            (
+                2,
+                list(&[record(&[
+                    (1, union(2, &sley_scb1::encode_uvar(5))),
+                    (2, edge(list(&[]))),
+                ])]),
+            ),
+        ]),
+    );
+    let mut switch_bad_argument_tag = fields.clone();
+    switch_bad_argument_tag[3] = union(
+        4,
+        &record(&[
+            (1, parameter_ref.clone()),
+            (
+                2,
+                list(&[record(&[
+                    (1, union(1, &[0x79; 32])),
+                    (2, edge(list(&[union(3, &[])]))),
+                ])]),
+            ),
+        ]),
+    );
+    let mut switch_nonempty_case_payload = fields.clone();
+    switch_nonempty_case_payload[3] = union(
+        4,
+        &record(&[
+            (1, parameter_ref.clone()),
+            (
+                2,
+                list(&[record(&[
+                    (1, union(1, &[0x79; 32])),
+                    (2, edge(list(&[union(2, &[0])]))),
+                ])]),
+            ),
+        ]),
+    );
+    let mut trap_bad_code = fields.clone();
+    trap_bad_code[3] = union(
+        5,
+        &record(&[(1, sley_scb1::encode_uvar(5)), (2, union(0, &[]))]),
+    );
+    let mut trap_bad_payload_option = fields.clone();
+    trap_bad_payload_option[3] = union(
+        5,
+        &record(&[(1, sley_scb1::encode_uvar(1)), (2, union(2, &[]))]),
+    );
+    let mut invalid_reachability = fields.clone();
+    invalid_reachability[4] = sley_scb1::encode_uvar(3);
+
+    let cases = [
+        (
+            "wrong_entity_kind",
+            parameter_schema_with_fields(8, &fields),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "missing_required",
+            parameter_schema_with_fields(7, &fields[..4]),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "unknown_field",
+            parameter_schema_with_fields(7, &unknown_fields),
+            b"SCB_FIELD_UNKNOWN".as_slice(),
+        ),
+        (
+            "short_parameter",
+            parameter_schema_with_fields(7, &short_parameter),
+            b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "unknown_terminator",
+            parameter_schema_with_fields(7, &unknown_terminator),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "return_unknown_ref",
+            parameter_schema_with_fields(7, &return_unknown_ref),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "return_wide_result_index",
+            parameter_schema_with_fields(7, &return_wide_result_index),
+            b"SCB_INTEGER_OVERFLOW".as_slice(),
+        ),
+        (
+            "branch_missing_arguments",
+            parameter_schema_with_fields(7, &branch_missing_arguments),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "cond_bad_argument",
+            parameter_schema_with_fields(7, &cond_bad_argument),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "switch_bad_builtin_case",
+            parameter_schema_with_fields(7, &switch_bad_builtin_case),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "switch_bad_argument_tag",
+            parameter_schema_with_fields(7, &switch_bad_argument_tag),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "switch_nonempty_case_payload",
+            parameter_schema_with_fields(7, &switch_nonempty_case_payload),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "trap_bad_code",
+            parameter_schema_with_fields(7, &trap_bad_code),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "trap_bad_payload_option",
+            parameter_schema_with_fields(7, &trap_bad_payload_option),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "invalid_reachability",
+            parameter_schema_with_fields(7, &invalid_reachability),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+    ];
+    for (name, malformed, expected) in cases {
+        assert_eq!(
+            simple_schema_error(&package, &approved, &malformed, "Block"),
+            expected,
+            "{name} precedence"
+        );
+    }
+}
+
+#[test]
+fn operation_schema_decoder_accepts_every_immediate() {
+    let image = operation_schema_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "OPERATION_SCHEMA functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 24);
+    assert_eq!(image.parameters.len(), 1_439);
+    assert_eq!(image.blocks.len(), 391);
+    assert_eq!(image.operations.len(), 681);
+    assert_eq!(image.constants.len(), 202);
+    assert_eq!(package.image_bytes.len(), 90_990);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x74, 0x42, 0x9c, 0x9f, 0xce, 0xb7, 0x63, 0x75, 0xf9, 0xa0, 0x5f, 0xbc, 0xdb, 0x8c,
+            0xb5, 0x4c, 0x91, 0x2f, 0x78, 0xe4, 0xc6, 0x2c, 0x07, 0x41, 0x67, 0x0a, 0x81, 0xd6,
+            0xe0, 0x62, 0x4d, 0x21,
+        ]
+    );
+    for immediate in every_operation_immediate() {
+        assert_schema_projection(&package, &approved, &operation_schema_body(immediate), 8, 6);
+    }
+}
+
+#[test]
+fn operation_schema_decoder_rejects_every_immediate_boundary() {
+    let body = operation_schema_body(Immediate::None);
+    let fields = exact_entity_body_fields(&body, 8, 6);
+    let image = operation_schema_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+
+    let union = |tag: u32, payload: &[u8]| sley_scb1::encode_union(tag, payload).unwrap();
+    let record = |fields: &[(u32, Vec<u8>)]| sley_scb1::encode_record(fields).unwrap();
+    let list = |elements: &[Vec<u8>]| sley_scb1::encode_list(elements).unwrap();
+
+    let mut unknown_fields = fields.clone();
+    unknown_fields.push(Vec::new());
+    let mut wide_ordinal = fields.clone();
+    wide_ordinal[1] = sley_scb1::encode_uvar(u64::from(u32::MAX) + 1);
+    let mut nonminimal_opcode = fields.clone();
+    nonminimal_opcode[2] = vec![0x80, 0x00];
+    let mut bad_operand = fields.clone();
+    bad_operand[3] = list(&[union(1, &[0x83; 31])]);
+    let mut bad_result_type = fields.clone();
+    bad_result_type[4] = list(&[union(21, &[])]);
+    let mut unknown_immediate = fields.clone();
+    unknown_immediate[5] = union(8, &[]);
+    let mut nonempty_none_immediate = fields.clone();
+    nonempty_none_immediate[5] = union(1, &[0]);
+    let mut wide_index = fields.clone();
+    wide_index[5] = union(3, &sley_scb1::encode_uvar(u64::from(u32::MAX) + 1));
+    let mut short_variant_member = fields.clone();
+    short_variant_member[5] = union(5, &record(&[(1, vec![0x87; 32]), (2, vec![0x88; 31])]));
+    let mut function_bad_type_argument = fields.clone();
+    function_bad_type_argument[5] = union(
+        7,
+        &record(&[(1, vec![0x8a; 32]), (2, list(&[union(21, &[])]))]),
+    );
+
+    let cases = [
+        (
+            "wrong_entity_kind",
+            parameter_schema_with_fields(7, &fields),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "missing_required",
+            parameter_schema_with_fields(8, &fields[..5]),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "unknown_field",
+            parameter_schema_with_fields(8, &unknown_fields),
+            b"SCB_FIELD_UNKNOWN".as_slice(),
+        ),
+        (
+            "wide_ordinal",
+            parameter_schema_with_fields(8, &wide_ordinal),
+            b"SCB_INTEGER_OVERFLOW".as_slice(),
+        ),
+        (
+            "nonminimal_opcode",
+            parameter_schema_with_fields(8, &nonminimal_opcode),
+            b"SCB_VARINT_NON_MINIMAL".as_slice(),
+        ),
+        (
+            "bad_operand",
+            parameter_schema_with_fields(8, &bad_operand),
+            b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "bad_result_type",
+            parameter_schema_with_fields(8, &bad_result_type),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "unknown_immediate",
+            parameter_schema_with_fields(8, &unknown_immediate),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "nonempty_none_immediate",
+            parameter_schema_with_fields(8, &nonempty_none_immediate),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "wide_index",
+            parameter_schema_with_fields(8, &wide_index),
+            b"SCB_INTEGER_OVERFLOW".as_slice(),
+        ),
+        (
+            "short_variant_member",
+            parameter_schema_with_fields(8, &short_variant_member),
+            b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "function_bad_type_argument",
+            parameter_schema_with_fields(8, &function_bad_type_argument),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+    ];
+    for (name, malformed, expected) in cases {
+        assert_eq!(
+            simple_schema_error(&package, &approved, &malformed, "Operation"),
+            expected,
+            "{name} precedence"
+        );
+    }
+}
+
+/// Keeps only the functions the entry reaches through direct calls, so a
+/// shared closure can carry helpers that one schema uses and another does
+/// not (the bootstrap gate admits exactly the reached closure).
+fn retain_reached_functions(image: &mut Image) {
+    let calls: std::collections::BTreeMap<EntityId, Vec<EntityId>> = image
+        .functions
+        .iter()
+        .map(|graph| {
+            let callees = graph
+                .blocks
+                .iter()
+                .flat_map(|block_id| {
+                    image
+                        .blocks
+                        .iter()
+                        .find(|block| block.entity_id == *block_id)
+                        .into_iter()
+                        .flat_map(|block| block.operations.iter().copied())
+                })
+                .filter_map(|operation_id| {
+                    image
+                        .operations
+                        .iter()
+                        .find(|operation| operation.entity_id == operation_id)
+                })
+                .filter_map(|operation| match &operation.immediate {
+                    Immediate::Function(reference) => Some(reference.function),
+                    _ => None,
+                })
+                .collect();
+            (graph.entity_id, callees)
+        })
+        .collect();
+    let mut reached = std::collections::BTreeSet::new();
+    let mut pending = vec![image.entry.entity_id];
+    while let Some(function) = pending.pop() {
+        if reached.insert(function) {
+            pending.extend(calls.get(&function).into_iter().flatten().copied());
+        }
+    }
+    image
+        .functions
+        .retain(|graph| reached.contains(&graph.entity_id));
+    // Drop the inventories the unreached functions owned, so the recorded
+    // surface counts describe exactly the admitted closure.
+    image
+        .blocks
+        .retain(|block| reached.contains(&block.function));
+    let live_blocks: std::collections::BTreeSet<EntityId> =
+        image.blocks.iter().map(|block| block.entity_id).collect();
+    image
+        .operations
+        .retain(|operation| live_blocks.contains(&operation.block));
+    image.parameters.retain(|parameter| {
+        reached.contains(&parameter.owner) || live_blocks.contains(&parameter.owner)
+    });
+    let referenced_constants: std::collections::BTreeSet<EntityId> = image
+        .operations
+        .iter()
+        .filter_map(|operation| match (operation.opcode, &operation.immediate) {
+            (Opcode::ConstantRef, Immediate::Entity(constant)) => Some(*constant),
+            _ => None,
+        })
+        .collect();
+    image
+        .constants
+        .retain(|constant| referenced_constants.contains(&constant.entity_id));
 }
