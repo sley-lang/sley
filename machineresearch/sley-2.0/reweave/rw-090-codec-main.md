@@ -66,7 +66,8 @@ Validation commands:
 - `cargo fmt --all -- --check`
 - derived inventory, dossier, anti-goal, frontier, and component-manifest checks
 
-Remaining work includes arbitrary body shapes, optional label/NFC metadata,
-retaining this graph under derived construction identities in canonical `S`,
-independent byte/error parity, and formal acceptance. No gate, ledger, release,
-or runtime-authority state changes in this slice.
+The graph now also has a derived-identity canonical object construction record
+in `rw-090-canonical-codec-objects.md`. Remaining work includes arbitrary body
+shapes, optional label/NFC metadata, binding the constructed object bundle into
+canonical `S`, independent byte/error parity, and formal acceptance. No gate,
+ledger, release, or runtime-authority state changes in this slice.

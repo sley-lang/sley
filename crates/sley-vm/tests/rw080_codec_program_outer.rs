@@ -57,6 +57,8 @@ mod adapter_import;
 mod all_kind_digest_dispatch;
 #[path = "rw080_codec_program/block.rs"]
 mod block;
+#[path = "rw080_codec_program/canonical_codec.rs"]
+mod canonical_codec;
 #[path = "rw080_codec_program/capability_requirement.rs"]
 mod capability_requirement;
 #[path = "rw080_codec_program/codec_main.rs"]

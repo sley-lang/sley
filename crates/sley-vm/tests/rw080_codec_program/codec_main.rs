@@ -551,7 +551,7 @@ fn build_codec_main(
     }
 }
 
-fn codec_main_image() -> Image {
+pub(super) fn codec_main_image() -> Image {
     let decode = super::all_kind_digest_dispatch::all_kind_decode_image();
     let encode = super::all_kind_digest_dispatch::all_kind_encode_image();
     let schema_decode = super::schema_codec::schema_decode_image();
