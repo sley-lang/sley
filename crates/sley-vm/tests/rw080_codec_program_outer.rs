@@ -51,6 +51,8 @@ use sley_ssmc::{
 
 #[path = "rw080_codec_program/adapter_import.rs"]
 mod adapter_import;
+#[path = "rw080_codec_program/capability_requirement.rs"]
+mod capability_requirement;
 #[path = "rw080_codec_program/constant.rs"]
 mod constant;
 #[path = "rw080_codec_program/dependency_binding.rs"]
