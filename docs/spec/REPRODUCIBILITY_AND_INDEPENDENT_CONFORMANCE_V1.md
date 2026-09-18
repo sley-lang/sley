@@ -143,7 +143,12 @@ Rules:
   report, or that carries a malformed attestation or a malformed
   `superseded_attestations` entry, is `REPRO_ATTESTATION_INVALID`; the
   hermetic integrity gate (`verify_report`) requires the listing and checks
-  every entry against the shape above (revision 11). An explicit `--attest`
+  every entry against the shape above (revision 11), and a rebuild runs
+  that gate on the tracked report before carrying anything from it, so a
+  hand-edited report (stale digest) is refused rather than laundered; a
+  listing entry naming the current commit, or two entries for the same
+  host and commit with different artifact digests, is
+  `REPRO_ATTESTATION_CONFLICT` (revision 11, c04539b9 round). An explicit `--attest`
   file whose commit differs from the commit the fresh local attestation
   names is `REPRO_ATTESTATION_CONFLICT`, and no report is written: the
   builder, not the downstream checker, refuses a two-commit report
@@ -554,4 +559,7 @@ Vulcan/Nabu P4s of the same round close alongside: an explicit `--attest`
 file of another commit is refused by the builder
 (`test_an_explicit_attest_file_of_another_commit_is_refused`), and the
 section checker requires each listed superseded commit to be an ancestor of
-`HEAD`.
+`HEAD`. After the c04539b9 round (Vulcan P4) the builder also verifies the
+tracked report's integrity before carrying from it and refuses a listing
+entry of the current commit or a same-key digest conflict
+(`test_a_tracked_report_is_verified_before_it_is_carried`).

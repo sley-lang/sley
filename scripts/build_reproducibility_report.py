@@ -413,6 +413,16 @@ def carried_attestations(
             ReproErrorCode.ATTESTATION_INVALID,
             f"{display(report_path)} is not a reproducibility report",
         )
+    # The tracked report is carried only when it is integral: a hand-edited
+    # file (stale digest, malformed attestation or listing entry) would
+    # otherwise be laundered into a fresh, digest-valid report by a plain
+    # rebuild (Vulcan P4 at c04539b9).
+    integrity = verify_report(tracked)
+    if integrity:
+        raise ReproError(
+            ReproErrorCode.ATTESTATION_INVALID,
+            f"{display(report_path)} fails integrity: {'; '.join(integrity)}",
+        )
     attestations = tracked.get("attestations")
     if not isinstance(attestations, list):
         raise ReproError(
@@ -456,14 +466,26 @@ def carried_attestations(
                 )
             listed.append(dict(entry))
         re_attested = skip_labels | {item["host_label"] for item in carried}
-        seen: set[tuple[str, str]] = set()
+        seen: dict[tuple[str, str], str] = {}
         for entry in sorted(listed, key=lambda item: (item["host_label"], item["commit"])):
             key = (entry["host_label"], entry["commit"])
-            if entry["host_label"] in re_attested or key in seen:
+            if entry["host_label"] in re_attested:
                 continue
             if current_commit is not None and entry["commit"] == current_commit:
+                # A listing entry naming the current candidate is not a
+                # superseded attestation; it is refused, not dropped.
+                raise ReproError(
+                    ReproErrorCode.ATTESTATION_CONFLICT,
+                    f"superseded listing names the current commit {current_commit} for {entry['host_label']!r}",
+                )
+            if key in seen:
+                if seen[key] != entry["artifact_sha256"]:
+                    raise ReproError(
+                        ReproErrorCode.ATTESTATION_CONFLICT,
+                        f"superseded listing carries two artifact digests for {key}",
+                    )
                 continue
-            seen.add(key)
+            seen[key] = entry["artifact_sha256"]
             superseded.append(entry)
     return carried
 

@@ -237,6 +237,31 @@ class ReproducibilityTests(unittest.TestCase):
         with self.assertRaises(repro.ReproError):
             repro.carried_attestations(path, {"primary"}, local["commit"], [])
 
+    def test_a_tracked_report_is_verified_before_it_is_carried(self) -> None:
+        # Vulcan P4 at c04539b9: a hand-edited tracked report (stale digest)
+        # or a listing entry naming the current commit / a same-key digest
+        # conflict is refused rather than laundered by a plain rebuild.
+        local = repro.local_attestation("primary", self.write_evidence())
+        entry = {"host_label": "secondary", "commit": "c" * 40, "artifact_sha256": "d" * 64,
+                 "reason": "attests a commit the re-mint superseded"}
+        path = self.root / "reproducibility-report.json"
+        report = repro.build_report([local], [entry])
+        report["distinct_hosts"] = 7  # digest no longer recomputes
+        path.write_text(repro.canonical(report), encoding="utf-8")
+        with self.assertRaises(repro.ReproError) as error:
+            repro.carried_attestations(path, {"primary"}, local["commit"], [])
+        self.assertEqual(error.exception.code, repro.ReproErrorCode.ATTESTATION_INVALID)
+        current = repro.build_report([local], [dict(entry, commit=local["commit"])])
+        path.write_text(repro.canonical(current), encoding="utf-8")
+        with self.assertRaises(repro.ReproError) as error:
+            repro.carried_attestations(path, {"primary"}, local["commit"], [])
+        self.assertEqual(error.exception.code, repro.ReproErrorCode.ATTESTATION_CONFLICT)
+        conflict = repro.build_report([local], [entry, dict(entry, artifact_sha256="e" * 64)])
+        path.write_text(repro.canonical(conflict), encoding="utf-8")
+        with self.assertRaises(repro.ReproError) as error:
+            repro.carried_attestations(path, {"primary"}, local["commit"], [])
+        self.assertEqual(error.exception.code, repro.ReproErrorCode.ATTESTATION_CONFLICT)
+
     def test_verify_report_requires_and_shapes_the_supersession_listing(self) -> None:
         # Revision 11 (Ariadne P4 at 92fa6646): the hermetic gate validates
         # the listing's shape, not only the attestations.

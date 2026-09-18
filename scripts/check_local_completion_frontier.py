@@ -181,10 +181,18 @@ def main() -> int:
             "PASS_FROZEN_ARCHITECTURE_INTEGRATED",
             "S20-350 review",
         )
+        # The row was normalized to the register's closed form once the
+        # c04539b9 closure review verified its carried P2/P3/P4 (the original
+        # disposition string is preserved in the sibling `_original_note`).
         require_equal(
             mutation.get("epoch1_reanchor_review"),
-            "PASS_AFTER_P2_VECTOR_REANCHOR",
+            "PASS_P2_P3_P4_CLOSED",
             "S20-350 epoch-1 re-anchor review",
+        )
+        require_equal(
+            mutation.get("epoch1_reanchor_review_original_note"),
+            "PASS_AFTER_P2_VECTOR_REANCHOR",
+            "S20-350 epoch-1 re-anchor review (original disposition)",
         )
         require_equal(
             summary.get("candidate_contract_freeze", {}).get("s20_350_unblocked"),

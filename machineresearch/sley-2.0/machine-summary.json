@@ -1384,35 +1384,44 @@
     "focused_semantic_security_review": "PASS_CODEX_NO_OPEN_REPORT_GRADE_FINDINGS",
     "vulcan_review": "PASS_WITH_P3_P4_FOLLOWUPS_NO_P0_P1_P2",
     "vulcan_review_note": "PASS via forge-council vulcan/claude-code 2026-09-11 on c5973c9: S20-130 pure-Python HEAD resolution, no subprocess, fail-closed, byte-identical main-checkout SHA; follow-ups P3 linked-worktree commondir, P3 s20-350 closeout pin left frozen, P4 uppercase-hex normalization; transcript evidence/review/verdicts/mutation_value_profile/vulcan_review-c5973c9.md",
-    "epoch1_reanchor_review": "PASS_AFTER_P2_VECTOR_REANCHOR",
+    "epoch1_reanchor_review": "PASS_P2_P3_P4_CLOSED",
     "merlin_handoff_note": "TIMED_OUT_PARTIAL_HANDOFF_INTEGRATED_BY_CODEX; metadata classification independently confirmed in evidence/review/completion-review-record-audit-2026-09-15.md; no review acceptance implied.",
-    "epoch1_reanchor_review_closure_note": "carried P2/P3/P4 verified closed item by item (the row keeps its original disposition string because scripts/check_local_completion_frontier.py pins it exactly; the normalized closed form and the frontier pin move together in the next source commit); PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED via claude-code/claude-opus-5 2026-09-18 on c04539b9142df797a4001bf4bde2d7b5e68891a0: transcript evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md (sha256 3818de0bf789e2a5ac0f5a97abf5c1334d6b06fa7c190ace861d083e6aea85f7) (transcript FIELD line reads epoch1_reanchor_review_closure). The carried 92fa664 P4 is CLOSED at 5bba01b3: `check_restricted_query_capsule_profile.py:32-45` reconstructs the hex of every byte-array literal in `capsule.rs` and requires all four fixed capsule ids, the checker exits 0 with empty problems, my standalone reproduction yields exactly the four 32-byte ids, and in-memory one-byte-flip and vector-removal controls both fail the pin. The 178873d P2 and P3 are also verified CLOSED by this fresh independent re-derivation of the re-anchor chain (manifest blake3 recomputed by test, twelve identities and two corpus hashes agreeing across summary, source",
-    "p2_open": [
-      "epoch1_reanchor_review_closure_note: [record] docs/adr/ADR-0019-unreleased-epoch1-option-reanchor.md:54-56 - the carried P2 (\"stale machine-summary query/capsule vectors\") cannot be verified closed"
-    ],
-    "p2_open_count": 1,
+    "epoch1_reanchor_review_closure_note": "carried P2/P3/P4 verified closed item by item (normalized to the closed form together with the frontier pin; original disposition preserved verbatim in epoch1_reanchor_review_original_note); PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED via claude-code/claude-opus-5 2026-09-18 on c04539b9142df797a4001bf4bde2d7b5e68891a0: transcript evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md (sha256 3818de0bf789e2a5ac0f5a97abf5c1334d6b06fa7c190ace861d083e6aea85f7) (transcript FIELD line reads epoch1_reanchor_review_closure). The carried 92fa664 P4 is CLOSED at 5bba01b3: `check_restricted_query_capsule_profile.py:32-45` reconstructs the hex of every byte-array literal in `capsule.rs` and requires all four fixed capsule ids, the checker exits 0 with empty problems, my standalone reproduction yields exactly the four 32-byte ids, and in-memory one-byte-flip and vector-removal controls both fail the pin. The 178873d P2 and P3 are also verified CLOSED by this fresh independent re-derivation of the re-anchor chain (manifest blake3 recomputed by test, twelve identities and two corpus hashes agreeing across summary, source",
+    "p2_open": [],
+    "p2_open_count": 0,
     "p3_open": [
       "vulcan_review_closure_note: [record] scripts/check_mutation_value_codecs.py:523-527 - PRIOR, STILL OPEN: checker still hard-pins `vulcan_independent_review: DEFERRED_FORGE_OAUTH_401` and `",
-      "vulcan_review_closure_note: [record] evidence/review/verdicts/mutation_value_profile/vulcan_review-c5973c9.md:3,37 and machineresearch/sley-2.0/machine-summary.json:1320 - NEW: the cited s",
-      "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (mutation_value_profile.epoch1_reanchor_review) - the field carries a PASS-with-P2 disposition that has n"
+      "vulcan_review_closure_note: [record] evidence/review/verdicts/mutation_value_profile/vulcan_review-c5973c9.md:3,37 and machineresearch/sley-2.0/machine-summary.json:1320 - NEW: the cited s"
     ],
-    "p3_open_count": 3,
+    "p3_open_count": 2,
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/mutation_value_profile/vulcan_review_closure-178873d.md (sha256 cd66f4465631a056d7629fcd14766a84e8114cf56c4993d6c9140ad8de7ae200) (transcript FIELD line reads vulcan_review_closure). The original transcript was located and names three findings; the P3 commondir defect is verified closed at be77056e with a regression test and a live on-disk worktree check, but the P3 S20-350 closeout pin and the P4 uppercase-hex gate are unchanged since the original review. Two new notes were found: the transcript's scope SHA c5973c9 is a dangling, prunable commit (P3, evidence integrity; its reviewed content survives byte-identical at e435c91a), and the commondir lookup order can honor per-worktree ref files that git ignores (P4). Independence and fail-closed behavior hold at HEAD (indepen",
     "p4_open": [
       "vulcan_review_closure_note: [implementation] oracle/scb1/src/sley2_scb1_oracle/entity_read.py:3059-3061 - PRIOR, STILL OPEN: accepts `ABCDEF` and returns the value un-normalized; git never",
-      "vulcan_review_closure_note: [implementation] oracle/scb1/src/sley2_scb1_oracle/entity_read.py:3038-3056 - NEW: `refs/heads/*` loose files and `packed-refs` are searched in the worktree git",
-      "epoch1_reanchor_review_closure_note: [checker] scripts/check_restricted_query_capsule_profile.py:24-31 - unlike the query/report/adapter checkers added in the same commit, the capsule checker pins ",
-      "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json:1388-1394,1400-1403 - `p2_open`/`p3_open`/`p4_open` still list the 178873d P2, the 178873d P3 and the 92f"
+      "vulcan_review_closure_note: [implementation] oracle/scb1/src/sley2_scb1_oracle/entity_read.py:3038-3056 - NEW: `refs/heads/*` loose files and `packed-refs` are searched in the worktree git"
     ],
-    "p4_open_count": 4,
-    "p2_verified_closed_pending_records": [
-      "epoch1_reanchor_review_closure-c04539b.md (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED; the lane-less field name carries no reviewer token for the automatic rule)"
+    "p4_open_count": 2,
+    "epoch1_reanchor_review_original_note": "PASS_AFTER_P2_VECTOR_REANCHOR",
+    "p2_closed_claims": [
+      {
+        "claim": "epoch1_reanchor_review_closure_note: [record] docs/adr/ADR-0019-unreleased-epoch1-option-reanchor.md:54-56 - the carried P2 (\"stale machine-summary query/capsule vectors\") cannot be verified closed",
+        "verified_by": "epoch1_reanchor_review_closure-c04539b.md (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED; the lane-less field name carries no reviewer token for the automatic rule)"
+      }
     ],
-    "p3_verified_closed_pending_records": [
-      "epoch1_reanchor_review_closure-c04539b.md (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED; the lane-less field name carries no reviewer token for the automatic rule)"
+    "p3_closed_claims": [
+      {
+        "claim": "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (mutation_value_profile.epoch1_reanchor_review) - the field carries a PASS-with-P2 disposition that has n",
+        "verified_by": "epoch1_reanchor_review_closure-c04539b.md (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED; the lane-less field name carries no reviewer token for the automatic rule)"
+      }
     ],
-    "p4_verified_closed_pending_records": [
-      "epoch1_reanchor_review_closure-c04539b.md (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED; the lane-less field name carries no reviewer token for the automatic rule)"
+    "p4_closed_claims": [
+      {
+        "claim": "epoch1_reanchor_review_closure_note: [checker] scripts/check_restricted_query_capsule_profile.py:24-31 - unlike the query/report/adapter checkers added in the same commit, the capsule checker pins ",
+        "verified_by": "epoch1_reanchor_review_closure-c04539b.md (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED; the lane-less field name carries no reviewer token for the automatic rule)"
+      },
+      {
+        "claim": "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json:1388-1394,1400-1403 - `p2_open`/`p3_open`/`p4_open` still list the 178873d P2, the 178873d P3 and the 92f",
+        "verified_by": "epoch1_reanchor_review_closure-c04539b.md (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED; the lane-less field name carries no reviewer token for the automatic rule)"
+      }
     ]
   },
   "candidate_construction_profile": {
