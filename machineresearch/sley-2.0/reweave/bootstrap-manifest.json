@@ -8,15 +8,22 @@
    "value": "sha256:9c6c5b853e66672c41291d72b1407fd7f9affd510d596390088b4515c4b52389",
    "artifact": "c0-c1-seed-artifacts.json",
    "source_commit": "e3a50ca7",
-   "superseded": "sha256:6bedd5148fa2a7dc10b03255ba7710816d593a26f6e593b376d73dc541176b6f (cf210232, bounded-codec generation, retained in the artifact store)"
+   "digest": "9c6c5b853e66672c41291d72b1407fd7f9affd510d596390088b4515c4b52389",
+   "provenance": {
+    "artifact": "c0-c1-seed-artifacts.json",
+    "checker": "scripts/check_reweave_seed_artifacts.py --require-local",
+    "source_commit": "e3a50ca7",
+    "build_command": "cargo test --release -p sley-vm --test rw120_toolchain_integration --no-run --message-format=json",
+    "digest_method": "raw-byte SHA-256 of the preserved executable",
+    "preserved_by": "RW-120 C0/C1 candidate re-mint (2026-09-18)"
+   }
   },
   "C1": {
    "meaning": "C0.build(S, P)",
    "status": "does not exist; exact C0-produced candidate preserved while semantic prerequisites remain open",
    "value": null,
    "candidate": "sha256:87db2921370298422d0c3b4dbd5b2fe28d9f3b93b07329ac4da7a1a2b0eb2f79",
-   "artifact": "c0-c1-seed-artifacts.json",
-   "superseded_candidate": "sha256:a73fe4cf621826f490adbb50862d3104a99fba56ba06e1613fd52e1672ec865c (cf210232)"
+   "artifact": "c0-c1-seed-artifacts.json"
   },
   "C2": {
    "meaning": "H.run(C1, BuildRequest(S, P))",
@@ -62,7 +69,21 @@
    "value": "b1992814cfc2332215d65e1ede6a619fc2ebb8122b8105e5fc527ca8b10548c3",
    "manifest": "canonical-s-manifest.json",
    "scope": "RW-080 graph-root input with the arbitrary RW-090 codec (re-mint 2026-09-18); checker/lowerer semantic gates and bootstrap gates remain open",
-   "superseded": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47 (bounded-codec generation, cf210232)"
+   "digest": "b1992814cfc2332215d65e1ede6a619fc2ebb8122b8105e5fc527ca8b10548c3",
+   "provenance": {
+    "artifact": "canonical-s-manifest.json",
+    "checker": "scripts/check_reweave_canonical_s.py",
+    "construction_test": "cargo test -p sley-vm --test rw120_toolchain_integration integrated_driver_hands_lowered_bytes_to_the_package_builder -- --nocapture",
+    "source_commit": "e3a50ca7",
+    "digest_method": "accepted state root of the canonical closure (value and digest are the same root)",
+    "frozen_by": "RW-080 construction (2026-09-18), re-minted with the arbitrary RW-090 codec (2026-09-18)"
+   }
   }
+ },
+ "superseded_generations": {
+  "note": "bounded-codec generation (source commit cf210232), retained read-only in the artifact store; hashes kept outside the stage records so every stage carries exactly its provenanced digest",
+  "S": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47 (bounded-codec generation, cf210232)",
+  "C0": "sha256:6bedd5148fa2a7dc10b03255ba7710816d593a26f6e593b376d73dc541176b6f (cf210232, bounded-codec generation, retained in the artifact store)",
+  "C1_candidate": "sha256:a73fe4cf621826f490adbb50862d3104a99fba56ba06e1613fd52e1672ec865c (cf210232)"
  }
 }

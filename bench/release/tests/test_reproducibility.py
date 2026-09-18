@@ -321,7 +321,10 @@ class IndependentConformanceTests(unittest.TestCase):
         # entity-read checks its vectors at v2 (S20-310 contract); sibling
         # v2 corpora are digested, summed, and declared without a depth
         # claim (contract revision 5).
-        self.assertEqual(conformance.CORPUS_VERSION, {"entity-read": "v2"})
+        self.assertEqual(
+            conformance.CORPUS_VERSION,
+            {"entity-read": "v2", "exec-package-envelope": "v2"},
+        )
         self.assertEqual(
             [family["directory"] for family in report["fixtures"]],
             [
