@@ -1,0 +1,18 @@
+{
+  "schema": "sley2-rw090-codec-component-manifest-v1",
+  "status": "PROVISIONAL",
+  "object_count": 6233,
+  "codec_object_count": 6221,
+  "codec_object_stored_bytes": 1571749,
+  "codec_bundle_sha256": "981f68e6114b556e9f20f09d8e4f5393a039cb6b7678774328b2b2f62705fcdb",
+  "state_root": "87afab53ad6634ae0e169cbe767e641c292a363e7ba435808ce9be64ee36e555",
+  "state_root_stored_bytes": 411675,
+  "state_root_stored_sha256": "ea8ed0afe3a82d47dc91058196665be766b16733fbde4ea1fd94edb505292a2f",
+  "entry_point_identity": "EntityId::derive(workspace,candidate,16,5)",
+  "contract_identity": "EntityId::derive(workspace,candidate,13,1)",
+  "test_identity": "EntityId::derive(workspace,candidate,14,1)",
+  "retained_test_target": "canonical frozen-schema decode function",
+  "whole_codec_effect_validation": "OPEN_RHW1_BYTES_TO_BYTES_PROFILE_BOUNDARY",
+  "canonical_state_root_s": false,
+  "r2_ready": false
+}

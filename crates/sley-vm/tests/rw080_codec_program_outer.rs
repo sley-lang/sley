@@ -25746,6 +25746,15 @@ fn admit_with_limits(
     image: &Image,
     limits: sley_vm::ExecutionLimits,
 ) -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecutionPackage) {
+    admit_with_bindings(image, limits, epoch(), root())
+}
+
+fn admit_with_bindings(
+    image: &Image,
+    limits: sley_vm::ExecutionLimits,
+    schema_epoch: SchemaEpochId,
+    state_root: StateRoot,
+) -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecutionPackage) {
     use sley_vm::{
         approve_package_v2,
         bootstrap::{BootstrapProfileInput, BootstrapProfileVersion},
@@ -25756,8 +25765,8 @@ fn admit_with_limits(
         parameters: &image.parameters,
         blocks: &image.blocks,
         operations: &image.operations,
-        schema_epoch: epoch(),
-        state_root: root(),
+        schema_epoch,
+        state_root,
         profile: sley_vm::CacheProfile::EXTENDED_V1,
         constants: &image.constants,
         globals: &[],
@@ -25768,7 +25777,7 @@ fn admit_with_limits(
     .expect("program-outer image lowers under the reference lowerer");
     let gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
         types: &image.types,
-        schema_epoch: epoch(),
+        schema_epoch,
         entry: &image.entry,
         presented_image_bytes: &lowered.bytes,
         functions: &image.functions,
@@ -25788,8 +25797,8 @@ fn admit_with_limits(
         globals: Vec::new(),
         contracts: Vec::new(),
         entry: image.entry.entity_id,
-        schema_epoch: epoch(),
-        state_root: root(),
+        schema_epoch,
+        state_root,
         profile: sley_vm::CacheProfile::EXTENDED_V1,
         admitted_limits: limits,
         gate_operation_count: gate.operation_count(),
@@ -25798,8 +25807,8 @@ fn admit_with_limits(
     };
     let closure = sley_vm::V2Closure {
         types: &image.types,
-        schema_epoch: epoch(),
-        state_root: root(),
+        schema_epoch,
+        state_root,
         entry: image.entry.entity_id,
         functions: &image.functions,
         parameters: &image.parameters,
