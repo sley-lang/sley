@@ -30,9 +30,10 @@ Each set returns the concatenated 32-byte identities plus its decoded count.
 Known body tags other than 2 return `SSMC_RESERVED_FIELD_PRESENT`; tag 0 and
 tags above the closed 18-kind union return `SCB_UNION_INVALID`.
 
-This slice owns standalone body decoding. Program envelope/outer composition
-and addition to the supported semantic sum remain later bounded slices, so
-the whole-program dispatcher is unchanged.
+At slice-19 landing this slice owned standalone body decoding. Program
+envelope/outer composition remained a later bounded slice. Program slice 20
+subsequently composed Package decode; addition to the supported semantic sum
+still remains later, so the whole-program dispatcher is unchanged.
 
 ## 2. Reused cursor and set semantics
 
@@ -61,7 +62,7 @@ trailing is checked after record completion. Uvar, bounds, missing, unknown,
 duplicate, order, fixed-width and map-canonicality refusals therefore retain
 the native nesting order.
 
-## 3. Evidence and resource envelope
+## 3. Landing evidence and resource envelope
 
 One admitted image returns native semantic values for empty sets, one member
 in each set, one dependency plus two exports, and a nonuniform fixed-identity
@@ -101,6 +102,11 @@ Validation:
 - `cargo fmt --all -- --check`
 - `python3 scripts/build_anti_goal_conformance.py --check`
 - `git diff --check`
+
+These measurements are the slice-19 landing baseline. Program slice 20 later
+reduced transient set-wrapper allocations while preserving every semantic and
+malformed-code check. Its current measurements and new F5 boundary are in
+`rw-080-codec-package-compose-decode.md`.
 
 Local strict review checks typed cursor generalization, unchanged kind-18
 behavior, schema tag and field order, native semantic values, malformed-code

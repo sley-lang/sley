@@ -3,6 +3,8 @@
 //! `machineresearch/sley-2.0/reweave/rw-080-codec-package-encode.md`.
 //! Strict decode provenance:
 //! `machineresearch/sley-2.0/reweave/rw-080-codec-package-decode.md`.
+//! Whole-program decode composition provenance:
+//! `machineresearch/sley-2.0/reweave/rw-080-codec-package-compose-decode.md`.
 
 use super::*;
 use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
@@ -1074,6 +1076,9 @@ fn build_policy_set_payload_wrap(
     let block_start = a.blocks.len();
     let result_type = encode_result_type();
     let width64 = a.ku32(ns.k, 64);
+    let one = a.ku64(ns.k, 1);
+    let single_byte_limit = a.ku64(ns.k, 128);
+    let record_fixed_width = a.ku64(ns.k, 36);
     let resource_error = a.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
     let record_prefix = a.kbytes(ns.k, &[2, 1, 32]);
     let field2 = a.kbytes(ns.k, &[2]);
@@ -1082,11 +1087,15 @@ fn build_policy_set_payload_wrap(
     let set_payload = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
     let unit = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Unit);
     let resource = err_block(a, ns, fid, result_type.clone(), resource_error);
+    let trap = trap_block(a, ns, fid);
     let entry = a.id(ns.b);
     let payload_length = a.id(ns.b);
-    let record_parts = a.id(ns.b);
-    let record_ready = a.id(ns.b);
-    let record_length = a.id(ns.b);
+    let payload_width = a.id(ns.b);
+    let payload_width_slow = a.id(ns.b);
+    let record_fast = a.id(ns.b);
+    let record_base = a.id(ns.b);
+    let record_total = a.id(ns.b);
+    let encode_record_length = a.id(ns.b);
     let wrap = a.id(ns.b);
     let forward_error = a.id(ns.b);
 
@@ -1156,9 +1165,10 @@ fn build_policy_set_payload_wrap(
             vec![
                 (
                     BuiltinCase::Ok,
-                    record_parts,
+                    payload_width,
                     vec![
                         SwitchArgument::CasePayload,
+                        oav(payload_count),
                         sav(saved_subject),
                         sav(saved_payload),
                         sav(saved_unit),
@@ -1174,87 +1184,115 @@ fn build_policy_set_payload_wrap(
         reachability: Reachability::Required,
     });
 
-    let payload_length_bytes = a.param(ns.p, record_parts, ParameterRole::Block, TypeExpr::Bytes);
-    let record_subject = a.param(ns.p, record_parts, ParameterRole::Block, TypeExpr::Bytes);
-    let record_payload = a.param(ns.p, record_parts, ParameterRole::Block, TypeExpr::Bytes);
-    let record_unit = a.param(ns.p, record_parts, ParameterRole::Block, TypeExpr::Unit);
-    let prefix = a.cref(ns.o, record_parts, record_prefix, TypeExpr::Bytes);
-    let second = a.cref(ns.o, record_parts, field2, TypeExpr::Bytes);
-    let parts = a.op(
+    let payload_length_bytes = a.param(ns.p, payload_width, ParameterRole::Block, TypeExpr::Bytes);
+    let payload_count = a.param(ns.p, payload_width, ParameterRole::Block, u64_type());
+    let width_subject = a.param(ns.p, payload_width, ParameterRole::Block, TypeExpr::Bytes);
+    let width_payload = a.param(ns.p, payload_width, ParameterRole::Block, TypeExpr::Bytes);
+    let width_unit = a.param(ns.p, payload_width, ParameterRole::Block, TypeExpr::Unit);
+    let width_limit = a.cref(ns.o, payload_width, single_byte_limit, u64_type());
+    let is_single_byte = a.op(
         ns.o,
-        record_parts,
-        Opcode::VectorNew,
-        vec![
-            op_result(prefix),
-            pav(record_subject),
-            op_result(second),
-            pav(payload_length_bytes),
-            pav(record_payload),
-        ],
-        vec![bytes_vector_type()],
+        payload_width,
+        Opcode::LessThan,
+        vec![pav(payload_count), op_result(width_limit)],
+        vec![TypeExpr::Bool],
         Immediate::None,
     );
-    let composed_record = a.op(
-        ns.o,
-        record_parts,
-        Opcode::CallDirect,
-        vec![op_result(parts), pav(record_unit)],
-        vec![result_type.clone()],
-        Immediate::Function(FunctionRefValue {
-            function: concat_fid,
-            type_arguments: Vec::new(),
-        }),
-    );
     a.blocks.push(Block {
-        entity_id: record_parts,
+        entity_id: payload_width,
         function: fid,
         parameters: vec![
             payload_length_bytes,
-            record_subject,
-            record_payload,
-            record_unit,
+            payload_count,
+            width_subject,
+            width_payload,
+            width_unit,
         ],
-        operations: vec![prefix, second, parts, composed_record],
-        terminator: switch(
-            op_result(composed_record),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    record_ready,
-                    vec![SwitchArgument::CasePayload, sav(record_unit)],
-                ),
-                (
-                    BuiltinCase::Err,
-                    forward_error,
-                    vec![SwitchArgument::CasePayload],
-                ),
-            ],
+        operations: vec![width_limit, is_single_byte],
+        terminator: cond(
+            op_result(is_single_byte),
+            edge(
+                record_fast,
+                vec![
+                    pav(payload_count),
+                    pav(payload_length_bytes),
+                    pav(width_subject),
+                    pav(width_payload),
+                    pav(width_unit),
+                ],
+            ),
+            edge(
+                payload_width_slow,
+                vec![
+                    pav(payload_count),
+                    pav(payload_length_bytes),
+                    pav(width_subject),
+                    pav(width_payload),
+                    pav(width_unit),
+                ],
+            ),
         ),
         reachability: Reachability::Required,
     });
 
-    let record = a.param(ns.p, record_ready, ParameterRole::Block, TypeExpr::Bytes);
-    let ready_unit = a.param(ns.p, record_ready, ParameterRole::Block, TypeExpr::Unit);
-    let record_vector = a.op(
+    let slow_payload_count = a.param(ns.p, payload_width_slow, ParameterRole::Block, u64_type());
+    let slow_payload_length = a.param(
+        ns.p,
+        payload_width_slow,
+        ParameterRole::Block,
+        TypeExpr::Bytes,
+    );
+    let slow_subject = a.param(
+        ns.p,
+        payload_width_slow,
+        ParameterRole::Block,
+        TypeExpr::Bytes,
+    );
+    let slow_payload = a.param(
+        ns.p,
+        payload_width_slow,
+        ParameterRole::Block,
+        TypeExpr::Bytes,
+    );
+    let slow_unit = a.param(
+        ns.p,
+        payload_width_slow,
+        ParameterRole::Block,
+        TypeExpr::Unit,
+    );
+    let length_vector = a.op(
         ns.o,
-        record_ready,
+        payload_width_slow,
         Opcode::AdapterInvoke,
-        vec![pav(ready_unit), pav(record)],
+        vec![pav(slow_unit), pav(slow_payload_length)],
         vec![index_result(u8vec_type())],
         Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
     );
     a.blocks.push(Block {
-        entity_id: record_ready,
+        entity_id: payload_width_slow,
         function: fid,
-        parameters: vec![record, ready_unit],
-        operations: vec![record_vector],
+        parameters: vec![
+            slow_payload_count,
+            slow_payload_length,
+            slow_subject,
+            slow_payload,
+            slow_unit,
+        ],
+        operations: vec![length_vector],
         terminator: switch(
-            op_result(record_vector),
+            op_result(length_vector),
             vec![
                 (
                     BuiltinCase::Ok,
-                    record_length,
-                    vec![SwitchArgument::CasePayload, sav(record), sav(ready_unit)],
+                    record_base,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(slow_payload_count),
+                        sav(slow_payload_length),
+                        sav(slow_subject),
+                        sav(slow_payload),
+                        sav(slow_unit),
+                    ],
                 ),
                 (BuiltinCase::Err, resource, Vec::new()),
             ],
@@ -1262,23 +1300,186 @@ fn build_policy_set_payload_wrap(
         reachability: Reachability::Required,
     });
 
-    let record_vec = a.param(ns.p, record_length, ParameterRole::Block, u8vec_type());
-    let saved_record = a.param(ns.p, record_length, ParameterRole::Block, TypeExpr::Bytes);
-    let length_unit = a.param(ns.p, record_length, ParameterRole::Block, TypeExpr::Unit);
-    let record_count = a.op(
+    let fast_payload_count = a.param(ns.p, record_fast, ParameterRole::Block, u64_type());
+    let fast_payload_length = a.param(ns.p, record_fast, ParameterRole::Block, TypeExpr::Bytes);
+    let fast_subject = a.param(ns.p, record_fast, ParameterRole::Block, TypeExpr::Bytes);
+    let fast_payload = a.param(ns.p, record_fast, ParameterRole::Block, TypeExpr::Bytes);
+    let fast_unit = a.param(ns.p, record_fast, ParameterRole::Block, TypeExpr::Unit);
+    let fixed = a.cref(ns.o, record_fast, record_fixed_width, u64_type());
+    let one = a.cref(ns.o, record_fast, one, u64_type());
+    let base_length = a.op(
         ns.o,
-        record_length,
+        record_fast,
+        Opcode::IntAddChecked,
+        vec![pav(fast_payload_count), op_result(fixed)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: record_fast,
+        function: fid,
+        parameters: vec![
+            fast_payload_count,
+            fast_payload_length,
+            fast_subject,
+            fast_payload,
+            fast_unit,
+        ],
+        operations: vec![fixed, one, base_length],
+        terminator: switch(
+            op_result(base_length),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    record_total,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        oav(one),
+                        sav(fast_payload_length),
+                        sav(fast_subject),
+                        sav(fast_payload),
+                        sav(fast_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, trap, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let length_vec = a.param(ns.p, record_base, ParameterRole::Block, u8vec_type());
+    let base_payload_count = a.param(ns.p, record_base, ParameterRole::Block, u64_type());
+    let base_payload_length = a.param(ns.p, record_base, ParameterRole::Block, TypeExpr::Bytes);
+    let base_subject = a.param(ns.p, record_base, ParameterRole::Block, TypeExpr::Bytes);
+    let base_payload = a.param(ns.p, record_base, ParameterRole::Block, TypeExpr::Bytes);
+    let base_unit = a.param(ns.p, record_base, ParameterRole::Block, TypeExpr::Unit);
+    let length_width = a.op(
+        ns.o,
+        record_base,
         Opcode::VectorLen,
-        vec![pav(record_vec)],
+        vec![pav(length_vec)],
         vec![u64_type()],
         Immediate::None,
     );
-    let width = a.cref(ns.o, record_length, width64, u32_type());
+    let fixed = a.cref(ns.o, record_base, record_fixed_width, u64_type());
+    let base_length = a.op(
+        ns.o,
+        record_base,
+        Opcode::IntAddChecked,
+        vec![pav(base_payload_count), op_result(fixed)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: record_base,
+        function: fid,
+        parameters: vec![
+            length_vec,
+            base_payload_count,
+            base_payload_length,
+            base_subject,
+            base_payload,
+            base_unit,
+        ],
+        operations: vec![length_width, fixed, base_length],
+        terminator: switch(
+            op_result(base_length),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    record_total,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        oav(length_width),
+                        sav(base_payload_length),
+                        sav(base_subject),
+                        sav(base_payload),
+                        sav(base_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, trap, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let base_length = a.param(ns.p, record_total, ParameterRole::Block, u64_type());
+    let payload_width = a.param(ns.p, record_total, ParameterRole::Block, u64_type());
+    let total_payload_length = a.param(ns.p, record_total, ParameterRole::Block, TypeExpr::Bytes);
+    let total_subject = a.param(ns.p, record_total, ParameterRole::Block, TypeExpr::Bytes);
+    let total_payload = a.param(ns.p, record_total, ParameterRole::Block, TypeExpr::Bytes);
+    let total_unit = a.param(ns.p, record_total, ParameterRole::Block, TypeExpr::Unit);
+    let record_count = a.op(
+        ns.o,
+        record_total,
+        Opcode::IntAddChecked,
+        vec![pav(base_length), pav(payload_width)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: record_total,
+        function: fid,
+        parameters: vec![
+            base_length,
+            payload_width,
+            total_payload_length,
+            total_subject,
+            total_payload,
+            total_unit,
+        ],
+        operations: vec![record_count],
+        terminator: switch(
+            op_result(record_count),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    encode_record_length,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(total_payload_length),
+                        sav(total_subject),
+                        sav(total_payload),
+                        sav(total_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, trap, Vec::new()),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let record_count = a.param(ns.p, encode_record_length, ParameterRole::Block, u64_type());
+    let encoded_payload_length = a.param(
+        ns.p,
+        encode_record_length,
+        ParameterRole::Block,
+        TypeExpr::Bytes,
+    );
+    let encoded_subject = a.param(
+        ns.p,
+        encode_record_length,
+        ParameterRole::Block,
+        TypeExpr::Bytes,
+    );
+    let encoded_payload = a.param(
+        ns.p,
+        encode_record_length,
+        ParameterRole::Block,
+        TypeExpr::Bytes,
+    );
+    let encoded_unit = a.param(
+        ns.p,
+        encode_record_length,
+        ParameterRole::Block,
+        TypeExpr::Unit,
+    );
+    let width = a.cref(ns.o, encode_record_length, width64, u32_type());
     let encoded_record_length = a.op(
         ns.o,
-        record_length,
+        encode_record_length,
         Opcode::CallDirect,
-        vec![op_result(record_count), op_result(width), pav(length_unit)],
+        vec![pav(record_count), op_result(width), pav(encoded_unit)],
         vec![result_type.clone()],
         Immediate::Function(FunctionRefValue {
             function: encode_fid,
@@ -1286,10 +1487,16 @@ fn build_policy_set_payload_wrap(
         }),
     );
     a.blocks.push(Block {
-        entity_id: record_length,
+        entity_id: encode_record_length,
         function: fid,
-        parameters: vec![record_vec, saved_record, length_unit],
-        operations: vec![record_count, width, encoded_record_length],
+        parameters: vec![
+            record_count,
+            encoded_payload_length,
+            encoded_subject,
+            encoded_payload,
+            encoded_unit,
+        ],
+        operations: vec![width, encoded_record_length],
         terminator: switch(
             op_result(encoded_record_length),
             vec![
@@ -1298,8 +1505,10 @@ fn build_policy_set_payload_wrap(
                     wrap,
                     vec![
                         SwitchArgument::CasePayload,
-                        sav(saved_record),
-                        sav(length_unit),
+                        sav(encoded_payload_length),
+                        sav(encoded_subject),
+                        sav(encoded_payload),
+                        sav(encoded_unit),
                     ],
                 ),
                 (
@@ -1313,14 +1522,26 @@ fn build_policy_set_payload_wrap(
     });
 
     let record_length_bytes = a.param(ns.p, wrap, ParameterRole::Block, TypeExpr::Bytes);
-    let final_record = a.param(ns.p, wrap, ParameterRole::Block, TypeExpr::Bytes);
+    let final_payload_length = a.param(ns.p, wrap, ParameterRole::Block, TypeExpr::Bytes);
+    let final_subject = a.param(ns.p, wrap, ParameterRole::Block, TypeExpr::Bytes);
+    let final_payload = a.param(ns.p, wrap, ParameterRole::Block, TypeExpr::Bytes);
     let wrap_unit = a.param(ns.p, wrap, ParameterRole::Block, TypeExpr::Unit);
     let tag = a.cref(ns.o, wrap, union_tag, TypeExpr::Bytes);
+    let prefix = a.cref(ns.o, wrap, record_prefix, TypeExpr::Bytes);
+    let second = a.cref(ns.o, wrap, field2, TypeExpr::Bytes);
     let final_parts = a.op(
         ns.o,
         wrap,
         Opcode::VectorNew,
-        vec![op_result(tag), pav(record_length_bytes), pav(final_record)],
+        vec![
+            op_result(tag),
+            pav(record_length_bytes),
+            op_result(prefix),
+            pav(final_subject),
+            op_result(second),
+            pav(final_payload_length),
+            pav(final_payload),
+        ],
         vec![bytes_vector_type()],
         Immediate::None,
     );
@@ -1338,8 +1559,14 @@ fn build_policy_set_payload_wrap(
     a.blocks.push(Block {
         entity_id: wrap,
         function: fid,
-        parameters: vec![record_length_bytes, final_record, wrap_unit],
-        operations: vec![tag, final_parts, wrapped],
+        parameters: vec![
+            record_length_bytes,
+            final_payload_length,
+            final_subject,
+            final_payload,
+            wrap_unit,
+        ],
+        operations: vec![tag, prefix, second, final_parts, wrapped],
         terminator: ret(op_result(wrapped)),
         reachability: Reachability::Required,
     });
@@ -1378,6 +1605,7 @@ fn build_policy_set_payload_wrap(
     }
 }
 
+#[allow(clippy::too_many_lines)]
 fn build_identity_set_payload_decode(
     a: &mut Asm,
     ns: Ns,
@@ -1390,14 +1618,80 @@ fn build_identity_set_payload_decode(
     let subject = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
     let payload = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
     let unit = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Unit);
+    let canonical_empty = a.kbytes(ns.k, &[0]);
+    let empty_members = a.kbytes(ns.k, b"");
+    let zero = a.ku64(ns.k, 0);
     let entry = a.id(ns.b);
+    let empty = a.id(ns.b);
+    let wrap = a.id(ns.b);
     let decode = a.id(ns.b);
     let forward_error = a.id(ns.b);
-    let wrapped = a.op(
+    let empty_constant = a.cref(ns.o, entry, canonical_empty, TypeExpr::Bytes);
+    let is_empty = a.op(
         ns.o,
         entry,
+        Opcode::Equal,
+        vec![pav(payload), op_result(empty_constant)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: entry,
+        function: fid,
+        parameters: Vec::new(),
+        operations: vec![empty_constant, is_empty],
+        terminator: cond(
+            op_result(is_empty),
+            edge(empty, vec![pav(subject)]),
+            edge(wrap, vec![pav(subject), pav(payload), pav(unit)]),
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let empty_subject = a.param(ns.p, empty, ParameterRole::Block, TypeExpr::Bytes);
+    let empty_bytes = a.cref(ns.o, empty, empty_members, TypeExpr::Bytes);
+    let empty_count = a.cref(ns.o, empty, zero, u64_type());
+    let empty_tuple = a.op(
+        ns.o,
+        empty,
+        Opcode::TupleNew,
+        vec![
+            pav(empty_subject),
+            op_result(empty_bytes),
+            op_result(empty_count),
+        ],
+        vec![TypeExpr::Tuple(vec![
+            TypeExpr::Bytes,
+            TypeExpr::Bytes,
+            u64_type(),
+        ])],
+        Immediate::None,
+    );
+    let empty_ok = a.op(
+        ns.o,
+        empty,
+        Opcode::ResultOk,
+        vec![op_result(empty_tuple)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: empty,
+        function: fid,
+        parameters: vec![empty_subject],
+        operations: vec![empty_bytes, empty_count, empty_tuple, empty_ok],
+        terminator: ret(op_result(empty_ok)),
+        reachability: Reachability::Required,
+    });
+
+    let wrap_subject = a.param(ns.p, wrap, ParameterRole::Block, TypeExpr::Bytes);
+    let wrap_payload = a.param(ns.p, wrap, ParameterRole::Block, TypeExpr::Bytes);
+    let wrap_unit = a.param(ns.p, wrap, ParameterRole::Block, TypeExpr::Unit);
+    let wrapped = a.op(
+        ns.o,
+        wrap,
         Opcode::CallDirect,
-        vec![pav(subject), pav(payload), pav(unit)],
+        vec![pav(wrap_subject), pav(wrap_payload), pav(wrap_unit)],
         vec![encode_result_type()],
         Immediate::Function(FunctionRefValue {
             function: wrap_fid,
@@ -1405,9 +1699,9 @@ fn build_identity_set_payload_decode(
         }),
     );
     a.blocks.push(Block {
-        entity_id: entry,
+        entity_id: wrap,
         function: fid,
-        parameters: Vec::new(),
+        parameters: vec![wrap_subject, wrap_payload, wrap_unit],
         operations: vec![wrapped],
         terminator: switch(
             op_result(wrapped),
@@ -1415,7 +1709,7 @@ fn build_identity_set_payload_decode(
                 (
                     BuiltinCase::Ok,
                     decode,
-                    vec![SwitchArgument::CasePayload, sav(unit)],
+                    vec![SwitchArgument::CasePayload, sav(wrap_unit)],
                 ),
                 (
                     BuiltinCase::Err,
@@ -1544,6 +1838,257 @@ fn build_package_decode(
         entity_id: fid,
         type_parameters: Vec::new(),
         parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: a.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+fn package_program_decode_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(TypeExpr::Tuple(vec![
+            TypeExpr::Bytes,
+            TypeExpr::Tuple(vec![
+                TypeExpr::Bytes,
+                TypeExpr::Bytes,
+                TypeExpr::Bytes,
+                u64_type(),
+                TypeExpr::Bytes,
+                u64_type(),
+            ]),
+        ])),
+        error: Box::new(TypeExpr::Bytes),
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_package_program_decode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    validate_fid: EntityId,
+    outer_fid: EntityId,
+    package_fid: EntityId,
+) -> FunctionGraph {
+    let block_start = a.blocks.len();
+    let result_type = package_program_decode_result_type();
+    let envelope_type = encode_result_type();
+    let outer_type = outer_decode_result_type();
+    let package_type = dependency_binding_decode::package_decode_result_type();
+    let stored = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Unit);
+
+    let entry = a.id(ns.b);
+    let envelope_ok = a.id(ns.b);
+    let outer_ok = a.id(ns.b);
+    let package_ok = a.id(ns.b);
+    let forward_error = a.id(ns.b);
+
+    let decoded_envelope = a.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(stored), pav(unit)],
+        vec![envelope_type],
+        Immediate::Function(FunctionRefValue {
+            function: validate_fid,
+            type_arguments: Vec::new(),
+        }),
+    );
+    a.blocks.push(Block {
+        entity_id: entry,
+        function: fid,
+        parameters: Vec::new(),
+        operations: vec![decoded_envelope],
+        terminator: switch(
+            op_result(decoded_envelope),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    envelope_ok,
+                    vec![SwitchArgument::CasePayload, sav(unit)],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let payload = a.param(ns.p, envelope_ok, ParameterRole::Block, TypeExpr::Bytes);
+    let envelope_unit = a.param(ns.p, envelope_ok, ParameterRole::Block, TypeExpr::Unit);
+    let decoded_outer = a.op(
+        ns.o,
+        envelope_ok,
+        Opcode::CallDirect,
+        vec![pav(payload), pav(envelope_unit)],
+        vec![outer_type],
+        Immediate::Function(FunctionRefValue {
+            function: outer_fid,
+            type_arguments: Vec::new(),
+        }),
+    );
+    a.blocks.push(Block {
+        entity_id: envelope_ok,
+        function: fid,
+        parameters: vec![payload, envelope_unit],
+        operations: vec![decoded_outer],
+        terminator: switch(
+            op_result(decoded_outer),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    outer_ok,
+                    vec![SwitchArgument::CasePayload, sav(envelope_unit)],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let outer_tuple = a.param(
+        ns.p,
+        outer_ok,
+        ParameterRole::Block,
+        TypeExpr::Tuple(vec![TypeExpr::Bytes, TypeExpr::Bytes]),
+    );
+    let outer_unit = a.param(ns.p, outer_ok, ParameterRole::Block, TypeExpr::Unit);
+    let body = a.op(
+        ns.o,
+        outer_ok,
+        Opcode::TupleGet,
+        vec![pav(outer_tuple)],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    let decoded_package = a.op(
+        ns.o,
+        outer_ok,
+        Opcode::CallDirect,
+        vec![op_result(body), pav(outer_unit)],
+        vec![package_type],
+        Immediate::Function(FunctionRefValue {
+            function: package_fid,
+            type_arguments: Vec::new(),
+        }),
+    );
+    a.blocks.push(Block {
+        entity_id: outer_ok,
+        function: fid,
+        parameters: vec![outer_tuple, outer_unit],
+        operations: vec![body, decoded_package],
+        terminator: switch(
+            op_result(decoded_package),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    package_ok,
+                    vec![SwitchArgument::CasePayload, sav(outer_tuple)],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+        reachability: Reachability::Required,
+    });
+
+    let package_tuple_type = TypeExpr::Tuple(vec![
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        u64_type(),
+        TypeExpr::Bytes,
+        u64_type(),
+    ]);
+    let package_tuple = a.param(ns.p, package_ok, ParameterRole::Block, package_tuple_type);
+    let successful_outer = a.param(
+        ns.p,
+        package_ok,
+        ParameterRole::Block,
+        TypeExpr::Tuple(vec![TypeExpr::Bytes, TypeExpr::Bytes]),
+    );
+    let package_entity = a.op(
+        ns.o,
+        package_ok,
+        Opcode::TupleGet,
+        vec![pav(successful_outer)],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(0),
+    );
+    let joined = a.op(
+        ns.o,
+        package_ok,
+        Opcode::TupleNew,
+        vec![op_result(package_entity), pav(package_tuple)],
+        vec![TypeExpr::Tuple(vec![
+            TypeExpr::Bytes,
+            TypeExpr::Tuple(vec![
+                TypeExpr::Bytes,
+                TypeExpr::Bytes,
+                TypeExpr::Bytes,
+                u64_type(),
+                TypeExpr::Bytes,
+                u64_type(),
+            ]),
+        ])],
+        Immediate::None,
+    );
+    let ok = a.op(
+        ns.o,
+        package_ok,
+        Opcode::ResultOk,
+        vec![op_result(joined)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: package_ok,
+        function: fid,
+        parameters: vec![package_tuple, successful_outer],
+        operations: vec![package_entity, joined, ok],
+        terminator: ret(op_result(ok)),
+        reachability: Reachability::Required,
+    });
+
+    let error_bytes = a.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let error = a.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(error_bytes)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    a.blocks.push(Block {
+        entity_id: forward_error,
+        function: fid,
+        parameters: vec![error_bytes],
+        operations: vec![error],
+        terminator: ret(op_result(error)),
+        reachability: Reachability::Required,
+    });
+
+    FunctionGraph {
+        entity_id: fid,
+        type_parameters: Vec::new(),
+        parameters: vec![stored, unit],
         result_type,
         effects: Vec::new(),
         entry_block: entry,
@@ -2228,6 +2773,174 @@ fn package_decode_image() -> Image {
     }
 }
 
+#[allow(clippy::too_many_lines)]
+fn package_program_decode_image() -> Image {
+    use sley_vm::host_abi::BRIDGE_CODE_RHW1;
+
+    let mut assembler = Asm::new();
+    let decode_fid = eid(14, 1);
+    let validate_fid = eid(14, 2);
+    let outer_fid = eid(14, 3);
+    let policy_fid = eid(14, 4);
+    let encode_fid = eid(14, 5);
+    let concat_fid = eid(14, 6);
+    let wrap_fid = eid(14, 7);
+    let set_fid = eid(14, 8);
+    let core_fid = eid(14, 9);
+    let package_fid = eid(14, 10);
+    let program_fid = eid(14, 11);
+    let (decode_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 162,
+            p: 163,
+            b: 164,
+            o: 165,
+        },
+        decode_fid,
+    );
+    let validate_graph = build_program_validate(
+        &mut assembler,
+        Ns {
+            k: 166,
+            p: 167,
+            b: 168,
+            o: 169,
+        },
+        validate_fid,
+        decode_fid,
+    );
+    let outer_graph = build_outer_decode(
+        &mut assembler,
+        Ns {
+            k: 170,
+            p: 171,
+            b: 172,
+            o: 173,
+        },
+        outer_fid,
+        decode_fid,
+    );
+    let policy_graph = build_policy_binding_decode(
+        &mut assembler,
+        Ns {
+            k: 174,
+            p: 175,
+            b: 176,
+            o: 177,
+        },
+        policy_fid,
+        decode_fid,
+    );
+    let encode_graph = build_encode(
+        &mut assembler,
+        Ns {
+            k: 178,
+            p: 179,
+            b: 180,
+            o: 181,
+        },
+        encode_fid,
+    );
+    let concat_graph = build_concat_bytes(
+        &mut assembler,
+        Ns {
+            k: 182,
+            p: 183,
+            b: 184,
+            o: 185,
+        },
+        concat_fid,
+    );
+    let wrap_graph = build_policy_set_payload_wrap(
+        &mut assembler,
+        Ns {
+            k: 186,
+            p: 187,
+            b: 188,
+            o: 189,
+        },
+        wrap_fid,
+        encode_fid,
+        concat_fid,
+    );
+    let set_graph = build_identity_set_payload_decode(
+        &mut assembler,
+        Ns {
+            k: 190,
+            p: 191,
+            b: 192,
+            o: 193,
+        },
+        set_fid,
+        wrap_fid,
+        policy_fid,
+    );
+    let core_graph = dependency_binding_decode::build_package_decode_from_vector(
+        &mut assembler,
+        Ns {
+            k: 194,
+            p: 195,
+            b: 196,
+            o: 197,
+        },
+        core_fid,
+        decode_fid,
+        set_fid,
+    );
+    let package_graph = build_package_decode(
+        &mut assembler,
+        Ns {
+            k: 198,
+            p: 199,
+            b: 200,
+            o: 201,
+        },
+        package_fid,
+        core_fid,
+    );
+    let program_graph = build_package_program_decode(
+        &mut assembler,
+        Ns {
+            k: 202,
+            p: 203,
+            b: 204,
+            o: 205,
+        },
+        program_fid,
+        validate_fid,
+        outer_fid,
+        package_fid,
+    );
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: program_graph.clone(),
+        functions: vec![
+            program_graph,
+            validate_graph,
+            outer_graph,
+            package_graph,
+            core_graph,
+            set_graph,
+            wrap_graph,
+            concat_graph,
+            policy_graph,
+            encode_graph,
+            decode_graph,
+        ],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+            frozen_import(BRIDGE_CODE_RHW1, TypeExpr::Bytes, TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    }
+}
+
 fn package_encode_call(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
@@ -2255,6 +2968,14 @@ fn package_decode_call(
     body: &[u8],
 ) -> sley_vm::ExecutionOutcome {
     execute(package, approved, vec![bytes_input(body), unit_input()])
+}
+
+fn package_program_decode_call(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    stored: &[u8],
+) -> sley_vm::ExecutionOutcome {
+    execute(package, approved, vec![bytes_input(stored), unit_input()])
 }
 
 fn package_stored(
@@ -2361,6 +3082,52 @@ fn assert_package_decode_ok(
     );
 }
 
+fn assert_package_program_decode_ok(
+    outcome: &sley_vm::ExecutionOutcome,
+    entity: &[u8; 32],
+    workspace: &[u8; 32],
+    root_namespace: &[u8; 32],
+    dependencies: &[[u8; 32]],
+    exports: &[[u8; 32]],
+) {
+    let sley_vm::ExecutionTermination::Success(found) = &outcome.termination else {
+        panic!(
+            "Package program decode must return: {:?}",
+            outcome.termination
+        )
+    };
+    let ConstData::Result(ResultConst::Ok(payload)) = &found.data else {
+        panic!("Package program decode must succeed: {:?}", found.data)
+    };
+    let ConstData::Sequence(fields) = &payload.data else {
+        panic!("Package program result must be a tuple: {:?}", payload.data)
+    };
+    assert_eq!(fields.len(), 2, "Package program tuple has entity and body");
+    assert_eq!(fields[0].data, ConstData::Bytes(entity.to_vec()));
+    let ConstData::Sequence(body_fields) = &fields[1].data else {
+        panic!("Package program body must be a tuple: {:?}", fields[1].data)
+    };
+    assert_eq!(body_fields.len(), 6, "Package body tuple has six values");
+    assert_eq!(body_fields[0].data, ConstData::Bytes(workspace.to_vec()));
+    assert_eq!(
+        body_fields[1].data,
+        ConstData::Bytes(root_namespace.to_vec())
+    );
+    assert_eq!(
+        body_fields[2].data,
+        ConstData::Bytes(concat_ids(dependencies))
+    );
+    assert_eq!(
+        body_fields[3].data,
+        ConstData::UInt(u128::try_from(dependencies.len()).expect("dependency count fits u128"))
+    );
+    assert_eq!(body_fields[4].data, ConstData::Bytes(concat_ids(exports)));
+    assert_eq!(
+        body_fields[5].data,
+        ConstData::UInt(u128::try_from(exports.len()).expect("export count fits u128"))
+    );
+}
+
 #[test]
 fn package_decode_matches_native_semantics() {
     let (package, approved) = admit(&package_decode_image());
@@ -2463,6 +3230,10 @@ fn package_decode_matches_native_rejection_precedence() {
             raw_package_body(vec![2; 32], vec![3; 32], &[], &unordered),
         ),
     ]);
+    let mut dependencies_empty_trailing = ns_splice(&empty, 74, 0, &[0]);
+    dependencies_empty_trailing[1] = 76;
+    dependencies_empty_trailing[72] = 2;
+    vectors.push(("dependencies_empty_trailing", dependencies_empty_trailing));
     let mut dependency_before_field4 = raw_package_body(
         vec![2; 32],
         vec![3; 32],
@@ -2523,20 +3294,132 @@ fn package_decode_fails_closed_on_other_union_kinds() {
 #[test]
 fn package_decode_retains_the_value_unit_envelope() {
     let (package, approved) = admit(&package_decode_image());
-    let body = package_body([2; 32], [3; 32], &[[4; 32], [5; 32]], &[[6; 32], [7; 32]]);
+    let body = package_body(
+        [2; 32],
+        [3; 32],
+        &[[4; 32], [5; 32], [6; 32]],
+        &[[7; 32], [8; 32], [9; 32]],
+    );
     let outcome = package_decode_call(&package, &approved, &body);
     match &outcome.termination {
         sley_vm::ExecutionTermination::ResourceLimit(kind) => assert_eq!(
             *kind,
             sley_vm::ResourceKind::ValueUnits,
-            "four total Package set members reach the F5 decode envelope first",
+            "six total Package set members reach the F5 decode envelope first",
         ),
-        other => panic!("four total Package set members must expose the F5 envelope: {other:?}"),
+        other => panic!("six total Package set members must expose the F5 envelope: {other:?}"),
     }
     eprintln!(
-        "PACKAGE_DEC_F5 deps=2 exports=2 fuel={} instr={} peak={}",
+        "PACKAGE_DEC_F5 deps=3 exports=3 fuel={} instr={} peak={}",
         outcome.fuel_used, outcome.instruction_count, outcome.peak_value_units
     );
+}
+
+#[test]
+fn package_program_decode_matches_native_semantics_and_resources() {
+    let (package, approved) = admit(&package_program_decode_image());
+    let increasing = std::array::from_fn(|index| u8::try_from(index).expect("index fits u8"));
+    let decreasing = std::array::from_fn(|index| u8::try_from(31 - index).expect("index fits u8"));
+    let cases = [
+        ([1; 32], [2; 32], [3; 32], Vec::new(), Vec::new()),
+        (increasing, decreasing, [10; 32], Vec::new(), Vec::new()),
+    ];
+    for (entity, workspace, root_namespace, dependencies, exports) in cases {
+        let stored = package_stored(entity, workspace, root_namespace, &dependencies, &exports);
+        assert_eq!(program_native_code(&stored), "OK");
+        let outcome = package_program_decode_call(&package, &approved, &stored);
+        eprintln!(
+            "PACKAGE_PROGRAM_DEC stored{}B deps={} exports={} fuel={} instr={} peak={}",
+            stored.len(),
+            dependencies.len(),
+            exports.len(),
+            outcome.fuel_used,
+            outcome.instruction_count,
+            outcome.peak_value_units
+        );
+        assert_package_program_decode_ok(
+            &outcome,
+            &entity,
+            &workspace,
+            &root_namespace,
+            &dependencies,
+            &exports,
+        );
+        assert!(outcome.fuel_used < 1_000_000, "decode fuel");
+        assert!(outcome.instruction_count < 100_000, "decode instructions");
+        assert!(outcome.peak_value_units < 1_000_000, "decode value units");
+    }
+}
+
+#[test]
+fn package_program_decode_retains_the_value_unit_boundary() {
+    let (package, approved) = admit(&package_program_decode_image());
+    for (name, dependencies, exports) in [
+        ("one_dependency", vec![[4; 32]], Vec::new()),
+        ("one_export", Vec::new(), vec![[5; 32]]),
+    ] {
+        let stored = package_stored([1; 32], [2; 32], [3; 32], &dependencies, &exports);
+        let outcome = package_program_decode_call(&package, &approved, &stored);
+        match &outcome.termination {
+            sley_vm::ExecutionTermination::ResourceLimit(kind) => assert_eq!(
+                *kind,
+                sley_vm::ResourceKind::ValueUnits,
+                "{name} reaches the F5 value-unit envelope first",
+            ),
+            other => panic!("{name} must expose the F5 value-unit boundary: {other:?}"),
+        }
+        eprintln!(
+            "PACKAGE_PROGRAM_F5 {name} stored{}B fuel={} instr={} peak={}",
+            stored.len(),
+            outcome.fuel_used,
+            outcome.instruction_count,
+            outcome.peak_value_units
+        );
+    }
+}
+
+#[test]
+fn package_program_decode_preserves_layer_precedence_and_scope() {
+    let (package, approved) = admit(&package_program_decode_image());
+    let base = package_stored([1; 32], [2; 32], [3; 32], &[], &[]);
+    let body = ns_body_of(&base);
+    let body_offset = base.len() - 32 - body.len();
+
+    let mut envelope_and_body = base.clone();
+    envelope_and_body[0] = b'X';
+    envelope_and_body[body_offset] = 0;
+    let envelope_and_body = program_recompute(&envelope_and_body);
+
+    let mut outer_and_body = base.clone();
+    outer_and_body[body_offset - 2] = 1;
+    outer_and_body[body_offset] = 0;
+    let outer_and_body = program_recompute(&outer_and_body);
+
+    let mut body_only = base.clone();
+    body_only[body_offset] = 0;
+    let body_only = program_recompute(&body_only);
+
+    let mut digest = base.clone();
+    let last = digest.len() - 1;
+    digest[last] ^= 0xff;
+
+    for (name, bytes) in [
+        ("envelope_before_body", envelope_and_body),
+        ("outer_before_body", outer_and_body),
+        ("body", body_only),
+        ("digest", digest),
+    ] {
+        let expected = program_native_code(&bytes);
+        assert_ne!(expected, "OK", "{name} fixture must be malformed");
+        let outcome = package_program_decode_call(&package, &approved, &bytes);
+        assert_refusal(&outcome, &expected);
+        eprintln!("PACKAGE_PROGRAM_REJECT {name}->{expected}");
+    }
+
+    let namespace = program_ns_stored(1, None, &[]);
+    assert_eq!(program_native_code(&namespace), "OK");
+    let outcome = package_program_decode_call(&package, &approved, &namespace);
+    assert_refusal(&outcome, "SSMC_RESERVED_FIELD_PRESENT");
 }
 
 #[test]
