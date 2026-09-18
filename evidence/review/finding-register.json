@@ -40,7 +40,7 @@
   ],
   "complete_packages_with_open_reviews": [],
   "contract": "sley2.finding-register.v1",
-  "contract_revision": 4,
+  "contract_revision": 5,
   "declared_open_findings": {
     "p0": 0,
     "p1": 0,
@@ -110,6 +110,7 @@
       "field": "merlin_mutation_value_review",
       "package_status": "S20_700_BOUNDED_SLICES",
       "reviewer": "merlin",
+      "round_date": null,
       "section": "adversarial",
       "severities": [],
       "state": "PASS",
@@ -122,6 +123,7 @@
       "field": "vulcan_adapter_binding_review",
       "package_status": "S20_700_BOUNDED_SLICES",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "adversarial",
       "severities": [],
       "state": "PASS",
@@ -134,6 +136,7 @@
       "field": "vulcan_mutation_value_review",
       "package_status": "S20_700_BOUNDED_SLICES",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "adversarial",
       "severities": [],
       "state": "PASS",
@@ -146,6 +149,7 @@
       "field": "vulcan_object_store_symlink_review",
       "package_status": "S20_700_BOUNDED_SLICES",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "adversarial",
       "severities": [],
       "state": "PASS",
@@ -158,6 +162,7 @@
       "field": "vulcan_schema_review",
       "package_status": "S20_700_BOUNDED_SLICES",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "adversarial",
       "severities": [],
       "state": "PASS",
@@ -170,6 +175,7 @@
       "field": "ariadne_review",
       "package_status": "BOOTSTRAP_PROFILE_1_FROZEN",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "bootstrap_profile_1",
       "severities": [],
       "state": "PASS",
@@ -182,6 +188,7 @@
       "field": "nabu_review",
       "package_status": "BOOTSTRAP_PROFILE_1_FROZEN",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "bootstrap_profile_1",
       "severities": [],
       "state": "PASS",
@@ -194,6 +201,7 @@
       "field": "focused_semantic_security_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
       "reviewer": null,
+      "round_date": null,
       "section": "candidate_construction_profile",
       "severities": [],
       "state": "PASS",
@@ -206,6 +214,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "candidate_construction_profile",
       "severities": [],
       "state": "PASS",
@@ -218,6 +227,7 @@
       "field": "nabu_review",
       "package_status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "candidate_contract_freeze",
       "severities": [],
       "state": "PASS",
@@ -230,6 +240,7 @@
       "field": "vulcan_review",
       "package_status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "candidate_contract_freeze",
       "severities": [],
       "state": "PASS",
@@ -242,6 +253,7 @@
       "field": "s20_700_binding_review",
       "package_status": "S20_380_COMPLETE_NARROW_LOCAL_PROFILE",
       "reviewer": null,
+      "round_date": null,
       "section": "capability_token_profile",
       "severities": [],
       "state": "PASS",
@@ -254,6 +266,7 @@
       "field": "vulcan_review",
       "package_status": "S20_380_COMPLETE_NARROW_LOCAL_PROFILE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "capability_token_profile",
       "severities": [],
       "state": "PASS",
@@ -266,6 +279,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_220_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "cfg_validation",
       "severities": [],
       "state": "PASS",
@@ -278,6 +292,7 @@
       "field": "vulcan_initial_review",
       "package_status": "S20_220_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "cfg_validation",
       "severities": [
         "P2"
@@ -292,6 +307,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_780_REGISTER_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "clean_room_disposition_register",
       "severities": [
         "P0",
@@ -309,6 +325,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_780_REGISTER_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "clean_room_disposition_register",
       "severities": [
         "P0",
@@ -326,6 +343,7 @@
       "field": "ariadne_review",
       "package_status": "S20_780_REGISTER_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "clean_room_disposition_register",
       "severities": [
         "P0",
@@ -343,6 +361,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_780_REGISTER_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "clean_room_disposition_register",
       "severities": [
         "P1",
@@ -359,6 +378,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_780_REGISTER_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "clean_room_disposition_register",
       "severities": [
         "P0",
@@ -376,6 +396,7 @@
       "field": "nabu_review",
       "package_status": "S20_780_REGISTER_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "clean_room_disposition_register",
       "severities": [
         "P0",
@@ -393,6 +414,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_780_REGISTER_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "clean_room_disposition_register",
       "severities": [
         "P0",
@@ -410,6 +432,7 @@
       "field": "vulcan_review",
       "package_status": "S20_780_REGISTER_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "clean_room_disposition_register",
       "severities": [
         "P0",
@@ -427,6 +450,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_780_REGISTER_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "clean_room_disposition_register",
       "severities": [
         "P0",
@@ -444,6 +468,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_430_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "cli",
       "severities": [],
       "state": "PASS",
@@ -456,6 +481,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_430_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "cli",
       "severities": [],
       "state": "PASS",
@@ -468,6 +494,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_430_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "cli",
       "severities": [
         "P3"
@@ -482,6 +509,7 @@
       "field": "current_delta_review.ariadne",
       "package_status": "S20_430_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "cli.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -494,6 +522,7 @@
       "field": "current_delta_review.nabu",
       "package_status": "S20_430_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "cli.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -506,6 +535,7 @@
       "field": "current_delta_review.vulcan",
       "package_status": "S20_430_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "cli.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -518,6 +548,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_250_FULL_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "complete_entity_impact_profile",
       "severities": [
         "P4"
@@ -532,6 +563,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_250_FULL_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-11",
       "section": "complete_entity_impact_profile",
       "severities": [
         "P2",
@@ -547,6 +579,7 @@
       "field": "ariadne_review",
       "package_status": "S20_250_FULL_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-11",
       "section": "complete_entity_impact_profile",
       "severities": [
         "P4"
@@ -561,6 +594,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_250_FULL_COMPLETE",
       "reviewer": "nabu",
+      "round_date": "2026-09-11",
       "section": "complete_entity_impact_profile",
       "severities": [
         "P4"
@@ -575,6 +609,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_250_FULL_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": "2026-09-11",
       "section": "complete_entity_impact_profile",
       "severities": [],
       "state": "PASS",
@@ -587,6 +622,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_300_FULL_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "complete_root_index_snapshot",
       "severities": [
         "P0",
@@ -604,6 +640,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_300_FULL_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "complete_root_index_snapshot",
       "severities": [
         "P0",
@@ -621,6 +658,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_300_FULL_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "complete_root_index_snapshot",
       "severities": [
         "P0",
@@ -638,6 +676,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_300_FULL_COMPLETE",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "complete_root_index_snapshot",
       "severities": [
         "P0",
@@ -655,6 +694,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_300_FULL_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "complete_root_index_snapshot",
       "severities": [
         "P0",
@@ -672,6 +712,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_300_FULL_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "complete_root_index_snapshot",
       "severities": [
         "P0",
@@ -689,6 +730,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_300_FULL_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "complete_root_index_snapshot",
       "severities": [
         "P0",
@@ -706,6 +748,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_300_FULL_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "complete_root_index_snapshot",
       "severities": [
         "P0",
@@ -723,6 +766,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_300_FULL_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "complete_root_index_snapshot",
       "severities": [
         "P1",
@@ -739,6 +783,7 @@
       "field": "vulcan_codec_review",
       "package_status": "S20_130_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "conformance",
       "severities": [],
       "state": "PASS",
@@ -751,6 +796,7 @@
       "field": "vulcan_oracle_review",
       "package_status": "S20_130_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "conformance",
       "severities": [],
       "state": "PASS",
@@ -763,6 +809,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_320_FULL_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "context_capsule_profile",
       "severities": [
         "P0",
@@ -780,6 +827,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_320_FULL_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "context_capsule_profile",
       "severities": [
         "P0",
@@ -797,6 +845,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_320_FULL_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "context_capsule_profile",
       "severities": [
         "P0",
@@ -814,6 +863,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_320_FULL_COMPLETE",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "context_capsule_profile",
       "severities": [
         "P0",
@@ -831,6 +881,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_320_FULL_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "context_capsule_profile",
       "severities": [
         "P0",
@@ -848,6 +899,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_320_FULL_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "context_capsule_profile",
       "severities": [
         "P0",
@@ -865,6 +917,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_320_FULL_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "context_capsule_profile",
       "severities": [
         "P0",
@@ -882,6 +935,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_320_FULL_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "context_capsule_profile",
       "severities": [
         "P0",
@@ -899,6 +953,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_320_FULL_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "context_capsule_profile",
       "severities": [
         "P0",
@@ -916,6 +971,7 @@
       "field": "ariadne_initial_review",
       "package_status": "S20_240_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "contract_test_profile",
       "severities": [],
       "state": "HISTORICAL_ROUND",
@@ -928,6 +984,7 @@
       "field": "ariadne_profile_final_review",
       "package_status": "S20_240_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "contract_test_profile",
       "severities": [],
       "state": "PASS",
@@ -940,6 +997,7 @@
       "field": "ariadne_profile_initial_review",
       "package_status": "S20_240_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "contract_test_profile",
       "severities": [
         "P1"
@@ -954,6 +1012,7 @@
       "field": "vulcan_review",
       "package_status": "S20_240_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "contract_test_profile",
       "severities": [],
       "state": "PASS",
@@ -966,6 +1025,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "decision_dossier",
       "severities": [
         "P0",
@@ -983,6 +1043,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-04",
       "section": "decision_dossier",
       "severities": [
         "P0",
@@ -1000,6 +1061,7 @@
       "field": "ariadne_contract_review_revision_1",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [
         "P2",
@@ -1016,6 +1078,7 @@
       "field": "ariadne_contract_review_revision_2",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [
         "P3",
@@ -1031,6 +1094,7 @@
       "field": "ariadne_contract_review_revision_3",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [],
       "state": "PASS",
@@ -1043,6 +1107,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [
         "P0",
@@ -1060,6 +1125,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "decision_dossier",
       "severities": [
         "P0",
@@ -1077,6 +1143,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-04",
       "section": "decision_dossier",
       "severities": [
         "P0",
@@ -1094,6 +1161,7 @@
       "field": "nabu_architecture_review_revision_1",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [
         "P2",
@@ -1110,6 +1178,7 @@
       "field": "nabu_architecture_review_revision_2",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [
         "P4"
@@ -1124,6 +1193,7 @@
       "field": "nabu_architecture_review_revision_3",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [
         "P4"
@@ -1138,6 +1208,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [
         "P0",
@@ -1155,6 +1226,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [
         "P0",
@@ -1172,6 +1244,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "decision_dossier",
       "severities": [
         "P0",
@@ -1189,6 +1262,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-04",
       "section": "decision_dossier",
       "severities": [
         "P0",
@@ -1206,6 +1280,7 @@
       "field": "vulcan_surface_review_revision_1",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [
         "P2",
@@ -1222,6 +1297,7 @@
       "field": "vulcan_surface_review_revision_2",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [
         "P4"
@@ -1236,6 +1312,7 @@
       "field": "vulcan_surface_review_revision_3",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "decision_dossier",
       "severities": [],
       "state": "PASS",
@@ -1248,6 +1325,7 @@
       "field": "current_delta_review.ariadne",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "decision_dossier.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -1260,6 +1338,7 @@
       "field": "current_delta_review.nabu",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "decision_dossier.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -1272,6 +1351,7 @@
       "field": "current_delta_review.vulcan",
       "package_status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "decision_dossier.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -1284,6 +1364,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_230_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "effect_system",
       "severities": [],
       "state": "PASS",
@@ -1296,6 +1377,7 @@
       "field": "ariadne_initial_review",
       "package_status": "S20_230_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "effect_system",
       "severities": [
         "P1"
@@ -1310,6 +1392,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_230_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "effect_system",
       "severities": [],
       "state": "PASS",
@@ -1322,6 +1405,7 @@
       "field": "vulcan_initial_review",
       "package_status": "S20_230_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "effect_system",
       "severities": [
         "P2"
@@ -1336,6 +1420,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_760_POLICY_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "epoch_migration_policy",
       "severities": [],
       "state": "PASS",
@@ -1348,6 +1433,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_760_POLICY_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "epoch_migration_policy",
       "severities": [
         "P1",
@@ -1364,6 +1450,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_760_POLICY_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "epoch_migration_policy",
       "severities": [
         "P0",
@@ -1381,6 +1468,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_760_POLICY_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "epoch_migration_policy",
       "severities": [],
       "state": "PASS",
@@ -1393,6 +1481,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_760_POLICY_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "epoch_migration_policy",
       "severities": [
         "P1",
@@ -1409,6 +1498,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_760_POLICY_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "epoch_migration_policy",
       "severities": [
         "P0",
@@ -1426,6 +1516,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_760_POLICY_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "epoch_migration_policy",
       "severities": [
         "P0",
@@ -1443,6 +1534,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_760_POLICY_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "epoch_migration_policy",
       "severities": [],
       "state": "PASS",
@@ -1455,6 +1547,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_760_POLICY_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "epoch_migration_policy",
       "severities": [
         "P1",
@@ -1471,6 +1564,7 @@
       "field": "owner_registration_review",
       "package_status": "IN_PROGRESS",
       "reviewer": null,
+      "round_date": "2026-09-13",
       "section": "error_symbol_registration",
       "severities": [],
       "state": "PASS",
@@ -1483,6 +1577,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "finding_register",
       "severities": [],
       "state": "PASS",
@@ -1495,6 +1590,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "finding_register",
       "severities": [],
       "state": "PASS",
@@ -1507,6 +1603,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "finding_register",
       "severities": [],
       "state": "PASS",
@@ -1519,6 +1616,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_250_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "fingerprint_impact_profile",
       "severities": [],
       "state": "PASS",
@@ -1531,6 +1629,7 @@
       "field": "ariadne_initial_review",
       "package_status": "S20_250_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "fingerprint_impact_profile",
       "severities": [
         "P0",
@@ -1547,6 +1646,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_250_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "fingerprint_impact_profile",
       "severities": [],
       "state": "PASS",
@@ -1559,6 +1659,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_250_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "fingerprint_impact_profile",
       "severities": [],
       "state": "PASS",
@@ -1571,6 +1672,7 @@
       "field": "vulcan_initial_review",
       "package_status": "S20_250_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "fingerprint_impact_profile",
       "severities": [
         "P2"
@@ -1585,6 +1687,7 @@
       "field": "nabu_design_review",
       "package_status": "S20_180_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "garbage_collection",
       "severities": [],
       "state": "PASS",
@@ -1597,6 +1700,7 @@
       "field": "vulcan_review",
       "package_status": "S20_180_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "garbage_collection",
       "severities": [],
       "state": "PASS",
@@ -1609,6 +1713,7 @@
       "field": "ariadne_spec_review",
       "package_status": "S20_110_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "identifiers",
       "severities": [],
       "state": "PASS",
@@ -1621,6 +1726,7 @@
       "field": "vulcan_implementation_review",
       "package_status": "S20_110_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "identifiers",
       "severities": [],
       "state": "PASS",
@@ -1633,6 +1739,7 @@
       "field": "ariadne_review",
       "package_status": "S20_300_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "index_snapshot_profile",
       "severities": [],
       "state": "PASS",
@@ -1645,6 +1752,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_300_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "index_snapshot_profile",
       "severities": [],
       "state": "PASS",
@@ -1657,6 +1765,7 @@
       "field": "vulcan_review",
       "package_status": "S20_300_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "index_snapshot_profile",
       "severities": [],
       "state": "PASS",
@@ -1669,6 +1778,7 @@
       "field": "independent_review",
       "package_status": "IN_PROGRESS",
       "reviewer": null,
+      "round_date": "2026-09-13",
       "section": "invariant_audit",
       "severities": [],
       "state": "PASS",
@@ -1681,6 +1791,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "json_bridge",
       "severities": [
         "P0",
@@ -1698,6 +1809,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "json_bridge",
       "severities": [
         "P0",
@@ -1715,6 +1827,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "json_bridge",
       "severities": [
         "P0",
@@ -1732,6 +1845,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "json_bridge",
       "severities": [
         "P0",
@@ -1749,6 +1863,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "json_bridge",
       "severities": [
         "P0",
@@ -1766,6 +1881,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "json_bridge",
       "severities": [
         "P0",
@@ -1783,6 +1899,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "json_bridge",
       "severities": [
         "P0",
@@ -1800,6 +1917,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "json_bridge",
       "severities": [
         "P0",
@@ -1817,6 +1935,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "json_bridge",
       "severities": [
         "P0",
@@ -1834,6 +1953,7 @@
       "field": "current_delta_review.ariadne",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "json_bridge.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -1846,6 +1966,7 @@
       "field": "current_delta_review.nabu",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "json_bridge.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -1858,6 +1979,7 @@
       "field": "current_delta_review.vulcan",
       "package_status": "S20_420_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "json_bridge.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -1870,6 +1992,7 @@
       "field": "focused_semantic_security_review",
       "package_status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
       "reviewer": null,
+      "round_date": null,
       "section": "local_completion_frontier",
       "severities": [],
       "state": "PASS",
@@ -1882,6 +2005,7 @@
       "field": "required_specialist_review",
       "package_status": "LOCAL_IMPLEMENTATION_CONTINUES_PENDING_COUNCIL_EPOCH_AND_OPERATOR",
       "reviewer": null,
+      "round_date": null,
       "section": "local_completion_frontier",
       "severities": [],
       "state": "PASS",
@@ -1894,6 +2018,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_520_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "merge",
       "severities": [
         "P0",
@@ -1911,6 +2036,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_520_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "merge",
       "severities": [
         "P0",
@@ -1928,6 +2054,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_520_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "merge",
       "severities": [
         "P0",
@@ -1945,6 +2072,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_520_COMPLETE",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "merge",
       "severities": [
         "P0",
@@ -1962,6 +2090,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_520_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "merge",
       "severities": [
         "P0",
@@ -1979,6 +2108,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_520_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "merge",
       "severities": [
         "P0",
@@ -1996,6 +2126,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_520_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "merge",
       "severities": [
         "P0",
@@ -2013,6 +2144,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_520_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "merge",
       "severities": [
         "P0",
@@ -2030,6 +2162,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_520_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "merge",
       "severities": [
         "P0",
@@ -2047,6 +2180,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "mutation_schema",
       "severities": [],
       "state": "HISTORICAL_ROUND",
@@ -2059,6 +2193,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
       "reviewer": "nabu",
+      "round_date": "2026-09-13",
       "section": "mutation_schema",
       "severities": [],
       "state": "PASS",
@@ -2071,6 +2206,7 @@
       "field": "vulcan_review",
       "package_status": "S20_340_COMPLETE_IMMUTABLE_DESCRIPTORS_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "mutation_schema",
       "severities": [],
       "state": "PASS",
@@ -2083,6 +2219,7 @@
       "field": "epoch1_reanchor_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
       "reviewer": null,
+      "round_date": null,
       "section": "mutation_value_profile",
       "severities": [
         "P2"
@@ -2097,6 +2234,7 @@
       "field": "focused_semantic_security_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
       "reviewer": null,
+      "round_date": null,
       "section": "mutation_value_profile",
       "severities": [],
       "state": "PASS",
@@ -2109,6 +2247,7 @@
       "field": "nabu_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "mutation_value_profile",
       "severities": [],
       "state": "PASS",
@@ -2121,6 +2260,7 @@
       "field": "vulcan_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
       "reviewer": "vulcan",
+      "round_date": "2026-09-11",
       "section": "mutation_value_profile",
       "severities": [
         "P3",
@@ -2136,6 +2276,7 @@
       "field": "ariadne_design_review",
       "package_status": "S20_150_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "object_store",
       "severities": [],
       "state": "PASS",
@@ -2148,6 +2289,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_150_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "object_store",
       "severities": [],
       "state": "PASS",
@@ -2160,6 +2302,7 @@
       "field": "vulcan_initial_review",
       "package_status": "S20_150_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "object_store",
       "severities": [
         "P1"
@@ -2174,6 +2317,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "protected_policy_root",
       "severities": [],
       "state": "HISTORICAL_ROUND",
@@ -2186,6 +2330,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT",
       "reviewer": "nabu",
+      "round_date": "2026-09-13",
       "section": "protected_policy_root",
       "severities": [],
       "state": "PASS",
@@ -2198,6 +2343,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "protected_policy_root",
       "severities": [],
       "state": "PASS",
@@ -2210,6 +2356,7 @@
       "field": "vulcan_initial_review",
       "package_status": "S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "protected_policy_root",
       "severities": [
         "P2"
@@ -2224,6 +2371,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_400_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "protocol",
       "severities": [],
       "state": "PASS",
@@ -2236,6 +2384,7 @@
       "field": "ariadne_review",
       "package_status": "S20_400_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "protocol",
       "severities": [
         "P0",
@@ -2253,6 +2402,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_400_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "protocol",
       "severities": [],
       "state": "PASS",
@@ -2265,6 +2415,7 @@
       "field": "nabu_review",
       "package_status": "S20_400_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "protocol",
       "severities": [
         "P0",
@@ -2282,6 +2433,7 @@
       "field": "vulcan_review",
       "package_status": "S20_400_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "protocol",
       "severities": [
         "P0",
@@ -2299,6 +2451,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_400_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "protocol",
       "severities": [],
       "state": "PASS",
@@ -2311,6 +2464,7 @@
       "field": "current_delta_review.ariadne",
       "package_status": "S20_400_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "protocol.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -2323,6 +2477,7 @@
       "field": "current_delta_review.nabu",
       "package_status": "S20_400_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "protocol.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -2335,6 +2490,7 @@
       "field": "current_delta_review.vulcan",
       "package_status": "S20_400_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "protocol.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -2347,6 +2503,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "reference_adapter_profile",
       "severities": [],
       "state": "PASS",
@@ -2359,6 +2516,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "reference_adapter_profile",
       "severities": [],
       "state": "PASS",
@@ -2371,6 +2529,7 @@
       "field": "vulcan_review",
       "package_status": "S20_280_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "reference_adapter_profile",
       "severities": [],
       "state": "PASS",
@@ -2383,6 +2542,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "release_candidate_packaging",
       "severities": [
         "P3",
@@ -2398,6 +2558,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P0",
@@ -2415,6 +2576,7 @@
       "field": "ariadne_contract_review_revision_1",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P1",
@@ -2431,6 +2593,7 @@
       "field": "ariadne_contract_review_revision_2",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P2",
@@ -2446,6 +2609,7 @@
       "field": "ariadne_contract_review_revision_3",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P3"
@@ -2460,6 +2624,7 @@
       "field": "ariadne_contract_review_revision_4",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P4"
@@ -2474,6 +2639,7 @@
       "field": "ariadne_contract_review_revision_5",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "release_candidate_packaging",
       "severities": [
         "P3",
@@ -2489,6 +2655,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-13",
       "section": "release_candidate_packaging",
       "severities": [],
       "state": "PASS",
@@ -2501,6 +2668,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "release_candidate_packaging",
       "severities": [
         "P3",
@@ -2516,6 +2684,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P0",
@@ -2533,6 +2702,7 @@
       "field": "nabu_architecture_review_revision_1",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P1",
@@ -2549,6 +2719,7 @@
       "field": "nabu_architecture_review_revision_2",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P3"
@@ -2563,6 +2734,7 @@
       "field": "nabu_architecture_review_revision_3",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P3"
@@ -2577,6 +2749,7 @@
       "field": "nabu_architecture_review_revision_4",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P4"
@@ -2591,6 +2764,7 @@
       "field": "nabu_architecture_review_revision_5",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "release_candidate_packaging",
       "severities": [
         "P3"
@@ -2605,6 +2779,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-13",
       "section": "release_candidate_packaging",
       "severities": [],
       "state": "PASS",
@@ -2617,6 +2792,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-13",
       "section": "release_candidate_packaging",
       "severities": [],
       "state": "PASS",
@@ -2629,6 +2805,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "release_candidate_packaging",
       "severities": [
         "P3",
@@ -2644,6 +2821,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P0",
@@ -2661,6 +2839,7 @@
       "field": "vulcan_surface_review_revision_1",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P1",
@@ -2677,6 +2856,7 @@
       "field": "vulcan_surface_review_revision_2",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P3",
@@ -2692,6 +2872,7 @@
       "field": "vulcan_surface_review_revision_3",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P3"
@@ -2706,6 +2887,7 @@
       "field": "vulcan_surface_review_revision_4",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "release_candidate_packaging",
       "severities": [
         "P4"
@@ -2720,6 +2902,7 @@
       "field": "vulcan_surface_review_revision_5",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "release_candidate_packaging",
       "severities": [
         "P2",
@@ -2727,7 +2910,7 @@
         "P4"
       ],
       "state": "HISTORICAL_ROUND",
-      "superseded_by": "vulcan_final_review"
+      "superseded_by": "vulcan_surface_review"
     },
     {
       "declares_closed_findings": true,
@@ -2736,6 +2919,7 @@
       "field": "current_delta_review.ariadne",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "release_candidate_packaging.current_delta_review",
       "severities": [
         "P3",
@@ -2751,6 +2935,7 @@
       "field": "current_delta_review.nabu",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "release_candidate_packaging.current_delta_review",
       "severities": [
         "P3",
@@ -2766,6 +2951,7 @@
       "field": "current_delta_review.vulcan",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "release_candidate_packaging.current_delta_review",
       "severities": [
         "P3",
@@ -2781,6 +2967,7 @@
       "field": "ariadne_review",
       "package_status": "S20_290_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "report_envelope_profile",
       "severities": [],
       "state": "PASS",
@@ -2793,6 +2980,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_290_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "report_envelope_profile",
       "severities": [],
       "state": "PASS",
@@ -2805,6 +2993,7 @@
       "field": "vulcan_review",
       "package_status": "S20_290_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "report_envelope_profile",
       "severities": [],
       "state": "PASS",
@@ -2817,6 +3006,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [],
       "state": "PASS",
@@ -2829,6 +3019,7 @@
       "field": "ariadne_contract_review_revision_1",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [
         "P0",
@@ -2846,6 +3037,7 @@
       "field": "ariadne_contract_review_revision_2",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [
         "P1",
@@ -2862,6 +3054,7 @@
       "field": "ariadne_contract_review_revision_3",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [],
       "state": "PASS",
@@ -2874,6 +3067,7 @@
       "field": "ariadne_contract_review_revision_5",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [
         "P0",
@@ -2891,6 +3085,7 @@
       "field": "ariadne_contract_review_revision_7",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [],
       "state": "PASS",
@@ -2903,6 +3098,7 @@
       "field": "ariadne_implementation_review",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [
         "P1"
@@ -2917,6 +3113,7 @@
       "field": "ariadne_implementation_review_final",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "repository_exchange",
       "severities": [
         "P3",
@@ -2932,6 +3129,7 @@
       "field": "nabu_implementation_review",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [],
       "state": "PASS",
@@ -2944,6 +3142,7 @@
       "field": "vulcan_implementation_review",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [],
       "state": "PASS",
@@ -2956,6 +3155,7 @@
       "field": "vulcan_import_surface_review",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [],
       "state": "PASS",
@@ -2968,6 +3168,7 @@
       "field": "vulcan_import_surface_review_revision_3",
       "package_status": "S20_540_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "repository_exchange",
       "severities": [
         "P1",
@@ -2984,6 +3185,7 @@
       "field": "nabu_design_review",
       "package_status": "S20_170_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "repository_pack",
       "severities": [],
       "state": "PASS",
@@ -2996,6 +3198,7 @@
       "field": "vulcan_review",
       "package_status": "S20_170_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "repository_pack",
       "severities": [],
       "state": "PASS",
@@ -3008,6 +3211,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P2",
@@ -3024,6 +3228,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P0",
@@ -3041,6 +3246,7 @@
       "field": "ariadne_contract_review_revision_1",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-11",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P1",
@@ -3057,6 +3263,7 @@
       "field": "ariadne_contract_review_revision_2",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P2",
@@ -3073,6 +3280,7 @@
       "field": "ariadne_contract_review_revision_3",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P2",
@@ -3089,6 +3297,7 @@
       "field": "ariadne_contract_review_revision_4",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P3",
@@ -3104,6 +3313,7 @@
       "field": "ariadne_contract_review_revision_5",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P3",
@@ -3119,6 +3329,7 @@
       "field": "ariadne_contract_review_revision_6",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P4"
@@ -3133,14 +3344,15 @@
       "field": "ariadne_contract_review_revision_7",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P2",
         "P3",
         "P4"
       ],
-      "state": "HISTORICAL_ROUND",
-      "superseded_by": "ariadne_contract_review"
+      "state": "PENDING",
+      "superseded_by": null
     },
     {
       "declares_closed_findings": true,
@@ -3149,14 +3361,15 @@
       "field": "ariadne_contract_review_revision_8",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P2",
         "P3",
         "P4"
       ],
-      "state": "HISTORICAL_ROUND",
-      "superseded_by": "ariadne_contract_review"
+      "state": "PENDING",
+      "superseded_by": null
     },
     {
       "declares_closed_findings": true,
@@ -3165,6 +3378,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P2",
@@ -3181,6 +3395,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P0",
@@ -3198,6 +3413,7 @@
       "field": "nabu_architecture_review_revision_1",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-11",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P1",
@@ -3214,6 +3430,7 @@
       "field": "nabu_architecture_review_revision_2",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P1",
@@ -3230,6 +3447,7 @@
       "field": "nabu_architecture_review_revision_3",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P1",
@@ -3246,6 +3464,7 @@
       "field": "nabu_architecture_review_revision_4",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P1",
@@ -3262,6 +3481,7 @@
       "field": "nabu_architecture_review_revision_5",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P3",
@@ -3277,6 +3497,7 @@
       "field": "nabu_architecture_review_revision_6",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P3",
@@ -3292,6 +3513,7 @@
       "field": "nabu_architecture_review_revision_7",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P4"
@@ -3306,6 +3528,7 @@
       "field": "nabu_architecture_review_revision_8",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P2",
@@ -3322,6 +3545,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-14",
       "section": "reproducibility_and_independent_conformance",
       "severities": [],
       "state": "PASS",
@@ -3334,6 +3558,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P3",
@@ -3349,6 +3574,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P0",
@@ -3366,6 +3592,7 @@
       "field": "vulcan_surface_review_revision_1",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-11",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P1",
@@ -3382,6 +3609,7 @@
       "field": "vulcan_surface_review_revision_10",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P2",
@@ -3389,7 +3617,7 @@
         "P4"
       ],
       "state": "HISTORICAL_ROUND",
-      "superseded_by": "vulcan_final_review"
+      "superseded_by": "vulcan_surface_review"
     },
     {
       "declares_closed_findings": false,
@@ -3398,6 +3626,7 @@
       "field": "vulcan_surface_review_revision_2",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P1",
@@ -3405,7 +3634,7 @@
         "P4"
       ],
       "state": "HISTORICAL_ROUND",
-      "superseded_by": "vulcan_final_review"
+      "superseded_by": "vulcan_surface_review"
     },
     {
       "declares_closed_findings": false,
@@ -3414,6 +3643,7 @@
       "field": "vulcan_surface_review_revision_3",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P1",
@@ -3421,7 +3651,7 @@
         "P4"
       ],
       "state": "HISTORICAL_ROUND",
-      "superseded_by": "vulcan_final_review"
+      "superseded_by": "vulcan_surface_review"
     },
     {
       "declares_closed_findings": false,
@@ -3430,13 +3660,14 @@
       "field": "vulcan_surface_review_revision_4",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P1",
         "P3"
       ],
       "state": "HISTORICAL_ROUND",
-      "superseded_by": "vulcan_final_review"
+      "superseded_by": "vulcan_surface_review"
     },
     {
       "declares_closed_findings": false,
@@ -3445,6 +3676,7 @@
       "field": "vulcan_surface_review_revision_5",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [],
       "state": "PASS",
@@ -3457,6 +3689,7 @@
       "field": "vulcan_surface_review_revision_6",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "reproducibility_and_independent_conformance",
       "severities": [],
       "state": "PASS",
@@ -3469,6 +3702,7 @@
       "field": "vulcan_surface_review_revision_7",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P2",
@@ -3485,6 +3719,7 @@
       "field": "vulcan_surface_review_revision_8",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P3",
@@ -3500,6 +3735,7 @@
       "field": "vulcan_surface_review_revision_9",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "reproducibility_and_independent_conformance",
       "severities": [
         "P4"
@@ -3514,6 +3750,7 @@
       "field": "current_delta_review.ariadne",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "reproducibility_and_independent_conformance.current_delta_review",
       "severities": [
         "P2",
@@ -3530,6 +3767,7 @@
       "field": "current_delta_review.nabu",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "reproducibility_and_independent_conformance.current_delta_review",
       "severities": [
         "P2",
@@ -3546,6 +3784,7 @@
       "field": "current_delta_review.vulcan",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "reproducibility_and_independent_conformance.current_delta_review",
       "severities": [
         "P3",
@@ -3561,6 +3800,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "required_contract_index",
       "severities": [],
       "state": "PASS",
@@ -3573,6 +3813,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "required_contract_index",
       "severities": [
         "P1",
@@ -3589,6 +3830,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "required_contract_index",
       "severities": [
         "P0",
@@ -3606,6 +3848,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "required_contract_index",
       "severities": [],
       "state": "PASS",
@@ -3618,6 +3861,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "required_contract_index",
       "severities": [
         "P1",
@@ -3634,6 +3878,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "required_contract_index",
       "severities": [
         "P0",
@@ -3651,6 +3896,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "required_contract_index",
       "severities": [
         "P0",
@@ -3668,6 +3914,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "required_contract_index",
       "severities": [],
       "state": "PASS",
@@ -3680,6 +3927,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "required_contract_index",
       "severities": [
         "P1",
@@ -3696,6 +3944,7 @@
       "field": "current_delta_review.ariadne",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "required_contract_index.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -3708,6 +3957,7 @@
       "field": "current_delta_review.nabu",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "required_contract_index.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -3720,6 +3970,7 @@
       "field": "current_delta_review.vulcan",
       "package_status": "S20_770_INDEX_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "required_contract_index.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -3732,6 +3983,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "restricted_query_capsule_profile",
       "severities": [],
       "state": "PASS",
@@ -3744,6 +3996,7 @@
       "field": "ariadne_initial_review",
       "package_status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "restricted_query_capsule_profile",
       "severities": [
         "P1",
@@ -3759,6 +4012,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "restricted_query_capsule_profile",
       "severities": [],
       "state": "HISTORICAL_ROUND",
@@ -3771,6 +4025,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "restricted_query_capsule_profile",
       "severities": [],
       "state": "PASS",
@@ -3783,6 +4038,7 @@
       "field": "vulcan_review",
       "package_status": "S20_320_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "restricted_query_capsule_profile",
       "severities": [],
       "state": "PASS",
@@ -3795,6 +4051,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "restricted_query_profile",
       "severities": [],
       "state": "PASS",
@@ -3807,6 +4064,7 @@
       "field": "ariadne_initial_review",
       "package_status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "restricted_query_profile",
       "severities": [
         "P1",
@@ -3822,6 +4080,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "restricted_query_profile",
       "severities": [],
       "state": "HISTORICAL_ROUND",
@@ -3834,6 +4093,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "restricted_query_profile",
       "severities": [],
       "state": "PASS",
@@ -3846,6 +4106,7 @@
       "field": "vulcan_review",
       "package_status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "restricted_query_profile",
       "severities": [],
       "state": "PASS",
@@ -3858,6 +4119,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "root_backed_query_profile",
       "severities": [
         "P3",
@@ -3873,6 +4135,7 @@
       "field": "ariadne_contract_review_revision_1",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-11",
       "section": "root_backed_query_profile",
       "severities": [
         "P1",
@@ -3889,6 +4152,7 @@
       "field": "ariadne_contract_review_revision_2",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "root_backed_query_profile",
       "severities": [
         "P2",
@@ -3905,6 +4169,7 @@
       "field": "ariadne_contract_review_revision_3",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "root_backed_query_profile",
       "severities": [
         "P3"
@@ -3919,6 +4184,7 @@
       "field": "ariadne_contract_review_revision_4",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "root_backed_query_profile",
       "severities": [
         "P3"
@@ -3933,6 +4199,7 @@
       "field": "ariadne_contract_review_revision_5",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "root_backed_query_profile",
       "severities": [],
       "state": "PASS",
@@ -3945,6 +4212,7 @@
       "field": "ariadne_entity_read_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "root_backed_query_profile",
       "severities": [
         "P3",
@@ -3960,6 +4228,7 @@
       "field": "contract_text_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": null,
+      "round_date": null,
       "section": "root_backed_query_profile",
       "severities": [],
       "state": "PASS",
@@ -3972,6 +4241,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "root_backed_query_profile",
       "severities": [
         "P3",
@@ -3987,6 +4257,7 @@
       "field": "nabu_architecture_review_revision_1",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-11",
       "section": "root_backed_query_profile",
       "severities": [
         "P2",
@@ -4002,6 +4273,7 @@
       "field": "nabu_architecture_review_revision_2",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "root_backed_query_profile",
       "severities": [
         "P2",
@@ -4018,6 +4290,7 @@
       "field": "nabu_architecture_review_revision_3",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "root_backed_query_profile",
       "severities": [],
       "state": "PASS",
@@ -4030,6 +4303,7 @@
       "field": "nabu_architecture_review_revision_4",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "root_backed_query_profile",
       "severities": [],
       "state": "PASS",
@@ -4042,6 +4316,7 @@
       "field": "nabu_architecture_review_revision_5",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "root_backed_query_profile",
       "severities": [],
       "state": "PASS",
@@ -4054,6 +4329,7 @@
       "field": "nabu_entity_read_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "root_backed_query_profile",
       "severities": [
         "P3",
@@ -4069,6 +4345,7 @@
       "field": "vulcan_entity_read_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "root_backed_query_profile",
       "severities": [
         "P3",
@@ -4084,6 +4361,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "root_backed_query_profile",
       "severities": [
         "P3",
@@ -4099,6 +4377,7 @@
       "field": "vulcan_surface_review_revision_1",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-11",
       "section": "root_backed_query_profile",
       "severities": [
         "P1",
@@ -4115,6 +4394,7 @@
       "field": "vulcan_surface_review_revision_2",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "root_backed_query_profile",
       "severities": [
         "P2",
@@ -4130,6 +4410,7 @@
       "field": "vulcan_surface_review_revision_3",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "root_backed_query_profile",
       "severities": [
         "P3",
@@ -4145,6 +4426,7 @@
       "field": "vulcan_surface_review_revision_4",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "root_backed_query_profile",
       "severities": [
         "P4"
@@ -4159,6 +4441,7 @@
       "field": "vulcan_surface_review_revision_5",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "root_backed_query_profile",
       "severities": [
         "P4"
@@ -4173,6 +4456,7 @@
       "field": "vulcan_surface_review_revision_6",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "root_backed_query_profile",
       "severities": [
         "P4"
@@ -4187,6 +4471,7 @@
       "field": "current_delta_review.ariadne",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "root_backed_query_profile.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -4199,6 +4484,7 @@
       "field": "current_delta_review.nabu",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "root_backed_query_profile.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -4211,6 +4497,7 @@
       "field": "current_delta_review.vulcan",
       "package_status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "root_backed_query_profile.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -4223,6 +4510,7 @@
       "field": "ariadne_review",
       "package_status": "RW060_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "rw060_source_free_lifecycle",
       "severities": [],
       "state": "PASS",
@@ -4235,6 +4523,7 @@
       "field": "nabu_review",
       "package_status": "RW060_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "rw060_source_free_lifecycle",
       "severities": [],
       "state": "PASS",
@@ -4247,6 +4536,7 @@
       "field": "independent_completion_review",
       "package_status": "RW075_CORRECTION_IMPLEMENTED",
       "reviewer": null,
+      "round_date": null,
       "section": "rw075_correction",
       "severities": [],
       "state": "PENDING",
@@ -4259,6 +4549,7 @@
       "field": "independent_completion_review_revision_1",
       "package_status": "RW075_CORRECTION_IMPLEMENTED",
       "reviewer": null,
+      "round_date": "2026-09-18",
       "section": "rw075_correction",
       "severities": [
         "P1",
@@ -4276,6 +4567,7 @@
       "field": "ariadne_contract_review",
       "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "rw090_arbitrary_codec",
       "severities": [],
       "state": "PENDING",
@@ -4288,6 +4580,7 @@
       "field": "ariadne_contract_review_revision_1",
       "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "rw090_arbitrary_codec",
       "severities": [
         "P2",
@@ -4304,6 +4597,7 @@
       "field": "ariadne_contract_review_revision_2",
       "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "rw090_arbitrary_codec",
       "severities": [
         "P2",
@@ -4320,6 +4614,7 @@
       "field": "nabu_architecture_review",
       "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "rw090_arbitrary_codec",
       "severities": [],
       "state": "PENDING",
@@ -4332,6 +4627,7 @@
       "field": "nabu_architecture_review_revision_1",
       "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "rw090_arbitrary_codec",
       "severities": [
         "P1",
@@ -4349,6 +4645,7 @@
       "field": "nabu_architecture_review_revision_2",
       "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "rw090_arbitrary_codec",
       "severities": [
         "P2",
@@ -4365,6 +4662,7 @@
       "field": "vulcan_surface_review",
       "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "rw090_arbitrary_codec",
       "severities": [],
       "state": "PENDING",
@@ -4377,6 +4675,7 @@
       "field": "vulcan_surface_review_revision_1",
       "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "rw090_arbitrary_codec",
       "severities": [
         "P2",
@@ -4393,6 +4692,7 @@
       "field": "vulcan_surface_review_revision_2",
       "package_status": "RW090_ARBITRARY_CODEC_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "rw090_arbitrary_codec",
       "severities": [
         "P2",
@@ -4409,6 +4709,7 @@
       "field": "vulcan_review",
       "package_status": "PASS_PROPOSAL_ONLY_RECORD_AND_ENVELOPE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_350_mutation_candidate_persistent_fuzz",
       "severities": [],
       "state": "PASS",
@@ -4421,6 +4722,7 @@
       "field": "ariadne_final_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "s20_360_candidate_validation",
       "severities": [
         "P0",
@@ -4438,6 +4740,7 @@
       "field": "ariadne_operation_analysis_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "s20_360_candidate_validation",
       "severities": [
         "P0",
@@ -4455,6 +4758,7 @@
       "field": "ariadne_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "s20_360_candidate_validation",
       "severities": [],
       "state": "PASS",
@@ -4467,6 +4771,7 @@
       "field": "nabu_final_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "s20_360_candidate_validation",
       "severities": [
         "P0",
@@ -4484,6 +4789,7 @@
       "field": "nabu_operation_analysis_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "s20_360_candidate_validation",
       "severities": [
         "P1",
@@ -4500,6 +4806,7 @@
       "field": "nabu_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "s20_360_candidate_validation",
       "severities": [
         "P0",
@@ -4517,6 +4824,7 @@
       "field": "validator_symbol_coverage_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "reviewer": null,
+      "round_date": "2026-09-13",
       "section": "s20_360_candidate_validation",
       "severities": [],
       "state": "PASS",
@@ -4529,6 +4837,7 @@
       "field": "vulcan_final_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_360_candidate_validation",
       "severities": [
         "P0",
@@ -4546,6 +4855,7 @@
       "field": "vulcan_operation_analysis_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_360_candidate_validation",
       "severities": [
         "P0",
@@ -4563,6 +4873,7 @@
       "field": "vulcan_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_360_candidate_validation",
       "severities": [
         "P3"
@@ -4577,6 +4888,7 @@
       "field": "ariadne_extended_profile_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "s20_390_atomic_commit",
       "severities": [
         "P0",
@@ -4594,6 +4906,7 @@
       "field": "ariadne_final_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "s20_390_atomic_commit",
       "severities": [
         "P0",
@@ -4611,6 +4924,7 @@
       "field": "ariadne_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "s20_390_atomic_commit",
       "severities": [],
       "state": "PASS",
@@ -4623,6 +4937,7 @@
       "field": "nabu_extended_profile_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "s20_390_atomic_commit",
       "severities": [
         "P0",
@@ -4640,6 +4955,7 @@
       "field": "nabu_final_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "s20_390_atomic_commit",
       "severities": [
         "P0",
@@ -4657,6 +4973,7 @@
       "field": "nabu_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "s20_390_atomic_commit",
       "severities": [],
       "state": "PASS",
@@ -4669,6 +4986,7 @@
       "field": "vulcan_extended_profile_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_390_atomic_commit",
       "severities": [
         "P1",
@@ -4685,6 +5003,7 @@
       "field": "vulcan_final_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_390_atomic_commit",
       "severities": [
         "P0",
@@ -4702,6 +5021,7 @@
       "field": "vulcan_review",
       "package_status": "COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_390_atomic_commit",
       "severities": [],
       "state": "PASS",
@@ -4714,6 +5034,7 @@
       "field": "ariadne_review",
       "package_status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "s20_500_native_refs_branches",
       "severities": [
         "P2",
@@ -4729,6 +5050,7 @@
       "field": "implementation_ariadne_review",
       "package_status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "s20_500_native_refs_branches",
       "severities": [],
       "state": "PASS",
@@ -4741,6 +5063,7 @@
       "field": "implementation_nabu_review",
       "package_status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "s20_500_native_refs_branches",
       "severities": [],
       "state": "PASS",
@@ -4753,6 +5076,7 @@
       "field": "implementation_vulcan_review",
       "package_status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_500_native_refs_branches",
       "severities": [],
       "state": "PASS",
@@ -4765,6 +5089,7 @@
       "field": "nabu_review",
       "package_status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "s20_500_native_refs_branches",
       "severities": [],
       "state": "PASS",
@@ -4777,6 +5102,7 @@
       "field": "vulcan_review",
       "package_status": "COMPLETE_NATIVE_REFS_BRANCHES_BOUNDARY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_500_native_refs_branches",
       "severities": [
         "P1",
@@ -4792,6 +5118,7 @@
       "field": "legacy_adapter_contract_review",
       "package_status": "IMPLEMENTED_VERIFIED_ARTIFACT_VERSION_SMOKE_ONLY",
       "reviewer": null,
+      "round_date": null,
       "section": "s20_600_frozen_legacy_adapter",
       "severities": [
         "P3"
@@ -4806,6 +5133,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_VERIFIED_ARTIFACT_VERSION_SMOKE_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_600_frozen_legacy_adapter",
       "severities": [
         "P3"
@@ -4820,6 +5148,7 @@
       "field": "nabu_review",
       "package_status": "IMPLEMENTED_OFFLINE_UNVERIFIED_CLAIM_CHAIN_ONLY",
       "reviewer": "nabu",
+      "round_date": "2026-09-13",
       "section": "s20_610_offline_raw_runner",
       "severities": [],
       "state": "PASS",
@@ -4832,6 +5161,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_280_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_adapter_responses_persistent_fuzz_slice",
       "severities": [
         "P3"
@@ -4846,6 +5176,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_250_FULL_COMPLETE_ROOT_JUDGMENT_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_complete_root_persistent_fuzz_slice",
       "severities": [],
       "state": "PASS",
@@ -4858,6 +5189,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_complete_root_snapshot_persistent_fuzz_slice",
       "severities": [
         "P3"
@@ -4872,6 +5204,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_320_FULL_CONTEXT_CAPSULE_BUILDER_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_context_capsule_persistent_fuzz_slice",
       "severities": [],
       "state": "PASS",
@@ -4884,6 +5217,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_540_EXCHANGE_IMPORTER_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_exchange_persistent_fuzz_slice",
       "severities": [],
       "state": "PASS",
@@ -4896,6 +5230,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_S20_520_MERGE_CONFLICT_DECODER_AND_ANCESTOR_RULE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_merge_persistent_fuzz_slice",
       "severities": [
         "P3"
@@ -4910,6 +5245,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_170_PACK_IMPORTER_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_pack_persistent_fuzz_slice",
       "severities": [
         "P3",
@@ -4925,6 +5261,7 @@
       "field": "vulcan_final_review",
       "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_query_persistent_fuzz_slice",
       "severities": [
         "P3"
@@ -4939,6 +5276,7 @@
       "field": "vulcan_review_revision_1",
       "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_query_persistent_fuzz_slice",
       "severities": [
         "P1",
@@ -4955,6 +5293,7 @@
       "field": "vulcan_review_revision_2",
       "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_TYPED_S20_310_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_query_persistent_fuzz_slice",
       "severities": [
         "P3"
@@ -4969,6 +5308,7 @@
       "field": "ariadne_contract_review",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "s20_700_remaining_surface_audit",
       "severities": [
         "P0",
@@ -4986,6 +5326,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "s20_700_remaining_surface_audit",
       "severities": [
         "P0",
@@ -5003,6 +5344,7 @@
       "field": "ariadne_final_review",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "s20_700_remaining_surface_audit",
       "severities": [
         "P0",
@@ -5020,6 +5362,7 @@
       "field": "candidate_result_vulcan_review",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_remaining_surface_audit",
       "severities": [
         "P3"
@@ -5034,6 +5377,7 @@
       "field": "nabu_architecture_review",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "s20_700_remaining_surface_audit",
       "severities": [
         "P0",
@@ -5051,6 +5395,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "s20_700_remaining_surface_audit",
       "severities": [
         "P0",
@@ -5068,6 +5413,7 @@
       "field": "nabu_final_review",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "s20_700_remaining_surface_audit",
       "severities": [
         "P0",
@@ -5085,6 +5431,7 @@
       "field": "transaction_receipt_vulcan_review",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_remaining_surface_audit",
       "severities": [],
       "state": "PASS",
@@ -5097,6 +5444,7 @@
       "field": "vulcan_final_review",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_remaining_surface_audit",
       "severities": [
         "P0",
@@ -5114,6 +5462,7 @@
       "field": "vulcan_review",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "vulcan",
+      "round_date": "2026-09-14",
       "section": "s20_700_remaining_surface_audit",
       "severities": [
         "P3",
@@ -5129,6 +5478,7 @@
       "field": "vulcan_review_initial",
       "package_status": "ALL_SECTION_18_5_SURFACES_LANDED_FINDING_REGISTER_AND_REVIEW_DEFERRED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_remaining_surface_audit",
       "severities": [
         "P0",
@@ -5146,6 +5496,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_310_FULL_ROOT_QUERY_ENGINE_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_root_query_persistent_fuzz_slice",
       "severities": [],
       "state": "PASS",
@@ -5158,6 +5509,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_SCB1_DECODER_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_scb1_persistent_fuzz_slice",
       "severities": [
         "P2",
@@ -5174,6 +5526,7 @@
       "field": "vulcan_final_review",
       "package_status": "IMPLEMENTED_SCOPED_SCHEMA_BOOTSTRAP_DECODER_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_schema_persistent_fuzz_slice",
       "severities": [
         "P3",
@@ -5189,6 +5542,7 @@
       "field": "vulcan_review_revision_1",
       "package_status": "IMPLEMENTED_SCOPED_SCHEMA_BOOTSTRAP_DECODER_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_schema_persistent_fuzz_slice",
       "severities": [
         "P1",
@@ -5205,6 +5559,7 @@
       "field": "vulcan_review_revision_2",
       "package_status": "IMPLEMENTED_SCOPED_SCHEMA_BOOTSTRAP_DECODER_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_schema_persistent_fuzz_slice",
       "severities": [
         "P3"
@@ -5219,6 +5574,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_PUBLIC_TYPED_S20_210_S20_220_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_semantic_checkers_persistent_fuzz_slice",
       "severities": [
         "P3",
@@ -5234,6 +5590,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_510_SEMANTIC_DELTA_DECODER_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_semantic_delta_persistent_fuzz_slice",
       "severities": [],
       "state": "PASS",
@@ -5246,6 +5603,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_420_SMP1_JSON_BRIDGE_TEXT_AND_FRAME_ROUND_TRIP_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_smp1_json_bridge_persistent_fuzz_slice",
       "severities": [
         "P3",
@@ -5261,6 +5619,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_S20_410_SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_smp1_persistent_fuzz_slice",
       "severities": [
         "P3",
@@ -5276,6 +5635,7 @@
       "field": "vulcan_review",
       "package_status": "IMPLEMENTED_SCOPED_RESTRICTED_S20_270_AND_EXTENDED_FAMILY_VM_INPUT_BOUNDARY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_700_vm_persistent_fuzz_slice",
       "severities": [
         "P4"
@@ -5290,6 +5650,7 @@
       "field": "final_argus_disposition",
       "package_status": "DEFERRED_SBOM_PROVENANCE_APPROVAL_AND_RELEASE_BOUNDARY",
       "reviewer": null,
+      "round_date": null,
       "section": "s20_710_pre_release_audit",
       "severities": [],
       "state": "PASS",
@@ -5302,6 +5663,7 @@
       "field": "final_vulcan_disposition",
       "package_status": "DEFERRED_SBOM_PROVENANCE_APPROVAL_AND_RELEASE_BOUNDARY",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "s20_710_pre_release_audit",
       "severities": [],
       "state": "PASS",
@@ -5314,6 +5676,7 @@
       "field": "ariadne_review",
       "package_status": "S20_100_SPEC_S20_120_CODEC_S20_130_ORACLE_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "scb1",
       "severities": [],
       "state": "PASS",
@@ -5326,6 +5689,7 @@
       "field": "ariadne_design_review",
       "package_status": "S20_140_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "schema_epoch",
       "severities": [],
       "state": "PASS",
@@ -5338,6 +5702,7 @@
       "field": "vulcan_review",
       "package_status": "S20_140_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "schema_epoch",
       "severities": [],
       "state": "PASS",
@@ -5350,6 +5715,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_510_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "semantic_comparison",
       "severities": [
         "P0",
@@ -5367,6 +5733,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_510_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "semantic_comparison",
       "severities": [
         "P0",
@@ -5384,6 +5751,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_510_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "semantic_comparison",
       "severities": [
         "P0",
@@ -5401,6 +5769,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_510_COMPLETE",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "semantic_comparison",
       "severities": [
         "P0",
@@ -5418,6 +5787,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_510_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "semantic_comparison",
       "severities": [
         "P0",
@@ -5435,6 +5805,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_510_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "semantic_comparison",
       "severities": [
         "P0",
@@ -5452,6 +5823,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_510_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "semantic_comparison",
       "severities": [
         "P0",
@@ -5469,6 +5841,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_510_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "semantic_comparison",
       "severities": [
         "P0",
@@ -5486,6 +5859,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_510_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "semantic_comparison",
       "severities": [
         "P1",
@@ -5502,6 +5876,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5519,6 +5894,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5536,6 +5912,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5553,6 +5930,7 @@
       "field": "ariadne_review",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5570,6 +5948,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5587,6 +5966,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5604,6 +5984,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5621,6 +6002,7 @@
       "field": "nabu_review",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5638,6 +6020,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5655,6 +6038,7 @@
       "field": "vulcan_review",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5672,6 +6056,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5689,6 +6074,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "session_handle_profile",
       "severities": [
         "P0",
@@ -5706,6 +6092,7 @@
       "field": "current_delta_review.ariadne",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "session_handle_profile.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -5718,6 +6105,7 @@
       "field": "current_delta_review.nabu",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "session_handle_profile.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -5730,6 +6118,7 @@
       "field": "current_delta_review.vulcan",
       "package_status": "S20_330_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "session_handle_profile.current_delta_review",
       "severities": [],
       "state": "PASS",
@@ -5742,6 +6131,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_620_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "sley2_trial_runner",
       "severities": [],
       "state": "PASS",
@@ -5754,6 +6144,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_620_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "sley2_trial_runner",
       "severities": [],
       "state": "PASS",
@@ -5766,6 +6157,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_620_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "sley2_trial_runner",
       "severities": [],
       "state": "PASS",
@@ -5778,6 +6170,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_200_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "ssmc1",
       "severities": [],
       "state": "PASS",
@@ -5790,6 +6183,7 @@
       "field": "ariadne_initial_review",
       "package_status": "S20_200_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "ssmc1",
       "severities": [
         "P1",
@@ -5805,6 +6199,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P3",
@@ -5820,6 +6215,7 @@
       "field": "ariadne_contract_review_revision_1",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P1",
@@ -5836,6 +6232,7 @@
       "field": "ariadne_contract_review_revision_2",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P2",
@@ -5851,6 +6248,7 @@
       "field": "ariadne_contract_review_revision_3",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P3"
@@ -5865,6 +6263,7 @@
       "field": "ariadne_contract_review_revision_4",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P3",
@@ -5880,6 +6279,7 @@
       "field": "ariadne_contract_review_revision_5",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P3",
@@ -5895,6 +6295,7 @@
       "field": "ariadne_contract_review_revision_6",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P4"
@@ -5909,6 +6310,7 @@
       "field": "ariadne_contract_review_revision_7",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P4"
@@ -5923,6 +6325,7 @@
       "field": "ariadne_contract_review_revision_8",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P1",
@@ -5939,6 +6342,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P4"
@@ -5953,6 +6357,7 @@
       "field": "nabu_architecture_review_revision_1",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P1",
@@ -5969,6 +6374,7 @@
       "field": "nabu_architecture_review_revision_2",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P2",
@@ -5984,6 +6390,7 @@
       "field": "nabu_architecture_review_revision_3",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [],
       "state": "PASS",
@@ -5996,6 +6403,7 @@
       "field": "nabu_architecture_review_revision_4",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P4"
@@ -6010,6 +6418,7 @@
       "field": "nabu_architecture_review_revision_5",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P4"
@@ -6024,6 +6433,7 @@
       "field": "nabu_architecture_review_revision_6",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P4"
@@ -6038,6 +6448,7 @@
       "field": "nabu_architecture_review_revision_7",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P2",
@@ -6054,6 +6465,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P4"
@@ -6068,6 +6480,7 @@
       "field": "vulcan_surface_review_revision_1",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P1",
@@ -6084,6 +6497,7 @@
       "field": "vulcan_surface_review_revision_2",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P2",
@@ -6099,6 +6513,7 @@
       "field": "vulcan_surface_review_revision_3",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P2",
@@ -6114,6 +6529,7 @@
       "field": "vulcan_surface_review_revision_4",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P3",
@@ -6129,6 +6545,7 @@
       "field": "vulcan_surface_review_revision_5",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P3"
@@ -6143,6 +6560,7 @@
       "field": "vulcan_surface_review_revision_6",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P3",
@@ -6158,6 +6576,7 @@
       "field": "vulcan_surface_review_revision_7",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P4"
@@ -6172,6 +6591,7 @@
       "field": "vulcan_surface_review_revision_8",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "standards_sbom_and_provenance",
       "severities": [],
       "state": "PASS",
@@ -6184,6 +6604,7 @@
       "field": "vulcan_surface_review_revision_9",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "standards_sbom_and_provenance",
       "severities": [
         "P1",
@@ -6199,6 +6620,7 @@
       "field": "current_delta_review.ariadne",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
+      "round_date": "2026-09-18",
       "section": "standards_sbom_and_provenance.current_delta_review",
       "severities": [
         "P3",
@@ -6214,6 +6636,7 @@
       "field": "current_delta_review.nabu",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
+      "round_date": "2026-09-18",
       "section": "standards_sbom_and_provenance.current_delta_review",
       "severities": [
         "P4"
@@ -6228,6 +6651,7 @@
       "field": "current_delta_review.vulcan",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
+      "round_date": "2026-09-18",
       "section": "standards_sbom_and_provenance.current_delta_review",
       "severities": [
         "P4"
@@ -6242,6 +6666,7 @@
       "field": "ariadne_design_review",
       "package_status": "S20_160_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "state_root",
       "severities": [],
       "state": "PASS",
@@ -6254,6 +6679,7 @@
       "field": "vulcan_review",
       "package_status": "S20_160_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "state_root",
       "severities": [],
       "state": "PASS",
@@ -6266,6 +6692,7 @@
       "field": "s20_040_review",
       "package_status": "IN_PROGRESS",
       "reviewer": null,
+      "round_date": null,
       "section": "succession",
       "severities": [],
       "state": "PASS",
@@ -6278,6 +6705,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_630_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "succession_accounting",
       "severities": [
         "P0",
@@ -6295,6 +6723,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_630_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "succession_accounting",
       "severities": [
         "P0",
@@ -6312,6 +6741,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_630_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "succession_accounting",
       "severities": [
         "P0",
@@ -6329,6 +6759,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_630_COMPLETE",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "succession_accounting",
       "severities": [
         "P0",
@@ -6346,6 +6777,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_630_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "succession_accounting",
       "severities": [
         "P0",
@@ -6363,6 +6795,7 @@
       "field": "nabu_final_review",
       "package_status": "S20_630_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "succession_accounting",
       "severities": [
         "P0",
@@ -6380,6 +6813,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_630_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "succession_accounting",
       "severities": [
         "P0",
@@ -6397,6 +6831,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_630_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "succession_accounting",
       "severities": [
         "P0",
@@ -6414,6 +6849,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_630_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "succession_accounting",
       "severities": [
         "P0",
@@ -6431,6 +6867,7 @@
       "field": "independent_security_review",
       "package_status": "IN_PROGRESS",
       "reviewer": null,
+      "round_date": "2026-09-14",
       "section": "threat_coverage",
       "severities": [
         "P3",
@@ -6446,6 +6883,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_210_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "type_system",
       "severities": [],
       "state": "PASS",
@@ -6458,6 +6896,7 @@
       "field": "vulcan_initial_review",
       "package_status": "S20_210_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "type_system",
       "severities": [
         "P2"
@@ -6472,6 +6911,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_270_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "vm_execution_profile",
       "severities": [],
       "state": "PASS",
@@ -6484,6 +6924,7 @@
       "field": "ariadne_initial_review",
       "package_status": "S20_270_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "vm_execution_profile",
       "severities": [
         "P1",
@@ -6499,6 +6940,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_270_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "vm_execution_profile",
       "severities": [],
       "state": "PASS",
@@ -6511,6 +6953,7 @@
       "field": "vulcan_review",
       "package_status": "S20_270_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "vm_execution_profile",
       "severities": [],
       "state": "PASS",
@@ -6523,6 +6966,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_260_270_EXTENDED_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "vm_extended_opcode_profile",
       "severities": [
         "P0",
@@ -6540,6 +6984,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_260_270_EXTENDED_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "vm_extended_opcode_profile",
       "severities": [
         "P0",
@@ -6557,6 +7002,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_260_270_EXTENDED_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "vm_extended_opcode_profile",
       "severities": [
         "P0",
@@ -6574,6 +7020,7 @@
       "field": "ariadne_review",
       "package_status": "S20_260_270_EXTENDED_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "vm_extended_opcode_profile",
       "severities": [
         "P0",
@@ -6591,6 +7038,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_260_270_EXTENDED_COMPLETE",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "vm_extended_opcode_profile",
       "severities": [
         "P1",
@@ -6607,6 +7055,7 @@
       "field": "vulcan_final_review",
       "package_status": "S20_260_270_EXTENDED_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "vm_extended_opcode_profile",
       "severities": [
         "P0",
@@ -6624,6 +7073,7 @@
       "field": "vulcan_review",
       "package_status": "S20_260_270_EXTENDED_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "vm_extended_opcode_profile",
       "severities": [
         "P0",
@@ -6641,6 +7091,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_260_270_EXTENDED_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "vm_extended_opcode_profile",
       "severities": [
         "P0",
@@ -6658,6 +7109,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_260_270_EXTENDED_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "vm_extended_opcode_profile",
       "severities": [
         "P0",
@@ -6675,6 +7127,7 @@
       "field": "ariadne_final_review",
       "package_status": "S20_260_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "vm_lowering_profile",
       "severities": [],
       "state": "PASS",
@@ -6687,6 +7140,7 @@
       "field": "ariadne_initial_review",
       "package_status": "S20_260_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "vm_lowering_profile",
       "severities": [
         "P1",
@@ -6702,6 +7156,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_260_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "vm_lowering_profile",
       "severities": [],
       "state": "PASS",
@@ -6714,6 +7169,7 @@
       "field": "vulcan_review",
       "package_status": "S20_260_RESTRICTED_EPOCH1_COMPLETE",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "vm_lowering_profile",
       "severities": [],
       "state": "PASS",
@@ -6726,6 +7182,7 @@
       "field": "ariadne_contract_review",
       "package_status": "S20_ZJX_READINESS_READY_EXISTING_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": "2026-09-15",
       "section": "zjx_transport_readiness",
       "severities": [],
       "state": "PASS",
@@ -6738,6 +7195,7 @@
       "field": "ariadne_contract_review_initial",
       "package_status": "S20_ZJX_READINESS_READY_EXISTING_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "zjx_transport_readiness",
       "severities": [
         "P2",
@@ -6754,6 +7212,7 @@
       "field": "ariadne_contract_review_revision_2",
       "package_status": "S20_ZJX_READINESS_READY_EXISTING_ACCEPTED",
       "reviewer": "ariadne",
+      "round_date": null,
       "section": "zjx_transport_readiness",
       "severities": [
         "P3"
@@ -6768,6 +7227,7 @@
       "field": "nabu_architecture_review",
       "package_status": "S20_ZJX_READINESS_READY_EXISTING_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": "2026-09-15",
       "section": "zjx_transport_readiness",
       "severities": [],
       "state": "PASS",
@@ -6780,6 +7240,7 @@
       "field": "nabu_architecture_review_initial",
       "package_status": "S20_ZJX_READINESS_READY_EXISTING_ACCEPTED",
       "reviewer": "nabu",
+      "round_date": null,
       "section": "zjx_transport_readiness",
       "severities": [
         "P2",
@@ -6795,6 +7256,7 @@
       "field": "vulcan_surface_review",
       "package_status": "S20_ZJX_READINESS_READY_EXISTING_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": "2026-09-15",
       "section": "zjx_transport_readiness",
       "severities": [],
       "state": "PASS",
@@ -6807,6 +7269,7 @@
       "field": "vulcan_surface_review_initial",
       "package_status": "S20_ZJX_READINESS_READY_EXISTING_ACCEPTED",
       "reviewer": "vulcan",
+      "round_date": null,
       "section": "zjx_transport_readiness",
       "severities": [
         "P2",
@@ -6817,8 +7280,28 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "obligations_digest": "f80409c2b180d858e328ed97d4ee0fd1a9bd8fc4845260e5f24b70a899547e4b",
+  "obligations_digest": "8a0240034f145a5bcd0d8b5c4d42a278adceab180660da7b149206066f93ad13",
   "open_reviews": [
+    {
+      "disposition": "REVISE_0_P0_0_P1_2_P2_1_P3_1_P4",
+      "field": "ariadne_contract_review_revision_7",
+      "section": "reproducibility_and_independent_conformance",
+      "severities": [
+        "P2",
+        "P3",
+        "P4"
+      ]
+    },
+    {
+      "disposition": "REVISE_0_P0_0_P1_1_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED",
+      "field": "ariadne_contract_review_revision_8",
+      "section": "reproducibility_and_independent_conformance",
+      "severities": [
+        "P2",
+        "P3",
+        "P4"
+      ]
+    },
     {
       "disposition": "REVISE_0_P0_0_P1_1_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED",
       "field": "current_delta_review.ariadne",
@@ -7098,7 +7581,7 @@
     "vm_extended_opcode_profile.p3_open": 0,
     "vm_extended_opcode_profile.p3_open_count": 0
   },
-  "register_digest": "f8327626d745d4dabc6c76085ba8c066da5bf47393d95dcc16ee1b2af7f75ece",
+  "register_digest": "70698921303bb0a6c292d6a849f408266c7ff583dbf43a7ddf46cdbe4524c900",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
@@ -7109,9 +7592,9 @@
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
-    "HISTORICAL_ROUND": 149,
+    "HISTORICAL_ROUND": 147,
     "PASS": 302,
-    "PENDING": 12
+    "PENDING": 14
   },
   "superseded_rounds": [
     {
@@ -7418,7 +7901,7 @@
       "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
       "field": "vulcan_surface_review_revision_5",
       "section": "release_candidate_packaging",
-      "superseded_by": "vulcan_final_review"
+      "superseded_by": "vulcan_surface_review"
     },
     {
       "disposition": "FAIL_CONTRACT_DRAFT_4_P0_4_P1_10_P2_7_P3_ALL_APPLIED_IN_REVISION_2",
@@ -7477,18 +7960,6 @@
     {
       "disposition": "REVISE_0_P0_0_P1_0_P2_0_P3_1_P4",
       "field": "ariadne_contract_review_revision_6",
-      "section": "reproducibility_and_independent_conformance",
-      "superseded_by": "ariadne_contract_review"
-    },
-    {
-      "disposition": "REVISE_0_P0_0_P1_2_P2_1_P3_1_P4",
-      "field": "ariadne_contract_review_revision_7",
-      "section": "reproducibility_and_independent_conformance",
-      "superseded_by": "ariadne_contract_review"
-    },
-    {
-      "disposition": "REVISE_0_P0_0_P1_1_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED",
-      "field": "ariadne_contract_review_revision_8",
       "section": "reproducibility_and_independent_conformance",
       "superseded_by": "ariadne_contract_review"
     },
@@ -7556,25 +8027,25 @@
       "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_3_P4",
       "field": "vulcan_surface_review_revision_10",
       "section": "reproducibility_and_independent_conformance",
-      "superseded_by": "vulcan_final_review"
+      "superseded_by": "vulcan_surface_review"
     },
     {
       "disposition": "REVISE_0_P0_1_P1_0_P2_2_P3_3_P4",
       "field": "vulcan_surface_review_revision_2",
       "section": "reproducibility_and_independent_conformance",
-      "superseded_by": "vulcan_final_review"
+      "superseded_by": "vulcan_surface_review"
     },
     {
       "disposition": "REVISE_0_P0_1_P1_0_P2_2_P3_2_P4",
       "field": "vulcan_surface_review_revision_3",
       "section": "reproducibility_and_independent_conformance",
-      "superseded_by": "vulcan_final_review"
+      "superseded_by": "vulcan_surface_review"
     },
     {
       "disposition": "REVISE_0_P0_1_P1_0_P2_1_P3",
       "field": "vulcan_surface_review_revision_4",
       "section": "reproducibility_and_independent_conformance",
-      "superseded_by": "vulcan_final_review"
+      "superseded_by": "vulcan_surface_review"
     },
     {
       "disposition": "REVISE_0_P0_0_P1_1_P2_3_P3_3_P4",

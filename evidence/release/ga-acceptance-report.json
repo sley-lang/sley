@@ -118,7 +118,7 @@
     },
     {
       "criterion": "No undefined behavior exists in the program model",
-      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 86 PASS, 4 PENDING, 0 OTHER, 55 historical, 0 unclaimed or unclassified; lane open)",
+      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 86 PASS, 6 PENDING, 0 OTHER, 53 historical, 0 unclaimed or unclassified; lane open)",
       "group": "26.3 semantics",
       "state": "AWAITS_REVIEW"
     },
@@ -304,7 +304,7 @@
     },
     {
       "criterion": "Ariadne approves SSMC1 and semantic correctness",
-      "evidence": "finding register ariadne lane: 86 PASS, 4 PENDING, 0 OTHER, 55 historical, 0 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
+      "evidence": "finding register ariadne lane: 86 PASS, 6 PENDING, 0 OTHER, 53 historical, 0 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -322,7 +322,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 12 open, 0 unclassified, and 0 unclaimed-carried obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 14 open, 0 unclassified, and 0 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -341,9 +341,9 @@
     "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "f80409c2b180d858e328ed97d4ee0fd1a9bd8fc4845260e5f24b70a899547e4b",
-  "register_digest": "f8327626d745d4dabc6c76085ba8c066da5bf47393d95dcc16ee1b2af7f75ece",
-  "report_digest": "e3fdb68d62c51afca6b3c66c572f49180c15d9531030441c8831be4a5a64457f",
+  "obligations_digest": "8a0240034f145a5bcd0d8b5c4d42a278adceab180660da7b149206066f93ad13",
+  "register_digest": "70698921303bb0a6c292d6a849f408266c7ff583dbf43a7ddf46cdbe4524c900",
+  "report_digest": "8bb8ca9dc29c431b2de64c95afb99096d43d2cd48b3bb76461528da8a5e7ba76",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

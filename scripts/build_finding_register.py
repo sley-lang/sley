@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 CONTRACT = "sley2.finding-register.v1"
-CONTRACT_REVISION = 4
+CONTRACT_REVISION = 5
 # Field names that name a role, actor, session, instant, or free note rather
 # than a disposition (contract section 1). All suffix-anchored: a bare
 # substring match would silently drop a future field that merely contains
@@ -130,6 +130,29 @@ def field_early(field: str) -> bool:
 def field_late(field: str) -> bool:
     """Whether a field names a later review round."""
     return any(token in ROUND_LATE for token in field.split("_"))
+
+
+ROUND_DATE = re.compile(r"\b(20\d{2}-\d{2}-\d{2})\b")
+
+
+def round_date(note: object) -> str | None:
+    """The latest calendar date a round's `_note` records, if any."""
+    if not isinstance(note, str):
+        return None
+    found = ROUND_DATE.findall(note)
+    return max(found) if found else None
+
+
+def dated_before(pass_date: str | None, fail_date: str | None) -> bool:
+    """Whether the notes show the PASS was filed before the FAIL round.
+
+    Round tokens carry no chronology ("revision" is early, "final" is late
+    by name), so a lane could pre-file a `*_final_review` PASS and have
+    every later REVISE fold under it (Vulcan P4 at 92fa6646). When both
+    notes carry dates, a PASS dated before the FAIL round never folds it;
+    undated notes keep the token rule.
+    """
+    return pass_date is not None and fail_date is not None and pass_date < fail_date
 
 
 def supersedes(pass_field: str, fail_field: str) -> bool:
@@ -318,6 +341,7 @@ def collect(summary: dict) -> list[dict]:
                             "declares_no_open_p0_p1_p2": "NO_OPEN_P0_P1_P2" in value,
                             "package_status": own_status,
                             "superseded_by": None,
+                            "round_date": round_date(node.get(f"{field}_note")),
                         }
                     )
                 walk(value, child, own_status, field)
@@ -332,7 +356,9 @@ def collect(summary: dict) -> list[dict]:
     # and stays open (contract section 2). The list above is already sorted
     # by (section, field), so the first closing candidate wins deterministically.
     passes: dict[tuple[str, str], list[str]] = {}
+    dates: dict[tuple[str, str], str | None] = {}
     for item in obligations:
+        dates[(item["section"], item["field"])] = item["round_date"]
         if item["state"] == "PASS" and item["reviewer"] is not None:
             passes.setdefault((item["section"], item["reviewer"]), []).append(item["field"])
     for item in obligations:
@@ -340,7 +366,9 @@ def collect(summary: dict) -> list[dict]:
             superseder = None
             if item["reviewer"] is not None:
                 for candidate in passes.get((item["section"], item["reviewer"]), []):
-                    if supersedes(candidate, item["field"]):
+                    if supersedes(candidate, item["field"]) and not dated_before(
+                        dates.get((item["section"], candidate)), item["round_date"]
+                    ):
                         superseder = candidate
                         break
             if superseder is not None:

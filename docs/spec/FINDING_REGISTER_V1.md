@@ -1,9 +1,17 @@
 # Finding Register v1
 
-Status: S20-740 contract draft, revision 4 (2026-09-13); Council review
+Status: S20-740 contract draft, revision 5 (2026-09-18); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). The mechanics are `scripts/build_finding_register.py`;
 implementation state is tracked in the machine summary.
+
+Revision 5 (2026-09-18) adds chronology to round folding: a `PASS` whose
+`_note` is dated before the `FAIL`/`REVISE` round's `_note` never folds
+that round, whatever the round tokens say (Vulcan P4 at 92fa6646: a lane
+could otherwise pre-file a `*_final_review` `PASS` and fold every later
+`REVISE`); undated notes keep the token rule. No verdict is reclassified;
+two reproducibility Ariadne revisions that an older base `PASS` had folded
+now read `PENDING` until the lane's later `PASS` is filed.
 
 Revision 4 closes the two precision gaps the Vulcan re-review of the live
 register kept open as P3s: a `PASS` that still names findings blocks
@@ -79,7 +87,8 @@ obligation = {
   "declares_closed_findings": bool,
   "declares_no_open_p0_p1_p2": bool,
   "package_status": the owning section's status, or null,
-  "superseded_by": the superseding PASS field, or null
+  "superseded_by": the superseding PASS field, or null,
+  "round_date": the latest YYYY-MM-DD date in the field's `_note`, or null
 }
 ```
 
@@ -107,7 +116,10 @@ builder and this section names every entry, so no alias is ever silent):
   enforced: a cross-core fold needs round evidence (an early token on the
   round or a late token on the `PASS`), so an older general `PASS` never
   closes a newer qualified `FAIL`, and two unmarked rounds never fold
-  across cores;
+  across cores. Chronology is enforced when both rounds' `_note` fields
+  carry calendar dates (`YYYY-MM-DD`; the latest date in the note): a
+  `PASS` dated before the round it would close does not close it
+  (revision 5); `round_date` is recorded on every obligation;
 - `OTHER` otherwise, which the register surfaces rather than silently
   normalizing.
 

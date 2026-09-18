@@ -277,6 +277,41 @@ class InvariantTests(unittest.TestCase):
         self.assertEqual(derived["states"]["HISTORICAL_ROUND"], 1)
         self.assertEqual(derived["superseded_rounds"][0]["superseded_by"], "vulcan_review")
 
+    def test_a_pass_dated_before_the_failed_round_does_not_fold_it(self) -> None:
+        # Vulcan P4 at 92fa6646: a late-token PASS filed earlier than the
+        # REVISE round it would fold is not a re-review of that round.
+        derived = self.build_from(
+            {
+                "example_package": {
+                    "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                    "vulcan_surface_review_revision_5": "REVISE_0_P0_0_P1_1_P2",
+                    "vulcan_surface_review_revision_5_note": "REVISE via claude-code 2026-09-18 on 178873d7",
+                    "vulcan_final_review": "PASS",
+                    "vulcan_final_review_note": "PASS via muse 2026-09-13 on a810943",
+                },
+                "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+            }
+        )
+        self.assertEqual(derived["result"], "FINDING_REGISTER_OPEN")
+        self.assertEqual(derived["states"].get("HISTORICAL_ROUND", 0), 0)
+        self.assertEqual(derived["states"]["PENDING"], 1)
+        # The same rounds with the PASS dated later fold as before.
+        derived = self.build_from(
+            {
+                "example_package": {
+                    "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                    "vulcan_surface_review_revision_5": "REVISE_0_P0_0_P1_1_P2",
+                    "vulcan_surface_review_revision_5_note": "REVISE via claude-code 2026-09-18 on 178873d7",
+                    "vulcan_final_review": "PASS",
+                    "vulcan_final_review_note": "PASS via claude-code 2026-09-19 on c04539b9",
+                },
+                "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+            }
+        )
+        self.assertEqual(derived["states"]["HISTORICAL_ROUND"], 1)
+        self.assertEqual(register.round_date("x 2026-09-01 y 2026-09-18 z"), "2026-09-18")
+        self.assertIsNone(register.round_date(None))
+
     def test_an_unsuperseded_failure_blocks_clearance(self) -> None:
         derived = self.build_from(
             {

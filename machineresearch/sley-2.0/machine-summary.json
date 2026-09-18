@@ -4737,13 +4737,13 @@
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/FINDING_REGISTER_V1.md",
-    "contract_revision": 4,
+    "contract_revision": 5,
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
     "closeout": "docs/audits/S20_740_FINDING_REGISTER_CLOSEOUT.md",
     "obligations": 463,
-    "open_reviews": 12,
+    "open_reviews": 14,
     "deferred_reviews": 0,
     "unclassified_dispositions": 0,
     "complete_packages": 37,
@@ -4781,7 +4781,8 @@
     ],
     "finding_review_note": "2026-09-13 db1bc62 finals rev4: nabu PASS-0 (full-scope); ariadne REVISE-1P3 (coarse CLOSED exemption, scb1 live) + vulcan REVISE-2P3 (CLOSED-substring + stacked-negation evasions, no live instances); all repaired post-scope per-severity (closed-scope/negation-void) with 3 pinning tests; transcripts evidence/review/verdicts/finding_register/*-db1bc62.md | CONFIRMATION 2026-09-13 c703bd5 (scope: post-scope repairs incl. suffix + vacuous amendments): ariadne confirmation PASS-0 (per-severity rule re-verified incl. named scb1 row, PGP disposition retained; transcript evidence/review/verdicts/finding_register/ariadne_contract_confirmation-c703bd5.md); vulcan confirmation PASS-0 (3 recorded P3 bypasses re-verified repaired + 1 new vacuous-continuation P3 repaired+pinned in-scope c703bd5; transcript evidence/review/verdicts/finding_register/vulcan_surface_confirmation-c703bd5.md); nabu PASS preserved in reviewed scope",
     "ariadne_contract_review_note": "[verdict form PASS_0_P0_0_P1_0_P2_0_P3_0_P4 normalized 2026-09-15 to the bare PASS token the acceptance checker binds; zero findings at every level]",
-    "nabu_architecture_review_note": "[verdict form PASS_0_P0_0_P1_0_P2_0_P3_0_P4 normalized 2026-09-15 to the bare PASS token the acceptance checker binds; zero findings at every level]"
+    "nabu_architecture_review_note": "[verdict form PASS_0_P0_0_P1_0_P2_0_P3_0_P4 normalized 2026-09-15 to the bare PASS token the acceptance checker binds; zero findings at every level]",
+    "contract_revision_note": "Revision 5 (2026-09-18): chronology rule on round folding (a PASS dated before the FAIL/REVISE round's note never folds it); round_date recorded per obligation. Revision 4 (2026-09-13): unclaimed_carried_findings and mid_string_complete_packages."
   },
   "decision_dossier": {
     "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
@@ -4795,7 +4796,7 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "12 review obligations are open",
+      "14 review obligations are open",
       "20 GA acceptance criteria are not evidenced",
       "no succession trial has been executed",
       "only one host has attested the candidate",

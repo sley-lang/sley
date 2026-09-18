@@ -1,6 +1,6 @@
 # ADR-0042: the finding register is derived from recorded dispositions
 
-Status: proposed; the S20-740 contract is a draft at revision 3 with Council
+Status: proposed; the S20-740 contract is a draft at revision 5 with Council
 review pending; register mechanics implemented (2026-09-05, revised
 2026-09-11 with enforced round ordering, lane-core compatibility, and
 lane-leaf collection) with the
@@ -60,3 +60,5 @@ unavailable (ADR-0026), so most obligations are legitimately open.
   alone while the failing verdict stands unrevisited.
 - Retiring a Council lane or renaming a disposition changes the register, so
   the drift check forces the change to be deliberate.
+
+Note (revision 5, 2026-09-18): round folding additionally requires that a closing `PASS` is not dated before the round it closes (dates read from the `_note` fields); token order alone no longer suffices when both notes are dated.
