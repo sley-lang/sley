@@ -18,6 +18,20 @@ pub(super) fn dependency_decode_result_type() -> TypeExpr {
     }
 }
 
+pub(super) fn package_decode_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(TypeExpr::Tuple(vec![
+            TypeExpr::Bytes,
+            TypeExpr::Bytes,
+            TypeExpr::Bytes,
+            u64_type(),
+            TypeExpr::Bytes,
+            u64_type(),
+        ])),
+        error: Box::new(TypeExpr::Bytes),
+    }
+}
+
 fn block_parameters(
     assembler: &mut Asm,
     namespace: u8,
@@ -32,7 +46,7 @@ fn block_parameters(
         .collect()
 }
 
-fn record_state_types(outputs: usize) -> Vec<TypeExpr> {
+fn record_state_types(output_types: &[TypeExpr]) -> Vec<TypeExpr> {
     let mut types = vec![
         u64_type(),
         u64_type(),
@@ -41,13 +55,13 @@ fn record_state_types(outputs: usize) -> Vec<TypeExpr> {
         TypeExpr::Unit,
         TypeExpr::Bool,
     ];
-    types.extend((0..outputs).map(|_| TypeExpr::Bytes));
+    types.extend_from_slice(output_types);
     types
 }
 
-fn decoded_record_state_types(outputs: usize) -> Vec<TypeExpr> {
+fn decoded_record_state_types(output_types: &[TypeExpr]) -> Vec<TypeExpr> {
     std::iter::once(u64_type())
-        .chain(record_state_types(outputs))
+        .chain(record_state_types(output_types))
         .collect()
 }
 
@@ -76,8 +90,6 @@ struct DecodeBlocks {
     max_fields: EntityId,
     constant0: EntityId,
     constant1: EntityId,
-    constant3: EntityId,
-    constant18: EntityId,
     constant32: EntityId,
 }
 
@@ -108,12 +120,12 @@ fn build_record_uvar_stage(
     ns: Ns,
     control: &DecodeBlocks,
     width: EntityId,
-    outputs: usize,
+    output_types: &[TypeExpr],
     destination: EntityId,
 ) -> EntityId {
     let head = assembler.id(ns.b);
     let decoded = assembler.id(ns.b);
-    let state_types = record_state_types(outputs);
+    let state_types = record_state_types(output_types);
     let parameters = block_parameters(assembler, ns.p, head, &state_types);
     let width_value = assembler.cref(ns.o, head, width, u32_type());
     let call = assembler.op(
@@ -309,11 +321,12 @@ fn build_expected_record_uvar_stage(
     control: &DecodeBlocks,
     width: EntityId,
     expected: u8,
-    outputs: usize,
+    output_types: &[TypeExpr],
     destination: EntityId,
 ) -> EntityId {
-    let state_types = record_state_types(outputs);
-    let fallback = build_record_uvar_stage(assembler, ns, control, width, outputs, destination);
+    let state_types = record_state_types(output_types);
+    let fallback =
+        build_record_uvar_stage(assembler, ns, control, width, output_types, destination);
     build_expected_uvar_fast_path(
         assembler,
         ns,
@@ -327,19 +340,20 @@ fn build_expected_record_uvar_stage(
 
 /// Validates one ordered record-field tag. Duplicate detection precedes the
 /// order check, matching `decode_record_fields`.
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn build_field_tag_validator(
     assembler: &mut Asm,
     ns: Ns,
     control: &DecodeBlocks,
-    outputs: usize,
+    output_types: &[TypeExpr],
     expected: u64,
     previous: Option<u64>,
+    known_tags: &[u64],
     destination: EntityId,
 ) -> EntityId {
     let head = assembler.id(ns.b);
     let mismatch = assembler.id(ns.b);
-    let decoded_types = decoded_record_state_types(outputs);
+    let decoded_types = decoded_record_state_types(output_types);
     let parameters = block_parameters(assembler, ns.p, head, &decoded_types);
     let expected_constant = assembler.ku64(ns.k, u128::from(expected));
     let expected_value = assembler.cref(ns.o, head, expected_constant, u64_type());
@@ -426,8 +440,8 @@ fn build_field_tag_validator(
     let known_parameters = block_parameters(assembler, ns.p, known_check, &decoded_types);
     let mut operations = Vec::new();
     let mut known_match = None;
-    for known_tag in [1u64, 2, 3] {
-        let constant = assembler.ku64(ns.k, u128::from(known_tag));
+    for known_tag in known_tags {
+        let constant = assembler.ku64(ns.k, u128::from(*known_tag));
         let value = assembler.cref(ns.o, known_check, constant, u64_type());
         let equals = assembler.op(
             ns.o,
@@ -461,7 +475,7 @@ fn build_field_tag_validator(
         known_parameters,
         operations,
         cond(
-            known_match.expect("DependencyBinding has known field tags"),
+            known_match.expect("record has known field tags"),
             edge(control.order_error, Vec::new()),
             edge(control.unknown_error, Vec::new()),
         ),
@@ -473,12 +487,13 @@ fn build_record_count_validator(
     assembler: &mut Asm,
     ns: Ns,
     control: &DecodeBlocks,
+    expected: u64,
     destination: EntityId,
 ) -> EntityId {
     let head = assembler.id(ns.b);
     let minimum = assembler.id(ns.b);
     let maximum = assembler.id(ns.b);
-    let decoded_types = decoded_record_state_types(0);
+    let decoded_types = decoded_record_state_types(&[]);
 
     let parameters = block_parameters(assembler, ns.p, head, &decoded_types);
     let max_fields = assembler.cref(ns.o, head, control.max_fields, u64_type());
@@ -504,7 +519,8 @@ fn build_record_count_validator(
     );
 
     let minimum_parameters = block_parameters(assembler, ns.p, minimum, &decoded_types);
-    let three = assembler.cref(ns.o, minimum, control.constant3, u64_type());
+    let expected_constant = assembler.ku64(ns.k, u128::from(expected));
+    let three = assembler.cref(ns.o, minimum, expected_constant, u64_type());
     let too_few = assembler.op(
         ns.o,
         minimum,
@@ -527,7 +543,7 @@ fn build_record_count_validator(
     );
 
     let maximum_parameters = block_parameters(assembler, ns.p, maximum, &decoded_types);
-    let three = assembler.cref(ns.o, maximum, control.constant3, u64_type());
+    let three = assembler.cref(ns.o, maximum, expected_constant, u64_type());
     let too_many = assembler.op(
         ns.o,
         maximum,
@@ -558,7 +574,7 @@ fn build_fixed_32_validator(
     assembler: &mut Asm,
     ns: Ns,
     control: &DecodeBlocks,
-    outputs: usize,
+    output_types: &[TypeExpr],
     destination: EntityId,
 ) -> EntityId {
     let head = assembler.id(ns.b);
@@ -566,7 +582,7 @@ fn build_fixed_32_validator(
     let bounded = assembler.id(ns.b);
     let minimum = assembler.id(ns.b);
     let maximum = assembler.id(ns.b);
-    let decoded_types = decoded_record_state_types(outputs);
+    let decoded_types = decoded_record_state_types(output_types);
     let parameters = block_parameters(assembler, ns.p, head, &decoded_types);
     let max_length = assembler.cref(ns.o, head, control.max_length, u64_type());
     let too_large = assembler.op(
@@ -690,6 +706,96 @@ fn build_fixed_32_validator(
     head
 }
 
+/// Validates one variable-width field against the record and epoch bounds,
+/// then forwards its exact start/end range to the shared byte-copy loop.
+fn build_bounded_field_validator(
+    assembler: &mut Asm,
+    ns: Ns,
+    control: &DecodeBlocks,
+    output_types: &[TypeExpr],
+    destination: EntityId,
+) -> EntityId {
+    let head = assembler.id(ns.b);
+    let add = assembler.id(ns.b);
+    let bounded = assembler.id(ns.b);
+    let decoded_types = decoded_record_state_types(output_types);
+    let parameters = block_parameters(assembler, ns.p, head, &decoded_types);
+    let max_length = assembler.cref(ns.o, head, control.max_length, u64_type());
+    let too_large = assembler.op(
+        ns.o,
+        head,
+        Opcode::GreaterThan,
+        vec![pav(parameters[0]), op_result(max_length)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        head,
+        control.function,
+        parameters.clone(),
+        vec![max_length, too_large],
+        cond(
+            op_result(too_large),
+            edge(control.resource_error, Vec::new()),
+            edge(add, parameter_values(&parameters)),
+        ),
+    );
+
+    let add_parameters = block_parameters(assembler, ns.p, add, &decoded_types);
+    let field_end = assembler.op(
+        ns.o,
+        add,
+        Opcode::IntAddChecked,
+        vec![pav(add_parameters[1]), pav(add_parameters[0])],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    let mut bounded_arguments = vec![SwitchArgument::CasePayload];
+    bounded_arguments.extend(add_parameters.iter().copied().map(sav));
+    append_block(
+        assembler,
+        add,
+        control.function,
+        add_parameters,
+        vec![field_end],
+        switch(
+            op_result(field_end),
+            vec![
+                (BuiltinCase::Ok, bounded, bounded_arguments),
+                (BuiltinCase::Err, control.invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let mut bounded_types = vec![u64_type()];
+    bounded_types.extend(decoded_types);
+    let bounded_parameters = block_parameters(assembler, ns.p, bounded, &bounded_types);
+    let crosses_record = assembler.op(
+        ns.o,
+        bounded,
+        Opcode::GreaterThan,
+        vec![pav(bounded_parameters[0]), pav(bounded_parameters[3])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let mut destination_arguments = vec![pav(bounded_parameters[2]), pav(bounded_parameters[0])];
+    destination_arguments.extend(bounded_parameters[3..].iter().copied().map(pav));
+    append_block(
+        assembler,
+        bounded,
+        control.function,
+        bounded_parameters,
+        vec![crosses_record],
+        cond(
+            op_result(crosses_record),
+            edge(control.length_error, Vec::new()),
+            edge(destination, destination_arguments),
+        ),
+    );
+    head
+}
+
 /// Copies one already-bounded field and appends the resulting `Bytes` value
 /// to the threaded semantic outputs.
 #[allow(clippy::too_many_lines)]
@@ -697,7 +803,7 @@ fn build_field_copy_loop(
     assembler: &mut Asm,
     ns: Ns,
     control: &DecodeBlocks,
-    outputs: usize,
+    output_types: &[TypeExpr],
     destination: EntityId,
 ) -> EntityId {
     let setup = assembler.id(ns.b);
@@ -707,7 +813,7 @@ fn build_field_copy_loop(
     let advance = assembler.id(ns.b);
     let done = assembler.id(ns.b);
     let copy_types = std::iter::once(u64_type())
-        .chain(record_state_types(outputs))
+        .chain(record_state_types(output_types))
         .collect::<Vec<_>>();
     let setup_parameters = block_parameters(assembler, ns.p, setup, &copy_types);
     let empty = assembler.op(
@@ -897,7 +1003,7 @@ fn build_final_field_copy_loop(
     let advance = assembler.id(ns.b);
     let done = assembler.id(ns.b);
     let input_types = std::iter::once(u64_type())
-        .chain(record_state_types(2))
+        .chain(record_state_types(&[TypeExpr::Bytes, TypeExpr::Bytes]))
         .collect::<Vec<_>>();
     let setup_parameters = block_parameters(assembler, ns.p, setup, &input_types);
     let empty = assembler.op(
@@ -1402,6 +1508,7 @@ fn build_union_tag_validator(
     assembler: &mut Asm,
     ns: Ns,
     control: &DecodeBlocks,
+    expected: u64,
     destination: EntityId,
 ) -> EntityId {
     let head = assembler.id(ns.b);
@@ -1416,7 +1523,8 @@ fn build_union_tag_validator(
         TypeExpr::Unit,
     ];
     let parameters = block_parameters(assembler, ns.p, head, &types);
-    let eighteen = assembler.cref(ns.o, head, control.constant18, u64_type());
+    let expected_constant = assembler.ku64(ns.k, u128::from(expected));
+    let eighteen = assembler.cref(ns.o, head, expected_constant, u64_type());
     let matches = assembler.op(
         ns.o,
         head,
@@ -1462,7 +1570,8 @@ fn build_union_tag_validator(
     );
 
     let maximum_parameters = block_parameters(assembler, ns.p, maximum, &types);
-    let eighteen = assembler.cref(ns.o, maximum, control.constant18, u64_type());
+    let closed_max = assembler.ku64(ns.k, 18);
+    let eighteen = assembler.cref(ns.o, maximum, closed_max, u64_type());
     let above = assembler.op(
         ns.o,
         maximum,
@@ -2327,11 +2436,13 @@ pub(super) fn build_dependency_binding_decode_from_vector(
         max_fields: assembler.ku64(ns.k, 65_535),
         constant0: assembler.ku64(ns.k, 0),
         constant1: assembler.ku64(ns.k, 1),
-        constant3: assembler.ku64(ns.k, 3),
-        constant18: assembler.ku64(ns.k, 18),
         constant32: assembler.ku64(ns.k, 32),
     };
     let compact_control = CompactBlocks::from(&control);
+    let outputs0 = Vec::<TypeExpr>::new();
+    let outputs1 = vec![TypeExpr::Bytes];
+    let outputs2 = vec![TypeExpr::Bytes, TypeExpr::Bytes];
+    let known_tags = [1, 2, 3];
 
     let canonical_return = build_canonical_return(assembler, ns, compact_control, &result_type);
     let canonical_copy3 = build_compact_copy_loop(
@@ -2371,78 +2482,105 @@ pub(super) fn build_dependency_binding_decode_from_vector(
     // Build tail first so every helper receives a concrete destination.
     let finish = build_final_return(assembler, ns, &control, &result_type);
     let copy3 = build_final_field_copy_loop(assembler, ns, &control, finish);
-    let length3_value = build_fixed_32_validator(assembler, ns, &control, 2, copy3);
+    let length3_value = build_fixed_32_validator(assembler, ns, &control, &outputs2, copy3);
     let length3 = build_expected_record_uvar_stage(
         assembler,
         ns,
         &control,
         control.width64,
         32,
-        2,
+        &outputs2,
         length3_value,
     );
-    let tag3_value = build_field_tag_validator(assembler, ns, &control, 2, 3, Some(2), length3);
+    let tag3_value = build_field_tag_validator(
+        assembler,
+        ns,
+        &control,
+        &outputs2,
+        3,
+        Some(2),
+        &known_tags,
+        length3,
+    );
     let tag3 = build_expected_record_uvar_stage(
         assembler,
         ns,
         &control,
         control.width32,
         3,
-        2,
+        &outputs2,
         tag3_value,
     );
 
-    let copy2 = build_field_copy_loop(assembler, ns, &control, 1, tag3);
-    let length2_value = build_fixed_32_validator(assembler, ns, &control, 1, copy2);
+    let copy2 = build_field_copy_loop(assembler, ns, &control, &outputs1, tag3);
+    let length2_value = build_fixed_32_validator(assembler, ns, &control, &outputs1, copy2);
     let length2 = build_expected_record_uvar_stage(
         assembler,
         ns,
         &control,
         control.width64,
         32,
-        1,
+        &outputs1,
         length2_value,
     );
-    let tag2_value = build_field_tag_validator(assembler, ns, &control, 1, 2, Some(1), length2);
+    let tag2_value = build_field_tag_validator(
+        assembler,
+        ns,
+        &control,
+        &outputs1,
+        2,
+        Some(1),
+        &known_tags,
+        length2,
+    );
     let tag2 = build_expected_record_uvar_stage(
         assembler,
         ns,
         &control,
         control.width32,
         2,
-        1,
+        &outputs1,
         tag2_value,
     );
 
-    let copy1 = build_field_copy_loop(assembler, ns, &control, 0, tag2);
-    let length1_value = build_fixed_32_validator(assembler, ns, &control, 0, copy1);
+    let copy1 = build_field_copy_loop(assembler, ns, &control, &outputs0, tag2);
+    let length1_value = build_fixed_32_validator(assembler, ns, &control, &outputs0, copy1);
     let length1 = build_expected_record_uvar_stage(
         assembler,
         ns,
         &control,
         control.width64,
         32,
-        0,
+        &outputs0,
         length1_value,
     );
-    let tag1_value = build_field_tag_validator(assembler, ns, &control, 0, 1, None, length1);
+    let tag1_value = build_field_tag_validator(
+        assembler,
+        ns,
+        &control,
+        &outputs0,
+        1,
+        None,
+        &known_tags,
+        length1,
+    );
     let tag1 = build_expected_record_uvar_stage(
         assembler,
         ns,
         &control,
         control.width32,
         1,
-        0,
+        &outputs0,
         tag1_value,
     );
-    let count_value = build_record_count_validator(assembler, ns, &control, tag1);
+    let count_value = build_record_count_validator(assembler, ns, &control, 3, tag1);
     let count = build_expected_record_uvar_stage(
         assembler,
         ns,
         &control,
         control.width64,
         3,
-        0,
+        &outputs0,
         count_value,
     );
 
@@ -2457,7 +2595,7 @@ pub(super) fn build_dependency_binding_decode_from_vector(
         103,
         union_length_value,
     );
-    let union_tag_value = build_union_tag_validator(assembler, ns, &control, union_length);
+    let union_tag_value = build_union_tag_validator(assembler, ns, &control, 18, union_length);
     let union_tag = build_expected_initial_uvar_stage(
         assembler,
         ns,
@@ -2549,6 +2687,562 @@ pub(super) fn build_dependency_binding_decode_from_vector(
             ),
             edge(fallback, vec![pav(input_vector), pav(body), pav(unit)]),
         ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, input_vector, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+pub(super) fn build_package_decode_from_vector(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    decode_function: EntityId,
+    set_decode_function: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = package_decode_result_type();
+    let set_result_type = entity_set_decode_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let input_vector = assembler.param(ns.p, function, ParameterRole::Function, u8vec_type());
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+
+    let e_length = assembler.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
+    let e_trailing = assembler.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let e_resource = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+    let e_missing = assembler.kbytes(ns.k, b"SCB_FIELD_MISSING");
+    let e_unknown = assembler.kbytes(ns.k, b"SCB_FIELD_UNKNOWN");
+    let e_duplicate = assembler.kbytes(ns.k, b"SCB_FIELD_DUPLICATE");
+    let e_order = assembler.kbytes(ns.k, b"SCB_FIELD_ORDER");
+    let e_union = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
+    let e_scope = assembler.kbytes(ns.k, b"SSMC_RESERVED_FIELD_PRESENT");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+
+    let control = DecodeBlocks {
+        function,
+        decode_function,
+        forward_error,
+        length_error: err_block(assembler, ns, function, result_type.clone(), e_length),
+        trailing_error: err_block(assembler, ns, function, result_type.clone(), e_trailing),
+        resource_error: err_block(assembler, ns, function, result_type.clone(), e_resource),
+        missing_error: err_block(assembler, ns, function, result_type.clone(), e_missing),
+        unknown_error: err_block(assembler, ns, function, result_type.clone(), e_unknown),
+        duplicate_error: err_block(assembler, ns, function, result_type.clone(), e_duplicate),
+        order_error: err_block(assembler, ns, function, result_type.clone(), e_order),
+        union_error: err_block(assembler, ns, function, result_type.clone(), e_union),
+        scope_error: err_block(assembler, ns, function, result_type.clone(), e_scope),
+        invariant_trap: trap_block(assembler, ns, function),
+        width32: assembler.ku32(ns.k, 32),
+        width64: assembler.ku32(ns.k, 64),
+        max_length: assembler.ku64(ns.k, 67_108_864),
+        max_fields: assembler.ku64(ns.k, 65_535),
+        constant0: assembler.ku64(ns.k, 0),
+        constant1: assembler.ku64(ns.k, 1),
+        constant32: assembler.ku64(ns.k, 32),
+    };
+
+    let outputs0 = Vec::<TypeExpr>::new();
+    let outputs1 = vec![TypeExpr::Bytes];
+    let outputs2 = vec![TypeExpr::Bytes, TypeExpr::Bytes];
+    let outputs3 = vec![
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        u64_type(),
+    ];
+    let outputs4_raw = vec![
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        u64_type(),
+        TypeExpr::Bytes,
+    ];
+    let known_tags = [1, 2, 3, 4];
+
+    let validate_dependencies = assembler.id(ns.b);
+    let dependencies_decoded = assembler.id(ns.b);
+    let validate_exports = assembler.id(ns.b);
+    let exports_decoded = assembler.id(ns.b);
+    let record_trailing = assembler.id(ns.b);
+    let outer_trailing = assembler.id(ns.b);
+    let success = assembler.id(ns.b);
+
+    let success_types = vec![
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        u64_type(),
+        TypeExpr::Bytes,
+        u64_type(),
+    ];
+    let success_parameters = block_parameters(assembler, ns.p, success, &success_types);
+    let tuple_type = TypeExpr::Tuple(success_types);
+    let tuple = assembler.op(
+        ns.o,
+        success,
+        Opcode::TupleNew,
+        parameter_values(&success_parameters),
+        vec![tuple_type],
+        Immediate::None,
+    );
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![op_result(tuple)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        success_parameters,
+        vec![tuple, ok],
+        ret(op_result(ok)),
+    );
+
+    let trailing_types = vec![
+        u64_type(),
+        u64_type(),
+        TypeExpr::Bool,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        u64_type(),
+        TypeExpr::Bytes,
+        u64_type(),
+    ];
+    let record_parameters = block_parameters(assembler, ns.p, record_trailing, &trailing_types);
+    let unread = assembler.op(
+        ns.o,
+        record_trailing,
+        Opcode::LessThan,
+        vec![pav(record_parameters[0]), pav(record_parameters[1])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        record_trailing,
+        function,
+        record_parameters.clone(),
+        vec![unread],
+        cond(
+            op_result(unread),
+            edge(control.trailing_error, Vec::new()),
+            edge(outer_trailing, parameter_values(&record_parameters[2..])),
+        ),
+    );
+
+    let outer_types = trailing_types[2..].to_vec();
+    let outer_parameters = block_parameters(assembler, ns.p, outer_trailing, &outer_types);
+    append_block(
+        assembler,
+        outer_trailing,
+        function,
+        outer_parameters.clone(),
+        Vec::new(),
+        cond(
+            pav(outer_parameters[0]),
+            edge(control.trailing_error, Vec::new()),
+            edge(success, parameter_values(&outer_parameters[1..])),
+        ),
+    );
+
+    let export_decoded_types = vec![
+        TypeExpr::Tuple(vec![TypeExpr::Bytes, TypeExpr::Bytes, u64_type()]),
+        u64_type(),
+        u64_type(),
+        TypeExpr::Bool,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        u64_type(),
+    ];
+    let export_parameters =
+        block_parameters(assembler, ns.p, exports_decoded, &export_decoded_types);
+    let export_members = assembler.op(
+        ns.o,
+        exports_decoded,
+        Opcode::TupleGet,
+        vec![pav(export_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    let export_count = assembler.op(
+        ns.o,
+        exports_decoded,
+        Opcode::TupleGet,
+        vec![pav(export_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(2),
+    );
+    append_block(
+        assembler,
+        exports_decoded,
+        function,
+        export_parameters.clone(),
+        vec![export_members, export_count],
+        branch(edge(
+            record_trailing,
+            vec![
+                pav(export_parameters[1]),
+                pav(export_parameters[2]),
+                pav(export_parameters[3]),
+                pav(export_parameters[4]),
+                pav(export_parameters[5]),
+                pav(export_parameters[6]),
+                pav(export_parameters[7]),
+                op_result(export_members),
+                op_result(export_count),
+            ],
+        )),
+    );
+
+    let export_state_types = record_state_types(&outputs4_raw);
+    let validate_export_parameters =
+        block_parameters(assembler, ns.p, validate_exports, &export_state_types);
+    let decoded_exports = assembler.op(
+        ns.o,
+        validate_exports,
+        Opcode::CallDirect,
+        vec![
+            pav(validate_export_parameters[7]),
+            pav(validate_export_parameters[10]),
+            pav(validate_export_parameters[4]),
+        ],
+        vec![set_result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: set_decode_function,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        validate_exports,
+        function,
+        validate_export_parameters.clone(),
+        vec![decoded_exports],
+        switch(
+            op_result(decoded_exports),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    exports_decoded,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(validate_export_parameters[0]),
+                        sav(validate_export_parameters[1]),
+                        sav(validate_export_parameters[5]),
+                        sav(validate_export_parameters[6]),
+                        sav(validate_export_parameters[7]),
+                        sav(validate_export_parameters[8]),
+                        sav(validate_export_parameters[9]),
+                    ],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let copy4 = build_field_copy_loop(assembler, ns, &control, &outputs3, validate_exports);
+    let length4_value = build_bounded_field_validator(assembler, ns, &control, &outputs3, copy4);
+    let length4 = build_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width64,
+        &outputs3,
+        length4_value,
+    );
+    let tag4_value = build_field_tag_validator(
+        assembler,
+        ns,
+        &control,
+        &outputs3,
+        4,
+        Some(3),
+        &known_tags,
+        length4,
+    );
+    let tag4 = build_expected_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width32,
+        4,
+        &outputs3,
+        tag4_value,
+    );
+
+    let dependency_decoded_types = std::iter::once(TypeExpr::Tuple(vec![
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        u64_type(),
+    ]))
+    .chain(record_state_types(&outputs2))
+    .collect::<Vec<_>>();
+    let dependency_parameters = block_parameters(
+        assembler,
+        ns.p,
+        dependencies_decoded,
+        &dependency_decoded_types,
+    );
+    let dependency_members = assembler.op(
+        ns.o,
+        dependencies_decoded,
+        Opcode::TupleGet,
+        vec![pav(dependency_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    let dependency_count = assembler.op(
+        ns.o,
+        dependencies_decoded,
+        Opcode::TupleGet,
+        vec![pav(dependency_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(2),
+    );
+    let mut tag4_arguments = parameter_values(&dependency_parameters[1..]);
+    tag4_arguments.extend([op_result(dependency_members), op_result(dependency_count)]);
+    append_block(
+        assembler,
+        dependencies_decoded,
+        function,
+        dependency_parameters,
+        vec![dependency_members, dependency_count],
+        branch(edge(tag4, tag4_arguments)),
+    );
+
+    let dependency_raw_types = vec![TypeExpr::Bytes, TypeExpr::Bytes, TypeExpr::Bytes];
+    let dependency_state_types = record_state_types(&dependency_raw_types);
+    let validate_dependency_parameters = block_parameters(
+        assembler,
+        ns.p,
+        validate_dependencies,
+        &dependency_state_types,
+    );
+    let decoded_dependencies = assembler.op(
+        ns.o,
+        validate_dependencies,
+        Opcode::CallDirect,
+        vec![
+            pav(validate_dependency_parameters[6]),
+            pav(validate_dependency_parameters[8]),
+            pav(validate_dependency_parameters[4]),
+        ],
+        vec![set_result_type],
+        Immediate::Function(FunctionRefValue {
+            function: set_decode_function,
+            type_arguments: Vec::new(),
+        }),
+    );
+    let mut dependency_success_arguments = vec![SwitchArgument::CasePayload];
+    dependency_success_arguments
+        .extend(validate_dependency_parameters[..8].iter().copied().map(sav));
+    append_block(
+        assembler,
+        validate_dependencies,
+        function,
+        validate_dependency_parameters,
+        vec![decoded_dependencies],
+        switch(
+            op_result(decoded_dependencies),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    dependencies_decoded,
+                    dependency_success_arguments,
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let copy3 = build_field_copy_loop(assembler, ns, &control, &outputs2, validate_dependencies);
+    let length3_value = build_bounded_field_validator(assembler, ns, &control, &outputs2, copy3);
+    let length3 = build_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width64,
+        &outputs2,
+        length3_value,
+    );
+    let tag3_value = build_field_tag_validator(
+        assembler,
+        ns,
+        &control,
+        &outputs2,
+        3,
+        Some(2),
+        &known_tags,
+        length3,
+    );
+    let tag3 = build_expected_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width32,
+        3,
+        &outputs2,
+        tag3_value,
+    );
+
+    let copy2 = build_field_copy_loop(assembler, ns, &control, &outputs1, tag3);
+    let length2_value = build_fixed_32_validator(assembler, ns, &control, &outputs1, copy2);
+    let length2 = build_expected_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width64,
+        32,
+        &outputs1,
+        length2_value,
+    );
+    let tag2_value = build_field_tag_validator(
+        assembler,
+        ns,
+        &control,
+        &outputs1,
+        2,
+        Some(1),
+        &known_tags,
+        length2,
+    );
+    let tag2 = build_expected_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width32,
+        2,
+        &outputs1,
+        tag2_value,
+    );
+
+    let copy1 = build_field_copy_loop(assembler, ns, &control, &outputs0, tag2);
+    let length1_value = build_fixed_32_validator(assembler, ns, &control, &outputs0, copy1);
+    let length1 = build_expected_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width64,
+        32,
+        &outputs0,
+        length1_value,
+    );
+    let tag1_value = build_field_tag_validator(
+        assembler,
+        ns,
+        &control,
+        &outputs0,
+        1,
+        None,
+        &known_tags,
+        length1,
+    );
+    let tag1 = build_expected_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width32,
+        1,
+        &outputs0,
+        tag1_value,
+    );
+    let count_value = build_record_count_validator(assembler, ns, &control, 4, tag1);
+    let count = build_expected_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width64,
+        4,
+        &outputs0,
+        count_value,
+    );
+
+    let union_payload = build_union_payload_copy(assembler, ns, &control, count);
+    let union_length_value =
+        build_union_length_validator(assembler, ns, &control, count, union_payload);
+    let union_length =
+        build_initial_uvar_stage(assembler, ns, &control, control.width64, union_length_value);
+    let union_tag_value = build_union_tag_validator(assembler, ns, &control, 2, union_length);
+    let union_tag = build_expected_initial_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width32,
+        2,
+        union_tag_value,
+    );
+
+    let entry = assembler.id(ns.b);
+    let total = assembler.op(
+        ns.o,
+        entry,
+        Opcode::VectorLen,
+        vec![pav(input_vector)],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let zero = assembler.cref(ns.o, entry, control.constant0, u64_type());
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![total, zero],
+        branch(edge(
+            union_tag,
+            vec![
+                op_result(zero),
+                op_result(total),
+                pav(input_vector),
+                pav(body),
+                pav(unit),
+            ],
+        )),
     );
 
     FunctionGraph {

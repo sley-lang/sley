@@ -29,10 +29,11 @@ the four-field record and union tag 2. Native
 tests extract the body from native stored objects rather than relying on
 hand-built expected bytes.
 
-This slice owns standalone Package body encoding. Package decoding and
-whole-program composition remain later bounded slices. The supported
-whole-program dispatcher therefore continues to advertise kinds 3, 16, 17
-and 18 only.
+This slice owns standalone Package body encoding. The paired strict body
+decoder subsequently landed in program slice 19; whole-program composition
+remains a later bounded slice. See `rw-080-codec-package-decode.md`. The
+supported whole-program dispatcher therefore continues to advertise kinds 3,
+16, 17 and 18 only.
 
 ## 2. Construction and refusal behavior
 
