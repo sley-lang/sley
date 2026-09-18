@@ -11515,6 +11515,7 @@ enum SimpleFieldValidator {
     TypeExpr,
     EntityIds { ordered: bool },
     Unit(EntityId),
+    Bytes(EntityId),
 }
 
 #[derive(Clone, Copy)]
@@ -11870,6 +11871,11 @@ fn build_projected_record_validate(
                 decoder,
                 vec![pav(parameters[index]), pav(unit)],
                 unit_validation_result_type(),
+            ),
+            SimpleFieldValidator::Bytes(decoder) => (
+                decoder,
+                vec![pav(parameters[index]), pav(unit)],
+                bytes_validation_result_type(),
             ),
         };
         let decoded = assembler.op(
@@ -13166,6 +13172,11 @@ fn build_simple_entity_schema_decode(
                 decoder,
                 vec![pav(parameters[index]), pav(unit)],
                 unit_validation_result_type(),
+            ),
+            SimpleFieldValidator::Bytes(decoder) => (
+                decoder,
+                vec![pav(parameters[index]), pav(unit)],
+                bytes_validation_result_type(),
             ),
         };
         let decoded = assembler.op(
@@ -20771,11 +20782,25 @@ fn build_const_value_children_decode(
     }
 }
 
-/// Bootstrap `ConstValue` decoder: the worklist driver over the constant
-/// child projector, with every leaf and composite arm reachable.
+/// Function identities a `ConstValue`-bearing schema composes with.
+#[derive(Clone, Copy)]
+struct ConstValueClosure {
+    const_value: EntityId,
+    list: EntityId,
+    union: EntityId,
+    record: EntityId,
+    decode: EntityId,
+    fixed32: EntityId,
+    exact_uvar: EntityId,
+    bounded_uvar: EntityId,
+    type_expr: EntityId,
+    entity_ids: EntityId,
+}
+
+/// Builds the complete recursive `ConstValue` closure (namespaces
+/// `110..=141`) and returns its graphs, driver first.
 #[allow(clippy::similar_names, clippy::too_many_lines)]
-fn const_value_decode_image() -> Image {
-    let mut assembler = Asm::new();
+fn build_const_value_closure(assembler: &mut Asm) -> (ConstValueClosure, Vec<FunctionGraph>) {
     let decode_function = assembler.id(110);
     let record_function = assembler.id(110);
     let union_function = assembler.id(110);
@@ -20806,9 +20831,9 @@ fn const_value_decode_image() -> Image {
     let function_ref_function = assembler.id(110);
     let builtin_failure_function = assembler.id(110);
     let const_children_function = assembler.id(110);
-    let function = assembler.id(110);
+    let const_value_function = assembler.id(110);
     let (decode_graph, _) = build_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 111,
             p: 111,
@@ -20818,7 +20843,7 @@ fn const_value_decode_image() -> Image {
         decode_function,
     );
     let record_graph = build_generic_record_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 112,
             p: 112,
@@ -20829,7 +20854,7 @@ fn const_value_decode_image() -> Image {
         decode_function,
     );
     let union_graph = build_generic_union_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 113,
             p: 113,
@@ -20840,7 +20865,7 @@ fn const_value_decode_image() -> Image {
         decode_function,
     );
     let list_graph = build_generic_list_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 114,
             p: 114,
@@ -20851,7 +20876,7 @@ fn const_value_decode_image() -> Image {
         decode_function,
     );
     let fixed32_graph = build_fixed32_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 115,
             p: 115,
@@ -20861,7 +20886,7 @@ fn const_value_decode_image() -> Image {
         fixed32_function,
     );
     let entity_id_collection_graph = build_entity_id_collection_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 116,
             p: 116,
@@ -20873,7 +20898,7 @@ fn const_value_decode_image() -> Image {
         fixed32_function,
     );
     let exact_uvar_graph = build_exact_uvar_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 117,
             p: 117,
@@ -20884,7 +20909,7 @@ fn const_value_decode_image() -> Image {
         decode_function,
     );
     let bounded_uvar_graph = build_bounded_uvar_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 118,
             p: 118,
@@ -20895,7 +20920,7 @@ fn const_value_decode_image() -> Image {
         exact_uvar_function,
     );
     let type_expr_leaf_graph = build_type_expr_leaf_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 119,
             p: 119,
@@ -20909,7 +20934,7 @@ fn const_value_decode_image() -> Image {
         bounded_uvar_function,
     );
     let record2_graph = build_exact_record_projection(
-        &mut assembler,
+        assembler,
         Ns {
             k: 120,
             p: 120,
@@ -20922,7 +20947,7 @@ fn const_value_decode_image() -> Image {
         2,
     );
     let record3_graph = build_exact_record_projection(
-        &mut assembler,
+        assembler,
         Ns {
             k: 121,
             p: 121,
@@ -20935,7 +20960,7 @@ fn const_value_decode_image() -> Image {
         3,
     );
     let type_expr_children_graph = build_type_expr_children_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 122,
             p: 122,
@@ -20952,7 +20977,7 @@ fn const_value_decode_image() -> Image {
         entity_id_collection_function,
     );
     let type_expr_recursive_graph = build_type_expr_recursive_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 123,
             p: 123,
@@ -20963,7 +20988,7 @@ fn const_value_decode_image() -> Image {
         type_expr_children_function,
     );
     let empty_payload_graph = build_empty_payload_validate(
-        &mut assembler,
+        assembler,
         Ns {
             k: 124,
             p: 124,
@@ -20973,7 +20998,7 @@ fn const_value_decode_image() -> Image {
         empty_payload_function,
     );
     let bool_graph = build_bool_validate(
-        &mut assembler,
+        assembler,
         Ns {
             k: 125,
             p: 125,
@@ -20983,7 +21008,7 @@ fn const_value_decode_image() -> Image {
         bool_function,
     );
     let uvar128_graph = build_uvar128_validate(
-        &mut assembler,
+        assembler,
         Ns {
             k: 126,
             p: 126,
@@ -20993,7 +21018,7 @@ fn const_value_decode_image() -> Image {
         uvar128_function,
     );
     let f32_graph = build_float_bits_validate(
-        &mut assembler,
+        assembler,
         Ns {
             k: 127,
             p: 127,
@@ -21004,7 +21029,7 @@ fn const_value_decode_image() -> Image {
         4,
     );
     let f64_graph = build_float_bits_validate(
-        &mut assembler,
+        assembler,
         Ns {
             k: 128,
             p: 128,
@@ -21015,7 +21040,7 @@ fn const_value_decode_image() -> Image {
         8,
     );
     let bytes_graph = build_sized_payload_validate(
-        &mut assembler,
+        assembler,
         Ns {
             k: 129,
             p: 129,
@@ -21027,7 +21052,7 @@ fn const_value_decode_image() -> Image {
         false,
     );
     let text_graph = build_sized_payload_validate(
-        &mut assembler,
+        assembler,
         Ns {
             k: 130,
             p: 130,
@@ -21039,7 +21064,7 @@ fn const_value_decode_image() -> Image {
         true,
     );
     let record_fields_graph = build_entry_list_children(
-        &mut assembler,
+        assembler,
         Ns {
             k: 131,
             p: 131,
@@ -21053,7 +21078,7 @@ fn const_value_decode_image() -> Image {
         EntryListMode::RecordFields,
     );
     let record_const_graph = build_prefixed_record_child(
-        &mut assembler,
+        assembler,
         Ns {
             k: 132,
             p: 132,
@@ -21067,7 +21092,7 @@ fn const_value_decode_image() -> Image {
         LastFieldChildren::Map(record_fields_function),
     );
     let option_child_graph = build_tagged_child_projection(
-        &mut assembler,
+        assembler,
         Ns {
             k: 133,
             p: 133,
@@ -21080,7 +21105,7 @@ fn const_value_decode_image() -> Image {
         1,
     );
     let variant_const_graph = build_prefixed_record_child(
-        &mut assembler,
+        assembler,
         Ns {
             k: 134,
             p: 134,
@@ -21094,7 +21119,7 @@ fn const_value_decode_image() -> Image {
         LastFieldChildren::Optional(option_child_function),
     );
     let map_entries_graph = build_entry_list_children(
-        &mut assembler,
+        assembler,
         Ns {
             k: 135,
             p: 135,
@@ -21108,7 +21133,7 @@ fn const_value_decode_image() -> Image {
         EntryListMode::MapEntries,
     );
     let result_child_graph = build_tagged_child_projection(
-        &mut assembler,
+        assembler,
         Ns {
             k: 136,
             p: 136,
@@ -21121,7 +21146,7 @@ fn const_value_decode_image() -> Image {
         2,
     );
     let type_arguments_graph = build_unit_list_validate(
-        &mut assembler,
+        assembler,
         Ns {
             k: 137,
             p: 137,
@@ -21143,7 +21168,7 @@ fn const_value_decode_image() -> Image {
         entity_ids: entity_id_collection_function,
     };
     let function_ref_graph = build_projected_record_validate(
-        &mut assembler,
+        assembler,
         Ns {
             k: 138,
             p: 138,
@@ -21158,7 +21183,7 @@ fn const_value_decode_image() -> Image {
         leaf_decoders,
     );
     let builtin_failure_graph = build_projected_record_validate(
-        &mut assembler,
+        assembler,
         Ns {
             k: 139,
             p: 139,
@@ -21176,7 +21201,7 @@ fn const_value_decode_image() -> Image {
         leaf_decoders,
     );
     let const_children_graph = build_const_value_children_decode(
-        &mut assembler,
+        assembler,
         Ns {
             k: 140,
             p: 140,
@@ -21206,22 +21231,33 @@ fn const_value_decode_image() -> Image {
             ConstDataArm::Unit(builtin_failure_function),
         ],
     );
-    let graph = build_type_expr_recursive_decode(
-        &mut assembler,
+    let const_value_graph = build_type_expr_recursive_decode(
+        assembler,
         Ns {
             k: 141,
             p: 141,
             b: 141,
             o: 141,
         },
-        function,
+        const_value_function,
         const_children_function,
     );
-    Image {
-        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
-        entry: graph.clone(),
-        functions: vec![
-            graph,
+    let closure = ConstValueClosure {
+        const_value: const_value_function,
+        list: list_function,
+        union: union_function,
+        record: record_function,
+        decode: decode_function,
+        fixed32: fixed32_function,
+        exact_uvar: exact_uvar_function,
+        bounded_uvar: bounded_uvar_function,
+        type_expr: type_expr_recursive_function,
+        entity_ids: entity_id_collection_function,
+    };
+    (
+        closure,
+        vec![
+            const_value_graph,
             const_children_graph,
             builtin_failure_graph,
             function_ref_graph,
@@ -21253,16 +21289,132 @@ fn const_value_decode_image() -> Image {
             record_graph,
             decode_graph,
         ],
+    )
+}
+
+fn codec_bridge_imports() -> Vec<AdapterImport> {
+    vec![
+        frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+        frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+        frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+    ]
+}
+
+/// Bootstrap `ConstValue` decoder: the worklist driver over the constant
+/// child projector, with every leaf and composite arm reachable.
+fn const_value_decode_image() -> Image {
+    let mut assembler = Asm::new();
+    let (_, functions) = build_const_value_closure(&mut assembler);
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: functions[0].clone(),
+        functions,
         parameters: assembler.parameters,
         blocks: assembler.blocks,
         operations: assembler.operations,
-        adapters: vec![
-            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
-            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
-            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
-        ],
+        adapters: codec_bridge_imports(),
         constants: assembler.constants,
     }
+}
+
+/// An entity schema whose fields include recursive constants: the
+/// `ConstValue` closure plus the schema's own exact record projection and
+/// entry function (namespaces `142..=144`).
+fn const_bearing_schema_image(
+    expected_kind: u64,
+    validators: impl FnOnce(
+        &mut Asm,
+        ConstValueClosure,
+    ) -> (Vec<SimpleFieldValidator>, Vec<FunctionGraph>),
+) -> Image {
+    let mut assembler = Asm::new();
+    let (closure, mut functions) = build_const_value_closure(&mut assembler);
+    let (validators, extra) = validators(&mut assembler, closure);
+    let schema_record_function = assembler.id(110);
+    let function = assembler.id(110);
+    let schema_record_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 143,
+            p: 143,
+            b: 143,
+            o: 143,
+        },
+        schema_record_function,
+        closure.decode,
+        closure.record,
+        validators.len(),
+    );
+    let graph = build_simple_entity_schema_decode(
+        &mut assembler,
+        Ns {
+            k: 144,
+            p: 144,
+            b: 144,
+            o: 144,
+        },
+        function,
+        expected_kind,
+        &validators,
+        SimpleSchemaDecoders {
+            union: closure.union,
+            exact_record: schema_record_function,
+            fixed32: closure.fixed32,
+            exact_uvar: closure.exact_uvar,
+            bounded_uvar: closure.bounded_uvar,
+            type_expr: closure.type_expr,
+            entity_ids: closure.entity_ids,
+        },
+    );
+    let mut all = vec![graph.clone(), schema_record_graph];
+    all.extend(extra);
+    all.append(&mut functions);
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph,
+        functions: all,
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: codec_bridge_imports(),
+        constants: assembler.constants,
+    }
+}
+
+fn constant_schema_decode_image() -> Image {
+    const_bearing_schema_image(9, |_, closure| {
+        (
+            vec![SimpleFieldValidator::Bytes(closure.const_value)],
+            Vec::new(),
+        )
+    })
+}
+
+fn capability_requirement_schema_decode_image() -> Image {
+    const_bearing_schema_image(12, |assembler, closure| {
+        let scopes_function = assembler.id(110);
+        let scopes_graph = build_unit_list_validate(
+            assembler,
+            Ns {
+                k: 142,
+                p: 142,
+                b: 142,
+                o: 142,
+            },
+            scopes_function,
+            closure.list,
+            closure.const_value,
+            bytes_validation_result_type(),
+        );
+        (
+            vec![
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::Unit(scopes_function),
+                SimpleFieldValidator::EntityIds { ordered: true },
+            ],
+            vec![scopes_graph],
+        )
+    })
 }
 
 fn const_value_verdict(
@@ -21877,6 +22029,362 @@ fn const_value_decoder_rejects_every_family_boundary() {
             verdict,
             native_const_value_verdict(&body),
             "{name} native parity"
+        );
+    }
+}
+
+fn constant_schema_body(value: ConstValue) -> Vec<u8> {
+    use sley_mutate::value::{ConstantBody, EntityBodyValue};
+
+    let record = sley_mutate::EntityObjectRecord {
+        entity_id: EntityId::from_bytes([0xf1; 32]),
+        body: EntityBodyValue::Constant(ConstantBody { value }),
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        .expect("native builds schema Constant fixture")
+        .stored_bytes()
+        .to_vec();
+    ns_body_of(&stored)
+}
+
+fn capability_requirement_schema_body(scopes: Vec<ConstValue>) -> Vec<u8> {
+    use sley_mutate::value::{CapabilityRequirementBody, EntityBodyValue, EntityIdSet};
+
+    let record = sley_mutate::EntityObjectRecord {
+        entity_id: EntityId::from_bytes([0xf2; 32]),
+        body: EntityBodyValue::CapabilityRequirement(CapabilityRequirementBody {
+            effect: EntityId::from_bytes([0xf3; 32]),
+            allowed_scopes: scopes,
+            constraint_contracts: EntityIdSet::from_unsorted(vec![
+                EntityId::from_bytes([0xf5; 32]),
+                EntityId::from_bytes([0xf4; 32]),
+            ])
+            .expect("constraint contracts are canonical"),
+        }),
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        .expect("native builds schema CapabilityRequirement fixture")
+        .stored_bytes()
+        .to_vec();
+    ns_body_of(&stored)
+}
+
+/// A compact constant touching a record, a map, an option, and text.
+fn scope_const_value(seed: u8) -> ConstValue {
+    use sley_ssmc::{FieldConst, MapEntryConst, MemberId, RecordConst};
+
+    let byte_type = TypeExpr::UInt(IntegerWidth::from_bits(8));
+    const_of(
+        TypeExpr::Named(sley_ssmc::NamedType {
+            definition: EntityId::from_bytes([seed; 32]),
+            arguments: Vec::new(),
+        }),
+        ConstData::Record(RecordConst {
+            definition: EntityId::from_bytes([seed; 32]),
+            fields: vec![
+                FieldConst {
+                    member_id: MemberId::from_bytes([seed.wrapping_add(1); 32]),
+                    value: const_of(
+                        TypeExpr::OrderedMap {
+                            key: Box::new(byte_type.clone()),
+                            value: Box::new(TypeExpr::Text),
+                        },
+                        ConstData::Map(vec![MapEntryConst {
+                            key: const_of(byte_type.clone(), ConstData::UInt(u128::from(seed))),
+                            value: const_of(TypeExpr::Text, ConstData::Text("scope".to_owned())),
+                        }]),
+                    ),
+                },
+                FieldConst {
+                    member_id: MemberId::from_bytes([seed.wrapping_add(2); 32]),
+                    value: const_of(
+                        TypeExpr::Option(Box::new(TypeExpr::Bool)),
+                        ConstData::Option(Some(Box::new(const_of(
+                            TypeExpr::Bool,
+                            ConstData::Bool(seed.is_multiple_of(2)),
+                        )))),
+                    ),
+                },
+            ],
+        }),
+    )
+}
+
+fn assert_schema_projection(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    body: &[u8],
+    kind: u32,
+    field_count: u32,
+) {
+    let expected = exact_entity_body_fields(body, kind, field_count);
+    let outcome = execute_with_limits(
+        package,
+        approved,
+        vec![bytes_input(body), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!(
+            "kind {kind} schema decoder must return: {:?}",
+            outcome.termination
+        )
+    };
+    let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+        panic!("kind {kind} schema decoder must accept native body: {value:?}")
+    };
+    let ConstData::Sequence(fields) = decoded.data else {
+        panic!("kind {kind} schema decoder must return a field tuple")
+    };
+    assert_eq!(fields.len(), expected.len());
+    for (field, expected) in fields.iter().zip(expected) {
+        assert_eq!(field.data, ConstData::Bytes(expected));
+    }
+}
+
+#[test]
+fn constant_schema_decoder_accepts_recursive_values() {
+    let image = constant_schema_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "CONSTANT_SCHEMA functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 33);
+    assert_eq!(image.parameters.len(), 1_846);
+    assert_eq!(image.blocks.len(), 558);
+    assert_eq!(image.operations.len(), 1_091);
+    assert_eq!(image.constants.len(), 358);
+    assert_eq!(package.image_bytes.len(), 131_828);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0xfa, 0xac, 0x35, 0xee, 0x29, 0xa5, 0x54, 0x02, 0x94, 0x5a, 0xf7, 0x7f, 0x7c, 0x63,
+            0x02, 0x98, 0xb2, 0x65, 0xb3, 0xc4, 0xe7, 0x32, 0xb4, 0x7a, 0x51, 0xaf, 0x2f, 0x7f,
+            0xc8, 0xa6, 0x49, 0x9d,
+        ]
+    );
+
+    assert_schema_projection(
+        &package,
+        &approved,
+        &constant_schema_body(scope_const_value(0x10)),
+        9,
+        1,
+    );
+    assert_schema_projection(
+        &package,
+        &approved,
+        &constant_schema_body(const_of(TypeExpr::Unit, ConstData::Unit)),
+        9,
+        1,
+    );
+}
+
+#[test]
+fn constant_schema_decoder_rejects_kind_fields_and_nested_values() {
+    let body = constant_schema_body(scope_const_value(0x10));
+    let fields = exact_entity_body_fields(&body, 9, 1);
+    let image = constant_schema_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+
+    let mut unknown_fields = fields.clone();
+    unknown_fields.push(Vec::new());
+    let bad_leaf = constant_schema_body(const_of(TypeExpr::Bool, ConstData::Bool(true)));
+    let mut bad_leaf_fields = exact_entity_body_fields(&bad_leaf, 9, 1);
+    // Flip the encoded boolean byte (the last byte of the node) to 2.
+    *bad_leaf_fields[0].last_mut().unwrap() = 2;
+    let mut unordered_map = fields.clone();
+    unordered_map[0] = {
+        use sley_ssmc::MapEntryConst;
+        let byte_type = TypeExpr::UInt(IntegerWidth::from_bits(8));
+        let entry = |key: u128| MapEntryConst {
+            key: const_of(byte_type.clone(), ConstData::UInt(key)),
+            value: const_of(TypeExpr::Unit, ConstData::Unit),
+        };
+        // Native encoding refuses unordered maps, so assemble the list by
+        // hand from two canonical entries in the wrong order.
+        let encoded_entry = |entry: &MapEntryConst| {
+            sley_scb1::encode_record(&[
+                (1, sley_mutate::encode_const_value(&entry.key).unwrap()),
+                (2, sley_mutate::encode_const_value(&entry.value).unwrap()),
+            ])
+            .unwrap()
+        };
+        let entries =
+            sley_scb1::encode_list(&[encoded_entry(&entry(2)), encoded_entry(&entry(1))]).unwrap();
+        sley_scb1::encode_record(&[
+            (1, sley_scb1::encode_union(1, &[]).unwrap()),
+            (2, sley_scb1::encode_union(12, &entries).unwrap()),
+        ])
+        .unwrap()
+    };
+
+    let cases = [
+        (
+            "wrong_entity_kind",
+            parameter_schema_with_fields(10, &fields),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "missing_value",
+            parameter_schema_with_fields(9, &[]),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "unknown_field",
+            parameter_schema_with_fields(9, &unknown_fields),
+            b"SCB_FIELD_UNKNOWN".as_slice(),
+        ),
+        (
+            "invalid_nested_bool",
+            parameter_schema_with_fields(9, &bad_leaf_fields),
+            b"SCB_BOOL_INVALID".as_slice(),
+        ),
+        (
+            "unordered_map_keys",
+            parameter_schema_with_fields(9, &unordered_map),
+            b"SCB_MAP_ORDER".as_slice(),
+        ),
+    ];
+    for (name, malformed, expected) in cases {
+        assert_eq!(
+            simple_schema_error(&package, &approved, &malformed, "Constant"),
+            expected,
+            "{name} precedence"
+        );
+    }
+}
+
+#[test]
+fn capability_requirement_schema_decoder_accepts_scope_lists() {
+    let image = capability_requirement_schema_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "CAPABILITY_REQUIREMENT_SCHEMA functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 34);
+    assert_eq!(image.parameters.len(), 1_874);
+    assert_eq!(image.blocks.len(), 570);
+    assert_eq!(image.operations.len(), 1_112);
+    assert_eq!(image.constants.len(), 365);
+    assert_eq!(package.image_bytes.len(), 134_608);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x7a, 0xd5, 0x9c, 0x6b, 0xc4, 0xb2, 0x8d, 0x89, 0x3f, 0xa7, 0xad, 0xcf, 0x49, 0xc3,
+            0xf0, 0xf1, 0x32, 0xe4, 0x8a, 0xf8, 0xd0, 0xa8, 0x1e, 0xe1, 0x45, 0xf5, 0xaf, 0xd7,
+            0xc9, 0x10, 0x93, 0x5d,
+        ]
+    );
+
+    assert_schema_projection(
+        &package,
+        &approved,
+        &capability_requirement_schema_body(vec![scope_const_value(0x20), scope_const_value(0x31)]),
+        12,
+        3,
+    );
+    assert_schema_projection(
+        &package,
+        &approved,
+        &capability_requirement_schema_body(Vec::new()),
+        12,
+        3,
+    );
+}
+
+#[test]
+fn capability_requirement_schema_decoder_rejects_every_field_boundary() {
+    let body = capability_requirement_schema_body(vec![scope_const_value(0x20)]);
+    let fields = exact_entity_body_fields(&body, 12, 3);
+    let image = capability_requirement_schema_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+
+    let mut unknown_fields = fields.clone();
+    unknown_fields.push(Vec::new());
+    let mut short_effect = fields.clone();
+    short_effect[0] = vec![0xf3; 31];
+    let mut bad_scope = fields.clone();
+    bad_scope[1] = sley_scb1::encode_list(&[sley_scb1::encode_record(&[
+        (1, sley_scb1::encode_union(1, &[]).unwrap()),
+        (2, sley_scb1::encode_union(17, &[]).unwrap()),
+    ])
+    .unwrap()])
+    .unwrap();
+    let mut nonminimal_scope_list = fields.clone();
+    nonminimal_scope_list[1] = vec![0x80, 0x00];
+    let mut unordered_contracts = fields.clone();
+    unordered_contracts[2] = sley_scb1::encode_list(&[vec![0xf5; 32], vec![0xf4; 32]]).unwrap();
+    let mut duplicate_contracts = fields.clone();
+    duplicate_contracts[2] = sley_scb1::encode_list(&[vec![0xf4; 32], vec![0xf4; 32]]).unwrap();
+
+    let cases = [
+        (
+            "wrong_entity_kind",
+            parameter_schema_with_fields(13, &fields),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "missing_required",
+            parameter_schema_with_fields(12, &fields[..2]),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "unknown_field",
+            parameter_schema_with_fields(12, &unknown_fields),
+            b"SCB_FIELD_UNKNOWN".as_slice(),
+        ),
+        (
+            "short_effect",
+            parameter_schema_with_fields(12, &short_effect),
+            b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "unknown_scope_data_tag",
+            parameter_schema_with_fields(12, &bad_scope),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "nonminimal_scope_count",
+            parameter_schema_with_fields(12, &nonminimal_scope_list),
+            b"SCB_VARINT_NON_MINIMAL".as_slice(),
+        ),
+        (
+            "unordered_contracts",
+            parameter_schema_with_fields(12, &unordered_contracts),
+            b"SCB_MAP_ORDER".as_slice(),
+        ),
+        (
+            "duplicate_contracts",
+            parameter_schema_with_fields(12, &duplicate_contracts),
+            b"SCB_MAP_DUPLICATE".as_slice(),
+        ),
+    ];
+    for (name, malformed, expected) in cases {
+        assert_eq!(
+            simple_schema_error(&package, &approved, &malformed, "CapabilityRequirement"),
+            expected,
+            "{name} precedence"
         );
     }
 }
