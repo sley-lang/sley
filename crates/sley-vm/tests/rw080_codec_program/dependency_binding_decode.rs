@@ -5379,6 +5379,416 @@ pub(super) fn generic_union_decode_image() -> Image {
     }
 }
 
+#[allow(clippy::too_many_lines)]
+fn build_generic_list_decode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    decode_function: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = generic_record_result_type();
+    let map_type = generic_record_map_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let e_length = assembler.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
+    let e_trailing = assembler.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let e_resource = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let length_error = err_block(assembler, ns, function, result_type.clone(), e_length);
+    let trailing_error = err_block(assembler, ns, function, result_type.clone(), e_trailing);
+    let resource_error = err_block(assembler, ns, function, result_type.clone(), e_resource);
+    let control = DecodeBlocks {
+        function,
+        decode_function,
+        forward_error,
+        length_error,
+        trailing_error,
+        resource_error,
+        missing_error: resource_error,
+        unknown_error: resource_error,
+        duplicate_error: resource_error,
+        order_error: resource_error,
+        union_error: resource_error,
+        scope_error: resource_error,
+        invariant_trap: trap_block(assembler, ns, function),
+        width32: assembler.ku32(ns.k, 32),
+        width64: assembler.ku32(ns.k, 64),
+        max_length: assembler.ku64(ns.k, 67_108_864),
+        max_fields: assembler.ku64(ns.k, 65_535),
+        constant0: assembler.ku64(ns.k, 0),
+        constant1: assembler.ku64(ns.k, 1),
+        constant32: assembler.ku64(ns.k, 32),
+    };
+    let output_types = vec![u64_type(), u64_type(), map_type.clone()];
+    let state_types = record_state_types(&output_types);
+    let loop_check = assembler.id(ns.b);
+    let finish = assembler.id(ns.b);
+    let finish_ok = assembler.id(ns.b);
+    let insert = assembler.id(ns.b);
+    let count_ready = assembler.id(ns.b);
+    let map_ready = assembler.id(ns.b);
+    let vector_ready = assembler.id(ns.b);
+
+    let finish_ok_parameters =
+        block_parameters(assembler, ns.p, finish_ok, std::slice::from_ref(&map_type));
+    let ok = assembler.op(
+        ns.o,
+        finish_ok,
+        Opcode::ResultOk,
+        vec![pav(finish_ok_parameters[0])],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        finish_ok,
+        function,
+        finish_ok_parameters,
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let finish_parameters = block_parameters(assembler, ns.p, finish, &state_types);
+    let consumed = assembler.op(
+        ns.o,
+        finish,
+        Opcode::Equal,
+        vec![pav(finish_parameters[0]), pav(finish_parameters[1])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        finish,
+        function,
+        finish_parameters.clone(),
+        vec![consumed],
+        cond(
+            op_result(consumed),
+            edge(finish_ok, vec![pav(finish_parameters[8])]),
+            edge(control.trailing_error, Vec::new()),
+        ),
+    );
+
+    let insert_types = state_types
+        .clone()
+        .into_iter()
+        .chain(std::iter::once(TypeExpr::Bytes))
+        .collect::<Vec<_>>();
+    let insert_parameters = block_parameters(assembler, ns.p, insert, &insert_types);
+    let inserted = assembler.op(
+        ns.o,
+        insert,
+        Opcode::MapInsert,
+        vec![
+            pav(insert_parameters[8]),
+            pav(insert_parameters[6]),
+            pav(insert_parameters[9]),
+        ],
+        vec![map_type.clone()],
+        Immediate::None,
+    );
+    let one = assembler.cref(ns.o, insert, control.constant1, u64_type());
+    let processed = assembler.op(
+        ns.o,
+        insert,
+        Opcode::IntAddChecked,
+        vec![pav(insert_parameters[6]), op_result(one)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        insert,
+        function,
+        insert_parameters.clone(),
+        vec![inserted, one, processed],
+        switch(
+            op_result(processed),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    loop_check,
+                    vec![
+                        sav(insert_parameters[0]),
+                        sav(insert_parameters[1]),
+                        sav(insert_parameters[2]),
+                        sav(insert_parameters[3]),
+                        sav(insert_parameters[4]),
+                        sav(insert_parameters[5]),
+                        SwitchArgument::CasePayload,
+                        sav(insert_parameters[7]),
+                        oav(inserted),
+                    ],
+                ),
+                (BuiltinCase::Err, control.invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let field_copy = build_field_copy_loop(assembler, ns, &control, &output_types, insert);
+    let field_length =
+        build_bounded_field_validator(assembler, ns, &control, &output_types, field_copy);
+    let length_decode = build_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width64,
+        &output_types,
+        field_length,
+    );
+
+    let loop_parameters = block_parameters(assembler, ns.p, loop_check, &state_types);
+    let complete = assembler.op(
+        ns.o,
+        loop_check,
+        Opcode::Equal,
+        vec![pav(loop_parameters[6]), pav(loop_parameters[7])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        loop_check,
+        function,
+        loop_parameters.clone(),
+        vec![complete],
+        cond(
+            op_result(complete),
+            edge(finish, parameter_values(&loop_parameters)),
+            edge(length_decode, parameter_values(&loop_parameters)),
+        ),
+    );
+
+    let map_ready_types = vec![
+        map_type.clone(),
+        u64_type(),
+        u64_type(),
+        u64_type(),
+        u8vec_type(),
+        TypeExpr::Bytes,
+        TypeExpr::Unit,
+        TypeExpr::Bool,
+    ];
+    let map_ready_parameters = block_parameters(assembler, ns.p, map_ready, &map_ready_types);
+    let processed_zero = assembler.cref(ns.o, map_ready, control.constant0, u64_type());
+    append_block(
+        assembler,
+        map_ready,
+        function,
+        map_ready_parameters.clone(),
+        vec![processed_zero],
+        branch(edge(
+            loop_check,
+            vec![
+                pav(map_ready_parameters[2]),
+                pav(map_ready_parameters[3]),
+                pav(map_ready_parameters[4]),
+                pav(map_ready_parameters[5]),
+                pav(map_ready_parameters[6]),
+                pav(map_ready_parameters[7]),
+                op_result(processed_zero),
+                pav(map_ready_parameters[1]),
+                pav(map_ready_parameters[0]),
+            ],
+        )),
+    );
+
+    let count_ready_types = vec![
+        u64_type(),
+        u64_type(),
+        u64_type(),
+        u8vec_type(),
+        TypeExpr::Bytes,
+        TypeExpr::Unit,
+        TypeExpr::Bool,
+    ];
+    let count_ready_parameters = block_parameters(assembler, ns.p, count_ready, &count_ready_types);
+    let max_items = assembler.cref(ns.o, count_ready, control.max_fields, u64_type());
+    let too_many = assembler.op(
+        ns.o,
+        count_ready,
+        Opcode::GreaterThan,
+        vec![pav(count_ready_parameters[0]), op_result(max_items)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let create_map = assembler.id(ns.b);
+    append_block(
+        assembler,
+        count_ready,
+        function,
+        count_ready_parameters.clone(),
+        vec![max_items, too_many],
+        cond(
+            op_result(too_many),
+            edge(control.resource_error, Vec::new()),
+            edge(create_map, parameter_values(&count_ready_parameters)),
+        ),
+    );
+
+    let create_map_parameters = block_parameters(assembler, ns.p, create_map, &count_ready_types);
+    let map_new_result = TypeExpr::Result {
+        ok: Box::new(map_type.clone()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+    };
+    let empty_map = assembler.op(
+        ns.o,
+        create_map,
+        Opcode::MapNew,
+        Vec::new(),
+        vec![map_new_result],
+        Immediate::None,
+    );
+    let mut map_ready_arguments = vec![SwitchArgument::CasePayload];
+    map_ready_arguments.extend(create_map_parameters.iter().copied().map(sav));
+    append_block(
+        assembler,
+        create_map,
+        function,
+        create_map_parameters,
+        vec![empty_map],
+        switch(
+            op_result(empty_map),
+            vec![
+                (BuiltinCase::Ok, map_ready, map_ready_arguments),
+                (BuiltinCase::Err, control.invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let count_decode =
+        build_record_uvar_stage(assembler, ns, &control, control.width64, &[], count_ready);
+    let vector_ready_types = vec![u8vec_type(), TypeExpr::Bytes, TypeExpr::Unit];
+    let vector_ready_parameters =
+        block_parameters(assembler, ns.p, vector_ready, &vector_ready_types);
+    let total = assembler.op(
+        ns.o,
+        vector_ready,
+        Opcode::VectorLen,
+        vec![pav(vector_ready_parameters[0])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let zero = assembler.cref(ns.o, vector_ready, control.constant0, u64_type());
+    let unused_constant = assembler.kbool(ns.k, false);
+    let unused = assembler.cref(ns.o, vector_ready, unused_constant, TypeExpr::Bool);
+    append_block(
+        assembler,
+        vector_ready,
+        function,
+        vector_ready_parameters.clone(),
+        vec![total, zero, unused],
+        branch(edge(
+            count_decode,
+            vec![
+                op_result(zero),
+                op_result(total),
+                pav(vector_ready_parameters[0]),
+                pav(vector_ready_parameters[1]),
+                pav(vector_ready_parameters[2]),
+                op_result(unused),
+            ],
+        )),
+    );
+
+    let entry = assembler.id(ns.b);
+    let converted = assembler.op(
+        ns.o,
+        entry,
+        Opcode::AdapterInvoke,
+        vec![pav(unit), pav(body)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![converted],
+        switch(
+            op_result(converted),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    vector_ready,
+                    vec![SwitchArgument::CasePayload, sav(body), sav(unit)],
+                ),
+                (BuiltinCase::Err, control.resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+pub(super) fn generic_list_decode_image() -> Image {
+    let mut assembler = Asm::new();
+    let decode_function = eid(12, 7);
+    let function = eid(12, 8);
+    let decode_ns = Ns {
+        k: 254,
+        p: 254,
+        b: 254,
+        o: 254,
+    };
+    let list_ns = Ns {
+        k: 255,
+        p: 255,
+        b: 255,
+        o: 255,
+    };
+    let (decode_graph, _) = build_decode(&mut assembler, decode_ns, decode_function);
+    let graph = build_generic_list_decode(&mut assembler, list_ns, function, decode_function);
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph, decode_graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    }
+}
+
 fn assert_entry_cfg_surface(image: &Image) {
     let mut reached = std::collections::BTreeSet::new();
     let mut pending = vec![image.entry.entry_block];
@@ -5626,6 +6036,87 @@ fn generic_union_decoder_rejects_noncanonical_boundaries() {
             "nonminimal_tag",
             vec![0x81, 0, 0],
             b"SCB_VARINT_NON_MINIMAL",
+        ),
+        ("payload_limit", over_limit, b"SCB_RESOURCE_LIMIT"),
+    ];
+    for (name, input, expected) in cases {
+        assert_eq!(
+            generic_record_error(&package, &approved, &input),
+            expected,
+            "{name} precedence"
+        );
+    }
+}
+
+#[test]
+fn generic_list_decoder_preserves_runtime_element_order() {
+    let image = generic_list_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit(&image);
+    assert_eq!(image.functions.len(), 2);
+    assert_eq!(image.parameters.len(), 505);
+    assert_eq!(image.blocks.len(), 78);
+    assert_eq!(image.operations.len(), 153);
+    assert_eq!(image.constants.len(), 40);
+    assert_eq!(package.image_bytes.len(), 22_882);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x96, 0x85, 0x54, 0x00, 0x44, 0xfe, 0xc1, 0x73, 0xea, 0x4e, 0x93, 0xcc, 0x7e, 0x33,
+            0x24, 0x40, 0xc9, 0x92, 0x18, 0x53, 0x91, 0x1e, 0x1e, 0xa0, 0x4b, 0x15, 0x43, 0xa2,
+            0x00, 0xdc, 0x13, 0xfe,
+        ]
+    );
+    eprintln!(
+        "GENERIC_LIST functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    let items = vec![b"first".to_vec(), Vec::new(), b"third".to_vec()];
+    let encoded = sley_scb1::encode_list(&items).expect("list encodes");
+    let outcome = execute(
+        &package,
+        &approved,
+        vec![bytes_input(&encoded), unit_input()],
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("generic list decoder must return")
+    };
+    let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+        panic!("generic list decoder must accept canonical bytes: {value:?}")
+    };
+    let ConstData::Map(entries) = decoded.data else {
+        panic!("generic list decoder must return an index map")
+    };
+    assert_eq!(entries.len(), items.len());
+    for (index, (entry, expected)) in entries.iter().zip(items).enumerate() {
+        assert_eq!(entry.key.data, ConstData::UInt(index as u128));
+        assert_eq!(entry.value.data, ConstData::Bytes(expected));
+    }
+}
+
+#[test]
+fn generic_list_decoder_rejects_noncanonical_boundaries() {
+    let image = generic_list_decode_image();
+    let (package, approved) = admit(&image);
+    let mut trailing = sley_scb1::encode_list(&[]).expect("list encodes");
+    trailing.push(0);
+    let mut over_limit = sley_scb1::encode_uvar(1);
+    over_limit.extend(sley_scb1::encode_uvar(67_108_865));
+    let cases: [(&str, Vec<u8>, &[u8]); 6] = [
+        ("empty_input", Vec::new(), b"SCB_LENGTH_OVERFLOW"),
+        ("trailing", trailing, b"SCB_TRAILING_BYTES"),
+        ("truncated", vec![1, 2, 0], b"SCB_LENGTH_OVERFLOW"),
+        ("nonminimal_count", vec![0x80, 0], b"SCB_VARINT_NON_MINIMAL"),
+        (
+            "item_limit",
+            sley_scb1::encode_uvar(65_536),
+            b"SCB_RESOURCE_LIMIT",
         ),
         ("payload_limit", over_limit, b"SCB_RESOURCE_LIMIT"),
     ];
