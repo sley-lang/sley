@@ -11514,6 +11514,7 @@ enum SimpleFieldValidator {
     BoundedUvar { minimum: u64, maximum: u64 },
     TypeExpr,
     EntityIds { ordered: bool },
+    Unit(EntityId),
 }
 
 #[derive(Clone, Copy)]
@@ -11525,6 +11526,1296 @@ struct SimpleSchemaDecoders {
     bounded_uvar: EntityId,
     type_expr: EntityId,
     entity_ids: EntityId,
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_unit_list_validate(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    list_decoder: EntityId,
+    element_decoder: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let map_type = generic_record_map_type();
+    let option_bytes_type = TypeExpr::Option(Box::new(TypeExpr::Bytes));
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let invariant_trap = trap_block(assembler, ns, function);
+    let success = assembler.id(ns.b);
+    let advance = assembler.id(ns.b);
+    let element_call = assembler.id(ns.b);
+    let loop_check = assembler.id(ns.b);
+    let list_ready = assembler.id(ns.b);
+
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![pav(unit)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        Vec::new(),
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let state_types = vec![map_type.clone(), u64_type()];
+    let advance_parameters = block_parameters(assembler, ns.p, advance, &state_types);
+    let one_constant = assembler.ku64(ns.k, 1);
+    let one = assembler.cref(ns.o, advance, one_constant, u64_type());
+    let next = assembler.op(
+        ns.o,
+        advance,
+        Opcode::IntAddChecked,
+        vec![pav(advance_parameters[1]), op_result(one)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        advance,
+        function,
+        advance_parameters.clone(),
+        vec![one, next],
+        switch(
+            op_result(next),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    loop_check,
+                    vec![sav(advance_parameters[0]), SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let element_types = vec![TypeExpr::Bytes, map_type.clone(), u64_type()];
+    let element_parameters = block_parameters(assembler, ns.p, element_call, &element_types);
+    let validated = assembler.op(
+        ns.o,
+        element_call,
+        Opcode::CallDirect,
+        vec![pav(element_parameters[0]), pav(unit)],
+        vec![unit_validation_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: element_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        element_call,
+        function,
+        element_parameters.clone(),
+        vec![validated],
+        switch(
+            op_result(validated),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    advance,
+                    vec![sav(element_parameters[1]), sav(element_parameters[2])],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let loop_parameters = block_parameters(assembler, ns.p, loop_check, &state_types);
+    let item = assembler.op(
+        ns.o,
+        loop_check,
+        Opcode::MapGet,
+        vec![pav(loop_parameters[0]), pav(loop_parameters[1])],
+        vec![option_bytes_type],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        loop_check,
+        function,
+        loop_parameters.clone(),
+        vec![item],
+        switch(
+            op_result(item),
+            vec![
+                (BuiltinCase::None, success, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    element_call,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(loop_parameters[0]),
+                        sav(loop_parameters[1]),
+                    ],
+                ),
+            ],
+        ),
+    );
+
+    let list_parameters =
+        block_parameters(assembler, ns.p, list_ready, std::slice::from_ref(&map_type));
+    let zero_constant = assembler.ku64(ns.k, 0);
+    let zero = assembler.cref(ns.o, list_ready, zero_constant, u64_type());
+    append_block(
+        assembler,
+        list_ready,
+        function,
+        list_parameters.clone(),
+        vec![zero],
+        branch(edge(
+            loop_check,
+            vec![pav(list_parameters[0]), op_result(zero)],
+        )),
+    );
+
+    let entry = assembler.id(ns.b);
+    let decoded_list = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![generic_record_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: list_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![decoded_list],
+        switch(
+            op_result(decoded_list),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    list_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_projected_record_validate(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    validators: &[SimpleFieldValidator],
+    decoders: SimpleSchemaDecoders,
+) -> FunctionGraph {
+    assert!(!validators.is_empty(), "projected record needs fields");
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let tuple_type = TypeExpr::Tuple(vec![TypeExpr::Bytes; validators.len()]);
+    let field_types = vec![TypeExpr::Bytes; validators.len()];
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let success = assembler.id(ns.b);
+    let validation_blocks = validators
+        .iter()
+        .map(|_| assembler.id(ns.b))
+        .collect::<Vec<_>>();
+    let record_ready = assembler.id(ns.b);
+
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![pav(unit)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        Vec::new(),
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    for (index, (block, validator)) in validation_blocks
+        .iter()
+        .copied()
+        .zip(validators.iter().copied())
+        .enumerate()
+    {
+        let parameters = block_parameters(assembler, ns.p, block, &field_types);
+        let mut operations = Vec::new();
+        let (decode_function, decode_arguments, decode_result_type) = match validator {
+            SimpleFieldValidator::Fixed32 => (
+                decoders.fixed32,
+                vec![pav(parameters[index]), pav(unit)],
+                bytes_validation_result_type(),
+            ),
+            SimpleFieldValidator::ExactUvar(width) => {
+                let width_constant = assembler.ku32(ns.k, u128::from(width));
+                let width_value = assembler.cref(ns.o, block, width_constant, u32_type());
+                operations.push(width_value);
+                (
+                    decoders.exact_uvar,
+                    vec![pav(parameters[index]), op_result(width_value), pav(unit)],
+                    exact_uvar_result_type(),
+                )
+            }
+            SimpleFieldValidator::BoundedUvar { minimum, maximum } => {
+                let minimum_constant = assembler.ku64(ns.k, u128::from(minimum));
+                let maximum_constant = assembler.ku64(ns.k, u128::from(maximum));
+                let minimum_value = assembler.cref(ns.o, block, minimum_constant, u64_type());
+                let maximum_value = assembler.cref(ns.o, block, maximum_constant, u64_type());
+                operations.extend([minimum_value, maximum_value]);
+                (
+                    decoders.bounded_uvar,
+                    vec![
+                        pav(parameters[index]),
+                        op_result(minimum_value),
+                        op_result(maximum_value),
+                        pav(unit),
+                    ],
+                    exact_uvar_result_type(),
+                )
+            }
+            SimpleFieldValidator::TypeExpr => (
+                decoders.type_expr,
+                vec![pav(parameters[index]), pav(unit)],
+                bytes_validation_result_type(),
+            ),
+            SimpleFieldValidator::EntityIds { ordered } => {
+                let ordered_constant = assembler.kbool(ns.k, ordered);
+                let ordered_value = assembler.cref(ns.o, block, ordered_constant, TypeExpr::Bool);
+                operations.push(ordered_value);
+                (
+                    decoders.entity_ids,
+                    vec![pav(parameters[index]), op_result(ordered_value), pav(unit)],
+                    unit_validation_result_type(),
+                )
+            }
+            SimpleFieldValidator::Unit(decoder) => (
+                decoder,
+                vec![pav(parameters[index]), pav(unit)],
+                unit_validation_result_type(),
+            ),
+        };
+        let decoded = assembler.op(
+            ns.o,
+            block,
+            Opcode::CallDirect,
+            decode_arguments,
+            vec![decode_result_type],
+            Immediate::Function(FunctionRefValue {
+                function: decode_function,
+                type_arguments: Vec::new(),
+            }),
+        );
+        operations.push(decoded);
+        let next_validation = validation_blocks.get(index + 1).copied();
+        let destination = next_validation.unwrap_or(success);
+        let success_arguments = next_validation
+            .map_or_else(Vec::new, |_| parameters.iter().copied().map(sav).collect());
+        append_block(
+            assembler,
+            block,
+            function,
+            parameters.clone(),
+            operations,
+            switch(
+                op_result(decoded),
+                vec![
+                    (BuiltinCase::Ok, destination, success_arguments),
+                    (
+                        BuiltinCase::Err,
+                        forward_error,
+                        vec![SwitchArgument::CasePayload],
+                    ),
+                ],
+            ),
+        );
+    }
+
+    let record_parameters = block_parameters(
+        assembler,
+        ns.p,
+        record_ready,
+        std::slice::from_ref(&tuple_type),
+    );
+    let projected_fields = (0..validators.len())
+        .map(|index| {
+            assembler.op(
+                ns.o,
+                record_ready,
+                Opcode::TupleGet,
+                vec![pav(record_parameters[0])],
+                vec![TypeExpr::Bytes],
+                Immediate::Index(u32::try_from(index).expect("record field index fits u32")),
+            )
+        })
+        .collect::<Vec<_>>();
+    append_block(
+        assembler,
+        record_ready,
+        function,
+        record_parameters,
+        projected_fields.clone(),
+        branch(edge(
+            validation_blocks[0],
+            projected_fields.iter().copied().map(op_result).collect(),
+        )),
+    );
+
+    let entry = assembler.id(ns.b);
+    let decoded_record = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![exact_record_projection_result_type(validators.len())],
+        Immediate::Function(FunctionRefValue {
+            function: decoders.exact_record,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![decoded_record],
+        switch(
+            op_result(decoded_record),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    record_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_contract_source_validate(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    union_decoder: EntityId,
+    fixed32_decoder: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let union_type = TypeExpr::Tuple(vec![u64_type(), TypeExpr::Bytes]);
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let union_code = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let union_error = err_block(assembler, ns, function, result_type.clone(), union_code);
+    let success = assembler.id(ns.b);
+    let fixed_call = assembler.id(ns.b);
+    let empty_check = assembler.id(ns.b);
+    let tag_checks = std::array::from_fn::<_, 4, _>(|_| assembler.id(ns.b));
+    let union_ready = assembler.id(ns.b);
+
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![pav(unit)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        Vec::new(),
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let fixed_parameters = block_parameters(assembler, ns.p, fixed_call, &[TypeExpr::Bytes]);
+    let fixed = assembler.op(
+        ns.o,
+        fixed_call,
+        Opcode::CallDirect,
+        vec![pav(fixed_parameters[0]), pav(unit)],
+        vec![bytes_validation_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: fixed32_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        fixed_call,
+        function,
+        fixed_parameters,
+        vec![fixed],
+        switch(
+            op_result(fixed),
+            vec![
+                (BuiltinCase::Ok, success, Vec::new()),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let empty_parameters = block_parameters(assembler, ns.p, empty_check, &[TypeExpr::Bytes]);
+    let empty_constant = assembler.kbytes(ns.k, b"");
+    let empty = assembler.cref(ns.o, empty_check, empty_constant, TypeExpr::Bytes);
+    let is_empty = assembler.op(
+        ns.o,
+        empty_check,
+        Opcode::Equal,
+        vec![pav(empty_parameters[0]), op_result(empty)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        empty_check,
+        function,
+        empty_parameters,
+        vec![empty, is_empty],
+        cond(
+            op_result(is_empty),
+            edge(success, Vec::new()),
+            edge(union_error, Vec::new()),
+        ),
+    );
+
+    for (index, block) in tag_checks.iter().copied().enumerate() {
+        let parameters = block_parameters(assembler, ns.p, block, &[u64_type(), TypeExpr::Bytes]);
+        let expected_constant = assembler.ku64(ns.k, (index + 1) as u128);
+        let expected = assembler.cref(ns.o, block, expected_constant, u64_type());
+        let tag_matches = assembler.op(
+            ns.o,
+            block,
+            Opcode::Equal,
+            vec![pav(parameters[0]), op_result(expected)],
+            vec![TypeExpr::Bool],
+            Immediate::None,
+        );
+        let matched = if matches!(index, 0 | 3) {
+            fixed_call
+        } else {
+            empty_check
+        };
+        let fallback = tag_checks.get(index + 1).copied().unwrap_or(union_error);
+        let fallback_arguments = if index + 1 < tag_checks.len() {
+            vec![pav(parameters[0]), pav(parameters[1])]
+        } else {
+            Vec::new()
+        };
+        append_block(
+            assembler,
+            block,
+            function,
+            parameters.clone(),
+            vec![expected, tag_matches],
+            cond(
+                op_result(tag_matches),
+                edge(matched, vec![pav(parameters[1])]),
+                edge(fallback, fallback_arguments),
+            ),
+        );
+    }
+
+    let union_parameters = block_parameters(
+        assembler,
+        ns.p,
+        union_ready,
+        std::slice::from_ref(&union_type),
+    );
+    let tag = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(0),
+    );
+    let payload = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    append_block(
+        assembler,
+        union_ready,
+        function,
+        union_parameters,
+        vec![tag, payload],
+        branch(edge(
+            tag_checks[0],
+            vec![op_result(tag), op_result(payload)],
+        )),
+    );
+
+    let entry = assembler.id(ns.b);
+    let decoded = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![generic_union_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: union_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![decoded],
+        switch(
+            op_result(decoded),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    union_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(dead_code, clippy::too_many_lines)]
+fn build_option_unit_validate(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    union_decoder: EntityId,
+    some_decoder: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let union_type = TypeExpr::Tuple(vec![u64_type(), TypeExpr::Bytes]);
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let union_code = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let union_error = err_block(assembler, ns, function, result_type.clone(), union_code);
+    let success = assembler.id(ns.b);
+    let some_call = assembler.id(ns.b);
+    let none_check = assembler.id(ns.b);
+    let union_ready = assembler.id(ns.b);
+
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![pav(unit)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        Vec::new(),
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let some_parameters = block_parameters(assembler, ns.p, some_call, &[TypeExpr::Bytes]);
+    let some = assembler.op(
+        ns.o,
+        some_call,
+        Opcode::CallDirect,
+        vec![pav(some_parameters[0]), pav(unit)],
+        vec![unit_validation_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: some_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        some_call,
+        function,
+        some_parameters,
+        vec![some],
+        switch(
+            op_result(some),
+            vec![
+                (BuiltinCase::Ok, success, Vec::new()),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let none_parameters =
+        block_parameters(assembler, ns.p, none_check, &[u64_type(), TypeExpr::Bytes]);
+    let zero_constant = assembler.ku64(ns.k, 0);
+    let one_constant = assembler.ku64(ns.k, 1);
+    let zero = assembler.cref(ns.o, none_check, zero_constant, u64_type());
+    let one = assembler.cref(ns.o, none_check, one_constant, u64_type());
+    let empty_constant = assembler.kbytes(ns.k, b"");
+    let empty = assembler.cref(ns.o, none_check, empty_constant, TypeExpr::Bytes);
+    let is_none = assembler.op(
+        ns.o,
+        none_check,
+        Opcode::Equal,
+        vec![pav(none_parameters[0]), op_result(zero)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let empty_payload = assembler.op(
+        ns.o,
+        none_check,
+        Opcode::Equal,
+        vec![pav(none_parameters[1]), op_result(empty)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let valid_none = assembler.op(
+        ns.o,
+        none_check,
+        Opcode::BoolAnd,
+        vec![op_result(is_none), op_result(empty_payload)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let is_some = assembler.op(
+        ns.o,
+        none_check,
+        Opcode::Equal,
+        vec![pav(none_parameters[0]), op_result(one)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let dispatch_some = assembler.id(ns.b);
+    append_block(
+        assembler,
+        none_check,
+        function,
+        none_parameters.clone(),
+        vec![
+            zero,
+            one,
+            empty,
+            is_none,
+            empty_payload,
+            valid_none,
+            is_some,
+        ],
+        cond(
+            op_result(valid_none),
+            edge(success, Vec::new()),
+            edge(
+                dispatch_some,
+                vec![op_result(is_some), pav(none_parameters[1])],
+            ),
+        ),
+    );
+
+    let dispatch_parameters = block_parameters(
+        assembler,
+        ns.p,
+        dispatch_some,
+        &[TypeExpr::Bool, TypeExpr::Bytes],
+    );
+    append_block(
+        assembler,
+        dispatch_some,
+        function,
+        dispatch_parameters.clone(),
+        Vec::new(),
+        cond(
+            pav(dispatch_parameters[0]),
+            edge(some_call, vec![pav(dispatch_parameters[1])]),
+            edge(union_error, Vec::new()),
+        ),
+    );
+
+    let union_parameters = block_parameters(
+        assembler,
+        ns.p,
+        union_ready,
+        std::slice::from_ref(&union_type),
+    );
+    let tag = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(0),
+    );
+    let payload = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    append_block(
+        assembler,
+        union_ready,
+        function,
+        union_parameters,
+        vec![tag, payload],
+        branch(edge(none_check, vec![op_result(tag), op_result(payload)])),
+    );
+
+    let entry = assembler.id(ns.b);
+    let decoded = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![generic_union_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: union_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![decoded],
+        switch(
+            op_result(decoded),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    union_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_optional_empty_unit_validate(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    some_decoder: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let success = assembler.id(ns.b);
+    let some_call = assembler.id(ns.b);
+
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![pav(unit)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        Vec::new(),
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let some_parameters = block_parameters(assembler, ns.p, some_call, &[TypeExpr::Bytes]);
+    let some = assembler.op(
+        ns.o,
+        some_call,
+        Opcode::CallDirect,
+        vec![pav(some_parameters[0]), pav(unit)],
+        vec![unit_validation_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: some_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        some_call,
+        function,
+        some_parameters,
+        vec![some],
+        switch(
+            op_result(some),
+            vec![
+                (BuiltinCase::Ok, success, Vec::new()),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let entry = assembler.id(ns.b);
+    let empty_constant = assembler.kbytes(ns.k, b"");
+    let empty = assembler.cref(ns.o, entry, empty_constant, TypeExpr::Bytes);
+    let is_empty = assembler.op(
+        ns.o,
+        entry,
+        Opcode::Equal,
+        vec![pav(body), op_result(empty)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![empty, is_empty],
+        cond(
+            op_result(is_empty),
+            edge(success, Vec::new()),
+            edge(some_call, vec![pav(body)]),
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_optional_last_record_projection(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    record4_decoder: EntityId,
+    record5_decoder: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = exact_record_projection_result_type(5);
+    let tuple4_type = TypeExpr::Tuple(vec![TypeExpr::Bytes; 4]);
+    let tuple5_type = TypeExpr::Tuple(vec![TypeExpr::Bytes; 5]);
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let five_success = assembler.id(ns.b);
+    let four_success = assembler.id(ns.b);
+    let call_four = assembler.id(ns.b);
+    let five_error = assembler.id(ns.b);
+
+    let five_parameters = block_parameters(
+        assembler,
+        ns.p,
+        five_success,
+        std::slice::from_ref(&tuple5_type),
+    );
+    let five_ok = assembler.op(
+        ns.o,
+        five_success,
+        Opcode::ResultOk,
+        vec![pav(five_parameters[0])],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        five_success,
+        function,
+        five_parameters,
+        vec![five_ok],
+        ret(op_result(five_ok)),
+    );
+
+    let four_parameters = block_parameters(
+        assembler,
+        ns.p,
+        four_success,
+        std::slice::from_ref(&tuple4_type),
+    );
+    let mut operations = Vec::new();
+    let fields = (0..4)
+        .map(|index| {
+            let field = assembler.op(
+                ns.o,
+                four_success,
+                Opcode::TupleGet,
+                vec![pav(four_parameters[0])],
+                vec![TypeExpr::Bytes],
+                Immediate::Index(index),
+            );
+            operations.push(field);
+            op_result(field)
+        })
+        .collect::<Vec<_>>();
+    let empty_constant = assembler.kbytes(ns.k, b"");
+    let empty = assembler.cref(ns.o, four_success, empty_constant, TypeExpr::Bytes);
+    operations.push(empty);
+    let mut tuple_fields = fields;
+    tuple_fields.push(op_result(empty));
+    let tuple = assembler.op(
+        ns.o,
+        four_success,
+        Opcode::TupleNew,
+        tuple_fields,
+        vec![tuple5_type.clone()],
+        Immediate::None,
+    );
+    let four_ok = assembler.op(
+        ns.o,
+        four_success,
+        Opcode::ResultOk,
+        vec![op_result(tuple)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    operations.extend([tuple, four_ok]);
+    append_block(
+        assembler,
+        four_success,
+        function,
+        four_parameters,
+        operations,
+        ret(op_result(four_ok)),
+    );
+
+    let four_call = assembler.op(
+        ns.o,
+        call_four,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![exact_record_projection_result_type(4)],
+        Immediate::Function(FunctionRefValue {
+            function: record4_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        call_four,
+        function,
+        Vec::new(),
+        vec![four_call],
+        switch(
+            op_result(four_call),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    four_success,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let error_parameters = block_parameters(assembler, ns.p, five_error, &[TypeExpr::Bytes]);
+    let missing_constant = assembler.kbytes(ns.k, b"SCB_FIELD_MISSING");
+    let missing = assembler.cref(ns.o, five_error, missing_constant, TypeExpr::Bytes);
+    let is_missing = assembler.op(
+        ns.o,
+        five_error,
+        Opcode::Equal,
+        vec![pav(error_parameters[0]), op_result(missing)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        five_error,
+        function,
+        error_parameters.clone(),
+        vec![missing, is_missing],
+        cond(
+            op_result(is_missing),
+            edge(call_four, Vec::new()),
+            edge(forward_error, vec![pav(error_parameters[0])]),
+        ),
+    );
+
+    let entry = assembler.id(ns.b);
+    let five_call = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: record5_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![five_call],
+        switch(
+            op_result(five_call),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    five_success,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    five_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
 }
 
 fn simple_schema_result_type(field_count: usize) -> TypeExpr {
@@ -11662,6 +12953,11 @@ fn build_simple_entity_schema_decode(
                     unit_validation_result_type(),
                 )
             }
+            SimpleFieldValidator::Unit(decoder) => (
+                decoder,
+                vec![pav(parameters[index]), pav(unit)],
+                unit_validation_result_type(),
+            ),
         };
         let decoded = assembler.op(
             ns.o,
@@ -12161,6 +13457,309 @@ fn effect_def_schema_decode_image() -> Image {
             },
         ],
     )
+}
+
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn contract_schema_decode_image() -> Image {
+    let mut assembler = Asm::new();
+    let decode_function = assembler.id(160);
+    let record_function = assembler.id(160);
+    let union_function = assembler.id(160);
+    let list_function = assembler.id(160);
+    let fixed32_function = assembler.id(160);
+    let exact_uvar_function = assembler.id(160);
+    let bounded_uvar_function = assembler.id(160);
+    let record2_function = assembler.id(160);
+    let record4_function = assembler.id(160);
+    let record5_function = assembler.id(160);
+    let record6_function = assembler.id(160);
+    let contract_source_function = assembler.id(160);
+    let contract_binding_function = assembler.id(160);
+    let contract_bindings_function = assembler.id(160);
+    let resource_limits_function = assembler.id(160);
+    let contract_projection_function = assembler.id(160);
+    let optional_resource_limits_function = assembler.id(160);
+    let function = assembler.id(160);
+    let (decode_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 161,
+            p: 161,
+            b: 161,
+            o: 161,
+        },
+        decode_function,
+    );
+    let record_graph = build_generic_record_decode(
+        &mut assembler,
+        Ns {
+            k: 162,
+            p: 162,
+            b: 162,
+            o: 162,
+        },
+        record_function,
+        decode_function,
+    );
+    let union_graph = build_generic_union_decode(
+        &mut assembler,
+        Ns {
+            k: 163,
+            p: 163,
+            b: 163,
+            o: 163,
+        },
+        union_function,
+        decode_function,
+    );
+    let list_graph = build_generic_list_decode(
+        &mut assembler,
+        Ns {
+            k: 164,
+            p: 164,
+            b: 164,
+            o: 164,
+        },
+        list_function,
+        decode_function,
+    );
+    let fixed32_graph = build_fixed32_decode(
+        &mut assembler,
+        Ns {
+            k: 165,
+            p: 165,
+            b: 165,
+            o: 165,
+        },
+        fixed32_function,
+    );
+    let exact_uvar_graph = build_exact_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 166,
+            p: 166,
+            b: 166,
+            o: 166,
+        },
+        exact_uvar_function,
+        decode_function,
+    );
+    let bounded_uvar_graph = build_bounded_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 167,
+            p: 167,
+            b: 167,
+            o: 167,
+        },
+        bounded_uvar_function,
+        exact_uvar_function,
+    );
+    let record2_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 168,
+            p: 168,
+            b: 168,
+            o: 168,
+        },
+        record2_function,
+        decode_function,
+        record_function,
+        2,
+    );
+    let record5_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 169,
+            p: 169,
+            b: 169,
+            o: 169,
+        },
+        record5_function,
+        decode_function,
+        record_function,
+        5,
+    );
+    let record4_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 176,
+            p: 176,
+            b: 176,
+            o: 176,
+        },
+        record4_function,
+        decode_function,
+        record_function,
+        4,
+    );
+    let record6_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 170,
+            p: 170,
+            b: 170,
+            o: 170,
+        },
+        record6_function,
+        decode_function,
+        record_function,
+        6,
+    );
+    let contract_source_graph = build_contract_source_validate(
+        &mut assembler,
+        Ns {
+            k: 171,
+            p: 171,
+            b: 171,
+            o: 171,
+        },
+        contract_source_function,
+        union_function,
+        fixed32_function,
+    );
+    let contract_binding_graph = build_projected_record_validate(
+        &mut assembler,
+        Ns {
+            k: 172,
+            p: 172,
+            b: 172,
+            o: 172,
+        },
+        contract_binding_function,
+        &[
+            SimpleFieldValidator::ExactUvar(32),
+            SimpleFieldValidator::Unit(contract_source_function),
+        ],
+        SimpleSchemaDecoders {
+            union: union_function,
+            exact_record: record2_function,
+            fixed32: fixed32_function,
+            exact_uvar: exact_uvar_function,
+            bounded_uvar: bounded_uvar_function,
+            type_expr: fixed32_function,
+            entity_ids: fixed32_function,
+        },
+    );
+    let contract_bindings_graph = build_unit_list_validate(
+        &mut assembler,
+        Ns {
+            k: 173,
+            p: 173,
+            b: 173,
+            o: 173,
+        },
+        contract_bindings_function,
+        list_function,
+        contract_binding_function,
+    );
+    let resource_limits_graph = build_projected_record_validate(
+        &mut assembler,
+        Ns {
+            k: 174,
+            p: 174,
+            b: 174,
+            o: 174,
+        },
+        resource_limits_function,
+        &[SimpleFieldValidator::ExactUvar(64); 6],
+        SimpleSchemaDecoders {
+            union: union_function,
+            exact_record: record6_function,
+            fixed32: fixed32_function,
+            exact_uvar: exact_uvar_function,
+            bounded_uvar: bounded_uvar_function,
+            type_expr: fixed32_function,
+            entity_ids: fixed32_function,
+        },
+    );
+    let contract_projection_graph = build_optional_last_record_projection(
+        &mut assembler,
+        Ns {
+            k: 177,
+            p: 177,
+            b: 177,
+            o: 177,
+        },
+        contract_projection_function,
+        record4_function,
+        record5_function,
+    );
+    let optional_resource_limits_graph = build_optional_empty_unit_validate(
+        &mut assembler,
+        Ns {
+            k: 178,
+            p: 178,
+            b: 178,
+            o: 178,
+        },
+        optional_resource_limits_function,
+        resource_limits_function,
+    );
+    let graph = build_simple_entity_schema_decode(
+        &mut assembler,
+        Ns {
+            k: 179,
+            p: 179,
+            b: 179,
+            o: 179,
+        },
+        function,
+        13,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 7,
+            },
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(contract_bindings_function),
+            SimpleFieldValidator::Unit(optional_resource_limits_function),
+        ],
+        SimpleSchemaDecoders {
+            union: union_function,
+            exact_record: contract_projection_function,
+            fixed32: fixed32_function,
+            exact_uvar: exact_uvar_function,
+            bounded_uvar: bounded_uvar_function,
+            type_expr: fixed32_function,
+            entity_ids: fixed32_function,
+        },
+    );
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![
+            graph,
+            optional_resource_limits_graph,
+            contract_projection_graph,
+            resource_limits_graph,
+            contract_bindings_graph,
+            contract_binding_graph,
+            contract_source_graph,
+            record6_graph,
+            record5_graph,
+            record4_graph,
+            record2_graph,
+            bounded_uvar_graph,
+            exact_uvar_graph,
+            fixed32_graph,
+            list_graph,
+            union_graph,
+            record_graph,
+            decode_graph,
+        ],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    }
 }
 
 fn assert_entry_cfg_surface(image: &Image) {
@@ -14470,6 +16069,212 @@ fn effect_def_schema_decoder_rejects_every_field_boundary() {
     for (name, malformed, expected) in cases {
         assert_eq!(
             simple_schema_error(&package, &approved, &malformed, "EffectDef"),
+            expected,
+            "{name} precedence"
+        );
+    }
+}
+
+fn contract_schema_body(include_resource_limits: bool) -> Vec<u8> {
+    use sley_mutate::value::{ContractBody, EntityBodyValue};
+    use sley_ssmc::{ContractBinding, ContractKind, ContractSource, ResourceLimits};
+
+    let record = sley_mutate::EntityObjectRecord {
+        entity_id: EntityId::from_bytes([0xa1; 32]),
+        body: EntityBodyValue::Contract(ContractBody {
+            target: EntityId::from_bytes([0xa2; 32]),
+            contract_kind: ContractKind::ResourceCeiling,
+            predicate: EntityId::from_bytes([0xa3; 32]),
+            bindings: vec![
+                ContractBinding {
+                    predicate_parameter: 0,
+                    source: ContractSource::Parameter(EntityId::from_bytes([0xa4; 32])),
+                },
+                ContractBinding {
+                    predicate_parameter: 1,
+                    source: ContractSource::Result,
+                },
+                ContractBinding {
+                    predicate_parameter: u32::MAX,
+                    source: ContractSource::Global(EntityId::from_bytes([0xa5; 32])),
+                },
+            ],
+            resource_limits: include_resource_limits.then_some(ResourceLimits {
+                fuel: 99,
+                memory_bytes: 1,
+                output_bytes: 2,
+                effect_count: 3,
+                call_depth: 4,
+                wall_timeout_millis: 5,
+            }),
+        }),
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        .expect("native builds schema Contract fixture")
+        .stored_bytes()
+        .to_vec();
+    ns_body_of(&stored)
+}
+
+#[test]
+fn contract_schema_decoder_accepts_arbitrary_structural_values() {
+    let body = contract_schema_body(true);
+    let expected = exact_entity_body_fields(&body, 13, 5);
+    let image = contract_schema_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "CONTRACT_SCHEMA functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 18);
+    assert_eq!(image.parameters.len(), 1_142);
+    assert_eq!(image.blocks.len(), 271);
+    assert_eq!(image.operations.len(), 510);
+    assert_eq!(image.constants.len(), 153);
+    assert_eq!(package.image_bytes.len(), 68_088);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x40, 0x59, 0xd0, 0x26, 0x82, 0x6f, 0x8c, 0x97, 0x9e, 0x58, 0xbe, 0x21, 0x12, 0x8d,
+            0x47, 0x5c, 0x33, 0xe1, 0xac, 0x01, 0x03, 0x4a, 0x18, 0x95, 0x05, 0x9f, 0xe7, 0x93,
+            0xbd, 0xa4, 0xb6, 0xcf,
+        ]
+    );
+    let outcome = execute_with_limits(
+        &package,
+        &approved,
+        vec![bytes_input(&body), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("Contract schema decoder must return")
+    };
+    let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+        panic!("Contract schema decoder must accept native body: {value:?}")
+    };
+    let ConstData::Sequence(fields) = decoded.data else {
+        panic!("Contract schema decoder must return a five-field tuple")
+    };
+    assert_eq!(fields.len(), 5);
+    for (field, expected) in fields.iter().zip(expected) {
+        assert_eq!(field.data, ConstData::Bytes(expected));
+    }
+
+    let no_limits = contract_schema_body(false);
+    assert_eq!(exact_entity_body_fields(&no_limits, 13, 4).len(), 4);
+    let no_limits_outcome = execute_with_limits(
+        &package,
+        &approved,
+        vec![bytes_input(&no_limits), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(no_limits_value) = no_limits_outcome.termination
+    else {
+        panic!("Contract schema decoder must return without optional limits")
+    };
+    let ConstData::Result(ResultConst::Ok(no_limits_decoded)) = no_limits_value.data else {
+        panic!("Contract schema decoder must accept absent optional limits")
+    };
+    let ConstData::Sequence(no_limits_fields) = no_limits_decoded.data else {
+        panic!("Contract schema decoder normalizes five fields")
+    };
+    assert_eq!(no_limits_fields.len(), 5);
+    assert_eq!(no_limits_fields[4].data, ConstData::Bytes(Vec::new()));
+}
+
+#[test]
+fn contract_schema_decoder_rejects_every_nested_boundary() {
+    let body = contract_schema_body(true);
+    let fields = exact_entity_body_fields(&body, 13, 5);
+    let image = contract_schema_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+
+    let mut unknown_fields = fields.clone();
+    unknown_fields.push(Vec::new());
+    let mut short_target = fields.clone();
+    short_target[0] = vec![0xa2; 31];
+    let mut invalid_kind = fields.clone();
+    invalid_kind[1] = sley_scb1::encode_uvar(8);
+    let invalid_source = sley_scb1::encode_union(5, &[]).expect("unknown source union encodes");
+    let invalid_binding =
+        sley_scb1::encode_record(&[(1, sley_scb1::encode_uvar(0)), (2, invalid_source)])
+            .expect("invalid binding encodes structurally");
+    let mut invalid_bindings = fields.clone();
+    invalid_bindings[3] = sley_scb1::encode_list(&[invalid_binding]).expect("binding list encodes");
+    let wide_binding = sley_scb1::encode_record(&[
+        (1, sley_scb1::encode_uvar(u64::from(u32::MAX) + 1)),
+        (
+            2,
+            sley_scb1::encode_union(2, &[]).expect("Result source encodes"),
+        ),
+    ])
+    .expect("wide binding encodes structurally");
+    let mut wide_binding_fields = fields.clone();
+    wide_binding_fields[3] = sley_scb1::encode_list(&[wide_binding]).expect("binding list encodes");
+    let mut invalid_limits = fields.clone();
+    invalid_limits[4] = sley_scb1::encode_record(&[
+        (1, sley_scb1::encode_uvar(1)),
+        (2, sley_scb1::encode_uvar(2)),
+        (3, sley_scb1::encode_uvar(3)),
+        (4, sley_scb1::encode_uvar(4)),
+        (5, sley_scb1::encode_uvar(5)),
+    ])
+    .expect("short resource record encodes");
+
+    let cases = [
+        (
+            "wrong_entity_kind",
+            parameter_schema_with_fields(12, &fields),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "missing_required",
+            parameter_schema_with_fields(13, &fields[..3]),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "unknown_field",
+            parameter_schema_with_fields(13, &unknown_fields),
+            b"SCB_FIELD_UNKNOWN".as_slice(),
+        ),
+        (
+            "short_target",
+            parameter_schema_with_fields(13, &short_target),
+            b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "invalid_contract_kind",
+            parameter_schema_with_fields(13, &invalid_kind),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "invalid_binding_source",
+            parameter_schema_with_fields(13, &invalid_bindings),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "wide_binding_ordinal",
+            parameter_schema_with_fields(13, &wide_binding_fields),
+            b"SCB_INTEGER_OVERFLOW".as_slice(),
+        ),
+        (
+            "missing_resource_field",
+            parameter_schema_with_fields(13, &invalid_limits),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+    ];
+    for (name, malformed, expected) in cases {
+        assert_eq!(
+            simple_schema_error(&package, &approved, &malformed, "Contract"),
             expected,
             "{name} precedence"
         );
