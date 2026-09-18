@@ -49,6 +49,8 @@ use sley_ssmc::{
     VariantSwitchTerminator, Visibility,
 };
 
+#[path = "rw080_codec_program/dependency_binding.rs"]
+mod dependency_binding;
 #[path = "rw080_codec_program/supported_dispatch.rs"]
 mod supported_dispatch;
 #[path = "rw080_codec_program/supported_encode_dispatch.rs"]

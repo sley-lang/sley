@@ -101,8 +101,9 @@ and frozen-limit preservation. Independent review was unavailable, so
 the result remains provisional and no gate, ledger, or authority state
 changes.
 
-The next codec dependency is another concrete entity-body format,
-starting with fixed-width records before nested type/CFG structures,
-then extending both supported dispatchers. Label/NFC/fingerprint work
-remains separate because its required text and verification machinery
-has not landed.
+The next fixed-width format began as slice 10 with the
+DependencyBinding body encoder
+(`rw-080-codec-dependency-binding-encode.md`). Its strict decoder and
+program composition remain before it can extend both supported
+dispatchers. Label/NFC/fingerprint work remains separate because its
+required text and verification machinery has not landed.
