@@ -2931,6 +2931,15 @@ fn build_empty_package_program_encode(
 /// Rebuilds a stored canonical object from an already validated fixed-body
 /// witness. The caller owns body-shape validation; this graph retains the exact
 /// entity-width check and canonical object hash construction.
+#[derive(Clone, Copy)]
+enum FixedBodyWitnessProfile {
+    Single {
+        payload_length: u64,
+        body_length: u64,
+    },
+    WorkspacePackage,
+}
+
 #[allow(clippy::too_many_lines)]
 fn build_fixed_body_witness_program_encode(
     a: &mut Asm,
@@ -2938,30 +2947,54 @@ fn build_fixed_body_witness_program_encode(
     fid: EntityId,
     exact_fid: EntityId,
     concat_fid: EntityId,
-    payload_length: u64,
-    body_length: u64,
+    profile: FixedBodyWitnessProfile,
 ) -> FunctionGraph {
     use sley_vm::host_abi::BRIDGE_CODE_RHW1;
 
     let block_start = a.blocks.len();
     let result_type = encode_result_type();
-    let mut prefix_bytes = b"SLEYSCB1".to_vec();
-    prefix_bytes.extend_from_slice(&sley_scb1::encode_uvar(1));
-    prefix_bytes.extend_from_slice(&sley_scb1::encode_uvar(200));
-    prefix_bytes.extend_from_slice(&[9; 32]);
-    prefix_bytes.extend_from_slice(&sley_scb1::encode_uvar(payload_length));
-    prefix_bytes.extend_from_slice(&[2, 1, 32]);
+    let fixed_parts = |payload_length, body_length| {
+        let mut prefix = b"SLEYSCB1".to_vec();
+        prefix.extend_from_slice(&sley_scb1::encode_uvar(1));
+        prefix.extend_from_slice(&sley_scb1::encode_uvar(200));
+        prefix.extend_from_slice(&[9; 32]);
+        prefix.extend_from_slice(&sley_scb1::encode_uvar(payload_length));
+        prefix.extend_from_slice(&[2, 1, 32]);
+        let mut entity_tail = vec![2];
+        entity_tail.extend_from_slice(&sley_scb1::encode_uvar(body_length));
+        (prefix, entity_tail)
+    };
+    let (primary_payload_length, primary_body_length) = match profile {
+        FixedBodyWitnessProfile::Single {
+            payload_length,
+            body_length,
+        } => (payload_length, body_length),
+        FixedBodyWitnessProfile::WorkspacePackage => (114, 77),
+    };
+    let (prefix_bytes, entity_tail_bytes) =
+        fixed_parts(primary_payload_length, primary_body_length);
     let prefix = a.kbytes(ns.k, &prefix_bytes);
-    let mut entity_tail_bytes = vec![2];
-    entity_tail_bytes.extend_from_slice(&sley_scb1::encode_uvar(body_length));
     let entity_tail = a.kbytes(ns.k, &entity_tail_bytes);
+    let workspace_parts =
+        matches!(profile, FixedBodyWitnessProfile::WorkspacePackage).then(|| fixed_parts(86, 49));
+    let workspace_prefix = workspace_parts
+        .as_ref()
+        .map(|(workspace_prefix, _)| a.kbytes(ns.k, workspace_prefix));
+    let workspace_entity_tail = workspace_parts
+        .as_ref()
+        .map(|(_, workspace_entity_tail)| a.kbytes(ns.k, workspace_entity_tail));
     let object_domain = a.kbytes(ns.k, b"sley2.object.v1");
     let resource_code = a.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
     let entity = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
+    let kind = matches!(profile, FixedBodyWitnessProfile::WorkspacePackage)
+        .then(|| a.param(ns.p, fid, ParameterRole::Function, u64_type()));
     let body = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
     let unit = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Unit);
 
     let entry = a.id(ns.b);
+    let select_profile = kind.map(|_| a.id(ns.b));
+    let select_workspace = kind.map(|_| a.id(ns.b));
+    let select_package = kind.map(|_| a.id(ns.b));
     let compose = a.id(ns.b);
     let hash = a.id(ns.b);
     let rebuild = a.id(ns.b);
@@ -2989,8 +3022,12 @@ fn build_fixed_body_witness_program_encode(
             vec![
                 (
                     BuiltinCase::Ok,
-                    compose,
-                    vec![SwitchArgument::CasePayload, sav(body), sav(unit)],
+                    select_profile.unwrap_or(compose),
+                    if let Some(kind) = kind {
+                        vec![SwitchArgument::CasePayload, sav(kind), sav(body), sav(unit)]
+                    } else {
+                        vec![SwitchArgument::CasePayload, sav(body), sav(unit)]
+                    },
                 ),
                 (
                     BuiltinCase::Err,
@@ -3002,21 +3039,95 @@ fn build_fixed_body_witness_program_encode(
         reachability: Reachability::Required,
     });
 
+    if let (Some(select_profile), Some(select_workspace), Some(select_package), Some(_kind)) =
+        (select_profile, select_workspace, select_package, kind)
+    {
+        let selected_entity = a.param(ns.p, select_profile, ParameterRole::Block, TypeExpr::Bytes);
+        let selected_kind = a.param(ns.p, select_profile, ParameterRole::Block, u64_type());
+        let selected_body = a.param(ns.p, select_profile, ParameterRole::Block, TypeExpr::Bytes);
+        let selected_unit = a.param(ns.p, select_profile, ParameterRole::Block, TypeExpr::Unit);
+        let workspace_kind = a.ku64(ns.k, 1);
+        let workspace_kind_value = a.cref(ns.o, select_profile, workspace_kind, u64_type());
+        let is_workspace = a.op(
+            ns.o,
+            select_profile,
+            Opcode::Equal,
+            vec![pav(selected_kind), op_result(workspace_kind_value)],
+            vec![TypeExpr::Bool],
+            Immediate::None,
+        );
+        let selected_values = vec![pav(selected_entity), pav(selected_body), pav(selected_unit)];
+        a.blocks.push(Block {
+            entity_id: select_profile,
+            function: fid,
+            parameters: vec![selected_entity, selected_kind, selected_body, selected_unit],
+            operations: vec![workspace_kind_value, is_workspace],
+            terminator: cond(
+                op_result(is_workspace),
+                edge(select_workspace, selected_values.clone()),
+                edge(select_package, selected_values),
+            ),
+            reachability: Reachability::Required,
+        });
+
+        for (block, selected_prefix, selected_tail) in [
+            (
+                select_workspace,
+                workspace_prefix.expect("workspace prefix"),
+                workspace_entity_tail.expect("workspace entity tail"),
+            ),
+            (select_package, prefix, entity_tail),
+        ] {
+            let selected_entity = a.param(ns.p, block, ParameterRole::Block, TypeExpr::Bytes);
+            let selected_body = a.param(ns.p, block, ParameterRole::Block, TypeExpr::Bytes);
+            let selected_unit = a.param(ns.p, block, ParameterRole::Block, TypeExpr::Unit);
+            let selected_prefix = a.cref(ns.o, block, selected_prefix, TypeExpr::Bytes);
+            let selected_tail = a.cref(ns.o, block, selected_tail, TypeExpr::Bytes);
+            a.blocks.push(Block {
+                entity_id: block,
+                function: fid,
+                parameters: vec![selected_entity, selected_body, selected_unit],
+                operations: vec![selected_prefix, selected_tail],
+                terminator: branch(edge(
+                    compose,
+                    vec![
+                        pav(selected_entity),
+                        pav(selected_body),
+                        pav(selected_unit),
+                        op_result(selected_prefix),
+                        op_result(selected_tail),
+                    ],
+                )),
+                reachability: Reachability::Required,
+            });
+        }
+    }
+
     let valid_entity = a.param(ns.p, compose, ParameterRole::Block, TypeExpr::Bytes);
     let valid_body = a.param(ns.p, compose, ParameterRole::Block, TypeExpr::Bytes);
     let compose_unit = a.param(ns.p, compose, ParameterRole::Block, TypeExpr::Unit);
+    let selected_prefix =
+        kind.map(|_| a.param(ns.p, compose, ParameterRole::Block, TypeExpr::Bytes));
+    let selected_entity_tail =
+        kind.map(|_| a.param(ns.p, compose, ParameterRole::Block, TypeExpr::Bytes));
     let domain = a.cref(ns.o, compose, object_domain, TypeExpr::Bytes);
-    let prefix_value = a.cref(ns.o, compose, prefix, TypeExpr::Bytes);
-    let entity_tail_value = a.cref(ns.o, compose, entity_tail, TypeExpr::Bytes);
+    let prefix_value = selected_prefix.map_or_else(
+        || op_result(a.cref(ns.o, compose, prefix, TypeExpr::Bytes)),
+        pav,
+    );
+    let entity_tail_value = selected_entity_tail.map_or_else(
+        || op_result(a.cref(ns.o, compose, entity_tail, TypeExpr::Bytes)),
+        pav,
+    );
     let parts = a.op(
         ns.o,
         compose,
         Opcode::VectorNew,
         vec![
             op_result(domain),
-            op_result(prefix_value),
+            prefix_value,
             pav(valid_entity),
-            op_result(entity_tail_value),
+            entity_tail_value,
             pav(valid_body),
         ],
         vec![bytes_vector_type()],
@@ -3033,24 +3144,37 @@ fn build_fixed_body_witness_program_encode(
             type_arguments: Vec::new(),
         }),
     );
+    let mut compose_parameters = vec![valid_entity, valid_body, compose_unit];
+    compose_parameters.extend(selected_prefix);
+    compose_parameters.extend(selected_entity_tail);
+    let mut compose_operations = vec![domain];
+    if selected_prefix.is_none() {
+        let ValueRef::OperationResult(prefix_value) = prefix_value else {
+            unreachable!()
+        };
+        let ValueRef::OperationResult(entity_tail_value) = entity_tail_value else {
+            unreachable!()
+        };
+        compose_operations.extend([prefix_value.operation, entity_tail_value.operation]);
+    }
+    compose_operations.extend([parts, hash_input]);
+    let mut hash_arguments = vec![
+        SwitchArgument::CasePayload,
+        sav(valid_entity),
+        sav(valid_body),
+        sav(compose_unit),
+    ];
+    hash_arguments.extend(selected_prefix.map(sav));
+    hash_arguments.extend(selected_entity_tail.map(sav));
     a.blocks.push(Block {
         entity_id: compose,
         function: fid,
-        parameters: vec![valid_entity, valid_body, compose_unit],
-        operations: vec![domain, prefix_value, entity_tail_value, parts, hash_input],
+        parameters: compose_parameters,
+        operations: compose_operations,
         terminator: switch(
             op_result(hash_input),
             vec![
-                (
-                    BuiltinCase::Ok,
-                    hash,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(valid_entity),
-                        sav(valid_body),
-                        sav(compose_unit),
-                    ],
-                ),
+                (BuiltinCase::Ok, hash, hash_arguments),
                 (
                     BuiltinCase::Err,
                     forward_error,
@@ -3065,6 +3189,9 @@ fn build_fixed_body_witness_program_encode(
     let retained_entity = a.param(ns.p, hash, ParameterRole::Block, TypeExpr::Bytes);
     let retained_body = a.param(ns.p, hash, ParameterRole::Block, TypeExpr::Bytes);
     let hash_unit = a.param(ns.p, hash, ParameterRole::Block, TypeExpr::Unit);
+    let retained_prefix = kind.map(|_| a.param(ns.p, hash, ParameterRole::Block, TypeExpr::Bytes));
+    let retained_entity_tail =
+        kind.map(|_| a.param(ns.p, hash, ParameterRole::Block, TypeExpr::Bytes));
     let digest = a.op(
         ns.o,
         hash,
@@ -3073,24 +3200,26 @@ fn build_fixed_body_witness_program_encode(
         vec![index_result(TypeExpr::Bytes)],
         Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_RHW1))),
     );
+    let mut hash_parameters = vec![digest_input, retained_entity, retained_body, hash_unit];
+    hash_parameters.extend(retained_prefix);
+    hash_parameters.extend(retained_entity_tail);
+    let mut rebuild_arguments = vec![
+        SwitchArgument::CasePayload,
+        sav(retained_entity),
+        sav(retained_body),
+        sav(hash_unit),
+    ];
+    rebuild_arguments.extend(retained_prefix.map(sav));
+    rebuild_arguments.extend(retained_entity_tail.map(sav));
     a.blocks.push(Block {
         entity_id: hash,
         function: fid,
-        parameters: vec![digest_input, retained_entity, retained_body, hash_unit],
+        parameters: hash_parameters,
         operations: vec![digest],
         terminator: switch(
             op_result(digest),
             vec![
-                (
-                    BuiltinCase::Ok,
-                    rebuild,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(retained_entity),
-                        sav(retained_body),
-                        sav(hash_unit),
-                    ],
-                ),
+                (BuiltinCase::Ok, rebuild, rebuild_arguments),
                 (BuiltinCase::Err, resource, Vec::new()),
             ],
         ),
@@ -3101,16 +3230,26 @@ fn build_fixed_body_witness_program_encode(
     let rebuild_entity = a.param(ns.p, rebuild, ParameterRole::Block, TypeExpr::Bytes);
     let rebuild_body = a.param(ns.p, rebuild, ParameterRole::Block, TypeExpr::Bytes);
     let rebuild_unit = a.param(ns.p, rebuild, ParameterRole::Block, TypeExpr::Unit);
-    let rebuild_prefix = a.cref(ns.o, rebuild, prefix, TypeExpr::Bytes);
-    let rebuild_entity_tail = a.cref(ns.o, rebuild, entity_tail, TypeExpr::Bytes);
+    let retained_prefix =
+        kind.map(|_| a.param(ns.p, rebuild, ParameterRole::Block, TypeExpr::Bytes));
+    let retained_entity_tail =
+        kind.map(|_| a.param(ns.p, rebuild, ParameterRole::Block, TypeExpr::Bytes));
+    let rebuild_prefix = retained_prefix.map_or_else(
+        || op_result(a.cref(ns.o, rebuild, prefix, TypeExpr::Bytes)),
+        pav,
+    );
+    let rebuild_entity_tail = retained_entity_tail.map_or_else(
+        || op_result(a.cref(ns.o, rebuild, entity_tail, TypeExpr::Bytes)),
+        pav,
+    );
     let rebuild_parts = a.op(
         ns.o,
         rebuild,
         Opcode::VectorNew,
         vec![
-            op_result(rebuild_prefix),
+            rebuild_prefix,
             pav(rebuild_entity),
-            op_result(rebuild_entity_tail),
+            rebuild_entity_tail,
             pav(rebuild_body),
             pav(retained_digest),
         ],
@@ -3128,11 +3267,25 @@ fn build_fixed_body_witness_program_encode(
             type_arguments: Vec::new(),
         }),
     );
+    let mut rebuild_parameters = vec![retained_digest, rebuild_entity, rebuild_body, rebuild_unit];
+    rebuild_parameters.extend(retained_prefix);
+    rebuild_parameters.extend(retained_entity_tail);
+    let mut rebuild_operations = Vec::new();
+    if retained_prefix.is_none() {
+        let ValueRef::OperationResult(rebuild_prefix) = rebuild_prefix else {
+            unreachable!()
+        };
+        let ValueRef::OperationResult(rebuild_entity_tail) = rebuild_entity_tail else {
+            unreachable!()
+        };
+        rebuild_operations.extend([rebuild_prefix.operation, rebuild_entity_tail.operation]);
+    }
+    rebuild_operations.extend([rebuild_parts, stored]);
     a.blocks.push(Block {
         entity_id: rebuild,
         function: fid,
-        parameters: vec![retained_digest, rebuild_entity, rebuild_body, rebuild_unit],
-        operations: vec![rebuild_prefix, rebuild_entity_tail, rebuild_parts, stored],
+        parameters: rebuild_parameters,
+        operations: rebuild_operations,
         terminator: ret(op_result(stored)),
         reachability: Reachability::Required,
     });
@@ -3155,10 +3308,13 @@ fn build_fixed_body_witness_program_encode(
         reachability: Reachability::Required,
     });
 
+    let mut function_parameters = vec![entity];
+    function_parameters.extend(kind);
+    function_parameters.extend([body, unit]);
     FunctionGraph {
         entity_id: fid,
         type_parameters: Vec::new(),
-        parameters: vec![entity, body, unit],
+        parameters: function_parameters,
         result_type,
         effects: Vec::new(),
         entry_block: entry,
@@ -3171,16 +3327,6 @@ fn build_fixed_body_witness_program_encode(
     }
 }
 
-pub(super) fn build_package_witness_program_encode(
-    a: &mut Asm,
-    ns: Ns,
-    fid: EntityId,
-    exact_fid: EntityId,
-    concat_fid: EntityId,
-) -> FunctionGraph {
-    build_fixed_body_witness_program_encode(a, ns, fid, exact_fid, concat_fid, 114, 77)
-}
-
 pub(super) fn build_workspace_witness_program_encode(
     a: &mut Asm,
     ns: Ns,
@@ -3188,7 +3334,34 @@ pub(super) fn build_workspace_witness_program_encode(
     exact_fid: EntityId,
     concat_fid: EntityId,
 ) -> FunctionGraph {
-    build_fixed_body_witness_program_encode(a, ns, fid, exact_fid, concat_fid, 86, 49)
+    build_fixed_body_witness_program_encode(
+        a,
+        ns,
+        fid,
+        exact_fid,
+        concat_fid,
+        FixedBodyWitnessProfile::Single {
+            payload_length: 86,
+            body_length: 49,
+        },
+    )
+}
+
+pub(super) fn build_workspace_package_witness_program_encode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    exact_fid: EntityId,
+    concat_fid: EntityId,
+) -> FunctionGraph {
+    build_fixed_body_witness_program_encode(
+        a,
+        ns,
+        fid,
+        exact_fid,
+        concat_fid,
+        FixedBodyWitnessProfile::WorkspacePackage,
+    )
 }
 
 #[allow(clippy::too_many_lines)]

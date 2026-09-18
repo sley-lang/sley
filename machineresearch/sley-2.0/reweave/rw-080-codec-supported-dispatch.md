@@ -179,3 +179,14 @@ and reaches the protected value-unit envelope before a typed scope value can
 be materialized. The complete construction, discarded budget studies and
 capacity measurements are recorded in
 `rw-080-codec-package-supported-decode.md`.
+
+## 11. Slice-25 additive state
+
+The current entry supports kinds 1, 2, 3, 16, 17 and 18 through one uniform
+six-field tagged tuple. Workspace kind 1 admits the exact canonical empty-set
+body and shares a declared-kind-aware comparator with Package. Namespace and
+PolicyBinding share one normalization block. All six supported values round
+trip byte-exactly through the paired encoder. DependencyBinding remains the
+tight valid decode case at 999,597 peak value units under the unchanged
+one-million-unit ceiling. Full construction and measurements are recorded in
+`rw-080-codec-workspace-supported-dispatch.md`.

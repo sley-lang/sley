@@ -39,12 +39,13 @@ one-million-unit limit. A shared Workspace/Package comparator reduced the
 increase but did not eliminate it. The study was removed from the delivered
 image; no temporary limit remains.
 
-This slice therefore lands the complete Workspace program codec as separately
-admitted decode and encode images. The five-kind aggregate dispatcher remains
-unchanged. Its dependency callee now constructs the final supported sum
-directly, removing one intermediate result layer and preserving its valid path
-at 999,848 units. Aggregate kind-1 dispatch remains the next image-size and
-representation optimization; this record does not overclaim it.
+This slice therefore landed the complete Workspace program codec as separately
+admitted decode and encode images. Program slice 25 subsequently replaced the
+nested supported-value sum with one uniform tagged tuple, shared the Workspace
+and Package comparator and witness composer, and admitted kind 1 in both
+aggregate images. That additive result is recorded in
+`rw-080-codec-workspace-supported-dispatch.md`; it does not change the
+standalone evidence in this record.
 
 No host semantic codec, unchecked body path, charging change or larger
 execution limit was introduced. Imports remain the frozen HOST_ABI_V2 B2V1,

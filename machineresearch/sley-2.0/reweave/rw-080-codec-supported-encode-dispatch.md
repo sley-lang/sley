@@ -148,3 +148,13 @@ Decode-to-encode round trips are byte-exact for all five arms. The specialized
 witness composer, rejection matrix, discarded general composition and current
 resource measurements are recorded in
 `rw-080-codec-package-supported-encode.md`.
+
+## 8. Slice-25 additive state
+
+The current entry consumes the same uniform six-field tagged tuple as the
+decoder and supports kinds 1, 2, 3, 16, 17 and 18. Workspace and Package share
+one declared-kind-aware fixed-body checker and one witness composer while
+retaining byte-exact native output. Canonical Workspace emits at 17,683 fuel,
+2,044 instructions and 726,313 peak value units. Decode-to-encode round trips
+are byte-exact for all six kinds. Full construction and measurements are in
+`rw-080-codec-workspace-supported-dispatch.md`.

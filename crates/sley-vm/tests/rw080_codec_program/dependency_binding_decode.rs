@@ -3599,20 +3599,18 @@ fn build_program_supported_return(
         TypeExpr::Bytes,
     ];
     let parameters = block_parameters(assembler, ns.p, block, &types);
-    let tuple_type = TypeExpr::Tuple(types);
+    let kind_constant = assembler.ku64(ns.k, 18);
+    let zero_constant = assembler.ku64(ns.k, 0);
+    let kind = assembler.cref(ns.o, block, kind_constant, u64_type());
+    let zero = assembler.cref(ns.o, block, zero_constant, u64_type());
+    let mut values = vec![op_result(kind)];
+    values.extend(parameter_values(&parameters));
+    values.push(op_result(zero));
     let tuple = assembler.op(
         ns.o,
         block,
         Opcode::TupleNew,
-        parameter_values(&parameters),
-        vec![tuple_type.clone()],
-        Immediate::None,
-    );
-    let dependency_arm = assembler.op(
-        ns.o,
-        block,
-        Opcode::ResultErr,
-        vec![op_result(tuple)],
+        values,
         vec![super::supported_dispatch::all_supported_program_value_type()],
         Immediate::None,
     );
@@ -3620,7 +3618,7 @@ fn build_program_supported_return(
         ns.o,
         block,
         Opcode::ResultOk,
-        vec![op_result(dependency_arm)],
+        vec![op_result(tuple)],
         vec![result_type.clone()],
         Immediate::None,
     );
@@ -3629,7 +3627,7 @@ fn build_program_supported_return(
         block,
         control.function,
         parameters,
-        vec![tuple, dependency_arm, ok],
+        vec![kind, zero, tuple, ok],
         ret(op_result(ok)),
     );
     block
@@ -3765,28 +3763,6 @@ fn build_fixed_supported_body_check(
     }
 }
 
-/// Decodes the exact empty-set Package body without retaining the generic
-/// Package body graph family in the supported-dispatch image. Larger Package
-/// bodies remain outside this bounded profile and fail closed.
-pub(super) fn build_empty_package_supported_body_check(
-    assembler: &mut Asm,
-    ns: Ns,
-    function: EntityId,
-) -> FunctionGraph {
-    let mut canonical_template = vec![2, 75, 4, 1, 32];
-    canonical_template.extend_from_slice(&[0; 32]);
-    canonical_template.extend_from_slice(&[2, 32]);
-    canonical_template.extend_from_slice(&[0; 32]);
-    canonical_template.extend_from_slice(&[3, 1, 0, 4, 1, 0]);
-    build_fixed_supported_body_check(
-        assembler,
-        ns,
-        function,
-        &canonical_template,
-        [(5, 37), (39, 71)],
-    )
-}
-
 /// Decodes the exact empty-set Workspace body. The root namespace is the only
 /// dynamic body range; a terminal no-op range keeps the shared two-range loop.
 pub(super) fn build_empty_workspace_supported_body_check(
@@ -3804,6 +3780,498 @@ pub(super) fn build_empty_workspace_supported_body_check(
         &canonical_template,
         [(8, 40), (49, 49)],
     )
+}
+
+/// Checks the exact empty-set Workspace and Package profiles through one
+/// compact counted comparator. Exact lengths select the template; every
+/// framing byte is then compared while only identity ranges are skipped.
+#[allow(clippy::too_many_lines)]
+pub(super) fn build_empty_workspace_package_supported_body_check(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let kind = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let accepted = assembler.id(ns.b);
+    let refused = assembler.id(ns.b);
+    let converted = assembler.id(ns.b);
+    let check_package_length = assembler.id(ns.b);
+    let prepare_workspace = assembler.id(ns.b);
+    let prepare_package = assembler.id(ns.b);
+    let check = assembler.id(ns.b);
+    let skip_workspace = assembler.id(ns.b);
+    let skip_package_first = assembler.id(ns.b);
+    let skip_package_second = assembler.id(ns.b);
+    let compare = assembler.id(ns.b);
+    let next = assembler.id(ns.b);
+    let entry = assembler.id(ns.b);
+
+    let true_constant = assembler.kbool(ns.k, true);
+    let false_constant = assembler.kbool(ns.k, false);
+    let zero_constant = assembler.ku64(ns.k, 0);
+    let one_constant = assembler.ku64(ns.k, 1);
+    let workspace_length_constant = assembler.ku64(ns.k, 49);
+    let package_length_constant = assembler.ku64(ns.k, 77);
+    let workspace_kind_constant = assembler.ku64(ns.k, 1);
+    let workspace_start_constant = assembler.ku64(ns.k, 8);
+    let workspace_destination_constant = assembler.ku64(ns.k, 40);
+    let package_first_start_constant = assembler.ku64(ns.k, 5);
+    let package_first_destination_constant = assembler.ku64(ns.k, 37);
+    let package_second_start_constant = assembler.ku64(ns.k, 39);
+    let package_second_destination_constant = assembler.ku64(ns.k, 71);
+
+    let mut workspace_template = vec![1, 47, 5, 1, 1, 0, 2, 32];
+    workspace_template.extend_from_slice(&[0; 32]);
+    workspace_template.extend_from_slice(&[3, 1, 0, 4, 1, 0, 5, 1, 0]);
+    let workspace_template = assembler.kbytes(ns.k, &workspace_template);
+    let mut package_template = vec![2, 75, 4, 1, 32];
+    package_template.extend_from_slice(&[0; 32]);
+    package_template.extend_from_slice(&[2, 32]);
+    package_template.extend_from_slice(&[0; 32]);
+    package_template.extend_from_slice(&[3, 1, 0, 4, 1, 0]);
+    let package_template = assembler.kbytes(ns.k, &package_template);
+
+    for (block, constant) in [(accepted, true_constant), (refused, false_constant)] {
+        let result = assembler.cref(ns.o, block, constant, TypeExpr::Bool);
+        append_block(
+            assembler,
+            block,
+            function,
+            Vec::new(),
+            vec![result],
+            ret(op_result(result)),
+        );
+    }
+
+    let payload_vector = assembler.op(
+        ns.o,
+        entry,
+        Opcode::AdapterInvoke,
+        vec![pav(unit), pav(body)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![payload_vector],
+        switch(
+            op_result(payload_vector),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    converted,
+                    vec![SwitchArgument::CasePayload, sav(kind)],
+                ),
+                (BuiltinCase::Err, refused, Vec::new()),
+            ],
+        ),
+    );
+
+    let source = assembler.param(ns.p, converted, ParameterRole::Block, u8vec_type());
+    let declared_kind = assembler.param(ns.p, converted, ParameterRole::Block, u64_type());
+    let source_length = assembler.op(
+        ns.o,
+        converted,
+        Opcode::VectorLen,
+        vec![pav(source)],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let workspace_length = assembler.cref(ns.o, converted, workspace_length_constant, u64_type());
+    let is_workspace = assembler.op(
+        ns.o,
+        converted,
+        Opcode::Equal,
+        vec![op_result(source_length), op_result(workspace_length)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let workspace_kind = assembler.cref(ns.o, converted, workspace_kind_constant, u64_type());
+    let declared_workspace = assembler.op(
+        ns.o,
+        converted,
+        Opcode::Equal,
+        vec![pav(declared_kind), op_result(workspace_kind)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let valid_workspace = assembler.op(
+        ns.o,
+        converted,
+        Opcode::BoolAnd,
+        vec![op_result(is_workspace), op_result(declared_workspace)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        converted,
+        function,
+        vec![source, declared_kind],
+        vec![
+            source_length,
+            workspace_length,
+            is_workspace,
+            workspace_kind,
+            declared_workspace,
+            valid_workspace,
+        ],
+        cond(
+            op_result(valid_workspace),
+            edge(prepare_workspace, vec![pav(source)]),
+            edge(
+                check_package_length,
+                vec![
+                    pav(source),
+                    op_result(source_length),
+                    op_result(declared_workspace),
+                ],
+            ),
+        ),
+    );
+
+    let source = assembler.param(
+        ns.p,
+        check_package_length,
+        ParameterRole::Block,
+        u8vec_type(),
+    );
+    let source_length =
+        assembler.param(ns.p, check_package_length, ParameterRole::Block, u64_type());
+    let declared_workspace = assembler.param(
+        ns.p,
+        check_package_length,
+        ParameterRole::Block,
+        TypeExpr::Bool,
+    );
+    let package_length = assembler.cref(
+        ns.o,
+        check_package_length,
+        package_length_constant,
+        u64_type(),
+    );
+    let is_package = assembler.op(
+        ns.o,
+        check_package_length,
+        Opcode::Equal,
+        vec![pav(source_length), op_result(package_length)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let valid_package = assembler.op(
+        ns.o,
+        check_package_length,
+        Opcode::NotEqual,
+        vec![op_result(is_package), pav(declared_workspace)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        check_package_length,
+        function,
+        vec![source, source_length, declared_workspace],
+        vec![package_length, is_package, valid_package],
+        cond(
+            op_result(valid_package),
+            edge(prepare_package, vec![pav(source)]),
+            edge(refused, Vec::new()),
+        ),
+    );
+
+    for (block, template) in [
+        (prepare_workspace, workspace_template),
+        (prepare_package, package_template),
+    ] {
+        let source = assembler.param(ns.p, block, ParameterRole::Block, u8vec_type());
+        let template_bytes = assembler.cref(ns.o, block, template, TypeExpr::Bytes);
+        let template_vector = assembler.op(
+            ns.o,
+            block,
+            Opcode::AdapterInvoke,
+            vec![pav(unit), op_result(template_bytes)],
+            vec![index_result(u8vec_type())],
+            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+        );
+        let zero = assembler.cref(ns.o, block, zero_constant, u64_type());
+        append_block(
+            assembler,
+            block,
+            function,
+            vec![source],
+            vec![template_bytes, template_vector, zero],
+            switch(
+                op_result(template_vector),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        check,
+                        vec![oav(zero), sav(source), SwitchArgument::CasePayload],
+                    ),
+                    (BuiltinCase::Err, refused, Vec::new()),
+                ],
+            ),
+        );
+    }
+
+    let state_types = vec![u64_type(), u8vec_type(), u8vec_type()];
+    let state = block_parameters(assembler, ns.p, check, &state_types);
+    let length = assembler.op(
+        ns.o,
+        check,
+        Opcode::VectorLen,
+        vec![pav(state[2])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let more = assembler.op(
+        ns.o,
+        check,
+        Opcode::LessThan,
+        vec![pav(state[0]), op_result(length)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        check,
+        function,
+        state.clone(),
+        vec![length, more],
+        cond(
+            op_result(more),
+            edge(skip_workspace, parameter_values(&state)),
+            edge(accepted, Vec::new()),
+        ),
+    );
+
+    let state = block_parameters(assembler, ns.p, skip_workspace, &state_types);
+    let start = assembler.cref(ns.o, skip_workspace, workspace_start_constant, u64_type());
+    let at_start = assembler.op(
+        ns.o,
+        skip_workspace,
+        Opcode::Equal,
+        vec![pav(state[0]), op_result(start)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let destination = assembler.cref(
+        ns.o,
+        skip_workspace,
+        workspace_destination_constant,
+        u64_type(),
+    );
+    let mut jump = parameter_values(&state);
+    jump[0] = op_result(destination);
+    append_block(
+        assembler,
+        skip_workspace,
+        function,
+        state.clone(),
+        vec![start, at_start, destination],
+        cond(
+            op_result(at_start),
+            edge(check, jump),
+            edge(skip_package_first, parameter_values(&state)),
+        ),
+    );
+
+    let state = block_parameters(assembler, ns.p, skip_package_first, &state_types);
+    let start = assembler.cref(
+        ns.o,
+        skip_package_first,
+        package_first_start_constant,
+        u64_type(),
+    );
+    let at_start = assembler.op(
+        ns.o,
+        skip_package_first,
+        Opcode::Equal,
+        vec![pav(state[0]), op_result(start)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let length = assembler.op(
+        ns.o,
+        skip_package_first,
+        Opcode::VectorLen,
+        vec![pav(state[2])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let package_length = assembler.cref(
+        ns.o,
+        skip_package_first,
+        package_length_constant,
+        u64_type(),
+    );
+    let is_package = assembler.op(
+        ns.o,
+        skip_package_first,
+        Opcode::Equal,
+        vec![op_result(length), op_result(package_length)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let skip_first = assembler.op(
+        ns.o,
+        skip_package_first,
+        Opcode::BoolAnd,
+        vec![op_result(at_start), op_result(is_package)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let destination = assembler.cref(
+        ns.o,
+        skip_package_first,
+        package_first_destination_constant,
+        u64_type(),
+    );
+    let mut jump = parameter_values(&state);
+    jump[0] = op_result(destination);
+    append_block(
+        assembler,
+        skip_package_first,
+        function,
+        state.clone(),
+        vec![
+            start,
+            at_start,
+            length,
+            package_length,
+            is_package,
+            skip_first,
+            destination,
+        ],
+        cond(
+            op_result(skip_first),
+            edge(check, jump),
+            edge(skip_package_second, parameter_values(&state)),
+        ),
+    );
+
+    let state = block_parameters(assembler, ns.p, skip_package_second, &state_types);
+    let start = assembler.cref(
+        ns.o,
+        skip_package_second,
+        package_second_start_constant,
+        u64_type(),
+    );
+    let at_start = assembler.op(
+        ns.o,
+        skip_package_second,
+        Opcode::Equal,
+        vec![pav(state[0]), op_result(start)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let destination = assembler.cref(
+        ns.o,
+        skip_package_second,
+        package_second_destination_constant,
+        u64_type(),
+    );
+    let mut jump = parameter_values(&state);
+    jump[0] = op_result(destination);
+    append_block(
+        assembler,
+        skip_package_second,
+        function,
+        state.clone(),
+        vec![start, at_start, destination],
+        cond(
+            op_result(at_start),
+            edge(check, jump),
+            edge(compare, parameter_values(&state)),
+        ),
+    );
+
+    let state = block_parameters(assembler, ns.p, compare, &state_types);
+    let option_u8 = TypeExpr::Option(Box::new(u8_type()));
+    let actual = assembler.op(
+        ns.o,
+        compare,
+        Opcode::VectorGet,
+        vec![pav(state[1]), pav(state[0])],
+        vec![option_u8.clone()],
+        Immediate::None,
+    );
+    let expected = assembler.op(
+        ns.o,
+        compare,
+        Opcode::VectorGet,
+        vec![pav(state[2]), pav(state[0])],
+        vec![option_u8],
+        Immediate::None,
+    );
+    let matches = assembler.op(
+        ns.o,
+        compare,
+        Opcode::Equal,
+        vec![op_result(actual), op_result(expected)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        compare,
+        function,
+        state.clone(),
+        vec![actual, expected, matches],
+        cond(
+            op_result(matches),
+            edge(next, parameter_values(&state)),
+            edge(refused, Vec::new()),
+        ),
+    );
+
+    let state = block_parameters(assembler, ns.p, next, &state_types);
+    let one = assembler.cref(ns.o, next, one_constant, u64_type());
+    let advanced = assembler.op(
+        ns.o,
+        next,
+        Opcode::IntAddChecked,
+        vec![pav(state[0]), op_result(one)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    let mut advanced_state = state.iter().copied().map(sav).collect::<Vec<_>>();
+    advanced_state[0] = SwitchArgument::CasePayload;
+    append_block(
+        assembler,
+        next,
+        function,
+        state,
+        vec![one, advanced],
+        switch(
+            op_result(advanced),
+            vec![
+                (BuiltinCase::Ok, check, advanced_state),
+                (BuiltinCase::Err, refused, Vec::new()),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![kind, body, unit],
+        result_type: TypeExpr::Bool,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
 }
 
 /// Decodes the complete outer payload for kind 18. Its canonical fixed-shape

@@ -10,14 +10,27 @@
 use super::supported_dispatch::{
     all_supported_program_value_type as all_supported_encode_value_type,
     deduplicate_identical_constants as deduplicate_constants,
-    dependency_program_value_type as dependency_encode_value_type,
-    entrypoint_program_value_type as entrypoint_encode_value_type,
-    non_dependency_program_value_type as non_dependency_encode_value_type,
     push_preallocated_block as append_block,
-    tagged_entity_set_program_value_type as tagged_entity_set_encode_value_type,
 };
 use super::*;
 use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1};
+
+fn block_parameters(
+    assembler: &mut Asm,
+    namespace: u8,
+    block: EntityId,
+    types: &[TypeExpr],
+) -> Vec<EntityId> {
+    types
+        .iter()
+        .cloned()
+        .map(|value_type| assembler.param(namespace, block, ParameterRole::Block, value_type))
+        .collect()
+}
+
+fn parameter_values(parameters: &[EntityId]) -> Vec<ValueRef> {
+    parameters.iter().copied().map(pav).collect()
+}
 
 #[allow(clippy::too_many_lines)]
 fn build_supported_program_encode(
@@ -25,55 +38,68 @@ fn build_supported_program_encode(
     ns: Ns,
     function: EntityId,
     entrypoint_encoder: EntityId,
-    entity_set_encoder: EntityId,
+    tagged_encoder: EntityId,
     dependency_encoder: EntityId,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
     let result_type = encode_result_type();
-    let value_type = non_dependency_encode_value_type();
-    let extended_value_type = all_supported_encode_value_type();
+    let value_type = all_supported_encode_value_type();
     let declared_kind = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
-    let value = assembler.param(
-        ns.p,
-        function,
-        ParameterRole::Function,
-        extended_value_type.clone(),
-    );
+    let value = assembler.param(ns.p, function, ParameterRole::Function, value_type.clone());
     let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
 
     let entry = assembler.id(ns.b);
-    let check_namespace = assembler.id(ns.b);
-    let select_namespace = assembler.id(ns.b);
-    let unwrap_namespace = assembler.id(ns.b);
-    let validate_namespace = assembler.id(ns.b);
-    let check_entrypoint = assembler.id(ns.b);
-    let select_entrypoint = assembler.id(ns.b);
-    let unwrap_entrypoint = assembler.id(ns.b);
-    let select_dependency = assembler.id(ns.b);
-    let check_known = assembler.id(ns.b);
-    let call_namespace = assembler.id(ns.b);
-    let call_entrypoint = assembler.id(ns.b);
+    let match_kind = assembler.id(ns.b);
+    let unpack = assembler.id(ns.b);
+    let check_dependency = assembler.id(ns.b);
+    let validate_dependency = assembler.id(ns.b);
     let call_dependency = assembler.id(ns.b);
+    let check_entrypoint = assembler.id(ns.b);
+    let validate_entrypoint = assembler.id(ns.b);
+    let call_entrypoint = assembler.id(ns.b);
+    let check_tagged = assembler.id(ns.b);
+    let validate_tagged = assembler.id(ns.b);
+    let call_tagged = assembler.id(ns.b);
+    let check_known = assembler.id(ns.b);
     let mismatch = assembler.id(ns.b);
     let unsupported = assembler.id(ns.b);
     let unknown = assembler.id(ns.b);
 
     let zero = assembler.ku64(ns.k, 0);
+    let empty_bytes = assembler.kbytes(ns.k, b"");
+    let workspace_kind = assembler.ku64(ns.k, 1);
     let package_kind = assembler.ku64(ns.k, 2);
     let namespace_kind = assembler.ku64(ns.k, 3);
-    let policy_kind = assembler.ku64(ns.k, 17);
     let entrypoint_kind = assembler.ku64(ns.k, 16);
+    let policy_kind = assembler.ku64(ns.k, 17);
     let dependency_kind = assembler.ku64(ns.k, 18);
     let kind_limit = assembler.ku64(ns.k, 19);
     let scope_code = assembler.kbytes(ns.k, b"SSMC_RESERVED_FIELD_PRESENT");
     let unknown_code = assembler.kbytes(ns.k, b"SSMC_ENTITY_KIND_UNKNOWN");
 
-    let dependency_kind_value = assembler.cref(ns.o, entry, dependency_kind, u64_type());
-    let is_dependency = assembler.op(
+    let zero_value = assembler.cref(ns.o, entry, zero, u64_type());
+    let limit_value = assembler.cref(ns.o, entry, kind_limit, u64_type());
+    let above_zero = assembler.op(
         ns.o,
         entry,
-        Opcode::Equal,
-        vec![pav(declared_kind), op_result(dependency_kind_value)],
+        Opcode::LessThan,
+        vec![op_result(zero_value), pav(declared_kind)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let below_limit = assembler.op(
+        ns.o,
+        entry,
+        Opcode::LessThan,
+        vec![pav(declared_kind), op_result(limit_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let known = assembler.op(
+        ns.o,
+        entry,
+        Opcode::BoolAnd,
+        vec![op_result(above_zero), op_result(below_limit)],
         vec![TypeExpr::Bool],
         Immediate::None,
     );
@@ -82,251 +108,205 @@ fn build_supported_program_encode(
         entry,
         function,
         Vec::new(),
-        vec![dependency_kind_value, is_dependency],
+        vec![zero_value, limit_value, above_zero, below_limit, known],
         cond(
-            op_result(is_dependency),
-            edge(select_dependency, vec![pav(value), pav(unit)]),
-            edge(
-                check_namespace,
-                vec![pav(declared_kind), pav(value), pav(unit)],
-            ),
+            op_result(known),
+            edge(match_kind, vec![pav(value), pav(unit)]),
+            edge(unknown, Vec::new()),
         ),
     );
 
-    let namespace_candidate_kind =
-        assembler.param(ns.p, check_namespace, ParameterRole::Block, u64_type());
-    let namespace_candidate_value = assembler.param(
+    let candidate = assembler.param(
         ns.p,
-        check_namespace,
+        match_kind,
         ParameterRole::Block,
-        extended_value_type.clone(),
+        all_supported_encode_value_type(),
     );
-    let namespace_candidate_unit =
-        assembler.param(ns.p, check_namespace, ParameterRole::Block, TypeExpr::Unit);
-    let namespace_kind_value = assembler.cref(ns.o, check_namespace, namespace_kind, u64_type());
-    let is_namespace = assembler.op(
+    let match_unit = assembler.param(ns.p, match_kind, ParameterRole::Block, TypeExpr::Unit);
+    let tuple_kind = assembler.op(
         ns.o,
-        check_namespace,
-        Opcode::Equal,
-        vec![
-            pav(namespace_candidate_kind),
-            op_result(namespace_kind_value),
-        ],
-        vec![TypeExpr::Bool],
-        Immediate::None,
-    );
-    let policy_kind_value = assembler.cref(ns.o, check_namespace, policy_kind, u64_type());
-    let is_policy = assembler.op(
-        ns.o,
-        check_namespace,
-        Opcode::Equal,
-        vec![pav(namespace_candidate_kind), op_result(policy_kind_value)],
-        vec![TypeExpr::Bool],
-        Immediate::None,
-    );
-    let is_entity_set = assembler.op(
-        ns.o,
-        check_namespace,
-        Opcode::BoolOr,
-        vec![op_result(is_namespace), op_result(is_policy)],
-        vec![TypeExpr::Bool],
-        Immediate::None,
-    );
-    let package_kind_value = assembler.cref(ns.o, check_namespace, package_kind, u64_type());
-    let is_package = assembler.op(
-        ns.o,
-        check_namespace,
-        Opcode::Equal,
-        vec![pav(namespace_candidate_kind), op_result(package_kind_value)],
-        vec![TypeExpr::Bool],
-        Immediate::None,
-    );
-    let is_tagged = assembler.op(
-        ns.o,
-        check_namespace,
-        Opcode::BoolOr,
-        vec![op_result(is_entity_set), op_result(is_package)],
-        vec![TypeExpr::Bool],
-        Immediate::None,
-    );
-    append_block(
-        assembler,
-        check_namespace,
-        function,
-        vec![
-            namespace_candidate_kind,
-            namespace_candidate_value,
-            namespace_candidate_unit,
-        ],
-        vec![
-            namespace_kind_value,
-            is_namespace,
-            policy_kind_value,
-            is_policy,
-            is_entity_set,
-            package_kind_value,
-            is_package,
-            is_tagged,
-        ],
-        cond(
-            op_result(is_tagged),
-            edge(
-                unwrap_namespace,
-                vec![
-                    pav(namespace_candidate_value),
-                    pav(namespace_candidate_unit),
-                    pav(namespace_candidate_kind),
-                ],
-            ),
-            edge(
-                check_entrypoint,
-                vec![
-                    pav(namespace_candidate_kind),
-                    pav(namespace_candidate_value),
-                    pav(namespace_candidate_unit),
-                ],
-            ),
-        ),
-    );
-
-    let wrapped_namespace = assembler.param(
-        ns.p,
-        unwrap_namespace,
-        ParameterRole::Block,
-        extended_value_type.clone(),
-    );
-    let wrapped_namespace_unit =
-        assembler.param(ns.p, unwrap_namespace, ParameterRole::Block, TypeExpr::Unit);
-    let wrapped_namespace_kind =
-        assembler.param(ns.p, unwrap_namespace, ParameterRole::Block, u64_type());
-    append_block(
-        assembler,
-        unwrap_namespace,
-        function,
-        vec![
-            wrapped_namespace,
-            wrapped_namespace_unit,
-            wrapped_namespace_kind,
-        ],
-        Vec::new(),
-        switch(
-            pav(wrapped_namespace),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    select_namespace,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(wrapped_namespace_unit),
-                        sav(wrapped_namespace_kind),
-                    ],
-                ),
-                (BuiltinCase::Err, mismatch, Vec::new()),
-            ],
-        ),
-    );
-
-    let namespace_value = assembler.param(
-        ns.p,
-        select_namespace,
-        ParameterRole::Block,
-        value_type.clone(),
-    );
-    let namespace_unit =
-        assembler.param(ns.p, select_namespace, ParameterRole::Block, TypeExpr::Unit);
-    let namespace_declared_kind =
-        assembler.param(ns.p, select_namespace, ParameterRole::Block, u64_type());
-    append_block(
-        assembler,
-        select_namespace,
-        function,
-        vec![namespace_value, namespace_unit, namespace_declared_kind],
-        Vec::new(),
-        switch(
-            pav(namespace_value),
-            vec![
-                (BuiltinCase::Ok, mismatch, Vec::new()),
-                (
-                    BuiltinCase::Err,
-                    validate_namespace,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(namespace_unit),
-                        sav(namespace_declared_kind),
-                    ],
-                ),
-            ],
-        ),
-    );
-
-    let namespace_payload = assembler.param(
-        ns.p,
-        validate_namespace,
-        ParameterRole::Block,
-        tagged_entity_set_encode_value_type(),
-    );
-    let namespace_validate_unit = assembler.param(
-        ns.p,
-        validate_namespace,
-        ParameterRole::Block,
-        TypeExpr::Unit,
-    );
-    let namespace_validate_kind =
-        assembler.param(ns.p, validate_namespace, ParameterRole::Block, u64_type());
-    let namespace_payload_kind = assembler.op(
-        ns.o,
-        validate_namespace,
+        match_kind,
         Opcode::TupleGet,
-        vec![pav(namespace_payload)],
+        vec![pav(candidate)],
         vec![u64_type()],
         Immediate::Index(0),
     );
-    let namespace_tag_matches = assembler.op(
+    let kind_matches = assembler.op(
         ns.o,
-        validate_namespace,
+        match_kind,
         Opcode::Equal,
-        vec![
-            op_result(namespace_payload_kind),
-            pav(namespace_validate_kind),
-        ],
+        vec![pav(declared_kind), op_result(tuple_kind)],
         vec![TypeExpr::Bool],
         Immediate::None,
     );
     append_block(
         assembler,
-        validate_namespace,
+        match_kind,
         function,
-        vec![
-            namespace_payload,
-            namespace_validate_unit,
-            namespace_validate_kind,
-        ],
-        vec![namespace_payload_kind, namespace_tag_matches],
+        vec![candidate, match_unit],
+        vec![tuple_kind, kind_matches],
         cond(
-            op_result(namespace_tag_matches),
+            op_result(kind_matches),
             edge(
-                call_namespace,
-                vec![pav(namespace_payload), pav(namespace_validate_unit)],
+                unpack,
+                vec![pav(candidate), pav(match_unit), op_result(tuple_kind)],
             ),
             edge(mismatch, Vec::new()),
         ),
     );
 
-    let candidate_kind = assembler.param(ns.p, check_entrypoint, ParameterRole::Block, u64_type());
-    let candidate_value = assembler.param(
-        ns.p,
-        check_entrypoint,
-        ParameterRole::Block,
-        extended_value_type.clone(),
+    let packed = assembler.param(ns.p, unpack, ParameterRole::Block, value_type);
+    let unpack_unit = assembler.param(ns.p, unpack, ParameterRole::Block, TypeExpr::Unit);
+    let kind = assembler.param(ns.p, unpack, ParameterRole::Block, u64_type());
+    let entity = assembler.op(
+        ns.o,
+        unpack,
+        Opcode::TupleGet,
+        vec![pav(packed)],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
     );
-    let candidate_unit =
-        assembler.param(ns.p, check_entrypoint, ParameterRole::Block, TypeExpr::Unit);
+    let first = assembler.op(
+        ns.o,
+        unpack,
+        Opcode::TupleGet,
+        vec![pav(packed)],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(2),
+    );
+    let second = assembler.op(
+        ns.o,
+        unpack,
+        Opcode::TupleGet,
+        vec![pav(packed)],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(3),
+    );
+    let third = assembler.op(
+        ns.o,
+        unpack,
+        Opcode::TupleGet,
+        vec![pav(packed)],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(4),
+    );
+    let scalar = assembler.op(
+        ns.o,
+        unpack,
+        Opcode::TupleGet,
+        vec![pav(packed)],
+        vec![u64_type()],
+        Immediate::Index(5),
+    );
+    append_block(
+        assembler,
+        unpack,
+        function,
+        vec![packed, unpack_unit, kind],
+        vec![entity, first, second, third, scalar],
+        branch(edge(
+            check_dependency,
+            vec![
+                pav(kind),
+                op_result(entity),
+                op_result(first),
+                op_result(second),
+                op_result(third),
+                op_result(scalar),
+                pav(unpack_unit),
+            ],
+        )),
+    );
+
+    let field_types = vec![
+        u64_type(),
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        u64_type(),
+        TypeExpr::Unit,
+    ];
+    let dependency_fields = block_parameters(assembler, ns.p, check_dependency, &field_types);
+    let dependency_kind_value = assembler.cref(ns.o, check_dependency, dependency_kind, u64_type());
+    let is_dependency = assembler.op(
+        ns.o,
+        check_dependency,
+        Opcode::Equal,
+        vec![pav(dependency_fields[0]), op_result(dependency_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        check_dependency,
+        function,
+        dependency_fields.clone(),
+        vec![dependency_kind_value, is_dependency],
+        cond(
+            op_result(is_dependency),
+            edge(validate_dependency, parameter_values(&dependency_fields)),
+            edge(check_entrypoint, parameter_values(&dependency_fields)),
+        ),
+    );
+
+    let dependency_fields = block_parameters(assembler, ns.p, validate_dependency, &field_types);
+    let zero_value = assembler.cref(ns.o, validate_dependency, zero, u64_type());
+    let dependency_canonical = assembler.op(
+        ns.o,
+        validate_dependency,
+        Opcode::Equal,
+        vec![pav(dependency_fields[5]), op_result(zero_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        validate_dependency,
+        function,
+        dependency_fields.clone(),
+        vec![zero_value, dependency_canonical],
+        cond(
+            op_result(dependency_canonical),
+            edge(call_dependency, parameter_values(&dependency_fields)),
+            edge(mismatch, Vec::new()),
+        ),
+    );
+
+    let dependency_fields = block_parameters(assembler, ns.p, call_dependency, &field_types);
+    let dependency_result = assembler.op(
+        ns.o,
+        call_dependency,
+        Opcode::CallDirect,
+        vec![
+            pav(dependency_fields[1]),
+            pav(dependency_fields[2]),
+            pav(dependency_fields[3]),
+            pav(dependency_fields[4]),
+            pav(dependency_fields[6]),
+        ],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: dependency_encoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        call_dependency,
+        function,
+        dependency_fields,
+        vec![dependency_result],
+        ret(op_result(dependency_result)),
+    );
+
+    let entrypoint_fields = block_parameters(assembler, ns.p, check_entrypoint, &field_types);
     let entrypoint_kind_value = assembler.cref(ns.o, check_entrypoint, entrypoint_kind, u64_type());
     let is_entrypoint = assembler.op(
         ns.o,
         check_entrypoint,
         Opcode::Equal,
-        vec![pav(candidate_kind), op_result(entrypoint_kind_value)],
+        vec![pav(entrypoint_fields[0]), op_result(entrypoint_kind_value)],
         vec![TypeExpr::Bool],
         Immediate::None,
     );
@@ -334,105 +314,237 @@ fn build_supported_program_encode(
         assembler,
         check_entrypoint,
         function,
-        vec![candidate_kind, candidate_value, candidate_unit],
+        entrypoint_fields.clone(),
         vec![entrypoint_kind_value, is_entrypoint],
         cond(
             op_result(is_entrypoint),
-            edge(
-                unwrap_entrypoint,
-                vec![pav(candidate_value), pav(candidate_unit)],
-            ),
-            edge(check_known, vec![pav(candidate_kind)]),
+            edge(validate_entrypoint, parameter_values(&entrypoint_fields)),
+            edge(check_tagged, parameter_values(&entrypoint_fields)),
         ),
     );
 
-    let wrapped_entrypoint = assembler.param(
-        ns.p,
-        unwrap_entrypoint,
-        ParameterRole::Block,
-        extended_value_type.clone(),
+    let entrypoint_fields = block_parameters(assembler, ns.p, validate_entrypoint, &field_types);
+    let empty = assembler.cref(ns.o, validate_entrypoint, empty_bytes, TypeExpr::Bytes);
+    let second_empty = assembler.op(
+        ns.o,
+        validate_entrypoint,
+        Opcode::Equal,
+        vec![pav(entrypoint_fields[3]), op_result(empty)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
     );
-    let wrapped_entrypoint_unit = assembler.param(
-        ns.p,
-        unwrap_entrypoint,
-        ParameterRole::Block,
-        TypeExpr::Unit,
+    let third_empty = assembler.op(
+        ns.o,
+        validate_entrypoint,
+        Opcode::Equal,
+        vec![pav(entrypoint_fields[4]), op_result(empty)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let entrypoint_canonical = assembler.op(
+        ns.o,
+        validate_entrypoint,
+        Opcode::BoolAnd,
+        vec![op_result(second_empty), op_result(third_empty)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
     );
     append_block(
         assembler,
-        unwrap_entrypoint,
+        validate_entrypoint,
         function,
-        vec![wrapped_entrypoint, wrapped_entrypoint_unit],
-        Vec::new(),
-        switch(
-            pav(wrapped_entrypoint),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    select_entrypoint,
-                    vec![SwitchArgument::CasePayload, sav(wrapped_entrypoint_unit)],
-                ),
-                (BuiltinCase::Err, mismatch, Vec::new()),
-            ],
+        entrypoint_fields.clone(),
+        vec![empty, second_empty, third_empty, entrypoint_canonical],
+        cond(
+            op_result(entrypoint_canonical),
+            edge(call_entrypoint, parameter_values(&entrypoint_fields)),
+            edge(mismatch, Vec::new()),
         ),
     );
 
-    let entrypoint_value =
-        assembler.param(ns.p, select_entrypoint, ParameterRole::Block, value_type);
-    let entrypoint_unit = assembler.param(
-        ns.p,
-        select_entrypoint,
-        ParameterRole::Block,
-        TypeExpr::Unit,
+    let entrypoint_fields = block_parameters(assembler, ns.p, call_entrypoint, &field_types);
+    let entrypoint_result = assembler.op(
+        ns.o,
+        call_entrypoint,
+        Opcode::CallDirect,
+        vec![
+            pav(entrypoint_fields[1]),
+            pav(entrypoint_fields[2]),
+            pav(entrypoint_fields[5]),
+            pav(entrypoint_fields[6]),
+        ],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: entrypoint_encoder,
+            type_arguments: Vec::new(),
+        }),
     );
     append_block(
         assembler,
-        select_entrypoint,
+        call_entrypoint,
         function,
-        vec![entrypoint_value, entrypoint_unit],
-        Vec::new(),
-        switch(
-            pav(entrypoint_value),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    call_entrypoint,
-                    vec![SwitchArgument::CasePayload, sav(entrypoint_unit)],
-                ),
-                (BuiltinCase::Err, mismatch, Vec::new()),
-            ],
+        entrypoint_fields,
+        vec![entrypoint_result],
+        ret(op_result(entrypoint_result)),
+    );
+
+    let tagged_fields = block_parameters(assembler, ns.p, check_tagged, &field_types);
+    let workspace_kind_value = assembler.cref(ns.o, check_tagged, workspace_kind, u64_type());
+    let is_workspace = assembler.op(
+        ns.o,
+        check_tagged,
+        Opcode::Equal,
+        vec![pav(tagged_fields[0]), op_result(workspace_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let package_kind_value = assembler.cref(ns.o, check_tagged, package_kind, u64_type());
+    let is_package = assembler.op(
+        ns.o,
+        check_tagged,
+        Opcode::Equal,
+        vec![pav(tagged_fields[0]), op_result(package_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let namespace_kind_value = assembler.cref(ns.o, check_tagged, namespace_kind, u64_type());
+    let is_namespace = assembler.op(
+        ns.o,
+        check_tagged,
+        Opcode::Equal,
+        vec![pav(tagged_fields[0]), op_result(namespace_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let policy_kind_value = assembler.cref(ns.o, check_tagged, policy_kind, u64_type());
+    let is_policy = assembler.op(
+        ns.o,
+        check_tagged,
+        Opcode::Equal,
+        vec![pav(tagged_fields[0]), op_result(policy_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let package_or_namespace = assembler.op(
+        ns.o,
+        check_tagged,
+        Opcode::BoolOr,
+        vec![op_result(is_package), op_result(is_namespace)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let fixed_or_namespace = assembler.op(
+        ns.o,
+        check_tagged,
+        Opcode::BoolOr,
+        vec![op_result(is_workspace), op_result(package_or_namespace)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let is_tagged = assembler.op(
+        ns.o,
+        check_tagged,
+        Opcode::BoolOr,
+        vec![op_result(fixed_or_namespace), op_result(is_policy)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        check_tagged,
+        function,
+        tagged_fields.clone(),
+        vec![
+            workspace_kind_value,
+            is_workspace,
+            package_kind_value,
+            is_package,
+            namespace_kind_value,
+            is_namespace,
+            policy_kind_value,
+            is_policy,
+            package_or_namespace,
+            fixed_or_namespace,
+            is_tagged,
+        ],
+        cond(
+            op_result(is_tagged),
+            edge(validate_tagged, parameter_values(&tagged_fields)),
+            edge(check_known, vec![pav(tagged_fields[0])]),
         ),
     );
 
-    let dependency_value = assembler.param(
-        ns.p,
-        select_dependency,
-        ParameterRole::Block,
-        extended_value_type,
+    let tagged_fields = block_parameters(assembler, ns.p, validate_tagged, &field_types);
+    let empty = assembler.cref(ns.o, validate_tagged, empty_bytes, TypeExpr::Bytes);
+    let zero_value = assembler.cref(ns.o, validate_tagged, zero, u64_type());
+    let third_empty = assembler.op(
+        ns.o,
+        validate_tagged,
+        Opcode::Equal,
+        vec![pav(tagged_fields[4]), op_result(empty)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
     );
-    let dependency_unit = assembler.param(
-        ns.p,
-        select_dependency,
-        ParameterRole::Block,
-        TypeExpr::Unit,
+    let scalar_zero = assembler.op(
+        ns.o,
+        validate_tagged,
+        Opcode::Equal,
+        vec![pav(tagged_fields[5]), op_result(zero_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let tagged_canonical = assembler.op(
+        ns.o,
+        validate_tagged,
+        Opcode::BoolAnd,
+        vec![op_result(third_empty), op_result(scalar_zero)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
     );
     append_block(
         assembler,
-        select_dependency,
+        validate_tagged,
         function,
-        vec![dependency_value, dependency_unit],
-        Vec::new(),
-        switch(
-            pav(dependency_value),
-            vec![
-                (BuiltinCase::Ok, mismatch, Vec::new()),
-                (
-                    BuiltinCase::Err,
-                    call_dependency,
-                    vec![SwitchArgument::CasePayload, sav(dependency_unit)],
-                ),
-            ],
+        tagged_fields.clone(),
+        vec![
+            empty,
+            zero_value,
+            third_empty,
+            scalar_zero,
+            tagged_canonical,
+        ],
+        cond(
+            op_result(tagged_canonical),
+            edge(call_tagged, parameter_values(&tagged_fields)),
+            edge(mismatch, Vec::new()),
         ),
+    );
+
+    let tagged_fields = block_parameters(assembler, ns.p, call_tagged, &field_types);
+    let tagged_result = assembler.op(
+        ns.o,
+        call_tagged,
+        Opcode::CallDirect,
+        vec![
+            pav(tagged_fields[1]),
+            pav(tagged_fields[0]),
+            pav(tagged_fields[2]),
+            pav(tagged_fields[3]),
+            pav(tagged_fields[6]),
+        ],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: tagged_encoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        call_tagged,
+        function,
+        tagged_fields,
+        vec![tagged_result],
+        ret(op_result(tagged_result)),
     );
 
     let remaining_kind = assembler.param(ns.p, check_known, ParameterRole::Block, u64_type());
@@ -454,7 +566,7 @@ fn build_supported_program_encode(
         vec![TypeExpr::Bool],
         Immediate::None,
     );
-    let is_known = assembler.op(
+    let known = assembler.op(
         ns.o,
         check_known,
         Opcode::BoolAnd,
@@ -467,218 +579,12 @@ fn build_supported_program_encode(
         check_known,
         function,
         vec![remaining_kind],
-        vec![zero_value, limit_value, above_zero, below_limit, is_known],
+        vec![zero_value, limit_value, above_zero, below_limit, known],
         cond(
-            op_result(is_known),
+            op_result(known),
             edge(unsupported, Vec::new()),
             edge(unknown, Vec::new()),
         ),
-    );
-
-    let namespace_payload = assembler.param(
-        ns.p,
-        call_namespace,
-        ParameterRole::Block,
-        tagged_entity_set_encode_value_type(),
-    );
-    let namespace_call_unit =
-        assembler.param(ns.p, call_namespace, ParameterRole::Block, TypeExpr::Unit);
-    let namespace_kind = assembler.op(
-        ns.o,
-        call_namespace,
-        Opcode::TupleGet,
-        vec![pav(namespace_payload)],
-        vec![u64_type()],
-        Immediate::Index(0),
-    );
-    let namespace_entity = assembler.op(
-        ns.o,
-        call_namespace,
-        Opcode::TupleGet,
-        vec![pav(namespace_payload)],
-        vec![TypeExpr::Bytes],
-        Immediate::Index(1),
-    );
-    let namespace_parent = assembler.op(
-        ns.o,
-        call_namespace,
-        Opcode::TupleGet,
-        vec![pav(namespace_payload)],
-        vec![TypeExpr::Bytes],
-        Immediate::Index(2),
-    );
-    let namespace_members = assembler.op(
-        ns.o,
-        call_namespace,
-        Opcode::TupleGet,
-        vec![pav(namespace_payload)],
-        vec![TypeExpr::Bytes],
-        Immediate::Index(3),
-    );
-    let namespace_result = assembler.op(
-        ns.o,
-        call_namespace,
-        Opcode::CallDirect,
-        vec![
-            op_result(namespace_entity),
-            op_result(namespace_kind),
-            op_result(namespace_parent),
-            op_result(namespace_members),
-            pav(namespace_call_unit),
-        ],
-        vec![result_type.clone()],
-        Immediate::Function(FunctionRefValue {
-            function: entity_set_encoder,
-            type_arguments: Vec::new(),
-        }),
-    );
-    append_block(
-        assembler,
-        call_namespace,
-        function,
-        vec![namespace_payload, namespace_call_unit],
-        vec![
-            namespace_kind,
-            namespace_entity,
-            namespace_parent,
-            namespace_members,
-            namespace_result,
-        ],
-        ret(op_result(namespace_result)),
-    );
-
-    let entrypoint_payload = assembler.param(
-        ns.p,
-        call_entrypoint,
-        ParameterRole::Block,
-        entrypoint_encode_value_type(),
-    );
-    let entrypoint_call_unit =
-        assembler.param(ns.p, call_entrypoint, ParameterRole::Block, TypeExpr::Unit);
-    let entrypoint_entity = assembler.op(
-        ns.o,
-        call_entrypoint,
-        Opcode::TupleGet,
-        vec![pav(entrypoint_payload)],
-        vec![TypeExpr::Bytes],
-        Immediate::Index(0),
-    );
-    let entrypoint_function = assembler.op(
-        ns.o,
-        call_entrypoint,
-        Opcode::TupleGet,
-        vec![pav(entrypoint_payload)],
-        vec![TypeExpr::Bytes],
-        Immediate::Index(1),
-    );
-    let entrypoint_exposure = assembler.op(
-        ns.o,
-        call_entrypoint,
-        Opcode::TupleGet,
-        vec![pav(entrypoint_payload)],
-        vec![u64_type()],
-        Immediate::Index(2),
-    );
-    let entrypoint_result = assembler.op(
-        ns.o,
-        call_entrypoint,
-        Opcode::CallDirect,
-        vec![
-            op_result(entrypoint_entity),
-            op_result(entrypoint_function),
-            op_result(entrypoint_exposure),
-            pav(entrypoint_call_unit),
-        ],
-        vec![result_type.clone()],
-        Immediate::Function(FunctionRefValue {
-            function: entrypoint_encoder,
-            type_arguments: Vec::new(),
-        }),
-    );
-    append_block(
-        assembler,
-        call_entrypoint,
-        function,
-        vec![entrypoint_payload, entrypoint_call_unit],
-        vec![
-            entrypoint_entity,
-            entrypoint_function,
-            entrypoint_exposure,
-            entrypoint_result,
-        ],
-        ret(op_result(entrypoint_result)),
-    );
-
-    let dependency_payload = assembler.param(
-        ns.p,
-        call_dependency,
-        ParameterRole::Block,
-        dependency_encode_value_type(),
-    );
-    let dependency_call_unit =
-        assembler.param(ns.p, call_dependency, ParameterRole::Block, TypeExpr::Unit);
-    let dependency_entity = assembler.op(
-        ns.o,
-        call_dependency,
-        Opcode::TupleGet,
-        vec![pav(dependency_payload)],
-        vec![TypeExpr::Bytes],
-        Immediate::Index(0),
-    );
-    let dependency_root = assembler.op(
-        ns.o,
-        call_dependency,
-        Opcode::TupleGet,
-        vec![pav(dependency_payload)],
-        vec![TypeExpr::Bytes],
-        Immediate::Index(1),
-    );
-    let dependency_package = assembler.op(
-        ns.o,
-        call_dependency,
-        Opcode::TupleGet,
-        vec![pav(dependency_payload)],
-        vec![TypeExpr::Bytes],
-        Immediate::Index(2),
-    );
-    let dependency_namespace = assembler.op(
-        ns.o,
-        call_dependency,
-        Opcode::TupleGet,
-        vec![pav(dependency_payload)],
-        vec![TypeExpr::Bytes],
-        Immediate::Index(3),
-    );
-    let dependency_result = assembler.op(
-        ns.o,
-        call_dependency,
-        Opcode::CallDirect,
-        vec![
-            op_result(dependency_entity),
-            op_result(dependency_root),
-            op_result(dependency_package),
-            op_result(dependency_namespace),
-            pav(dependency_call_unit),
-        ],
-        vec![result_type.clone()],
-        Immediate::Function(FunctionRefValue {
-            function: dependency_encoder,
-            type_arguments: Vec::new(),
-        }),
-    );
-    append_block(
-        assembler,
-        call_dependency,
-        function,
-        vec![dependency_payload, dependency_call_unit],
-        vec![
-            dependency_entity,
-            dependency_root,
-            dependency_package,
-            dependency_namespace,
-            dependency_result,
-        ],
-        ret(op_result(dependency_result)),
     );
 
     for (block, code) in [
@@ -774,10 +680,20 @@ fn build_tagged_program_encode(
     let check_package = assembler.id(ns.b);
     let call_package = assembler.id(ns.b);
     let mismatch = assembler.id(ns.b);
+    let workspace_kind = assembler.ku64(ns.k, 1);
     let package_kind = assembler.ku64(ns.k, 2);
     let empty_bytes = assembler.kbytes(ns.k, b"");
     let scope_code = assembler.kbytes(ns.k, b"SSMC_RESERVED_FIELD_PRESENT");
 
+    let workspace_kind_value = assembler.cref(ns.o, entry, workspace_kind, u64_type());
+    let is_workspace = assembler.op(
+        ns.o,
+        entry,
+        Opcode::Equal,
+        vec![pav(kind), op_result(workspace_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
     let package_kind_value = assembler.cref(ns.o, entry, package_kind, u64_type());
     let is_package = assembler.op(
         ns.o,
@@ -787,14 +703,28 @@ fn build_tagged_program_encode(
         vec![TypeExpr::Bool],
         Immediate::None,
     );
+    let is_fixed_body = assembler.op(
+        ns.o,
+        entry,
+        Opcode::BoolOr,
+        vec![op_result(is_workspace), op_result(is_package)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
     append_block(
         assembler,
         entry,
         function,
         Vec::new(),
-        vec![package_kind_value, is_package],
+        vec![
+            workspace_kind_value,
+            is_workspace,
+            package_kind_value,
+            is_package,
+            is_fixed_body,
+        ],
         cond(
-            op_result(is_package),
+            op_result(is_fixed_body),
             edge(check_witness, Vec::new()),
             edge(call_entity_set, Vec::new()),
         ),
@@ -846,7 +776,7 @@ fn build_tagged_program_encode(
         ns.o,
         check_package,
         Opcode::CallDirect,
-        vec![pav(first), pav(unit)],
+        vec![pav(kind), pav(first), pav(unit)],
         vec![TypeExpr::Bool],
         Immediate::Function(FunctionRefValue {
             function: package_checker,
@@ -870,7 +800,7 @@ fn build_tagged_program_encode(
         ns.o,
         call_package,
         Opcode::CallDirect,
-        vec![pav(entity), pav(first), pav(unit)],
+        vec![pav(entity), pav(kind), pav(first), pav(unit)],
         vec![result_type.clone()],
         Immediate::Function(FunctionRefValue {
             function: package_encoder,
@@ -1093,7 +1023,7 @@ fn supported_encode_image() -> Image {
         octet_getter,
     );
     let package_check_graph =
-        super::dependency_binding_decode::build_empty_package_supported_body_check(
+        super::dependency_binding_decode::build_empty_workspace_package_supported_body_check(
             &mut assembler,
             package_check_ns,
             package_check,
@@ -1101,7 +1031,7 @@ fn supported_encode_image() -> Image {
     let concat_graph = super::package::build_concat_bytes(&mut assembler, concat_ns, concat);
     let exact_graph =
         super::package::build_exact_identity_validate(&mut assembler, exact_ns, exact);
-    let package_witness_graph = super::package::build_package_witness_program_encode(
+    let package_witness_graph = super::package::build_workspace_package_witness_program_encode(
         &mut assembler,
         package_witness_ns,
         package_witness,
@@ -1172,38 +1102,33 @@ fn tuple_value(value_type: TypeExpr, items: Vec<ConstValue>) -> ConstValue {
     }
 }
 
-fn non_dependency_value(arm: ResultConst) -> ConstValue {
-    let non_dependency = ConstValue {
-        value_type: non_dependency_encode_value_type(),
-        data: ConstData::Result(arm),
-    };
-    ConstValue {
-        value_type: all_supported_encode_value_type(),
-        data: ConstData::Result(ResultConst::Ok(Box::new(non_dependency))),
-    }
-}
-
-fn entrypoint_value(entity: u8, function: u8, exposure: u64) -> ConstValue {
-    non_dependency_value(ResultConst::Ok(Box::new(tuple_value(
-        entrypoint_encode_value_type(),
-        vec![
-            bytes_input(&[entity; 32]),
-            bytes_input(&[function; 32]),
-            u64_input(exposure),
-        ],
-    ))))
-}
-
-fn tagged_entity_set_value(kind: u64, entity: &[u8], first: &[u8], second: &[u8]) -> ConstValue {
-    non_dependency_value(ResultConst::Err(Box::new(tuple_value(
-        tagged_entity_set_encode_value_type(),
+fn supported_value(
+    kind: u64,
+    entity: &[u8],
+    first: &[u8],
+    second: &[u8],
+    third: &[u8],
+    scalar: u64,
+) -> ConstValue {
+    tuple_value(
+        all_supported_encode_value_type(),
         vec![
             u64_input(kind),
             bytes_input(entity),
             bytes_input(first),
             bytes_input(second),
+            bytes_input(third),
+            u64_input(scalar),
         ],
-    ))))
+    )
+}
+
+fn entrypoint_value(entity: u8, function: u8, exposure: u64) -> ConstValue {
+    supported_value(16, &[entity; 32], &[function; 32], b"", b"", exposure)
+}
+
+fn tagged_entity_set_value(kind: u64, entity: &[u8], first: &[u8], second: &[u8]) -> ConstValue {
+    supported_value(kind, entity, first, second, b"", 0)
 }
 
 fn namespace_value(entity: u8, parent: Option<u8>, members: &[u8]) -> ConstValue {
@@ -1227,6 +1152,13 @@ fn package_value(entity: u8, workspace: u8, root_namespace: u8) -> ConstValue {
     tagged_entity_set_value(2, &[entity; 32], &body, b"")
 }
 
+fn workspace_value(entity: u8, root_namespace: u8) -> ConstValue {
+    let stored =
+        super::workspace::workspace_stored([entity; 32], [root_namespace; 32], &[], &[], &[], &[]);
+    let body = ns_body_of(&stored);
+    tagged_entity_set_value(1, &[entity; 32], &body, b"")
+}
+
 fn dependency_value(entity: u8, root: &[u8], package: &[u8], namespace: &[u8]) -> ConstValue {
     dependency_value_bytes(&[entity; 32], root, package, namespace)
 }
@@ -1237,18 +1169,7 @@ fn dependency_value_bytes(
     package: &[u8],
     namespace: &[u8],
 ) -> ConstValue {
-    ConstValue {
-        value_type: all_supported_encode_value_type(),
-        data: ConstData::Result(ResultConst::Err(Box::new(tuple_value(
-            dependency_encode_value_type(),
-            vec![
-                bytes_input(entity),
-                bytes_input(root),
-                bytes_input(package),
-                bytes_input(namespace),
-            ],
-        )))),
-    }
+    supported_value(18, entity, root, package, namespace, 0)
 }
 
 fn supported_encode_call(
@@ -1265,9 +1186,22 @@ fn supported_encode_call(
 }
 
 #[test]
-fn codec_supported_kind_encode_dispatch_emits_all_five_supported_kinds() {
+fn codec_supported_kind_encode_dispatch_emits_all_six_supported_kinds() {
     let image = supported_encode_image();
     let (package, approved) = admit(&image);
+
+    let workspace = workspace_value(0x91, 0x92);
+    let workspace_outcome = supported_encode_call(&package, &approved, 1, workspace);
+    assert_encode_ok(
+        &workspace_outcome,
+        &super::workspace::workspace_stored([0x91; 32], [0x92; 32], &[], &[], &[], &[]),
+    );
+    eprintln!(
+        "SUPPORTED_ENC kind1 fuel={} instr={} peak={}",
+        workspace_outcome.fuel_used,
+        workspace_outcome.instruction_count,
+        workspace_outcome.peak_value_units
+    );
 
     let entrypoint = entrypoint_value(0xa1, 0xb2, 2);
     let entrypoint_outcome = supported_encode_call(&package, &approved, 16, entrypoint);
@@ -1354,11 +1288,29 @@ fn codec_supported_kind_encode_dispatch_emits_all_five_supported_kinds() {
 }
 
 #[test]
-fn codec_supported_kind_dispatch_round_trips_all_five_value_arms() {
+fn codec_supported_kind_dispatch_round_trips_all_six_value_arms() {
     let decode_image = super::supported_dispatch::supported_decode_image();
     let (decode_package, decode_approved) = admit(&decode_image);
     let encode_image = supported_encode_image();
     let (encode_package, encode_approved) = admit(&encode_image);
+
+    let workspace = super::workspace::workspace_stored([0x91; 32], [0x92; 32], &[], &[], &[], &[]);
+    let decoded_workspace = super::supported_dispatch::supported_decode_ok(
+        &super::supported_dispatch::supported_decode_call(
+            &decode_package,
+            &decode_approved,
+            1,
+            &workspace,
+        ),
+    );
+    assert_eq!(
+        decoded_workspace.value_type,
+        all_supported_encode_value_type()
+    );
+    assert_encode_ok(
+        &supported_encode_call(&encode_package, &encode_approved, 1, decoded_workspace),
+        &workspace,
+    );
 
     let entrypoint = program_stored(0xa1, 0xb2, sley_mutate::value::EntryExposure::Local);
     let decoded_entrypoint = super::supported_dispatch::supported_decode_ok(
@@ -1451,6 +1403,28 @@ fn codec_supported_kind_encode_dispatch_rejects_mismatched_and_unknown_kinds() {
     let image = supported_encode_image();
     let (package, approved) = admit(&image);
 
+    for (kind, value) in [
+        (
+            1,
+            supported_value(1, &[1; 32], &[2; 49], b"reserved", b"", 0),
+        ),
+        (
+            16,
+            supported_value(16, &[1; 32], &[2; 32], b"reserved", b"", 1),
+        ),
+        (3, supported_value(3, &[1; 32], b"", b"", b"reserved", 0)),
+        (17, supported_value(17, &[1; 32], &[2; 32], b"", b"", 1)),
+        (
+            18,
+            supported_value(18, &[1; 32], &[2; 32], &[3; 32], &[4; 32], 1),
+        ),
+    ] {
+        assert_refusal(
+            &supported_encode_call(&package, &approved, kind, value),
+            "SSMC_RESERVED_FIELD_PRESENT",
+        );
+    }
+
     assert_refusal(
         &supported_encode_call(&package, &approved, 3, entrypoint_value(1, 2, 1)),
         "SSMC_RESERVED_FIELD_PRESENT",
@@ -1517,6 +1491,26 @@ fn codec_supported_kind_encode_dispatch_rejects_mismatched_and_unknown_kinds() {
     );
     let package_stored = super::package::package_stored([1; 32], [2; 32], [3; 32], &[], &[]);
     let package_body = ns_body_of(&package_stored);
+    let workspace_stored = super::workspace::workspace_stored([1; 32], [2; 32], &[], &[], &[], &[]);
+    let workspace_body = ns_body_of(&workspace_stored);
+    assert_refusal(
+        &supported_encode_call(
+            &package,
+            &approved,
+            2,
+            tagged_entity_set_value(2, &[1; 32], &workspace_body, b""),
+        ),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_encode_call(
+            &package,
+            &approved,
+            1,
+            tagged_entity_set_value(1, &[1; 32], &package_body, b""),
+        ),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
     assert_refusal(
         &supported_encode_call(
             &package,
