@@ -306,12 +306,13 @@ reqbool/outer in-progress remnants (`build_fixture_reqbool_decode`
 parked, `build_exact`/`build_encode` verbatim provenance retained);
 ZigZag, Text/NFC, floats/maps/records (need unlanded capabilities);
 F6/F7 VM-level root causes (recorded §5 for VM follow-up; dodges hold
-by construction and measurement, not by proof of mechanism). Next
-bounded dependency (from the real codec dependency graph, not
-automatic expansion): Namespace body Sley decode/encode (Option +
-Set ordering proofs) on top of the now-complete single-invocation
-EntryPoint path; then `codec_main` leg wiring for the supported kinds.
-No other entity kind begun in this slice.
+by construction and measurement, not by proof of mechanism). Namespace
+body composition later landed as slice 7 and the supported
+EntryPoint/Namespace decode dispatcher as slice 8
+(`rw-080-codec-supported-dispatch.md`). The remaining dependency is
+the canonical schema-bearing main path with the other body kinds,
+label/NFC/fingerprint handling and verification, and complete decode
+and encode dispatch. No other entity kind began in this slice.
 
 ## 10. Review provenance and acceptance debt
 

@@ -49,6 +49,9 @@ use sley_ssmc::{
     VariantSwitchTerminator, Visibility,
 };
 
+#[path = "rw080_codec_program/supported_dispatch.rs"]
+mod supported_dispatch;
+
 fn eid(ns: u8, idx: u16) -> EntityId {
     let mut bytes = [0u8; 32];
     bytes[0] = ns;

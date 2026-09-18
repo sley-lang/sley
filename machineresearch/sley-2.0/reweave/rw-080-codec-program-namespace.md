@@ -305,10 +305,12 @@ parent-three decode/encode, big variant) are F5 value-unit
 over-limit, pinned by test — larger envelopes need either cheaper
 value charging (protected change, not proposed) or a fused emission
 architecture (contradicts the required composition through proven
-machinery, not proposed). Next bounded dependency (from the real
-codec dependency graph): `codec_main` leg wiring for the supported
-kinds (EntryPoint 16 + Namespace 3) on top of the now-complete
-composed paths. No other entity kind begun in this slice.
+machinery, not proposed). The supported decode-dispatch dependency
+landed later as slice 8 (`rw-080-codec-supported-dispatch.md`) for
+EntryPoint 16 and Namespace 3. The remaining bounded dependency is the
+canonical schema-bearing main path: other body kinds,
+label/NFC/fingerprint handling and verification, followed by complete
+decode and encode dispatch. No other entity kind began in this slice.
 
 ## 10. Review provenance and acceptance debt
 
