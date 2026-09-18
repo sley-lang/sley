@@ -22,6 +22,30 @@ fn hex(bytes: &[u8]) -> String {
     })
 }
 
+fn preserve_seed_artifact(environment: &str, bytes: &[u8]) {
+    use std::io::Write as _;
+
+    let Some(path) = std::env::var_os(environment) else {
+        return;
+    };
+    let mut output = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+        .unwrap_or_else(|error| {
+            panic!(
+                "{environment} must name a new preservation path ({}): {error}",
+                std::path::Path::new(&path).display()
+            )
+        });
+    output
+        .write_all(bytes)
+        .unwrap_or_else(|error| panic!("failed to preserve {environment}: {error}"));
+    output
+        .sync_all()
+        .unwrap_or_else(|error| panic!("failed to sync {environment}: {error}"));
+}
+
 fn reconstruction_case(
     reference: &component::DriverReference,
 ) -> (Vec<sley_ssmc::ConstValue>, sley_ssmc::ConstValue) {
@@ -386,6 +410,7 @@ fn integrated_driver_reconstructs_its_complete_executable_package() {
     assert_eq!(execution.instruction_count, 15_480_658);
     assert_eq!(execution.fuel_used, 74_670_072);
     assert_eq!(execution.peak_value_units, 6_027_165_516_738);
+    preserve_seed_artifact("SLEY_C1_OUTPUT", envelope);
     eprintln!(
         "RW120_RECONSTRUCTION image_bytes={} image_sha256={} callee_count={} envelope_bytes={} envelope_sha256={} package_digest={} instructions={} fuel={} peak_value_units={}",
         decoded.image_bytes.len(),
