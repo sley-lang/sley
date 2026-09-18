@@ -25745,6 +25745,13 @@ pub(crate) fn integration_codec_expected() -> ConstValue {
     canonical_codec::codec_schema_decode_expected()
 }
 
+pub(crate) fn integration_codec_test() -> (Vec<ConstValue>, ConstValue) {
+    (
+        canonical_codec::codec_schema_decode_inputs(),
+        canonical_codec::codec_schema_decode_expected(),
+    )
+}
+
 fn codec_limits() -> sley_vm::ExecutionLimits {
     sley_vm::ExecutionLimits {
         max_instructions: 100_000,

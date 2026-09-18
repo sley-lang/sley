@@ -138,3 +138,68 @@ fn merged_component_root_executes_all_four_canonical_programs() {
         hex(&root_digest),
     );
 }
+
+#[test]
+fn integrated_driver_calls_all_four_real_programs_in_one_execution() {
+    let fixture = component::driver_fixture();
+    assert_eq!(fixture.program.entry_points.len(), 5);
+    assert_eq!(fixture.program.functions.len(), 101);
+    assert_eq!(fixture.program.parameters.len(), 5_147);
+    assert_eq!(fixture.program.blocks.len(), 1_847);
+    assert_eq!(fixture.program.operations.len(), 4_054);
+    assert_eq!(fixture.inputs.len(), 75);
+    let evidence = component::component_evidence(&fixture.program);
+    let execution = component::execute_driver(
+        &fixture.program,
+        fixture.entry,
+        evidence.root.root,
+        fixture.inputs,
+    );
+    assert_eq!(execution.value, fixture.expected);
+    let object_bytes = evidence
+        .objects
+        .iter()
+        .map(|object| object.stored_bytes().len())
+        .sum::<usize>();
+    let mut object_hasher = Sha256::new();
+    for object in &evidence.objects {
+        object_hasher.update(object.stored_bytes());
+    }
+    let object_digest: [u8; 32] = object_hasher.finalize().into();
+    let root_digest: [u8; 32] = Sha256::digest(&evidence.root.stored_bytes).into();
+    assert_eq!(evidence.objects.len(), 11_869);
+    assert_eq!(object_bytes, 2_969_080);
+    assert_eq!(
+        hex(&object_digest),
+        "a9f4aaa72edbb0382df8dd134e1495599bc20d1c1052f842db0bf230978d07a4"
+    );
+    assert_eq!(
+        hex(evidence.root.root.as_bytes()),
+        "65b567be0c60ab007d57e4fd990f5c83d5f4c6a13aea6ce5eed03d20da4362f7"
+    );
+    assert_eq!(evidence.root.stored_bytes.len(), 783_784);
+    assert_eq!(
+        hex(&root_digest),
+        "396cb4bf7ddb1911f2c3f49a68c38735156f02714ae8bde0b04209ebf3ac5c45"
+    );
+    assert_eq!(execution.image_bytes, 490_920);
+    assert_eq!(
+        hex(&execution.package_digest),
+        "4516219fab750bef20d30714a6c033318379af534dba55b297210ad27793ea4f"
+    );
+    assert_eq!(execution.gate_operation_count, 4_054);
+    assert_eq!(execution.gate_bridge_uses, 147);
+    eprintln!(
+        "RW120_DRIVER objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={} image_bytes={} package_digest={} gate_operations={} gate_bridges={}",
+        evidence.objects.len(),
+        object_bytes,
+        hex(&object_digest),
+        hex(evidence.root.root.as_bytes()),
+        evidence.root.stored_bytes.len(),
+        hex(&root_digest),
+        execution.image_bytes,
+        hex(&execution.package_digest),
+        execution.gate_operation_count,
+        execution.gate_bridge_uses,
+    );
+}

@@ -12,13 +12,14 @@ use sley_mutate::{
 };
 use sley_ssmc::{
     AdapterImport, Block, ConstData, ConstValue, ConstantDefinition, ContractDefinition,
-    ContractKind, EffectEnvironment, ExpectedOutcome, FunctionGraph, Immediate, Opcode, Operation,
-    OperationResultRef, Parameter, Reachability, ResourceLimits, ReturnTerminator, Terminator,
-    TestCaseDefinition, TypeExpr, ValueRef, Visibility,
+    ContractKind, EffectEnvironment, ExpectedOutcome, FunctionGraph, FunctionRefValue, Immediate,
+    Opcode, Operation, OperationResultRef, Parameter, ParameterRole, Reachability, ResourceLimits,
+    ReturnTerminator, Terminator, TestCaseDefinition, TypeExpr, ValueRef, Visibility,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 
+#[derive(Clone)]
 pub(super) struct MergedProgram {
     pub(super) entry_points: Vec<EntityId>,
     pub(super) functions: Vec<FunctionGraph>,
@@ -27,6 +28,13 @@ pub(super) struct MergedProgram {
     pub(super) operations: Vec<Operation>,
     pub(super) constants: Vec<ConstantDefinition>,
     pub(super) adapters: Vec<AdapterImport>,
+}
+
+pub(super) struct DriverFixture {
+    pub(super) program: MergedProgram,
+    pub(super) entry: EntityId,
+    pub(super) inputs: Vec<ConstValue>,
+    pub(super) expected: ConstValue,
 }
 
 fn merge_values<T: Clone + Debug + Eq>(
@@ -99,6 +107,200 @@ pub(super) fn merged_program() -> MergedProgram {
             |value| value.entity_id,
         ),
         entry_points,
+    }
+}
+
+const DRIVER_BASE: u64 = 90_000;
+
+fn operation_result(operation: EntityId) -> ValueRef {
+    ValueRef::OperationResult(OperationResultRef {
+        operation,
+        result_index: 0,
+    })
+}
+
+struct DriverCalls {
+    parameters: Vec<Parameter>,
+    calls: Vec<Operation>,
+    inputs: Vec<ConstValue>,
+    expected_values: Vec<ConstValue>,
+}
+
+fn driver_calls(
+    program: &MergedProgram,
+    entry: EntityId,
+    block: EntityId,
+    tests: [(Vec<ConstValue>, ConstValue); 4],
+) -> DriverCalls {
+    let child_entries = program.entry_points.clone();
+    let parameter_by_id = program
+        .parameters
+        .iter()
+        .map(|parameter| (parameter.entity_id, parameter))
+        .collect::<BTreeMap<_, _>>();
+    let function_by_id = program
+        .functions
+        .iter()
+        .map(|function| (function.entity_id, function))
+        .collect::<BTreeMap<_, _>>();
+    let mut inputs = Vec::new();
+    let mut expected_values = Vec::new();
+    let mut parameters = Vec::new();
+    let mut calls = Vec::new();
+    for (call_index, ((child_entry, (child_inputs, child_expected)), child_function)) in
+        child_entries
+            .iter()
+            .copied()
+            .zip(tests)
+            .zip(child_entries.iter().map(|child| function_by_id[child]))
+            .enumerate()
+    {
+        assert_eq!(child_function.entity_id, child_entry);
+        assert_eq!(child_function.parameters.len(), child_inputs.len());
+        let mut operands = Vec::new();
+        for (child_parameter, input) in child_function.parameters.iter().zip(&child_inputs) {
+            assert_eq!(
+                parameter_by_id[child_parameter].value_type,
+                input.value_type
+            );
+            let ordinal = u32::try_from(parameters.len()).unwrap();
+            let entity_id = derived_id(6, DRIVER_BASE + u64::from(ordinal));
+            parameters.push(Parameter {
+                entity_id,
+                owner: entry,
+                role: ParameterRole::Function,
+                ordinal,
+                value_type: input.value_type.clone(),
+            });
+            operands.push(ValueRef::Parameter(entity_id));
+        }
+        assert_eq!(child_function.result_type, child_expected.value_type);
+        let operation = Operation {
+            entity_id: derived_id(8, DRIVER_BASE + u64::try_from(call_index).unwrap()),
+            block,
+            ordinal: u32::try_from(call_index).unwrap(),
+            opcode: Opcode::CallDirect,
+            operands,
+            result_types: vec![child_function.result_type.clone()],
+            immediate: Immediate::Function(FunctionRefValue {
+                function: child_entry,
+                type_arguments: Vec::new(),
+            }),
+        };
+        inputs.extend(child_inputs);
+        expected_values.push(child_expected);
+        calls.push(operation);
+    }
+    DriverCalls {
+        parameters,
+        calls,
+        inputs,
+        expected_values,
+    }
+}
+
+pub(super) fn driver_fixture() -> DriverFixture {
+    let mut program = merged_program();
+    let entry = derived_id(5, DRIVER_BASE);
+    let block_id = derived_id(7, DRIVER_BASE);
+    assert!(
+        program
+            .functions
+            .iter()
+            .all(|value| value.entity_id != entry)
+    );
+    assert!(
+        program
+            .blocks
+            .iter()
+            .all(|value| value.entity_id != block_id)
+    );
+    let tests = [
+        codec::integration_codec_test(),
+        checker::integration_checker_test(),
+        lower::integration_lowerer_test(),
+        lower::integration_builder_test(),
+    ];
+    let DriverCalls {
+        parameters,
+        mut calls,
+        inputs,
+        expected_values,
+    } = driver_calls(&program, entry, block_id, tests);
+
+    let result_type = TypeExpr::Tuple(
+        calls
+            .iter()
+            .map(|call| call.result_types[0].clone())
+            .collect(),
+    );
+    let tuple = Operation {
+        entity_id: derived_id(8, DRIVER_BASE + u64::try_from(calls.len()).unwrap()),
+        block: block_id,
+        ordinal: u32::try_from(calls.len()).unwrap(),
+        opcode: Opcode::TupleNew,
+        operands: calls
+            .iter()
+            .map(|call| operation_result(call.entity_id))
+            .collect(),
+        result_types: vec![result_type.clone()],
+        immediate: Immediate::None,
+    };
+    let mut block_operations = calls
+        .iter()
+        .map(|operation| operation.entity_id)
+        .collect::<Vec<_>>();
+    block_operations.push(tuple.entity_id);
+    let function_parameters = parameters
+        .iter()
+        .map(|parameter| parameter.entity_id)
+        .collect::<Vec<_>>();
+    let function = FunctionGraph {
+        entity_id: entry,
+        type_parameters: Vec::new(),
+        parameters: function_parameters,
+        result_type: result_type.clone(),
+        effects: Vec::new(),
+        entry_block: block_id,
+        blocks: vec![block_id],
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    };
+    let block = Block {
+        entity_id: block_id,
+        function: entry,
+        parameters: Vec::new(),
+        operations: block_operations,
+        terminator: Terminator::Return(ReturnTerminator {
+            value: operation_result(tuple.entity_id),
+        }),
+        reachability: Reachability::Required,
+    };
+    calls.push(tuple);
+    program.entry_points.push(entry);
+    program.functions.push(function);
+    program.parameters.extend(parameters);
+    program.blocks.push(block);
+    program.operations.extend(calls);
+    program
+        .functions
+        .sort_unstable_by_key(|value| value.entity_id);
+    program
+        .parameters
+        .sort_unstable_by_key(|value| value.entity_id);
+    program.blocks.sort_unstable_by_key(|value| value.entity_id);
+    program
+        .operations
+        .sort_unstable_by_key(|value| value.entity_id);
+
+    DriverFixture {
+        program,
+        entry,
+        inputs,
+        expected: ConstValue {
+            value_type: result_type,
+            data: ConstData::Sequence(expected_values),
+        },
     }
 }
 
@@ -514,6 +716,120 @@ pub(super) fn component_evidence(program: &MergedProgram) -> ComponentEvidence {
         objects,
         root,
         test: witnesses.test,
+    }
+}
+
+pub(super) struct DriverExecutionEvidence {
+    pub(super) value: ConstValue,
+    pub(super) package_digest: [u8; 32],
+    pub(super) image_bytes: usize,
+    pub(super) gate_operation_count: u32,
+    pub(super) gate_bridge_uses: u32,
+}
+
+pub(super) fn execute_driver(
+    program: &MergedProgram,
+    entry: EntityId,
+    state_root: sley_id::StateRoot,
+    inputs: Vec<ConstValue>,
+) -> DriverExecutionEvidence {
+    use sley_vm::{
+        ExecutionPackage, V2Closure, approve_package_v2, bootstrap::BootstrapProfileInput,
+        bootstrap::BootstrapProfileVersion,
+    };
+
+    let types = sley_check::TypeEnvironment::new(Vec::new()).unwrap();
+    let entry_function = program
+        .functions
+        .iter()
+        .find(|function| function.entity_id == entry)
+        .expect("integrated driver entry exists");
+    let limits = sley_vm::ExecutionLimits {
+        max_instructions: 1_000_000,
+        max_fuel: 100_000_000,
+        max_value_units: 1_000_000_000,
+        max_output_units: 100_000_000,
+        cancel_at_fuel: None,
+    };
+    let lowered = sley_vm::lower_function(sley_vm::LoweringInput {
+        types: &types,
+        function: entry_function,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        schema_epoch: epoch(),
+        state_root,
+        profile: sley_vm::CacheProfile::EXTENDED_V1,
+        constants: &program.constants,
+        globals: &[],
+        functions: &program.functions,
+        contracts: &[],
+        adapters: &program.adapters,
+    })
+    .expect("integrated driver lowers with its complete reachable closure");
+    let gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
+        types: &types,
+        schema_epoch: epoch(),
+        entry: entry_function,
+        presented_image_bytes: &lowered.bytes,
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &program.constants,
+        profile_version: BootstrapProfileVersion::V2,
+    })
+    .expect("integrated driver admits under the frozen successor profile");
+    let package = ExecutionPackage {
+        image_bytes: lowered.bytes,
+        constants: program.constants.clone(),
+        type_definitions: Vec::new(),
+        imports: program.adapters.clone(),
+        globals: Vec::new(),
+        contracts: Vec::new(),
+        entry,
+        schema_epoch: epoch(),
+        state_root,
+        profile: sley_vm::CacheProfile::EXTENDED_V1,
+        admitted_limits: limits,
+        gate_operation_count: gate.operation_count(),
+        gate_bridge_uses: gate.bridge_uses(),
+        gate_closure_fingerprints: gate.closure_fingerprints().to_vec(),
+    };
+    let closure = V2Closure {
+        types: &types,
+        schema_epoch: epoch(),
+        state_root,
+        entry,
+        functions: &program.functions,
+        parameters: &program.parameters,
+        blocks: &program.blocks,
+        operations: &program.operations,
+        adapters: &program.adapters,
+        constants: &program.constants,
+        globals: &[],
+        contracts: &[],
+    };
+    let (digests, receipt, report) =
+        sley_vm::admit_v2_package(&closure, &package).expect("integrated driver admits");
+    let approved = approve_package_v2(&package, &digests, receipt, &report)
+        .expect("integrated driver approval binds the admitted closure");
+    let outcome = sley_vm::execute_approved_package_v2(
+        &package,
+        &approved,
+        sley_vm::ExecutionRequest { inputs, limits },
+    )
+    .expect("integrated driver executes");
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("integrated driver returns its four typed results")
+    };
+    DriverExecutionEvidence {
+        value,
+        package_digest: approved.package_digest,
+        image_bytes: package.image_bytes.len(),
+        gate_operation_count: package.gate_operation_count,
+        gate_bridge_uses: package.gate_bridge_uses,
     }
 }
 

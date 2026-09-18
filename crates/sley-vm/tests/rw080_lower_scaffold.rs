@@ -1079,6 +1079,10 @@ pub(crate) fn integration_execute_lowerer(
     (actual, expected)
 }
 
+pub(crate) fn integration_lowerer_test() -> (Vec<ConstValue>, ConstValue) {
+    canonical::lower_fixture()
+}
+
 pub(crate) fn integration_execute_builder(
     builder: &LowerScaffold,
     state_root: StateRoot,
@@ -1095,6 +1099,22 @@ pub(crate) fn integration_execute_builder(
     (
         successful_bytes_result(&outcome, "integrated package builder"),
         sley_vm::encode_package_envelope_v2(&expected).unwrap(),
+    )
+}
+
+pub(crate) fn integration_builder_test() -> (Vec<ConstValue>, ConstValue) {
+    use sley_ssmc::ResultConst;
+
+    let native = native_complete_lowered();
+    let expected = package_inventory_fixture(native.bytes, native.bytecode.function);
+    let digests = sley_vm::package_digests_v2(&expected).unwrap();
+    let encoded = sley_vm::encode_package_envelope_v2(&expected).unwrap();
+    (
+        package_builder_inputs(&expected, &digests),
+        ConstValue {
+            value_type: bytes_lower_result_type(),
+            data: ConstData::Result(ResultConst::Ok(Box::new(bytes_value(&encoded)))),
+        },
     )
 }
 
@@ -19332,47 +19352,54 @@ fn execute_package_builder(
     expected: &sley_vm::ExecutionPackage,
     digests: &sley_vm::PackageDigests,
 ) -> sley_vm::ExecutionOutcome {
+    sley_vm::execute_approved_package_v2(
+        package,
+        approved,
+        sley_vm::ExecutionRequest {
+            inputs: package_builder_inputs(expected, digests),
+            limits: generous_limits(),
+        },
+    )
+    .expect("v2 executes composed package builder")
+}
+
+fn package_builder_inputs(
+    expected: &sley_vm::ExecutionPackage,
+    digests: &sley_vm::PackageDigests,
+) -> Vec<ConstValue> {
     let fingerprint_bytes = expected
         .gate_closure_fingerprints
         .iter()
         .map(|fingerprint| fingerprint.as_bytes().to_vec())
         .collect::<Vec<_>>();
     let (global_rows, contract_rows) = canonical_dependency_rows(expected);
-    sley_vm::execute_approved_package_v2(
-        package,
-        approved,
-        sley_vm::ExecutionRequest {
-            inputs: vec![
-                bytes_value(&expected.image_bytes),
-                bytesvec_value(&canonical_constant_rows(&expected.constants)),
-                bytesvec_value(&canonical_layout_rows(&expected.type_definitions)),
-                bytesvec_value(&canonical_import_rows(&expected.imports)),
-                bytes_value(expected.entry.as_bytes()),
-                bytes_value(expected.schema_epoch.as_bytes()),
-                bytes_value(expected.state_root.as_bytes()),
-                u32_value(u128::from(expected.gate_operation_count)),
-                u32_value(u128::from(expected.gate_bridge_uses)),
-                bytesvec_value(&fingerprint_bytes),
-                u64_value(u128::from(expected.admitted_limits.max_instructions)),
-                u64_value(u128::from(expected.admitted_limits.max_fuel)),
-                u64_value(u128::from(expected.admitted_limits.max_value_units)),
-                u64_value(u128::from(expected.admitted_limits.max_output_units)),
-                bytesvec_value(&global_rows),
-                bytesvec_value(&contract_rows),
-                bool_value(expected.admitted_limits.cancel_at_fuel.is_some()),
-                u64_value(u128::from(
-                    expected.admitted_limits.cancel_at_fuel.unwrap_or_default(),
-                )),
-                bytes_value(&digests.image_digest),
-                bytes_value(&digests.constants_digest),
-                bytes_value(&digests.layouts_digest),
-                bytes_value(&digests.imports_digest),
-                bytes_value(&digests.dependency_digest),
-            ],
-            limits: generous_limits(),
-        },
-    )
-    .expect("v2 executes composed package builder")
+    vec![
+        bytes_value(&expected.image_bytes),
+        bytesvec_value(&canonical_constant_rows(&expected.constants)),
+        bytesvec_value(&canonical_layout_rows(&expected.type_definitions)),
+        bytesvec_value(&canonical_import_rows(&expected.imports)),
+        bytes_value(expected.entry.as_bytes()),
+        bytes_value(expected.schema_epoch.as_bytes()),
+        bytes_value(expected.state_root.as_bytes()),
+        u32_value(u128::from(expected.gate_operation_count)),
+        u32_value(u128::from(expected.gate_bridge_uses)),
+        bytesvec_value(&fingerprint_bytes),
+        u64_value(u128::from(expected.admitted_limits.max_instructions)),
+        u64_value(u128::from(expected.admitted_limits.max_fuel)),
+        u64_value(u128::from(expected.admitted_limits.max_value_units)),
+        u64_value(u128::from(expected.admitted_limits.max_output_units)),
+        bytesvec_value(&global_rows),
+        bytesvec_value(&contract_rows),
+        bool_value(expected.admitted_limits.cancel_at_fuel.is_some()),
+        u64_value(u128::from(
+            expected.admitted_limits.cancel_at_fuel.unwrap_or_default(),
+        )),
+        bytes_value(&digests.image_digest),
+        bytes_value(&digests.constants_digest),
+        bytes_value(&digests.layouts_digest),
+        bytes_value(&digests.imports_digest),
+        bytes_value(&digests.dependency_digest),
+    ]
 }
 
 fn successful_bytes_result(outcome: &sley_vm::ExecutionOutcome, subject: &str) -> Vec<u8> {
