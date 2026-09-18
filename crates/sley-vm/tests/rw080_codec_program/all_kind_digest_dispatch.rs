@@ -440,13 +440,25 @@ fn build_fixed_profile_program_encode_dispatch(
 }
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+/// How the dispatcher judges a decoded body for kinds 1 through 17.
+#[derive(Clone, Copy)]
+enum BodyCheck {
+    /// `(kind, body, unit) -> Bool`: the bounded digest-pinned profile; a
+    /// mismatch is `SSMC_RESERVED_FIELD_PRESENT`.
+    Digest(EntityId),
+    /// `(kind, body, unit) -> Result<Unit, Bytes>`: the arbitrary schema
+    /// decoders; a refusal forwards the decoder's own code.
+    Schema(EntityId),
+}
+
+#[allow(clippy::too_many_lines)]
 fn build_all_kind_program_decode(
     assembler: &mut Asm,
     ns: Ns,
     function: EntityId,
     validate_decoder: EntityId,
     outer_decoder: EntityId,
-    body_checker: EntityId,
+    body_check: BodyCheck,
     dependency_decoder: EntityId,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
@@ -643,32 +655,74 @@ fn build_all_kind_program_decode(
         vec![TypeExpr::Bytes],
         Immediate::Index(1),
     );
-    let valid = assembler.op(
-        ns.o,
-        outer_ok,
-        Opcode::CallDirect,
-        vec![pav(checked_kind), op_result(body), pav(checked_unit)],
-        vec![TypeExpr::Bool],
-        Immediate::Function(FunctionRefValue {
-            function: body_checker,
-            type_arguments: Vec::new(),
-        }),
-    );
-    append_block(
-        assembler,
-        outer_ok,
-        function,
-        vec![outer_tuple, checked_kind, checked_unit],
-        vec![entity, body, valid],
-        cond(
-            op_result(valid),
-            edge(
-                return_generic,
-                vec![pav(checked_kind), op_result(entity), op_result(body)],
-            ),
-            edge(scope_error, Vec::new()),
-        ),
-    );
+    match body_check {
+        BodyCheck::Digest(body_checker) => {
+            let valid = assembler.op(
+                ns.o,
+                outer_ok,
+                Opcode::CallDirect,
+                vec![pav(checked_kind), op_result(body), pav(checked_unit)],
+                vec![TypeExpr::Bool],
+                Immediate::Function(FunctionRefValue {
+                    function: body_checker,
+                    type_arguments: Vec::new(),
+                }),
+            );
+            append_block(
+                assembler,
+                outer_ok,
+                function,
+                vec![outer_tuple, checked_kind, checked_unit],
+                vec![entity, body, valid],
+                cond(
+                    op_result(valid),
+                    edge(
+                        return_generic,
+                        vec![pav(checked_kind), op_result(entity), op_result(body)],
+                    ),
+                    edge(scope_error, Vec::new()),
+                ),
+            );
+        }
+        BodyCheck::Schema(body_checker) => {
+            let valid = assembler.op(
+                ns.o,
+                outer_ok,
+                Opcode::CallDirect,
+                vec![pav(checked_kind), op_result(body), pav(checked_unit)],
+                vec![TypeExpr::Result {
+                    ok: Box::new(TypeExpr::Unit),
+                    error: Box::new(TypeExpr::Bytes),
+                }],
+                Immediate::Function(FunctionRefValue {
+                    function: body_checker,
+                    type_arguments: Vec::new(),
+                }),
+            );
+            append_block(
+                assembler,
+                outer_ok,
+                function,
+                vec![outer_tuple, checked_kind, checked_unit],
+                vec![entity, body, valid],
+                switch(
+                    op_result(valid),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            return_generic,
+                            vec![sav(checked_kind), oav(entity), oav(body)],
+                        ),
+                        (
+                            BuiltinCase::Err,
+                            forward_error,
+                            vec![SwitchArgument::CasePayload],
+                        ),
+                    ],
+                ),
+            );
+        }
+    }
 
     let result_kind = assembler.param(ns.p, return_generic, ParameterRole::Block, u64_type());
     let result_entity =
@@ -750,7 +804,14 @@ fn build_all_kind_program_decode(
         ret(op_result(error)),
     );
 
-    for (block, code) in [(scope_error, scope_code), (unknown_error, unknown_code)] {
+    // The scope refusal exists only under the digest profile; keep the
+    // digest image's block order unchanged so its retained evidence holds.
+    let mut typed_errors = Vec::new();
+    if matches!(body_check, BodyCheck::Digest(_)) {
+        typed_errors.push((scope_error, scope_code));
+    }
+    typed_errors.push((unknown_error, unknown_code));
+    for (block, code) in typed_errors {
         let code_value = assembler.cref(ns.o, block, code, TypeExpr::Bytes);
         let error = assembler.op(
             ns.o,
@@ -858,7 +919,7 @@ pub(super) fn all_kind_decode_image() -> Image {
         root,
         validate,
         outer,
-        checker,
+        BodyCheck::Digest(checker),
         dependency,
     );
     let mut image = Image {
@@ -872,6 +933,108 @@ pub(super) fn all_kind_decode_image() -> Image {
             outer_graph,
             uvar_graph,
         ],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+            frozen_import(BRIDGE_CODE_RHW1, TypeExpr::Bytes, TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    };
+    super::supported_dispatch::deduplicate_identical_constants(&mut image);
+    image
+}
+
+/// The all-kind decoder with every body judged by its arbitrary schema
+/// decoder instead of a pinned digest. Namespaces `130..=153` and the
+/// identity namespaces `14`/`15` stay reserved for this image's own
+/// functions; the schema closure fills the rest.
+pub(super) fn arbitrary_all_kind_decode_image() -> Image {
+    let mut assembler = Asm::new();
+    let root = eid(14, 1);
+    let validate = eid(14, 2);
+    let outer = eid(14, 3);
+    let checker = eid(14, 4);
+    let uvar = eid(14, 5);
+    let dependency = eid(14, 6);
+    let (uvar_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 130,
+            p: 131,
+            b: 132,
+            o: 133,
+        },
+        uvar,
+    );
+    let validate_graph = build_program_validate(
+        &mut assembler,
+        Ns {
+            k: 134,
+            p: 135,
+            b: 136,
+            o: 137,
+        },
+        validate,
+        uvar,
+    );
+    let outer_graph = build_outer_decode(
+        &mut assembler,
+        Ns {
+            k: 138,
+            p: 139,
+            b: 140,
+            o: 141,
+        },
+        outer,
+        uvar,
+    );
+    let dependency_graph =
+        super::dependency_binding_decode::build_dependency_supported_program_decode(
+            &mut assembler,
+            Ns {
+                k: 150,
+                p: 151,
+                b: 152,
+                o: 153,
+            },
+            dependency,
+        );
+    let root_graph = build_all_kind_program_decode(
+        &mut assembler,
+        Ns {
+            k: 146,
+            p: 147,
+            b: 148,
+            o: 149,
+        },
+        root,
+        validate,
+        outer,
+        BodyCheck::Schema(checker),
+        dependency,
+    );
+    let schema_graphs = super::dependency_binding_decode::build_arbitrary_schema_body_check(
+        &mut assembler,
+        checker,
+        vec![14..=15, 130..=153],
+        16,
+    );
+    let mut functions = vec![
+        root_graph.clone(),
+        dependency_graph,
+        validate_graph,
+        outer_graph,
+        uvar_graph,
+    ];
+    functions.extend(schema_graphs);
+    let mut image = Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: root_graph,
+        functions,
         parameters: assembler.parameters,
         blocks: assembler.blocks,
         operations: assembler.operations,

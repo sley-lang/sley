@@ -24031,3 +24031,1763 @@ fn test_case_schema_decoder_rejects_every_field_boundary() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// Arbitrary-schema composition: every entity kind's decoder built once, over
+// one shared primitive closure, under one sequential namespace allocator, so
+// the all-kind dispatcher can validate arbitrary canonical bodies.
+// ---------------------------------------------------------------------------
+
+/// Hands out block namespaces in order, skipping the ranges the host image
+/// already uses for its own identities.
+struct NsAlloc {
+    next: u8,
+    reserved: Vec<std::ops::RangeInclusive<u8>>,
+}
+
+impl NsAlloc {
+    fn new(start: u8, reserved: Vec<std::ops::RangeInclusive<u8>>) -> Self {
+        Self {
+            next: start,
+            reserved,
+        }
+    }
+
+    fn next(&mut self) -> Ns {
+        loop {
+            let number = self.next;
+            self.next = number
+                .checked_add(1)
+                .expect("composed image exhausted its 256 namespaces");
+            if !self.reserved.iter().any(|range| range.contains(&number)) {
+                return ns_of(number);
+            }
+        }
+    }
+}
+
+/// Shared primitive decoders every schema recipe composes with.
+#[derive(Clone, Copy)]
+struct Primitives {
+    ids: u8,
+    decode: EntityId,
+    record: EntityId,
+    union: EntityId,
+    list: EntityId,
+    fixed32: EntityId,
+    entity_ids: EntityId,
+    exact_uvar: EntityId,
+    bounded_uvar: EntityId,
+    records: [EntityId; 6],
+    type_expr: EntityId,
+    type_parameter_list: EntityId,
+    empty_payload: EntityId,
+}
+
+impl Primitives {
+    fn id(self, assembler: &mut Asm) -> EntityId {
+        assembler.id(self.ids)
+    }
+
+    fn record(self, field_count: usize) -> EntityId {
+        self.records[field_count - 1]
+    }
+
+    fn decoders(self, exact_record: EntityId) -> SimpleSchemaDecoders {
+        SimpleSchemaDecoders {
+            union: self.union,
+            exact_record,
+            fixed32: self.fixed32,
+            exact_uvar: self.exact_uvar,
+            bounded_uvar: self.bounded_uvar,
+            type_expr: self.type_expr,
+            entity_ids: self.entity_ids,
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_primitives(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    ids: u8,
+) -> (Primitives, Vec<FunctionGraph>) {
+    let decode = assembler.id(ids);
+    let record = assembler.id(ids);
+    let union = assembler.id(ids);
+    let list = assembler.id(ids);
+    let fixed32 = assembler.id(ids);
+    let entity_ids = assembler.id(ids);
+    let exact_uvar = assembler.id(ids);
+    let bounded_uvar = assembler.id(ids);
+    let records = std::array::from_fn::<_, 6, _>(|_| assembler.id(ids));
+    let type_expr_leaf = assembler.id(ids);
+    let type_expr_children = assembler.id(ids);
+    let type_expr = assembler.id(ids);
+    let type_parameter_list = assembler.id(ids);
+    let empty_payload = assembler.id(ids);
+    let mut graphs = vec![build_decode(assembler, alloc.next(), decode).0];
+    graphs.push(build_generic_record_decode(
+        assembler,
+        alloc.next(),
+        record,
+        decode,
+    ));
+    graphs.push(build_generic_union_decode(
+        assembler,
+        alloc.next(),
+        union,
+        decode,
+    ));
+    graphs.push(build_generic_list_decode(
+        assembler,
+        alloc.next(),
+        list,
+        decode,
+    ));
+    graphs.push(build_fixed32_decode(assembler, alloc.next(), fixed32));
+    graphs.push(build_entity_id_collection_decode(
+        assembler,
+        alloc.next(),
+        entity_ids,
+        list,
+        fixed32,
+    ));
+    graphs.push(build_exact_uvar_decode(
+        assembler,
+        alloc.next(),
+        exact_uvar,
+        decode,
+    ));
+    graphs.push(build_bounded_uvar_decode(
+        assembler,
+        alloc.next(),
+        bounded_uvar,
+        exact_uvar,
+    ));
+    for (index, function) in records.iter().copied().enumerate() {
+        graphs.push(build_exact_record_projection(
+            assembler,
+            alloc.next(),
+            function,
+            decode,
+            record,
+            index + 1,
+        ));
+    }
+    graphs.push(build_type_expr_leaf_decode(
+        assembler,
+        alloc.next(),
+        type_expr_leaf,
+        union,
+        fixed32,
+        exact_uvar,
+        bounded_uvar,
+    ));
+    graphs.push(build_type_expr_children_decode(
+        assembler,
+        alloc.next(),
+        type_expr_children,
+        union,
+        type_expr_leaf,
+        list,
+        records[1],
+        records[2],
+        fixed32,
+        entity_ids,
+    ));
+    graphs.push(build_type_expr_recursive_decode(
+        assembler,
+        alloc.next(),
+        type_expr,
+        type_expr_children,
+    ));
+    graphs.push(build_type_parameter_list_decode(
+        assembler,
+        alloc.next(),
+        type_parameter_list,
+        list,
+        record,
+        exact_uvar,
+    ));
+    graphs.push(build_empty_payload_validate(
+        assembler,
+        alloc.next(),
+        empty_payload,
+    ));
+    (
+        Primitives {
+            ids,
+            decode,
+            record,
+            union,
+            list,
+            fixed32,
+            entity_ids,
+            exact_uvar,
+            bounded_uvar,
+            records,
+            type_expr,
+            type_parameter_list,
+            empty_payload,
+        },
+        graphs,
+    )
+}
+
+/// One entity kind's arbitrary schema decoder: its entry and result type.
+#[derive(Clone, Copy)]
+struct SchemaEntry {
+    kind: u64,
+    function: EntityId,
+    field_count: usize,
+}
+
+impl SchemaEntry {
+    fn result_type(self) -> TypeExpr {
+        simple_schema_result_type(self.field_count)
+    }
+}
+
+/// A simple-record schema over the primitives (one exact record projection
+/// plus the entity entry).
+fn simple_schema_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    kind: u64,
+    validators: &[SimpleFieldValidator],
+    graphs: &mut Vec<FunctionGraph>,
+) -> SchemaEntry {
+    let function = prims.id(assembler);
+    graphs.push(build_simple_entity_schema_decode(
+        assembler,
+        alloc.next(),
+        function,
+        kind,
+        validators,
+        prims.decoders(prims.record(validators.len())),
+    ));
+    SchemaEntry {
+        kind,
+        function,
+        field_count: validators.len(),
+    }
+}
+
+/// The recursive `ConstValue` decoder over the primitives.
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn const_value_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    graphs: &mut Vec<FunctionGraph>,
+) -> EntityId {
+    let bool_function = prims.id(assembler);
+    let uvar128_function = prims.id(assembler);
+    let f32_function = prims.id(assembler);
+    let f64_function = prims.id(assembler);
+    let bytes_function = prims.id(assembler);
+    let text_function = prims.id(assembler);
+    let record_fields_function = prims.id(assembler);
+    let record_const_function = prims.id(assembler);
+    let option_child_function = prims.id(assembler);
+    let variant_const_function = prims.id(assembler);
+    let map_entries_function = prims.id(assembler);
+    let result_child_function = prims.id(assembler);
+    let type_arguments_function = prims.id(assembler);
+    let function_ref_function = prims.id(assembler);
+    let builtin_failure_function = prims.id(assembler);
+    let const_children_function = prims.id(assembler);
+    let const_value_function = prims.id(assembler);
+    graphs.push(build_bool_validate(assembler, alloc.next(), bool_function));
+    graphs.push(build_uvar128_validate(
+        assembler,
+        alloc.next(),
+        uvar128_function,
+    ));
+    graphs.push(build_float_bits_validate(
+        assembler,
+        alloc.next(),
+        f32_function,
+        4,
+    ));
+    graphs.push(build_float_bits_validate(
+        assembler,
+        alloc.next(),
+        f64_function,
+        8,
+    ));
+    graphs.push(build_sized_payload_validate(
+        assembler,
+        alloc.next(),
+        bytes_function,
+        prims.decode,
+        false,
+    ));
+    graphs.push(build_sized_payload_validate(
+        assembler,
+        alloc.next(),
+        text_function,
+        prims.decode,
+        true,
+    ));
+    graphs.push(build_entry_list_children(
+        assembler,
+        alloc.next(),
+        record_fields_function,
+        prims.list,
+        prims.record(2),
+        prims.fixed32,
+        EntryListMode::RecordFields,
+    ));
+    graphs.push(build_prefixed_record_child(
+        assembler,
+        alloc.next(),
+        record_const_function,
+        prims.record(2),
+        prims.fixed32,
+        1,
+        LastFieldChildren::Map(record_fields_function),
+    ));
+    graphs.push(build_tagged_child_projection(
+        assembler,
+        alloc.next(),
+        option_child_function,
+        prims.union,
+        Some(0),
+        1,
+    ));
+    graphs.push(build_prefixed_record_child(
+        assembler,
+        alloc.next(),
+        variant_const_function,
+        prims.record(3),
+        prims.fixed32,
+        2,
+        LastFieldChildren::Optional(option_child_function),
+    ));
+    graphs.push(build_entry_list_children(
+        assembler,
+        alloc.next(),
+        map_entries_function,
+        prims.list,
+        prims.record(2),
+        prims.fixed32,
+        EntryListMode::MapEntries,
+    ));
+    graphs.push(build_tagged_child_projection(
+        assembler,
+        alloc.next(),
+        result_child_function,
+        prims.union,
+        None,
+        2,
+    ));
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        type_arguments_function,
+        prims.list,
+        prims.type_expr,
+        bytes_validation_result_type(),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        function_ref_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(type_arguments_function),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        builtin_failure_function,
+        &[
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 5,
+            },
+            SimpleFieldValidator::ExactUvar(16),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_const_value_children_decode(
+        assembler,
+        alloc.next(),
+        const_children_function,
+        prims.record(2),
+        prims.type_expr,
+        prims.union,
+        &[
+            ConstDataArm::Unit(prims.empty_payload),
+            ConstDataArm::Unit(bool_function),
+            ConstDataArm::Unit(uvar128_function),
+            ConstDataArm::Unit(uvar128_function),
+            ConstDataArm::Unit(f32_function),
+            ConstDataArm::Unit(f64_function),
+            ConstDataArm::Unit(bytes_function),
+            ConstDataArm::Unit(text_function),
+            ConstDataArm::List(prims.list),
+            ConstDataArm::List(record_const_function),
+            ConstDataArm::Optional(variant_const_function),
+            ConstDataArm::List(map_entries_function),
+            ConstDataArm::Optional(option_child_function),
+            ConstDataArm::Optional(result_child_function),
+            ConstDataArm::Unit(function_ref_function),
+            ConstDataArm::Unit(builtin_failure_function),
+        ],
+    ));
+    graphs.push(build_type_expr_recursive_decode(
+        assembler,
+        alloc.next(),
+        const_value_function,
+        const_children_function,
+    ));
+    const_value_function
+}
+
+#[allow(clippy::similar_names)]
+fn type_def_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    graphs: &mut Vec<FunctionGraph>,
+) -> SchemaEntry {
+    let record_field_function = prims.id(assembler);
+    let record_fields_function = prims.id(assembler);
+    let optional_payload_function = prims.id(assembler);
+    let variant_case_function = prims.id(assembler);
+    let variant_cases_function = prims.id(assembler);
+    let form_function = prims.id(assembler);
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        record_field_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::TypeExpr,
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 4,
+            },
+        ],
+        prims.decoders(prims.record(3)),
+    ));
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        record_fields_function,
+        prims.list,
+        record_field_function,
+        unit_validation_result_type(),
+    ));
+    graphs.push(build_option_unit_validate(
+        assembler,
+        alloc.next(),
+        optional_payload_function,
+        prims.union,
+        prims.type_expr,
+        bytes_validation_result_type(),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        variant_case_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(optional_payload_function),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        variant_cases_function,
+        prims.list,
+        variant_case_function,
+        unit_validation_result_type(),
+    ));
+    graphs.push(build_closed_union_validate(
+        assembler,
+        alloc.next(),
+        form_function,
+        prims.union,
+        &[
+            (record_fields_function, unit_validation_result_type()),
+            (variant_cases_function, unit_validation_result_type()),
+        ],
+    ));
+    simple_schema_recipe(
+        assembler,
+        alloc,
+        prims,
+        4,
+        &[
+            SimpleFieldValidator::Unit(prims.type_parameter_list),
+            SimpleFieldValidator::Unit(form_function),
+            SimpleFieldValidator::EntityIds { ordered: true },
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 4,
+            },
+        ],
+        graphs,
+    )
+}
+
+fn function_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    graphs: &mut Vec<FunctionGraph>,
+) -> SchemaEntry {
+    let function = prims.id(assembler);
+    graphs.push(build_function_schema_decode(
+        assembler,
+        alloc.next(),
+        function,
+        prims.union,
+        prims.record,
+        prims.entity_ids,
+        prims.type_parameter_list,
+        prims.fixed32,
+        prims.bounded_uvar,
+        prims.type_expr,
+    ));
+    SchemaEntry {
+        kind: 5,
+        function,
+        field_count: 8,
+    }
+}
+
+fn parameter_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    graphs: &mut Vec<FunctionGraph>,
+) -> SchemaEntry {
+    let function = prims.id(assembler);
+    graphs.push(build_parameter_schema_decode(
+        assembler,
+        alloc.next(),
+        function,
+        prims.union,
+        prims.record(4),
+        prims.fixed32,
+        prims.bounded_uvar,
+        prims.exact_uvar,
+        prims.type_expr,
+    ));
+    SchemaEntry {
+        kind: 6,
+        function,
+        field_count: 4,
+    }
+}
+
+/// Value references and target edges shared by Block and Operation.
+#[derive(Clone, Copy)]
+struct ProgramStructure {
+    value_ref: EntityId,
+    value_refs: EntityId,
+    target_edge: EntityId,
+}
+
+fn program_structure_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    graphs: &mut Vec<FunctionGraph>,
+) -> ProgramStructure {
+    let operation_result_function = prims.id(assembler);
+    let value_ref = prims.id(assembler);
+    let value_refs = prims.id(assembler);
+    let target_edge = prims.id(assembler);
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        operation_result_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::ExactUvar(32),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_closed_union_validate(
+        assembler,
+        alloc.next(),
+        value_ref,
+        prims.union,
+        &[
+            (prims.fixed32, bytes_validation_result_type()),
+            (operation_result_function, unit_validation_result_type()),
+        ],
+    ));
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        value_refs,
+        prims.list,
+        value_ref,
+        unit_validation_result_type(),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        target_edge,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(value_refs),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    ProgramStructure {
+        value_ref,
+        value_refs,
+        target_edge,
+    }
+}
+
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn block_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    structure: ProgramStructure,
+    graphs: &mut Vec<FunctionGraph>,
+) -> SchemaEntry {
+    let return_function = prims.id(assembler);
+    let branch_function = prims.id(assembler);
+    let cond_branch_function = prims.id(assembler);
+    let builtin_case_function = prims.id(assembler);
+    let case_key_function = prims.id(assembler);
+    let switch_argument_function = prims.id(assembler);
+    let switch_arguments_function = prims.id(assembler);
+    let switch_edge_function = prims.id(assembler);
+    let switch_case_function = prims.id(assembler);
+    let switch_cases_function = prims.id(assembler);
+    let variant_switch_function = prims.id(assembler);
+    let optional_value_ref_function = prims.id(assembler);
+    let trap_function = prims.id(assembler);
+    let terminator_function = prims.id(assembler);
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        return_function,
+        &[SimpleFieldValidator::Unit(structure.value_ref)],
+        prims.decoders(prims.record(1)),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        branch_function,
+        &[SimpleFieldValidator::Unit(structure.target_edge)],
+        prims.decoders(prims.record(1)),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        cond_branch_function,
+        &[
+            SimpleFieldValidator::Unit(structure.value_ref),
+            SimpleFieldValidator::Unit(structure.target_edge),
+            SimpleFieldValidator::Unit(structure.target_edge),
+        ],
+        prims.decoders(prims.record(3)),
+    ));
+    graphs.push(build_bounded_enum_validate(
+        assembler,
+        alloc.next(),
+        builtin_case_function,
+        prims.bounded_uvar,
+        1,
+        4,
+    ));
+    graphs.push(build_closed_union_validate(
+        assembler,
+        alloc.next(),
+        case_key_function,
+        prims.union,
+        &[
+            (prims.fixed32, bytes_validation_result_type()),
+            (builtin_case_function, unit_validation_result_type()),
+        ],
+    ));
+    graphs.push(build_closed_union_validate(
+        assembler,
+        alloc.next(),
+        switch_argument_function,
+        prims.union,
+        &[
+            (structure.value_ref, unit_validation_result_type()),
+            (prims.empty_payload, unit_validation_result_type()),
+        ],
+    ));
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        switch_arguments_function,
+        prims.list,
+        switch_argument_function,
+        unit_validation_result_type(),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        switch_edge_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(switch_arguments_function),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        switch_case_function,
+        &[
+            SimpleFieldValidator::Unit(case_key_function),
+            SimpleFieldValidator::Unit(switch_edge_function),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        switch_cases_function,
+        prims.list,
+        switch_case_function,
+        unit_validation_result_type(),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        variant_switch_function,
+        &[
+            SimpleFieldValidator::Unit(structure.value_ref),
+            SimpleFieldValidator::Unit(switch_cases_function),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_option_unit_validate(
+        assembler,
+        alloc.next(),
+        optional_value_ref_function,
+        prims.union,
+        structure.value_ref,
+        unit_validation_result_type(),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        trap_function,
+        &[
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 4,
+            },
+            SimpleFieldValidator::Unit(optional_value_ref_function),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_closed_union_validate(
+        assembler,
+        alloc.next(),
+        terminator_function,
+        prims.union,
+        &[
+            (return_function, unit_validation_result_type()),
+            (branch_function, unit_validation_result_type()),
+            (cond_branch_function, unit_validation_result_type()),
+            (variant_switch_function, unit_validation_result_type()),
+            (trap_function, unit_validation_result_type()),
+        ],
+    ));
+    simple_schema_recipe(
+        assembler,
+        alloc,
+        prims,
+        7,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::EntityIds { ordered: false },
+            SimpleFieldValidator::EntityIds { ordered: false },
+            SimpleFieldValidator::Unit(terminator_function),
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 2,
+            },
+        ],
+        graphs,
+    )
+}
+
+#[allow(clippy::too_many_lines)]
+fn operation_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    structure: ProgramStructure,
+    graphs: &mut Vec<FunctionGraph>,
+) -> SchemaEntry {
+    let result_types_function = prims.id(assembler);
+    let index_function = prims.id(assembler);
+    let variant_immediate_function = prims.id(assembler);
+    let function_ref_function = prims.id(assembler);
+    let immediate_function = prims.id(assembler);
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        result_types_function,
+        prims.list,
+        prims.type_expr,
+        bytes_validation_result_type(),
+    ));
+    graphs.push(build_exact_width_validate(
+        assembler,
+        alloc.next(),
+        index_function,
+        prims.exact_uvar,
+        32,
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        variant_immediate_function,
+        &[SimpleFieldValidator::Fixed32, SimpleFieldValidator::Fixed32],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        function_ref_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(result_types_function),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_closed_union_validate(
+        assembler,
+        alloc.next(),
+        immediate_function,
+        prims.union,
+        &[
+            (prims.empty_payload, unit_validation_result_type()),
+            (prims.fixed32, bytes_validation_result_type()),
+            (index_function, unit_validation_result_type()),
+            (prims.fixed32, bytes_validation_result_type()),
+            (variant_immediate_function, unit_validation_result_type()),
+            (prims.fixed32, bytes_validation_result_type()),
+            (function_ref_function, unit_validation_result_type()),
+        ],
+    ));
+    simple_schema_recipe(
+        assembler,
+        alloc,
+        prims,
+        8,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::ExactUvar(32),
+            SimpleFieldValidator::ExactUvar(32),
+            SimpleFieldValidator::Unit(structure.value_refs),
+            SimpleFieldValidator::Unit(result_types_function),
+            SimpleFieldValidator::Unit(immediate_function),
+        ],
+        graphs,
+    )
+}
+
+fn capability_requirement_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    const_value: EntityId,
+    graphs: &mut Vec<FunctionGraph>,
+) -> SchemaEntry {
+    let scopes_function = prims.id(assembler);
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        scopes_function,
+        prims.list,
+        const_value,
+        bytes_validation_result_type(),
+    ));
+    simple_schema_recipe(
+        assembler,
+        alloc,
+        prims,
+        12,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(scopes_function),
+            SimpleFieldValidator::EntityIds { ordered: true },
+        ],
+        graphs,
+    )
+}
+
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn contract_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    graphs: &mut Vec<FunctionGraph>,
+) -> SchemaEntry {
+    let source_function = prims.id(assembler);
+    let binding_function = prims.id(assembler);
+    let bindings_function = prims.id(assembler);
+    let resource_limits_function = prims.id(assembler);
+    let projection_function = prims.id(assembler);
+    let optional_limits_function = prims.id(assembler);
+    let function = prims.id(assembler);
+    graphs.push(build_contract_source_validate(
+        assembler,
+        alloc.next(),
+        source_function,
+        prims.union,
+        prims.fixed32,
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        binding_function,
+        &[
+            SimpleFieldValidator::ExactUvar(32),
+            SimpleFieldValidator::Unit(source_function),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        bindings_function,
+        prims.list,
+        binding_function,
+        unit_validation_result_type(),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        resource_limits_function,
+        &[SimpleFieldValidator::ExactUvar(64); 6],
+        prims.decoders(prims.record(6)),
+    ));
+    graphs.push(build_optional_last_record_projection(
+        assembler,
+        alloc.next(),
+        projection_function,
+        prims.record(4),
+        prims.record(5),
+    ));
+    graphs.push(build_optional_empty_unit_validate(
+        assembler,
+        alloc.next(),
+        optional_limits_function,
+        resource_limits_function,
+    ));
+    graphs.push(build_simple_entity_schema_decode(
+        assembler,
+        alloc.next(),
+        function,
+        13,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 7,
+            },
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(bindings_function),
+            SimpleFieldValidator::Unit(optional_limits_function),
+        ],
+        prims.decoders(projection_function),
+    ));
+    SchemaEntry {
+        kind: 13,
+        function,
+        field_count: 5,
+    }
+}
+
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn test_case_recipe(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    prims: &Primitives,
+    const_value: EntityId,
+    graphs: &mut Vec<FunctionGraph>,
+) -> SchemaEntry {
+    let const_list_function = prims.id(assembler);
+    let result_const_function = prims.id(assembler);
+    let replay_binding_function = prims.id(assembler);
+    let replay_bindings_function = prims.id(assembler);
+    let adapter_config_function = prims.id(assembler);
+    let adapter_configs_function = prims.id(assembler);
+    let effect_environment_function = prims.id(assembler);
+    let failure_code_function = prims.id(assembler);
+    let expected_outcome_function = prims.id(assembler);
+    let observation_function = prims.id(assembler);
+    let observations_function = prims.id(assembler);
+    let resource_limits_function = prims.id(assembler);
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        const_list_function,
+        prims.list,
+        const_value,
+        bytes_validation_result_type(),
+    ));
+    graphs.push(build_closed_union_validate(
+        assembler,
+        alloc.next(),
+        result_const_function,
+        prims.union,
+        &[
+            (const_value, bytes_validation_result_type()),
+            (const_value, bytes_validation_result_type()),
+        ],
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        replay_binding_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(const_list_function),
+            SimpleFieldValidator::Unit(result_const_function),
+        ],
+        prims.decoders(prims.record(3)),
+    ));
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        replay_bindings_function,
+        prims.list,
+        replay_binding_function,
+        unit_validation_result_type(),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        adapter_config_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Bytes(const_value),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        adapter_configs_function,
+        prims.list,
+        adapter_config_function,
+        unit_validation_result_type(),
+    ));
+    graphs.push(build_closed_union_validate(
+        assembler,
+        alloc.next(),
+        effect_environment_function,
+        prims.union,
+        &[
+            (replay_bindings_function, unit_validation_result_type()),
+            (adapter_configs_function, unit_validation_result_type()),
+        ],
+    ));
+    graphs.push(build_exact_width_validate(
+        assembler,
+        alloc.next(),
+        failure_code_function,
+        prims.exact_uvar,
+        32,
+    ));
+    graphs.push(build_closed_union_validate(
+        assembler,
+        alloc.next(),
+        expected_outcome_function,
+        prims.union,
+        &[
+            (const_value, bytes_validation_result_type()),
+            (failure_code_function, unit_validation_result_type()),
+        ],
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        observation_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Bytes(const_value),
+        ],
+        prims.decoders(prims.record(2)),
+    ));
+    graphs.push(build_unit_list_validate(
+        assembler,
+        alloc.next(),
+        observations_function,
+        prims.list,
+        observation_function,
+        unit_validation_result_type(),
+    ));
+    graphs.push(build_projected_record_validate(
+        assembler,
+        alloc.next(),
+        resource_limits_function,
+        &[SimpleFieldValidator::ExactUvar(64); 6],
+        prims.decoders(prims.record(6)),
+    ));
+    simple_schema_recipe(
+        assembler,
+        alloc,
+        prims,
+        14,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(const_list_function),
+            SimpleFieldValidator::Unit(effect_environment_function),
+            SimpleFieldValidator::Unit(expected_outcome_function),
+            SimpleFieldValidator::Unit(observations_function),
+            SimpleFieldValidator::Unit(resource_limits_function),
+        ],
+        graphs,
+    )
+}
+
+/// Every entity kind's arbitrary schema decoder, built over one shared
+/// primitive closure. Kinds are returned in ascending order; kind 18 is
+/// omitted because the dispatcher routes it to the retained
+/// `DependencyBinding` decoder.
+#[allow(clippy::too_many_lines)]
+fn all_schema_recipes(
+    assembler: &mut Asm,
+    alloc: &mut NsAlloc,
+    ids: u8,
+) -> (Vec<SchemaEntry>, Vec<FunctionGraph>) {
+    let (prims, mut graphs) = build_primitives(assembler, alloc, ids);
+    let const_value = const_value_recipe(assembler, alloc, &prims, &mut graphs);
+    let structure = program_structure_recipe(assembler, alloc, &prims, &mut graphs);
+    let optional_parent_function = prims.id(assembler);
+    graphs.push(build_option_unit_validate(
+        assembler,
+        alloc.next(),
+        optional_parent_function,
+        prims.union,
+        prims.fixed32,
+        bytes_validation_result_type(),
+    ));
+    let visibility = SimpleFieldValidator::BoundedUvar {
+        minimum: 1,
+        maximum: 4,
+    };
+    let mut entries = vec![
+        simple_schema_recipe(
+            assembler,
+            alloc,
+            &prims,
+            1,
+            &[
+                SimpleFieldValidator::EntityIds { ordered: true },
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::EntityIds { ordered: true },
+                SimpleFieldValidator::EntityIds { ordered: true },
+                SimpleFieldValidator::EntityIds { ordered: true },
+            ],
+            &mut graphs,
+        ),
+        simple_schema_recipe(
+            assembler,
+            alloc,
+            &prims,
+            2,
+            &[
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::EntityIds { ordered: true },
+                SimpleFieldValidator::EntityIds { ordered: true },
+            ],
+            &mut graphs,
+        ),
+        simple_schema_recipe(
+            assembler,
+            alloc,
+            &prims,
+            3,
+            &[
+                SimpleFieldValidator::Unit(optional_parent_function),
+                SimpleFieldValidator::EntityIds { ordered: true },
+            ],
+            &mut graphs,
+        ),
+        type_def_recipe(assembler, alloc, &prims, &mut graphs),
+        function_recipe(assembler, alloc, &prims, &mut graphs),
+        parameter_recipe(assembler, alloc, &prims, &mut graphs),
+        block_recipe(assembler, alloc, &prims, structure, &mut graphs),
+        operation_recipe(assembler, alloc, &prims, structure, &mut graphs),
+        simple_schema_recipe(
+            assembler,
+            alloc,
+            &prims,
+            9,
+            &[SimpleFieldValidator::Bytes(const_value)],
+            &mut graphs,
+        ),
+        simple_schema_recipe(
+            assembler,
+            alloc,
+            &prims,
+            10,
+            &[
+                SimpleFieldValidator::TypeExpr,
+                SimpleFieldValidator::Fixed32,
+                visibility,
+            ],
+            &mut graphs,
+        ),
+        simple_schema_recipe(
+            assembler,
+            alloc,
+            &prims,
+            11,
+            &[
+                SimpleFieldValidator::BoundedUvar {
+                    minimum: 1,
+                    maximum: 8,
+                },
+                SimpleFieldValidator::TypeExpr,
+                SimpleFieldValidator::TypeExpr,
+                SimpleFieldValidator::TypeExpr,
+                SimpleFieldValidator::TypeExpr,
+                visibility,
+            ],
+            &mut graphs,
+        ),
+        capability_requirement_recipe(assembler, alloc, &prims, const_value, &mut graphs),
+        contract_recipe(assembler, alloc, &prims, &mut graphs),
+        test_case_recipe(assembler, alloc, &prims, const_value, &mut graphs),
+        simple_schema_recipe(
+            assembler,
+            alloc,
+            &prims,
+            15,
+            &[
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::ExactUvar(32),
+                SimpleFieldValidator::TypeExpr,
+                SimpleFieldValidator::TypeExpr,
+                SimpleFieldValidator::TypeExpr,
+                SimpleFieldValidator::EntityIds { ordered: true },
+            ],
+            &mut graphs,
+        ),
+        simple_schema_recipe(
+            assembler,
+            alloc,
+            &prims,
+            16,
+            &[
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::BoundedUvar {
+                    minimum: 1,
+                    maximum: 2,
+                },
+            ],
+            &mut graphs,
+        ),
+        simple_schema_recipe(
+            assembler,
+            alloc,
+            &prims,
+            17,
+            &[
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::EntityIds { ordered: true },
+            ],
+            &mut graphs,
+        ),
+    ];
+    entries.sort_by_key(|entry| entry.kind);
+    (entries, graphs)
+}
+
+/// `(kind, body, unit) -> Result<Unit, Bytes>`: routes a declared kind to its
+/// arbitrary schema decoder and forwards that decoder's refusal unchanged;
+/// a kind with no decoder is `SSMC_ENTITY_KIND_UNKNOWN`.
+#[allow(clippy::too_many_lines)]
+fn build_schema_body_check(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    entries: &[SchemaEntry],
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let kind = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let unknown_code = assembler.kbytes(ns.k, b"SSMC_ENTITY_KIND_UNKNOWN");
+    let forward_error = forward_error_block(assembler, ns, function, &result_type);
+    let unknown_error = err_block(assembler, ns, function, result_type.clone(), unknown_code);
+    let success = unit_success_block(assembler, ns, function, unit, &result_type);
+    let calls = entries
+        .iter()
+        .map(|_| assembler.id(ns.b))
+        .collect::<Vec<_>>();
+    let checks = entries
+        .iter()
+        .map(|_| assembler.id(ns.b))
+        .collect::<Vec<_>>();
+
+    for (block, entry) in calls.iter().copied().zip(entries.iter().copied()) {
+        let decoded = assembler.op(
+            ns.o,
+            block,
+            Opcode::CallDirect,
+            vec![pav(body), pav(unit)],
+            vec![entry.result_type()],
+            Immediate::Function(FunctionRefValue {
+                function: entry.function,
+                type_arguments: Vec::new(),
+            }),
+        );
+        append_block(
+            assembler,
+            block,
+            function,
+            Vec::new(),
+            vec![decoded],
+            switch(
+                op_result(decoded),
+                vec![
+                    (BuiltinCase::Ok, success, Vec::new()),
+                    (
+                        BuiltinCase::Err,
+                        forward_error,
+                        vec![SwitchArgument::CasePayload],
+                    ),
+                ],
+            ),
+        );
+    }
+
+    for (index, (block, entry)) in checks
+        .iter()
+        .copied()
+        .zip(entries.iter().copied())
+        .enumerate()
+    {
+        let expected = u64_const(assembler, ns, block, entry.kind);
+        let matches = bool_op(
+            assembler,
+            ns,
+            block,
+            Opcode::Equal,
+            vec![pav(kind), op_result(expected)],
+        );
+        let fallback = checks.get(index + 1).copied().unwrap_or(unknown_error);
+        append_block(
+            assembler,
+            block,
+            function,
+            Vec::new(),
+            vec![expected, matches],
+            cond(
+                op_result(matches),
+                edge(calls[index], Vec::new()),
+                edge(fallback, Vec::new()),
+            ),
+        );
+    }
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![kind, body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: checks[0],
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+/// Builds the schema body checker and every decoder it reaches into an
+/// existing assembler, avoiding the host image's reserved namespaces.
+pub(super) fn build_arbitrary_schema_body_check(
+    assembler: &mut Asm,
+    checker: EntityId,
+    reserved: Vec<std::ops::RangeInclusive<u8>>,
+    ids: u8,
+) -> Vec<FunctionGraph> {
+    let mut alloc = NsAlloc::new(1, reserved);
+    let (entries, mut graphs) = all_schema_recipes(assembler, &mut alloc, ids);
+    graphs.push(build_schema_body_check(
+        assembler,
+        alloc.next(),
+        checker,
+        &entries,
+    ));
+    graphs
+}
+
+fn entity_body_bytes(entity: [u8; 32], body: sley_mutate::value::EntityBodyValue) -> Vec<u8> {
+    let record = sley_mutate::EntityObjectRecord {
+        entity_id: EntityId::from_bytes(entity),
+        body,
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        .expect("native builds arbitrary body fixture")
+        .stored_bytes()
+        .to_vec();
+    ns_body_of(&stored)
+}
+
+/// Rich canonical bodies for the kinds whose earlier dispatch profiles were
+/// pinned to empty collections or fixed choices.
+fn rich_identity_bodies() -> Vec<(u64, Vec<u8>)> {
+    use sley_mutate::value::{
+        EntityBodyValue, EntityIdSet, EntryPointBody, NamespaceBody, PackageBody,
+        PolicyBindingBody, WorkspaceBody,
+    };
+
+    let set = |fills: &[u8]| {
+        EntityIdSet::from_unsorted(
+            fills
+                .iter()
+                .map(|fill| EntityId::from_bytes([*fill; 32]))
+                .collect(),
+        )
+        .expect("fixture identity sets are canonical")
+    };
+    vec![
+        (
+            1,
+            entity_body_bytes(
+                [0xa1; 32],
+                EntityBodyValue::Workspace(WorkspaceBody {
+                    packages: set(&[0x13, 0x11]),
+                    root_namespace: EntityId::from_bytes([0x12; 32]),
+                    capability_requirements: set(&[0x14]),
+                    contracts: set(&[0x16, 0x15]),
+                    tests: set(&[0x17]),
+                }),
+            ),
+        ),
+        (
+            2,
+            entity_body_bytes(
+                [0xa2; 32],
+                EntityBodyValue::Package(PackageBody {
+                    workspace: EntityId::from_bytes([0x21; 32]),
+                    root_namespace: EntityId::from_bytes([0x22; 32]),
+                    dependencies: set(&[0x24, 0x23]),
+                    exports: set(&[0x25]),
+                }),
+            ),
+        ),
+        (
+            3,
+            entity_body_bytes(
+                [0xa3; 32],
+                EntityBodyValue::Namespace(NamespaceBody {
+                    parent: Some(EntityId::from_bytes([0x31; 32])),
+                    members: set(&[0x33, 0x32]),
+                }),
+            ),
+        ),
+        (
+            16,
+            entity_body_bytes(
+                [0xa6; 32],
+                EntityBodyValue::EntryPoint(EntryPointBody {
+                    function: EntityId::from_bytes([0x61; 32]),
+                    exposure: sley_ssmc::EntryExposure::Protocol,
+                }),
+            ),
+        ),
+        (
+            17,
+            entity_body_bytes(
+                [0xa7; 32],
+                EntityBodyValue::PolicyBinding(PolicyBindingBody {
+                    subject: EntityId::from_bytes([0x71; 32]),
+                    requirements: set(&[0x73, 0x72]),
+                }),
+            ),
+        ),
+    ]
+}
+
+/// Every rich per-kind fixture built today, keyed by entity kind.
+fn rich_schema_bodies() -> Vec<(u64, Vec<u8>)> {
+    use sley_ssmc::{ExpectedOutcome, ReturnTerminator, Terminator};
+
+    let mut bodies = rich_identity_bodies();
+    bodies.push((4, type_def_schema_body(type_def_record_form())));
+    bodies.push((4, type_def_schema_body(type_def_variant_form())));
+    bodies.push((5, function_schema_body()));
+    bodies.push((
+        6,
+        parameter_schema_body(
+            ParameterRole::Block,
+            u32::MAX,
+            TypeExpr::Option(Box::new(TypeExpr::Tuple(vec![
+                TypeExpr::Bool,
+                TypeExpr::Bytes,
+            ]))),
+        ),
+    ));
+    for terminator in every_block_terminator() {
+        bodies.push((7, block_schema_body(terminator)));
+    }
+    bodies.push((
+        7,
+        block_schema_body(Terminator::Return(ReturnTerminator {
+            value: ValueRef::Parameter(EntityId::from_bytes([0x73; 32])),
+        })),
+    ));
+    for immediate in every_operation_immediate() {
+        bodies.push((8, operation_schema_body(immediate)));
+    }
+    bodies.push((9, constant_schema_body(scope_const_value(0x10))));
+    bodies.push((
+        10,
+        global_value_schema_body(
+            TypeExpr::Vector(Box::new(TypeExpr::Text)),
+            Visibility::Workspace,
+        ),
+    ));
+    bodies.push((11, effect_def_schema_body()));
+    bodies.push((
+        12,
+        capability_requirement_schema_body(vec![scope_const_value(0x20), scope_const_value(0x31)]),
+    ));
+    bodies.push((13, contract_schema_body(true)));
+    bodies.push((13, contract_schema_body(false)));
+    bodies.push((
+        14,
+        test_case_schema_body(
+            replay_environment(),
+            ExpectedOutcome::Value(scope_const_value(0x60)),
+        ),
+    ));
+    bodies.push((
+        14,
+        test_case_schema_body(
+            adapter_environment(),
+            ExpectedOutcome::FailureCode(u32::MAX),
+        ),
+    ));
+    bodies.push((15, adapter_import_schema_body()));
+    bodies
+}
+
+fn arbitrary_dispatch_decode(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    kind: u64,
+    stored: &[u8],
+) -> (Result<Vec<ConstValue>, Vec<u8>>, sley_vm::ExecutionOutcome) {
+    let outcome = execute_with_limits(
+        package,
+        approved,
+        vec![u64_input(kind), bytes_input(stored), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
+        panic!(
+            "arbitrary dispatch must return a typed result for kind {kind}: {:?}",
+            outcome.termination
+        )
+    };
+    let ConstData::Result(result) = &value.data else {
+        panic!("arbitrary dispatch must return a Result: {value:?}")
+    };
+    let verdict = match result {
+        ResultConst::Ok(accepted) => {
+            let ConstData::Sequence(fields) = &accepted.data else {
+                panic!("arbitrary dispatch must return the six-field tuple")
+            };
+            Ok(fields.clone())
+        }
+        ResultConst::Err(error) => {
+            let ConstData::Bytes(code) = &error.data else {
+                panic!("arbitrary dispatch refusal must be Bytes")
+            };
+            Err(code.clone())
+        }
+    };
+    (verdict, outcome)
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn arbitrary_dispatch_accepts_representative_and_rich_bodies_for_all_kinds() {
+    let image = super::all_kind_digest_dispatch::arbitrary_all_kind_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "ARBITRARY_ALL_KIND functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 108);
+    assert_eq!(image.parameters.len(), 5_790);
+    assert_eq!(image.blocks.len(), 1_701);
+    assert_eq!(image.operations.len(), 3_034);
+    assert_eq!(image.constants.len(), 137);
+    assert_eq!(package.image_bytes.len(), 397_266);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x89, 0xeb, 0x11, 0x2f, 0x7c, 0x57, 0x4f, 0x1f, 0xbd, 0x6b, 0x18, 0xf3, 0x4d, 0xbf,
+            0x4c, 0x15, 0x84, 0x9c, 0xa4, 0x0a, 0xc9, 0x15, 0x37, 0xc8, 0x11, 0xc3, 0x27, 0xaa,
+            0x95, 0x44, 0xaf, 0x61,
+        ]
+    );
+
+    let mut bodies = super::all_kind_digest_dispatch::fixed_profile_bodies();
+    bodies.extend(rich_schema_bodies());
+    let mut kinds_seen = std::collections::BTreeSet::new();
+    let mut peak = (0_u64, 0_u64, 0_u64);
+    for (kind, body) in bodies {
+        kinds_seen.insert(kind);
+        let entity = [0x20_u8 + u8::try_from(kind).expect("entity kind fits u8"); 32];
+        let stored = super::all_kind_digest_dispatch::stored_from_body(entity, &body);
+        sley_mutate::import_entity_object(program_epoch9(), &stored)
+            .expect("every fixture is accepted by the native codec");
+        let (verdict, outcome) = arbitrary_dispatch_decode(&package, &approved, kind, &stored);
+        let fields = verdict.unwrap_or_else(|code| {
+            panic!(
+                "kind {kind} body must be accepted, refused {}",
+                String::from_utf8_lossy(&code)
+            )
+        });
+        assert_eq!(fields.len(), 6);
+        assert_eq!(fields[0].data, ConstData::UInt(u128::from(kind)));
+        assert_eq!(fields[1].data, ConstData::Bytes(entity.to_vec()));
+        if kind == 18 {
+            assert_eq!(fields[2].data, ConstData::Bytes(vec![0xb1; 32]));
+            assert_eq!(fields[3].data, ConstData::Bytes(vec![0xb2; 32]));
+            assert_eq!(fields[4].data, ConstData::Bytes(vec![0xb3; 32]));
+        } else {
+            assert_eq!(fields[2].data, ConstData::Bytes(body.clone()));
+            assert_eq!(fields[3].data, ConstData::Bytes(Vec::new()));
+            assert_eq!(fields[4].data, ConstData::Bytes(Vec::new()));
+        }
+        assert_eq!(fields[5].data, ConstData::UInt(0));
+        eprintln!(
+            "ARBITRARY_ALL_KIND kind{kind} stored{}B fuel={} instructions={} peak={}",
+            stored.len(),
+            outcome.fuel_used,
+            outcome.instruction_count,
+            outcome.peak_value_units,
+        );
+        peak = (
+            peak.0.max(outcome.fuel_used),
+            peak.1.max(outcome.instruction_count),
+            peak.2.max(outcome.peak_value_units),
+        );
+    }
+    assert_eq!(kinds_seen.len(), 18, "every entity kind is exercised");
+    eprintln!(
+        "ARBITRARY_ALL_KIND peak fuel={} instructions={} value_units={}",
+        peak.0, peak.1, peak.2
+    );
+    assert_eq!(peak, (656_148, 72_981, 35_625_029));
+}
+
+#[test]
+fn arbitrary_dispatch_forwards_schema_refusals_and_refuses_unknown_kinds() {
+    let image = super::all_kind_digest_dispatch::arbitrary_all_kind_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    let entity = [0xcc; 32];
+    let stored = |body: &[u8]| super::all_kind_digest_dispatch::stored_from_body(entity, body);
+
+    let workspace_fields = exact_entity_body_fields(&rich_identity_bodies()[0].1, 1, 5);
+    let mut unordered_packages = workspace_fields.clone();
+    unordered_packages[0] =
+        sley_scb1::encode_list(&[vec![0x13; 32], vec![0x11; 32]]).expect("list encodes");
+    let type_def_fields =
+        exact_entity_body_fields(&type_def_schema_body(type_def_record_form()), 4, 4);
+    let mut unknown_form = type_def_fields.clone();
+    unknown_form[1] = sley_scb1::encode_union(3, &[]).expect("union encodes");
+    let constant_fields = exact_entity_body_fields(
+        &constant_schema_body(const_of(TypeExpr::Bool, ConstData::Bool(true))),
+        9,
+        1,
+    );
+    let mut bad_leaf = constant_fields.clone();
+    *bad_leaf[0].last_mut().unwrap() = 2;
+
+    let cases: Vec<(&str, u64, Vec<u8>, &[u8])> = vec![
+        (
+            "unordered_workspace_packages",
+            1,
+            parameter_schema_with_fields(1, &unordered_packages),
+            b"SCB_MAP_ORDER",
+        ),
+        (
+            "unknown_type_def_form",
+            4,
+            parameter_schema_with_fields(4, &unknown_form),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "invalid_constant_leaf",
+            9,
+            parameter_schema_with_fields(9, &bad_leaf),
+            b"SCB_BOOL_INVALID",
+        ),
+        (
+            "declared_kind_mismatch",
+            2,
+            parameter_schema_with_fields(1, &workspace_fields),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "missing_workspace_field",
+            1,
+            parameter_schema_with_fields(1, &workspace_fields[..4]),
+            b"SCB_FIELD_MISSING",
+        ),
+        (
+            "unknown_kind_zero",
+            0,
+            parameter_schema_with_fields(1, &workspace_fields),
+            b"SSMC_ENTITY_KIND_UNKNOWN",
+        ),
+        (
+            "unknown_kind_nineteen",
+            19,
+            parameter_schema_with_fields(1, &workspace_fields),
+            b"SSMC_ENTITY_KIND_UNKNOWN",
+        ),
+    ];
+    for (name, kind, body, expected) in cases {
+        let (verdict, _) = arbitrary_dispatch_decode(&package, &approved, kind, &stored(&body));
+        assert_eq!(
+            verdict.as_ref().map_err(Vec::as_slice),
+            Err(expected),
+            "{name} refusal"
+        );
+    }
+}
