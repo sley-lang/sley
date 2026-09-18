@@ -51,6 +51,8 @@ use sley_ssmc::{
 
 #[path = "rw080_codec_program/supported_dispatch.rs"]
 mod supported_dispatch;
+#[path = "rw080_codec_program/supported_encode_dispatch.rs"]
+mod supported_encode_dispatch;
 
 fn eid(ns: u8, idx: u16) -> EntityId {
     let mut bytes = [0u8; 32];

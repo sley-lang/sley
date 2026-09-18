@@ -6,20 +6,15 @@
 use super::*;
 use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1};
 
-fn entrypoint_program_value_type() -> TypeExpr {
+pub(super) fn entrypoint_program_value_type() -> TypeExpr {
     TypeExpr::Tuple(vec![TypeExpr::Bytes, TypeExpr::Bytes, u64_type()])
 }
 
-fn namespace_program_value_type() -> TypeExpr {
-    TypeExpr::Tuple(vec![
-        TypeExpr::Bytes,
-        TypeExpr::Bytes,
-        TypeExpr::Bytes,
-        u64_type(),
-    ])
+pub(super) fn namespace_program_value_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![TypeExpr::Bytes, TypeExpr::Bytes, TypeExpr::Bytes])
 }
 
-fn supported_program_value_type() -> TypeExpr {
+pub(super) fn supported_program_value_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(entrypoint_program_value_type()),
         error: Box::new(namespace_program_value_type()),
@@ -33,7 +28,7 @@ fn supported_program_result_type() -> TypeExpr {
     }
 }
 
-fn push_preallocated_block(
+pub(super) fn push_preallocated_block(
     assembler: &mut Asm,
     entity_id: EntityId,
     function: EntityId,
@@ -55,7 +50,7 @@ fn push_preallocated_block(
 /// Once those graphs become one image, identical immutable values can share a
 /// definition. This keeps the composed codec inside the frozen value budget
 /// without changing any control flow or error value.
-fn deduplicate_identical_constants(image: &mut Image) -> usize {
+pub(super) fn deduplicate_identical_constants(image: &mut Image) -> usize {
     let mut retained = Vec::<ConstantDefinition>::new();
     let mut replacements = std::collections::BTreeMap::<EntityId, EntityId>::new();
     for constant in image.constants.drain(..) {
@@ -460,14 +455,6 @@ fn build_supported_program_decode(
         vec![TypeExpr::Bytes],
         Immediate::Index(1),
     );
-    let namespace_count = assembler.op(
-        ns.o,
-        normalize_namespace,
-        Opcode::TupleGet,
-        vec![pav(namespace_payload)],
-        vec![u64_type()],
-        Immediate::Index(2),
-    );
     let namespace_tuple = assembler.op(
         ns.o,
         normalize_namespace,
@@ -476,7 +463,6 @@ fn build_supported_program_decode(
             pav(namespace_id),
             op_result(namespace_parent),
             op_result(namespace_members),
-            op_result(namespace_count),
         ],
         vec![namespace_program_value_type()],
         Immediate::None,
@@ -505,7 +491,6 @@ fn build_supported_program_decode(
         vec![
             namespace_parent,
             namespace_members,
-            namespace_count,
             namespace_tuple,
             namespace_arm,
             namespace_ok,
@@ -638,7 +623,7 @@ fn build_supported_program_decode(
     }
 }
 
-fn supported_decode_image() -> Image {
+pub(super) fn supported_decode_image() -> Image {
     let mut assembler = Asm::new();
     let decode_ns = Ns {
         k: 131,
@@ -740,7 +725,7 @@ fn supported_decode_image() -> Image {
     image
 }
 
-fn supported_decode_call(
+pub(super) fn supported_decode_call(
     package: &sley_vm::ExecutionPackage,
     approved: &sley_vm::ApprovedExecutionPackage,
     kind: u64,
@@ -753,7 +738,7 @@ fn supported_decode_call(
     )
 }
 
-fn supported_decode_ok(outcome: &sley_vm::ExecutionOutcome) -> ConstValue {
+pub(super) fn supported_decode_ok(outcome: &sley_vm::ExecutionOutcome) -> ConstValue {
     let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
         panic!(
             "supported decoder must return a value, got {:?}; peak {}, fuel {}, instructions {}",
@@ -798,7 +783,7 @@ fn codec_supported_kind_dispatch_decodes_namespace_and_entrypoint() {
     // The existing Namespace program records the admitted resource envelope:
     // a parent-only object remains below the protected one-million-unit cap.
     let namespace = program_ns_stored(0xc1, Some(0xc2), &[]);
-    let (parent, members, count) = ns_semantics(Some(0xc2), &[]);
+    let (parent, members, _) = ns_semantics(Some(0xc2), &[]);
     let namespace_outcome = supported_decode_call(&package, &approved, 3, &namespace);
     let namespace_value = supported_decode_ok(&namespace_outcome);
     eprintln!(
@@ -814,11 +799,10 @@ fn codec_supported_kind_dispatch_decodes_namespace_and_entrypoint() {
     let ConstData::Sequence(fields) = namespace_fields.data else {
         panic!("namespace arm must carry a tuple")
     };
-    assert_eq!(fields.len(), 4);
+    assert_eq!(fields.len(), 3);
     assert_eq!(fields[0].data, ConstData::Bytes(vec![0xc1; 32]));
     assert_eq!(fields[1].data, ConstData::Bytes(parent));
     assert_eq!(fields[2].data, ConstData::Bytes(members));
-    assert_eq!(fields[3].data, ConstData::UInt(u128::from(count)));
 }
 
 #[test]

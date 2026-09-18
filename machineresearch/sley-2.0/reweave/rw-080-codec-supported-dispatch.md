@@ -28,8 +28,9 @@ classification, and selected-body failures follow it.
 This is a supported-kind decode entry with an explicit declared-kind
 input. It is not the final canonical `codec_main`: it does not derive
 the kind from a complete schema-aware program request, implement the
-other 16 entity bodies, process label/NFC/fingerprint fields, or provide
-the matching encode dispatcher.
+other 16 entity bodies, or process label/NFC/fingerprint fields. The
+matching bounded encode dispatcher landed later as slice 9
+(`rw-080-codec-supported-encode-dispatch.md`).
 
 ## 2. Result representation
 
@@ -40,7 +41,7 @@ The entry returns `Result<SupportedValue, Bytes>`, where
 - inner `Ok`: EntryPoint
   `(entity_id: Bytes, function: Bytes, exposure: UInt64)`;
 - inner `Err`: Namespace
-  `(entity_id: Bytes, parent: Bytes, members: Bytes, count: UInt64)`.
+  `(entity_id: Bytes, parent: Bytes, members: Bytes)`.
 
 The outer `Err(Bytes)` is reserved for the exact existing `SCB_*` or
 `SSMC_*` refusal code. This preserves the difference between a valid
@@ -71,7 +72,7 @@ The two added tests prove:
 
 - canonical EntryPoint kind 16 returns the inner EntryPoint arm;
 - canonical parent-only Namespace kind 3 returns the inner Namespace
-  arm with the exact entity, parent, empty member bytes, and count;
+  arm with the exact entity, parent, and empty member bytes;
 - declaring Namespace for an EntryPoint object reaches the Namespace
   decoder and refuses `SSMC_RESERVED_FIELD_PRESENT`;
 - declared known-unsupported kind 1 refuses
@@ -93,8 +94,8 @@ Under the unchanged limits (100,000 instructions, 1,000,000 fuel,
 
 | Kind | Stored bytes | Fuel | Instructions | Peak value units |
 |---|---:|---:|---:|---:|
-| EntryPoint 16 | 153 | 28,937 | 3,483 | 586,657 |
-| Namespace 3, parent present and no members | 155 | 30,265 | 3,653 | 604,971 |
+| EntryPoint 16 | 153 | 28,937 | 3,483 | 586,544 |
+| Namespace 3, parent present and no members | 155 | 30,264 | 3,652 | 604,759 |
 
 Two rejected internal designs are retained as engineering evidence.
 Dispatching to the two already composed whole-program wrappers added a
@@ -130,7 +131,8 @@ authority status is promoted.
 
 ## 7. Remaining dependency
 
-The next codec work is the canonical schema-bearing main entry: add the
-remaining body kinds, label/NFC/fingerprint handling and verification,
-then complete decode and encode dispatch. The current explicit-kind
-entry remains a bounded composition proof for kinds 3 and 16.
+The next codec work after the matching slice-9 encode dispatcher is to
+add the remaining body kinds, then label/NFC/fingerprint handling and
+verification on the path to a canonical schema-bearing main entry. The
+current explicit-kind entries remain bounded composition proofs for
+kinds 3 and 16.
