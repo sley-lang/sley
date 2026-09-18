@@ -11535,6 +11535,7 @@ fn build_unit_list_validate(
     function: EntityId,
     list_decoder: EntityId,
     element_decoder: EntityId,
+    element_result_type: TypeExpr,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
     let result_type = unit_validation_result_type();
@@ -11623,7 +11624,7 @@ fn build_unit_list_validate(
         element_call,
         Opcode::CallDirect,
         vec![pav(element_parameters[0]), pav(unit)],
-        vec![unit_validation_result_type()],
+        vec![element_result_type],
         Immediate::Function(FunctionRefValue {
             function: element_decoder,
             type_arguments: Vec::new(),
@@ -13861,6 +13862,7 @@ fn contract_schema_decode_image() -> Image {
         contract_bindings_function,
         list_function,
         contract_binding_function,
+        unit_validation_result_type(),
     );
     let resource_limits_graph = build_projected_record_validate(
         &mut assembler,
@@ -14215,6 +14217,7 @@ fn type_def_schema_decode_image() -> Image {
         record_fields_function,
         list_function,
         record_field_function,
+        unit_validation_result_type(),
     );
     let optional_payload_type_graph = build_option_unit_validate(
         &mut assembler,
@@ -14258,6 +14261,7 @@ fn type_def_schema_decode_image() -> Image {
         variant_cases_function,
         list_function,
         variant_case_function,
+        unit_validation_result_type(),
     );
     let type_def_form_graph = build_closed_union_validate(
         &mut assembler,
@@ -19225,4 +19229,2654 @@ fn const_leaf_validators_match_native_primitive_rules() {
             ),
         ],
     );
+}
+
+fn option_bytes_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(TypeExpr::Option(Box::new(TypeExpr::Bytes))),
+        error: Box::new(TypeExpr::Bytes),
+    }
+}
+
+/// Accepts exactly the empty payload (`ConstData::Unit`, tag 1) and refuses
+/// anything else as an invalid union, matching `1 if payload.is_empty()`.
+fn build_empty_payload_validate(assembler: &mut Asm, ns: Ns, function: EntityId) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = unit_validation_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let union_code = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
+    let union_error = err_block(assembler, ns, function, result_type.clone(), union_code);
+    let success = unit_success_block(assembler, ns, function, unit, &result_type);
+    let entry = assembler.id(ns.b);
+    let empty_constant = assembler.kbytes(ns.k, b"");
+    let empty = assembler.cref(ns.o, entry, empty_constant, TypeExpr::Bytes);
+    let is_empty = bool_op(
+        assembler,
+        ns,
+        entry,
+        Opcode::Equal,
+        vec![pav(body), op_result(empty)],
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![empty, is_empty],
+        cond(
+            op_result(is_empty),
+            edge(success, Vec::new()),
+            edge(union_error, Vec::new()),
+        ),
+    );
+    unit_validator_graph(assembler, function, body, unit, entry, block_start)
+}
+
+/// Projects the payload of a small closed union as an optional child:
+/// tags `1..=last_payload_tag` yield `Some(payload)`; when `none_tag` is
+/// set, that tag with an empty payload yields `None`; everything else is
+/// `SCB_UNION_INVALID`. Covers `Option<Box<ConstValue>>` (`none_tag = 0`,
+/// last tag 1) and `ResultConst` (no none tag, last tag 2).
+#[allow(clippy::too_many_lines)]
+fn build_tagged_child_projection(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    union_decoder: EntityId,
+    none_tag: Option<u64>,
+    last_payload_tag: u64,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = option_bytes_result_type();
+    let option_bytes_type = TypeExpr::Option(Box::new(TypeExpr::Bytes));
+    let union_type = TypeExpr::Tuple(vec![u64_type(), TypeExpr::Bytes]);
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let union_code = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
+    let forward_error = forward_error_block(assembler, ns, function, &result_type);
+    let union_error = err_block(assembler, ns, function, result_type.clone(), union_code);
+    let some_success = assembler.id(ns.b);
+    let payload_check = assembler.id(ns.b);
+    let union_ready = assembler.id(ns.b);
+
+    let some_parameters = block_parameters(assembler, ns.p, some_success, &[TypeExpr::Bytes]);
+    let some = assembler.op(
+        ns.o,
+        some_success,
+        Opcode::OptionSome,
+        vec![pav(some_parameters[0])],
+        vec![option_bytes_type.clone()],
+        Immediate::None,
+    );
+    let some_ok = assembler.op(
+        ns.o,
+        some_success,
+        Opcode::ResultOk,
+        vec![op_result(some)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        some_success,
+        function,
+        some_parameters,
+        vec![some, some_ok],
+        ret(op_result(some_ok)),
+    );
+
+    let none_check = none_tag.map(|tag| {
+        let none_success = assembler.id(ns.b);
+        let none = assembler.op(
+            ns.o,
+            none_success,
+            Opcode::OptionNone,
+            Vec::new(),
+            vec![option_bytes_type.clone()],
+            Immediate::None,
+        );
+        let none_ok = assembler.op(
+            ns.o,
+            none_success,
+            Opcode::ResultOk,
+            vec![op_result(none)],
+            vec![result_type.clone()],
+            Immediate::None,
+        );
+        append_block(
+            assembler,
+            none_success,
+            function,
+            Vec::new(),
+            vec![none, none_ok],
+            ret(op_result(none_ok)),
+        );
+
+        let none_check = assembler.id(ns.b);
+        let parameters =
+            block_parameters(assembler, ns.p, none_check, &[u64_type(), TypeExpr::Bytes]);
+        let expected = u64_const(assembler, ns, none_check, tag);
+        let empty_constant = assembler.kbytes(ns.k, b"");
+        let empty = assembler.cref(ns.o, none_check, empty_constant, TypeExpr::Bytes);
+        let tag_matches = bool_op(
+            assembler,
+            ns,
+            none_check,
+            Opcode::Equal,
+            vec![pav(parameters[0]), op_result(expected)],
+        );
+        let payload_empty = bool_op(
+            assembler,
+            ns,
+            none_check,
+            Opcode::Equal,
+            vec![pav(parameters[1]), op_result(empty)],
+        );
+        let is_none = bool_op(
+            assembler,
+            ns,
+            none_check,
+            Opcode::BoolAnd,
+            vec![op_result(tag_matches), op_result(payload_empty)],
+        );
+        append_block(
+            assembler,
+            none_check,
+            function,
+            parameters.clone(),
+            vec![expected, empty, tag_matches, payload_empty, is_none],
+            cond(
+                op_result(is_none),
+                edge(none_success, Vec::new()),
+                edge(payload_check, parameter_values(&parameters)),
+            ),
+        );
+        none_check
+    });
+
+    let payload_parameters = block_parameters(
+        assembler,
+        ns.p,
+        payload_check,
+        &[u64_type(), TypeExpr::Bytes],
+    );
+    let first = u64_const(assembler, ns, payload_check, 1);
+    let last = u64_const(assembler, ns, payload_check, last_payload_tag);
+    let at_least_first = bool_op(
+        assembler,
+        ns,
+        payload_check,
+        Opcode::GreaterEqual,
+        vec![pav(payload_parameters[0]), op_result(first)],
+    );
+    let at_most_last = bool_op(
+        assembler,
+        ns,
+        payload_check,
+        Opcode::LessEqual,
+        vec![pav(payload_parameters[0]), op_result(last)],
+    );
+    let in_range = bool_op(
+        assembler,
+        ns,
+        payload_check,
+        Opcode::BoolAnd,
+        vec![op_result(at_least_first), op_result(at_most_last)],
+    );
+    append_block(
+        assembler,
+        payload_check,
+        function,
+        payload_parameters.clone(),
+        vec![first, last, at_least_first, at_most_last, in_range],
+        cond(
+            op_result(in_range),
+            edge(some_success, vec![pav(payload_parameters[1])]),
+            edge(union_error, Vec::new()),
+        ),
+    );
+
+    let union_parameters = block_parameters(
+        assembler,
+        ns.p,
+        union_ready,
+        std::slice::from_ref(&union_type),
+    );
+    let tag = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(0),
+    );
+    let payload = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    append_block(
+        assembler,
+        union_ready,
+        function,
+        union_parameters,
+        vec![tag, payload],
+        branch(edge(
+            none_check.unwrap_or(payload_check),
+            vec![op_result(tag), op_result(payload)],
+        )),
+    );
+
+    let entry = assembler.id(ns.b);
+    let decoded = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![generic_union_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: union_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![decoded],
+        switch(
+            op_result(decoded),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    union_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+/// How one two-field entry list contributes children.
+#[derive(Clone, Copy)]
+enum EntryListMode {
+    /// `Vec<FieldConst>`: field 1 is an exact member identity, field 2 is
+    /// the child value.
+    RecordFields,
+    /// `Vec<MapEntryConst>`: both fields are children, and the raw key
+    /// bytes must be strictly increasing (`SCB_MAP_DUPLICATE` /
+    /// `SCB_MAP_ORDER`).
+    MapEntries,
+}
+
+/// Walks a canonical list of two-field records and returns the projected
+/// children as an indexed map in list order.
+#[allow(clippy::too_many_lines)]
+fn build_entry_list_children(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    list_decoder: EntityId,
+    record2_decoder: EntityId,
+    fixed32_decoder: EntityId,
+    mode: EntryListMode,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = generic_record_result_type();
+    let map_type = generic_record_map_type();
+    let option_bytes_type = TypeExpr::Option(Box::new(TypeExpr::Bytes));
+    let pair_type = TypeExpr::Tuple(vec![TypeExpr::Bytes; 2]);
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let forward_error = forward_error_block(assembler, ns, function, &result_type);
+    let invariant_trap = trap_block(assembler, ns, function);
+    let success = assembler.id(ns.b);
+    let advance = assembler.id(ns.b);
+    let insert = assembler.id(ns.b);
+    let pair_ready = assembler.id(ns.b);
+    let element_call = assembler.id(ns.b);
+    let loop_check = assembler.id(ns.b);
+    let list_ready = assembler.id(ns.b);
+    // (list, index, out, out_index, previous key)
+    let state_types = vec![
+        map_type.clone(),
+        u64_type(),
+        map_type.clone(),
+        u64_type(),
+        TypeExpr::Bytes,
+    ];
+
+    let success_parameters =
+        block_parameters(assembler, ns.p, success, std::slice::from_ref(&map_type));
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![pav(success_parameters[0])],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        success_parameters,
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let advance_parameters = block_parameters(assembler, ns.p, advance, &state_types);
+    let step = u64_const(assembler, ns, advance, 1);
+    let next = assembler.op(
+        ns.o,
+        advance,
+        Opcode::IntAddChecked,
+        vec![pav(advance_parameters[1]), op_result(step)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        advance,
+        function,
+        advance_parameters.clone(),
+        vec![step, next],
+        switch(
+            op_result(next),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    loop_check,
+                    vec![
+                        sav(advance_parameters[0]),
+                        SwitchArgument::CasePayload,
+                        sav(advance_parameters[2]),
+                        sav(advance_parameters[3]),
+                        sav(advance_parameters[4]),
+                    ],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    // insert(first, second, list, index, out, out_index): appends the
+    // children this mode projects and carries the key forward.
+    let mut insert_types = vec![TypeExpr::Bytes, TypeExpr::Bytes];
+    insert_types.extend_from_slice(&state_types[..4]);
+    let insert_parameters = block_parameters(assembler, ns.p, insert, &insert_types);
+    let mut insert_operations = Vec::new();
+    let insert_step = u64_const(assembler, ns, insert, 1);
+    insert_operations.push(insert_step);
+    match mode {
+        EntryListMode::RecordFields => {
+            let inserted = assembler.op(
+                ns.o,
+                insert,
+                Opcode::MapInsert,
+                vec![
+                    pav(insert_parameters[4]),
+                    pav(insert_parameters[5]),
+                    pav(insert_parameters[1]),
+                ],
+                vec![map_type.clone()],
+                Immediate::None,
+            );
+            let advanced = assembler.op(
+                ns.o,
+                insert,
+                Opcode::IntAddChecked,
+                vec![pav(insert_parameters[5]), op_result(insert_step)],
+                vec![arith_result(u64_type())],
+                Immediate::None,
+            );
+            insert_operations.extend([inserted, advanced]);
+            append_block(
+                assembler,
+                insert,
+                function,
+                insert_parameters.clone(),
+                insert_operations,
+                switch(
+                    op_result(advanced),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            advance,
+                            vec![
+                                sav(insert_parameters[2]),
+                                sav(insert_parameters[3]),
+                                oav(inserted),
+                                SwitchArgument::CasePayload,
+                                sav(insert_parameters[0]),
+                            ],
+                        ),
+                        (BuiltinCase::Err, invariant_trap, Vec::new()),
+                    ],
+                ),
+            );
+        }
+        EntryListMode::MapEntries => {
+            let first_inserted = assembler.op(
+                ns.o,
+                insert,
+                Opcode::MapInsert,
+                vec![
+                    pav(insert_parameters[4]),
+                    pav(insert_parameters[5]),
+                    pav(insert_parameters[0]),
+                ],
+                vec![map_type.clone()],
+                Immediate::None,
+            );
+            let second_index = assembler.op(
+                ns.o,
+                insert,
+                Opcode::IntAddChecked,
+                vec![pav(insert_parameters[5]), op_result(insert_step)],
+                vec![arith_result(u64_type())],
+                Immediate::None,
+            );
+            insert_operations.extend([first_inserted, second_index]);
+            // The second insert needs the unwrapped index, so it continues
+            // in a follow-on block reached through the checked add.
+            let second_insert = assembler.id(ns.b);
+            let second_types = vec![
+                TypeExpr::Bytes,
+                TypeExpr::Bytes,
+                map_type.clone(),
+                u64_type(),
+                map_type.clone(),
+                u64_type(),
+            ];
+            let second_parameters = block_parameters(assembler, ns.p, second_insert, &second_types);
+            let second_step = u64_const(assembler, ns, second_insert, 1);
+            let second_inserted = assembler.op(
+                ns.o,
+                second_insert,
+                Opcode::MapInsert,
+                vec![
+                    pav(second_parameters[4]),
+                    pav(second_parameters[5]),
+                    pav(second_parameters[1]),
+                ],
+                vec![map_type.clone()],
+                Immediate::None,
+            );
+            let next_out = assembler.op(
+                ns.o,
+                second_insert,
+                Opcode::IntAddChecked,
+                vec![pav(second_parameters[5]), op_result(second_step)],
+                vec![arith_result(u64_type())],
+                Immediate::None,
+            );
+            append_block(
+                assembler,
+                second_insert,
+                function,
+                second_parameters.clone(),
+                vec![second_step, second_inserted, next_out],
+                switch(
+                    op_result(next_out),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            advance,
+                            vec![
+                                sav(second_parameters[2]),
+                                sav(second_parameters[3]),
+                                oav(second_inserted),
+                                SwitchArgument::CasePayload,
+                                sav(second_parameters[0]),
+                            ],
+                        ),
+                        (BuiltinCase::Err, invariant_trap, Vec::new()),
+                    ],
+                ),
+            );
+            append_block(
+                assembler,
+                insert,
+                function,
+                insert_parameters.clone(),
+                insert_operations,
+                switch(
+                    op_result(second_index),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            second_insert,
+                            vec![
+                                sav(insert_parameters[0]),
+                                sav(insert_parameters[1]),
+                                sav(insert_parameters[2]),
+                                sav(insert_parameters[3]),
+                                oav(first_inserted),
+                                SwitchArgument::CasePayload,
+                            ],
+                        ),
+                        (BuiltinCase::Err, invariant_trap, Vec::new()),
+                    ],
+                ),
+            );
+        }
+    }
+
+    // pair_ready(pair, list, index, out, out_index, previous): validates
+    // the mode's first field, then inserts.
+    let mut pair_types = vec![pair_type.clone()];
+    pair_types.extend_from_slice(&state_types);
+    let pair_parameters = block_parameters(assembler, ns.p, pair_ready, &pair_types);
+    let first = assembler.op(
+        ns.o,
+        pair_ready,
+        Opcode::TupleGet,
+        vec![pav(pair_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(0),
+    );
+    let second = assembler.op(
+        ns.o,
+        pair_ready,
+        Opcode::TupleGet,
+        vec![pav(pair_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    let insert_edge_arguments = |first: ValueRef, second: ValueRef| {
+        vec![
+            first,
+            second,
+            pav(pair_parameters[1]),
+            pav(pair_parameters[2]),
+            pav(pair_parameters[3]),
+            pav(pair_parameters[4]),
+        ]
+    };
+    match mode {
+        EntryListMode::RecordFields => {
+            let member_valid = assembler.op(
+                ns.o,
+                pair_ready,
+                Opcode::CallDirect,
+                vec![op_result(first), pav(unit)],
+                vec![bytes_validation_result_type()],
+                Immediate::Function(FunctionRefValue {
+                    function: fixed32_decoder,
+                    type_arguments: Vec::new(),
+                }),
+            );
+            let mut ok_arguments = vec![oav(first), oav(second)];
+            ok_arguments.extend(pair_parameters[1..5].iter().copied().map(sav));
+            append_block(
+                assembler,
+                pair_ready,
+                function,
+                pair_parameters.clone(),
+                vec![first, second, member_valid],
+                switch(
+                    op_result(member_valid),
+                    vec![
+                        (BuiltinCase::Ok, insert, ok_arguments),
+                        (
+                            BuiltinCase::Err,
+                            forward_error,
+                            vec![SwitchArgument::CasePayload],
+                        ),
+                    ],
+                ),
+            );
+        }
+        EntryListMode::MapEntries => {
+            let duplicate_code = assembler.kbytes(ns.k, b"SCB_MAP_DUPLICATE");
+            let order_code = assembler.kbytes(ns.k, b"SCB_MAP_ORDER");
+            let duplicate_error =
+                err_block(assembler, ns, function, result_type.clone(), duplicate_code);
+            let order_error = err_block(assembler, ns, function, result_type.clone(), order_code);
+            let order_check = assembler.id(ns.b);
+            let zero = u64_const(assembler, ns, pair_ready, 0);
+            let is_first = bool_op(
+                assembler,
+                ns,
+                pair_ready,
+                Opcode::Equal,
+                vec![pav(pair_parameters[2]), op_result(zero)],
+            );
+            append_block(
+                assembler,
+                pair_ready,
+                function,
+                pair_parameters.clone(),
+                vec![first, second, zero, is_first],
+                cond(
+                    op_result(is_first),
+                    edge(
+                        insert,
+                        insert_edge_arguments(op_result(first), op_result(second)),
+                    ),
+                    edge(
+                        order_check,
+                        vec![
+                            op_result(first),
+                            op_result(second),
+                            pav(pair_parameters[1]),
+                            pav(pair_parameters[2]),
+                            pav(pair_parameters[3]),
+                            pav(pair_parameters[4]),
+                            pav(pair_parameters[5]),
+                        ],
+                    ),
+                ),
+            );
+
+            // order_check(key, value, list, index, out, out_index, previous)
+            let mut order_types = vec![TypeExpr::Bytes, TypeExpr::Bytes];
+            order_types.extend_from_slice(&state_types);
+            let order_parameters = block_parameters(assembler, ns.p, order_check, &order_types);
+            let duplicate = bool_op(
+                assembler,
+                ns,
+                order_check,
+                Opcode::Equal,
+                vec![pav(order_parameters[6]), pav(order_parameters[0])],
+            );
+            let increasing = bool_op(
+                assembler,
+                ns,
+                order_check,
+                Opcode::LessThan,
+                vec![pav(order_parameters[6]), pav(order_parameters[0])],
+            );
+            let order_gate = assembler.id(ns.b);
+            append_block(
+                assembler,
+                order_check,
+                function,
+                order_parameters.clone(),
+                vec![duplicate, increasing],
+                cond(
+                    op_result(duplicate),
+                    edge(duplicate_error, Vec::new()),
+                    edge(
+                        order_gate,
+                        vec![
+                            op_result(increasing),
+                            pav(order_parameters[0]),
+                            pav(order_parameters[1]),
+                            pav(order_parameters[2]),
+                            pav(order_parameters[3]),
+                            pav(order_parameters[4]),
+                            pav(order_parameters[5]),
+                        ],
+                    ),
+                ),
+            );
+            let mut gate_types = vec![TypeExpr::Bool, TypeExpr::Bytes, TypeExpr::Bytes];
+            gate_types.extend_from_slice(&state_types[..4]);
+            let gate_parameters = block_parameters(assembler, ns.p, order_gate, &gate_types);
+            append_block(
+                assembler,
+                order_gate,
+                function,
+                gate_parameters.clone(),
+                Vec::new(),
+                cond(
+                    pav(gate_parameters[0]),
+                    edge(insert, parameter_values(&gate_parameters[1..])),
+                    edge(order_error, Vec::new()),
+                ),
+            );
+        }
+    }
+
+    let element_types = {
+        let mut types = vec![TypeExpr::Bytes];
+        types.extend_from_slice(&state_types);
+        types
+    };
+    let element_parameters = block_parameters(assembler, ns.p, element_call, &element_types);
+    let projected = assembler.op(
+        ns.o,
+        element_call,
+        Opcode::CallDirect,
+        vec![pav(element_parameters[0]), pav(unit)],
+        vec![exact_record_projection_result_type(2)],
+        Immediate::Function(FunctionRefValue {
+            function: record2_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    let mut projected_arguments = vec![SwitchArgument::CasePayload];
+    projected_arguments.extend(element_parameters[1..].iter().copied().map(sav));
+    append_block(
+        assembler,
+        element_call,
+        function,
+        element_parameters,
+        vec![projected],
+        switch(
+            op_result(projected),
+            vec![
+                (BuiltinCase::Ok, pair_ready, projected_arguments),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let loop_parameters = block_parameters(assembler, ns.p, loop_check, &state_types);
+    let item = assembler.op(
+        ns.o,
+        loop_check,
+        Opcode::MapGet,
+        vec![pav(loop_parameters[0]), pav(loop_parameters[1])],
+        vec![option_bytes_type],
+        Immediate::None,
+    );
+    let mut item_arguments = vec![SwitchArgument::CasePayload];
+    item_arguments.extend(loop_parameters.iter().copied().map(sav));
+    append_block(
+        assembler,
+        loop_check,
+        function,
+        loop_parameters.clone(),
+        vec![item],
+        switch(
+            op_result(item),
+            vec![
+                (BuiltinCase::None, success, vec![sav(loop_parameters[2])]),
+                (BuiltinCase::Some, element_call, item_arguments),
+            ],
+        ),
+    );
+
+    let list_parameters =
+        block_parameters(assembler, ns.p, list_ready, std::slice::from_ref(&map_type));
+    let map_new_result = TypeExpr::Result {
+        ok: Box::new(map_type.clone()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+    };
+    let out = assembler.op(
+        ns.o,
+        list_ready,
+        Opcode::MapNew,
+        Vec::new(),
+        vec![map_new_result],
+        Immediate::None,
+    );
+    let start = u64_const(assembler, ns, list_ready, 0);
+    let out_start = u64_const(assembler, ns, list_ready, 0);
+    let no_key_constant = assembler.kbytes(ns.k, b"");
+    let no_key = assembler.cref(ns.o, list_ready, no_key_constant, TypeExpr::Bytes);
+    append_block(
+        assembler,
+        list_ready,
+        function,
+        list_parameters.clone(),
+        vec![out, start, out_start, no_key],
+        switch(
+            op_result(out),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    loop_check,
+                    vec![
+                        sav(list_parameters[0]),
+                        oav(start),
+                        SwitchArgument::CasePayload,
+                        oav(out_start),
+                        oav(no_key),
+                    ],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let entry = assembler.id(ns.b);
+    let decoded_list = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![generic_record_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: list_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![decoded_list],
+        switch(
+            op_result(decoded_list),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    list_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+/// What the final field of a prefixed record projects.
+#[derive(Clone, Copy)]
+enum LastFieldChildren {
+    /// An indexed child map (`RecordConst.fields`).
+    Map(EntityId),
+    /// An optional single child (`VariantConst.payload`).
+    Optional(EntityId),
+}
+
+/// Projects a record whose leading fields are exact 32-byte identities and
+/// whose last field yields the node's children.
+#[allow(clippy::too_many_lines)]
+fn build_prefixed_record_child(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    exact_record_decoder: EntityId,
+    fixed32_decoder: EntityId,
+    identity_count: usize,
+    last: LastFieldChildren,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let field_count = identity_count + 1;
+    let (last_decoder, result_type) = match last {
+        LastFieldChildren::Map(decoder) => (decoder, generic_record_result_type()),
+        LastFieldChildren::Optional(decoder) => (decoder, option_bytes_result_type()),
+    };
+    let tuple_type = TypeExpr::Tuple(vec![TypeExpr::Bytes; field_count]);
+    let field_types = vec![TypeExpr::Bytes; field_count];
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let forward_error = forward_error_block(assembler, ns, function, &result_type);
+    let identity_checks = (0..identity_count)
+        .map(|_| assembler.id(ns.b))
+        .collect::<Vec<_>>();
+    let last_call = assembler.id(ns.b);
+    let record_ready = assembler.id(ns.b);
+
+    let last_parameters = block_parameters(assembler, ns.p, last_call, &field_types);
+    let children = assembler.op(
+        ns.o,
+        last_call,
+        Opcode::CallDirect,
+        vec![pav(last_parameters[identity_count]), pav(unit)],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: last_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        last_call,
+        function,
+        last_parameters,
+        vec![children],
+        ret(op_result(children)),
+    );
+
+    for (index, block) in identity_checks.iter().copied().enumerate() {
+        let parameters = block_parameters(assembler, ns.p, block, &field_types);
+        let validated = assembler.op(
+            ns.o,
+            block,
+            Opcode::CallDirect,
+            vec![pav(parameters[index]), pav(unit)],
+            vec![bytes_validation_result_type()],
+            Immediate::Function(FunctionRefValue {
+                function: fixed32_decoder,
+                type_arguments: Vec::new(),
+            }),
+        );
+        let destination = identity_checks.get(index + 1).copied().unwrap_or(last_call);
+        append_block(
+            assembler,
+            block,
+            function,
+            parameters.clone(),
+            vec![validated],
+            switch(
+                op_result(validated),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        destination,
+                        parameters.iter().copied().map(sav).collect(),
+                    ),
+                    (
+                        BuiltinCase::Err,
+                        forward_error,
+                        vec![SwitchArgument::CasePayload],
+                    ),
+                ],
+            ),
+        );
+    }
+
+    let record_parameters = block_parameters(
+        assembler,
+        ns.p,
+        record_ready,
+        std::slice::from_ref(&tuple_type),
+    );
+    let projected_fields = (0..field_count)
+        .map(|index| {
+            assembler.op(
+                ns.o,
+                record_ready,
+                Opcode::TupleGet,
+                vec![pav(record_parameters[0])],
+                vec![TypeExpr::Bytes],
+                Immediate::Index(u32::try_from(index).expect("record field index fits u32")),
+            )
+        })
+        .collect::<Vec<_>>();
+    append_block(
+        assembler,
+        record_ready,
+        function,
+        record_parameters,
+        projected_fields.clone(),
+        branch(edge(
+            identity_checks.first().copied().unwrap_or(last_call),
+            projected_fields.iter().copied().map(op_result).collect(),
+        )),
+    );
+
+    let entry = assembler.id(ns.b);
+    let decoded_record = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![exact_record_projection_result_type(field_count)],
+        Immediate::Function(FunctionRefValue {
+            function: exact_record_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![decoded_record],
+        switch(
+            op_result(decoded_record),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    record_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+/// One `ConstData` union arm as the child projector sees it.
+#[derive(Clone, Copy)]
+enum ConstDataArm {
+    /// A unit-result payload validator (leaf families).
+    Unit(EntityId),
+    /// A decoder returning an indexed child map.
+    List(EntityId),
+    /// A decoder returning an optional single child.
+    Optional(EntityId),
+}
+
+/// Shallow `ConstValue` child projector: validates the node's two-field
+/// record, its recursive `value_type`, and its `data` union, and returns the
+/// node's direct and list children in the worklist driver's shape.
+#[allow(clippy::too_many_lines)]
+fn build_const_value_children_decode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    record2_decoder: EntityId,
+    type_expr_decoder: EntityId,
+    union_decoder: EntityId,
+    arms: &[ConstDataArm; 16],
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = type_expr_children_result_type();
+    let map_type = generic_record_map_type();
+    let option_bytes_type = TypeExpr::Option(Box::new(TypeExpr::Bytes));
+    let tuple_type = TypeExpr::Tuple(vec![
+        option_bytes_type.clone(),
+        option_bytes_type.clone(),
+        map_type.clone(),
+    ]);
+    let pair_type = TypeExpr::Tuple(vec![TypeExpr::Bytes; 2]);
+    let union_type = TypeExpr::Tuple(vec![u64_type(), TypeExpr::Bytes]);
+    let map_new_result = TypeExpr::Result {
+        ok: Box::new(map_type.clone()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+    };
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let union_code = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
+    let forward_error = forward_error_block(assembler, ns, function, &result_type);
+    let union_error = err_block(assembler, ns, function, result_type.clone(), union_code);
+    let invariant_trap = trap_block(assembler, ns, function);
+    let success = assembler.id(ns.b);
+    let finish_unit = assembler.id(ns.b);
+    let finish_list = assembler.id(ns.b);
+    let finish_optional = assembler.id(ns.b);
+    let arm_calls = arms.iter().map(|_| assembler.id(ns.b)).collect::<Vec<_>>();
+    let tag_checks = arms.iter().map(|_| assembler.id(ns.b)).collect::<Vec<_>>();
+    let union_ready = assembler.id(ns.b);
+    let union_call = assembler.id(ns.b);
+    let type_check = assembler.id(ns.b);
+
+    let success_parameters = block_parameters(
+        assembler,
+        ns.p,
+        success,
+        &[
+            option_bytes_type.clone(),
+            option_bytes_type.clone(),
+            map_type.clone(),
+        ],
+    );
+    let tuple = assembler.op(
+        ns.o,
+        success,
+        Opcode::TupleNew,
+        success_parameters.iter().copied().map(pav).collect(),
+        vec![tuple_type],
+        Immediate::None,
+    );
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![op_result(tuple)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        success_parameters,
+        vec![tuple, ok],
+        ret(op_result(ok)),
+    );
+
+    let unit_first = assembler.op(
+        ns.o,
+        finish_unit,
+        Opcode::OptionNone,
+        Vec::new(),
+        vec![option_bytes_type.clone()],
+        Immediate::None,
+    );
+    let unit_second = assembler.op(
+        ns.o,
+        finish_unit,
+        Opcode::OptionNone,
+        Vec::new(),
+        vec![option_bytes_type.clone()],
+        Immediate::None,
+    );
+    let unit_map = assembler.op(
+        ns.o,
+        finish_unit,
+        Opcode::MapNew,
+        Vec::new(),
+        vec![map_new_result.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        finish_unit,
+        function,
+        Vec::new(),
+        vec![unit_first, unit_second, unit_map],
+        switch(
+            op_result(unit_map),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    success,
+                    vec![
+                        oav(unit_first),
+                        oav(unit_second),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let list_parameters = block_parameters(
+        assembler,
+        ns.p,
+        finish_list,
+        std::slice::from_ref(&map_type),
+    );
+    let list_first = assembler.op(
+        ns.o,
+        finish_list,
+        Opcode::OptionNone,
+        Vec::new(),
+        vec![option_bytes_type.clone()],
+        Immediate::None,
+    );
+    let list_second = assembler.op(
+        ns.o,
+        finish_list,
+        Opcode::OptionNone,
+        Vec::new(),
+        vec![option_bytes_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        finish_list,
+        function,
+        list_parameters.clone(),
+        vec![list_first, list_second],
+        branch(edge(
+            success,
+            vec![
+                op_result(list_first),
+                op_result(list_second),
+                pav(list_parameters[0]),
+            ],
+        )),
+    );
+
+    let optional_parameters = block_parameters(
+        assembler,
+        ns.p,
+        finish_optional,
+        std::slice::from_ref(&option_bytes_type),
+    );
+    let optional_second = assembler.op(
+        ns.o,
+        finish_optional,
+        Opcode::OptionNone,
+        Vec::new(),
+        vec![option_bytes_type.clone()],
+        Immediate::None,
+    );
+    let optional_map = assembler.op(
+        ns.o,
+        finish_optional,
+        Opcode::MapNew,
+        Vec::new(),
+        vec![map_new_result],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        finish_optional,
+        function,
+        optional_parameters.clone(),
+        vec![optional_second, optional_map],
+        switch(
+            op_result(optional_map),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    success,
+                    vec![
+                        sav(optional_parameters[0]),
+                        oav(optional_second),
+                        SwitchArgument::CasePayload,
+                    ],
+                ),
+                (BuiltinCase::Err, invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    for (block, arm) in arm_calls.iter().copied().zip(arms.iter().copied()) {
+        let parameters = block_parameters(assembler, ns.p, block, &[TypeExpr::Bytes]);
+        let (decoder, call_result_type, finish, ok_arguments) = match arm {
+            ConstDataArm::Unit(decoder) => (
+                decoder,
+                unit_validation_result_type(),
+                finish_unit,
+                Vec::new(),
+            ),
+            ConstDataArm::List(decoder) => (
+                decoder,
+                generic_record_result_type(),
+                finish_list,
+                vec![SwitchArgument::CasePayload],
+            ),
+            ConstDataArm::Optional(decoder) => (
+                decoder,
+                option_bytes_result_type(),
+                finish_optional,
+                vec![SwitchArgument::CasePayload],
+            ),
+        };
+        let called = assembler.op(
+            ns.o,
+            block,
+            Opcode::CallDirect,
+            vec![pav(parameters[0]), pav(unit)],
+            vec![call_result_type],
+            Immediate::Function(FunctionRefValue {
+                function: decoder,
+                type_arguments: Vec::new(),
+            }),
+        );
+        append_block(
+            assembler,
+            block,
+            function,
+            parameters,
+            vec![called],
+            switch(
+                op_result(called),
+                vec![
+                    (BuiltinCase::Ok, finish, ok_arguments),
+                    (
+                        BuiltinCase::Err,
+                        forward_error,
+                        vec![SwitchArgument::CasePayload],
+                    ),
+                ],
+            ),
+        );
+    }
+
+    for (index, block) in tag_checks.iter().copied().enumerate() {
+        let parameters = block_parameters(assembler, ns.p, block, &[u64_type(), TypeExpr::Bytes]);
+        let expected = u64_const(
+            assembler,
+            ns,
+            block,
+            u64::try_from(index + 1).expect("union tag fits u64"),
+        );
+        let tag_matches = bool_op(
+            assembler,
+            ns,
+            block,
+            Opcode::Equal,
+            vec![pav(parameters[0]), op_result(expected)],
+        );
+        let fallback = tag_checks.get(index + 1).copied().unwrap_or(union_error);
+        let fallback_arguments = if index + 1 < tag_checks.len() {
+            parameter_values(&parameters)
+        } else {
+            Vec::new()
+        };
+        append_block(
+            assembler,
+            block,
+            function,
+            parameters.clone(),
+            vec![expected, tag_matches],
+            cond(
+                op_result(tag_matches),
+                edge(arm_calls[index], vec![pav(parameters[1])]),
+                edge(fallback, fallback_arguments),
+            ),
+        );
+    }
+
+    let union_parameters = block_parameters(
+        assembler,
+        ns.p,
+        union_ready,
+        std::slice::from_ref(&union_type),
+    );
+    let tag = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(0),
+    );
+    let payload = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    append_block(
+        assembler,
+        union_ready,
+        function,
+        union_parameters,
+        vec![tag, payload],
+        branch(edge(
+            tag_checks[0],
+            vec![op_result(tag), op_result(payload)],
+        )),
+    );
+
+    let union_call_parameters = block_parameters(assembler, ns.p, union_call, &[TypeExpr::Bytes]);
+    let decoded_union = assembler.op(
+        ns.o,
+        union_call,
+        Opcode::CallDirect,
+        vec![pav(union_call_parameters[0]), pav(unit)],
+        vec![generic_union_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: union_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        union_call,
+        function,
+        union_call_parameters,
+        vec![decoded_union],
+        switch(
+            op_result(decoded_union),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    union_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let type_parameters = block_parameters(
+        assembler,
+        ns.p,
+        type_check,
+        std::slice::from_ref(&pair_type),
+    );
+    let value_type = assembler.op(
+        ns.o,
+        type_check,
+        Opcode::TupleGet,
+        vec![pav(type_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(0),
+    );
+    let data = assembler.op(
+        ns.o,
+        type_check,
+        Opcode::TupleGet,
+        vec![pav(type_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    let type_valid = assembler.op(
+        ns.o,
+        type_check,
+        Opcode::CallDirect,
+        vec![op_result(value_type), pav(unit)],
+        vec![bytes_validation_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: type_expr_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        type_check,
+        function,
+        type_parameters,
+        vec![value_type, data, type_valid],
+        switch(
+            op_result(type_valid),
+            vec![
+                (BuiltinCase::Ok, union_call, vec![oav(data)]),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let entry = assembler.id(ns.b);
+    let decoded_record = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![exact_record_projection_result_type(2)],
+        Immediate::Function(FunctionRefValue {
+            function: record2_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![decoded_record],
+        switch(
+            op_result(decoded_record),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    type_check,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+/// Bootstrap `ConstValue` decoder: the worklist driver over the constant
+/// child projector, with every leaf and composite arm reachable.
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn const_value_decode_image() -> Image {
+    let mut assembler = Asm::new();
+    let decode_function = assembler.id(110);
+    let record_function = assembler.id(110);
+    let union_function = assembler.id(110);
+    let list_function = assembler.id(110);
+    let fixed32_function = assembler.id(110);
+    let entity_id_collection_function = assembler.id(110);
+    let exact_uvar_function = assembler.id(110);
+    let bounded_uvar_function = assembler.id(110);
+    let type_expr_leaf_function = assembler.id(110);
+    let record2_function = assembler.id(110);
+    let record3_function = assembler.id(110);
+    let type_expr_children_function = assembler.id(110);
+    let type_expr_recursive_function = assembler.id(110);
+    let empty_payload_function = assembler.id(110);
+    let bool_function = assembler.id(110);
+    let uvar128_function = assembler.id(110);
+    let f32_function = assembler.id(110);
+    let f64_function = assembler.id(110);
+    let bytes_function = assembler.id(110);
+    let text_function = assembler.id(110);
+    let record_fields_function = assembler.id(110);
+    let record_const_function = assembler.id(110);
+    let option_child_function = assembler.id(110);
+    let variant_const_function = assembler.id(110);
+    let map_entries_function = assembler.id(110);
+    let result_child_function = assembler.id(110);
+    let type_arguments_function = assembler.id(110);
+    let function_ref_function = assembler.id(110);
+    let builtin_failure_function = assembler.id(110);
+    let const_children_function = assembler.id(110);
+    let function = assembler.id(110);
+    let (decode_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 111,
+            p: 111,
+            b: 111,
+            o: 111,
+        },
+        decode_function,
+    );
+    let record_graph = build_generic_record_decode(
+        &mut assembler,
+        Ns {
+            k: 112,
+            p: 112,
+            b: 112,
+            o: 112,
+        },
+        record_function,
+        decode_function,
+    );
+    let union_graph = build_generic_union_decode(
+        &mut assembler,
+        Ns {
+            k: 113,
+            p: 113,
+            b: 113,
+            o: 113,
+        },
+        union_function,
+        decode_function,
+    );
+    let list_graph = build_generic_list_decode(
+        &mut assembler,
+        Ns {
+            k: 114,
+            p: 114,
+            b: 114,
+            o: 114,
+        },
+        list_function,
+        decode_function,
+    );
+    let fixed32_graph = build_fixed32_decode(
+        &mut assembler,
+        Ns {
+            k: 115,
+            p: 115,
+            b: 115,
+            o: 115,
+        },
+        fixed32_function,
+    );
+    let entity_id_collection_graph = build_entity_id_collection_decode(
+        &mut assembler,
+        Ns {
+            k: 116,
+            p: 116,
+            b: 116,
+            o: 116,
+        },
+        entity_id_collection_function,
+        list_function,
+        fixed32_function,
+    );
+    let exact_uvar_graph = build_exact_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 117,
+            p: 117,
+            b: 117,
+            o: 117,
+        },
+        exact_uvar_function,
+        decode_function,
+    );
+    let bounded_uvar_graph = build_bounded_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 118,
+            p: 118,
+            b: 118,
+            o: 118,
+        },
+        bounded_uvar_function,
+        exact_uvar_function,
+    );
+    let type_expr_leaf_graph = build_type_expr_leaf_decode(
+        &mut assembler,
+        Ns {
+            k: 119,
+            p: 119,
+            b: 119,
+            o: 119,
+        },
+        type_expr_leaf_function,
+        union_function,
+        fixed32_function,
+        exact_uvar_function,
+        bounded_uvar_function,
+    );
+    let record2_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 120,
+            p: 120,
+            b: 120,
+            o: 120,
+        },
+        record2_function,
+        decode_function,
+        record_function,
+        2,
+    );
+    let record3_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 121,
+            p: 121,
+            b: 121,
+            o: 121,
+        },
+        record3_function,
+        decode_function,
+        record_function,
+        3,
+    );
+    let type_expr_children_graph = build_type_expr_children_decode(
+        &mut assembler,
+        Ns {
+            k: 122,
+            p: 122,
+            b: 122,
+            o: 122,
+        },
+        type_expr_children_function,
+        union_function,
+        type_expr_leaf_function,
+        list_function,
+        record2_function,
+        record3_function,
+        fixed32_function,
+        entity_id_collection_function,
+    );
+    let type_expr_recursive_graph = build_type_expr_recursive_decode(
+        &mut assembler,
+        Ns {
+            k: 123,
+            p: 123,
+            b: 123,
+            o: 123,
+        },
+        type_expr_recursive_function,
+        type_expr_children_function,
+    );
+    let empty_payload_graph = build_empty_payload_validate(
+        &mut assembler,
+        Ns {
+            k: 124,
+            p: 124,
+            b: 124,
+            o: 124,
+        },
+        empty_payload_function,
+    );
+    let bool_graph = build_bool_validate(
+        &mut assembler,
+        Ns {
+            k: 125,
+            p: 125,
+            b: 125,
+            o: 125,
+        },
+        bool_function,
+    );
+    let uvar128_graph = build_uvar128_validate(
+        &mut assembler,
+        Ns {
+            k: 126,
+            p: 126,
+            b: 126,
+            o: 126,
+        },
+        uvar128_function,
+    );
+    let f32_graph = build_float_bits_validate(
+        &mut assembler,
+        Ns {
+            k: 127,
+            p: 127,
+            b: 127,
+            o: 127,
+        },
+        f32_function,
+        4,
+    );
+    let f64_graph = build_float_bits_validate(
+        &mut assembler,
+        Ns {
+            k: 128,
+            p: 128,
+            b: 128,
+            o: 128,
+        },
+        f64_function,
+        8,
+    );
+    let bytes_graph = build_sized_payload_validate(
+        &mut assembler,
+        Ns {
+            k: 129,
+            p: 129,
+            b: 129,
+            o: 129,
+        },
+        bytes_function,
+        decode_function,
+        false,
+    );
+    let text_graph = build_sized_payload_validate(
+        &mut assembler,
+        Ns {
+            k: 130,
+            p: 130,
+            b: 130,
+            o: 130,
+        },
+        text_function,
+        decode_function,
+        true,
+    );
+    let record_fields_graph = build_entry_list_children(
+        &mut assembler,
+        Ns {
+            k: 131,
+            p: 131,
+            b: 131,
+            o: 131,
+        },
+        record_fields_function,
+        list_function,
+        record2_function,
+        fixed32_function,
+        EntryListMode::RecordFields,
+    );
+    let record_const_graph = build_prefixed_record_child(
+        &mut assembler,
+        Ns {
+            k: 132,
+            p: 132,
+            b: 132,
+            o: 132,
+        },
+        record_const_function,
+        record2_function,
+        fixed32_function,
+        1,
+        LastFieldChildren::Map(record_fields_function),
+    );
+    let option_child_graph = build_tagged_child_projection(
+        &mut assembler,
+        Ns {
+            k: 133,
+            p: 133,
+            b: 133,
+            o: 133,
+        },
+        option_child_function,
+        union_function,
+        Some(0),
+        1,
+    );
+    let variant_const_graph = build_prefixed_record_child(
+        &mut assembler,
+        Ns {
+            k: 134,
+            p: 134,
+            b: 134,
+            o: 134,
+        },
+        variant_const_function,
+        record3_function,
+        fixed32_function,
+        2,
+        LastFieldChildren::Optional(option_child_function),
+    );
+    let map_entries_graph = build_entry_list_children(
+        &mut assembler,
+        Ns {
+            k: 135,
+            p: 135,
+            b: 135,
+            o: 135,
+        },
+        map_entries_function,
+        list_function,
+        record2_function,
+        fixed32_function,
+        EntryListMode::MapEntries,
+    );
+    let result_child_graph = build_tagged_child_projection(
+        &mut assembler,
+        Ns {
+            k: 136,
+            p: 136,
+            b: 136,
+            o: 136,
+        },
+        result_child_function,
+        union_function,
+        None,
+        2,
+    );
+    let type_arguments_graph = build_unit_list_validate(
+        &mut assembler,
+        Ns {
+            k: 137,
+            p: 137,
+            b: 137,
+            o: 137,
+        },
+        type_arguments_function,
+        list_function,
+        type_expr_recursive_function,
+        bytes_validation_result_type(),
+    );
+    let leaf_decoders = SimpleSchemaDecoders {
+        union: union_function,
+        exact_record: record2_function,
+        fixed32: fixed32_function,
+        exact_uvar: exact_uvar_function,
+        bounded_uvar: bounded_uvar_function,
+        type_expr: type_expr_recursive_function,
+        entity_ids: entity_id_collection_function,
+    };
+    let function_ref_graph = build_projected_record_validate(
+        &mut assembler,
+        Ns {
+            k: 138,
+            p: 138,
+            b: 138,
+            o: 138,
+        },
+        function_ref_function,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::Unit(type_arguments_function),
+        ],
+        leaf_decoders,
+    );
+    let builtin_failure_graph = build_projected_record_validate(
+        &mut assembler,
+        Ns {
+            k: 139,
+            p: 139,
+            b: 139,
+            o: 139,
+        },
+        builtin_failure_function,
+        &[
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 5,
+            },
+            SimpleFieldValidator::ExactUvar(16),
+        ],
+        leaf_decoders,
+    );
+    let const_children_graph = build_const_value_children_decode(
+        &mut assembler,
+        Ns {
+            k: 140,
+            p: 140,
+            b: 140,
+            o: 140,
+        },
+        const_children_function,
+        record2_function,
+        type_expr_recursive_function,
+        union_function,
+        &[
+            ConstDataArm::Unit(empty_payload_function),
+            ConstDataArm::Unit(bool_function),
+            ConstDataArm::Unit(uvar128_function),
+            ConstDataArm::Unit(uvar128_function),
+            ConstDataArm::Unit(f32_function),
+            ConstDataArm::Unit(f64_function),
+            ConstDataArm::Unit(bytes_function),
+            ConstDataArm::Unit(text_function),
+            ConstDataArm::List(list_function),
+            ConstDataArm::List(record_const_function),
+            ConstDataArm::Optional(variant_const_function),
+            ConstDataArm::List(map_entries_function),
+            ConstDataArm::Optional(option_child_function),
+            ConstDataArm::Optional(result_child_function),
+            ConstDataArm::Unit(function_ref_function),
+            ConstDataArm::Unit(builtin_failure_function),
+        ],
+    );
+    let graph = build_type_expr_recursive_decode(
+        &mut assembler,
+        Ns {
+            k: 141,
+            p: 141,
+            b: 141,
+            o: 141,
+        },
+        function,
+        const_children_function,
+    );
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![
+            graph,
+            const_children_graph,
+            builtin_failure_graph,
+            function_ref_graph,
+            type_arguments_graph,
+            result_child_graph,
+            map_entries_graph,
+            variant_const_graph,
+            option_child_graph,
+            record_const_graph,
+            record_fields_graph,
+            text_graph,
+            bytes_graph,
+            f64_graph,
+            f32_graph,
+            uvar128_graph,
+            bool_graph,
+            empty_payload_graph,
+            type_expr_recursive_graph,
+            type_expr_children_graph,
+            record3_graph,
+            record2_graph,
+            type_expr_leaf_graph,
+            bounded_uvar_graph,
+            exact_uvar_graph,
+            entity_id_collection_graph,
+            fixed32_graph,
+            list_graph,
+            union_graph,
+            record_graph,
+            decode_graph,
+        ],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    }
+}
+
+fn const_value_verdict(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    body: &[u8],
+) -> Result<Vec<u8>, Vec<u8>> {
+    let outcome = execute_with_limits(
+        package,
+        approved,
+        vec![bytes_input(body), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!(
+            "ConstValue decoder must return a typed result: {:?}",
+            outcome.termination
+        )
+    };
+    let ConstData::Result(result) = value.data else {
+        panic!("ConstValue decoder must return a Result: {value:?}")
+    };
+    match result {
+        ResultConst::Ok(accepted) => {
+            let ConstData::Bytes(bytes) = accepted.data else {
+                panic!("ConstValue acceptance must be Bytes")
+            };
+            Ok(bytes)
+        }
+        ResultConst::Err(error) => {
+            let ConstData::Bytes(code) = error.data else {
+                panic!("ConstValue refusal must be Bytes")
+            };
+            Err(code)
+        }
+    }
+}
+
+fn native_const_value_verdict(body: &[u8]) -> Result<Vec<u8>, Vec<u8>> {
+    sley_mutate::decode_const_value(body)
+        .map(|_| body.to_vec())
+        .map_err(|error| error.code().as_str().as_bytes().to_vec())
+}
+
+fn const_of(value_type: TypeExpr, data: ConstData) -> ConstValue {
+    ConstValue { value_type, data }
+}
+
+/// One constant exercising every `ConstData` family, nested several levels.
+#[allow(clippy::too_many_lines)]
+fn every_family_const_value() -> ConstValue {
+    use sley_ssmc::{
+        BuiltinFailureValue, FieldConst, FunctionRefValue, MapEntryConst, MemberId, RecordConst,
+        VariantConst,
+    };
+
+    let unit = const_of(TypeExpr::Unit, ConstData::Unit);
+    let flag = const_of(TypeExpr::Bool, ConstData::Bool(true));
+    let signed = const_of(
+        TypeExpr::SInt(IntegerWidth::from_bits(128)),
+        ConstData::SInt(i128::MIN),
+    );
+    let unsigned = const_of(
+        TypeExpr::UInt(IntegerWidth::from_bits(128)),
+        ConstData::UInt(u128::MAX),
+    );
+    let single = const_of(TypeExpr::F32, ConstData::F32Bits(1.5f32.to_bits()));
+    let double = const_of(TypeExpr::F64, ConstData::F64Bits((-2.25f64).to_bits()));
+    let bytes = const_of(TypeExpr::Bytes, ConstData::Bytes(vec![0x00, 0xff, 0x80]));
+    let text = const_of(TypeExpr::Text, ConstData::Text("sley é 😀".to_owned()));
+    let record = const_of(
+        TypeExpr::Named(sley_ssmc::NamedType {
+            definition: EntityId::from_bytes([0xe1; 32]),
+            arguments: Vec::new(),
+        }),
+        ConstData::Record(RecordConst {
+            definition: EntityId::from_bytes([0xe1; 32]),
+            fields: vec![
+                FieldConst {
+                    member_id: MemberId::from_bytes([0xe2; 32]),
+                    value: flag.clone(),
+                },
+                FieldConst {
+                    member_id: MemberId::from_bytes([0xe3; 32]),
+                    value: const_of(
+                        TypeExpr::Option(Box::new(TypeExpr::Text)),
+                        ConstData::Option(Some(Box::new(text.clone()))),
+                    ),
+                },
+            ],
+        }),
+    );
+    let variant_with_payload = const_of(
+        TypeExpr::Unit,
+        ConstData::Variant(VariantConst {
+            definition: EntityId::from_bytes([0xe4; 32]),
+            member_id: MemberId::from_bytes([0xe5; 32]),
+            payload: Some(Box::new(unsigned.clone())),
+        }),
+    );
+    let variant_without_payload = const_of(
+        TypeExpr::Unit,
+        ConstData::Variant(VariantConst {
+            definition: EntityId::from_bytes([0xe4; 32]),
+            member_id: MemberId::from_bytes([0xe6; 32]),
+            payload: None,
+        }),
+    );
+    let map = const_of(
+        TypeExpr::OrderedMap {
+            key: Box::new(TypeExpr::UInt(IntegerWidth::from_bits(8))),
+            value: Box::new(TypeExpr::Text),
+        },
+        ConstData::Map(vec![
+            MapEntryConst {
+                key: const_of(
+                    TypeExpr::UInt(IntegerWidth::from_bits(8)),
+                    ConstData::UInt(1),
+                ),
+                value: text.clone(),
+            },
+            MapEntryConst {
+                key: const_of(
+                    TypeExpr::UInt(IntegerWidth::from_bits(8)),
+                    ConstData::UInt(2),
+                ),
+                value: bytes.clone(),
+            },
+        ]),
+    );
+    let none = const_of(
+        TypeExpr::Option(Box::new(TypeExpr::Unit)),
+        ConstData::Option(None),
+    );
+    let some = const_of(
+        TypeExpr::Option(Box::new(TypeExpr::Bool)),
+        ConstData::Option(Some(Box::new(signed.clone()))),
+    );
+    let ok = const_of(
+        TypeExpr::Result {
+            ok: Box::new(TypeExpr::Unit),
+            error: Box::new(TypeExpr::Bytes),
+        },
+        ConstData::Result(ResultConst::Ok(Box::new(unit.clone()))),
+    );
+    let err = const_of(
+        TypeExpr::Result {
+            ok: Box::new(TypeExpr::Unit),
+            error: Box::new(TypeExpr::Bytes),
+        },
+        ConstData::Result(ResultConst::Err(Box::new(map.clone()))),
+    );
+    let function_ref = const_of(
+        TypeExpr::Unit,
+        ConstData::FunctionRef(FunctionRefValue {
+            function: EntityId::from_bytes([0xe7; 32]),
+            type_arguments: vec![TypeExpr::Bool, TypeExpr::Vector(Box::new(TypeExpr::Bytes))],
+        }),
+    );
+    let failure = const_of(
+        TypeExpr::BuiltinFailure(BuiltinFailureKind::Index),
+        ConstData::BuiltinFailure(BuiltinFailureValue {
+            kind: BuiltinFailureKind::Index,
+            code: u16::MAX,
+        }),
+    );
+    const_of(
+        TypeExpr::Vector(Box::new(TypeExpr::Unit)),
+        ConstData::Sequence(vec![
+            unit,
+            flag,
+            signed,
+            unsigned,
+            single,
+            double,
+            bytes,
+            text,
+            record,
+            variant_with_payload,
+            variant_without_payload,
+            map,
+            none,
+            some,
+            ok,
+            err,
+            function_ref,
+            failure,
+        ]),
+    )
+}
+
+#[test]
+fn const_value_decoder_accepts_every_family_recursively() {
+    let image = const_value_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "CONST_VALUE functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 31);
+    assert_eq!(image.parameters.len(), 1_825);
+    assert_eq!(image.blocks.len(), 538);
+    assert_eq!(image.operations.len(), 1_056);
+    assert_eq!(image.constants.len(), 348);
+    assert_eq!(package.image_bytes.len(), 128_014);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x23, 0x6e, 0x14, 0x92, 0xb4, 0xb5, 0xe4, 0x09, 0xef, 0x35, 0xd5, 0x9a, 0x6f, 0xe6,
+            0x70, 0x24, 0xcf, 0x87, 0xa9, 0x47, 0x00, 0x49, 0xa0, 0xb9, 0x49, 0x38, 0x8e, 0x3e,
+            0x8c, 0x3d, 0x4e, 0x09,
+        ]
+    );
+
+    let value = every_family_const_value();
+    let body = sley_mutate::encode_const_value(&value).expect("native encodes fixture");
+    assert_eq!(native_const_value_verdict(&body), Ok(body.clone()));
+    let outcome = execute_with_limits(
+        &package,
+        &approved,
+        vec![bytes_input(&body), unit_input()],
+        codec_profile_limits(),
+    );
+    eprintln!(
+        "CONST_VALUE_FIXTURE bytes={} instructions={}",
+        body.len(),
+        outcome.instruction_count
+    );
+    assert_eq!(body.len(), 936);
+    assert_eq!(outcome.instruction_count, 83_782);
+    assert_eq!(const_value_verdict(&package, &approved, &body), Ok(body));
+
+    let mut chain = const_of(TypeExpr::Unit, ConstData::Unit);
+    for _ in 0..20 {
+        chain = const_of(
+            TypeExpr::Option(Box::new(TypeExpr::Unit)),
+            ConstData::Option(Some(Box::new(chain))),
+        );
+    }
+    let deep = sley_mutate::encode_const_value(&chain).expect("native encodes deep fixture");
+    assert_eq!(native_const_value_verdict(&deep), Ok(deep.clone()));
+    assert_eq!(const_value_verdict(&package, &approved, &deep), Ok(deep));
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn const_value_decoder_rejects_every_family_boundary() {
+    let image = const_value_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    let encode = |value: &ConstValue| sley_mutate::encode_const_value(value).unwrap();
+    let node = |value_type: Vec<u8>, data: Vec<u8>| {
+        sley_scb1::encode_record(&[(1, value_type), (2, data)]).unwrap()
+    };
+    let unit_type = sley_scb1::encode_union(1, &[]).unwrap();
+    let data = |tag: u32, payload: &[u8]| sley_scb1::encode_union(tag, payload).unwrap();
+    let unit_node = node(unit_type.clone(), data(1, &[]));
+    let bool_node = |byte: u8| node(unit_type.clone(), data(2, &[byte]));
+    let text = |bytes: &[u8]| sley_scb1::encode_bytes(bytes).unwrap();
+    let list = |elements: &[Vec<u8>]| sley_scb1::encode_list(elements).unwrap();
+    let id32 = |fill: u8| vec![fill; 32];
+    let entry = |key: &[u8], value: &[u8]| {
+        sley_scb1::encode_record(&[(1, key.to_vec()), (2, value.to_vec())]).unwrap()
+    };
+    let key = |value: u8| {
+        node(
+            unit_type.clone(),
+            data(4, &sley_scb1::encode_uvar128(value.into())),
+        )
+    };
+
+    let cases: Vec<(&str, Vec<u8>, &[u8])> = vec![
+        (
+            "missing_data_field",
+            sley_scb1::encode_record(&[(1, unit_type.clone())]).unwrap(),
+            b"SCB_FIELD_MISSING",
+        ),
+        (
+            "unknown_node_field",
+            sley_scb1::encode_record(&[(1, unit_type.clone()), (2, data(1, &[])), (3, Vec::new())])
+                .unwrap(),
+            b"SCB_FIELD_UNKNOWN",
+        ),
+        (
+            "malformed_value_type",
+            node(sley_scb1::encode_union(21, &[]).unwrap(), data(1, &[])),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "unknown_data_tag",
+            node(unit_type.clone(), data(17, &[])),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "zero_data_tag",
+            node(unit_type.clone(), data(0, &[])),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "nonempty_unit",
+            node(unit_type.clone(), data(1, &[0])),
+            b"SCB_UNION_INVALID",
+        ),
+        ("bad_bool", bool_node(2), b"SCB_BOOL_INVALID"),
+        (
+            "non_minimal_sint",
+            node(unit_type.clone(), data(3, &[0x80, 0x00])),
+            b"SCB_VARINT_NON_MINIMAL",
+        ),
+        (
+            "uint_overflow",
+            node(unit_type.clone(), data(4, &[0x80; 20])),
+            b"SCB_INTEGER_OVERFLOW",
+        ),
+        (
+            "negative_zero_f32",
+            node(unit_type.clone(), data(5, &0x8000_0000u32.to_be_bytes())),
+            b"SCB_FLOAT_NON_CANONICAL",
+        ),
+        (
+            "short_f64",
+            node(unit_type.clone(), data(6, &[0; 7])),
+            b"SCB_LENGTH_OVERFLOW",
+        ),
+        (
+            "short_bytes",
+            node(unit_type.clone(), data(7, &[0x02, 0x01])),
+            b"SCB_LENGTH_OVERFLOW",
+        ),
+        (
+            "invalid_text",
+            node(unit_type.clone(), data(8, &text(&[0xc0, 0x80]))),
+            b"SCB_UTF8_INVALID",
+        ),
+        (
+            "nested_bad_bool_in_sequence",
+            node(
+                unit_type.clone(),
+                data(9, &list(&[unit_node.clone(), bool_node(7)])),
+            ),
+            b"SCB_BOOL_INVALID",
+        ),
+        (
+            "short_record_definition",
+            node(
+                unit_type.clone(),
+                data(
+                    10,
+                    &sley_scb1::encode_record(&[(1, vec![0xe1; 31]), (2, list(&[]))]).unwrap(),
+                ),
+            ),
+            b"SCB_LENGTH_OVERFLOW",
+        ),
+        (
+            "record_field_short_member",
+            node(
+                unit_type.clone(),
+                data(
+                    10,
+                    &sley_scb1::encode_record(&[
+                        (1, id32(0xe1)),
+                        (2, list(&[entry(&[0xe2; 31], &unit_node)])),
+                    ])
+                    .unwrap(),
+                ),
+            ),
+            b"SCB_LENGTH_OVERFLOW",
+        ),
+        (
+            "record_field_bad_value",
+            node(
+                unit_type.clone(),
+                data(
+                    10,
+                    &sley_scb1::encode_record(&[
+                        (1, id32(0xe1)),
+                        (2, list(&[entry(&id32(0xe2), &bool_node(9))])),
+                    ])
+                    .unwrap(),
+                ),
+            ),
+            b"SCB_BOOL_INVALID",
+        ),
+        (
+            "variant_missing_payload_field",
+            node(
+                unit_type.clone(),
+                data(
+                    11,
+                    &sley_scb1::encode_record(&[(1, id32(0xe4)), (2, id32(0xe5))]).unwrap(),
+                ),
+            ),
+            b"SCB_FIELD_MISSING",
+        ),
+        (
+            "variant_bad_option_tag",
+            node(
+                unit_type.clone(),
+                data(
+                    11,
+                    &sley_scb1::encode_record(&[
+                        (1, id32(0xe4)),
+                        (2, id32(0xe5)),
+                        (3, data(2, &[])),
+                    ])
+                    .unwrap(),
+                ),
+            ),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "variant_bad_payload",
+            node(
+                unit_type.clone(),
+                data(
+                    11,
+                    &sley_scb1::encode_record(&[
+                        (1, id32(0xe4)),
+                        (2, id32(0xe5)),
+                        (3, data(1, &bool_node(4))),
+                    ])
+                    .unwrap(),
+                ),
+            ),
+            b"SCB_BOOL_INVALID",
+        ),
+        (
+            "map_duplicate_key",
+            node(
+                unit_type.clone(),
+                data(
+                    12,
+                    &list(&[entry(&key(1), &unit_node), entry(&key(1), &unit_node)]),
+                ),
+            ),
+            b"SCB_MAP_DUPLICATE",
+        ),
+        (
+            "map_unordered_keys",
+            node(
+                unit_type.clone(),
+                data(
+                    12,
+                    &list(&[entry(&key(2), &unit_node), entry(&key(1), &unit_node)]),
+                ),
+            ),
+            b"SCB_MAP_ORDER",
+        ),
+        (
+            "map_bad_value",
+            node(
+                unit_type.clone(),
+                data(12, &list(&[entry(&key(1), &bool_node(5))])),
+            ),
+            b"SCB_BOOL_INVALID",
+        ),
+        (
+            "map_entry_unknown_field",
+            node(
+                unit_type.clone(),
+                data(
+                    12,
+                    &list(&[sley_scb1::encode_record(&[
+                        (1, key(1)),
+                        (2, unit_node.clone()),
+                        (3, Vec::new()),
+                    ])
+                    .unwrap()]),
+                ),
+            ),
+            b"SCB_FIELD_UNKNOWN",
+        ),
+        (
+            "nonempty_none",
+            node(unit_type.clone(), data(13, &data(0, &[0]))),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "option_bad_tag",
+            node(unit_type.clone(), data(13, &data(2, &unit_node))),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "option_bad_child",
+            node(unit_type.clone(), data(13, &data(1, &bool_node(3)))),
+            b"SCB_BOOL_INVALID",
+        ),
+        (
+            "result_zero_tag",
+            node(unit_type.clone(), data(14, &data(0, &[]))),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "result_third_tag",
+            node(unit_type.clone(), data(14, &data(3, &unit_node))),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "result_bad_err_child",
+            node(unit_type.clone(), data(14, &data(2, &bool_node(6)))),
+            b"SCB_BOOL_INVALID",
+        ),
+        (
+            "function_ref_bad_type_argument",
+            node(
+                unit_type.clone(),
+                data(
+                    15,
+                    &sley_scb1::encode_record(&[
+                        (1, id32(0xe7)),
+                        (2, list(&[sley_scb1::encode_union(21, &[]).unwrap()])),
+                    ])
+                    .unwrap(),
+                ),
+            ),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "function_ref_short_identity",
+            node(
+                unit_type.clone(),
+                data(
+                    15,
+                    &sley_scb1::encode_record(&[(1, vec![0xe7; 31]), (2, list(&[]))]).unwrap(),
+                ),
+            ),
+            b"SCB_LENGTH_OVERFLOW",
+        ),
+        (
+            "failure_kind_zero",
+            node(
+                unit_type.clone(),
+                data(
+                    16,
+                    &sley_scb1::encode_record(&[
+                        (1, sley_scb1::encode_uvar(0)),
+                        (2, sley_scb1::encode_uvar(1)),
+                    ])
+                    .unwrap(),
+                ),
+            ),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "failure_kind_six",
+            node(
+                unit_type.clone(),
+                data(
+                    16,
+                    &sley_scb1::encode_record(&[
+                        (1, sley_scb1::encode_uvar(6)),
+                        (2, sley_scb1::encode_uvar(1)),
+                    ])
+                    .unwrap(),
+                ),
+            ),
+            b"SCB_UNION_INVALID",
+        ),
+        (
+            "failure_code_wide",
+            node(
+                unit_type.clone(),
+                data(
+                    16,
+                    &sley_scb1::encode_record(&[
+                        (1, sley_scb1::encode_uvar(1)),
+                        (2, sley_scb1::encode_uvar(u64::from(u16::MAX) + 1)),
+                    ])
+                    .unwrap(),
+                ),
+            ),
+            b"SCB_INTEGER_OVERFLOW",
+        ),
+        (
+            "deep_sequence_bad_leaf",
+            {
+                let mut inner = bool_node(8);
+                for _ in 0..6 {
+                    inner = node(
+                        unit_type.clone(),
+                        data(9, &list(&[unit_node.clone(), inner])),
+                    );
+                }
+                inner
+            },
+            b"SCB_BOOL_INVALID",
+        ),
+        (
+            "trailing_after_node",
+            {
+                let mut bytes = encode(&const_of(TypeExpr::Unit, ConstData::Unit));
+                bytes.push(0);
+                bytes
+            },
+            b"SCB_TRAILING_BYTES",
+        ),
+    ];
+    for (name, body, expected) in cases {
+        let verdict = const_value_verdict(&package, &approved, &body);
+        assert_eq!(
+            verdict.as_ref().map_err(Vec::as_slice),
+            Err(expected),
+            "{name} refusal"
+        );
+        assert_eq!(
+            verdict,
+            native_const_value_verdict(&body),
+            "{name} native parity"
+        );
+    }
 }
