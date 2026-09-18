@@ -1,5 +1,5 @@
 {
-  "note": "RW-040 slice 1 skeleton (2026-09-06), H pinned by RW-030 (2026-09-06). Stage meanings per REWEAVE 13.1. Missing values are null; no hash is invented. H carries measured host facts with sources; its manifest digest equals the raw-byte SHA-256 of the chartered host-boundary.json.",
+  "note": "RW-040 slice 1 skeleton (2026-09-06), H pinned by RW-030 (2026-09-06), and canonical input S frozen by RW-080 construction (2026-09-18). Stage meanings follow REWEAVE 13.1. Missing stage values are null; no hash is invented. H carries measured host facts with sources; its manifest digest equals the raw-byte SHA-256 of the chartered host-boundary.json.",
  "stages": {
   "C0": {
    "meaning": "preserved Rust bootstrap compiler (executable image)",
@@ -52,8 +52,10 @@
   },
   "S": {
    "meaning": "immutable canonical root and complete dependency closure of the Sley toolchain program",
-   "status": "does not exist (SH0: no Sley toolchain program)",
-   "value": null
+   "status": "canonical input frozen",
+   "value": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47",
+   "manifest": "canonical-s-manifest.json",
+   "scope": "RW-080 graph-root input; later semantic and bootstrap gates remain open"
   }
  }
 }

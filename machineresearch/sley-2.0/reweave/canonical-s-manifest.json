@@ -1,0 +1,43 @@
+{
+  "schema": "sley2-canonical-s-manifest-v1",
+  "status": "CANONICAL_INPUT",
+  "meaning": "immutable canonical state root and complete dependency closure of the retained Sley codec, checker, lowerer, package builder, and build driver",
+  "state_root": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47",
+  "object_count": 11876,
+  "object_bytes": 2971077,
+  "object_bundle_sha256": "c40eab81641a843f4983c603cd3483bfcca7a3488658b053576e883deb0d336d",
+  "stored_root_bytes": 784246,
+  "stored_root_sha256": "85f94269365956705d3d7206ca2aa9a65099da1d55141fe06e3b60f0ec93bbde",
+  "function_count": 101,
+  "parameter_count": 5148,
+  "block_count": 1849,
+  "operation_count": 4058,
+  "constant_count": 699,
+  "adapter_import_count": 4,
+  "entry_point_count": 5,
+  "schema_epoch": "conformance epoch 1",
+  "profile": "BOOTSTRAP_PROFILE_2",
+  "profile_digest": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
+  "construction": "deterministic typed C0 seed assembler over canonical SSMC1 entities",
+  "no_sley_source_dsl": true,
+  "complete_dependency_closure": true,
+  "prebaked_successor_image": false,
+  "seed_constructor_sources": [
+    "crates/sley-vm/tests/rw120_toolchain_integration/component.rs",
+    "crates/sley-vm/tests/rw120_toolchain_integration/handoff.rs"
+  ],
+  "seed_constructor_sha256": "168b2ebefde3fcfdeddb2732ce4d0a855d8a6de63ff9a09c1d1dae54c5b7fc92",
+  "executable_verifier": "scripts/check_reweave_canonical_s.py",
+  "construction_test": "cargo test -p sley-vm --test rw120_toolchain_integration integrated_driver_hands_lowered_bytes_to_the_package_builder -- --nocapture",
+  "scope": {
+    "rw080_graph_root": true,
+    "rw080_construction_manifest": true,
+    "rw080_no_source_dsl": true,
+    "rw090_complete_codec": false,
+    "rw100_complete_checker": false,
+    "rw110_arbitrary_checked_closure": false,
+    "rw120_clean_whole_toolchain_build": false,
+    "rw130_fixed_point": false,
+    "r2_ready": false
+  }
+}
