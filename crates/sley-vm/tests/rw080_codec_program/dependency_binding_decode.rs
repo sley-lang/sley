@@ -11507,6 +11507,662 @@ fn parameter_schema_decode_image() -> Image {
     }
 }
 
+#[derive(Clone, Copy)]
+enum SimpleFieldValidator {
+    Fixed32,
+    ExactUvar(u32),
+    BoundedUvar { minimum: u64, maximum: u64 },
+    TypeExpr,
+    EntityIds { ordered: bool },
+}
+
+#[derive(Clone, Copy)]
+struct SimpleSchemaDecoders {
+    union: EntityId,
+    exact_record: EntityId,
+    fixed32: EntityId,
+    exact_uvar: EntityId,
+    bounded_uvar: EntityId,
+    type_expr: EntityId,
+    entity_ids: EntityId,
+}
+
+fn simple_schema_result_type(field_count: usize) -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(TypeExpr::Tuple(vec![TypeExpr::Bytes; field_count])),
+        error: Box::new(TypeExpr::Bytes),
+    }
+}
+
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn build_simple_entity_schema_decode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    expected_kind: u64,
+    validators: &[SimpleFieldValidator],
+    decoders: SimpleSchemaDecoders,
+) -> FunctionGraph {
+    assert!(!validators.is_empty(), "entity schema needs fields");
+    let block_start = assembler.blocks.len();
+    let result_type = simple_schema_result_type(validators.len());
+    let tuple_type = TypeExpr::Tuple(vec![TypeExpr::Bytes; validators.len()]);
+    let field_types = vec![TypeExpr::Bytes; validators.len()];
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let union_code = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let union_error = err_block(assembler, ns, function, result_type.clone(), union_code);
+    let success = assembler.id(ns.b);
+    let validation_blocks = validators
+        .iter()
+        .map(|_| assembler.id(ns.b))
+        .collect::<Vec<_>>();
+    let record_ready = assembler.id(ns.b);
+    let record_call = assembler.id(ns.b);
+    let union_ready = assembler.id(ns.b);
+
+    let success_parameters = block_parameters(assembler, ns.p, success, &field_types);
+    let tuple = assembler.op(
+        ns.o,
+        success,
+        Opcode::TupleNew,
+        success_parameters.iter().copied().map(pav).collect(),
+        vec![tuple_type.clone()],
+        Immediate::None,
+    );
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![op_result(tuple)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        success_parameters,
+        vec![tuple, ok],
+        ret(op_result(ok)),
+    );
+
+    for (index, (block, validator)) in validation_blocks
+        .iter()
+        .copied()
+        .zip(validators.iter().copied())
+        .enumerate()
+    {
+        let parameters = block_parameters(assembler, ns.p, block, &field_types);
+        let mut operations = Vec::new();
+        let (decode_function, decode_arguments, decode_result_type) = match validator {
+            SimpleFieldValidator::Fixed32 => (
+                decoders.fixed32,
+                vec![pav(parameters[index]), pav(unit)],
+                bytes_validation_result_type(),
+            ),
+            SimpleFieldValidator::ExactUvar(width) => {
+                let width_constant = assembler.ku32(ns.k, u128::from(width));
+                let width_value = assembler.cref(ns.o, block, width_constant, u32_type());
+                operations.push(width_value);
+                (
+                    decoders.exact_uvar,
+                    vec![pav(parameters[index]), op_result(width_value), pav(unit)],
+                    exact_uvar_result_type(),
+                )
+            }
+            SimpleFieldValidator::BoundedUvar { minimum, maximum } => {
+                let minimum_constant = assembler.ku64(ns.k, u128::from(minimum));
+                let maximum_constant = assembler.ku64(ns.k, u128::from(maximum));
+                let minimum_value = assembler.cref(ns.o, block, minimum_constant, u64_type());
+                let maximum_value = assembler.cref(ns.o, block, maximum_constant, u64_type());
+                operations.extend([minimum_value, maximum_value]);
+                (
+                    decoders.bounded_uvar,
+                    vec![
+                        pav(parameters[index]),
+                        op_result(minimum_value),
+                        op_result(maximum_value),
+                        pav(unit),
+                    ],
+                    exact_uvar_result_type(),
+                )
+            }
+            SimpleFieldValidator::TypeExpr => (
+                decoders.type_expr,
+                vec![pav(parameters[index]), pav(unit)],
+                bytes_validation_result_type(),
+            ),
+            SimpleFieldValidator::EntityIds { ordered } => {
+                let ordered_constant = assembler.kbool(ns.k, ordered);
+                let ordered_value = assembler.cref(ns.o, block, ordered_constant, TypeExpr::Bool);
+                operations.push(ordered_value);
+                (
+                    decoders.entity_ids,
+                    vec![pav(parameters[index]), op_result(ordered_value), pav(unit)],
+                    unit_validation_result_type(),
+                )
+            }
+        };
+        let decoded = assembler.op(
+            ns.o,
+            block,
+            Opcode::CallDirect,
+            decode_arguments,
+            vec![decode_result_type],
+            Immediate::Function(FunctionRefValue {
+                function: decode_function,
+                type_arguments: Vec::new(),
+            }),
+        );
+        operations.push(decoded);
+        let destination = validation_blocks.get(index + 1).copied().unwrap_or(success);
+        append_block(
+            assembler,
+            block,
+            function,
+            parameters.clone(),
+            operations,
+            switch(
+                op_result(decoded),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        destination,
+                        parameters.iter().copied().map(sav).collect(),
+                    ),
+                    (
+                        BuiltinCase::Err,
+                        forward_error,
+                        vec![SwitchArgument::CasePayload],
+                    ),
+                ],
+            ),
+        );
+    }
+
+    let record_parameters = block_parameters(
+        assembler,
+        ns.p,
+        record_ready,
+        std::slice::from_ref(&tuple_type),
+    );
+    let projected_fields = (0..validators.len())
+        .map(|index| {
+            assembler.op(
+                ns.o,
+                record_ready,
+                Opcode::TupleGet,
+                vec![pav(record_parameters[0])],
+                vec![TypeExpr::Bytes],
+                Immediate::Index(u32::try_from(index).expect("schema field index fits u32")),
+            )
+        })
+        .collect::<Vec<_>>();
+    append_block(
+        assembler,
+        record_ready,
+        function,
+        record_parameters,
+        projected_fields.clone(),
+        branch(edge(
+            validation_blocks[0],
+            projected_fields.iter().copied().map(op_result).collect(),
+        )),
+    );
+
+    let record_call_parameters = block_parameters(assembler, ns.p, record_call, &[TypeExpr::Bytes]);
+    let decoded_record = assembler.op(
+        ns.o,
+        record_call,
+        Opcode::CallDirect,
+        vec![pav(record_call_parameters[0]), pav(unit)],
+        vec![exact_record_projection_result_type(validators.len())],
+        Immediate::Function(FunctionRefValue {
+            function: decoders.exact_record,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        record_call,
+        function,
+        record_call_parameters,
+        vec![decoded_record],
+        switch(
+            op_result(decoded_record),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    record_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let union_parameters = block_parameters(
+        assembler,
+        ns.p,
+        union_ready,
+        &[TypeExpr::Tuple(vec![u64_type(), TypeExpr::Bytes])],
+    );
+    let tag = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(0),
+    );
+    let payload = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    let kind_constant = assembler.ku64(ns.k, u128::from(expected_kind));
+    let expected_tag = assembler.cref(ns.o, union_ready, kind_constant, u64_type());
+    let matches = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::Equal,
+        vec![op_result(tag), op_result(expected_tag)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        union_ready,
+        function,
+        union_parameters,
+        vec![tag, payload, expected_tag, matches],
+        cond(
+            op_result(matches),
+            edge(record_call, vec![op_result(payload)]),
+            edge(union_error, Vec::new()),
+        ),
+    );
+
+    let entry = assembler.id(ns.b);
+    let decoded_union = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![generic_union_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: decoders.union,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![decoded_union],
+        switch(
+            op_result(decoded_union),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    union_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn simple_entity_schema_decode_image(
+    expected_kind: u64,
+    validators: &[SimpleFieldValidator],
+) -> Image {
+    let mut assembler = Asm::new();
+    let decode_function = assembler.id(232);
+    let record_function = assembler.id(232);
+    let union_function = assembler.id(232);
+    let list_function = assembler.id(232);
+    let fixed32_function = assembler.id(232);
+    let entity_id_collection_function = assembler.id(232);
+    let exact_uvar_function = assembler.id(232);
+    let bounded_uvar_function = assembler.id(232);
+    let type_expr_leaf_function = assembler.id(232);
+    let record2_function = assembler.id(232);
+    let record3_function = assembler.id(232);
+    let type_expr_children_function = assembler.id(232);
+    let type_expr_recursive_function = assembler.id(232);
+    let extra_record_function = (!matches!(validators.len(), 2 | 3)).then(|| assembler.id(232));
+    let function = assembler.id(232);
+    let (decode_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 233,
+            p: 233,
+            b: 233,
+            o: 233,
+        },
+        decode_function,
+    );
+    let record_graph = build_generic_record_decode(
+        &mut assembler,
+        Ns {
+            k: 234,
+            p: 234,
+            b: 234,
+            o: 234,
+        },
+        record_function,
+        decode_function,
+    );
+    let union_graph = build_generic_union_decode(
+        &mut assembler,
+        Ns {
+            k: 235,
+            p: 235,
+            b: 235,
+            o: 235,
+        },
+        union_function,
+        decode_function,
+    );
+    let list_graph = build_generic_list_decode(
+        &mut assembler,
+        Ns {
+            k: 236,
+            p: 236,
+            b: 236,
+            o: 236,
+        },
+        list_function,
+        decode_function,
+    );
+    let fixed32_graph = build_fixed32_decode(
+        &mut assembler,
+        Ns {
+            k: 237,
+            p: 237,
+            b: 237,
+            o: 237,
+        },
+        fixed32_function,
+    );
+    let entity_id_collection_graph = build_entity_id_collection_decode(
+        &mut assembler,
+        Ns {
+            k: 238,
+            p: 238,
+            b: 238,
+            o: 238,
+        },
+        entity_id_collection_function,
+        list_function,
+        fixed32_function,
+    );
+    let exact_uvar_graph = build_exact_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 239,
+            p: 239,
+            b: 239,
+            o: 239,
+        },
+        exact_uvar_function,
+        decode_function,
+    );
+    let bounded_uvar_graph = build_bounded_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 240,
+            p: 240,
+            b: 240,
+            o: 240,
+        },
+        bounded_uvar_function,
+        exact_uvar_function,
+    );
+    let type_expr_leaf_graph = build_type_expr_leaf_decode(
+        &mut assembler,
+        Ns {
+            k: 241,
+            p: 241,
+            b: 241,
+            o: 241,
+        },
+        type_expr_leaf_function,
+        union_function,
+        fixed32_function,
+        exact_uvar_function,
+        bounded_uvar_function,
+    );
+    let record2_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 242,
+            p: 242,
+            b: 242,
+            o: 242,
+        },
+        record2_function,
+        decode_function,
+        record_function,
+        2,
+    );
+    let record3_graph = build_exact_record_projection(
+        &mut assembler,
+        Ns {
+            k: 243,
+            p: 243,
+            b: 243,
+            o: 243,
+        },
+        record3_function,
+        decode_function,
+        record_function,
+        3,
+    );
+    let type_expr_children_graph = build_type_expr_children_decode(
+        &mut assembler,
+        Ns {
+            k: 244,
+            p: 244,
+            b: 244,
+            o: 244,
+        },
+        type_expr_children_function,
+        union_function,
+        type_expr_leaf_function,
+        list_function,
+        record2_function,
+        record3_function,
+        fixed32_function,
+        entity_id_collection_function,
+    );
+    let type_expr_recursive_graph = build_type_expr_recursive_decode(
+        &mut assembler,
+        Ns {
+            k: 245,
+            p: 245,
+            b: 245,
+            o: 245,
+        },
+        type_expr_recursive_function,
+        type_expr_children_function,
+    );
+    let (exact_record_function, extra_record_graph) = match validators.len() {
+        2 => (record2_function, None),
+        3 => (record3_function, None),
+        field_count => {
+            let schema_record_function =
+                extra_record_function.expect("separate schema record allocated");
+            (
+                schema_record_function,
+                Some(build_exact_record_projection(
+                    &mut assembler,
+                    Ns {
+                        k: 246,
+                        p: 246,
+                        b: 246,
+                        o: 246,
+                    },
+                    schema_record_function,
+                    decode_function,
+                    record_function,
+                    field_count,
+                )),
+            )
+        }
+    };
+    let graph = build_simple_entity_schema_decode(
+        &mut assembler,
+        Ns {
+            k: 247,
+            p: 247,
+            b: 247,
+            o: 247,
+        },
+        function,
+        expected_kind,
+        validators,
+        SimpleSchemaDecoders {
+            union: union_function,
+            exact_record: exact_record_function,
+            fixed32: fixed32_function,
+            exact_uvar: exact_uvar_function,
+            bounded_uvar: bounded_uvar_function,
+            type_expr: type_expr_recursive_function,
+            entity_ids: entity_id_collection_function,
+        },
+    );
+    let mut functions = vec![graph.clone()];
+    functions.extend(extra_record_graph);
+    functions.extend([
+        type_expr_recursive_graph,
+        type_expr_children_graph,
+        record2_graph,
+        record3_graph,
+        type_expr_leaf_graph,
+        bounded_uvar_graph,
+        exact_uvar_graph,
+        entity_id_collection_graph,
+        fixed32_graph,
+        list_graph,
+        union_graph,
+        record_graph,
+        decode_graph,
+    ]);
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph,
+        functions,
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    }
+}
+
+fn global_value_schema_decode_image() -> Image {
+    simple_entity_schema_decode_image(
+        10,
+        &[
+            SimpleFieldValidator::TypeExpr,
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 4,
+            },
+        ],
+    )
+}
+
+fn adapter_import_schema_decode_image() -> Image {
+    simple_entity_schema_decode_image(
+        15,
+        &[
+            SimpleFieldValidator::Fixed32,
+            SimpleFieldValidator::ExactUvar(32),
+            SimpleFieldValidator::TypeExpr,
+            SimpleFieldValidator::TypeExpr,
+            SimpleFieldValidator::TypeExpr,
+            SimpleFieldValidator::EntityIds { ordered: true },
+        ],
+    )
+}
+
+fn effect_def_schema_decode_image() -> Image {
+    simple_entity_schema_decode_image(
+        11,
+        &[
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 8,
+            },
+            SimpleFieldValidator::TypeExpr,
+            SimpleFieldValidator::TypeExpr,
+            SimpleFieldValidator::TypeExpr,
+            SimpleFieldValidator::TypeExpr,
+            SimpleFieldValidator::BoundedUvar {
+                minimum: 1,
+                maximum: 4,
+            },
+        ],
+    )
+}
+
 fn assert_entry_cfg_surface(image: &Image) {
     let mut reached = std::collections::BTreeSet::new();
     let mut pending = vec![image.entry.entry_block];
@@ -13246,6 +13902,15 @@ fn parameter_schema_error(
     approved: &sley_vm::ApprovedExecutionPackage,
     body: &[u8],
 ) -> Vec<u8> {
+    simple_schema_error(package, approved, body, "Parameter")
+}
+
+fn simple_schema_error(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    body: &[u8],
+    schema_name: &str,
+) -> Vec<u8> {
     let outcome = execute_with_limits(
         package,
         approved,
@@ -13253,13 +13918,13 @@ fn parameter_schema_error(
         codec_profile_limits(),
     );
     let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
-        panic!("Parameter schema decoder must return a typed refusal")
+        panic!("{schema_name} schema decoder must return a typed refusal")
     };
     let ConstData::Result(ResultConst::Err(error)) = value.data else {
-        panic!("Parameter schema decoder must refuse malformed input: {value:?}")
+        panic!("{schema_name} schema decoder must refuse malformed input: {value:?}")
     };
     let ConstData::Bytes(code) = error.data else {
-        panic!("Parameter schema refusal must be Bytes")
+        panic!("{schema_name} schema refusal must be Bytes")
     };
     code
 }
@@ -13388,6 +14053,423 @@ fn parameter_schema_decoder_rejects_every_field_boundary() {
     for (name, malformed, expected) in cases {
         assert_eq!(
             parameter_schema_error(&package, &approved, &malformed),
+            expected,
+            "{name} precedence"
+        );
+    }
+}
+
+fn global_value_schema_body(value_type: TypeExpr, visibility: Visibility) -> Vec<u8> {
+    use sley_mutate::value::{EntityBodyValue, GlobalValueBody};
+
+    let record = sley_mutate::EntityObjectRecord {
+        entity_id: EntityId::from_bytes([0xd1; 32]),
+        body: EntityBodyValue::GlobalValue(GlobalValueBody {
+            value_type,
+            initializer: EntityId::from_bytes([0xd2; 32]),
+            visibility,
+        }),
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        .expect("native builds schema GlobalValue fixture")
+        .stored_bytes()
+        .to_vec();
+    ns_body_of(&stored)
+}
+
+#[test]
+fn global_value_schema_decoder_accepts_arbitrary_structural_values() {
+    let body = global_value_schema_body(
+        TypeExpr::Result {
+            ok: Box::new(TypeExpr::Vector(Box::new(TypeExpr::Bytes))),
+            error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Capability)),
+        },
+        Visibility::Exported,
+    );
+    let expected = exact_entity_body_fields(&body, 10, 3);
+    let image = global_value_schema_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "GLOBAL_VALUE_SCHEMA functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 14);
+    assert_eq!(image.parameters.len(), 1_285);
+    assert_eq!(image.blocks.len(), 303);
+    assert_eq!(image.operations.len(), 545);
+    assert_eq!(image.constants.len(), 170);
+    assert_eq!(package.image_bytes.len(), 73_854);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0xb7, 0x85, 0x3a, 0x97, 0xf1, 0x9b, 0x9b, 0xa5, 0x87, 0x2e, 0x4d, 0x43, 0x54, 0x70,
+            0x54, 0x5b, 0x16, 0xea, 0xad, 0xed, 0xe9, 0x08, 0xde, 0xa0, 0x1a, 0x06, 0x9e, 0xbd,
+            0x07, 0x5a, 0xf8, 0xaa,
+        ]
+    );
+    let outcome = execute_with_limits(
+        &package,
+        &approved,
+        vec![bytes_input(&body), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("GlobalValue schema decoder must return")
+    };
+    let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+        panic!("GlobalValue schema decoder must accept native body: {value:?}")
+    };
+    let ConstData::Sequence(fields) = decoded.data else {
+        panic!("GlobalValue schema decoder must return a three-field tuple")
+    };
+    assert_eq!(fields.len(), 3);
+    for (field, expected) in fields.iter().zip(expected) {
+        assert_eq!(field.data, ConstData::Bytes(expected));
+    }
+}
+
+#[test]
+fn global_value_schema_decoder_rejects_every_field_boundary() {
+    let body = global_value_schema_body(TypeExpr::Bool, Visibility::Workspace);
+    let fields = exact_entity_body_fields(&body, 10, 3);
+    let image = global_value_schema_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+
+    let mut unknown_fields = fields.clone();
+    unknown_fields.push(Vec::new());
+    let mut invalid_type = fields.clone();
+    invalid_type[0] = sley_scb1::encode_union(21, &[]).expect("unknown TypeExpr encodes");
+    let mut short_initializer = fields.clone();
+    short_initializer[1] = vec![0xd2; 31];
+    let mut invalid_visibility = fields.clone();
+    invalid_visibility[2] = sley_scb1::encode_uvar(5);
+
+    let cases = [
+        (
+            "wrong_kind",
+            parameter_schema_with_fields(9, &fields),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "missing_field",
+            parameter_schema_with_fields(10, &fields[..2]),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "unknown_field",
+            parameter_schema_with_fields(10, &unknown_fields),
+            b"SCB_FIELD_UNKNOWN".as_slice(),
+        ),
+        (
+            "invalid_type",
+            parameter_schema_with_fields(10, &invalid_type),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "short_initializer",
+            parameter_schema_with_fields(10, &short_initializer),
+            b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "invalid_visibility",
+            parameter_schema_with_fields(10, &invalid_visibility),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+    ];
+    for (name, malformed, expected) in cases {
+        assert_eq!(
+            simple_schema_error(&package, &approved, &malformed, "GlobalValue"),
+            expected,
+            "{name} precedence"
+        );
+    }
+}
+
+fn adapter_import_schema_body() -> Vec<u8> {
+    use sley_mutate::value::{AdapterImportBody, EntityBodyValue, EntityIdSet};
+
+    let record = sley_mutate::EntityObjectRecord {
+        entity_id: EntityId::from_bytes([0xc1; 32]),
+        body: EntityBodyValue::AdapterImport(AdapterImportBody {
+            adapter_id: [0xc2; 32],
+            abi_version: u32::MAX,
+            request_type: TypeExpr::Tuple(vec![TypeExpr::Bytes, TypeExpr::Text]),
+            response_type: TypeExpr::Vector(Box::new(TypeExpr::Bool)),
+            failure_type: TypeExpr::BuiltinFailure(BuiltinFailureKind::ContractViolation),
+            effects: EntityIdSet::from_unsorted(vec![
+                EntityId::from_bytes([0xc3; 32]),
+                EntityId::from_bytes([0xc4; 32]),
+            ])
+            .expect("adapter effects are canonical"),
+        }),
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        .expect("native builds schema AdapterImport fixture")
+        .stored_bytes()
+        .to_vec();
+    ns_body_of(&stored)
+}
+
+#[test]
+fn adapter_import_schema_decoder_accepts_arbitrary_structural_values() {
+    let body = adapter_import_schema_body();
+    let expected = exact_entity_body_fields(&body, 15, 6);
+    let image = adapter_import_schema_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "ADAPTER_IMPORT_SCHEMA functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 15);
+    assert_eq!(image.parameters.len(), 1_353);
+    assert_eq!(image.blocks.len(), 323);
+    assert_eq!(image.operations.len(), 593);
+    assert_eq!(image.constants.len(), 188);
+    assert_eq!(package.image_bytes.len(), 79_550);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0xf6, 0x70, 0x02, 0xb5, 0xb9, 0x68, 0x48, 0x60, 0xe4, 0x9c, 0x80, 0x11, 0x5c, 0x22,
+            0xf7, 0xbf, 0x26, 0x7e, 0x23, 0xf1, 0x09, 0x10, 0x51, 0x32, 0x29, 0xbe, 0xbb, 0x0b,
+            0x8b, 0x6a, 0xc3, 0xb3,
+        ]
+    );
+    let outcome = execute_with_limits(
+        &package,
+        &approved,
+        vec![bytes_input(&body), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("AdapterImport schema decoder must return")
+    };
+    let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+        panic!("AdapterImport schema decoder must accept native body: {value:?}")
+    };
+    let ConstData::Sequence(fields) = decoded.data else {
+        panic!("AdapterImport schema decoder must return a six-field tuple")
+    };
+    assert_eq!(fields.len(), 6);
+    for (field, expected) in fields.iter().zip(expected) {
+        assert_eq!(field.data, ConstData::Bytes(expected));
+    }
+}
+
+#[test]
+fn adapter_import_schema_decoder_rejects_every_field_boundary() {
+    let body = adapter_import_schema_body();
+    let fields = exact_entity_body_fields(&body, 15, 6);
+    let image = adapter_import_schema_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+
+    let mut unknown_fields = fields.clone();
+    unknown_fields.push(Vec::new());
+    let mut short_adapter = fields.clone();
+    short_adapter[0] = vec![0xc2; 31];
+    let mut wide_abi = fields.clone();
+    wide_abi[1] = sley_scb1::encode_uvar(u64::from(u32::MAX) + 1);
+    let mut invalid_request = fields.clone();
+    invalid_request[2] = sley_scb1::encode_union(21, &[]).expect("unknown TypeExpr encodes");
+    let mut unordered_effects = fields.clone();
+    unordered_effects[5] = sley_scb1::encode_list(&[vec![0xc4; 32], vec![0xc3; 32]])
+        .expect("unordered effect list encodes structurally");
+
+    let cases = [
+        (
+            "wrong_kind",
+            parameter_schema_with_fields(14, &fields),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "missing_field",
+            parameter_schema_with_fields(15, &fields[..5]),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "unknown_field",
+            parameter_schema_with_fields(15, &unknown_fields),
+            b"SCB_FIELD_UNKNOWN".as_slice(),
+        ),
+        (
+            "short_adapter",
+            parameter_schema_with_fields(15, &short_adapter),
+            b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "wide_abi",
+            parameter_schema_with_fields(15, &wide_abi),
+            b"SCB_INTEGER_OVERFLOW".as_slice(),
+        ),
+        (
+            "invalid_request",
+            parameter_schema_with_fields(15, &invalid_request),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "unordered_effects",
+            parameter_schema_with_fields(15, &unordered_effects),
+            b"SCB_MAP_ORDER".as_slice(),
+        ),
+    ];
+    for (name, malformed, expected) in cases {
+        assert_eq!(
+            simple_schema_error(&package, &approved, &malformed, "AdapterImport"),
+            expected,
+            "{name} precedence"
+        );
+    }
+}
+
+fn effect_def_schema_body() -> Vec<u8> {
+    use sley_mutate::value::{EffectDefBody, EntityBodyValue};
+
+    let record = sley_mutate::EntityObjectRecord {
+        entity_id: EntityId::from_bytes([0xb1; 32]),
+        body: EntityBodyValue::EffectDef(EffectDefBody {
+            effect_kind: sley_ssmc::EffectKind::RandomRead,
+            scope_type: TypeExpr::Named(sley_ssmc::NamedType {
+                definition: EntityId::from_bytes([0xb2; 32]),
+                arguments: vec![TypeExpr::Text],
+            }),
+            request_type: TypeExpr::Tuple(vec![TypeExpr::UInt(IntegerWidth::from_bits(64))]),
+            response_type: TypeExpr::Vector(Box::new(TypeExpr::Bytes)),
+            failure_type: TypeExpr::Result {
+                ok: Box::new(TypeExpr::Unit),
+                error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Capability)),
+            },
+            visibility: Visibility::Workspace,
+        }),
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        .expect("native builds schema EffectDef fixture")
+        .stored_bytes()
+        .to_vec();
+    ns_body_of(&stored)
+}
+
+#[test]
+fn effect_def_schema_decoder_accepts_arbitrary_structural_values() {
+    let body = effect_def_schema_body();
+    let expected = exact_entity_body_fields(&body, 11, 6);
+    let image = effect_def_schema_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "EFFECT_DEF_SCHEMA functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 15);
+    assert_eq!(image.parameters.len(), 1_353);
+    assert_eq!(image.blocks.len(), 323);
+    assert_eq!(image.operations.len(), 595);
+    assert_eq!(image.constants.len(), 190);
+    assert_eq!(package.image_bytes.len(), 79_702);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x97, 0xf6, 0x61, 0x5d, 0x6c, 0x02, 0x2d, 0x39, 0x3c, 0x7e, 0x20, 0x70, 0xa0, 0x32,
+            0xf0, 0x19, 0x66, 0xc9, 0xb2, 0xd3, 0xc2, 0x4b, 0xe1, 0xf7, 0x8d, 0x58, 0x51, 0x06,
+            0x5f, 0xad, 0x9d, 0xfa,
+        ]
+    );
+    let outcome = execute_with_limits(
+        &package,
+        &approved,
+        vec![bytes_input(&body), unit_input()],
+        codec_profile_limits(),
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("EffectDef schema decoder must return")
+    };
+    let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+        panic!("EffectDef schema decoder must accept native body: {value:?}")
+    };
+    let ConstData::Sequence(fields) = decoded.data else {
+        panic!("EffectDef schema decoder must return a six-field tuple")
+    };
+    assert_eq!(fields.len(), 6);
+    for (field, expected) in fields.iter().zip(expected) {
+        assert_eq!(field.data, ConstData::Bytes(expected));
+    }
+}
+
+#[test]
+fn effect_def_schema_decoder_rejects_every_field_boundary() {
+    let body = effect_def_schema_body();
+    let fields = exact_entity_body_fields(&body, 11, 6);
+    let image = effect_def_schema_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+
+    let mut unknown_fields = fields.clone();
+    unknown_fields.push(Vec::new());
+    let mut invalid_kind = fields.clone();
+    invalid_kind[0] = sley_scb1::encode_uvar(9);
+    let mut invalid_scope = fields.clone();
+    invalid_scope[1] = sley_scb1::encode_union(21, &[]).expect("unknown TypeExpr encodes");
+    let mut invalid_visibility = fields.clone();
+    invalid_visibility[5] = sley_scb1::encode_uvar(0);
+
+    let cases = [
+        (
+            "wrong_entity_kind",
+            parameter_schema_with_fields(10, &fields),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "missing_field",
+            parameter_schema_with_fields(11, &fields[..5]),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "unknown_field",
+            parameter_schema_with_fields(11, &unknown_fields),
+            b"SCB_FIELD_UNKNOWN".as_slice(),
+        ),
+        (
+            "invalid_effect_kind",
+            parameter_schema_with_fields(11, &invalid_kind),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "invalid_scope",
+            parameter_schema_with_fields(11, &invalid_scope),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "invalid_visibility",
+            parameter_schema_with_fields(11, &invalid_visibility),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+    ];
+    for (name, malformed, expected) in cases {
+        assert_eq!(
+            simple_schema_error(&package, &approved, &malformed, "EffectDef"),
             expected,
             "{name} precedence"
         );
