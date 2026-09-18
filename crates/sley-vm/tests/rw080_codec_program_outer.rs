@@ -17,20 +17,22 @@
 //! keep exact reference decision order and codes. Sley owns parsing,
 //! field decisions, ordering, and byte emission; bridge uses B2V1/PSH1/
 //! V2B1 only (no RHW1 here; digest stays in the envelope slice).
-//! Label (tag 3) and fingerprint (tag 4) are explicit scope exclusions
-//! (`SSMC_RESERVED_FIELD_PRESENT`, pinned divergence vs reference Ok),
-//! never misreported as format errors. `codec_main` legs stay stubs;
-//! this is the digest-carrying outer dependency every body decoder needs.
+//! Label (tag 3) is an explicit scope exclusion
+//! (`SSMC_RESERVED_FIELD_PRESENT`, pinned divergence vs reference Ok), never
+//! misreported as a format error. A standalone extension handles fingerprint
+//! tag 4. The standalone bounded schema leg accepts the exact frozen
+//! conformance epoch; `codec_main` itself stays a stub until the complete
+//! program leg and label/NFC handling can be wired.
 //! Construction provenance and contract basis:
 //! machineresearch/sley-2.0/reweave/rw-080-codec-program-outer.md.
 //!
 //! Deliberate non-goals with reasons (not silent gaps):
-//! - `codec_main` legs stay stubs (`rw080_codec_scaffold.rs`): full
-//!   program/schema (18 body kinds, label/NFC, fingerprint verifier)
-//!   is not yet wired; wiring legs now would overclaim. The units here
-//!   are entries of their own approved images through the same boundary.
-//! - Label/NFC/fingerprint (tags 3/4): need text/Unicode tables and the
-//!   S20-250 verifier; excluded with explicit scope code, not silently.
+//! - `codec_main` stays a stub (`rw080_codec_scaffold.rs`): all 18 kinds have
+//!   a bounded aggregate profile and the frozen schema epoch has a standalone
+//!   codec, but full body generality and label/NFC are not yet wired. The units
+//!   here are entries of their own approved images through the same boundary.
+//! - Label/NFC (tag 3): needs pinned text/Unicode tables and the S20-250
+//!   verifier; excluded with an explicit scope code, not silently.
 //! - Body semantics (18 kinds, type/CFG/effect judgments): owned by later
 //!   body slices (RW-100 gate), never imported here to make this slice
 //!   appear complete.
@@ -81,6 +83,8 @@ mod package;
 mod parameter;
 #[path = "rw080_codec_program/policy_binding.rs"]
 mod policy_binding;
+#[path = "rw080_codec_program/schema_codec.rs"]
+mod schema_codec;
 #[path = "rw080_codec_program/supported_dispatch.rs"]
 mod supported_dispatch;
 #[path = "rw080_codec_program/supported_encode_dispatch.rs"]
