@@ -6752,6 +6752,424 @@ pub(super) fn bounded_uvar_decode_image() -> Image {
     }
 }
 
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
+fn build_type_expr_leaf_decode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    union_decoder: EntityId,
+    fixed32_decoder: EntityId,
+    exact_uvar_decoder: EntityId,
+    bounded_uvar_decoder: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = bytes_validation_result_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let union_code = assembler.kbytes(ns.k, b"SCB_UNION_INVALID");
+    let scope_code = assembler.kbytes(ns.k, b"SSMC_RESERVED_FIELD_PRESENT");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+    let union_error = err_block(assembler, ns, function, result_type.clone(), union_code);
+    let scope_error = err_block(assembler, ns, function, result_type.clone(), scope_code);
+    let success = assembler.id(ns.b);
+    let failure_kind = assembler.id(ns.b);
+    let width32 = assembler.id(ns.b);
+    let fixed32 = assembler.id(ns.b);
+    let width16 = assembler.id(ns.b);
+    let empty = assembler.id(ns.b);
+    let dispatch = std::array::from_fn::<_, 20, _>(|_| assembler.id(ns.b));
+    let union_ready = assembler.id(ns.b);
+
+    let ok = assembler.op(
+        ns.o,
+        success,
+        Opcode::ResultOk,
+        vec![pav(body)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        success,
+        function,
+        Vec::new(),
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let failure_parameters = block_parameters(assembler, ns.p, failure_kind, &[TypeExpr::Bytes]);
+    let minimum_constant = assembler.ku64(ns.k, 1);
+    let minimum = assembler.cref(ns.o, failure_kind, minimum_constant, u64_type());
+    let maximum_constant = assembler.ku64(ns.k, 5);
+    let maximum = assembler.cref(ns.o, failure_kind, maximum_constant, u64_type());
+    let failure = assembler.op(
+        ns.o,
+        failure_kind,
+        Opcode::CallDirect,
+        vec![
+            pav(failure_parameters[0]),
+            op_result(minimum),
+            op_result(maximum),
+            pav(unit),
+        ],
+        vec![exact_uvar_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: bounded_uvar_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        failure_kind,
+        function,
+        failure_parameters,
+        vec![minimum, maximum, failure],
+        switch(
+            op_result(failure),
+            vec![
+                (BuiltinCase::Ok, success, Vec::new()),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    for (block, width_bits) in [(width16, 16_u128), (width32, 32_u128)] {
+        let parameters = block_parameters(assembler, ns.p, block, &[TypeExpr::Bytes]);
+        let width_constant = assembler.ku32(ns.k, width_bits);
+        let width = assembler.cref(ns.o, block, width_constant, u32_type());
+        let decoded = assembler.op(
+            ns.o,
+            block,
+            Opcode::CallDirect,
+            vec![pav(parameters[0]), op_result(width), pav(unit)],
+            vec![exact_uvar_result_type()],
+            Immediate::Function(FunctionRefValue {
+                function: exact_uvar_decoder,
+                type_arguments: Vec::new(),
+            }),
+        );
+        append_block(
+            assembler,
+            block,
+            function,
+            parameters,
+            vec![width, decoded],
+            switch(
+                op_result(decoded),
+                vec![
+                    (BuiltinCase::Ok, success, Vec::new()),
+                    (
+                        BuiltinCase::Err,
+                        forward_error,
+                        vec![SwitchArgument::CasePayload],
+                    ),
+                ],
+            ),
+        );
+    }
+
+    let fixed_parameters = block_parameters(assembler, ns.p, fixed32, &[TypeExpr::Bytes]);
+    let fixed = assembler.op(
+        ns.o,
+        fixed32,
+        Opcode::CallDirect,
+        vec![pav(fixed_parameters[0]), pav(unit)],
+        vec![bytes_validation_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: fixed32_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        fixed32,
+        function,
+        fixed_parameters,
+        vec![fixed],
+        switch(
+            op_result(fixed),
+            vec![
+                (BuiltinCase::Ok, success, Vec::new()),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let empty_parameters = block_parameters(assembler, ns.p, empty, &[TypeExpr::Bytes]);
+    let empty_constant = assembler.kbytes(ns.k, b"");
+    let expected_empty = assembler.cref(ns.o, empty, empty_constant, TypeExpr::Bytes);
+    let is_empty = assembler.op(
+        ns.o,
+        empty,
+        Opcode::Equal,
+        vec![pav(empty_parameters[0]), op_result(expected_empty)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        empty,
+        function,
+        empty_parameters,
+        vec![expected_empty, is_empty],
+        cond(
+            op_result(is_empty),
+            edge(success, Vec::new()),
+            edge(union_error, Vec::new()),
+        ),
+    );
+
+    for (index, block) in dispatch.iter().copied().enumerate() {
+        let parameters = block_parameters(assembler, ns.p, block, &[u64_type(), TypeExpr::Bytes]);
+        let tag = u64::try_from(index + 1).expect("TypeExpr tag fits u64");
+        let tag_constant = assembler.ku64(ns.k, u128::from(tag));
+        let expected = assembler.cref(ns.o, block, tag_constant, u64_type());
+        let matches = assembler.op(
+            ns.o,
+            block,
+            Opcode::Equal,
+            vec![pav(parameters[0]), op_result(expected)],
+            vec![TypeExpr::Bool],
+            Immediate::None,
+        );
+        let target = match tag {
+            1 | 2 | 5 | 6 | 7 | 8 => Some(empty),
+            3 | 4 => Some(width16),
+            9..=15 | 18 => None,
+            16 | 17 => Some(fixed32),
+            19 => Some(width32),
+            20 => Some(failure_kind),
+            _ => unreachable!(),
+        };
+        let true_edge = target.map_or_else(
+            || edge(scope_error, Vec::new()),
+            |target| edge(target, vec![pav(parameters[1])]),
+        );
+        let false_edge = if index + 1 == dispatch.len() {
+            edge(union_error, Vec::new())
+        } else {
+            edge(
+                dispatch[index + 1],
+                vec![pav(parameters[0]), pav(parameters[1])],
+            )
+        };
+        append_block(
+            assembler,
+            block,
+            function,
+            parameters,
+            vec![expected, matches],
+            cond(op_result(matches), true_edge, false_edge),
+        );
+    }
+
+    let union_parameters = block_parameters(
+        assembler,
+        ns.p,
+        union_ready,
+        &[TypeExpr::Tuple(vec![u64_type(), TypeExpr::Bytes])],
+    );
+    let tag = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![u64_type()],
+        Immediate::Index(0),
+    );
+    let payload = assembler.op(
+        ns.o,
+        union_ready,
+        Opcode::TupleGet,
+        vec![pav(union_parameters[0])],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    append_block(
+        assembler,
+        union_ready,
+        function,
+        union_parameters,
+        vec![tag, payload],
+        branch(edge(dispatch[0], vec![op_result(tag), op_result(payload)])),
+    );
+
+    let entry = assembler.id(ns.b);
+    let decoded = assembler.op(
+        ns.o,
+        entry,
+        Opcode::CallDirect,
+        vec![pav(body), pav(unit)],
+        vec![generic_union_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: union_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![decoded],
+        switch(
+            op_result(decoded),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    union_ready,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+pub(super) fn type_expr_leaf_decode_image() -> Image {
+    let mut assembler = Asm::new();
+    let decode_function = assembler.id(219);
+    let union_function = assembler.id(219);
+    let fixed32_function = assembler.id(219);
+    let exact_uvar_function = assembler.id(219);
+    let bounded_uvar_function = assembler.id(219);
+    let function = assembler.id(219);
+    let (decode_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 220,
+            p: 220,
+            b: 220,
+            o: 220,
+        },
+        decode_function,
+    );
+    let union_graph = build_generic_union_decode(
+        &mut assembler,
+        Ns {
+            k: 221,
+            p: 221,
+            b: 221,
+            o: 221,
+        },
+        union_function,
+        decode_function,
+    );
+    let fixed32_graph = build_fixed32_decode(
+        &mut assembler,
+        Ns {
+            k: 222,
+            p: 222,
+            b: 222,
+            o: 222,
+        },
+        fixed32_function,
+    );
+    let exact_uvar_graph = build_exact_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 223,
+            p: 223,
+            b: 223,
+            o: 223,
+        },
+        exact_uvar_function,
+        decode_function,
+    );
+    let bounded_uvar_graph = build_bounded_uvar_decode(
+        &mut assembler,
+        Ns {
+            k: 224,
+            p: 224,
+            b: 224,
+            o: 224,
+        },
+        bounded_uvar_function,
+        exact_uvar_function,
+    );
+    let graph = build_type_expr_leaf_decode(
+        &mut assembler,
+        Ns {
+            k: 225,
+            p: 225,
+            b: 225,
+            o: 225,
+        },
+        function,
+        union_function,
+        fixed32_function,
+        exact_uvar_function,
+        bounded_uvar_function,
+    );
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![
+            graph,
+            bounded_uvar_graph,
+            exact_uvar_graph,
+            fixed32_graph,
+            union_graph,
+            decode_graph,
+        ],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    }
+}
+
 fn function_schema_result_type() -> TypeExpr {
     TypeExpr::Result {
         ok: Box::new(TypeExpr::Tuple(vec![TypeExpr::Bytes; 8])),
@@ -6770,6 +7188,7 @@ fn build_function_schema_decode(
     entity_id_collection_decoder: EntityId,
     fixed32_decoder: EntityId,
     bounded_uvar_decoder: EntityId,
+    type_expr_leaf_decoder: EntityId,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
     let result_type = function_schema_result_type();
@@ -6807,6 +7226,7 @@ fn build_function_schema_decode(
     let success = assembler.id(ns.b);
     let finish = assembler.id(ns.b);
     let scalar_validation = assembler.id(ns.b);
+    let type_expr_validation = assembler.id(ns.b);
     let fixed_validation = assembler.id(ns.b);
     let list_validation_blocks = std::array::from_fn::<_, 5, _>(|_| assembler.id(ns.b));
     let get_blocks = std::array::from_fn::<_, 8, _>(|_| assembler.id(ns.b));
@@ -7020,8 +7440,52 @@ fn build_function_schema_decode(
             vec![
                 (
                     BuiltinCase::Ok,
-                    success,
+                    type_expr_validation,
                     scalar_validation_parameters
+                        .iter()
+                        .copied()
+                        .map(sav)
+                        .collect(),
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let type_expr_validation_parameters = block_parameters(
+        assembler,
+        ns.p,
+        type_expr_validation,
+        &vec![TypeExpr::Bytes; 8],
+    );
+    let result_type_expr = assembler.op(
+        ns.o,
+        type_expr_validation,
+        Opcode::CallDirect,
+        vec![pav(type_expr_validation_parameters[2]), pav(unit)],
+        vec![bytes_validation_result_type()],
+        Immediate::Function(FunctionRefValue {
+            function: type_expr_leaf_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        type_expr_validation,
+        function,
+        type_expr_validation_parameters.clone(),
+        vec![result_type_expr],
+        switch(
+            op_result(result_type_expr),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    success,
+                    type_expr_validation_parameters
                         .iter()
                         .copied()
                         .map(sav)
@@ -7257,6 +7721,7 @@ pub(super) fn function_schema_decode_image() -> Image {
     let entity_id_collection_function = assembler.id(200);
     let exact_uvar_function = assembler.id(200);
     let bounded_uvar_function = assembler.id(200);
+    let type_expr_leaf_function = assembler.id(200);
     let function = assembler.id(200);
     let (decode_graph, _) = build_decode(
         &mut assembler,
@@ -7345,13 +7810,27 @@ pub(super) fn function_schema_decode_image() -> Image {
         bounded_uvar_function,
         exact_uvar_function,
     );
-    let graph = build_function_schema_decode(
+    let type_expr_leaf_graph = build_type_expr_leaf_decode(
         &mut assembler,
         Ns {
             k: 209,
             p: 209,
             b: 209,
             o: 209,
+        },
+        type_expr_leaf_function,
+        union_function,
+        fixed32_function,
+        exact_uvar_function,
+        bounded_uvar_function,
+    );
+    let graph = build_function_schema_decode(
+        &mut assembler,
+        Ns {
+            k: 210,
+            p: 210,
+            b: 210,
+            o: 210,
         },
         function,
         union_function,
@@ -7360,6 +7839,7 @@ pub(super) fn function_schema_decode_image() -> Image {
         entity_id_collection_function,
         fixed32_function,
         bounded_uvar_function,
+        type_expr_leaf_function,
     );
     Image {
         types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
@@ -7371,6 +7851,7 @@ pub(super) fn function_schema_decode_image() -> Image {
             entity_id_collection_graph,
             fixed32_graph,
             bounded_uvar_graph,
+            type_expr_leaf_graph,
             exact_uvar_graph,
             list_graph,
             decode_graph,
@@ -7727,7 +8208,7 @@ fn generic_list_decoder_rejects_noncanonical_boundaries() {
     }
 }
 
-fn function_schema_body() -> Vec<u8> {
+fn function_schema_body_with_result(result_type: TypeExpr) -> Vec<u8> {
     use sley_mutate::value::{EntityBodyValue, EntityIdSet, FunctionBody};
 
     let record = sley_mutate::EntityObjectRecord {
@@ -7735,7 +8216,7 @@ fn function_schema_body() -> Vec<u8> {
         body: EntityBodyValue::Function(FunctionBody {
             type_parameters: Vec::new(),
             parameters: vec![EntityId::from_bytes([0x82; 32])],
-            result_type: TypeExpr::Bool,
+            result_type,
             effects: EntityIdSet::from_unsorted(vec![EntityId::from_bytes([0x83; 32])])
                 .expect("single effect is canonical"),
             entry_block: EntityId::from_bytes([0x84; 32]),
@@ -7755,6 +8236,10 @@ fn function_schema_body() -> Vec<u8> {
         .stored_bytes()
         .to_vec();
     ns_body_of(&stored)
+}
+
+fn function_schema_body() -> Vec<u8> {
+    function_schema_body_with_result(TypeExpr::Bool)
 }
 
 fn native_union_record_payloads(body: &[u8]) -> Vec<Vec<u8>> {
@@ -7790,18 +8275,18 @@ fn function_schema_decoder_projects_all_runtime_fields() {
         package.image_bytes.len(),
         approved.package_digest,
     );
-    assert_eq!(image.functions.len(), 9);
-    assert_eq!(image.parameters.len(), 1_067);
-    assert_eq!(image.blocks.len(), 192);
-    assert_eq!(image.operations.len(), 346);
-    assert_eq!(image.constants.len(), 98);
-    assert_eq!(package.image_bytes.len(), 51_112);
+    assert_eq!(image.functions.len(), 10);
+    assert_eq!(image.parameters.len(), 1_124);
+    assert_eq!(image.blocks.len(), 224);
+    assert_eq!(image.operations.len(), 406);
+    assert_eq!(image.constants.len(), 125);
+    assert_eq!(package.image_bytes.len(), 57_396);
     assert_eq!(
         approved.package_digest,
         [
-            0x66, 0xfe, 0x54, 0x48, 0x51, 0x0a, 0x8d, 0xf7, 0xcd, 0xed, 0x71, 0x4a, 0x8e, 0xa3,
-            0xc7, 0x71, 0x31, 0x68, 0xc0, 0xaa, 0xaf, 0x93, 0xa6, 0xf4, 0x26, 0x03, 0x36, 0x66,
-            0xfd, 0xac, 0x3d, 0xc8,
+            0xfb, 0x18, 0xf2, 0x62, 0x95, 0xa1, 0x8c, 0x60, 0x22, 0xa3, 0x10, 0xb4, 0x09, 0xee,
+            0x7a, 0x39, 0x94, 0x0d, 0x75, 0x49, 0xba, 0xd8, 0xa4, 0x64, 0x46, 0x54, 0xe5, 0x9d,
+            0xef, 0x82, 0xd0, 0x46,
         ]
     );
     let outcome = execute_with_limits(
@@ -8007,6 +8492,43 @@ fn function_schema_decoder_enforces_kind_fields_and_list_boundaries() {
         &sley_scb1::encode_record(&nonminimal_visibility_fields).expect("record encodes"),
     )
     .expect("union encodes");
+    let mut malformed_result_fields = fields
+        .iter()
+        .enumerate()
+        .map(|(index, payload)| {
+            (
+                u32::try_from(index + 1).expect("eight Function fields"),
+                payload.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    malformed_result_fields[2].1 =
+        sley_scb1::encode_union(1, &[0]).expect("malformed Unit TypeExpr encodes structurally");
+    let malformed_result = sley_scb1::encode_union(
+        5,
+        &sley_scb1::encode_record(&malformed_result_fields).expect("record encodes"),
+    )
+    .expect("union encodes");
+    let mut composite_result_fields = fields
+        .iter()
+        .enumerate()
+        .map(|(index, payload)| {
+            (
+                u32::try_from(index + 1).expect("eight Function fields"),
+                payload.clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    composite_result_fields[2].1 = sley_scb1::encode_union(
+        9,
+        &sley_scb1::encode_union(2, &[]).expect("nested Bool TypeExpr encodes"),
+    )
+    .expect("Option TypeExpr encodes");
+    let composite_result = sley_scb1::encode_union(
+        5,
+        &sley_scb1::encode_record(&composite_result_fields).expect("record encodes"),
+    )
+    .expect("union encodes");
 
     for (name, input, expected) in [
         ("wrong_kind", wrong_kind, b"SCB_UNION_INVALID".as_slice()),
@@ -8041,6 +8563,16 @@ fn function_schema_decoder_enforces_kind_fields_and_list_boundaries() {
             "nonminimal_visibility",
             nonminimal_visibility,
             b"SCB_VARINT_NON_MINIMAL".as_slice(),
+        ),
+        (
+            "malformed_result_type",
+            malformed_result,
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "composite_result_type_scope",
+            composite_result,
+            b"SSMC_RESERVED_FIELD_PRESENT".as_slice(),
         ),
     ] {
         eprintln!("FUNCTION_SCHEMA_REJ {name}");
@@ -8247,6 +8779,120 @@ fn bounded_uvar_decoder_rejects_noncanonical_and_out_of_range_values() {
         };
         let ConstData::Result(ResultConst::Err(error)) = value.data else {
             panic!("invalid bounded uvar must be refused: {value:?}")
+        };
+        assert_eq!(error.data, ConstData::Bytes(expected.to_vec()), "{name}");
+    }
+}
+
+#[test]
+fn type_expr_leaf_decoder_accepts_every_leaf_family() {
+    use sley_ssmc::BuiltinFailureKind;
+
+    let image = type_expr_leaf_decode_image();
+    let (package, approved) = admit(&image);
+    assert_entry_cfg_surface(&image);
+    assert_eq!(image.functions.len(), 6);
+    assert_eq!(image.parameters.len(), 516);
+    assert_eq!(image.blocks.len(), 122);
+    assert_eq!(image.operations.len(), 236);
+    assert_eq!(image.constants.len(), 75);
+    assert_eq!(package.image_bytes.len(), 30_214);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0x7b, 0x62, 0x7c, 0xdd, 0x03, 0x4a, 0x92, 0x2b, 0xee, 0x52, 0x72, 0x3e, 0xef, 0xc9,
+            0x6a, 0x7c, 0x39, 0x43, 0xf9, 0xef, 0x2b, 0x78, 0xbf, 0x80, 0x16, 0x32, 0xaa, 0xb1,
+            0xf1, 0xb4, 0x6c, 0xed,
+        ]
+    );
+    eprintln!(
+        "TYPE_EXPR_LEAF functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    let types = [
+        TypeExpr::Unit,
+        TypeExpr::Bool,
+        TypeExpr::SInt(IntegerWidth::from_bits(24)),
+        TypeExpr::UInt(IntegerWidth::from_bits(128)),
+        TypeExpr::F32,
+        TypeExpr::F64,
+        TypeExpr::Bytes,
+        TypeExpr::Text,
+        TypeExpr::AdapterHandle(EntityId::from_bytes([0xa1; 32])),
+        TypeExpr::CapabilityToken(EntityId::from_bytes([0xa2; 32])),
+        TypeExpr::TypeParameter(3),
+        TypeExpr::BuiltinFailure(BuiltinFailureKind::Capability),
+    ];
+    for value_type in types {
+        let body = function_schema_body_with_result(value_type);
+        let encoded = native_union_record_payloads(&body)[2].clone();
+        let outcome = execute(
+            &package,
+            &approved,
+            vec![bytes_input(&encoded), unit_input()],
+        );
+        let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+            panic!("TypeExpr leaf decoder must return")
+        };
+        let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+            panic!("native TypeExpr leaf must decode: {value:?}")
+        };
+        assert_eq!(decoded.data, ConstData::Bytes(encoded));
+    }
+}
+
+#[test]
+fn type_expr_leaf_decoder_rejects_invalid_leaves_and_scopes_composites() {
+    let image = type_expr_leaf_decode_image();
+    let (package, approved) = admit(&image);
+    let composite_body =
+        function_schema_body_with_result(TypeExpr::Option(Box::new(TypeExpr::Unit)));
+    let composite = native_union_record_payloads(&composite_body)[2].clone();
+    let cases = [
+        (
+            "unit_payload",
+            sley_scb1::encode_union(1, &[0]).expect("union encodes"),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "short_adapter_identity",
+            sley_scb1::encode_union(16, &[0; 31]).expect("union encodes"),
+            b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "nonminimal_type_parameter",
+            sley_scb1::encode_union(19, &[0x81, 0]).expect("union encodes"),
+            b"SCB_VARINT_NON_MINIMAL".as_slice(),
+        ),
+        (
+            "unknown_failure_kind",
+            sley_scb1::encode_union(20, &sley_scb1::encode_uvar(6)).expect("union encodes"),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "composite_scope",
+            composite,
+            b"SSMC_RESERVED_FIELD_PRESENT".as_slice(),
+        ),
+        (
+            "unknown_type_tag",
+            sley_scb1::encode_union(21, &[]).expect("union encodes"),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+    ];
+    for (name, input, expected) in cases {
+        let outcome = execute(&package, &approved, vec![bytes_input(&input), unit_input()]);
+        let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+            panic!("TypeExpr leaf decoder must return")
+        };
+        let ConstData::Result(ResultConst::Err(error)) = value.data else {
+            panic!("invalid TypeExpr leaf must be refused: {value:?}")
         };
         assert_eq!(error.data, ConstData::Bytes(expected.to_vec()), "{name}");
     }
