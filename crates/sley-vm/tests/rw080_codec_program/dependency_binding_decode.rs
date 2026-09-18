@@ -4555,6 +4555,732 @@ fn assert_dependency_decode_ok(
     }
 }
 
+fn generic_record_map_type() -> TypeExpr {
+    TypeExpr::OrderedMap {
+        key: Box::new(u64_type()),
+        value: Box::new(TypeExpr::Bytes),
+    }
+}
+
+fn generic_record_result_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(generic_record_map_type()),
+        error: Box::new(TypeExpr::Bytes),
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_generic_record_decode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    decode_function: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = generic_record_result_type();
+    let map_type = generic_record_map_type();
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+
+    let e_length = assembler.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
+    let e_trailing = assembler.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let e_resource = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+    let e_duplicate = assembler.kbytes(ns.k, b"SCB_FIELD_DUPLICATE");
+    let e_order = assembler.kbytes(ns.k, b"SCB_FIELD_ORDER");
+
+    let forward_error = assembler.id(ns.b);
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let forwarded_result = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![forwarded_result],
+        ret(op_result(forwarded_result)),
+    );
+
+    let length_error = err_block(assembler, ns, function, result_type.clone(), e_length);
+    let trailing_error = err_block(assembler, ns, function, result_type.clone(), e_trailing);
+    let resource_error = err_block(assembler, ns, function, result_type.clone(), e_resource);
+    let duplicate_error = err_block(assembler, ns, function, result_type.clone(), e_duplicate);
+    let order_error = err_block(assembler, ns, function, result_type.clone(), e_order);
+    let control = DecodeBlocks {
+        function,
+        decode_function,
+        forward_error,
+        length_error,
+        trailing_error,
+        resource_error,
+        missing_error: resource_error,
+        unknown_error: resource_error,
+        duplicate_error,
+        order_error,
+        union_error: resource_error,
+        scope_error: resource_error,
+        invariant_trap: trap_block(assembler, ns, function),
+        width32: assembler.ku32(ns.k, 32),
+        width64: assembler.ku32(ns.k, 64),
+        max_length: assembler.ku64(ns.k, 67_108_864),
+        max_fields: assembler.ku64(ns.k, 65_535),
+        constant0: assembler.ku64(ns.k, 0),
+        constant1: assembler.ku64(ns.k, 1),
+        constant32: assembler.ku64(ns.k, 32),
+    };
+
+    let output_types = vec![u64_type(), u64_type(), u64_type(), map_type.clone()];
+    let state_types = record_state_types(&output_types);
+    let decoded_types = decoded_record_state_types(&output_types);
+    let loop_check = assembler.id(ns.b);
+    let finish = assembler.id(ns.b);
+    let finish_ok = assembler.id(ns.b);
+    let tag_validate = assembler.id(ns.b);
+    let tag_seen = assembler.id(ns.b);
+    let tag_order = assembler.id(ns.b);
+    let tag_ready = assembler.id(ns.b);
+    let insert = assembler.id(ns.b);
+    let count_ready = assembler.id(ns.b);
+    let map_ready = assembler.id(ns.b);
+    let vector_ready = assembler.id(ns.b);
+
+    let insert_parameters = block_parameters(
+        assembler,
+        ns.p,
+        insert,
+        &state_types
+            .clone()
+            .into_iter()
+            .chain(std::iter::once(TypeExpr::Bytes))
+            .collect::<Vec<_>>(),
+    );
+    let inserted = assembler.op(
+        ns.o,
+        insert,
+        Opcode::MapInsert,
+        vec![
+            pav(insert_parameters[9]),
+            pav(insert_parameters[8]),
+            pav(insert_parameters[10]),
+        ],
+        vec![map_type.clone()],
+        Immediate::None,
+    );
+    let one = assembler.cref(ns.o, insert, control.constant1, u64_type());
+    let processed = assembler.op(
+        ns.o,
+        insert,
+        Opcode::IntAddChecked,
+        vec![pav(insert_parameters[6]), op_result(one)],
+        vec![arith_result(u64_type())],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        insert,
+        function,
+        insert_parameters.clone(),
+        vec![inserted, one, processed],
+        switch(
+            op_result(processed),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    loop_check,
+                    vec![
+                        sav(insert_parameters[0]),
+                        sav(insert_parameters[1]),
+                        sav(insert_parameters[2]),
+                        sav(insert_parameters[3]),
+                        sav(insert_parameters[4]),
+                        sav(insert_parameters[5]),
+                        SwitchArgument::CasePayload,
+                        sav(insert_parameters[7]),
+                        sav(insert_parameters[8]),
+                        oav(inserted),
+                    ],
+                ),
+                (BuiltinCase::Err, control.invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let field_copy = build_field_copy_loop(assembler, ns, &control, &output_types, insert);
+    let field_length =
+        build_bounded_field_validator(assembler, ns, &control, &output_types, field_copy);
+    let length_decode = build_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width64,
+        &output_types,
+        field_length,
+    );
+
+    let tag_ready_parameters = block_parameters(assembler, ns.p, tag_ready, &decoded_types);
+    let seen_true_constant = assembler.kbool(ns.k, true);
+    let seen_true = assembler.cref(ns.o, tag_ready, seen_true_constant, TypeExpr::Bool);
+    append_block(
+        assembler,
+        tag_ready,
+        function,
+        tag_ready_parameters.clone(),
+        vec![seen_true],
+        branch(edge(
+            length_decode,
+            vec![
+                pav(tag_ready_parameters[1]),
+                pav(tag_ready_parameters[2]),
+                pav(tag_ready_parameters[3]),
+                pav(tag_ready_parameters[4]),
+                pav(tag_ready_parameters[5]),
+                op_result(seen_true),
+                pav(tag_ready_parameters[7]),
+                pav(tag_ready_parameters[8]),
+                pav(tag_ready_parameters[0]),
+                pav(tag_ready_parameters[10]),
+            ],
+        )),
+    );
+
+    let tag_order_parameters = block_parameters(assembler, ns.p, tag_order, &decoded_types);
+    let earlier = assembler.op(
+        ns.o,
+        tag_order,
+        Opcode::LessThan,
+        vec![pav(tag_order_parameters[0]), pav(tag_order_parameters[9])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        tag_order,
+        function,
+        tag_order_parameters.clone(),
+        vec![earlier],
+        cond(
+            op_result(earlier),
+            edge(control.order_error, Vec::new()),
+            edge(tag_ready, parameter_values(&tag_order_parameters)),
+        ),
+    );
+
+    let tag_seen_parameters = block_parameters(assembler, ns.p, tag_seen, &decoded_types);
+    let duplicate = assembler.op(
+        ns.o,
+        tag_seen,
+        Opcode::Equal,
+        vec![pav(tag_seen_parameters[0]), pav(tag_seen_parameters[9])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        tag_seen,
+        function,
+        tag_seen_parameters.clone(),
+        vec![duplicate],
+        cond(
+            op_result(duplicate),
+            edge(control.duplicate_error, Vec::new()),
+            edge(tag_order, parameter_values(&tag_seen_parameters)),
+        ),
+    );
+
+    let tag_validate_parameters = block_parameters(assembler, ns.p, tag_validate, &decoded_types);
+    append_block(
+        assembler,
+        tag_validate,
+        function,
+        tag_validate_parameters.clone(),
+        Vec::new(),
+        cond(
+            pav(tag_validate_parameters[6]),
+            edge(tag_seen, parameter_values(&tag_validate_parameters)),
+            edge(tag_ready, parameter_values(&tag_validate_parameters)),
+        ),
+    );
+    let tag_decode = build_record_uvar_stage(
+        assembler,
+        ns,
+        &control,
+        control.width32,
+        &output_types,
+        tag_validate,
+    );
+
+    let finish_ok_parameters =
+        block_parameters(assembler, ns.p, finish_ok, std::slice::from_ref(&map_type));
+    let ok = assembler.op(
+        ns.o,
+        finish_ok,
+        Opcode::ResultOk,
+        vec![pav(finish_ok_parameters[0])],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        finish_ok,
+        function,
+        finish_ok_parameters,
+        vec![ok],
+        ret(op_result(ok)),
+    );
+
+    let finish_parameters = block_parameters(assembler, ns.p, finish, &state_types);
+    let consumed = assembler.op(
+        ns.o,
+        finish,
+        Opcode::Equal,
+        vec![pav(finish_parameters[0]), pav(finish_parameters[1])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        finish,
+        function,
+        finish_parameters.clone(),
+        vec![consumed],
+        cond(
+            op_result(consumed),
+            edge(finish_ok, vec![pav(finish_parameters[9])]),
+            edge(control.trailing_error, Vec::new()),
+        ),
+    );
+
+    let loop_parameters = block_parameters(assembler, ns.p, loop_check, &state_types);
+    let complete = assembler.op(
+        ns.o,
+        loop_check,
+        Opcode::Equal,
+        vec![pav(loop_parameters[6]), pav(loop_parameters[7])],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        loop_check,
+        function,
+        loop_parameters.clone(),
+        vec![complete],
+        cond(
+            op_result(complete),
+            edge(finish, parameter_values(&loop_parameters)),
+            edge(tag_decode, parameter_values(&loop_parameters)),
+        ),
+    );
+
+    let map_ready_types = vec![
+        map_type.clone(),
+        u64_type(),
+        u64_type(),
+        u64_type(),
+        u8vec_type(),
+        TypeExpr::Bytes,
+        TypeExpr::Unit,
+        TypeExpr::Bool,
+    ];
+    let map_ready_parameters = block_parameters(assembler, ns.p, map_ready, &map_ready_types);
+    let processed_zero = assembler.cref(ns.o, map_ready, control.constant0, u64_type());
+    let previous_zero = assembler.cref(ns.o, map_ready, control.constant0, u64_type());
+    append_block(
+        assembler,
+        map_ready,
+        function,
+        map_ready_parameters.clone(),
+        vec![processed_zero, previous_zero],
+        branch(edge(
+            loop_check,
+            vec![
+                pav(map_ready_parameters[2]),
+                pav(map_ready_parameters[3]),
+                pav(map_ready_parameters[4]),
+                pav(map_ready_parameters[5]),
+                pav(map_ready_parameters[6]),
+                pav(map_ready_parameters[7]),
+                op_result(processed_zero),
+                pav(map_ready_parameters[1]),
+                op_result(previous_zero),
+                pav(map_ready_parameters[0]),
+            ],
+        )),
+    );
+
+    let count_ready_types = vec![
+        u64_type(),
+        u64_type(),
+        u64_type(),
+        u8vec_type(),
+        TypeExpr::Bytes,
+        TypeExpr::Unit,
+        TypeExpr::Bool,
+    ];
+    let count_ready_parameters = block_parameters(assembler, ns.p, count_ready, &count_ready_types);
+    let max_fields = assembler.cref(ns.o, count_ready, control.max_fields, u64_type());
+    let too_many = assembler.op(
+        ns.o,
+        count_ready,
+        Opcode::GreaterThan,
+        vec![pav(count_ready_parameters[0]), op_result(max_fields)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let create_map = assembler.id(ns.b);
+    append_block(
+        assembler,
+        count_ready,
+        function,
+        count_ready_parameters.clone(),
+        vec![max_fields, too_many],
+        cond(
+            op_result(too_many),
+            edge(control.resource_error, Vec::new()),
+            edge(create_map, parameter_values(&count_ready_parameters)),
+        ),
+    );
+
+    let create_map_parameters = block_parameters(assembler, ns.p, create_map, &count_ready_types);
+    let map_new_result = TypeExpr::Result {
+        ok: Box::new(map_type.clone()),
+        error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::DuplicateKey)),
+    };
+    let empty_map = assembler.op(
+        ns.o,
+        create_map,
+        Opcode::MapNew,
+        Vec::new(),
+        vec![map_new_result],
+        Immediate::None,
+    );
+    let mut map_ready_arguments = vec![SwitchArgument::CasePayload];
+    map_ready_arguments.extend(create_map_parameters.iter().copied().map(sav));
+    append_block(
+        assembler,
+        create_map,
+        function,
+        create_map_parameters,
+        vec![empty_map],
+        switch(
+            op_result(empty_map),
+            vec![
+                (BuiltinCase::Ok, map_ready, map_ready_arguments),
+                (BuiltinCase::Err, control.invariant_trap, Vec::new()),
+            ],
+        ),
+    );
+
+    let count_decode =
+        build_record_uvar_stage(assembler, ns, &control, control.width64, &[], count_ready);
+    let vector_ready_types = vec![u8vec_type(), TypeExpr::Bytes, TypeExpr::Unit];
+    let vector_ready_parameters =
+        block_parameters(assembler, ns.p, vector_ready, &vector_ready_types);
+    let total = assembler.op(
+        ns.o,
+        vector_ready,
+        Opcode::VectorLen,
+        vec![pav(vector_ready_parameters[0])],
+        vec![u64_type()],
+        Immediate::None,
+    );
+    let zero = assembler.cref(ns.o, vector_ready, control.constant0, u64_type());
+    let unseen_constant = assembler.kbool(ns.k, false);
+    let unseen = assembler.cref(ns.o, vector_ready, unseen_constant, TypeExpr::Bool);
+    append_block(
+        assembler,
+        vector_ready,
+        function,
+        vector_ready_parameters.clone(),
+        vec![total, zero, unseen],
+        branch(edge(
+            count_decode,
+            vec![
+                op_result(zero),
+                op_result(total),
+                pav(vector_ready_parameters[0]),
+                pav(vector_ready_parameters[1]),
+                pav(vector_ready_parameters[2]),
+                op_result(unseen),
+            ],
+        )),
+    );
+
+    let entry = assembler.id(ns.b);
+    let converted = assembler.op(
+        ns.o,
+        entry,
+        Opcode::AdapterInvoke,
+        vec![pav(unit), pav(body)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![converted],
+        switch(
+            op_result(converted),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    vector_ready,
+                    vec![SwitchArgument::CasePayload, sav(body), sav(unit)],
+                ),
+                (BuiltinCase::Err, control.resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![body, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+pub(super) fn generic_record_decode_image() -> Image {
+    let mut assembler = Asm::new();
+    let decode_function = eid(12, 3);
+    let function = eid(12, 4);
+    let (decode_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 238,
+            p: 239,
+            b: 240,
+            o: 241,
+        },
+        decode_function,
+    );
+    let graph = build_generic_record_decode(
+        &mut assembler,
+        Ns {
+            k: 242,
+            p: 243,
+            b: 244,
+            o: 245,
+        },
+        function,
+        decode_function,
+    );
+    Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: graph.clone(),
+        functions: vec![graph, decode_graph],
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    }
+}
+
+fn assert_entry_cfg_surface(image: &Image) {
+    let mut reached = std::collections::BTreeSet::new();
+    let mut pending = vec![image.entry.entry_block];
+    while let Some(block_id) = pending.pop() {
+        if !reached.insert(block_id) {
+            continue;
+        }
+        let block = image
+            .blocks
+            .iter()
+            .find(|block| block.entity_id == block_id)
+            .expect("generic decoder block resolves");
+        match &block.terminator {
+            Terminator::Return(_) | Terminator::Trap(_) => {}
+            Terminator::Branch(branch) => pending.push(branch.edge.target),
+            Terminator::CondBranch(branch) => {
+                pending.extend([branch.if_true.target, branch.if_false.target]);
+            }
+            Terminator::VariantSwitch(switch) => {
+                pending.extend(switch.cases.iter().map(|case| case.edge.target));
+            }
+        }
+    }
+    let unreachable = image
+        .entry
+        .blocks
+        .iter()
+        .filter(|block| !reached.contains(block))
+        .collect::<Vec<_>>();
+    assert!(
+        unreachable.is_empty(),
+        "unreachable blocks: {unreachable:?}"
+    );
+    let target_arity = |target: EntityId| {
+        image
+            .blocks
+            .iter()
+            .find(|block| block.entity_id == target)
+            .map_or(0, |block| block.parameters.len())
+    };
+    let assert_edge = |source: EntityId, target: EntityId, arity: usize| {
+        assert_eq!(
+            arity,
+            target_arity(target),
+            "edge arity from {source:?} to {target:?}"
+        );
+    };
+    for block_id in &image.entry.blocks {
+        let block = image
+            .blocks
+            .iter()
+            .find(|block| block.entity_id == *block_id)
+            .unwrap();
+        match &block.terminator {
+            Terminator::Return(_) | Terminator::Trap(_) => {}
+            Terminator::Branch(branch) => assert_edge(
+                block.entity_id,
+                branch.edge.target,
+                branch.edge.arguments.len(),
+            ),
+            Terminator::CondBranch(branch) => {
+                for edge in [&branch.if_true, &branch.if_false] {
+                    assert_edge(block.entity_id, edge.target, edge.arguments.len());
+                }
+            }
+            Terminator::VariantSwitch(switch) => {
+                for case in &switch.cases {
+                    assert_edge(block.entity_id, case.edge.target, case.edge.arguments.len());
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn generic_record_decoder_preserves_arbitrary_ordered_fields() {
+    let image = generic_record_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit(&image);
+    assert_eq!(image.functions.len(), 2);
+    assert_eq!(image.parameters.len(), 583);
+    assert_eq!(image.blocks.len(), 86);
+    assert_eq!(image.operations.len(), 166);
+    assert_eq!(image.constants.len(), 43);
+    assert_eq!(package.image_bytes.len(), 25_332);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0xec, 0x73, 0x4c, 0x39, 0x1f, 0xde, 0xc9, 0x62, 0x59, 0x19, 0xa9, 0xbc, 0x62, 0x44,
+            0x5c, 0x4b, 0xe2, 0x04, 0x1e, 0xab, 0xd3, 0x0f, 0x73, 0x8b, 0x75, 0xd9, 0xdf, 0xf0,
+            0x81, 0x23, 0xf9, 0xda,
+        ]
+    );
+    eprintln!(
+        "GENERIC_RECORD functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    let fields = vec![
+        (1_u32, b"alpha".to_vec()),
+        (300_u32, vec![0, 1, 2, 3, 4]),
+        (65_535_u32, Vec::new()),
+    ];
+    let encoded = sley_scb1::encode_record(&fields).expect("native record encodes");
+    let outcome = execute(
+        &package,
+        &approved,
+        vec![bytes_input(&encoded), unit_input()],
+    );
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("generic decoder must return")
+    };
+    let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+        panic!("generic decoder must accept canonical fields: {value:?}")
+    };
+    let ConstData::Map(entries) = decoded.data else {
+        panic!("generic decoder must return an ordered map")
+    };
+    assert_eq!(entries.len(), fields.len());
+    for (entry, (tag, payload)) in entries.iter().zip(fields) {
+        assert_eq!(entry.key.data, ConstData::UInt(u128::from(tag)));
+        assert_eq!(entry.value.data, ConstData::Bytes(payload));
+    }
+}
+
+fn generic_record_error(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    input: &[u8],
+) -> Vec<u8> {
+    let outcome = execute(package, approved, vec![bytes_input(input), unit_input()]);
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("generic decoder must return a typed refusal")
+    };
+    let ConstData::Result(ResultConst::Err(error)) = value.data else {
+        panic!("generic decoder must refuse malformed record: {value:?}")
+    };
+    let ConstData::Bytes(code) = error.data else {
+        panic!("generic decoder refusal must be Bytes")
+    };
+    code
+}
+
+#[test]
+fn generic_record_decoder_matches_canonical_error_precedence() {
+    let image = generic_record_decode_image();
+    let (package, approved) = admit(&image);
+
+    let empty = sley_scb1::encode_record(&[]).expect("empty record encodes");
+    let outcome = execute(&package, &approved, vec![bytes_input(&empty), unit_input()]);
+    let sley_vm::ExecutionTermination::Success(value) = outcome.termination else {
+        panic!("empty record decoder returns")
+    };
+    let ConstData::Result(ResultConst::Ok(decoded)) = value.data else {
+        panic!("empty record must decode")
+    };
+    assert_eq!(decoded.data, ConstData::Map(Vec::new()));
+
+    let cases: [(&str, Vec<u8>, &[u8]); 6] = [
+        ("duplicate", vec![2, 1, 0, 1, 0], b"SCB_FIELD_DUPLICATE"),
+        ("order", vec![2, 2, 0, 1, 0], b"SCB_FIELD_ORDER"),
+        ("trailing", vec![0, 0], b"SCB_TRAILING_BYTES"),
+        ("truncated", vec![1, 1, 2, 0], b"SCB_LENGTH_OVERFLOW"),
+        ("nonminimal", vec![0x80, 0], b"SCB_VARINT_NON_MINIMAL"),
+        (
+            "field_limit",
+            sley_scb1::encode_uvar(65_536),
+            b"SCB_RESOURCE_LIMIT",
+        ),
+    ];
+    for (name, input, expected) in cases {
+        assert_eq!(
+            generic_record_error(&package, &approved, &input),
+            expected,
+            "{name} precedence"
+        );
+    }
+}
+
 #[test]
 fn dependency_binding_decode_matches_native_semantics_for_distinct_inputs() {
     let image = dependency_decode_image();
