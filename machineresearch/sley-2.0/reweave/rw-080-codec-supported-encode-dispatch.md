@@ -7,11 +7,12 @@ development evidence, not accepted runtime authority. RW-080 remains
 BLOCKED and R2 remains NOT_READY with all independent review and
 acceptance debt unchanged.
 
-Current extension: slice 13 adds canonical DependencyBinding kind 18 while
-preserving the established EntryPoint and Namespace value identities. See
-`rw-080-codec-dependency-binding-compose-encode.md` for the additive sum,
-direct fixed-shape construction, rejection coverage, and current resource
-measurements. Sections 1 through 4 retain the original slice-9 record.
+Current extension: slice 17 adds canonical PolicyBinding kind 17 while
+preserving EntryPoint, Namespace and DependencyBinding. See
+`rw-080-codec-policy-binding-compose-encode.md` for the shared entity-set sum,
+four-arm round trip, rejection coverage and current resource measurements.
+Sections 1 through 4 retain the original slice-9 record; section 5 retains the
+slice-13 DependencyBinding extension.
 
 ## 1. Scope and value shape
 
@@ -125,3 +126,14 @@ carries `(entity_id, dependency_root, external_package, local_namespace)` as
 four exact 32-byte values. Decode-to-encode round trips are byte-exact for all
 three arms. Canonical kind 18 measures 3,757 fuel, 1,031 instructions, and
 416,321 peak value units for the 219-byte fixture under the unchanged limits.
+
+## 6. Slice-17 additive state
+
+The current entry supports kinds 3, 16, 17 and 18 and consumes the same compact
+semantic sum emitted by the decoder. Namespace and PolicyBinding share one
+runtime-mode entity-set body graph. The kind-17 empty-requirements fixture
+emits the exact native 153-byte stored object at 25,705 fuel, 3,314
+instructions and 956,464 peak value units. The known F5 combined-image size
+envelope is retained and explicitly tested for a one-requirement kind-17
+value. Full construction and refusal evidence is in
+`rw-080-codec-policy-binding-compose-encode.md`.

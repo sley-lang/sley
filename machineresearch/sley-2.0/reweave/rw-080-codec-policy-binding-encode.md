@@ -25,9 +25,11 @@ length, and union length. Native `sley-mutate::build_entity_object` fixtures
 provide every expected body; tests extract the body with SCB cursors instead
 of using hand-built expected bytes.
 
-This slice owns standalone body encoding only. The paired strict body decoder
-landed in slice 15; whole-program kind-17 dispatch remains the next bounded
-composition slice.
+This slice owns standalone body encoding. The paired strict body decoder
+landed in slice 15; program decode and encode composition subsequently landed
+in slices 16 and 17. See
+`rw-080-codec-policy-binding-compose-decode.md` and
+`rw-080-codec-policy-binding-compose-encode.md`.
 
 ## 2. Construction and refusal behavior
 

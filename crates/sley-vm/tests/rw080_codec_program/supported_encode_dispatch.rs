@@ -6,14 +6,13 @@
 //! `machineresearch/sley-2.0/reweave/rw-080-codec-dependency-binding-compose-encode.md`.
 
 use super::supported_dispatch::{
-    all_supported_program_value_type as all_supported_decode_value_type,
+    all_supported_program_value_type as all_supported_encode_value_type,
     deduplicate_identical_constants as deduplicate_constants,
     dependency_program_value_type as dependency_encode_value_type,
     entrypoint_program_value_type as entrypoint_encode_value_type,
-    extended_supported_program_value_type as extended_supported_encode_value_type,
-    namespace_program_value_type as namespace_encode_value_type,
+    non_dependency_program_value_type as non_dependency_encode_value_type,
     push_preallocated_block as append_block,
-    supported_program_value_type as supported_encode_value_type,
+    tagged_entity_set_program_value_type as tagged_entity_set_encode_value_type,
 };
 use super::*;
 use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1};
@@ -24,13 +23,13 @@ fn build_supported_program_encode(
     ns: Ns,
     function: EntityId,
     entrypoint_encoder: EntityId,
-    namespace_encoder: EntityId,
+    entity_set_encoder: EntityId,
     dependency_encoder: EntityId,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
     let result_type = encode_result_type();
-    let value_type = supported_encode_value_type();
-    let extended_value_type = extended_supported_encode_value_type();
+    let value_type = non_dependency_encode_value_type();
+    let extended_value_type = all_supported_encode_value_type();
     let declared_kind = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
     let value = assembler.param(
         ns.p,
@@ -44,6 +43,7 @@ fn build_supported_program_encode(
     let check_namespace = assembler.id(ns.b);
     let select_namespace = assembler.id(ns.b);
     let unwrap_namespace = assembler.id(ns.b);
+    let validate_namespace = assembler.id(ns.b);
     let check_entrypoint = assembler.id(ns.b);
     let select_entrypoint = assembler.id(ns.b);
     let unwrap_entrypoint = assembler.id(ns.b);
@@ -58,6 +58,7 @@ fn build_supported_program_encode(
 
     let zero = assembler.ku64(ns.k, 0);
     let namespace_kind = assembler.ku64(ns.k, 3);
+    let policy_kind = assembler.ku64(ns.k, 17);
     let entrypoint_kind = assembler.ku64(ns.k, 16);
     let dependency_kind = assembler.ku64(ns.k, 18);
     let kind_limit = assembler.ku64(ns.k, 19);
@@ -111,6 +112,23 @@ fn build_supported_program_encode(
         vec![TypeExpr::Bool],
         Immediate::None,
     );
+    let policy_kind_value = assembler.cref(ns.o, check_namespace, policy_kind, u64_type());
+    let is_policy = assembler.op(
+        ns.o,
+        check_namespace,
+        Opcode::Equal,
+        vec![pav(namespace_candidate_kind), op_result(policy_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    let is_entity_set = assembler.op(
+        ns.o,
+        check_namespace,
+        Opcode::BoolOr,
+        vec![op_result(is_namespace), op_result(is_policy)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
     append_block(
         assembler,
         check_namespace,
@@ -120,14 +138,21 @@ fn build_supported_program_encode(
             namespace_candidate_value,
             namespace_candidate_unit,
         ],
-        vec![namespace_kind_value, is_namespace],
+        vec![
+            namespace_kind_value,
+            is_namespace,
+            policy_kind_value,
+            is_policy,
+            is_entity_set,
+        ],
         cond(
-            op_result(is_namespace),
+            op_result(is_entity_set),
             edge(
                 unwrap_namespace,
                 vec![
                     pav(namespace_candidate_value),
                     pav(namespace_candidate_unit),
+                    pav(namespace_candidate_kind),
                 ],
             ),
             edge(
@@ -149,11 +174,17 @@ fn build_supported_program_encode(
     );
     let wrapped_namespace_unit =
         assembler.param(ns.p, unwrap_namespace, ParameterRole::Block, TypeExpr::Unit);
+    let wrapped_namespace_kind =
+        assembler.param(ns.p, unwrap_namespace, ParameterRole::Block, u64_type());
     append_block(
         assembler,
         unwrap_namespace,
         function,
-        vec![wrapped_namespace, wrapped_namespace_unit],
+        vec![
+            wrapped_namespace,
+            wrapped_namespace_unit,
+            wrapped_namespace_kind,
+        ],
         Vec::new(),
         switch(
             pav(wrapped_namespace),
@@ -161,7 +192,11 @@ fn build_supported_program_encode(
                 (
                     BuiltinCase::Ok,
                     select_namespace,
-                    vec![SwitchArgument::CasePayload, sav(wrapped_namespace_unit)],
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(wrapped_namespace_unit),
+                        sav(wrapped_namespace_kind),
+                    ],
                 ),
                 (BuiltinCase::Err, mismatch, Vec::new()),
             ],
@@ -176,11 +211,13 @@ fn build_supported_program_encode(
     );
     let namespace_unit =
         assembler.param(ns.p, select_namespace, ParameterRole::Block, TypeExpr::Unit);
+    let namespace_declared_kind =
+        assembler.param(ns.p, select_namespace, ParameterRole::Block, u64_type());
     append_block(
         assembler,
         select_namespace,
         function,
-        vec![namespace_value, namespace_unit],
+        vec![namespace_value, namespace_unit, namespace_declared_kind],
         Vec::new(),
         switch(
             pav(namespace_value),
@@ -188,10 +225,67 @@ fn build_supported_program_encode(
                 (BuiltinCase::Ok, mismatch, Vec::new()),
                 (
                     BuiltinCase::Err,
-                    call_namespace,
-                    vec![SwitchArgument::CasePayload, sav(namespace_unit)],
+                    validate_namespace,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(namespace_unit),
+                        sav(namespace_declared_kind),
+                    ],
                 ),
             ],
+        ),
+    );
+
+    let namespace_payload = assembler.param(
+        ns.p,
+        validate_namespace,
+        ParameterRole::Block,
+        tagged_entity_set_encode_value_type(),
+    );
+    let namespace_validate_unit = assembler.param(
+        ns.p,
+        validate_namespace,
+        ParameterRole::Block,
+        TypeExpr::Unit,
+    );
+    let namespace_validate_kind =
+        assembler.param(ns.p, validate_namespace, ParameterRole::Block, u64_type());
+    let namespace_payload_kind = assembler.op(
+        ns.o,
+        validate_namespace,
+        Opcode::TupleGet,
+        vec![pav(namespace_payload)],
+        vec![u64_type()],
+        Immediate::Index(0),
+    );
+    let namespace_tag_matches = assembler.op(
+        ns.o,
+        validate_namespace,
+        Opcode::Equal,
+        vec![
+            op_result(namespace_payload_kind),
+            pav(namespace_validate_kind),
+        ],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        validate_namespace,
+        function,
+        vec![
+            namespace_payload,
+            namespace_validate_unit,
+            namespace_validate_kind,
+        ],
+        vec![namespace_payload_kind, namespace_tag_matches],
+        cond(
+            op_result(namespace_tag_matches),
+            edge(
+                call_namespace,
+                vec![pav(namespace_payload), pav(namespace_validate_unit)],
+            ),
+            edge(mismatch, Vec::new()),
         ),
     );
 
@@ -362,19 +456,19 @@ fn build_supported_program_encode(
         ns.p,
         call_namespace,
         ParameterRole::Block,
-        namespace_encode_value_type(),
+        tagged_entity_set_encode_value_type(),
     );
     let namespace_call_unit =
         assembler.param(ns.p, call_namespace, ParameterRole::Block, TypeExpr::Unit);
-    let namespace_entity = assembler.op(
+    let namespace_kind = assembler.op(
         ns.o,
         call_namespace,
         Opcode::TupleGet,
         vec![pav(namespace_payload)],
-        vec![TypeExpr::Bytes],
+        vec![u64_type()],
         Immediate::Index(0),
     );
-    let namespace_parent = assembler.op(
+    let namespace_entity = assembler.op(
         ns.o,
         call_namespace,
         Opcode::TupleGet,
@@ -382,7 +476,7 @@ fn build_supported_program_encode(
         vec![TypeExpr::Bytes],
         Immediate::Index(1),
     );
-    let namespace_members = assembler.op(
+    let namespace_parent = assembler.op(
         ns.o,
         call_namespace,
         Opcode::TupleGet,
@@ -390,19 +484,28 @@ fn build_supported_program_encode(
         vec![TypeExpr::Bytes],
         Immediate::Index(2),
     );
+    let namespace_members = assembler.op(
+        ns.o,
+        call_namespace,
+        Opcode::TupleGet,
+        vec![pav(namespace_payload)],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(3),
+    );
     let namespace_result = assembler.op(
         ns.o,
         call_namespace,
         Opcode::CallDirect,
         vec![
             op_result(namespace_entity),
+            op_result(namespace_kind),
             op_result(namespace_parent),
             op_result(namespace_members),
             pav(namespace_call_unit),
         ],
         vec![result_type.clone()],
         Immediate::Function(FunctionRefValue {
-            function: namespace_encoder,
+            function: entity_set_encoder,
             type_arguments: Vec::new(),
         }),
     );
@@ -412,6 +515,7 @@ fn build_supported_program_encode(
         function,
         vec![namespace_payload, namespace_call_unit],
         vec![
+            namespace_kind,
             namespace_entity,
             namespace_parent,
             namespace_members,
@@ -608,6 +712,23 @@ fn build_dependency_program_encode(
     )
 }
 
+fn build_entity_set_program_encode(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    entity_set_encoder: EntityId,
+    composer: EntityId,
+) -> FunctionGraph {
+    build_program_value_encode(
+        assembler,
+        ns,
+        function,
+        entity_set_encoder,
+        composer,
+        &[u64_type(), TypeExpr::Bytes, TypeExpr::Bytes],
+    )
+}
+
 #[allow(clippy::too_many_lines)]
 fn supported_encode_image() -> Image {
     let mut assembler = Asm::new();
@@ -641,13 +762,13 @@ fn supported_encode_image() -> Image {
         b: 29,
         o: 30,
     };
-    let namespace_ns = Ns {
+    let entity_set_ns = Ns {
         k: 31,
         p: 32,
         b: 33,
         o: 34,
     };
-    let namespace_program_ns = Ns {
+    let entity_set_program_ns = Ns {
         k: 35,
         p: 36,
         b: 37,
@@ -683,14 +804,13 @@ fn supported_encode_image() -> Image {
         b: 57,
         o: 58,
     };
-
     let entrypoint_body = eid(10, 1);
     let uvar = eid(10, 2);
     let outer = eid(10, 3);
     let build = eid(10, 4);
     let entrypoint_program = eid(10, 5);
-    let namespace_body = eid(10, 6);
-    let namespace_program = eid(10, 7);
+    let entity_set_body = eid(10, 6);
+    let entity_set_program = eid(10, 7);
     let octet_getter = eid(10, 8);
     let dependency_program = eid(10, 9);
     let composer = eid(10, 10);
@@ -708,7 +828,7 @@ fn supported_encode_image() -> Image {
         envelope,
         build,
         uvar,
-        DigestCopyMode::Unrolled,
+        DigestCopyMode::Counted,
     );
     let composer_graph =
         build_program_payload_encode(&mut assembler, composer_ns, composer, outer, envelope);
@@ -719,13 +839,19 @@ fn supported_encode_image() -> Image {
         entrypoint_body,
         composer,
     );
-    let namespace_body_graph =
-        build_namespace_encode(&mut assembler, namespace_ns, namespace_body, uvar);
-    let namespace_program_graph = build_program_ns_encode(
+    let entity_set_body_graph = build_entity_set_encode_with_mode(
         &mut assembler,
-        namespace_program_ns,
-        namespace_program,
-        namespace_body,
+        entity_set_ns,
+        entity_set_body,
+        uvar,
+        ParentCopyMode::CountedConstant,
+        EntitySetBodyKind::Dynamic,
+    );
+    let entity_set_program_graph = build_entity_set_program_encode(
+        &mut assembler,
+        entity_set_program_ns,
+        entity_set_program,
+        entity_set_body,
         composer,
     );
     let octet_getter_graph = super::dependency_binding::build_exact_octet_get(
@@ -744,7 +870,7 @@ fn supported_encode_image() -> Image {
         dispatch_ns,
         dispatch,
         entrypoint_program,
-        namespace_program,
+        entity_set_program,
         dependency_program,
     );
 
@@ -754,13 +880,13 @@ fn supported_encode_image() -> Image {
         functions: vec![
             dispatch_graph,
             entrypoint_program_graph,
-            namespace_program_graph,
+            entity_set_program_graph,
             dependency_program_graph,
             octet_getter_graph,
             composer_graph,
             envelope_graph,
             entrypoint_body_graph,
-            namespace_body_graph,
+            entity_set_body_graph,
             outer_graph,
             build_graph,
             uvar_graph,
@@ -790,41 +916,47 @@ fn tuple_value(value_type: TypeExpr, items: Vec<ConstValue>) -> ConstValue {
     }
 }
 
-fn entrypoint_value(entity: u8, function: u8, exposure: u64) -> ConstValue {
-    let existing = ConstValue {
-        value_type: supported_encode_value_type(),
-        data: ConstData::Result(ResultConst::Ok(Box::new(tuple_value(
-            entrypoint_encode_value_type(),
-            vec![
-                bytes_input(&[entity; 32]),
-                bytes_input(&[function; 32]),
-                u64_input(exposure),
-            ],
-        )))),
+fn non_dependency_value(arm: ResultConst) -> ConstValue {
+    let non_dependency = ConstValue {
+        value_type: non_dependency_encode_value_type(),
+        data: ConstData::Result(arm),
     };
     ConstValue {
-        value_type: extended_supported_encode_value_type(),
-        data: ConstData::Result(ResultConst::Ok(Box::new(existing))),
+        value_type: all_supported_encode_value_type(),
+        data: ConstData::Result(ResultConst::Ok(Box::new(non_dependency))),
     }
+}
+
+fn entrypoint_value(entity: u8, function: u8, exposure: u64) -> ConstValue {
+    non_dependency_value(ResultConst::Ok(Box::new(tuple_value(
+        entrypoint_encode_value_type(),
+        vec![
+            bytes_input(&[entity; 32]),
+            bytes_input(&[function; 32]),
+            u64_input(exposure),
+        ],
+    ))))
+}
+
+fn tagged_entity_set_value(kind: u64, entity: &[u8], first: &[u8], second: &[u8]) -> ConstValue {
+    non_dependency_value(ResultConst::Err(Box::new(tuple_value(
+        tagged_entity_set_encode_value_type(),
+        vec![
+            u64_input(kind),
+            bytes_input(entity),
+            bytes_input(first),
+            bytes_input(second),
+        ],
+    ))))
 }
 
 fn namespace_value(entity: u8, parent: Option<u8>, members: &[u8]) -> ConstValue {
     let (parent_bytes, member_bytes, _) = ns_semantics(parent, members);
-    let existing = ConstValue {
-        value_type: supported_encode_value_type(),
-        data: ConstData::Result(ResultConst::Err(Box::new(tuple_value(
-            namespace_encode_value_type(),
-            vec![
-                bytes_input(&[entity; 32]),
-                bytes_input(&parent_bytes),
-                bytes_input(&member_bytes),
-            ],
-        )))),
-    };
-    ConstValue {
-        value_type: extended_supported_encode_value_type(),
-        data: ConstData::Result(ResultConst::Ok(Box::new(existing))),
-    }
+    tagged_entity_set_value(3, &[entity; 32], &parent_bytes, &member_bytes)
+}
+
+fn policy_value(entity: &[u8], subject: &[u8], requirements: &[u8]) -> ConstValue {
+    tagged_entity_set_value(17, entity, subject, requirements)
 }
 
 fn dependency_value(entity: u8, root: &[u8], package: &[u8], namespace: &[u8]) -> ConstValue {
@@ -838,7 +970,7 @@ fn dependency_value_bytes(
     namespace: &[u8],
 ) -> ConstValue {
     ConstValue {
-        value_type: extended_supported_encode_value_type(),
+        value_type: all_supported_encode_value_type(),
         data: ConstData::Result(ResultConst::Err(Box::new(tuple_value(
             dependency_encode_value_type(),
             vec![
@@ -864,51 +996,8 @@ fn supported_encode_call(
     )
 }
 
-fn prior_supported_decode_arm(value: ConstValue) -> ConstValue {
-    assert_eq!(value.value_type, all_supported_decode_value_type());
-    match value.data {
-        ConstData::Result(ResultConst::Ok(non_dependency)) => match non_dependency.data {
-            ConstData::Result(ResultConst::Ok(entrypoint)) => {
-                let supported = ConstValue {
-                    value_type: supported_encode_value_type(),
-                    data: ConstData::Result(ResultConst::Ok(entrypoint)),
-                };
-                ConstValue {
-                    value_type: extended_supported_encode_value_type(),
-                    data: ConstData::Result(ResultConst::Ok(Box::new(supported))),
-                }
-            }
-            ConstData::Result(ResultConst::Err(entity_set)) => {
-                let ConstData::Sequence(mut fields) = entity_set.data else {
-                    panic!("tagged entity set must carry a tuple")
-                };
-                let kind = fields.remove(0);
-                let ConstData::UInt(kind) = kind.data else {
-                    panic!("tagged entity set kind must be u64")
-                };
-                assert_eq!(kind, 3, "PolicyBinding is not part of the prior encode sum");
-                let namespace = Box::new(tuple_value(namespace_encode_value_type(), fields));
-                let supported = ConstValue {
-                    value_type: supported_encode_value_type(),
-                    data: ConstData::Result(ResultConst::Err(namespace)),
-                };
-                ConstValue {
-                    value_type: extended_supported_encode_value_type(),
-                    data: ConstData::Result(ResultConst::Ok(Box::new(supported))),
-                }
-            }
-            other => panic!("non-dependency decode must carry a result arm: {other:?}"),
-        },
-        ConstData::Result(ResultConst::Err(dependency)) => ConstValue {
-            value_type: extended_supported_encode_value_type(),
-            data: ConstData::Result(ResultConst::Err(dependency)),
-        },
-        other => panic!("all-supported decode must carry a result arm, got {other:?}"),
-    }
-}
-
 #[test]
-fn codec_supported_kind_encode_dispatch_emits_all_three_supported_kinds() {
+fn codec_supported_kind_encode_dispatch_emits_all_four_supported_kinds() {
     let image = supported_encode_image();
     let (package, approved) = admit(&image);
 
@@ -925,14 +1014,48 @@ fn codec_supported_kind_encode_dispatch_emits_all_three_supported_kinds() {
         entrypoint_outcome.peak_value_units
     );
 
-    let namespace = namespace_value(0xc1, None, &[]);
+    let namespace = namespace_value(0xc1, Some(0xc2), &[]);
     let namespace_outcome = supported_encode_call(&package, &approved, 3, namespace);
-    assert_encode_ok(&namespace_outcome, &program_ns_stored(0xc1, None, &[]));
+    assert_encode_ok(
+        &namespace_outcome,
+        &program_ns_stored(0xc1, Some(0xc2), &[]),
+    );
     eprintln!(
         "SUPPORTED_ENC kind3 fuel={} instr={} peak={}",
         namespace_outcome.fuel_used,
         namespace_outcome.instruction_count,
         namespace_outcome.peak_value_units
+    );
+
+    let policy = policy_value(&[0xe1; 32], &[0xe2; 32], &[]);
+    let policy_outcome = supported_encode_call(&package, &approved, 17, policy);
+    assert_encode_ok(
+        &policy_outcome,
+        &super::policy_binding::policy_stored([0xe1; 32], [0xe2; 32], &[]),
+    );
+    eprintln!(
+        "SUPPORTED_ENC kind17 fuel={} instr={} peak={}",
+        policy_outcome.fuel_used, policy_outcome.instruction_count, policy_outcome.peak_value_units
+    );
+    let larger_policy = supported_encode_call(
+        &package,
+        &approved,
+        17,
+        policy_value(&[0xe1; 32], &[0xe2; 32], &[0xe3; 32]),
+    );
+    match &larger_policy.termination {
+        sley_vm::ExecutionTermination::ResourceLimit(kind) => assert_eq!(
+            *kind,
+            sley_vm::ResourceKind::ValueUnits,
+            "one-requirement PolicyBinding reaches the established F5 value-unit envelope first",
+        ),
+        other => {
+            panic!("one-requirement PolicyBinding must expose the retained F5 envelope: {other:?}")
+        }
+    }
+    eprintln!(
+        "SUPPORTED_ENC_BIND kind17 reqs1 fuel={} instr={} peak={}",
+        larger_policy.fuel_used, larger_policy.instruction_count, larger_policy.peak_value_units
     );
 
     let dependency = dependency_value(0xd1, &[0xd2; 32], &[0xd3; 32], &[0xd4; 32]);
@@ -950,44 +1073,42 @@ fn codec_supported_kind_encode_dispatch_emits_all_three_supported_kinds() {
 }
 
 #[test]
-fn codec_supported_kind_dispatch_round_trips_all_three_value_arms() {
+fn codec_supported_kind_dispatch_round_trips_all_four_value_arms() {
     let decode_image = super::supported_dispatch::supported_decode_image();
     let (decode_package, decode_approved) = admit(&decode_image);
     let encode_image = supported_encode_image();
     let (encode_package, encode_approved) = admit(&encode_image);
 
     let entrypoint = program_stored(0xa1, 0xb2, sley_mutate::value::EntryExposure::Local);
-    let decoded_entrypoint =
-        prior_supported_decode_arm(super::supported_dispatch::supported_decode_ok(
-            &super::supported_dispatch::supported_decode_call(
-                &decode_package,
-                &decode_approved,
-                16,
-                &entrypoint,
-            ),
-        ));
+    let decoded_entrypoint = super::supported_dispatch::supported_decode_ok(
+        &super::supported_dispatch::supported_decode_call(
+            &decode_package,
+            &decode_approved,
+            16,
+            &entrypoint,
+        ),
+    );
     assert_eq!(
         decoded_entrypoint.value_type,
-        extended_supported_encode_value_type()
+        all_supported_encode_value_type()
     );
     assert_encode_ok(
         &supported_encode_call(&encode_package, &encode_approved, 16, decoded_entrypoint),
         &entrypoint,
     );
 
-    let namespace = program_ns_stored(0xc1, None, &[]);
-    let decoded_namespace =
-        prior_supported_decode_arm(super::supported_dispatch::supported_decode_ok(
-            &super::supported_dispatch::supported_decode_call(
-                &decode_package,
-                &decode_approved,
-                3,
-                &namespace,
-            ),
-        ));
+    let namespace = program_ns_stored(0xc1, Some(0xc2), &[]);
+    let decoded_namespace = super::supported_dispatch::supported_decode_ok(
+        &super::supported_dispatch::supported_decode_call(
+            &decode_package,
+            &decode_approved,
+            3,
+            &namespace,
+        ),
+    );
     assert_eq!(
         decoded_namespace.value_type,
-        extended_supported_encode_value_type()
+        all_supported_encode_value_type()
     );
     assert_encode_ok(
         &supported_encode_call(&encode_package, &encode_approved, 3, decoded_namespace),
@@ -995,26 +1116,41 @@ fn codec_supported_kind_dispatch_round_trips_all_three_value_arms() {
     );
 
     let dependency = super::dependency_binding::dependency_stored(0xd2, 0xd3, 0xd4);
-    let decoded_dependency =
-        prior_supported_decode_arm(super::supported_dispatch::supported_decode_ok(
-            &super::supported_dispatch::supported_decode_call(
-                &decode_package,
-                &decode_approved,
-                18,
-                &dependency,
-            ),
-        ));
+    let decoded_dependency = super::supported_dispatch::supported_decode_ok(
+        &super::supported_dispatch::supported_decode_call(
+            &decode_package,
+            &decode_approved,
+            18,
+            &dependency,
+        ),
+    );
     assert_eq!(
         decoded_dependency.value_type,
-        extended_supported_encode_value_type()
+        all_supported_encode_value_type()
     );
     assert_encode_ok(
         &supported_encode_call(&encode_package, &encode_approved, 18, decoded_dependency),
         &dependency,
     );
+
+    let policy = super::policy_binding::policy_stored([0xe1; 32], [0xe2; 32], &[]);
+    let decoded_policy = super::supported_dispatch::supported_decode_ok(
+        &super::supported_dispatch::supported_decode_call(
+            &decode_package,
+            &decode_approved,
+            17,
+            &policy,
+        ),
+    );
+    assert_eq!(decoded_policy.value_type, all_supported_encode_value_type());
+    assert_encode_ok(
+        &supported_encode_call(&encode_package, &encode_approved, 17, decoded_policy),
+        &policy,
+    );
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn codec_supported_kind_encode_dispatch_rejects_mismatched_and_unknown_kinds() {
     let image = supported_encode_image();
     let (package, approved) = admit(&image);
@@ -1025,6 +1161,32 @@ fn codec_supported_kind_encode_dispatch_rejects_mismatched_and_unknown_kinds() {
     );
     assert_refusal(
         &supported_encode_call(&package, &approved, 16, namespace_value(1, None, &[])),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_encode_call(
+            &package,
+            &approved,
+            3,
+            policy_value(&[1; 32], &[2; 32], &[]),
+        ),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_encode_call(&package, &approved, 17, namespace_value(1, None, &[])),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_encode_call(&package, &approved, 17, entrypoint_value(1, 2, 1)),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_encode_call(
+            &package,
+            &approved,
+            17,
+            dependency_value(1, &[2; 32], &[3; 32], &[4; 32]),
+        ),
         "SSMC_RESERVED_FIELD_PRESENT",
     );
     assert_refusal(
@@ -1049,6 +1211,54 @@ fn codec_supported_kind_encode_dispatch_rejects_mismatched_and_unknown_kinds() {
         ),
         "SCB_LENGTH_OVERFLOW",
     );
+    for (name, entity, subject, requirements, expected) in [
+        (
+            "policy_subject_short",
+            vec![1; 32],
+            vec![2; 31],
+            Vec::new(),
+            "SCB_LENGTH_OVERFLOW",
+        ),
+        (
+            "policy_subject_long",
+            vec![1; 32],
+            vec![2; 33],
+            Vec::new(),
+            "SCB_TRAILING_BYTES",
+        ),
+        (
+            "policy_requirement_partial",
+            vec![1; 32],
+            vec![2; 32],
+            vec![3; 33],
+            "SCB_LENGTH_OVERFLOW",
+        ),
+        (
+            "policy_requirement_duplicate",
+            vec![1; 32],
+            vec![2; 32],
+            [vec![3; 32], vec![3; 32]].concat(),
+            "SCB_MAP_DUPLICATE",
+        ),
+        (
+            "policy_requirement_order",
+            vec![1; 32],
+            vec![2; 32],
+            [vec![4; 32], vec![3; 32]].concat(),
+            "SCB_MAP_ORDER",
+        ),
+    ] {
+        assert_refusal(
+            &supported_encode_call(
+                &package,
+                &approved,
+                17,
+                policy_value(&entity, &subject, &requirements),
+            ),
+            expected,
+        );
+        eprintln!("SUPPORTED_ENC_REJ {name} -> {expected}");
+    }
     for (name, entity, root, external, local, expected) in [
         (
             "package_long",

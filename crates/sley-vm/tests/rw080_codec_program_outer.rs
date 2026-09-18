@@ -19671,6 +19671,7 @@ enum ParentCopyMode {
 enum EntitySetBodyKind {
     Namespace,
     PolicyBinding,
+    Dynamic,
 }
 
 fn build_namespace_encode(
@@ -19736,7 +19737,7 @@ fn build_entity_set_encode_with_mode(
     let c2 = a.ku64(ns.k, 2);
     let c32 = a.ku64(ns.k, 32);
     let subject_payload_len = match body_kind {
-        EntitySetBodyKind::Namespace => 34,
+        EntitySetBodyKind::Namespace | EntitySetBodyKind::Dynamic => 34,
         EntitySetBodyKind::PolicyBinding => 32,
     };
     let c_subject_payload_len = a.ku64(ns.k, subject_payload_len);
@@ -19745,17 +19746,21 @@ fn build_entity_set_encode_with_mode(
     let b01 = a.ku8(ns.k, 1);
     let b02 = a.ku8(ns.k, 2);
     let union_tag = match body_kind {
-        EntitySetBodyKind::Namespace => 3,
+        EntitySetBodyKind::Namespace | EntitySetBodyKind::Dynamic => 3,
         EntitySetBodyKind::PolicyBinding => 17,
     };
     let b_union_tag = a.ku8(ns.k, union_tag);
+    let b_policy_union_tag = a.ku8(ns.k, 17);
     let b20 = a.ku8(ns.k, 32);
     let b_subject_payload_len = a.ku8(ns.k, subject_payload_len);
+    let b_namespace_payload_len = a.ku8(ns.k, 34);
     let e_len = a.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
     let e_trail = a.kbytes(ns.k, b"SCB_TRAILING_BYTES");
     let e_res = a.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
     let e_mapdup = a.kbytes(ns.k, b"SCB_MAP_DUPLICATE");
     let e_mapord = a.kbytes(ns.k, b"SCB_MAP_ORDER");
+    let j_kind = (body_kind == EntitySetBodyKind::Dynamic)
+        .then(|| a.param(ns.p, fid, ParameterRole::Function, u64_type()));
     let j_par = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
     let j_mem = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
     let j_unit = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Unit);
@@ -19767,6 +19772,7 @@ fn build_entity_set_encode_with_mode(
     let trap = trap_block(a, ns, fid);
     let entry = a.id(ns.b);
     let par_len = a.id(ns.b);
+    let par_zero_kind = a.id(ns.b);
     let par_len_nz = a.id(ns.b);
     let par_len_gt = a.id(ns.b);
     // Record-prefix chains (built immediately, before the members
@@ -19782,6 +19788,8 @@ fn build_entity_set_encode_with_mode(
     let rs_b = a.id(ns.b);
     let rs_c = a.id(ns.b);
     let rs_d = a.id(ns.b);
+    let rs_d_namespace = a.id(ns.b);
+    let rs_d_policy = a.id(ns.b);
     let rs_copy = a.id(ns.b);
     let rs_ccheck = a.id(ns.b);
     let rs_cget = a.id(ns.b);
@@ -19850,6 +19858,10 @@ fn build_entity_set_encode_with_mode(
     let ulen_vok = a.id(ns.b);
     let f_start = a.id(ns.b);
     let f_tag = a.id(ns.b);
+    let f_tag_dynamic_get = a.id(ns.b);
+    let f_tag_dynamic_choose = a.id(ns.b);
+    let f_tag_dynamic_namespace = a.id(ns.b);
+    let f_tag_dynamic_policy = a.id(ns.b);
     let f_ulen = a.id(ns.b);
     let f_ulen_c = a.id(ns.b);
     let f_ulen_g = a.id(ns.b);
@@ -19874,6 +19886,10 @@ fn build_entity_set_encode_with_mode(
             sley_vm::host_abi::BRIDGE_CODE_B2V1,
         ))),
     );
+    let mut entry_ok_args = vec![SwitchArgument::CasePayload, sav(j_mem), sav(j_unit)];
+    if let Some(kind) = j_kind {
+        entry_ok_args.push(sav(kind));
+    }
     a.blocks.push(Block {
         entity_id: entry,
         function: fid,
@@ -19882,11 +19898,7 @@ fn build_entity_set_encode_with_mode(
         terminator: switch(
             op_result(e_cv),
             vec![
-                (
-                    BuiltinCase::Ok,
-                    par_len,
-                    vec![SwitchArgument::CasePayload, sav(j_mem), sav(j_unit)],
-                ),
+                (BuiltinCase::Ok, par_len, entry_ok_args),
                 (BuiltinCase::Err, b_res, Vec::new()),
             ],
         ),
@@ -19896,6 +19908,8 @@ fn build_entity_set_encode_with_mode(
     let v_parvec = a.param(ns.p, par_len, ParameterRole::Block, u8vec_type());
     let v_mem = a.param(ns.p, par_len, ParameterRole::Block, TypeExpr::Bytes);
     let v_unit = a.param(ns.p, par_len, ParameterRole::Block, TypeExpr::Unit);
+    let v_kind = (body_kind == EntitySetBodyKind::Dynamic)
+        .then(|| a.param(ns.p, par_len, ParameterRole::Block, u64_type()));
     let v_ln = a.op(
         ns.o,
         par_len,
@@ -19930,48 +19944,88 @@ fn build_entity_set_encode_with_mode(
         vec![TypeExpr::Bool],
         Immediate::None,
     );
+    let zero_edge = match body_kind {
+        EntitySetBodyKind::Namespace => edge(rn_a, vec![pav(v_mem), pav(v_unit)]),
+        EntitySetBodyKind::PolicyBinding => edge(b_len, Vec::new()),
+        EntitySetBodyKind::Dynamic => edge(
+            par_zero_kind,
+            vec![pav(v_mem), pav(v_unit), pav(v_kind.expect("dynamic kind"))],
+        ),
+    };
+    let mut nonzero_args = vec![
+        pav(v_parvec),
+        pav(v_mem),
+        pav(v_unit),
+        op_result(v_lt),
+        op_result(v_gt),
+    ];
+    if let Some(kind) = v_kind {
+        nonzero_args.push(pav(kind));
+    }
+    let mut par_len_parameters = vec![v_parvec, v_mem, v_unit];
+    if let Some(kind) = v_kind {
+        par_len_parameters.push(kind);
+    }
     a.blocks.push(Block {
         entity_id: par_len,
         function: fid,
-        parameters: vec![v_parvec, v_mem, v_unit],
+        parameters: par_len_parameters,
         operations: vec![v_ln, v_k0, v_k32, v_eq0, v_lt, v_gt],
-        terminator: cond(
-            op_result(v_eq0),
-            match body_kind {
-                EntitySetBodyKind::Namespace => edge(rn_a, vec![pav(v_mem), pav(v_unit)]),
-                EntitySetBodyKind::PolicyBinding => edge(b_len, Vec::new()),
-            },
-            edge(
-                par_len_nz,
-                vec![
-                    pav(v_parvec),
-                    pav(v_mem),
-                    pav(v_unit),
-                    op_result(v_lt),
-                    op_result(v_gt),
-                ],
-            ),
-        ),
+        terminator: cond(op_result(v_eq0), zero_edge, edge(par_len_nz, nonzero_args)),
         reachability: Reachability::Required,
     });
+    if body_kind == EntitySetBodyKind::Dynamic {
+        let q_mem = a.param(ns.p, par_zero_kind, ParameterRole::Block, TypeExpr::Bytes);
+        let q_unit = a.param(ns.p, par_zero_kind, ParameterRole::Block, TypeExpr::Unit);
+        let q_kind = a.param(ns.p, par_zero_kind, ParameterRole::Block, u64_type());
+        let q_namespace_kind = a.ku64(ns.k, 3);
+        let q_expected = a.cref(ns.o, par_zero_kind, q_namespace_kind, u64_type());
+        let q_matches = a.op(
+            ns.o,
+            par_zero_kind,
+            Opcode::Equal,
+            vec![pav(q_kind), op_result(q_expected)],
+            vec![TypeExpr::Bool],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: par_zero_kind,
+            function: fid,
+            parameters: vec![q_mem, q_unit, q_kind],
+            operations: vec![q_expected, q_matches],
+            terminator: cond(
+                op_result(q_matches),
+                edge(rn_a, vec![pav(q_mem), pav(q_unit)]),
+                edge(b_len, Vec::new()),
+            ),
+            reachability: Reachability::Required,
+        });
+    }
     // par_len_nz params: [parvec, members, unit, lt, gt].
     let z_parvec = a.param(ns.p, par_len_nz, ParameterRole::Block, u8vec_type());
     let z_mem = a.param(ns.p, par_len_nz, ParameterRole::Block, TypeExpr::Bytes);
     let z_unit = a.param(ns.p, par_len_nz, ParameterRole::Block, TypeExpr::Unit);
     let z_lt = a.param(ns.p, par_len_nz, ParameterRole::Block, TypeExpr::Bool);
     let z_gt = a.param(ns.p, par_len_nz, ParameterRole::Block, TypeExpr::Bool);
+    let z_kind = (body_kind == EntitySetBodyKind::Dynamic)
+        .then(|| a.param(ns.p, par_len_nz, ParameterRole::Block, u64_type()));
+    let mut par_len_nz_parameters = vec![z_parvec, z_mem, z_unit, z_lt, z_gt];
+    if let Some(kind) = z_kind {
+        par_len_nz_parameters.push(kind);
+    }
+    let mut par_len_gt_args = vec![pav(z_parvec), pav(z_mem), pav(z_unit), pav(z_gt)];
+    if let Some(kind) = z_kind {
+        par_len_gt_args.push(pav(kind));
+    }
     a.blocks.push(Block {
         entity_id: par_len_nz,
         function: fid,
-        parameters: vec![z_parvec, z_mem, z_unit, z_lt, z_gt],
+        parameters: par_len_nz_parameters,
         operations: Vec::new(),
         terminator: cond(
             pav(z_lt),
             edge(b_len, Vec::new()),
-            edge(
-                par_len_gt,
-                vec![pav(z_parvec), pav(z_mem), pav(z_unit), pav(z_gt)],
-            ),
+            edge(par_len_gt, par_len_gt_args),
         ),
         reachability: Reachability::Required,
     });
@@ -19979,19 +20033,32 @@ fn build_entity_set_encode_with_mode(
     let g_mem = a.param(ns.p, par_len_gt, ParameterRole::Block, TypeExpr::Bytes);
     let g_unit = a.param(ns.p, par_len_gt, ParameterRole::Block, TypeExpr::Unit);
     let g_flag = a.param(ns.p, par_len_gt, ParameterRole::Block, TypeExpr::Bool);
+    let g_kind = (body_kind == EntitySetBodyKind::Dynamic)
+        .then(|| a.param(ns.p, par_len_gt, ParameterRole::Block, u64_type()));
+    let mut par_len_gt_parameters = vec![g_parvec, g_mem, g_unit, g_flag];
+    if let Some(kind) = g_kind {
+        par_len_gt_parameters.push(kind);
+    }
+    let mut pu_s0_args = vec![pav(g_parvec), pav(g_mem), pav(g_unit)];
+    if let Some(kind) = g_kind {
+        pu_s0_args.push(pav(kind));
+    }
     a.blocks.push(Block {
         entity_id: par_len_gt,
         function: fid,
-        parameters: vec![g_parvec, g_mem, g_unit, g_flag],
+        parameters: par_len_gt_parameters,
         operations: Vec::new(),
         terminator: cond(
             pav(g_flag),
             edge(b_trail, Vec::new()),
-            edge(pu_s0, vec![pav(g_parvec), pav(g_mem), pav(g_unit)]),
+            edge(pu_s0, pu_s0_args),
         ),
         reachability: Reachability::Required,
     });
-    if body_kind == EntitySetBodyKind::Namespace {
+    if matches!(
+        body_kind,
+        EntitySetBodyKind::Namespace | EntitySetBodyKind::Dynamic
+    ) {
         // None path: record prefix is built immediately as
         // `02 01 02 00 00 02` (count, field-1 tag/len, None union,
         // field-2 tag). The parent union needs no vector: both None bytes
@@ -20065,6 +20132,8 @@ fn build_entity_set_encode_with_mode(
     let s_parvec = a.param(ns.p, pu_s0, ParameterRole::Block, u8vec_type());
     let s_mem = a.param(ns.p, pu_s0, ParameterRole::Block, TypeExpr::Bytes);
     let s_unit = a.param(ns.p, pu_s0, ParameterRole::Block, TypeExpr::Unit);
+    let s_kind = (body_kind == EntitySetBodyKind::Dynamic)
+        .then(|| a.param(ns.p, pu_s0, ParameterRole::Block, u64_type()));
     let s_empty = a.op(
         ns.o,
         pu_s0,
@@ -20073,24 +20142,57 @@ fn build_entity_set_encode_with_mode(
         vec![u8vec_type()],
         Immediate::None,
     );
+    let mut s_parameters = vec![s_parvec, s_mem, s_unit];
+    if let Some(kind) = s_kind {
+        s_parameters.push(kind);
+    }
+    let mut s_operations = vec![s_empty];
+    let s_terminator = match body_kind {
+        EntitySetBodyKind::Namespace => branch(edge(
+            pu_s1,
+            vec![op_result(s_empty), pav(s_parvec), pav(s_mem), pav(s_unit)],
+        )),
+        EntitySetBodyKind::PolicyBinding => branch(edge(
+            pcopy_start,
+            vec![op_result(s_empty), pav(s_parvec), pav(s_mem), pav(s_unit)],
+        )),
+        EntitySetBodyKind::Dynamic => {
+            let namespace_kind = a.ku64(ns.k, 3);
+            let expected = a.cref(ns.o, pu_s0, namespace_kind, u64_type());
+            let matches = a.op(
+                ns.o,
+                pu_s0,
+                Opcode::Equal,
+                vec![pav(s_kind.expect("dynamic kind")), op_result(expected)],
+                vec![TypeExpr::Bool],
+                Immediate::None,
+            );
+            s_operations.extend([expected, matches]);
+            cond(
+                op_result(matches),
+                edge(
+                    pu_s1,
+                    vec![op_result(s_empty), pav(s_parvec), pav(s_mem), pav(s_unit)],
+                ),
+                edge(
+                    pcopy_start,
+                    vec![op_result(s_empty), pav(s_parvec), pav(s_mem), pav(s_unit)],
+                ),
+            )
+        }
+    };
     a.blocks.push(Block {
         entity_id: pu_s0,
         function: fid,
-        parameters: vec![s_parvec, s_mem, s_unit],
-        operations: vec![s_empty],
-        terminator: branch(match body_kind {
-            EntitySetBodyKind::Namespace => edge(
-                pu_s1,
-                vec![op_result(s_empty), pav(s_parvec), pav(s_mem), pav(s_unit)],
-            ),
-            EntitySetBodyKind::PolicyBinding => edge(
-                pcopy_start,
-                vec![op_result(s_empty), pav(s_parvec), pav(s_mem), pav(s_unit)],
-            ),
-        }),
+        parameters: s_parameters,
+        operations: s_operations,
+        terminator: s_terminator,
         reachability: Reachability::Required,
     });
-    if body_kind == EntitySetBodyKind::Namespace {
+    if matches!(
+        body_kind,
+        EntitySetBodyKind::Namespace | EntitySetBodyKind::Dynamic
+    ) {
         let s1_acc = a.param(ns.p, pu_s1, ParameterRole::Block, u8vec_type());
         let s1_parvec = a.param(ns.p, pu_s1, ParameterRole::Block, u8vec_type());
         let s1_mem = a.param(ns.p, pu_s1, ParameterRole::Block, TypeExpr::Bytes);
@@ -20532,11 +20634,7 @@ fn build_entity_set_encode_with_mode(
         reachability: Reachability::Required,
     });
     // rs_b..rs_d params: [Rpre, Pu, members, unit]. Fixed prefix pushes.
-    let rs_prefix_const = [
-        (rs_b, b02, rs_c),
-        (rs_c, b01, rs_d),
-        (rs_d, b_subject_payload_len, rs_copy),
-    ];
+    let rs_prefix_const = [(rs_b, b02, rs_c), (rs_c, b01, rs_d)];
     for (blk, konst, next) in rs_prefix_const {
         let w_acc = a.param(ns.p, blk, ParameterRole::Block, u8vec_type());
         let w_pu = a.param(ns.p, blk, ParameterRole::Block, u8vec_type());
@@ -20575,6 +20673,125 @@ fn build_entity_set_encode_with_mode(
             reachability: Reachability::Required,
         });
     }
+    if body_kind == EntitySetBodyKind::Dynamic {
+        let q_acc = a.param(ns.p, rs_d, ParameterRole::Block, u8vec_type());
+        let q_pu = a.param(ns.p, rs_d, ParameterRole::Block, u8vec_type());
+        let q_mem = a.param(ns.p, rs_d, ParameterRole::Block, TypeExpr::Bytes);
+        let q_unit = a.param(ns.p, rs_d, ParameterRole::Block, TypeExpr::Unit);
+        let q_len = a.op(
+            ns.o,
+            rs_d,
+            Opcode::VectorLen,
+            vec![pav(q_pu)],
+            vec![u64_type()],
+            Immediate::None,
+        );
+        let q_namespace_len = a.cref(ns.o, rs_d, c_subject_payload_len, u64_type());
+        let q_is_namespace = a.op(
+            ns.o,
+            rs_d,
+            Opcode::Equal,
+            vec![op_result(q_len), op_result(q_namespace_len)],
+            vec![TypeExpr::Bool],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: rs_d,
+            function: fid,
+            parameters: vec![q_acc, q_pu, q_mem, q_unit],
+            operations: vec![q_len, q_namespace_len, q_is_namespace],
+            terminator: cond(
+                op_result(q_is_namespace),
+                edge(
+                    rs_d_namespace,
+                    vec![pav(q_acc), pav(q_pu), pav(q_mem), pav(q_unit)],
+                ),
+                edge(
+                    rs_d_policy,
+                    vec![pav(q_acc), pav(q_pu), pav(q_mem), pav(q_unit)],
+                ),
+            ),
+            reachability: Reachability::Required,
+        });
+        for (block, constant) in [
+            (rs_d_namespace, b_namespace_payload_len),
+            (rs_d_policy, b20),
+        ] {
+            let q_acc = a.param(ns.p, block, ParameterRole::Block, u8vec_type());
+            let q_pu = a.param(ns.p, block, ParameterRole::Block, u8vec_type());
+            let q_mem = a.param(ns.p, block, ParameterRole::Block, TypeExpr::Bytes);
+            let q_unit = a.param(ns.p, block, ParameterRole::Block, TypeExpr::Unit);
+            let q_c = a.cref(ns.o, block, constant, u8_type());
+            let q_push = a.op(
+                ns.o,
+                block,
+                Opcode::AdapterInvoke,
+                vec![pav(q_acc), op_result(q_c)],
+                vec![index_result(u8vec_type())],
+                Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+            );
+            a.blocks.push(Block {
+                entity_id: block,
+                function: fid,
+                parameters: vec![q_acc, q_pu, q_mem, q_unit],
+                operations: vec![q_c, q_push],
+                terminator: switch(
+                    op_result(q_push),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            rs_copy,
+                            vec![
+                                SwitchArgument::CasePayload,
+                                sav(q_pu),
+                                sav(q_mem),
+                                sav(q_unit),
+                            ],
+                        ),
+                        (BuiltinCase::Err, b_res, Vec::new()),
+                    ],
+                ),
+                reachability: Reachability::Required,
+            });
+        }
+    } else {
+        let q_acc = a.param(ns.p, rs_d, ParameterRole::Block, u8vec_type());
+        let q_pu = a.param(ns.p, rs_d, ParameterRole::Block, u8vec_type());
+        let q_mem = a.param(ns.p, rs_d, ParameterRole::Block, TypeExpr::Bytes);
+        let q_unit = a.param(ns.p, rs_d, ParameterRole::Block, TypeExpr::Unit);
+        let q_c = a.cref(ns.o, rs_d, b_subject_payload_len, u8_type());
+        let q_push = a.op(
+            ns.o,
+            rs_d,
+            Opcode::AdapterInvoke,
+            vec![pav(q_acc), op_result(q_c)],
+            vec![index_result(u8vec_type())],
+            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+        );
+        a.blocks.push(Block {
+            entity_id: rs_d,
+            function: fid,
+            parameters: vec![q_acc, q_pu, q_mem, q_unit],
+            operations: vec![q_c, q_push],
+            terminator: switch(
+                op_result(q_push),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        rs_copy,
+                        vec![
+                            SwitchArgument::CasePayload,
+                            sav(q_pu),
+                            sav(q_mem),
+                            sav(q_unit),
+                        ],
+                    ),
+                    (BuiltinCase::Err, b_res, Vec::new()),
+                ],
+            ),
+            reachability: Reachability::Required,
+        });
+    }
     // rs_copy params: [Rpre, Pu, members, unit]. Copy the 34B parent
     // value with a constant bound (no late length read).
     let sy_acc = a.param(ns.p, rs_copy, ParameterRole::Block, u8vec_type());
@@ -20605,69 +20822,109 @@ fn build_entity_set_encode_with_mode(
     let sy_rp = a.param(ns.p, rs_ccheck, ParameterRole::Block, u8vec_type());
     let sy_rm = a.param(ns.p, rs_ccheck, ParameterRole::Block, TypeExpr::Bytes);
     let sy_ru = a.param(ns.p, rs_ccheck, ParameterRole::Block, TypeExpr::Unit);
-    let sy_bound = a.cref(ns.o, rs_ccheck, c_subject_payload_len, u64_type());
-    let sy_lt = a.op(
-        ns.o,
-        rs_ccheck,
-        Opcode::LessThan,
-        vec![pav(sy_j), op_result(sy_bound)],
-        vec![TypeExpr::Bool],
-        Immediate::None,
-    );
-    a.blocks.push(Block {
-        entity_id: rs_ccheck,
-        function: fid,
-        parameters: vec![sy_j, sy_ra, sy_rp, sy_rm, sy_ru],
-        operations: vec![sy_bound, sy_lt],
-        terminator: cond(
-            op_result(sy_lt),
-            edge(
-                rs_cget,
-                vec![pav(sy_j), pav(sy_ra), pav(sy_rp), pav(sy_rm), pav(sy_ru)],
+    if body_kind == EntitySetBodyKind::Dynamic {
+        let sy_get = a.op(
+            ns.o,
+            rs_ccheck,
+            Opcode::VectorGet,
+            vec![pav(sy_rp), pav(sy_j)],
+            vec![TypeExpr::Option(Box::new(u8_type()))],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: rs_ccheck,
+            function: fid,
+            parameters: vec![sy_j, sy_ra, sy_rp, sy_rm, sy_ru],
+            operations: vec![sy_get],
+            terminator: switch(
+                op_result(sy_get),
+                vec![
+                    (
+                        BuiltinCase::None,
+                        rs_cdone,
+                        vec![sav(sy_ra), sav(sy_rm), sav(sy_ru)],
+                    ),
+                    (
+                        BuiltinCase::Some,
+                        rs_cpush,
+                        vec![
+                            SwitchArgument::CasePayload,
+                            sav(sy_j),
+                            sav(sy_ra),
+                            sav(sy_rp),
+                            sav(sy_rm),
+                            sav(sy_ru),
+                        ],
+                    ),
+                ],
             ),
-            edge(rs_cdone, vec![pav(sy_ra), pav(sy_rm), pav(sy_ru)]),
-        ),
-        reachability: Reachability::Required,
-    });
-    // rs_cget params: [j, Rpre, Pu, members, unit].
-    let sg_j = a.param(ns.p, rs_cget, ParameterRole::Block, u64_type());
-    let sg_ra = a.param(ns.p, rs_cget, ParameterRole::Block, u8vec_type());
-    let sg_rp = a.param(ns.p, rs_cget, ParameterRole::Block, u8vec_type());
-    let sg_rm = a.param(ns.p, rs_cget, ParameterRole::Block, TypeExpr::Bytes);
-    let sg_ru = a.param(ns.p, rs_cget, ParameterRole::Block, TypeExpr::Unit);
-    let sg_get = a.op(
-        ns.o,
-        rs_cget,
-        Opcode::VectorGet,
-        vec![pav(sg_rp), pav(sg_j)],
-        vec![TypeExpr::Option(Box::new(u8_type()))],
-        Immediate::None,
-    );
-    a.blocks.push(Block {
-        entity_id: rs_cget,
-        function: fid,
-        parameters: vec![sg_j, sg_ra, sg_rp, sg_rm, sg_ru],
-        operations: vec![sg_get],
-        terminator: switch(
-            op_result(sg_get),
-            vec![
-                (BuiltinCase::None, trap, Vec::new()),
-                (
-                    BuiltinCase::Some,
-                    rs_cpush,
-                    vec![
-                        SwitchArgument::CasePayload,
-                        sav(sg_j),
-                        sav(sg_ra),
-                        sav(sg_rp),
-                        sav(sg_rm),
-                        sav(sg_ru),
-                    ],
+            reachability: Reachability::Required,
+        });
+    } else {
+        let sy_bound = a.cref(ns.o, rs_ccheck, c_subject_payload_len, u64_type());
+        let sy_lt = a.op(
+            ns.o,
+            rs_ccheck,
+            Opcode::LessThan,
+            vec![pav(sy_j), op_result(sy_bound)],
+            vec![TypeExpr::Bool],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: rs_ccheck,
+            function: fid,
+            parameters: vec![sy_j, sy_ra, sy_rp, sy_rm, sy_ru],
+            operations: vec![sy_bound, sy_lt],
+            terminator: cond(
+                op_result(sy_lt),
+                edge(
+                    rs_cget,
+                    vec![pav(sy_j), pav(sy_ra), pav(sy_rp), pav(sy_rm), pav(sy_ru)],
                 ),
-            ],
-        ),
-        reachability: Reachability::Required,
-    });
+                edge(rs_cdone, vec![pav(sy_ra), pav(sy_rm), pav(sy_ru)]),
+            ),
+            reachability: Reachability::Required,
+        });
+        // rs_cget params: [j, Rpre, Pu, members, unit].
+        let sg_j = a.param(ns.p, rs_cget, ParameterRole::Block, u64_type());
+        let sg_ra = a.param(ns.p, rs_cget, ParameterRole::Block, u8vec_type());
+        let sg_rp = a.param(ns.p, rs_cget, ParameterRole::Block, u8vec_type());
+        let sg_rm = a.param(ns.p, rs_cget, ParameterRole::Block, TypeExpr::Bytes);
+        let sg_ru = a.param(ns.p, rs_cget, ParameterRole::Block, TypeExpr::Unit);
+        let sg_get = a.op(
+            ns.o,
+            rs_cget,
+            Opcode::VectorGet,
+            vec![pav(sg_rp), pav(sg_j)],
+            vec![TypeExpr::Option(Box::new(u8_type()))],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: rs_cget,
+            function: fid,
+            parameters: vec![sg_j, sg_ra, sg_rp, sg_rm, sg_ru],
+            operations: vec![sg_get],
+            terminator: switch(
+                op_result(sg_get),
+                vec![
+                    (BuiltinCase::None, trap, Vec::new()),
+                    (
+                        BuiltinCase::Some,
+                        rs_cpush,
+                        vec![
+                            SwitchArgument::CasePayload,
+                            sav(sg_j),
+                            sav(sg_ra),
+                            sav(sg_rp),
+                            sav(sg_rm),
+                            sav(sg_ru),
+                        ],
+                    ),
+                ],
+            ),
+            reachability: Reachability::Required,
+        });
+    }
     // rs_cpush params: [b, j, Rpre, Pu, members, unit].
     let sh_b = a.param(ns.p, rs_cpush, ParameterRole::Block, u8_type());
     let sh_j = a.param(ns.p, rs_cpush, ParameterRole::Block, u64_type());
@@ -23152,48 +23409,190 @@ fn build_entity_set_encode_with_mode(
         parameters: vec![fs_acc, fs_uv, fs_r, fs_unit],
         operations: Vec::new(),
         terminator: branch(edge(
-            f_tag,
+            if body_kind == EntitySetBodyKind::Dynamic {
+                f_tag_dynamic_get
+            } else {
+                f_tag
+            },
             vec![pav(fs_acc), pav(fs_uv), pav(fs_r), pav(fs_unit)],
         )),
         reachability: Reachability::Required,
     });
-    // f_tag params: [acc, ulenvec, R, unit]. Push the body union tag.
-    let ft_acc = a.param(ns.p, f_tag, ParameterRole::Block, u8vec_type());
-    let ft_uv = a.param(ns.p, f_tag, ParameterRole::Block, u8vec_type());
-    let ft_r = a.param(ns.p, f_tag, ParameterRole::Block, u8vec_type());
-    let ft_unit = a.param(ns.p, f_tag, ParameterRole::Block, TypeExpr::Unit);
-    let ft_c = a.cref(ns.o, f_tag, b_union_tag, u8_type());
-    let ft_push = a.op(
-        ns.o,
-        f_tag,
-        Opcode::AdapterInvoke,
-        vec![pav(ft_acc), op_result(ft_c)],
-        vec![index_result(u8vec_type())],
-        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
-    );
-    a.blocks.push(Block {
-        entity_id: f_tag,
-        function: fid,
-        parameters: vec![ft_acc, ft_uv, ft_r, ft_unit],
-        operations: vec![ft_c, ft_push],
-        terminator: switch(
-            op_result(ft_push),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    f_ulen,
+    if body_kind == EntitySetBodyKind::Dynamic {
+        let gt_acc = a.param(ns.p, f_tag_dynamic_get, ParameterRole::Block, u8vec_type());
+        let gt_uv = a.param(ns.p, f_tag_dynamic_get, ParameterRole::Block, u8vec_type());
+        let gt_r = a.param(ns.p, f_tag_dynamic_get, ParameterRole::Block, u8vec_type());
+        let gt_unit = a.param(
+            ns.p,
+            f_tag_dynamic_get,
+            ParameterRole::Block,
+            TypeExpr::Unit,
+        );
+        let gt_index = a.cref(ns.o, f_tag_dynamic_get, c2, u64_type());
+        let gt_get = a.op(
+            ns.o,
+            f_tag_dynamic_get,
+            Opcode::VectorGet,
+            vec![pav(gt_r), op_result(gt_index)],
+            vec![TypeExpr::Option(Box::new(u8_type()))],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: f_tag_dynamic_get,
+            function: fid,
+            parameters: vec![gt_acc, gt_uv, gt_r, gt_unit],
+            operations: vec![gt_index, gt_get],
+            terminator: switch(
+                op_result(gt_get),
+                vec![
+                    (BuiltinCase::None, trap, Vec::new()),
+                    (
+                        BuiltinCase::Some,
+                        f_tag_dynamic_choose,
+                        vec![
+                            SwitchArgument::CasePayload,
+                            sav(gt_acc),
+                            sav(gt_uv),
+                            sav(gt_r),
+                            sav(gt_unit),
+                        ],
+                    ),
+                ],
+            ),
+            reachability: Reachability::Required,
+        });
+        let ch_field_len = a.param(ns.p, f_tag_dynamic_choose, ParameterRole::Block, u8_type());
+        let ch_acc = a.param(
+            ns.p,
+            f_tag_dynamic_choose,
+            ParameterRole::Block,
+            u8vec_type(),
+        );
+        let ch_uv = a.param(
+            ns.p,
+            f_tag_dynamic_choose,
+            ParameterRole::Block,
+            u8vec_type(),
+        );
+        let ch_r = a.param(
+            ns.p,
+            f_tag_dynamic_choose,
+            ParameterRole::Block,
+            u8vec_type(),
+        );
+        let ch_unit = a.param(
+            ns.p,
+            f_tag_dynamic_choose,
+            ParameterRole::Block,
+            TypeExpr::Unit,
+        );
+        let ch_policy_len = a.cref(ns.o, f_tag_dynamic_choose, b20, u8_type());
+        let ch_is_policy = a.op(
+            ns.o,
+            f_tag_dynamic_choose,
+            Opcode::Equal,
+            vec![pav(ch_field_len), op_result(ch_policy_len)],
+            vec![TypeExpr::Bool],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: f_tag_dynamic_choose,
+            function: fid,
+            parameters: vec![ch_field_len, ch_acc, ch_uv, ch_r, ch_unit],
+            operations: vec![ch_policy_len, ch_is_policy],
+            terminator: cond(
+                op_result(ch_is_policy),
+                edge(
+                    f_tag_dynamic_policy,
+                    vec![pav(ch_acc), pav(ch_uv), pav(ch_r), pav(ch_unit)],
+                ),
+                edge(
+                    f_tag_dynamic_namespace,
+                    vec![pav(ch_acc), pav(ch_uv), pav(ch_r), pav(ch_unit)],
+                ),
+            ),
+            reachability: Reachability::Required,
+        });
+        for (block, constant) in [
+            (f_tag_dynamic_namespace, b_union_tag),
+            (f_tag_dynamic_policy, b_policy_union_tag),
+        ] {
+            let ft_acc = a.param(ns.p, block, ParameterRole::Block, u8vec_type());
+            let ft_uv = a.param(ns.p, block, ParameterRole::Block, u8vec_type());
+            let ft_r = a.param(ns.p, block, ParameterRole::Block, u8vec_type());
+            let ft_unit = a.param(ns.p, block, ParameterRole::Block, TypeExpr::Unit);
+            let ft_c = a.cref(ns.o, block, constant, u8_type());
+            let ft_push = a.op(
+                ns.o,
+                block,
+                Opcode::AdapterInvoke,
+                vec![pav(ft_acc), op_result(ft_c)],
+                vec![index_result(u8vec_type())],
+                Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+            );
+            a.blocks.push(Block {
+                entity_id: block,
+                function: fid,
+                parameters: vec![ft_acc, ft_uv, ft_r, ft_unit],
+                operations: vec![ft_c, ft_push],
+                terminator: switch(
+                    op_result(ft_push),
                     vec![
-                        SwitchArgument::CasePayload,
-                        sav(ft_uv),
-                        sav(ft_r),
-                        sav(ft_unit),
+                        (
+                            BuiltinCase::Ok,
+                            f_ulen,
+                            vec![
+                                SwitchArgument::CasePayload,
+                                sav(ft_uv),
+                                sav(ft_r),
+                                sav(ft_unit),
+                            ],
+                        ),
+                        (BuiltinCase::Err, b_res, Vec::new()),
                     ],
                 ),
-                (BuiltinCase::Err, b_res, Vec::new()),
-            ],
-        ),
-        reachability: Reachability::Required,
-    });
+                reachability: Reachability::Required,
+            });
+        }
+    } else {
+        // f_tag params: [acc, ulenvec, R, unit]. Push the body union tag.
+        let ft_acc = a.param(ns.p, f_tag, ParameterRole::Block, u8vec_type());
+        let ft_uv = a.param(ns.p, f_tag, ParameterRole::Block, u8vec_type());
+        let ft_r = a.param(ns.p, f_tag, ParameterRole::Block, u8vec_type());
+        let ft_unit = a.param(ns.p, f_tag, ParameterRole::Block, TypeExpr::Unit);
+        let ft_c = a.cref(ns.o, f_tag, b_union_tag, u8_type());
+        let ft_push = a.op(
+            ns.o,
+            f_tag,
+            Opcode::AdapterInvoke,
+            vec![pav(ft_acc), op_result(ft_c)],
+            vec![index_result(u8vec_type())],
+            Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_PSH1))),
+        );
+        a.blocks.push(Block {
+            entity_id: f_tag,
+            function: fid,
+            parameters: vec![ft_acc, ft_uv, ft_r, ft_unit],
+            operations: vec![ft_c, ft_push],
+            terminator: switch(
+                op_result(ft_push),
+                vec![
+                    (
+                        BuiltinCase::Ok,
+                        f_ulen,
+                        vec![
+                            SwitchArgument::CasePayload,
+                            sav(ft_uv),
+                            sav(ft_r),
+                            sav(ft_unit),
+                        ],
+                    ),
+                    (BuiltinCase::Err, b_res, Vec::new()),
+                ],
+            ),
+            reachability: Reachability::Required,
+        });
+    }
     // f_ulen params: [acc, ulenvec, R, unit]. Copy the union length.
     let fu_acc = a.param(ns.p, f_ulen, ParameterRole::Block, u8vec_type());
     let fu_uv = a.param(ns.p, f_ulen, ParameterRole::Block, u8vec_type());
@@ -23612,12 +24011,26 @@ fn build_entity_set_encode_with_mode(
     });
     let _ = (c0, c1, c2, c32, w64, trap);
     let _ = (b_len, b_trail, b_res, b_mapdup, b_mapord);
-    let _ = (b00, b01, b02, b_union_tag, b20, b_subject_payload_len);
+    let _ = (
+        b00,
+        b01,
+        b02,
+        b_union_tag,
+        b_policy_union_tag,
+        b20,
+        b_subject_payload_len,
+        b_namespace_payload_len,
+    );
+
+    let mut function_parameters = vec![j_par, j_mem, j_unit];
+    if let Some(kind) = j_kind {
+        function_parameters.insert(0, kind);
+    }
 
     FunctionGraph {
         entity_id: fid,
         type_parameters: Vec::new(),
-        parameters: vec![j_par, j_mem, j_unit],
+        parameters: function_parameters,
         result_type: res_t,
         effects: Vec::new(),
         entry_block: entry,

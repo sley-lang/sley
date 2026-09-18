@@ -30,9 +30,9 @@ The tagged entity-set arm uses kind 3 for Namespace and kind 17 for
 PolicyBinding. The enclosing codec `Result<..., Bytes>` still separates every
 valid value from the exact `SCB_*` or `SSMC_*` refusal. The tag avoids
 duplicating two equal three-`Bytes` tuple schemas while preserving their kind
-identity. The prior three-kind encoder round-trip test explicitly converts
-kind 3 back to its established Namespace arm and refuses to reinterpret kind
-17 as an older value.
+identity. The matching four-kind encoder now consumes this exact value without
+an adapter and validates the tagged entity-set kind before body encoding. See
+`rw-080-codec-policy-binding-compose-encode.md`.
 
 ## 2. Shared entity-set decoder
 
@@ -101,3 +101,7 @@ body-tag equality, field-1 routing, native body parity, mismatch and digest
 precedence, package closure, protected limits, and absence of host decoding.
 Independent review was unavailable; no gate, acceptance verdict, or runtime
 authority status is promoted.
+
+The matching encode composition is recorded in
+`rw-080-codec-policy-binding-compose-encode.md`. Its direct cross-image tests
+now round-trip all four arms through this decoder's exact semantic type.

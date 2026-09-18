@@ -10,17 +10,6 @@ pub(super) fn entrypoint_program_value_type() -> TypeExpr {
     TypeExpr::Tuple(vec![TypeExpr::Bytes, TypeExpr::Bytes, u64_type()])
 }
 
-pub(super) fn namespace_program_value_type() -> TypeExpr {
-    TypeExpr::Tuple(vec![TypeExpr::Bytes, TypeExpr::Bytes, TypeExpr::Bytes])
-}
-
-pub(super) fn supported_program_value_type() -> TypeExpr {
-    TypeExpr::Result {
-        ok: Box::new(entrypoint_program_value_type()),
-        error: Box::new(namespace_program_value_type()),
-    }
-}
-
 pub(super) fn dependency_program_value_type() -> TypeExpr {
     TypeExpr::Tuple(vec![
         TypeExpr::Bytes,
@@ -28,13 +17,6 @@ pub(super) fn dependency_program_value_type() -> TypeExpr {
         TypeExpr::Bytes,
         TypeExpr::Bytes,
     ])
-}
-
-pub(super) fn extended_supported_program_value_type() -> TypeExpr {
-    TypeExpr::Result {
-        ok: Box::new(supported_program_value_type()),
-        error: Box::new(dependency_program_value_type()),
-    }
 }
 
 pub(super) fn tagged_entity_set_program_value_type() -> TypeExpr {
