@@ -15,17 +15,17 @@ CONSTRUCTOR = ROOT / "crates/sley-vm/tests/rw120_toolchain_integration/component
 HANDOFF = ROOT / "crates/sley-vm/tests/rw120_toolchain_integration/handoff.rs"
 
 EXPECTED = {
-    "state_root": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47",
-    "object_count": 11876,
-    "object_bytes": 2971077,
-    "object_bundle_sha256": "c40eab81641a843f4983c603cd3483bfcca7a3488658b053576e883deb0d336d",
-    "stored_root_bytes": 784246,
-    "stored_root_sha256": "85f94269365956705d3d7206ca2aa9a65099da1d55141fe06e3b60f0ec93bbde",
-    "function_count": 101,
-    "parameter_count": 5148,
-    "block_count": 1849,
-    "operation_count": 4058,
-    "constant_count": 699,
+    "state_root": "b1992814cfc2332215d65e1ede6a619fc2ebb8122b8105e5fc527ca8b10548c3",
+    "object_count": 18857,
+    "object_bytes": 4747089,
+    "object_bundle_sha256": "7e10c8a2474fd6d1aca295f025d06562197a061880343ec47802b196bcf48249",
+    "stored_root_bytes": 1244993,
+    "stored_root_sha256": "5fbcdf19be9761daa5dd3ccc617cdf00fdfb68d0ec6d43ad7ccf6cd59ed7bcef",
+    "function_count": 189,
+    "parameter_count": 8748,
+    "block_count": 3077,
+    "operation_count": 6146,
+    "constant_count": 676,
     "adapter_import_count": 4,
     "entry_point_count": 5,
 }

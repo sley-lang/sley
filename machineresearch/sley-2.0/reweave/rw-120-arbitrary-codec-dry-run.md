@@ -2,7 +2,7 @@
 
 Date: 2026-09-18
 
-Status: EVIDENCE ONLY. Nothing here is preserved, no seed executable was built or run, and `bootstrap-manifest.json`, `c0-c1-seed-artifacts.json`, `canonical-s-manifest.json`, and every RW-120 manifest are unchanged. The preserved C0/C1 candidate of `rw-120-c0-c1-candidate.md` remains the retained candidate.
+Status: SUPERSEDED BY THE RE-MINT (same day). The dry run below preceded the codec re-mint recorded in `rw-120-c0-c1-candidate.md`; the installed canonical `S` (`b1992814…`, with the handoff driver) and the preserved C0/C1 artifacts are recorded there and in the manifests. The numbers below remain valid for the driver-only and merge-only evidence sets.
 
 ## What was computed
 
@@ -40,17 +40,13 @@ cargo test -p sley-vm --test rw120_toolchain_integration
 cargo test -p sley-vm --test rw080_codec_program_outer
 ```
 
-## What the re-mint still requires
+## Outcome
 
-Installing this `S` as canonical means, in the retained protocol: building
-the release native seed executable at the installing commit, running its
-create-once C1 qualification against this `S` under `BOOTSTRAP_PROFILE_2`,
-preserving the executable and the emitted `EXEC_PACKAGE_V2` envelope
-read-only in the machine artifact store, and rewriting
-`bootstrap-manifest.json`, `c0-c1-seed-artifacts.json`,
-`canonical-s-manifest.json`, and the RW-120 manifests to the new digests
-above. That replaces preserved artifacts and is left for the operator to
-schedule. The numbers in this record are what that run must reproduce.
+The re-mint was executed the same day (source commit `e3a50ca7`): the release
+seed executable was built and preserved, its create-once qualification over
+the handoff `S` (`b1992814…`) emitted the preserved 809,732-byte C1 candidate,
+and the manifests and verifier now pin the new generation, with the bounded
+generation retained as superseded blocks and `bounded_*` tests.
 
 The checker and lowerer remain bounded; the codec is now arbitrary on both
 program legs. Independent review and acceptance are unchanged.

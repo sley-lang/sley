@@ -13,16 +13,21 @@ dependency closure, five local entry points, the frozen schema epoch, contract
 and test anchors, and the four allowlisted bridge identities. It contains no
 prebuilt C2 or C3 image.
 
-The frozen root is
-`4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47`.
-Its 11,876 entity objects occupy 2,971,077 stored bytes and have ordered-bundle
+The frozen root (re-minted 2026-09-18 with the arbitrary RW-090 codec,
+source commit `e3a50ca7`) is
+`b1992814cfc2332215d65e1ede6a619fc2ebb8122b8105e5fc527ca8b10548c3`.
+Its 18,857 entity objects occupy 4,747,089 stored bytes and have ordered-bundle
 SHA-256
-`c40eab81641a843f4983c603cd3483bfcca7a3488658b053576e883deb0d336d`.
-The 784,246-byte stored root has SHA-256
-`85f94269365956705d3d7206ca2aa9a65099da1d55141fe06e3b60f0ec93bbde`.
+`7e10c8a2474fd6d1aca295f025d06562197a061880343ec47802b196bcf48249`.
+The 1,244,993-byte stored root has SHA-256
+`5fbcdf19be9761daa5dd3ccc617cdf00fdfb68d0ec6d43ad7ccf6cd59ed7bcef`.
 
-The closure contains 101 functions, 5,148 parameters, 1,849 blocks, 4,058
-operations, 699 constants, and four adapter imports. The exact machine-readable
+The closure contains 189 functions, 8,748 parameters, 3,077 blocks, 6,146
+operations, 676 constants, and four adapter imports. The bounded-codec
+generation it replaced — root
+`4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47`, 11,876
+objects, 101 functions — is recorded as `superseded_bounded_s` in
+`canonical-s-manifest.json` and retained behind the `bounded_*` tests. The exact machine-readable
 record is `canonical-s-manifest.json`; `check_reweave_canonical_s.py` pins its
 facts, constructor source digest, and binding into `bootstrap-manifest.json`.
 The construction test independently rebuilds every object and root byte,
