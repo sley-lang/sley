@@ -10,7 +10,7 @@ fn workspace_decode_result_type() -> TypeExpr {
 }
 
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-fn build_workspace_program_decode(
+pub(super) fn build_fixed_body_program_decode(
     assembler: &mut Asm,
     ns: Ns,
     function: EntityId,
@@ -214,7 +214,7 @@ fn build_workspace_program_decode(
     }
 }
 
-fn build_workspace_program_encode(
+pub(super) fn build_fixed_body_program_encode(
     assembler: &mut Asm,
     ns: Ns,
     function: EntityId,
@@ -411,7 +411,7 @@ fn workspace_decode_image() -> Image {
             checker,
         );
     let root_graph =
-        build_workspace_program_decode(&mut assembler, root_ns, root, validate, outer, checker);
+        build_fixed_body_program_decode(&mut assembler, root_ns, root, validate, outer, checker);
     let mut image = Image {
         types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
         entry: root_graph.clone(),
@@ -507,7 +507,7 @@ fn workspace_encode_image() -> Image {
         concat,
     );
     let root_graph =
-        build_workspace_program_encode(&mut assembler, root_ns, root, checker, witness);
+        build_fixed_body_program_encode(&mut assembler, root_ns, root, checker, witness);
     let mut image = Image {
         types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
         entry: root_graph.clone(),

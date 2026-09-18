@@ -3633,10 +3633,10 @@ fn build_program_supported_return(
     block
 }
 
-/// Checks one fixed-shape body template while ignoring the two dynamic byte
-/// ranges. The bounded Workspace and Package profiles share this graph shape.
+/// Checks one fixed-shape body template while ignoring two dynamic byte
+/// ranges. Bounded fixed-body profiles share this graph shape.
 #[allow(clippy::too_many_lines)]
-fn build_fixed_supported_body_check(
+pub(super) fn build_fixed_supported_body_check(
     assembler: &mut Asm,
     ns: Ns,
     function: EntityId,
