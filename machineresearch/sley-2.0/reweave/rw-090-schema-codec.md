@@ -55,7 +55,8 @@ Validation commands:
 - `python3 scripts/check_local_completion_frontier.py`
 - `python3 scripts/check_s20_700_frontier.py`
 
-The `codec_main` scaffold remains a refusal stub. Full program-body generality,
-label/NFC handling, integration of the paired legs into the canonical retained
-toolchain graph, independent review, and acceptance remain future work. This
-record changes no gate, ledger, release, or runtime-authority status.
+The four legs are now composed by the bounded executable `codec_main` recorded
+in `rw-090-codec-main.md`. Full program-body generality, label/NFC handling,
+integration into the canonical retained toolchain graph, independent review,
+and acceptance remain future work. This record changes no gate, ledger,
+release, or runtime-authority status.

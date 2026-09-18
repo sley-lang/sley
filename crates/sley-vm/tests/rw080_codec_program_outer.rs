@@ -21,16 +21,16 @@
 //! (`SSMC_RESERVED_FIELD_PRESENT`, pinned divergence vs reference Ok), never
 //! misreported as a format error. A standalone extension handles fingerprint
 //! tag 4. The standalone bounded schema leg accepts the exact frozen
-//! conformance epoch; `codec_main` itself stays a stub until the complete
-//! program leg and label/NFC handling can be wired.
+//! conformance epoch. `codec_main` dispatches all four legs for the declared
+//! bounded bootstrap profile; arbitrary body generality and label/NFC remain
+//! outside that profile.
 //! Construction provenance and contract basis:
 //! machineresearch/sley-2.0/reweave/rw-080-codec-program-outer.md.
 //!
 //! Deliberate non-goals with reasons (not silent gaps):
-//! - `codec_main` stays a stub (`rw080_codec_scaffold.rs`): all 18 kinds have
-//!   a bounded aggregate profile and the frozen schema epoch has a standalone
-//!   codec, but full body generality and label/NFC are not yet wired. The units
-//!   here are entries of their own approved images through the same boundary.
+//! - `codec_main` is executable for the bounded aggregate profile, not a claim
+//!   of arbitrary body generality. Every kind has one canonical native profile;
+//!   other body shapes fail closed. The full surface remains RW-160 work.
 //! - Label/NFC (tag 3): needs pinned text/Unicode tables and the S20-250
 //!   verifier; excluded with an explicit scope code, not silently.
 //! - Body semantics (18 kinds, type/CFG/effect judgments): owned by later
@@ -59,6 +59,8 @@ mod all_kind_digest_dispatch;
 mod block;
 #[path = "rw080_codec_program/capability_requirement.rs"]
 mod capability_requirement;
+#[path = "rw080_codec_program/codec_main.rs"]
+mod codec_main;
 #[path = "rw080_codec_program/constant.rs"]
 mod constant;
 #[path = "rw080_codec_program/contract.rs"]
@@ -25724,7 +25726,24 @@ fn codec_limits() -> sley_vm::ExecutionLimits {
     }
 }
 
+fn codec_profile_limits() -> sley_vm::ExecutionLimits {
+    sley_vm::ExecutionLimits {
+        max_instructions: 100_000,
+        max_fuel: 10_000_000,
+        max_value_units: 100_000_000,
+        max_output_units: 10_000_000,
+        cancel_at_fuel: None,
+    }
+}
+
 fn admit(image: &Image) -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecutionPackage) {
+    admit_with_limits(image, codec_limits())
+}
+
+fn admit_with_limits(
+    image: &Image,
+    limits: sley_vm::ExecutionLimits,
+) -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecutionPackage) {
     use sley_vm::{
         approve_package_v2,
         bootstrap::{BootstrapProfileInput, BootstrapProfileVersion},
@@ -25759,7 +25778,6 @@ fn admit(image: &Image) -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecutio
         profile_version: BootstrapProfileVersion::V2,
     })
     .expect("program-outer image admits under V2");
-    let limits = codec_limits();
     let package = sley_vm::ExecutionPackage {
         image_bytes: lowered.bytes.clone(),
         constants: image.constants.clone(),
@@ -28150,13 +28168,19 @@ fn execute(
     approved: &sley_vm::ApprovedExecutionPackage,
     inputs: Vec<ConstValue>,
 ) -> sley_vm::ExecutionOutcome {
+    execute_with_limits(package, approved, inputs, codec_limits())
+}
+
+fn execute_with_limits(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    inputs: Vec<ConstValue>,
+    limits: sley_vm::ExecutionLimits,
+) -> sley_vm::ExecutionOutcome {
     sley_vm::execute_approved_package_v2(
         package,
         approved,
-        sley_vm::ExecutionRequest {
-            inputs,
-            limits: codec_limits(),
-        },
+        sley_vm::ExecutionRequest { inputs, limits },
     )
     .expect("v2 executes program-outer image")
 }

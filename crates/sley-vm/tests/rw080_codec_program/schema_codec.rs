@@ -240,7 +240,7 @@ fn build_schema_encode(
     }
 }
 
-fn schema_decode_image() -> Image {
+pub(super) fn schema_decode_image() -> Image {
     let fixture = schema_fixture();
     let mut assembler = Asm::new();
     let ns = Ns {
@@ -263,7 +263,7 @@ fn schema_decode_image() -> Image {
     }
 }
 
-fn schema_encode_image() -> Image {
+pub(super) fn schema_encode_image() -> Image {
     let fixture = schema_fixture();
     let mut assembler = Asm::new();
     let ns = Ns {

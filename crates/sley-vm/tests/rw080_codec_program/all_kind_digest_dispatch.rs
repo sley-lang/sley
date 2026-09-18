@@ -9,7 +9,7 @@ use super::supported_dispatch::push_preallocated_block as append_block;
 use super::*;
 use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1};
 
-fn fixed_profile_bodies() -> Vec<(u64, Vec<u8>)> {
+pub(super) fn fixed_profile_bodies() -> Vec<(u64, Vec<u8>)> {
     let workspace = ns_body_of(&super::workspace::workspace_stored(
         [0x11; 32],
         [0x12; 32],
@@ -117,7 +117,7 @@ fn fixed_profile_bodies() -> Vec<(u64, Vec<u8>)> {
     ]
 }
 
-fn stored_from_body(entity: [u8; 32], body: &[u8]) -> Vec<u8> {
+pub(super) fn stored_from_body(entity: [u8; 32], body: &[u8]) -> Vec<u8> {
     let payload = sley_scb1::encode_record(&[(1, entity.to_vec()), (2, body.to_vec())])
         .expect("aggregate profile outer record is canonical");
     let mut preimage = b"SLEYSCB1".to_vec();
@@ -786,7 +786,7 @@ fn build_all_kind_program_decode(
     }
 }
 
-fn all_kind_decode_image() -> Image {
+pub(super) fn all_kind_decode_image() -> Image {
     let mut assembler = Asm::new();
     let root = eid(14, 1);
     let validate = eid(14, 2);
@@ -888,7 +888,7 @@ fn all_kind_decode_image() -> Image {
 }
 
 #[allow(clippy::too_many_lines)]
-fn all_kind_encode_image() -> Image {
+pub(super) fn all_kind_encode_image() -> Image {
     let mut assembler = Asm::new();
     let root = eid(15, 1);
     let exact = eid(15, 2);
@@ -898,40 +898,40 @@ fn all_kind_encode_image() -> Image {
     let exact_graph = super::package::build_exact_identity_validate(
         &mut assembler,
         Ns {
-            k: 176,
-            p: 177,
-            b: 178,
-            o: 179,
+            k: 0,
+            p: 1,
+            b: 2,
+            o: 3,
         },
         exact,
     );
     let concat_graph = super::package::build_concat_bytes(
         &mut assembler,
         Ns {
-            k: 180,
-            p: 181,
-            b: 182,
-            o: 183,
+            k: 4,
+            p: 5,
+            b: 6,
+            o: 7,
         },
         concat,
     );
     let octet_getter_graph = super::dependency_binding::build_exact_octet_get(
         &mut assembler,
         Ns {
-            k: 184,
-            p: 185,
-            b: 186,
-            o: 187,
+            k: 8,
+            p: 9,
+            b: 10,
+            o: 11,
         },
         octet_getter,
     );
     let dependency_graph = super::dependency_binding::build_dependency_program_encode_via_get(
         &mut assembler,
         Ns {
-            k: 188,
-            p: 189,
-            b: 190,
-            o: 191,
+            k: 17,
+            p: 18,
+            b: 19,
+            o: 20,
         },
         dependency,
         octet_getter,
@@ -944,7 +944,7 @@ fn all_kind_encode_image() -> Image {
         }
         let kind_u8 = u8::try_from(kind).expect("entity kind fits u8");
         let witness = eid(15, u16::from(kind_u8) + 10);
-        let namespace = 100_u8
+        let namespace = 21_u8
             .checked_add(
                 kind_u8
                     .checked_sub(1)
@@ -974,10 +974,10 @@ fn all_kind_encode_image() -> Image {
     let root_graph = build_fixed_profile_program_encode_dispatch(
         &mut assembler,
         Ns {
-            k: 172,
-            p: 173,
-            b: 174,
-            o: 175,
+            k: 92,
+            p: 93,
+            b: 94,
+            o: 95,
         },
         root,
         &witnesses,
