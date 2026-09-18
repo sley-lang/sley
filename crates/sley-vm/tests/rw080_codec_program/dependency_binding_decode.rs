@@ -20798,6 +20798,22 @@ struct ConstValueClosure {
     bounded_uvar: EntityId,
     type_expr: EntityId,
     entity_ids: EntityId,
+    record2: EntityId,
+    record3: EntityId,
+}
+
+impl ConstValueClosure {
+    fn decoders(self, exact_record: EntityId) -> SimpleSchemaDecoders {
+        SimpleSchemaDecoders {
+            union: self.union,
+            exact_record,
+            fixed32: self.fixed32,
+            exact_uvar: self.exact_uvar,
+            bounded_uvar: self.bounded_uvar,
+            type_expr: self.type_expr,
+            entity_ids: self.entity_ids,
+        }
+    }
 }
 
 /// Builds the complete recursive `ConstValue` closure (namespaces
@@ -21256,6 +21272,8 @@ fn build_const_value_closure(assembler: &mut Asm) -> (ConstValueClosure, Vec<Fun
         bounded_uvar: bounded_uvar_function,
         type_expr: type_expr_recursive_function,
         entity_ids: entity_id_collection_function,
+        record2: record2_function,
+        record3: record3_function,
     };
     (
         closure,
@@ -21359,15 +21377,7 @@ fn const_bearing_schema_image(
         function,
         expected_kind,
         &validators,
-        SimpleSchemaDecoders {
-            union: closure.union,
-            exact_record: schema_record_function,
-            fixed32: closure.fixed32,
-            exact_uvar: closure.exact_uvar,
-            bounded_uvar: closure.bounded_uvar,
-            type_expr: closure.type_expr,
-            entity_ids: closure.entity_ids,
-        },
+        closure.decoders(schema_record_function),
     );
     let mut all = vec![graph.clone(), schema_record_graph];
     all.extend(extra);
@@ -23595,4 +23605,429 @@ fn retain_reached_functions(image: &mut Image) {
     image
         .constants
         .retain(|constant| referenced_constants.contains(&constant.entity_id));
+}
+
+#[allow(clippy::similar_names, clippy::too_many_lines)]
+fn test_case_schema_decode_image() -> Image {
+    const_bearing_schema_image(14, |assembler, closure| {
+        let const_list_function = assembler.id(110);
+        let result_const_function = assembler.id(110);
+        let replay_binding_function = assembler.id(110);
+        let replay_bindings_function = assembler.id(110);
+        let adapter_config_function = assembler.id(110);
+        let adapter_configs_function = assembler.id(110);
+        let effect_environment_function = assembler.id(110);
+        let failure_code_function = assembler.id(110);
+        let expected_outcome_function = assembler.id(110);
+        let observation_function = assembler.id(110);
+        let observations_function = assembler.id(110);
+        let record6_function = assembler.id(110);
+        let resource_limits_function = assembler.id(110);
+        let const_list_graph = build_unit_list_validate(
+            assembler,
+            ns_of(145),
+            const_list_function,
+            closure.list,
+            closure.const_value,
+            bytes_validation_result_type(),
+        );
+        let result_const_graph = build_closed_union_validate(
+            assembler,
+            ns_of(146),
+            result_const_function,
+            closure.union,
+            &[
+                (closure.const_value, bytes_validation_result_type()),
+                (closure.const_value, bytes_validation_result_type()),
+            ],
+        );
+        let replay_binding_graph = build_projected_record_validate(
+            assembler,
+            ns_of(147),
+            replay_binding_function,
+            &[
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::Unit(const_list_function),
+                SimpleFieldValidator::Unit(result_const_function),
+            ],
+            closure.decoders(closure.record3),
+        );
+        let replay_bindings_graph = build_unit_list_validate(
+            assembler,
+            ns_of(148),
+            replay_bindings_function,
+            closure.list,
+            replay_binding_function,
+            unit_validation_result_type(),
+        );
+        let adapter_config_graph = build_projected_record_validate(
+            assembler,
+            ns_of(149),
+            adapter_config_function,
+            &[
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::Bytes(closure.const_value),
+            ],
+            closure.decoders(closure.record2),
+        );
+        let adapter_configs_graph = build_unit_list_validate(
+            assembler,
+            ns_of(150),
+            adapter_configs_function,
+            closure.list,
+            adapter_config_function,
+            unit_validation_result_type(),
+        );
+        let effect_environment_graph = build_closed_union_validate(
+            assembler,
+            ns_of(151),
+            effect_environment_function,
+            closure.union,
+            &[
+                (replay_bindings_function, unit_validation_result_type()),
+                (adapter_configs_function, unit_validation_result_type()),
+            ],
+        );
+        let failure_code_graph = build_exact_width_validate(
+            assembler,
+            ns_of(152),
+            failure_code_function,
+            closure.exact_uvar,
+            32,
+        );
+        let expected_outcome_graph = build_closed_union_validate(
+            assembler,
+            ns_of(153),
+            expected_outcome_function,
+            closure.union,
+            &[
+                (closure.const_value, bytes_validation_result_type()),
+                (failure_code_function, unit_validation_result_type()),
+            ],
+        );
+        let observation_graph = build_projected_record_validate(
+            assembler,
+            ns_of(154),
+            observation_function,
+            &[
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::Bytes(closure.const_value),
+            ],
+            closure.decoders(closure.record2),
+        );
+        let observations_graph = build_unit_list_validate(
+            assembler,
+            ns_of(155),
+            observations_function,
+            closure.list,
+            observation_function,
+            unit_validation_result_type(),
+        );
+        let record6_graph = build_exact_record_projection(
+            assembler,
+            ns_of(156),
+            record6_function,
+            closure.decode,
+            closure.record,
+            6,
+        );
+        let resource_limits_graph = build_projected_record_validate(
+            assembler,
+            ns_of(157),
+            resource_limits_function,
+            &[SimpleFieldValidator::ExactUvar(64); 6],
+            closure.decoders(record6_function),
+        );
+        (
+            vec![
+                SimpleFieldValidator::Fixed32,
+                SimpleFieldValidator::Unit(const_list_function),
+                SimpleFieldValidator::Unit(effect_environment_function),
+                SimpleFieldValidator::Unit(expected_outcome_function),
+                SimpleFieldValidator::Unit(observations_function),
+                SimpleFieldValidator::Unit(resource_limits_function),
+            ],
+            vec![
+                resource_limits_graph,
+                record6_graph,
+                observations_graph,
+                observation_graph,
+                expected_outcome_graph,
+                failure_code_graph,
+                effect_environment_graph,
+                adapter_configs_graph,
+                adapter_config_graph,
+                replay_bindings_graph,
+                replay_binding_graph,
+                result_const_graph,
+                const_list_graph,
+            ],
+        )
+    })
+}
+
+fn test_case_schema_body(
+    effect_environment: sley_ssmc::EffectEnvironment,
+    expected: sley_ssmc::ExpectedOutcome,
+) -> Vec<u8> {
+    use sley_mutate::value::{EntityBodyValue, TestCaseBody};
+    use sley_ssmc::{ExpectedObservation, ResourceLimits};
+
+    let record = sley_mutate::EntityObjectRecord {
+        entity_id: EntityId::from_bytes([0x91; 32]),
+        body: EntityBodyValue::TestCase(TestCaseBody {
+            target: EntityId::from_bytes([0x92; 32]),
+            inputs: vec![
+                const_of(TypeExpr::Bool, ConstData::Bool(false)),
+                scope_const_value(0x40),
+            ],
+            effect_environment,
+            expected,
+            observations: vec![ExpectedObservation {
+                observation_id: [0x93; 32],
+                value: const_of(TypeExpr::Text, ConstData::Text("seen".to_owned())),
+            }],
+            resource_limits: ResourceLimits {
+                fuel: u64::MAX,
+                memory_bytes: 1,
+                output_bytes: 2,
+                effect_count: 3,
+                call_depth: 4,
+                wall_timeout_millis: 5,
+            },
+        }),
+        label: None,
+        semantic_fingerprint: None,
+    };
+    let stored = sley_mutate::build_entity_object(program_epoch9(), &record)
+        .expect("native builds schema TestCase fixture")
+        .stored_bytes()
+        .to_vec();
+    ns_body_of(&stored)
+}
+
+fn replay_environment() -> sley_ssmc::EffectEnvironment {
+    use sley_ssmc::{EffectEnvironment, ReplayBinding};
+
+    EffectEnvironment::Replay(vec![
+        ReplayBinding {
+            adapter_import: EntityId::from_bytes([0x94; 32]),
+            request: vec![const_of(TypeExpr::Unit, ConstData::Unit)],
+            response: ResultConst::Ok(Box::new(const_of(TypeExpr::Bool, ConstData::Bool(true)))),
+        },
+        ReplayBinding {
+            adapter_import: EntityId::from_bytes([0x95; 32]),
+            request: Vec::new(),
+            response: ResultConst::Err(Box::new(const_of(
+                TypeExpr::Bytes,
+                ConstData::Bytes(vec![1, 2]),
+            ))),
+        },
+    ])
+}
+
+fn adapter_environment() -> sley_ssmc::EffectEnvironment {
+    use sley_ssmc::{AdapterConfig, EffectEnvironment};
+
+    EffectEnvironment::DeterministicAdapters(vec![AdapterConfig {
+        adapter_import: EntityId::from_bytes([0x96; 32]),
+        configuration: scope_const_value(0x50),
+    }])
+}
+
+#[test]
+fn test_case_schema_decoder_accepts_both_environments_and_outcomes() {
+    use sley_ssmc::ExpectedOutcome;
+
+    let image = test_case_schema_decode_image();
+    assert_entry_cfg_surface(&image);
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    eprintln!(
+        "TEST_CASE_SCHEMA functions={} parameters={} blocks={} operations={} constants={} image_bytes={} package_digest={:?}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        package.image_bytes.len(),
+        approved.package_digest,
+    );
+    assert_eq!(image.functions.len(), 46);
+    assert_eq!(image.parameters.len(), 2_095);
+    assert_eq!(image.blocks.len(), 676);
+    assert_eq!(image.operations.len(), 1_282);
+    assert_eq!(image.constants.len(), 410);
+    assert_eq!(package.image_bytes.len(), 156_448);
+    assert_eq!(
+        approved.package_digest,
+        [
+            0xc0, 0xe9, 0x25, 0xc0, 0xa8, 0x79, 0x9f, 0xeb, 0x6e, 0x35, 0x85, 0x08, 0x3c, 0x85,
+            0x14, 0x42, 0x51, 0x2b, 0xe4, 0xc6, 0x16, 0xdc, 0xb9, 0x79, 0xec, 0xc5, 0xd3, 0x2b,
+            0xdf, 0xf7, 0xf6, 0x1a,
+        ]
+    );
+
+    assert_schema_projection(
+        &package,
+        &approved,
+        &test_case_schema_body(
+            replay_environment(),
+            ExpectedOutcome::Value(scope_const_value(0x60)),
+        ),
+        14,
+        6,
+    );
+    assert_schema_projection(
+        &package,
+        &approved,
+        &test_case_schema_body(
+            adapter_environment(),
+            ExpectedOutcome::FailureCode(u32::MAX),
+        ),
+        14,
+        6,
+    );
+}
+
+#[test]
+#[allow(clippy::too_many_lines)]
+fn test_case_schema_decoder_rejects_every_field_boundary() {
+    use sley_ssmc::ExpectedOutcome;
+
+    let body = test_case_schema_body(replay_environment(), ExpectedOutcome::FailureCode(7));
+    let fields = exact_entity_body_fields(&body, 14, 6);
+    let image = test_case_schema_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+
+    let union = |tag: u32, payload: &[u8]| sley_scb1::encode_union(tag, payload).unwrap();
+    let record = |fields: &[(u32, Vec<u8>)]| sley_scb1::encode_record(fields).unwrap();
+    let list = |elements: &[Vec<u8>]| sley_scb1::encode_list(elements).unwrap();
+    let unit_const =
+        sley_mutate::encode_const_value(&const_of(TypeExpr::Unit, ConstData::Unit)).unwrap();
+    let bad_const = record(&[(1, union(1, &[])), (2, union(2, &[9]))]);
+
+    let mut unknown_fields = fields.clone();
+    unknown_fields.push(Vec::new());
+    let mut short_target = fields.clone();
+    short_target[0] = vec![0x92; 31];
+    let mut bad_input = fields.clone();
+    bad_input[1] = list(&[unit_const.clone(), bad_const.clone()]);
+    let mut unknown_environment = fields.clone();
+    unknown_environment[2] = union(3, &[]);
+    let mut replay_bad_response_tag = fields.clone();
+    replay_bad_response_tag[2] = union(
+        1,
+        &list(&[record(&[
+            (1, vec![0x94; 32]),
+            (2, list(&[])),
+            (3, union(3, &unit_const)),
+        ])]),
+    );
+    let mut replay_bad_request = fields.clone();
+    replay_bad_request[2] = union(
+        1,
+        &list(&[record(&[
+            (1, vec![0x94; 32]),
+            (2, list(std::slice::from_ref(&bad_const))),
+            (3, union(1, &unit_const)),
+        ])]),
+    );
+    let mut adapter_missing_configuration = fields.clone();
+    adapter_missing_configuration[2] = union(2, &list(&[record(&[(1, vec![0x96; 32])])]));
+    let mut unknown_outcome = fields.clone();
+    unknown_outcome[3] = union(3, &[]);
+    let mut wide_failure_code = fields.clone();
+    wide_failure_code[3] = union(2, &sley_scb1::encode_uvar(u64::from(u32::MAX) + 1));
+    let mut bad_outcome_value = fields.clone();
+    bad_outcome_value[3] = union(1, &bad_const);
+    let mut short_observation_id = fields.clone();
+    short_observation_id[4] = list(&[record(&[(1, vec![0x93; 31]), (2, unit_const.clone())])]);
+    let mut short_limits = fields.clone();
+    short_limits[5] = record(&[
+        (1, sley_scb1::encode_uvar(1)),
+        (2, sley_scb1::encode_uvar(2)),
+        (3, sley_scb1::encode_uvar(3)),
+        (4, sley_scb1::encode_uvar(4)),
+        (5, sley_scb1::encode_uvar(5)),
+    ]);
+
+    let cases = [
+        (
+            "wrong_entity_kind",
+            parameter_schema_with_fields(13, &fields),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "missing_required",
+            parameter_schema_with_fields(14, &fields[..5]),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "unknown_field",
+            parameter_schema_with_fields(14, &unknown_fields),
+            b"SCB_FIELD_UNKNOWN".as_slice(),
+        ),
+        (
+            "short_target",
+            parameter_schema_with_fields(14, &short_target),
+            b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "bad_input",
+            parameter_schema_with_fields(14, &bad_input),
+            b"SCB_BOOL_INVALID".as_slice(),
+        ),
+        (
+            "unknown_environment",
+            parameter_schema_with_fields(14, &unknown_environment),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "replay_bad_response_tag",
+            parameter_schema_with_fields(14, &replay_bad_response_tag),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "replay_bad_request",
+            parameter_schema_with_fields(14, &replay_bad_request),
+            b"SCB_BOOL_INVALID".as_slice(),
+        ),
+        (
+            "adapter_missing_configuration",
+            parameter_schema_with_fields(14, &adapter_missing_configuration),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+        (
+            "unknown_outcome",
+            parameter_schema_with_fields(14, &unknown_outcome),
+            b"SCB_UNION_INVALID".as_slice(),
+        ),
+        (
+            "wide_failure_code",
+            parameter_schema_with_fields(14, &wide_failure_code),
+            b"SCB_INTEGER_OVERFLOW".as_slice(),
+        ),
+        (
+            "bad_outcome_value",
+            parameter_schema_with_fields(14, &bad_outcome_value),
+            b"SCB_BOOL_INVALID".as_slice(),
+        ),
+        (
+            "short_observation_id",
+            parameter_schema_with_fields(14, &short_observation_id),
+            b"SCB_LENGTH_OVERFLOW".as_slice(),
+        ),
+        (
+            "short_limits",
+            parameter_schema_with_fields(14, &short_limits),
+            b"SCB_FIELD_MISSING".as_slice(),
+        ),
+    ];
+    for (name, malformed, expected) in cases {
+        assert_eq!(
+            simple_schema_error(&package, &approved, &malformed, "TestCase"),
+            expected,
+            "{name} precedence"
+        );
+    }
 }
