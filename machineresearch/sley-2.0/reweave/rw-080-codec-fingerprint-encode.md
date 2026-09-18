@@ -76,6 +76,8 @@ Validation includes the complete `rw080_codec_program_outer` target, focused
 Clippy with warnings denied, workspace formatting, the RW-080 companion
 suites, the anti-goal registry check, JSON validation and `git diff --check`.
 
-Fingerprint decode, full program-level composition, optional label/NFC
-handling and schema codec legs remain open. No ledger, acceptance verdict,
-authority state or release state is promoted by this slice.
+Fingerprint decode is covered by the successor
+`rw-080-codec-fingerprint-decode.md` slice. Full program-level composition,
+optional label/NFC handling and schema codec legs remain open. No ledger,
+acceptance verdict, authority state or release state is promoted by this
+slice.
