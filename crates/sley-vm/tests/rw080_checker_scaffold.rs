@@ -26,6 +26,9 @@
 //! with Sley-owned strict-order and nested membership walks.
 //! `two_function_effect_closure_checker` adds bounded direct-call propagation
 //! and native-equivalent closure-work accounting.
+//! `composed::bounded_checker_program` rebases all seven executable slices
+//! into one collision-free closure, dispatches them through direct calls, and
+//! normalizes their reports while forwarding frozen numeric errors exactly.
 //! Construction provenance:
 //! machineresearch/sley-2.0/reweave/rw-080-checker-scaffold.md,
 //! machineresearch/sley-2.0/reweave/rw-080-checker-single-cfg.md,
@@ -44,6 +47,9 @@ use sley_ssmc::{
     Reachability, ReturnTerminator, SwitchArgument, SwitchCase, SwitchEdge, TargetEdge, Terminator,
     TrapCode, TrapTerminator, TypeExpr, ValueRef, VariantSwitchTerminator, Visibility,
 };
+
+#[path = "rw080_checker_program/composed.rs"]
+mod composed;
 
 fn id(byte: u8) -> EntityId {
     EntityId::from_bytes([byte; 32])
@@ -3911,7 +3917,7 @@ fn admit_checker_program(
         profile: sley_vm::CacheProfile::EXTENDED_V1,
         constants: &scaffold.constants,
         globals: &[],
-        functions: &[],
+        functions: &scaffold.functions,
         contracts: &[],
         adapters: &[],
     })
