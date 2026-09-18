@@ -552,19 +552,27 @@ fn build_codec_main(
 }
 
 pub(super) fn codec_main_image() -> Image {
-    compose_codec_main(super::all_kind_digest_dispatch::all_kind_decode_image())
-}
-
-/// The four-leg composition with selector 0 routed to the arbitrary-schema
-/// all-kind decoder. The bounded `codec_main_image` and the canonical codec
-/// component derived from it are unchanged; this is the candidate for the
-/// next component derivation.
-pub(super) fn arbitrary_codec_main_image() -> Image {
-    compose_codec_main(super::all_kind_digest_dispatch::arbitrary_all_kind_decode_image())
-}
-
-fn compose_codec_main(decode: Image) -> Image {
+    let decode = super::all_kind_digest_dispatch::all_kind_decode_image();
     let encode = super::all_kind_digest_dispatch::all_kind_encode_image();
+    let decode_entry = decode.entry.entity_id;
+    let encode_entry = encode.entry.entity_id;
+    compose_codec_main(vec![decode, encode], decode_entry, encode_entry)
+}
+
+/// The four-leg composition with selectors 0 and 1 routed to the arbitrary
+/// program legs (`arbitrary_program_legs_image`). The bounded
+/// `codec_main_image` and the canonical codec component derived from it are
+/// unchanged; this is the candidate for the next component derivation.
+pub(super) fn arbitrary_codec_main_image() -> Image {
+    let legs = super::all_kind_digest_dispatch::arbitrary_program_legs_image();
+    compose_codec_main(vec![legs.image], legs.decode_entry, legs.encode_entry)
+}
+
+fn compose_codec_main(
+    program_children: Vec<Image>,
+    decode_entry: EntityId,
+    encode_entry: EntityId,
+) -> Image {
     let schema_decode = super::schema_codec::schema_decode_image();
     let schema_encode = super::schema_codec::schema_encode_image();
     let mut assembler = Asm::new();
@@ -577,8 +585,8 @@ fn compose_codec_main(decode: Image) -> Image {
             o: 237,
         },
         eid(16, 1),
-        decode.entry.entity_id,
-        encode.entry.entity_id,
+        decode_entry,
+        encode_entry,
         schema_decode.entry.entity_id,
         schema_encode.entry.entity_id,
     );
@@ -592,7 +600,10 @@ fn compose_codec_main(decode: Image) -> Image {
         adapters: Vec::new(),
         constants: assembler.constants,
     };
-    for child in [decode, encode, schema_decode, schema_encode] {
+    let mut children = program_children;
+    children.push(schema_decode);
+    children.push(schema_encode);
+    for child in children {
         image.functions.extend(child.functions);
         image.parameters.extend(child.parameters);
         image.blocks.extend(child.blocks);
@@ -741,19 +752,19 @@ fn arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies() {
         package.image_bytes.len(),
         approved.package_digest,
     );
-    assert_eq!(image.functions.len(), 133);
-    assert_eq!(image.parameters.len(), 6_240);
-    assert_eq!(image.blocks.len(), 1_908);
-    assert_eq!(image.operations.len(), 4_162);
-    assert_eq!(image.constants.len(), 176);
+    assert_eq!(image.functions.len(), 119);
+    assert_eq!(image.parameters.len(), 6_776);
+    assert_eq!(image.blocks.len(), 1_972);
+    assert_eq!(image.operations.len(), 4_185);
+    assert_eq!(image.constants.len(), 145);
     assert_eq!(image.adapters.len(), 4);
-    assert_eq!(package.image_bytes.len(), 500_596);
+    assert_eq!(package.image_bytes.len(), 518_352);
     assert_eq!(
         approved.package_digest,
         [
-            0x0a, 0xef, 0x4b, 0x47, 0xd8, 0xa4, 0x87, 0x24, 0xa5, 0x52, 0x1d, 0xa5, 0x55, 0x2a,
-            0x51, 0x38, 0x12, 0x75, 0x4b, 0x3c, 0x48, 0x2e, 0x50, 0x4b, 0x0b, 0x29, 0x88, 0xcb,
-            0x4e, 0xb0, 0x00, 0xde,
+            0x1d, 0x57, 0xab, 0xa7, 0xf4, 0xce, 0xee, 0x74, 0x4e, 0x7c, 0x19, 0x18, 0x36, 0x99,
+            0xf2, 0x36, 0xaa, 0xbd, 0xca, 0x1f, 0xa9, 0xe6, 0x8f, 0xe7, 0x34, 0x08, 0xa0, 0xfc,
+            0xd7, 0xe2, 0x0b, 0x5c,
         ]
     );
 
@@ -794,10 +805,22 @@ fn arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies() {
         assert_eq!(fields[1].data, ConstData::UInt(u128::from(kind)));
         assert_eq!(fields[2].data, ConstData::Bytes(entity.to_vec()));
         assert_eq!(fields[3].data, ConstData::Bytes(body.clone()));
+        // Selector 1 re-emits the same arbitrary object byte for byte; the
+        // bounded composition refuses the object on decode.
+        let encoded = codec_call(
+            &package,
+            &approved,
+            1,
+            kind,
+            [&entity, &body, &[], &[], &[]],
+        );
+        assert_eq!(codec_ok(&encoded)[2].data, ConstData::Bytes(stored.clone()));
         peak = (
-            peak.0.max(decoded.fuel_used),
-            peak.1.max(decoded.instruction_count),
-            peak.2.max(decoded.peak_value_units),
+            peak.0.max(decoded.fuel_used.max(encoded.fuel_used)),
+            peak.1
+                .max(decoded.instruction_count.max(encoded.instruction_count)),
+            peak.2
+                .max(decoded.peak_value_units.max(encoded.peak_value_units)),
         );
         let refused = codec_call(
             &bounded.0,
@@ -812,7 +835,7 @@ fn arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies() {
         "ARBITRARY_CODEC_MAIN peak fuel={} instructions={} value_units={}",
         peak.0, peak.1, peak.2
     );
-    assert_eq!(peak, (656_175, 72_993, 35_732_855));
+    assert_eq!(peak, (656_175, 74_950, 45_276_332));
 
     // The schema legs and the typed refusal paths are unchanged.
     let record = sley_state_root::conformance_epoch_record()
@@ -843,6 +866,22 @@ fn arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies() {
     let stored = super::all_kind_digest_dispatch::stored_from_body([0xcc; 32], &malformed);
     let refused = codec_call(&package, &approved, 0, 1, [&stored, &[], &[], &[], &[]]);
     assert_refusal(&refused, "SCB_TRAILING_BYTES");
+    let refused = codec_call(
+        &package,
+        &approved,
+        1,
+        1,
+        [&[0xcc; 32], &malformed, &[], &[], &[]],
+    );
+    assert_refusal(&refused, "SCB_TRAILING_BYTES");
+    let refused = codec_call(
+        &package,
+        &approved,
+        1,
+        1,
+        [&[0xcc; 31], workspace_body, &[], &[], &[]],
+    );
+    assert_refusal(&refused, "SCB_LENGTH_OVERFLOW");
 }
 
 #[test]
@@ -850,11 +889,7 @@ fn arbitrary_codec_main_children_use_disjoint_identity_namespaces() {
     let children = [
         (
             "decode",
-            super::all_kind_digest_dispatch::arbitrary_all_kind_decode_image(),
-        ),
-        (
-            "encode",
-            super::all_kind_digest_dispatch::all_kind_encode_image(),
+            super::all_kind_digest_dispatch::arbitrary_program_legs_image().image,
         ),
         ("schema_decode", super::schema_codec::schema_decode_image()),
         ("schema_encode", super::schema_codec::schema_encode_image()),

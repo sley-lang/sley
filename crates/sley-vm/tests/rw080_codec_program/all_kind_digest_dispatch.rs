@@ -1054,6 +1054,348 @@ pub(super) fn arbitrary_all_kind_decode_image() -> Image {
     image
 }
 
+/// `(kind, entity, body, first, second, third, unit) -> Result<Bytes, Bytes>`:
+/// the encode leg with kinds 1 through 17 judged by their arbitrary schema
+/// decoders and then re-framed by the generic outer/envelope composer, and
+/// kind 18 on the retained `DependencyBinding` emitter. The seven-input
+/// contract of the bounded dispatcher is unchanged.
+#[allow(clippy::too_many_lines)]
+fn build_arbitrary_program_encode_dispatch(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    body_check: EntityId,
+    composer: EntityId,
+    dependency_encoder: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = encode_result_type();
+    let kind = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
+    let entity = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let body = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let first = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let second = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let third = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+    let dependency = assembler.id(ns.b);
+    let check_body = assembler.id(ns.b);
+    let compose = assembler.id(ns.b);
+    let forward_error = assembler.id(ns.b);
+    let entry = assembler.id(ns.b);
+    let dependency_constant = assembler.ku64(ns.k, 18);
+
+    let dependency_kind = assembler.cref(ns.o, entry, dependency_constant, u64_type());
+    let is_dependency = assembler.op(
+        ns.o,
+        entry,
+        Opcode::Equal,
+        vec![pav(kind), op_result(dependency_kind)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![dependency_kind, is_dependency],
+        cond(
+            op_result(is_dependency),
+            edge(dependency, Vec::new()),
+            edge(check_body, Vec::new()),
+        ),
+    );
+
+    let dependency_result = assembler.op(
+        ns.o,
+        dependency,
+        Opcode::CallDirect,
+        vec![pav(entity), pav(first), pav(second), pav(third), pav(unit)],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: dependency_encoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        dependency,
+        function,
+        Vec::new(),
+        vec![dependency_result],
+        ret(op_result(dependency_result)),
+    );
+
+    let checked = assembler.op(
+        ns.o,
+        check_body,
+        Opcode::CallDirect,
+        vec![pav(kind), pav(body), pav(unit)],
+        vec![TypeExpr::Result {
+            ok: Box::new(TypeExpr::Unit),
+            error: Box::new(TypeExpr::Bytes),
+        }],
+        Immediate::Function(FunctionRefValue {
+            function: body_check,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        check_body,
+        function,
+        Vec::new(),
+        vec![checked],
+        switch(
+            op_result(checked),
+            vec![
+                (BuiltinCase::Ok, compose, Vec::new()),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let stored = assembler.op(
+        ns.o,
+        compose,
+        Opcode::CallDirect,
+        vec![pav(entity), pav(body), pav(unit)],
+        vec![result_type.clone()],
+        Immediate::Function(FunctionRefValue {
+            function: composer,
+            type_arguments: Vec::new(),
+        }),
+    );
+    append_block(
+        assembler,
+        compose,
+        function,
+        Vec::new(),
+        vec![stored],
+        ret(op_result(stored)),
+    );
+
+    let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
+    let error = assembler.op(
+        ns.o,
+        forward_error,
+        Opcode::ResultErr,
+        vec![pav(forwarded)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        forward_error,
+        function,
+        vec![forwarded],
+        vec![error],
+        ret(op_result(error)),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![kind, entity, body, first, second, third, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+/// Both arbitrary program legs in one image, sharing one schema closure.
+pub(super) struct ProgramLegs {
+    pub(super) image: Image,
+    pub(super) decode_entry: EntityId,
+    pub(super) encode_entry: EntityId,
+}
+
+/// The arbitrary decode leg and the arbitrary encode leg built over one
+/// shared schema closure (the 256-namespace budget cannot hold two). The
+/// decode functions keep the bounded image's namespaces (`130..=153`,
+/// identities `14`), the retained `DependencyBinding` emitter keeps `8..=11`
+/// and `17..=20` (identities `15`), the encode composer chain takes
+/// `21..=26`, and the schema closure fills the space the four-leg
+/// composition leaves free.
+#[allow(clippy::too_many_lines)]
+pub(super) fn arbitrary_program_legs_image() -> ProgramLegs {
+    let mut assembler = Asm::new();
+    let decode_root = eid(14, 1);
+    let validate = eid(14, 2);
+    let outer = eid(14, 3);
+    let checker = eid(14, 4);
+    let uvar = eid(14, 5);
+    let dependency_decode = eid(14, 6);
+    let encode_root = eid(15, 1);
+    let octet_getter = eid(15, 4);
+    let dependency_encode = eid(15, 5);
+    let encode_uvar = eid(15, 6);
+    let outer_encode = eid(15, 7);
+    let program_build = eid(15, 8);
+    let envelope = eid(15, 9);
+    let composer = eid(15, 10);
+    let (uvar_graph, _) = build_decode(
+        &mut assembler,
+        Ns {
+            k: 130,
+            p: 131,
+            b: 132,
+            o: 133,
+        },
+        uvar,
+    );
+    let validate_graph = build_program_validate(
+        &mut assembler,
+        Ns {
+            k: 134,
+            p: 135,
+            b: 136,
+            o: 137,
+        },
+        validate,
+        uvar,
+    );
+    let outer_graph = build_outer_decode(
+        &mut assembler,
+        Ns {
+            k: 138,
+            p: 139,
+            b: 140,
+            o: 141,
+        },
+        outer,
+        uvar,
+    );
+    let dependency_decode_graph =
+        super::dependency_binding_decode::build_dependency_supported_program_decode(
+            &mut assembler,
+            Ns {
+                k: 150,
+                p: 151,
+                b: 152,
+                o: 153,
+            },
+            dependency_decode,
+        );
+    let decode_root_graph = build_all_kind_program_decode(
+        &mut assembler,
+        Ns {
+            k: 146,
+            p: 147,
+            b: 148,
+            o: 149,
+        },
+        decode_root,
+        validate,
+        outer,
+        BodyCheck::Schema(checker),
+        dependency_decode,
+    );
+    let octet_getter_graph = super::dependency_binding::build_exact_octet_get(
+        &mut assembler,
+        Ns {
+            k: 8,
+            p: 9,
+            b: 10,
+            o: 11,
+        },
+        octet_getter,
+    );
+    let dependency_encode_graph =
+        super::dependency_binding::build_dependency_program_encode_via_get(
+            &mut assembler,
+            Ns {
+                k: 17,
+                p: 18,
+                b: 19,
+                o: 20,
+            },
+            dependency_encode,
+            octet_getter,
+        );
+    let ns_of = |number: u8| Ns {
+        k: number,
+        p: number,
+        b: number,
+        o: number,
+    };
+    let encode_uvar_graph = build_encode(&mut assembler, ns_of(21), encode_uvar);
+    let outer_encode_graph =
+        build_outer_encode(&mut assembler, ns_of(22), outer_encode, encode_uvar);
+    let program_build_graph = build_program_build(&mut assembler, ns_of(23), program_build);
+    let envelope_graph = build_program_envelope_encode_with_mode(
+        &mut assembler,
+        ns_of(24),
+        envelope,
+        program_build,
+        encode_uvar,
+        DigestCopyMode::Unrolled,
+    );
+    let composer_graph =
+        build_program_payload_encode(&mut assembler, ns_of(25), composer, outer_encode, envelope);
+    let encode_root_graph = build_arbitrary_program_encode_dispatch(
+        &mut assembler,
+        ns_of(26),
+        encode_root,
+        checker,
+        composer,
+        dependency_encode,
+    );
+    let schema_graphs = super::dependency_binding_decode::build_arbitrary_schema_body_check(
+        &mut assembler,
+        checker,
+        vec![0..=26, 92..=95, 130..=153, 226..=237],
+        13,
+    );
+    let mut functions = vec![
+        decode_root_graph.clone(),
+        encode_root_graph,
+        composer_graph,
+        envelope_graph,
+        program_build_graph,
+        outer_encode_graph,
+        encode_uvar_graph,
+        dependency_encode_graph,
+        octet_getter_graph,
+        dependency_decode_graph,
+        validate_graph,
+        outer_graph,
+        uvar_graph,
+    ];
+    functions.extend(schema_graphs);
+    let mut image = Image {
+        types: sley_check::TypeEnvironment::new(Vec::new()).unwrap(),
+        entry: decode_root_graph,
+        functions,
+        parameters: assembler.parameters,
+        blocks: assembler.blocks,
+        operations: assembler.operations,
+        adapters: vec![
+            frozen_import(BRIDGE_CODE_B2V1, TypeExpr::Bytes, u8vec_type()),
+            frozen_import(BRIDGE_CODE_PSH1, u8_type(), u8vec_type()),
+            frozen_import(BRIDGE_CODE_V2B1, u8vec_type(), TypeExpr::Bytes),
+            frozen_import(BRIDGE_CODE_RHW1, TypeExpr::Bytes, TypeExpr::Bytes),
+        ],
+        constants: assembler.constants,
+    };
+    super::supported_dispatch::deduplicate_identical_constants(&mut image);
+    ProgramLegs {
+        image,
+        decode_entry: decode_root,
+        encode_entry: encode_root,
+    }
+}
+
 #[allow(clippy::too_many_lines)]
 pub(super) fn all_kind_encode_image() -> Image {
     let mut assembler = Asm::new();
