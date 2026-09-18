@@ -29,10 +29,11 @@ bytes. The approved package digest is
 ## Function integration
 
 The Function schema decoder invokes the leaf validator on field 3 after its
-collection, identity, and visibility checks. Its composite image contains 10
-reachable functions, 1,124 parameters, 224 blocks, 406 operations, and 125
-constants. The image is 57,396 bytes and has package digest
-`fb18f26295a18c6022a310b409ee7a39940d7549bad8a4644654e59def82d046`
+collection, identity, visibility, and type-parameter structural checks. Its
+current composite image contains 11 reachable functions, 1,152 parameters,
+238 blocks, 426 operations, and 132 constants. The image is 60,114 bytes and
+has package digest
+`083eac185de7fe907054e46f120c81930a3b0e34ccf23e506cd833cca3ba4006`
 under the codec-profile execution limits.
 
 The Function corpus accepts its native `Bool` result type, rejects a nonempty

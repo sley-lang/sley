@@ -14,7 +14,7 @@ Sley:
 - the outer union tag is exactly entity kind 5;
 - record fields 1 through 8 are all present;
 - no unknown record field remains after the eight required fields are removed;
-- field 1 is an exact canonical list container;
+- field 1 is a list of exact single-field type-parameter records;
 - fields 2 and 6 are lists of exact 32-byte entity identities;
 - fields 4 and 7 are strictly increasing sets of exact 32-byte entity
   identities;
@@ -31,14 +31,15 @@ parameters, entity identities, `TypeExpr`, set ordering, and visibility.
 
 ## Executable surface
 
-The composite image contains 10 reachable functions: the Function schema
+The composite image contains 11 reachable functions: the Function schema
 entry, entity-identity collection validator, fixed-32 validator, generic
 record decoder, generic union decoder, generic list decoder, and shared
 canonical uvar decoder, plus exact and bounded uvar wrappers and the
-non-recursive `TypeExpr` validator. It contains 1,124 parameters, 224 blocks,
-406 operations, and 125 constants. Its encoded image is 57,396 bytes. The
+non-recursive `TypeExpr` and type-parameter-list validators. It contains 1,152
+parameters, 238 blocks, 426 operations, and 132 constants. Its encoded image
+is 60,114 bytes. The
 approved package digest is
-`fb18f26295a18c6022a310b409ee7a39940d7549bad8a4644654e59def82d046`
+`083eac185de7fe907054e46f120c81930a3b0e34ccf23e506cd833cca3ba4006`
 under the declared codec-profile execution limits.
 
 ## Validation
@@ -48,14 +49,15 @@ over a non-empty Function body. Negative cases cover a wrong entity kind, a
 missing field, an unknown field, a non-minimal list count, a short parameter
 identity, an unordered effect set, and a short entry-block identity.
 Visibility cases also cover an out-of-range tag and a non-minimal encoding.
-Result-type cases cover a valid leaf, a malformed leaf payload, and the
-explicitly scoped recursive boundary.
+Type-parameter cases cover a real nonempty declaration, a missing ordinal,
+and an unknown record field. Result-type cases cover a valid leaf, a malformed
+leaf payload, and the explicitly scoped recursive boundary.
 
 ```text
 cargo test -p sley-vm --test rw120_toolchain_integration function_schema_decoder -- --nocapture
 ```
 
 The slice does not yet claim a complete Function decoder. Recursive
-`TypeExpr` and type-parameter records remain open. The fixed representative
-Function codec and the canonical toolchain root therefore remain unchanged
-until those semantic decoders are composed and tested.
+`TypeExpr` and the semantic dense-ordinal rule remain open. The fixed
+representative Function codec and the canonical toolchain root therefore
+remain unchanged until those semantic decoders are composed and tested.
