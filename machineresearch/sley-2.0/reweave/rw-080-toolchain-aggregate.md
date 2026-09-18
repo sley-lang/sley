@@ -31,24 +31,31 @@ part of the real driver construction required by contract section 1.4.
 
 Every language-owned entity now uses the contract derivation rule
 `EntityId::derive(workspace, candidate_nonce, kind, ordinal)`. The exact
-genesis seed, candidate nonce, derived workspace, 23 entity/object bindings,
-five entry points, empty partial-component anchors, object bytes, and root
-bytes are retained in
+genesis seed, candidate nonce, derived workspace, 31 entity/object bindings,
+five explicit entry-point records, their five target functions, empty
+partial-component contract/test anchors, object bytes, and root bytes are retained in
 `rw-080-toolchain-component-manifest.json`. The object bundle and state-root
 bytes use deterministic gzip/base64 storage with lengths and SHA-256 digests;
 each object also records its bundle offset, exact length, owner, identity
 origin and creation provenance.
 
-All 23 objects round-trip through `import_entity_object`. Their exact bindings
+The closure now includes workspace, package, namespace, and entry-point
+metadata rather than treating function records themselves as the root entry
+points. All 31 objects round-trip through `import_entity_object`. Their exact bindings
 produce registered schema epoch
 `a7fcf97a85d41ef9b1c89394a324f2dc7ec875b9ded48a783104314857dc870e`
 and partial component root:
 
-`f316dff8df4634cde2302d7c2a6924df4400579917b12fa55ca95df4ee1dfabe`
+`39b91dd84a4a4ed1414b034b522833d5f06c12b35d54bd46ecfc531d52d4d30d`
 
-The 1,945-byte root record round-trips through `import_state_root`; its exact
+The 2,473-byte root record round-trips through `import_state_root`; its exact
 stored bytes have SHA-256
-`e179c45ee6a248d6e6d8afb855bc9935bd4272d7710945331bdef7da80c89f8f`.
+`d0e803659a21d82234a01bd9f9edcd3cc932cb736fad341550cc2fc23d8ef633`.
+Its policy binding is no longer an opaque placeholder: an empty policy built
+through `PolicyRootBuilder` and the preserved policy registry round-trips
+through `import_policy_root`, with root
+`3b8eab80acdc874bd3f3958981d0da81d2ce2314073fc9773d75ed901f0dc89c`
+and exact retained bytes in the component manifest.
 Changing the codec constant from `6` to `7` changes exactly that constant's
 object binding and changes the derived root, providing a bounded anti-copy
 check.
@@ -58,7 +65,7 @@ The graph admits under `BOOTSTRAP_PROFILE_2`, lowers to a 1,154-byte
 closure has eight operations, zero bridge uses, and five semantic
 fingerprints. Its exact package digest is:
 
-`078e4ca920c0452c290730bc6883829dc281c80cd1be545953ac58e28aa958ca`
+`eec3cc8941a759d838679de0eab9bd1041dc19374cc15041c4e5b79880544ded`
 
 The test pins that digest and strictly decodes the envelope back to the driver
 entry, registered schema epoch, partial component root, and section digests.
@@ -75,10 +82,11 @@ runtime-data-dependent rather than a cached result.
 The root above is an actual canonical `StateRoot` for this partial scaffold
 component. It is not complete `S`: the leaf functions do not contain the
 mature algorithms, the build manifest and `BuildError` values are absent, and
-the contract/test/policy anchors are explicitly construction-only empty
-partial-component anchors. `bootstrap-manifest.json` therefore remains
-unchanged with `S` absent and C0 without a preserved image. Neither the root
-nor package digest above may be copied into those stage fields.
+the contract/test anchors are explicitly construction-only empty
+partial-component anchors. The accepted empty policy authorizes no principal
+or operation. `bootstrap-manifest.json` therefore remains unchanged with `S`
+absent and C0 without a preserved image. Neither the root nor package digest
+above may be copied into those stage fields.
 
 The next aggregate step is to replace each leaf surface with the already
 constructed algorithm graph behind the same call boundary, define the typed

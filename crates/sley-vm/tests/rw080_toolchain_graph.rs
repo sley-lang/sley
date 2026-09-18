@@ -12,8 +12,8 @@ use sley_id::{
 use sley_mutate::{
     EntityObject, EntityObjectRecord, build_entity_object, import_entity_object,
     value::{
-        BlockBody, ConstantBody, EntityBodyValue, EntityIdSet, FunctionBody, OperationBody,
-        ParameterBody,
+        BlockBody, ConstantBody, EntityBodyValue, EntityIdSet, EntryExposure, EntryPointBody,
+        FunctionBody, NamespaceBody, OperationBody, PackageBody, ParameterBody, WorkspaceBody,
     },
 };
 use sley_ssmc::{
@@ -33,9 +33,9 @@ const GENESIS_SEED: [u8; 32] = [0x80; 32];
 const CANDIDATE_SEED: [u8; 32] = [0x87; 32];
 const CONTRACT_ROOT_PREIMAGE: &[u8] = b"SLEY2/RW080/PARTIAL/EMPTY-CONTRACT-ROOT/V1";
 const TEST_ROOT_PREIMAGE: &[u8] = b"SLEY2/RW080/PARTIAL/EMPTY-TEST-ROOT/V1";
-const POLICY_ROOT_PREIMAGE: &[u8] = b"SLEY2/RW080/PARTIAL/CONSTRUCTION-POLICY/V1";
-const ENTITY_TOKENS: [u8; 23] = [
-    1, 2, 3, 4, 5, 10, 11, 20, 21, 22, 23, 24, 30, 31, 32, 40, 41, 42, 43, 44, 45, 46, 47,
+const ENTITY_TOKENS: [u8; 31] = [
+    1, 2, 3, 4, 5, 10, 11, 20, 21, 22, 23, 24, 30, 31, 32, 40, 41, 42, 43, 44, 45, 46, 47, 60, 61,
+    62, 63, 64, 65, 66, 67,
 ];
 
 fn workspace() -> WorkspaceId {
@@ -53,6 +53,10 @@ fn seed_position(byte: u8) -> (u32, u64) {
         20..=24 => (7, u64::from(byte - 20)),
         30..=32 => (9, u64::from(byte - 30)),
         40..=47 => (8, u64::from(byte - 40)),
+        60 => (1, 0),
+        61 => (2, 0),
+        62 => (3, 0),
+        63..=67 => (16, u64::from(byte - 63)),
         _ => panic!("unknown aggregate seed-local identity {byte}"),
     }
 }
@@ -75,16 +79,20 @@ fn test_root() -> ObjectId {
 }
 
 fn policy_root() -> PolicyRootId {
-    PolicyRootId::derive(POLICY_ROOT_PREIMAGE)
+    PolicyRootId::from_bytes([
+        0x3b, 0x8e, 0xab, 0x80, 0xac, 0xdc, 0x87, 0x4b, 0xd3, 0xf3, 0x95, 0x89, 0x81, 0xd0, 0xda,
+        0x81, 0xd2, 0xce, 0x23, 0x14, 0x07, 0x3f, 0xc9, 0x77, 0x3d, 0x75, 0xed, 0x90, 0x1f, 0x0d,
+        0xc8, 0x9c,
+    ])
 }
 
 fn seed_owner(token: u8) -> &'static str {
     match token {
-        DRIVER | 10 | 20 | 40..=44 => "driver",
-        CODEC | 21 | 30 | 45 => "codec",
-        CHECKER | 22 | 31 | 46 => "checker",
-        LOWERER | 23 | 32 | 47 => "lowerer",
-        BUILDER | 11 | 24 => "package-builder",
+        DRIVER | 10 | 20 | 40..=44 | 60..=63 => "driver",
+        CODEC | 21 | 30 | 45 | 64 => "codec",
+        CHECKER | 22 | 31 | 46 | 65 => "checker",
+        LOWERER | 23 | 32 | 47 | 66 => "lowerer",
+        BUILDER | 11 | 24 | 67 => "package-builder",
         _ => panic!("unknown aggregate owner token {token}"),
     }
 }
@@ -295,6 +303,55 @@ fn canonical_object(entity_id: EntityId, body: EntityBodyValue) -> EntityObject 
     .expect("aggregate entity object is canonical")
 }
 
+fn canonical_component_metadata() -> Vec<EntityObject> {
+    let entry_points = (63..=67).map(id).collect::<Vec<_>>();
+    let mut objects = vec![
+        canonical_object(
+            id(60),
+            EntityBodyValue::Workspace(WorkspaceBody {
+                packages: EntityIdSet::from_unsorted(vec![id(61)]).unwrap(),
+                root_namespace: id(62),
+                capability_requirements: EntityIdSet::from_unsorted(Vec::new()).unwrap(),
+                contracts: EntityIdSet::from_unsorted(Vec::new()).unwrap(),
+                tests: EntityIdSet::from_unsorted(Vec::new()).unwrap(),
+            }),
+        ),
+        canonical_object(
+            id(61),
+            EntityBodyValue::Package(PackageBody {
+                workspace: id(60),
+                root_namespace: id(62),
+                dependencies: EntityIdSet::from_unsorted(Vec::new()).unwrap(),
+                exports: EntityIdSet::from_unsorted(entry_points.clone()).unwrap(),
+            }),
+        ),
+        canonical_object(
+            id(62),
+            EntityBodyValue::Namespace(NamespaceBody {
+                parent: None,
+                members: EntityIdSet::from_unsorted(entry_points).unwrap(),
+            }),
+        ),
+    ];
+    for (index, function) in [DRIVER, CODEC, CHECKER, LOWERER, BUILDER]
+        .into_iter()
+        .enumerate()
+    {
+        objects.push(canonical_object(
+            id(63 + u8::try_from(index).expect("five entry points fit u8")),
+            EntityBodyValue::EntryPoint(EntryPointBody {
+                function: id(function),
+                exposure: if function == DRIVER {
+                    EntryExposure::Protocol
+                } else {
+                    EntryExposure::Local
+                },
+            }),
+        ));
+    }
+    objects
+}
+
 fn canonical_component_objects(image: &ToolchainImage) -> Vec<EntityObject> {
     let mut objects = Vec::new();
     objects.extend(image.functions.iter().map(|function| {
@@ -358,6 +415,7 @@ fn canonical_component_objects(image: &ToolchainImage) -> Vec<EntityObject> {
             }),
         )
     }));
+    objects.extend(canonical_component_metadata());
     objects.sort_unstable_by_key(|object| object.record().entity_id);
     objects
 }
@@ -372,7 +430,7 @@ fn canonical_component_root(objects: &[EntityObject]) -> sley_state_root::Accept
     for object in objects {
         builder = builder.entity_binding(object.record().entity_id, object.object_id());
     }
-    for entry in [DRIVER, CODEC, CHECKER, LOWERER, BUILDER] {
+    for entry in 63..=67 {
         builder = builder.entry_point(id(entry));
     }
     builder
@@ -539,6 +597,36 @@ fn aggregate_entities_use_contract_derived_identities() {
     }
 }
 
+fn component_body(objects: &[EntityObject], token: u8) -> &EntityBodyValue {
+    &objects
+        .iter()
+        .find(|object| object.record().entity_id == id(token))
+        .expect("component object exists")
+        .record()
+        .body
+}
+
+fn assert_component_metadata(objects: &[EntityObject]) {
+    assert!(matches!(
+        component_body(objects, 60),
+        EntityBodyValue::Workspace(_)
+    ));
+    assert!(matches!(
+        component_body(objects, 61),
+        EntityBodyValue::Package(_)
+    ));
+    assert!(matches!(
+        component_body(objects, 62),
+        EntityBodyValue::Namespace(_)
+    ));
+    for token in 63..=67 {
+        assert!(matches!(
+            component_body(objects, token),
+            EntityBodyValue::EntryPoint(_)
+        ));
+    }
+}
+
 #[test]
 fn aggregate_component_objects_and_state_root_round_trip_exactly() {
     let image = aggregate_toolchain_graph();
@@ -562,7 +650,9 @@ fn aggregate_component_objects_and_state_root_round_trip_exactly() {
         .map(|object| (object.record().entity_id, object.object_id()))
         .collect::<Vec<_>>();
     assert_eq!(root.record.entity_bindings, expected_bindings);
-    assert_eq!(root.record.entry_points.len(), 5);
+    let mut expected_entry_points = (63..=67).map(id).collect::<Vec<_>>();
+    expected_entry_points.sort_unstable();
+    assert_eq!(root.record.entry_points, expected_entry_points);
     assert!(root.record.dependency_roots.is_empty());
     assert!(root.record.interpretation_flags.is_empty());
     assert_eq!(root.record.workspace_id, workspace());
@@ -570,12 +660,13 @@ fn aggregate_component_objects_and_state_root_round_trip_exactly() {
     assert_eq!(root.record.contract_root, contract_root());
     assert_eq!(root.record.test_root, test_root());
     assert_eq!(root.record.policy_root, policy_root());
+    assert_component_metadata(&objects);
     assert_eq!(
         root.root.into_bytes(),
         [
-            0xf3, 0x16, 0xdf, 0xf8, 0xdf, 0x46, 0x34, 0xcd, 0xe2, 0x30, 0x2d, 0x7c, 0x2a, 0x69,
-            0x24, 0xdf, 0x44, 0x00, 0x57, 0x99, 0x17, 0xb1, 0x2f, 0xa5, 0x5c, 0xa9, 0x5d, 0xf4,
-            0xee, 0x1d, 0xfa, 0xbe,
+            0x39, 0xb9, 0x1d, 0xd8, 0x4a, 0x4a, 0x4e, 0xd1, 0x41, 0x4b, 0x03, 0x4b, 0x52, 0x28,
+            0x33, 0xd5, 0xf0, 0x6c, 0x12, 0xb3, 0x5d, 0x54, 0xbd, 0x46, 0xec, 0xfc, 0x53, 0x1d,
+            0x52, 0xd4, 0xd3, 0x0d,
         ],
         "the partial component root is pinned"
     );
@@ -593,7 +684,7 @@ fn aggregate_component_objects_and_state_root_round_trip_exactly() {
     );
     if std::env::var_os("SLEY_EMIT_RW080_COMPONENT_MANIFEST").is_some() {
         println!(
-            "RW080_MANIFEST_META workspace={} genesis_seed={} candidate_seed={} epoch={} contract_root={} contract_preimage={} test_root={} test_preimage={} policy_root={} policy_preimage={} state_root={} state_root_bytes={}",
+            "RW080_MANIFEST_META workspace={} genesis_seed={} candidate_seed={} epoch={} contract_root={} contract_preimage={} test_root={} test_preimage={} policy_root={} state_root={} state_root_bytes={}",
             hex(workspace().as_bytes()),
             hex(&GENESIS_SEED),
             hex(&CANDIDATE_SEED),
@@ -603,7 +694,6 @@ fn aggregate_component_objects_and_state_root_round_trip_exactly() {
             hex(test_root().as_bytes()),
             hex(TEST_ROOT_PREIMAGE),
             hex(policy_root().as_bytes()),
-            hex(POLICY_ROOT_PREIMAGE),
             hex(root.root.as_bytes()),
             hex(&root.stored_bytes),
         );
@@ -653,9 +743,9 @@ fn retained_component_manifest_is_digest_pinned() {
     assert_eq!(
         digest,
         [
-            0x34, 0xa1, 0xf0, 0x22, 0xff, 0x64, 0x70, 0x2f, 0x3d, 0xbc, 0xd2, 0x84, 0xa5, 0xec,
-            0x4b, 0x73, 0x9b, 0xd4, 0x17, 0x0d, 0xf6, 0x48, 0x7c, 0xfc, 0x00, 0x3d, 0xd5, 0x91,
-            0xd8, 0x4c, 0xd7, 0x73,
+            0xce, 0xa0, 0x72, 0xa2, 0xa2, 0x7e, 0x63, 0x73, 0x4a, 0x33, 0x6e, 0x6e, 0xa6, 0x3b,
+            0xf5, 0x7a, 0x20, 0xfa, 0x0f, 0xbf, 0x3c, 0x1c, 0xf8, 0x9e, 0x6b, 0x78, 0xf3, 0xa5,
+            0xc4, 0x0d, 0x5c, 0x97,
         ]
     );
     assert!(manifest.contains("\"is_canonical_s\": false"));
@@ -698,9 +788,9 @@ fn aggregate_toolchain_package_has_stable_component_identity() {
     assert_eq!(
         digests.package_digest,
         [
-            0x07, 0x8e, 0x4c, 0xa9, 0x20, 0xc0, 0x45, 0x2c, 0x29, 0x07, 0x30, 0xbc, 0x68, 0x83,
-            0x82, 0x9d, 0xc2, 0x81, 0xc8, 0x0c, 0xd1, 0xbe, 0x54, 0x59, 0x53, 0xac, 0x58, 0xe2,
-            0x8a, 0xa9, 0x58, 0xca,
+            0xee, 0xc3, 0xcc, 0x89, 0x41, 0xa7, 0x59, 0xd8, 0x38, 0x67, 0x9d, 0xe0, 0xea, 0xb9,
+            0xbd, 0x10, 0x41, 0xdc, 0x19, 0x37, 0x4c, 0xc1, 0x50, 0x41, 0xc4, 0xe5, 0xb7, 0x98,
+            0x80, 0x54, 0x4d, 0xed,
         ],
         "the provisional aggregate component identity is pinned"
     );

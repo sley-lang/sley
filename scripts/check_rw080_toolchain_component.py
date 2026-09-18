@@ -42,8 +42,23 @@ EXPECTED_TOKENS = [
     45,
     46,
     47,
+    60,
+    61,
+    62,
+    63,
+    64,
+    65,
+    66,
+    67,
 ]
 ENTRY_TOKENS = {
+    "driver": 63,
+    "codec": 64,
+    "checker": 65,
+    "lowerer": 66,
+    "package_builder": 67,
+}
+FUNCTION_TOKENS = {
     "driver": 1,
     "codec": 2,
     "checker": 3,
@@ -142,6 +157,10 @@ def main() -> int:
     for name, token in ENTRY_TOKENS.items():
         if entries.get(name) != by_token.get(token, {}).get("entity_id"):
             problems.append(f"entry-{name}")
+    functions = manifest.get("entry_functions", {})
+    for name, token in FUNCTION_TOKENS.items():
+        if functions.get(name) != by_token.get(token, {}).get("entity_id"):
+            problems.append(f"entry-function-{name}")
 
     state = manifest.get("state_root", {})
     try:
@@ -166,11 +185,29 @@ def main() -> int:
     if state.get("dependency_root_count") != 0:
         problems.append("state-root-dependency-count")
 
+    policy = manifest.get("anchors", {}).get("policy_root", {})
+    try:
+        policy_bytes = gzip.decompress(
+            base64.b64decode(policy["stored_bytes_gzip_base64"], validate=True)
+        )
+        policy_id = bytes.fromhex(policy["policy_root_id"])
+    except (KeyError, ValueError, gzip.BadGzipFile) as error:
+        problems.append(f"policy-root-decode:{error}")
+        policy_bytes = b""
+        policy_id = b""
+    if len(policy_bytes) != policy.get("stored_bytes_uncompressed_length"):
+        problems.append("policy-root-length")
+    if digest(policy_bytes) != policy.get("stored_bytes_sha256"):
+        problems.append("policy-root-digest")
+    if len(policy_id) != 32 or policy_bytes[-32:] != policy_id:
+        problems.append("policy-root-trailer")
+
     result = {
         "contract": CONTRACT,
         "objects": len(objects),
         "object_bytes": len(bundle),
         "root_bytes": len(root_bytes),
+        "policy_bytes": len(policy_bytes),
         "state_root": state.get("root"),
         "result": "PASS" if not problems else "FAIL",
         "problems": problems,

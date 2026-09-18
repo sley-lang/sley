@@ -9,7 +9,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "9cc60ccd4c8f004b77a371f3226b64d7ea9e462e643028f770a4a23748419438",
+  "dossier_digest": "50701b7443d762e5aa16b189dd7a7b534478be44f14af2de8430f415c48157ef",
   "entries": [
     {
       "evidence": [
@@ -147,7 +147,7 @@
         "property_tests": 0,
         "python_tests": 500,
         "rust_ignored_emitters": 35,
-        "rust_unit_tests": 1870
+        "rust_unit_tests": 1871
       }
     },
     {
@@ -455,7 +455,7 @@
       }
     }
   ],
-  "entries_digest": "5162bcc841e689529dafe32412f5c821eb85f1cb52cda7bf70bc863019d7b5ca",
+  "entries_digest": "6575a8a07d66921f75d90e5326ac54b0b8147f29e4c9745d8e8696a3500779ce",
   "evidenced": 24,
   "gated": 10,
   "gates": {
