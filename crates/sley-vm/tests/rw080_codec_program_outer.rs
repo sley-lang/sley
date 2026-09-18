@@ -53,6 +53,8 @@ use sley_ssmc::{
 mod dependency_binding;
 #[path = "rw080_codec_program/dependency_binding_decode.rs"]
 mod dependency_binding_decode;
+#[path = "rw080_codec_program/effect_def.rs"]
+mod effect_def;
 #[path = "rw080_codec_program/global_value.rs"]
 mod global_value;
 #[path = "rw080_codec_program/package.rs"]
