@@ -152,5 +152,5 @@ the existing codec `Result<..., Bytes>`. DependencyBinding carries
 `(entity_id, dependency_root, external_package, local_namespace)` as four
 exact 32-byte values. Canonical kind 18 measures 28,855 fuel, 3,283
 instructions, and 996,953 peak value units for the 219-byte fixture under
-the unchanged limits. The next matching work is the kind-18 supported
-encode arm.
+the unchanged limits. The matching kind-18 supported encode arm is recorded
+in `rw-080-codec-dependency-binding-compose-encode.md`.

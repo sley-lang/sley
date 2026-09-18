@@ -26,8 +26,9 @@ post-admission valid fixtures come from native
 `sley-mutate::build_entity_object` values, and body bytes are extracted
 with SCB cursors rather than fixed stored-object offsets.
 
-This slice owns body decoding only. Full envelope composition and the
-kind-18 arm in both supported dispatchers remain later work.
+This slice owns body decoding only. The kind-18 whole-program decode and
+encode arms later landed in slices 12 and 13 without changing this strict
+diagnostic entry.
 
 ## 2. Strict parsing and precedence
 
@@ -95,7 +96,7 @@ order, all field-copy indices, exact semantic tuple order, adapter
 confinement, and frozen limits. Independent review was unavailable; no
 gate, ledger, or runtime-authority promotion is claimed.
 
-The next dependency is composition with the shared envelope and outer
-decoder, followed by a third arm in both supported dispatchers. The
-semantic sum must grow without changing the established EntryPoint and
-Namespace arm identities.
+Whole-program decode and encode composition are recorded in
+`rw-080-codec-dependency-binding-compose-decode.md` and
+`rw-080-codec-dependency-binding-compose-encode.md`. Both grow the semantic
+sum without changing the established EntryPoint and Namespace arm identities.

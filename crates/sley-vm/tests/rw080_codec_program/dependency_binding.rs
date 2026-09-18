@@ -1,10 +1,12 @@
 //! `DependencyBinding` (entity kind 18) body encoding construction.
 //! Construction provenance:
 //! `machineresearch/sley-2.0/reweave/rw-080-codec-dependency-binding-encode.md`.
+//! Whole-program composition provenance:
+//! `machineresearch/sley-2.0/reweave/rw-080-codec-dependency-binding-compose-encode.md`.
 
 use super::supported_dispatch::push_preallocated_block as append_block;
 use super::*;
-use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_V2B1};
+use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1};
 
 #[derive(Clone, Copy)]
 struct EncodeBlocks {
@@ -12,7 +14,6 @@ struct EncodeBlocks {
     length_error: EntityId,
     trailing_error: EntityId,
     resource_error: EntityId,
-    invariant_trap: EntityId,
 }
 
 fn block_parameters(
@@ -166,6 +167,7 @@ fn build_copy_32_chain(
     assembler: &mut Asm,
     ns: Ns,
     control: EncodeBlocks,
+    invariant_trap: EntityId,
     carry_types: &[TypeExpr],
     destination: EntityId,
 ) -> EntityId {
@@ -206,7 +208,7 @@ fn build_copy_32_chain(
             switch(
                 op_result(byte),
                 vec![
-                    (BuiltinCase::None, control.invariant_trap, Vec::new()),
+                    (BuiltinCase::None, invariant_trap, Vec::new()),
                     (BuiltinCase::Some, push_block, some_arguments),
                 ],
             ),
@@ -249,6 +251,197 @@ fn build_copy_32_chain(
     gets[0]
 }
 
+fn append_constant_octets(
+    assembler: &mut Asm,
+    ns: Ns,
+    block: EntityId,
+    bytes: &[u8],
+    operations: &mut Vec<EntityId>,
+    operands: &mut Vec<ValueRef>,
+) {
+    for byte in bytes {
+        let constant = assembler.ku8(ns.k, u128::from(*byte));
+        let value = assembler.cref(ns.o, block, constant, u8_type());
+        operations.push(value);
+        operands.push(op_result(value));
+    }
+}
+
+pub(super) fn build_exact_octet_get(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let source = assembler.param(ns.p, function, ParameterRole::Function, u8vec_type());
+    let index = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
+    let entry = assembler.id(ns.b);
+    let found = assembler.id(ns.b);
+    let invariant_trap = trap_block(assembler, ns, function);
+    let value = assembler.op(
+        ns.o,
+        entry,
+        Opcode::VectorGet,
+        vec![pav(source), pav(index)],
+        vec![TypeExpr::Option(Box::new(u8_type()))],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![value],
+        switch(
+            op_result(value),
+            vec![
+                (BuiltinCase::None, invariant_trap, Vec::new()),
+                (BuiltinCase::Some, found, vec![SwitchArgument::CasePayload]),
+            ],
+        ),
+    );
+    let octet = assembler.param(ns.p, found, ParameterRole::Block, u8_type());
+    append_block(
+        assembler,
+        found,
+        function,
+        vec![octet],
+        Vec::new(),
+        ret(pav(octet)),
+    );
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![source, index],
+        result_type: u8_type(),
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+fn append_get_octets(
+    assembler: &mut Asm,
+    ns: Ns,
+    block: EntityId,
+    getter: EntityId,
+    source: EntityId,
+    operations: &mut Vec<EntityId>,
+    operands: &mut Vec<ValueRef>,
+) {
+    for index in 0..32_u128 {
+        let index_constant = assembler.ku64(ns.k, index);
+        let index_value = assembler.cref(ns.o, block, index_constant, u64_type());
+        let octet = assembler.op(
+            ns.o,
+            block,
+            Opcode::CallDirect,
+            vec![pav(source), op_result(index_value)],
+            vec![u8_type()],
+            Immediate::Function(FunctionRefValue {
+                function: getter,
+                type_arguments: Vec::new(),
+            }),
+        );
+        operations.extend([index_value, octet]);
+        operands.push(op_result(octet));
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn append_dependency_prefix_octets(
+    assembler: &mut Asm,
+    ns: Ns,
+    block: EntityId,
+    octet_getter: EntityId,
+    entity: EntityId,
+    dependency_root: EntityId,
+    external_package: EntityId,
+    local_namespace: EntityId,
+    include_domain: bool,
+    operations: &mut Vec<EntityId>,
+    operands: &mut Vec<ValueRef>,
+) {
+    if include_domain {
+        append_constant_octets(
+            assembler,
+            ns,
+            block,
+            b"sley2.object.v1",
+            operations,
+            operands,
+        );
+    }
+    append_constant_octets(
+        assembler,
+        ns,
+        block,
+        b"SLEYSCB1\x01\xc8\x01",
+        operations,
+        operands,
+    );
+    append_constant_octets(assembler, ns, block, &[9; 32], operations, operands);
+    append_constant_octets(
+        assembler,
+        ns,
+        block,
+        &[142, 1, 2, 1, 32],
+        operations,
+        operands,
+    );
+    append_get_octets(
+        assembler,
+        ns,
+        block,
+        octet_getter,
+        entity,
+        operations,
+        operands,
+    );
+    append_constant_octets(
+        assembler,
+        ns,
+        block,
+        &[2, 105, 18, 103, 3, 1, 32],
+        operations,
+        operands,
+    );
+    append_get_octets(
+        assembler,
+        ns,
+        block,
+        octet_getter,
+        dependency_root,
+        operations,
+        operands,
+    );
+    append_constant_octets(assembler, ns, block, &[2, 32], operations, operands);
+    append_get_octets(
+        assembler,
+        ns,
+        block,
+        octet_getter,
+        external_package,
+        operations,
+        operands,
+    );
+    append_constant_octets(assembler, ns, block, &[3, 32], operations, operands);
+    append_get_octets(
+        assembler,
+        ns,
+        block,
+        octet_getter,
+        local_namespace,
+        operations,
+        operands,
+    );
+}
+
 #[allow(clippy::too_many_lines)]
 pub(super) fn build_dependency_binding_encode(
     assembler: &mut Asm,
@@ -276,7 +469,6 @@ pub(super) fn build_dependency_binding_encode(
         length_error,
         trailing_error,
         resource_error,
-        invariant_trap,
     };
 
     let output_done = assembler.id(ns.b);
@@ -329,7 +521,14 @@ pub(super) fn build_dependency_binding_encode(
 
     // Build the canonical body tail-first so every generated chain has a
     // concrete continuation: union(18, record(3, fixed32, fixed32, fixed32)).
-    let copy_local = build_copy_32_chain(assembler, ns, control, &[TypeExpr::Unit], output_done);
+    let copy_local = build_copy_32_chain(
+        assembler,
+        ns,
+        control,
+        invariant_trap,
+        &[TypeExpr::Unit],
+        output_done,
+    );
     let prefix_local = build_constant_push_chain(
         assembler,
         ns,
@@ -342,6 +541,7 @@ pub(super) fn build_dependency_binding_encode(
         assembler,
         ns,
         control,
+        invariant_trap,
         &[u8vec_type(), TypeExpr::Unit],
         prefix_local,
     );
@@ -357,6 +557,7 @@ pub(super) fn build_dependency_binding_encode(
         assembler,
         ns,
         control,
+        invariant_trap,
         &[u8vec_type(), u8vec_type(), TypeExpr::Unit],
         prefix_package,
     );
@@ -542,6 +743,489 @@ pub(super) fn build_dependency_binding_encode(
         entity_id: function,
         type_parameters: Vec::new(),
         parameters: vec![dependency_root, external_package, local_namespace, unit],
+        result_type,
+        effects: Vec::new(),
+        entry_block: entry,
+        blocks: assembler.blocks[block_start..]
+            .iter()
+            .map(|block| block.entity_id)
+            .collect(),
+        contracts: Vec::new(),
+        visibility: Visibility::Private,
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+pub(super) fn build_dependency_program_encode_via_get(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    octet_getter: EntityId,
+) -> FunctionGraph {
+    let block_start = assembler.blocks.len();
+    let result_type = encode_result_type();
+    let entity_id = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let dependency_root = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let external_package =
+        assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let local_namespace = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
+    let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
+
+    let length_code = assembler.kbytes(ns.k, b"SCB_LENGTH_OVERFLOW");
+    let trailing_code = assembler.kbytes(ns.k, b"SCB_TRAILING_BYTES");
+    let resource_code = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
+    let constant_32 = assembler.ku64(ns.k, 32);
+    let length_error = err_block(assembler, ns, function, result_type.clone(), length_code);
+    let trailing_error = err_block(assembler, ns, function, result_type.clone(), trailing_code);
+    let resource_error = err_block(assembler, ns, function, result_type.clone(), resource_code);
+    let control = EncodeBlocks {
+        function,
+        length_error,
+        trailing_error,
+        resource_error,
+    };
+
+    let preimage_assemble = assembler.id(ns.b);
+    let vector_types = [
+        u8vec_type(),
+        u8vec_type(),
+        u8vec_type(),
+        u8vec_type(),
+        TypeExpr::Unit,
+    ];
+    let preimage_parameters = block_parameters(assembler, ns.p, preimage_assemble, &vector_types);
+    let preimage_root = preimage_parameters[0];
+    let preimage_package = preimage_parameters[1];
+    let preimage_local = preimage_parameters[2];
+    let preimage_entity = preimage_parameters[3];
+    let preimage_unit = preimage_parameters[4];
+    let mut preimage_operations = Vec::new();
+    let mut preimage_operands = Vec::new();
+    append_dependency_prefix_octets(
+        assembler,
+        ns,
+        preimage_assemble,
+        octet_getter,
+        preimage_entity,
+        preimage_root,
+        preimage_package,
+        preimage_local,
+        true,
+        &mut preimage_operations,
+        &mut preimage_operands,
+    );
+    let preimage_vector = assembler.op(
+        ns.o,
+        preimage_assemble,
+        Opcode::VectorNew,
+        preimage_operands,
+        vec![u8vec_type()],
+        Immediate::None,
+    );
+    let preimage_bytes = assembler.op(
+        ns.o,
+        preimage_assemble,
+        Opcode::AdapterInvoke,
+        vec![pav(preimage_unit), op_result(preimage_vector)],
+        vec![index_result(TypeExpr::Bytes)],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_V2B1))),
+    );
+    preimage_operations.extend([preimage_vector, preimage_bytes]);
+    let hash_preimage = assembler.id(ns.b);
+    append_block(
+        assembler,
+        preimage_assemble,
+        function,
+        preimage_parameters,
+        preimage_operations,
+        switch(
+            op_result(preimage_bytes),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    hash_preimage,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(preimage_root),
+                        sav(preimage_package),
+                        sav(preimage_local),
+                        sav(preimage_entity),
+                        sav(preimage_unit),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let mut hash_types = vec![TypeExpr::Bytes];
+    hash_types.extend(vector_types.clone());
+    let hash_parameters = block_parameters(assembler, ns.p, hash_preimage, &hash_types);
+    let digest = assembler.op(
+        ns.o,
+        hash_preimage,
+        Opcode::AdapterInvoke,
+        vec![pav(hash_parameters[5]), pav(hash_parameters[0])],
+        vec![index_result(TypeExpr::Bytes)],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_RHW1))),
+    );
+    let digest_convert = assembler.id(ns.b);
+    append_block(
+        assembler,
+        hash_preimage,
+        function,
+        hash_parameters.clone(),
+        vec![digest],
+        switch(
+            op_result(digest),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    digest_convert,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(hash_parameters[1]),
+                        sav(hash_parameters[2]),
+                        sav(hash_parameters[3]),
+                        sav(hash_parameters[4]),
+                        sav(hash_parameters[5]),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let digest_parameters = block_parameters(assembler, ns.p, digest_convert, &hash_types);
+    let digest_vector = assembler.op(
+        ns.o,
+        digest_convert,
+        Opcode::AdapterInvoke,
+        vec![pav(digest_parameters[5]), pav(digest_parameters[0])],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    let final_assemble = assembler.id(ns.b);
+    append_block(
+        assembler,
+        digest_convert,
+        function,
+        digest_parameters.clone(),
+        vec![digest_vector],
+        switch(
+            op_result(digest_vector),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    final_assemble,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(digest_parameters[1]),
+                        sav(digest_parameters[2]),
+                        sav(digest_parameters[3]),
+                        sav(digest_parameters[4]),
+                        sav(digest_parameters[5]),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let mut final_types = vec![u8vec_type()];
+    final_types.extend(vector_types.clone());
+    let final_parameters = block_parameters(assembler, ns.p, final_assemble, &final_types);
+    let final_digest = final_parameters[0];
+    let final_root = final_parameters[1];
+    let final_package = final_parameters[2];
+    let final_local = final_parameters[3];
+    let final_entity = final_parameters[4];
+    let final_unit = final_parameters[5];
+    let mut final_operations = Vec::new();
+    let mut final_operands = Vec::new();
+    append_dependency_prefix_octets(
+        assembler,
+        ns,
+        final_assemble,
+        octet_getter,
+        final_entity,
+        final_root,
+        final_package,
+        final_local,
+        false,
+        &mut final_operations,
+        &mut final_operands,
+    );
+    append_get_octets(
+        assembler,
+        ns,
+        final_assemble,
+        octet_getter,
+        final_digest,
+        &mut final_operations,
+        &mut final_operands,
+    );
+    let final_vector = assembler.op(
+        ns.o,
+        final_assemble,
+        Opcode::VectorNew,
+        final_operands,
+        vec![u8vec_type()],
+        Immediate::None,
+    );
+    let final_bytes = assembler.op(
+        ns.o,
+        final_assemble,
+        Opcode::AdapterInvoke,
+        vec![pav(final_unit), op_result(final_vector)],
+        vec![index_result(TypeExpr::Bytes)],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_V2B1))),
+    );
+    final_operations.extend([final_vector, final_bytes]);
+    let output_return = assembler.id(ns.b);
+    append_block(
+        assembler,
+        final_assemble,
+        function,
+        final_parameters,
+        final_operations,
+        switch(
+            op_result(final_bytes),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    output_return,
+                    vec![SwitchArgument::CasePayload],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+    let output_bytes = assembler.param(ns.p, output_return, ParameterRole::Block, TypeExpr::Bytes);
+    let output_ok = assembler.op(
+        ns.o,
+        output_return,
+        Opcode::ResultOk,
+        vec![pav(output_bytes)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        output_return,
+        function,
+        vec![output_bytes],
+        vec![output_ok],
+        ret(op_result(output_ok)),
+    );
+
+    let entry = assembler.id(ns.b);
+    let convert_package = assembler.id(ns.b);
+    let convert_local = assembler.id(ns.b);
+    let convert_entity = assembler.id(ns.b);
+    let entity_length = build_exact_32_gate(
+        assembler,
+        ns,
+        control,
+        &vector_types,
+        3,
+        constant_32,
+        preimage_assemble,
+    );
+    let local_values = [
+        u8vec_type(),
+        u8vec_type(),
+        u8vec_type(),
+        TypeExpr::Bytes,
+        TypeExpr::Unit,
+    ];
+    let local_length = build_exact_32_gate(
+        assembler,
+        ns,
+        control,
+        &local_values,
+        2,
+        constant_32,
+        convert_entity,
+    );
+    let package_values = [
+        u8vec_type(),
+        u8vec_type(),
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Unit,
+    ];
+    let package_length = build_exact_32_gate(
+        assembler,
+        ns,
+        control,
+        &package_values,
+        1,
+        constant_32,
+        convert_local,
+    );
+    let root_values = [
+        u8vec_type(),
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Unit,
+    ];
+    let root_length = build_exact_32_gate(
+        assembler,
+        ns,
+        control,
+        &root_values,
+        0,
+        constant_32,
+        convert_package,
+    );
+
+    let root_vector = assembler.op(
+        ns.o,
+        entry,
+        Opcode::AdapterInvoke,
+        vec![pav(unit), pav(dependency_root)],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        entry,
+        function,
+        Vec::new(),
+        vec![root_vector],
+        switch(
+            op_result(root_vector),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    root_length,
+                    vec![
+                        SwitchArgument::CasePayload,
+                        sav(external_package),
+                        sav(local_namespace),
+                        sav(entity_id),
+                        sav(unit),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let package_parameters = block_parameters(assembler, ns.p, convert_package, &root_values);
+    let package_vector = assembler.op(
+        ns.o,
+        convert_package,
+        Opcode::AdapterInvoke,
+        vec![pav(package_parameters[4]), pav(package_parameters[1])],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        convert_package,
+        function,
+        package_parameters.clone(),
+        vec![package_vector],
+        switch(
+            op_result(package_vector),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    package_length,
+                    vec![
+                        sav(package_parameters[0]),
+                        SwitchArgument::CasePayload,
+                        sav(package_parameters[2]),
+                        sav(package_parameters[3]),
+                        sav(package_parameters[4]),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let local_parameters = block_parameters(assembler, ns.p, convert_local, &package_values);
+    let local_vector = assembler.op(
+        ns.o,
+        convert_local,
+        Opcode::AdapterInvoke,
+        vec![pav(local_parameters[4]), pav(local_parameters[2])],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        convert_local,
+        function,
+        local_parameters.clone(),
+        vec![local_vector],
+        switch(
+            op_result(local_vector),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    local_length,
+                    vec![
+                        sav(local_parameters[0]),
+                        sav(local_parameters[1]),
+                        SwitchArgument::CasePayload,
+                        sav(local_parameters[3]),
+                        sav(local_parameters[4]),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    let entity_parameters = block_parameters(assembler, ns.p, convert_entity, &local_values);
+    let entity_vector = assembler.op(
+        ns.o,
+        convert_entity,
+        Opcode::AdapterInvoke,
+        vec![pav(entity_parameters[4]), pav(entity_parameters[3])],
+        vec![index_result(u8vec_type())],
+        Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_B2V1))),
+    );
+    append_block(
+        assembler,
+        convert_entity,
+        function,
+        entity_parameters.clone(),
+        vec![entity_vector],
+        switch(
+            op_result(entity_vector),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    entity_length,
+                    vec![
+                        sav(entity_parameters[0]),
+                        sav(entity_parameters[1]),
+                        sav(entity_parameters[2]),
+                        SwitchArgument::CasePayload,
+                        sav(entity_parameters[4]),
+                    ],
+                ),
+                (BuiltinCase::Err, resource_error, Vec::new()),
+            ],
+        ),
+    );
+
+    FunctionGraph {
+        entity_id: function,
+        type_parameters: Vec::new(),
+        parameters: vec![
+            entity_id,
+            dependency_root,
+            external_package,
+            local_namespace,
+            unit,
+        ],
         result_type,
         effects: Vec::new(),
         entry_block: entry,

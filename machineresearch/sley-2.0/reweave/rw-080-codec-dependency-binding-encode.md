@@ -27,9 +27,9 @@ shape: `12 67 03 01 20 <root32> 02 20 <package32> 03 20
 `sley-mutate::build_entity_object` fixtures and are extracted through
 SCB cursors; the test never uses a hand-built expected body.
 
-This slice owns body encoding only. The paired strict body decoder
-landed in slice 11; full envelope composition and extension of the
-supported dispatch sum remain later work.
+This slice owns body encoding only. The paired strict body decoder landed in
+slice 11; whole-program decode and encode composition later landed in slices
+12 and 13 without changing this standalone diagnostic entry.
 
 ## 2. Construction and error behavior
 
@@ -89,6 +89,6 @@ runtime-authority promotion is claimed.
 The strict kind-18 body decoder is recorded in
 `rw-080-codec-dependency-binding-decode.md`, and the whole-program decode
 composition is recorded in
-`rw-080-codec-dependency-binding-compose-decode.md`. The next dependency
-is the matching whole-program kind-18 encode composition and third
-supported encode arm.
+`rw-080-codec-dependency-binding-compose-decode.md`. The matching
+whole-program kind-18 encode composition and third supported encode arm are
+recorded in `rw-080-codec-dependency-binding-compose-encode.md`.

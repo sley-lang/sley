@@ -84,5 +84,6 @@ payloads, dead-value removal, and frozen limits. Independent review was not
 available; no gate, ledger, acceptance verdict, or runtime-authority status is
 promoted.
 
-The next codec slice is the matching kind-18 supported encode arm, followed by
-the remaining entity-body kinds and the schema-bearing canonical entry.
+The matching kind-18 supported encode arm is recorded in
+`rw-080-codec-dependency-binding-compose-encode.md`. The remaining work is the
+other entity-body kinds and the schema-bearing canonical entry.

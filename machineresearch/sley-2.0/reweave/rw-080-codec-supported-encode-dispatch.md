@@ -7,6 +7,12 @@ development evidence, not accepted runtime authority. RW-080 remains
 BLOCKED and R2 remains NOT_READY with all independent review and
 acceptance debt unchanged.
 
+Current extension: slice 13 adds canonical DependencyBinding kind 18 while
+preserving the established EntryPoint and Namespace value identities. See
+`rw-080-codec-dependency-binding-compose-encode.md` for the additive sum,
+direct fixed-shape construction, rejection coverage, and current resource
+measurements. Sections 1 through 4 retain the original slice-9 record.
+
 ## 1. Scope and value shape
 
 `encode_supported_program(declared_kind: UInt64, value:
@@ -104,9 +110,18 @@ changes.
 The next fixed-width format now has paired DependencyBinding body
 encode and strict decode records
 (`rw-080-codec-dependency-binding-encode.md` and
-`rw-080-codec-dependency-binding-decode.md`). Program decode composition
-now extends the supported decoder in
-`rw-080-codec-dependency-binding-compose-decode.md`; matching encode
-composition remains before kind 18 can extend this dispatcher.
-Label/NFC/fingerprint work remains separate because its required text
-and verification machinery has not landed.
+`rw-080-codec-dependency-binding-decode.md`). Program decode and encode
+composition now extend both supported entries in
+`rw-080-codec-dependency-binding-compose-decode.md` and
+`rw-080-codec-dependency-binding-compose-encode.md`.
+Label/NFC/fingerprint work remains separate because its required text and
+verification machinery has not landed.
+
+## 5. Slice-13 additive state
+
+The current entry supports kinds 3, 16, and 18. Its semantic input is
+`Result<Result<EntryPoint, Namespace>, DependencyBinding>`, where the new arm
+carries `(entity_id, dependency_root, external_package, local_namespace)` as
+four exact 32-byte values. Decode-to-encode round trips are byte-exact for all
+three arms. Canonical kind 18 measures 3,757 fuel, 1,031 instructions, and
+416,321 peak value units for the 219-byte fixture under the unchanged limits.
