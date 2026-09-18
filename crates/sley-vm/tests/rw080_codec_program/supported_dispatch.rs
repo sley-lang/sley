@@ -37,9 +37,32 @@ pub(super) fn extended_supported_program_value_type() -> TypeExpr {
     }
 }
 
+pub(super) fn tagged_entity_set_program_value_type() -> TypeExpr {
+    TypeExpr::Tuple(vec![
+        u64_type(),
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+        TypeExpr::Bytes,
+    ])
+}
+
+pub(super) fn non_dependency_program_value_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(entrypoint_program_value_type()),
+        error: Box::new(tagged_entity_set_program_value_type()),
+    }
+}
+
+pub(super) fn all_supported_program_value_type() -> TypeExpr {
+    TypeExpr::Result {
+        ok: Box::new(non_dependency_program_value_type()),
+        error: Box::new(dependency_program_value_type()),
+    }
+}
+
 fn supported_program_result_type() -> TypeExpr {
     TypeExpr::Result {
-        ok: Box::new(extended_supported_program_value_type()),
+        ok: Box::new(all_supported_program_value_type()),
         error: Box::new(TypeExpr::Bytes),
     }
 }
@@ -101,7 +124,7 @@ fn build_supported_program_decode(
     validate_decoder: EntityId,
     outer_decoder: EntityId,
     entrypoint_decoder: EntityId,
-    namespace_decoder: EntityId,
+    entity_set_decoder: EntityId,
     dependency_program_decoder: EntityId,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
@@ -110,8 +133,7 @@ fn build_supported_program_decode(
     let outer_result_type = outer_decode_result_type();
     let entrypoint_result_type = entrypoint_decode_result_type();
     let namespace_result_type = entity_set_decode_result_type();
-    let dependency_result_type =
-        super::dependency_binding_decode::dependency_program_decode_result_type();
+    let policy_result_type = entity_set_decode_result_type();
     let declared_kind = assembler.param(ns.p, function, ParameterRole::Function, u64_type());
     let stored = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
     let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
@@ -120,20 +142,23 @@ fn build_supported_program_decode(
     let validated = assembler.id(ns.b);
     let call_outer = assembler.id(ns.b);
     let outer_success = assembler.id(ns.b);
+    let check_policy = assembler.id(ns.b);
     let check_entrypoint = assembler.id(ns.b);
     let check_known = assembler.id(ns.b);
     let call_namespace = assembler.id(ns.b);
+    let call_policy = assembler.id(ns.b);
     let call_entrypoint = assembler.id(ns.b);
     let call_dependency = assembler.id(ns.b);
     let normalize_namespace = assembler.id(ns.b);
+    let normalize_policy = assembler.id(ns.b);
     let normalize_entrypoint = assembler.id(ns.b);
-    let normalize_dependency = assembler.id(ns.b);
     let forward_error = assembler.id(ns.b);
     let unsupported = assembler.id(ns.b);
     let unknown = assembler.id(ns.b);
 
     let zero = assembler.ku64(ns.k, 0);
     let namespace_kind = assembler.ku64(ns.k, 3);
+    let policy_kind = assembler.ku64(ns.k, 17);
     let entrypoint_kind = assembler.ku64(ns.k, 16);
     let dependency_kind = assembler.ku64(ns.k, 18);
     let kind_limit = assembler.ku64(ns.k, 19);
@@ -305,12 +330,62 @@ fn build_supported_program_decode(
                 ],
             ),
             edge(
-                check_entrypoint,
+                check_policy,
                 vec![
                     pav(outer_kind),
                     op_result(outer_body),
                     op_result(outer_entity_id),
                     pav(outer_unit),
+                ],
+            ),
+        ),
+    );
+
+    let policy_candidate_kind =
+        assembler.param(ns.p, check_policy, ParameterRole::Block, u64_type());
+    let policy_candidate_body =
+        assembler.param(ns.p, check_policy, ParameterRole::Block, TypeExpr::Bytes);
+    let policy_candidate_entity_id =
+        assembler.param(ns.p, check_policy, ParameterRole::Block, TypeExpr::Bytes);
+    let policy_candidate_unit =
+        assembler.param(ns.p, check_policy, ParameterRole::Block, TypeExpr::Unit);
+    let policy_kind_value = assembler.cref(ns.o, check_policy, policy_kind, u64_type());
+    let is_policy = assembler.op(
+        ns.o,
+        check_policy,
+        Opcode::Equal,
+        vec![pav(policy_candidate_kind), op_result(policy_kind_value)],
+        vec![TypeExpr::Bool],
+        Immediate::None,
+    );
+    push_preallocated_block(
+        assembler,
+        check_policy,
+        function,
+        vec![
+            policy_candidate_kind,
+            policy_candidate_body,
+            policy_candidate_entity_id,
+            policy_candidate_unit,
+        ],
+        vec![policy_kind_value, is_policy],
+        cond(
+            op_result(is_policy),
+            edge(
+                call_policy,
+                vec![
+                    pav(policy_candidate_body),
+                    pav(policy_candidate_entity_id),
+                    pav(policy_candidate_unit),
+                ],
+            ),
+            edge(
+                check_entrypoint,
+                vec![
+                    pav(policy_candidate_kind),
+                    pav(policy_candidate_body),
+                    pav(policy_candidate_entity_id),
+                    pav(policy_candidate_unit),
                 ],
             ),
         ),
@@ -411,14 +486,19 @@ fn build_supported_program_decode(
         assembler.param(ns.p, call_namespace, ParameterRole::Block, TypeExpr::Bytes);
     let namespace_unit =
         assembler.param(ns.p, call_namespace, ParameterRole::Block, TypeExpr::Unit);
+    let namespace_decode_kind = assembler.cref(ns.o, call_namespace, namespace_kind, u64_type());
     let namespace_result = assembler.op(
         ns.o,
         call_namespace,
         Opcode::CallDirect,
-        vec![pav(namespace_body), pav(namespace_unit)],
+        vec![
+            pav(namespace_body),
+            op_result(namespace_decode_kind),
+            pav(namespace_unit),
+        ],
         vec![namespace_result_type.clone()],
         Immediate::Function(FunctionRefValue {
-            function: namespace_decoder,
+            function: entity_set_decoder,
             type_arguments: Vec::new(),
         }),
     );
@@ -427,7 +507,7 @@ fn build_supported_program_decode(
         call_namespace,
         function,
         vec![namespace_body, namespace_entity_id, namespace_unit],
-        vec![namespace_result],
+        vec![namespace_decode_kind, namespace_result],
         switch(
             op_result(namespace_result),
             vec![
@@ -435,6 +515,49 @@ fn build_supported_program_decode(
                     BuiltinCase::Ok,
                     normalize_namespace,
                     vec![SwitchArgument::CasePayload, sav(namespace_entity_id)],
+                ),
+                (
+                    BuiltinCase::Err,
+                    forward_error,
+                    vec![SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    let policy_body = assembler.param(ns.p, call_policy, ParameterRole::Block, TypeExpr::Bytes);
+    let policy_entity_id =
+        assembler.param(ns.p, call_policy, ParameterRole::Block, TypeExpr::Bytes);
+    let policy_unit = assembler.param(ns.p, call_policy, ParameterRole::Block, TypeExpr::Unit);
+    let policy_decode_kind = assembler.cref(ns.o, call_policy, policy_kind, u64_type());
+    let policy_result = assembler.op(
+        ns.o,
+        call_policy,
+        Opcode::CallDirect,
+        vec![
+            pav(policy_body),
+            op_result(policy_decode_kind),
+            pav(policy_unit),
+        ],
+        vec![policy_result_type],
+        Immediate::Function(FunctionRefValue {
+            function: entity_set_decoder,
+            type_arguments: Vec::new(),
+        }),
+    );
+    push_preallocated_block(
+        assembler,
+        call_policy,
+        function,
+        vec![policy_body, policy_entity_id, policy_unit],
+        vec![policy_decode_kind, policy_result],
+        switch(
+            op_result(policy_result),
+            vec![
+                (
+                    BuiltinCase::Ok,
+                    normalize_policy,
+                    vec![SwitchArgument::CasePayload, sav(policy_entity_id)],
                 ),
                 (
                     BuiltinCase::Err,
@@ -494,7 +617,7 @@ fn build_supported_program_decode(
         call_dependency,
         Opcode::CallDirect,
         vec![pav(dependency_payload), pav(dependency_unit)],
-        vec![dependency_result_type.clone()],
+        vec![result_type.clone()],
         Immediate::Function(FunctionRefValue {
             function: dependency_program_decoder,
             type_arguments: Vec::new(),
@@ -506,21 +629,7 @@ fn build_supported_program_decode(
         function,
         vec![dependency_payload, dependency_unit],
         vec![dependency_result],
-        switch(
-            op_result(dependency_result),
-            vec![
-                (
-                    BuiltinCase::Ok,
-                    normalize_dependency,
-                    vec![SwitchArgument::CasePayload],
-                ),
-                (
-                    BuiltinCase::Err,
-                    forward_error,
-                    vec![SwitchArgument::CasePayload],
-                ),
-            ],
-        ),
+        ret(op_result(dependency_result)),
     );
 
     let namespace_payload = assembler.param(
@@ -551,16 +660,19 @@ fn build_supported_program_decode(
         vec![TypeExpr::Bytes],
         Immediate::Index(1),
     );
+    let namespace_kind_value =
+        assembler.cref(ns.o, normalize_namespace, namespace_kind, u64_type());
     let namespace_tuple = assembler.op(
         ns.o,
         normalize_namespace,
         Opcode::TupleNew,
         vec![
+            op_result(namespace_kind_value),
             pav(namespace_id),
             op_result(namespace_parent),
             op_result(namespace_members),
         ],
-        vec![namespace_program_value_type()],
+        vec![tagged_entity_set_program_value_type()],
         Immediate::None,
     );
     let namespace_arm = assembler.op(
@@ -568,22 +680,22 @@ fn build_supported_program_decode(
         normalize_namespace,
         Opcode::ResultErr,
         vec![op_result(namespace_tuple)],
-        vec![supported_program_value_type()],
+        vec![non_dependency_program_value_type()],
         Immediate::None,
     );
-    let namespace_extended = assembler.op(
+    let namespace_all = assembler.op(
         ns.o,
         normalize_namespace,
         Opcode::ResultOk,
         vec![op_result(namespace_arm)],
-        vec![extended_supported_program_value_type()],
+        vec![all_supported_program_value_type()],
         Immediate::None,
     );
     let namespace_ok = assembler.op(
         ns.o,
         normalize_namespace,
         Opcode::ResultOk,
-        vec![op_result(namespace_extended)],
+        vec![op_result(namespace_all)],
         vec![result_type.clone()],
         Immediate::None,
     );
@@ -595,12 +707,96 @@ fn build_supported_program_decode(
         vec![
             namespace_parent,
             namespace_members,
+            namespace_kind_value,
             namespace_tuple,
             namespace_arm,
-            namespace_extended,
+            namespace_all,
             namespace_ok,
         ],
         ret(op_result(namespace_ok)),
+    );
+
+    let policy_payload = assembler.param(
+        ns.p,
+        normalize_policy,
+        ParameterRole::Block,
+        TypeExpr::Tuple(vec![TypeExpr::Bytes, TypeExpr::Bytes, u64_type()]),
+    );
+    let policy_id = assembler.param(
+        ns.p,
+        normalize_policy,
+        ParameterRole::Block,
+        TypeExpr::Bytes,
+    );
+    let policy_subject = assembler.op(
+        ns.o,
+        normalize_policy,
+        Opcode::TupleGet,
+        vec![pav(policy_payload)],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(0),
+    );
+    let policy_requirements = assembler.op(
+        ns.o,
+        normalize_policy,
+        Opcode::TupleGet,
+        vec![pav(policy_payload)],
+        vec![TypeExpr::Bytes],
+        Immediate::Index(1),
+    );
+    let policy_kind_value = assembler.cref(ns.o, normalize_policy, policy_kind, u64_type());
+    let policy_tuple = assembler.op(
+        ns.o,
+        normalize_policy,
+        Opcode::TupleNew,
+        vec![
+            op_result(policy_kind_value),
+            pav(policy_id),
+            op_result(policy_subject),
+            op_result(policy_requirements),
+        ],
+        vec![tagged_entity_set_program_value_type()],
+        Immediate::None,
+    );
+    let policy_arm = assembler.op(
+        ns.o,
+        normalize_policy,
+        Opcode::ResultErr,
+        vec![op_result(policy_tuple)],
+        vec![non_dependency_program_value_type()],
+        Immediate::None,
+    );
+    let policy_all = assembler.op(
+        ns.o,
+        normalize_policy,
+        Opcode::ResultOk,
+        vec![op_result(policy_arm)],
+        vec![all_supported_program_value_type()],
+        Immediate::None,
+    );
+    let policy_ok = assembler.op(
+        ns.o,
+        normalize_policy,
+        Opcode::ResultOk,
+        vec![op_result(policy_all)],
+        vec![result_type.clone()],
+        Immediate::None,
+    );
+    push_preallocated_block(
+        assembler,
+        normalize_policy,
+        function,
+        vec![policy_payload, policy_id],
+        vec![
+            policy_subject,
+            policy_requirements,
+            policy_kind_value,
+            policy_tuple,
+            policy_arm,
+            policy_all,
+            policy_ok,
+        ],
+        ret(op_result(policy_ok)),
     );
 
     let entrypoint_payload = assembler.param(
@@ -648,22 +844,22 @@ fn build_supported_program_decode(
         normalize_entrypoint,
         Opcode::ResultOk,
         vec![op_result(entrypoint_tuple)],
-        vec![supported_program_value_type()],
+        vec![non_dependency_program_value_type()],
         Immediate::None,
     );
-    let entrypoint_extended = assembler.op(
+    let entrypoint_all = assembler.op(
         ns.o,
         normalize_entrypoint,
         Opcode::ResultOk,
         vec![op_result(entrypoint_arm)],
-        vec![extended_supported_program_value_type()],
+        vec![all_supported_program_value_type()],
         Immediate::None,
     );
     let entrypoint_ok = assembler.op(
         ns.o,
         normalize_entrypoint,
         Opcode::ResultOk,
-        vec![op_result(entrypoint_extended)],
+        vec![op_result(entrypoint_all)],
         vec![result_type.clone()],
         Immediate::None,
     );
@@ -677,41 +873,10 @@ fn build_supported_program_decode(
             entrypoint_exposure,
             entrypoint_tuple,
             entrypoint_arm,
-            entrypoint_extended,
+            entrypoint_all,
             entrypoint_ok,
         ],
         ret(op_result(entrypoint_ok)),
-    );
-
-    let dependency_payload = assembler.param(
-        ns.p,
-        normalize_dependency,
-        ParameterRole::Block,
-        dependency_program_value_type(),
-    );
-    let dependency_arm = assembler.op(
-        ns.o,
-        normalize_dependency,
-        Opcode::ResultErr,
-        vec![pav(dependency_payload)],
-        vec![extended_supported_program_value_type()],
-        Immediate::None,
-    );
-    let dependency_ok = assembler.op(
-        ns.o,
-        normalize_dependency,
-        Opcode::ResultOk,
-        vec![op_result(dependency_arm)],
-        vec![result_type.clone()],
-        Immediate::None,
-    );
-    push_preallocated_block(
-        assembler,
-        normalize_dependency,
-        function,
-        vec![dependency_payload],
-        vec![dependency_arm, dependency_ok],
-        ret(op_result(dependency_ok)),
     );
 
     let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
@@ -834,17 +999,19 @@ pub(super) fn supported_decode_image() -> Image {
         entrypoint_function,
         decode_function,
     );
-    let namespace_graph = build_namespace_decode(
+    let namespace_graph = build_combined_entity_set_decode(
         &mut assembler,
         namespace_ns,
         namespace_function,
         decode_function,
     );
     let dependency_program_graph =
-        super::dependency_binding_decode::build_dependency_program_decode(
+        super::dependency_binding_decode::build_dependency_supported_program_decode(
             &mut assembler,
             dependency_program_ns,
             dependency_program_function,
+            &all_supported_program_value_type(),
+            supported_program_result_type(),
         );
     let graph = build_supported_program_decode(
         &mut assembler,
@@ -916,7 +1083,7 @@ pub(super) fn supported_decode_ok(outcome: &sley_vm::ExecutionOutcome) -> ConstV
 }
 
 #[test]
-fn codec_supported_kind_dispatch_decodes_all_three_supported_kinds() {
+fn codec_supported_kind_dispatch_decodes_all_four_supported_kinds() {
     let image = supported_decode_image();
     let (package, approved) = admit(&image);
 
@@ -930,11 +1097,13 @@ fn codec_supported_kind_dispatch_decodes_all_three_supported_kinds() {
         entrypoint_outcome.instruction_count,
         entrypoint_outcome.peak_value_units
     );
-    let ConstData::Result(ResultConst::Ok(existing_entrypoint)) = entrypoint_value.data else {
-        panic!("entrypoint must use the extended-value Ok arm")
+    let ConstData::Result(ResultConst::Ok(non_dependency_entrypoint)) = entrypoint_value.data
+    else {
+        panic!("entrypoint must use the all-supported Ok arm")
     };
-    let ConstData::Result(ResultConst::Ok(entrypoint_fields)) = existing_entrypoint.data else {
-        panic!("entrypoint must retain the existing supported-value Ok arm")
+    let ConstData::Result(ResultConst::Ok(entrypoint_fields)) = non_dependency_entrypoint.data
+    else {
+        panic!("entrypoint must use the non-dependency Ok arm")
     };
     let ConstData::Sequence(fields) = entrypoint_fields.data else {
         panic!("entrypoint arm must carry a tuple")
@@ -957,19 +1126,21 @@ fn codec_supported_kind_dispatch_decodes_all_three_supported_kinds() {
         namespace_outcome.instruction_count,
         namespace_outcome.peak_value_units
     );
-    let ConstData::Result(ResultConst::Ok(existing_namespace)) = namespace_value.data else {
-        panic!("namespace must use the extended-value Ok arm")
+    let ConstData::Result(ResultConst::Ok(non_dependency_namespace)) = namespace_value.data else {
+        panic!("namespace must use the all-supported Ok arm")
     };
-    let ConstData::Result(ResultConst::Err(namespace_fields)) = existing_namespace.data else {
-        panic!("namespace must retain the existing supported-value Err arm")
+    let ConstData::Result(ResultConst::Err(namespace_fields)) = non_dependency_namespace.data
+    else {
+        panic!("namespace must use the tagged entity-set arm")
     };
     let ConstData::Sequence(fields) = namespace_fields.data else {
         panic!("namespace arm must carry a tuple")
     };
-    assert_eq!(fields.len(), 3);
-    assert_eq!(fields[0].data, ConstData::Bytes(vec![0xc1; 32]));
-    assert_eq!(fields[1].data, ConstData::Bytes(parent));
-    assert_eq!(fields[2].data, ConstData::Bytes(members));
+    assert_eq!(fields.len(), 4);
+    assert_eq!(fields[0].data, ConstData::UInt(3));
+    assert_eq!(fields[1].data, ConstData::Bytes(vec![0xc1; 32]));
+    assert_eq!(fields[2].data, ConstData::Bytes(parent));
+    assert_eq!(fields[3].data, ConstData::Bytes(members));
 
     let dependency = super::dependency_binding::dependency_stored(0xd2, 0xd3, 0xd4);
     let dependency_outcome = supported_decode_call(&package, &approved, 18, &dependency);
@@ -982,7 +1153,7 @@ fn codec_supported_kind_dispatch_decodes_all_three_supported_kinds() {
         dependency_outcome.peak_value_units
     );
     let ConstData::Result(ResultConst::Err(dependency_fields)) = dependency_value.data else {
-        panic!("DependencyBinding must use the extended-value Err arm")
+        panic!("DependencyBinding must retain the all-supported Err arm")
     };
     let ConstData::Sequence(fields) = dependency_fields.data else {
         panic!("DependencyBinding arm must carry a tuple")
@@ -992,6 +1163,31 @@ fn codec_supported_kind_dispatch_decodes_all_three_supported_kinds() {
     assert_eq!(fields[1].data, ConstData::Bytes(vec![0xd2; 32]));
     assert_eq!(fields[2].data, ConstData::Bytes(vec![0xd3; 32]));
     assert_eq!(fields[3].data, ConstData::Bytes(vec![0xd4; 32]));
+
+    let policy = super::policy_binding::policy_stored([0xe1; 32], [0xe2; 32], &[[0xe3; 32]]);
+    let policy_outcome = supported_decode_call(&package, &approved, 17, &policy);
+    let policy_value = supported_decode_ok(&policy_outcome);
+    eprintln!(
+        "SUPPORTED_DEC kind17 stored{}B fuel={} instr={} peak={}",
+        policy.len(),
+        policy_outcome.fuel_used,
+        policy_outcome.instruction_count,
+        policy_outcome.peak_value_units
+    );
+    let ConstData::Result(ResultConst::Ok(non_dependency_policy)) = policy_value.data else {
+        panic!("PolicyBinding must use the all-supported Ok arm")
+    };
+    let ConstData::Result(ResultConst::Err(policy_fields)) = non_dependency_policy.data else {
+        panic!("PolicyBinding must use the tagged entity-set arm")
+    };
+    let ConstData::Sequence(fields) = policy_fields.data else {
+        panic!("PolicyBinding arm must carry a tuple")
+    };
+    assert_eq!(fields.len(), 4);
+    assert_eq!(fields[0].data, ConstData::UInt(17));
+    assert_eq!(fields[1].data, ConstData::Bytes(vec![0xe1; 32]));
+    assert_eq!(fields[2].data, ConstData::Bytes(vec![0xe2; 32]));
+    assert_eq!(fields[3].data, ConstData::Bytes(vec![0xe3; 32]));
 }
 
 #[test]
@@ -1006,6 +1202,10 @@ fn codec_supported_kind_dispatch_fails_closed_on_mismatch_and_unknown_kind() {
     );
     assert_refusal(
         &supported_decode_call(&package, &approved, 18, &entrypoint),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_decode_call(&package, &approved, 17, &entrypoint),
         "SSMC_RESERVED_FIELD_PRESENT",
     );
     assert_refusal(
@@ -1037,6 +1237,22 @@ fn codec_supported_kind_dispatch_fails_closed_on_mismatch_and_unknown_kind() {
     *corrupted_dependency.last_mut().unwrap() ^= 1;
     assert_refusal(
         &supported_decode_call(&package, &approved, 18, &corrupted_dependency),
+        "SCB_DIGEST_MISMATCH",
+    );
+
+    let policy = super::policy_binding::policy_stored([0xe1; 32], [0xe2; 32], &[]);
+    assert_refusal(
+        &supported_decode_call(&package, &approved, 16, &policy),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    assert_refusal(
+        &supported_decode_call(&package, &approved, 18, &policy),
+        "SSMC_RESERVED_FIELD_PRESENT",
+    );
+    let mut corrupted_policy = policy;
+    *corrupted_policy.last_mut().unwrap() ^= 1;
+    assert_refusal(
+        &supported_decode_call(&package, &approved, 17, &corrupted_policy),
         "SCB_DIGEST_MISMATCH",
     );
 

@@ -1776,14 +1776,15 @@ fn build_union_length_validator(
     head
 }
 
-/// Copies one fixed canonical range while carrying only the source vector,
-/// unit, and already-decoded identities. This is the low-liveness path used
-/// after all `DependencyBinding` framing bytes have matched exactly.
+/// Copies one fixed canonical range while carrying only the source vector
+/// and already-decoded identities. The function-level Unit parameter avoids
+/// another live loop value.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn build_compact_copy_loop(
     assembler: &mut Asm,
     ns: Ns,
     control: CompactBlocks,
+    unit: EntityId,
     start: u64,
     end: u64,
     outputs: usize,
@@ -1796,7 +1797,7 @@ fn build_compact_copy_loop(
     let push = assembler.id(ns.b);
     let advance = assembler.id(ns.b);
     let done = assembler.id(ns.b);
-    let mut carry_types = vec![u8vec_type(), TypeExpr::Unit];
+    let mut carry_types = vec![u8vec_type()];
     carry_types.extend((0..outputs).map(|_| TypeExpr::Bytes));
     let setup_parameters = block_parameters(assembler, ns.p, setup, &carry_types);
     let empty = assembler.op(
@@ -1828,9 +1829,7 @@ fn build_compact_copy_loop(
     loop_types.push(u8vec_type());
     let check_parameters = block_parameters(assembler, ns.p, check, &loop_types);
     let done_arguments = if final_copy {
-        std::iter::once(pav(check_parameters[3]))
-            .chain(parameter_values(&check_parameters[4..]))
-            .collect()
+        parameter_values(&check_parameters[3..])
     } else {
         parameter_values(&check_parameters[2..])
     };
@@ -1945,8 +1944,8 @@ fn build_compact_copy_loop(
     );
 
     let done_types = if final_copy {
-        std::iter::once(TypeExpr::Unit)
-            .chain((0..outputs).map(|_| TypeExpr::Bytes))
+        (0..outputs)
+            .map(|_| TypeExpr::Bytes)
             .chain(std::iter::once(u8vec_type()))
             .collect::<Vec<_>>()
     } else {
@@ -1957,20 +1956,15 @@ fn build_compact_copy_loop(
     };
     let done_parameters = block_parameters(assembler, ns.p, done, &done_types);
     let accumulator_index = done_parameters.len() - 1;
-    let unit_index = usize::from(!final_copy);
     let bytes = assembler.op(
         ns.o,
         done,
         Opcode::AdapterInvoke,
-        vec![
-            pav(done_parameters[unit_index]),
-            pav(done_parameters[accumulator_index]),
-        ],
+        vec![pav(unit), pav(done_parameters[accumulator_index])],
         vec![index_result(TypeExpr::Bytes)],
         Immediate::Entity(EntityId::from_bytes(bridge_identity(BRIDGE_CODE_V2B1))),
     );
-    let output_start = usize::from(final_copy);
-    let mut destination_arguments = done_parameters[output_start..accumulator_index]
+    let mut destination_arguments = done_parameters[..accumulator_index]
         .iter()
         .copied()
         .map(sav)
@@ -1998,7 +1992,7 @@ fn build_canonical_check_chain(
     ns: Ns,
     control: CompactBlocks,
     checks: &[(u64, u8)],
-    carry_type: TypeExpr,
+    fallback_carry_type: Option<TypeExpr>,
     fallback: EntityId,
     success: EntityId,
 ) -> EntityId {
@@ -2010,8 +2004,14 @@ fn build_canonical_check_chain(
         .iter()
         .map(|_| assembler.id(ns.b))
         .collect::<Vec<_>>();
-    let state_types = vec![u8vec_type(), carry_type.clone(), TypeExpr::Unit];
-    let compare_types = vec![u8_type(), u8vec_type(), carry_type, TypeExpr::Unit];
+    let carries_fallback_state = fallback_carry_type.is_some();
+    let mut state_types = vec![u8vec_type()];
+    if let Some(carry_type) = fallback_carry_type {
+        state_types.push(carry_type);
+        state_types.push(TypeExpr::Unit);
+    }
+    let mut compare_types = vec![u8_type()];
+    compare_types.extend(state_types.clone());
     for (index, ((position, expected), (get_block, compare_block))) in checks
         .iter()
         .zip(
@@ -2047,7 +2047,11 @@ fn build_canonical_check_chain(
                     (
                         BuiltinCase::None,
                         fallback,
-                        switch_parameter_values(&get_parameters),
+                        if carries_fallback_state {
+                            switch_parameter_values(&get_parameters)
+                        } else {
+                            Vec::new()
+                        },
                     ),
                     (BuiltinCase::Some, compare_block, compare_arguments),
                 ],
@@ -2068,10 +2072,7 @@ fn build_canonical_check_chain(
         let next = get_blocks.get(index + 1).copied();
         let true_edge = match next {
             Some(next_get) => edge(next_get, parameter_values(&compare_parameters[1..])),
-            None => edge(
-                success,
-                vec![pav(compare_parameters[1]), pav(compare_parameters[3])],
-            ),
+            None => edge(success, vec![pav(compare_parameters[1])]),
         };
         append_block(
             assembler,
@@ -2082,11 +2083,149 @@ fn build_canonical_check_chain(
             cond(
                 op_result(matches),
                 true_edge,
-                edge(fallback, parameter_values(&compare_parameters[1..])),
+                edge(
+                    fallback,
+                    if carries_fallback_state {
+                        parameter_values(&compare_parameters[1..])
+                    } else {
+                        Vec::new()
+                    },
+                ),
             ),
         );
     }
     get_blocks[0]
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_program_canonical_check(
+    assembler: &mut Asm,
+    ns: Ns,
+    control: CompactBlocks,
+    checks: &[(u64, u8)],
+    fallback: EntityId,
+    success: EntityId,
+) -> EntityId {
+    let entry = assembler.id(ns.b);
+    let stages = checks
+        .iter()
+        .map(|_| assembler.id(ns.b))
+        .collect::<Vec<_>>();
+
+    let source = assembler.param(ns.p, entry, ParameterRole::Block, u8vec_type());
+    let first_position = assembler.ku64(ns.k, u128::from(checks[0].0));
+    let first_position_value = assembler.cref(ns.o, entry, first_position, u64_type());
+    let first = assembler.op(
+        ns.o,
+        entry,
+        Opcode::VectorGet,
+        vec![pav(source), op_result(first_position_value)],
+        vec![TypeExpr::Option(Box::new(u8_type()))],
+        Immediate::None,
+    );
+    append_block(
+        assembler,
+        entry,
+        control.function,
+        vec![source],
+        vec![first_position_value, first],
+        switch(
+            op_result(first),
+            vec![
+                (BuiltinCase::None, control.invariant_trap, Vec::new()),
+                (
+                    BuiltinCase::Some,
+                    stages[0],
+                    vec![sav(source), SwitchArgument::CasePayload],
+                ),
+            ],
+        ),
+    );
+
+    for (index, ((_, expected), block)) in checks.iter().zip(stages.iter().copied()).enumerate() {
+        let source = assembler.param(ns.p, block, ParameterRole::Block, u8vec_type());
+        let accumulated =
+            (index > 0).then(|| assembler.param(ns.p, block, ParameterRole::Block, TypeExpr::Bool));
+        let actual = assembler.param(ns.p, block, ParameterRole::Block, u8_type());
+        let expected_constant = assembler.ku8(ns.k, u128::from(*expected));
+        let expected_value = assembler.cref(ns.o, block, expected_constant, u8_type());
+        let matches = assembler.op(
+            ns.o,
+            block,
+            Opcode::Equal,
+            vec![pav(actual), op_result(expected_value)],
+            vec![TypeExpr::Bool],
+            Immediate::None,
+        );
+        let mut parameters = vec![source];
+        parameters.extend(accumulated);
+        parameters.push(actual);
+        let mut operations = vec![expected_value, matches];
+        let combined = accumulated.map_or_else(
+            || op_result(matches),
+            |prior| {
+                let value = assembler.op(
+                    ns.o,
+                    block,
+                    Opcode::BoolAnd,
+                    vec![pav(prior), op_result(matches)],
+                    vec![TypeExpr::Bool],
+                    Immediate::None,
+                );
+                operations.push(value);
+                op_result(value)
+            },
+        );
+        if let Some((next_position, _)) = checks.get(index + 1) {
+            let position_constant = assembler.ku64(ns.k, u128::from(*next_position));
+            let position_value = assembler.cref(ns.o, block, position_constant, u64_type());
+            let next = assembler.op(
+                ns.o,
+                block,
+                Opcode::VectorGet,
+                vec![pav(source), op_result(position_value)],
+                vec![TypeExpr::Option(Box::new(u8_type()))],
+                Immediate::None,
+            );
+            operations.extend([position_value, next]);
+            append_block(
+                assembler,
+                block,
+                control.function,
+                parameters,
+                operations,
+                switch(
+                    op_result(next),
+                    vec![
+                        (BuiltinCase::None, control.invariant_trap, Vec::new()),
+                        (
+                            BuiltinCase::Some,
+                            stages[index + 1],
+                            vec![
+                                sav(source),
+                                SwitchArgument::Value(combined),
+                                SwitchArgument::CasePayload,
+                            ],
+                        ),
+                    ],
+                ),
+            );
+        } else {
+            append_block(
+                assembler,
+                block,
+                control.function,
+                parameters,
+                operations,
+                cond(
+                    combined,
+                    edge(success, vec![pav(source)]),
+                    edge(fallback, Vec::new()),
+                ),
+            );
+        }
+    }
+    entry
 }
 
 fn build_canonical_return(
@@ -2199,6 +2338,7 @@ pub(super) fn build_dependency_binding_decode_from_vector(
         assembler,
         ns,
         compact_control,
+        unit,
         73,
         105,
         2,
@@ -2209,6 +2349,7 @@ pub(super) fn build_dependency_binding_decode_from_vector(
         assembler,
         ns,
         compact_control,
+        unit,
         39,
         71,
         1,
@@ -2219,6 +2360,7 @@ pub(super) fn build_dependency_binding_decode_from_vector(
         assembler,
         ns,
         compact_control,
+        unit,
         5,
         37,
         0,
@@ -2370,7 +2512,7 @@ pub(super) fn build_dependency_binding_decode_from_vector(
             (71, 3),
             (72, 32),
         ],
-        TypeExpr::Bytes,
+        Some(TypeExpr::Bytes),
         fallback,
         canonical_copy1,
     );
@@ -2501,22 +2643,11 @@ fn build_dependency_binding_decode(
     }
 }
 
-pub(super) fn dependency_program_decode_result_type() -> TypeExpr {
-    TypeExpr::Result {
-        ok: Box::new(TypeExpr::Tuple(vec![
-            TypeExpr::Bytes,
-            TypeExpr::Bytes,
-            TypeExpr::Bytes,
-            TypeExpr::Bytes,
-        ])),
-        error: Box::new(TypeExpr::Bytes),
-    }
-}
-
-fn build_program_canonical_return(
+fn build_program_supported_return(
     assembler: &mut Asm,
     ns: Ns,
     control: CompactBlocks,
+    all_value_type: &TypeExpr,
     result_type: &TypeExpr,
 ) -> EntityId {
     let block = assembler.id(ns.b);
@@ -2527,12 +2658,7 @@ fn build_program_canonical_return(
         TypeExpr::Bytes,
     ];
     let parameters = block_parameters(assembler, ns.p, block, &types);
-    let tuple_type = TypeExpr::Tuple(vec![
-        TypeExpr::Bytes,
-        TypeExpr::Bytes,
-        TypeExpr::Bytes,
-        TypeExpr::Bytes,
-    ]);
+    let tuple_type = TypeExpr::Tuple(types);
     let tuple = assembler.op(
         ns.o,
         block,
@@ -2541,11 +2667,19 @@ fn build_program_canonical_return(
         vec![tuple_type],
         Immediate::None,
     );
+    let dependency_arm = assembler.op(
+        ns.o,
+        block,
+        Opcode::ResultErr,
+        vec![op_result(tuple)],
+        vec![all_value_type.clone()],
+        Immediate::None,
+    );
     let ok = assembler.op(
         ns.o,
         block,
         Opcode::ResultOk,
-        vec![op_result(tuple)],
+        vec![op_result(dependency_arm)],
         vec![result_type.clone()],
         Immediate::None,
     );
@@ -2554,7 +2688,7 @@ fn build_program_canonical_return(
         block,
         control.function,
         parameters,
-        vec![tuple, ok],
+        vec![tuple, dependency_arm, ok],
         ret(op_result(ok)),
     );
     block
@@ -2564,14 +2698,31 @@ fn build_program_canonical_return(
 /// path never materializes an intermediate body `Bytes`; any framing mismatch
 /// returns the provisional scope refusal while the standalone body decoder
 /// retains strict native-parity diagnostics.
-#[allow(clippy::too_many_lines)]
-pub(super) fn build_dependency_program_decode(
+pub(super) fn build_dependency_supported_program_decode(
     assembler: &mut Asm,
     ns: Ns,
     function: EntityId,
+    all_value_type: &TypeExpr,
+    result_type: TypeExpr,
+) -> FunctionGraph {
+    build_dependency_program_decode_with_result(
+        assembler,
+        ns,
+        function,
+        all_value_type,
+        result_type,
+    )
+}
+
+#[allow(clippy::too_many_lines)]
+fn build_dependency_program_decode_with_result(
+    assembler: &mut Asm,
+    ns: Ns,
+    function: EntityId,
+    all_value_type: &TypeExpr,
+    result_type: TypeExpr,
 ) -> FunctionGraph {
     let block_start = assembler.blocks.len();
-    let result_type = dependency_program_decode_result_type();
     let payload = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Bytes);
     let unit = assembler.param(ns.p, function, ParameterRole::Function, TypeExpr::Unit);
     let resource_code = assembler.kbytes(ns.k, b"SCB_RESOURCE_LIMIT");
@@ -2587,12 +2738,18 @@ pub(super) fn build_dependency_program_decode(
         constant1,
     };
 
-    let canonical_return =
-        build_program_canonical_return(assembler, ns, compact_control, &result_type);
+    let canonical_return = build_program_supported_return(
+        assembler,
+        ns,
+        compact_control,
+        all_value_type,
+        &result_type,
+    );
     let copy_namespace = build_compact_copy_loop(
         assembler,
         ns,
         compact_control,
+        unit,
         110,
         142,
         3,
@@ -2603,6 +2760,7 @@ pub(super) fn build_dependency_program_decode(
         assembler,
         ns,
         compact_control,
+        unit,
         76,
         108,
         2,
@@ -2613,28 +2771,36 @@ pub(super) fn build_dependency_program_decode(
         assembler,
         ns,
         compact_control,
+        unit,
         42,
         74,
         1,
         false,
         copy_package,
     );
-    let copy_entity =
-        build_compact_copy_loop(assembler, ns, compact_control, 3, 35, 0, false, copy_root);
+    let extract_values = build_compact_copy_loop(
+        assembler,
+        ns,
+        compact_control,
+        unit,
+        3,
+        35,
+        0,
+        false,
+        copy_root,
+    );
 
     let fallback = assembler.id(ns.b);
-    let fallback_types = vec![u8vec_type(), TypeExpr::Bytes, TypeExpr::Unit];
-    let fallback_parameters = block_parameters(assembler, ns.p, fallback, &fallback_types);
     append_block(
         assembler,
         fallback,
         function,
-        fallback_parameters,
+        Vec::new(),
         Vec::new(),
         branch(edge(scope_error, Vec::new())),
     );
 
-    let canonical_checks = build_canonical_check_chain(
+    let canonical_checks = build_program_canonical_check(
         assembler,
         ns,
         compact_control,
@@ -2654,9 +2820,8 @@ pub(super) fn build_dependency_program_decode(
             (108, 3),
             (109, 32),
         ],
-        TypeExpr::Bytes,
         fallback,
-        copy_entity,
+        extract_values,
     );
     let entry = assembler.id(ns.b);
     let converted = assembler.id(ns.b);
@@ -2713,14 +2878,8 @@ pub(super) fn build_dependency_program_decode(
         vec![payload_length, expected_length, canonical_length],
         cond(
             op_result(canonical_length),
-            edge(
-                canonical_checks,
-                vec![pav(converted_vector), pav(payload), pav(unit)],
-            ),
-            edge(
-                fallback,
-                vec![pav(converted_vector), pav(payload), pav(unit)],
-            ),
+            edge(canonical_checks, vec![pav(converted_vector)]),
+            edge(fallback, Vec::new()),
         ),
     );
 

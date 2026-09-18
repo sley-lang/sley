@@ -6,6 +6,7 @@
 //! `machineresearch/sley-2.0/reweave/rw-080-codec-dependency-binding-compose-encode.md`.
 
 use super::supported_dispatch::{
+    all_supported_program_value_type as all_supported_decode_value_type,
     deduplicate_identical_constants as deduplicate_constants,
     dependency_program_value_type as dependency_encode_value_type,
     entrypoint_program_value_type as entrypoint_encode_value_type,
@@ -863,6 +864,49 @@ fn supported_encode_call(
     )
 }
 
+fn prior_supported_decode_arm(value: ConstValue) -> ConstValue {
+    assert_eq!(value.value_type, all_supported_decode_value_type());
+    match value.data {
+        ConstData::Result(ResultConst::Ok(non_dependency)) => match non_dependency.data {
+            ConstData::Result(ResultConst::Ok(entrypoint)) => {
+                let supported = ConstValue {
+                    value_type: supported_encode_value_type(),
+                    data: ConstData::Result(ResultConst::Ok(entrypoint)),
+                };
+                ConstValue {
+                    value_type: extended_supported_encode_value_type(),
+                    data: ConstData::Result(ResultConst::Ok(Box::new(supported))),
+                }
+            }
+            ConstData::Result(ResultConst::Err(entity_set)) => {
+                let ConstData::Sequence(mut fields) = entity_set.data else {
+                    panic!("tagged entity set must carry a tuple")
+                };
+                let kind = fields.remove(0);
+                let ConstData::UInt(kind) = kind.data else {
+                    panic!("tagged entity set kind must be u64")
+                };
+                assert_eq!(kind, 3, "PolicyBinding is not part of the prior encode sum");
+                let namespace = Box::new(tuple_value(namespace_encode_value_type(), fields));
+                let supported = ConstValue {
+                    value_type: supported_encode_value_type(),
+                    data: ConstData::Result(ResultConst::Err(namespace)),
+                };
+                ConstValue {
+                    value_type: extended_supported_encode_value_type(),
+                    data: ConstData::Result(ResultConst::Ok(Box::new(supported))),
+                }
+            }
+            other => panic!("non-dependency decode must carry a result arm: {other:?}"),
+        },
+        ConstData::Result(ResultConst::Err(dependency)) => ConstValue {
+            value_type: extended_supported_encode_value_type(),
+            data: ConstData::Result(ResultConst::Err(dependency)),
+        },
+        other => panic!("all-supported decode must carry a result arm, got {other:?}"),
+    }
+}
+
 #[test]
 fn codec_supported_kind_encode_dispatch_emits_all_three_supported_kinds() {
     let image = supported_encode_image();
@@ -913,14 +957,15 @@ fn codec_supported_kind_dispatch_round_trips_all_three_value_arms() {
     let (encode_package, encode_approved) = admit(&encode_image);
 
     let entrypoint = program_stored(0xa1, 0xb2, sley_mutate::value::EntryExposure::Local);
-    let decoded_entrypoint = super::supported_dispatch::supported_decode_ok(
-        &super::supported_dispatch::supported_decode_call(
-            &decode_package,
-            &decode_approved,
-            16,
-            &entrypoint,
-        ),
-    );
+    let decoded_entrypoint =
+        prior_supported_decode_arm(super::supported_dispatch::supported_decode_ok(
+            &super::supported_dispatch::supported_decode_call(
+                &decode_package,
+                &decode_approved,
+                16,
+                &entrypoint,
+            ),
+        ));
     assert_eq!(
         decoded_entrypoint.value_type,
         extended_supported_encode_value_type()
@@ -931,14 +976,15 @@ fn codec_supported_kind_dispatch_round_trips_all_three_value_arms() {
     );
 
     let namespace = program_ns_stored(0xc1, None, &[]);
-    let decoded_namespace = super::supported_dispatch::supported_decode_ok(
-        &super::supported_dispatch::supported_decode_call(
-            &decode_package,
-            &decode_approved,
-            3,
-            &namespace,
-        ),
-    );
+    let decoded_namespace =
+        prior_supported_decode_arm(super::supported_dispatch::supported_decode_ok(
+            &super::supported_dispatch::supported_decode_call(
+                &decode_package,
+                &decode_approved,
+                3,
+                &namespace,
+            ),
+        ));
     assert_eq!(
         decoded_namespace.value_type,
         extended_supported_encode_value_type()
@@ -949,14 +995,15 @@ fn codec_supported_kind_dispatch_round_trips_all_three_value_arms() {
     );
 
     let dependency = super::dependency_binding::dependency_stored(0xd2, 0xd3, 0xd4);
-    let decoded_dependency = super::supported_dispatch::supported_decode_ok(
-        &super::supported_dispatch::supported_decode_call(
-            &decode_package,
-            &decode_approved,
-            18,
-            &dependency,
-        ),
-    );
+    let decoded_dependency =
+        prior_supported_decode_arm(super::supported_dispatch::supported_decode_ok(
+            &super::supported_dispatch::supported_decode_call(
+                &decode_package,
+                &decode_approved,
+                18,
+                &dependency,
+            ),
+        ));
     assert_eq!(
         decoded_dependency.value_type,
         extended_supported_encode_value_type()

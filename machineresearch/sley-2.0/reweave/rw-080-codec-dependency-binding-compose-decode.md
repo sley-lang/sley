@@ -87,3 +87,9 @@ promoted.
 The matching kind-18 supported encode arm is recorded in
 `rw-080-codec-dependency-binding-compose-encode.md`. The remaining work is the
 other entity-body kinds and the schema-bearing canonical entry.
+
+Slice 16 subsequently added PolicyBinding and consolidated Namespace plus
+PolicyBinding into one admitted entity-set parser. The current kind-18 fixture
+measures 28,270 fuel, 3,295 instructions, and 996,703 peak value units; see
+`rw-080-codec-policy-binding-compose-decode.md`. The protected limits and
+kind-18 semantic tuple are unchanged.

@@ -100,11 +100,15 @@ fn policy_binding_decode_call(
     execute(package, approved, vec![bytes_input(body), unit_input()])
 }
 
-fn policy_binding_body(subject: [u8; 32], requirements: &[[u8; 32]]) -> Vec<u8> {
+pub(super) fn policy_stored(
+    entity: [u8; 32],
+    subject: [u8; 32],
+    requirements: &[[u8; 32]],
+) -> Vec<u8> {
     use sley_mutate::value::{EntityBodyValue, EntityIdSet, PolicyBindingBody};
 
     let record = sley_mutate::EntityObjectRecord {
-        entity_id: sley_id::EntityId::from_bytes([1; 32]),
+        entity_id: sley_id::EntityId::from_bytes(entity),
         body: EntityBodyValue::PolicyBinding(PolicyBindingBody {
             subject: sley_id::EntityId::from_bytes(subject),
             requirements: EntityIdSet::from_unsorted(
@@ -121,7 +125,11 @@ fn policy_binding_body(subject: [u8; 32], requirements: &[[u8; 32]]) -> Vec<u8> 
     };
     let object = sley_mutate::build_entity_object(program_epoch9(), &record)
         .expect("native builds policy binding fixture");
-    ns_body_of(object.stored_bytes())
+    object.stored_bytes().to_vec()
+}
+
+fn policy_binding_body(subject: [u8; 32], requirements: &[[u8; 32]]) -> Vec<u8> {
+    ns_body_of(&policy_stored([1; 32], subject, requirements))
 }
 
 fn concat_ids(ids: &[[u8; 32]]) -> Vec<u8> {

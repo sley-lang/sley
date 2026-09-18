@@ -14723,6 +14723,13 @@ fn entity_set_decode_result_type() -> TypeExpr {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum EntitySetDecodeKind {
+    Namespace,
+    PolicyBinding,
+    Dynamic,
+}
+
 #[allow(
     clippy::many_single_char_names,
     clippy::similar_names,
@@ -14734,7 +14741,7 @@ fn build_namespace_decode(
     fid: EntityId,
     decode_fid: EntityId,
 ) -> FunctionGraph {
-    build_entity_set_decode(a, ns, fid, decode_fid, EntitySetBodyKind::Namespace)
+    build_entity_set_decode(a, ns, fid, decode_fid, EntitySetDecodeKind::Namespace)
 }
 
 fn build_policy_binding_decode(
@@ -14743,7 +14750,16 @@ fn build_policy_binding_decode(
     fid: EntityId,
     decode_fid: EntityId,
 ) -> FunctionGraph {
-    build_entity_set_decode(a, ns, fid, decode_fid, EntitySetBodyKind::PolicyBinding)
+    build_entity_set_decode(a, ns, fid, decode_fid, EntitySetDecodeKind::PolicyBinding)
+}
+
+fn build_combined_entity_set_decode(
+    a: &mut Asm,
+    ns: Ns,
+    fid: EntityId,
+    decode_fid: EntityId,
+) -> FunctionGraph {
+    build_entity_set_decode(a, ns, fid, decode_fid, EntitySetDecodeKind::Dynamic)
 }
 
 #[allow(
@@ -14756,7 +14772,7 @@ fn build_entity_set_decode(
     ns: Ns,
     fid: EntityId,
     decode_fid: EntityId,
-    body_kind: EntitySetBodyKind,
+    body_kind: EntitySetDecodeKind,
 ) -> FunctionGraph {
     let bstart = a.blocks.len();
     let res_t = entity_set_decode_result_type();
@@ -14764,11 +14780,12 @@ fn build_entity_set_decode(
     let c0 = a.ku64(ns.k, 0);
     let c1 = a.ku64(ns.k, 1);
     let c2 = a.ku64(ns.k, 2);
-    let body_tag = match body_kind {
-        EntitySetBodyKind::Namespace => 3,
-        EntitySetBodyKind::PolicyBinding => 17,
+    let c_body_tag = match body_kind {
+        EntitySetDecodeKind::Namespace => Some(a.ku64(ns.k, 3)),
+        EntitySetDecodeKind::PolicyBinding => Some(a.ku64(ns.k, 17)),
+        EntitySetDecodeKind::Dynamic => None,
     };
-    let c_body_tag = a.ku64(ns.k, body_tag);
+    let c17 = a.ku64(ns.k, 17);
     let c18 = a.ku64(ns.k, 18);
     let c32 = a.ku64(ns.k, 32);
     let c_max_fields = a.ku64(ns.k, 65_535);
@@ -14789,6 +14806,8 @@ fn build_entity_set_decode(
     let e_mapord = a.kbytes(ns.k, b"SCB_MAP_ORDER");
     let e_parent_none = a.kbytes(ns.k, b"");
     let in_body = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Bytes);
+    let in_kind = (body_kind == EntitySetDecodeKind::Dynamic)
+        .then(|| a.param(ns.p, fid, ParameterRole::Function, u64_type()));
     let in_unit = a.param(ns.p, fid, ParameterRole::Function, TypeExpr::Unit);
     let b_missing = err_block(a, ns, fid, res_t.clone(), e_missing);
     let b_unknown = err_block(a, ns, fid, res_t.clone(), e_unknown);
@@ -14803,8 +14822,8 @@ fn build_entity_set_decode(
     let b_mapord = err_block(a, ns, fid, res_t.clone(), e_mapord);
     let trap = trap_block(a, ns, fid);
     let optional_parent_reachability = match body_kind {
-        EntitySetBodyKind::Namespace => Reachability::Required,
-        EntitySetBodyKind::PolicyBinding => Reachability::ExplicitlyUnreachable,
+        EntitySetDecodeKind::Namespace | EntitySetDecodeKind::Dynamic => Reachability::Required,
+        EntitySetDecodeKind::PolicyBinding => Reachability::ExplicitlyUnreachable,
     };
     // Late-section block ids are minted up front (Rust declaration
     // order): the parent-union, field-2, and member-list sections below
@@ -15052,12 +15071,16 @@ fn build_entity_set_decode(
     let d_len = a.param(ns.p, u_tag, ParameterRole::Block, u64_type());
     let d_in = a.param(ns.p, u_tag, ParameterRole::Block, TypeExpr::Bytes);
     let d_unit = a.param(ns.p, u_tag, ParameterRole::Block, TypeExpr::Unit);
-    let d_expected = a.cref(ns.o, u_tag, c_body_tag, u64_type());
+    let d_expected = c_body_tag.map(|constant| a.cref(ns.o, u_tag, constant, u64_type()));
+    let expected_body_tag = d_expected.map_or_else(
+        || pav(in_kind.expect("dynamic entity-set decoder has a kind parameter")),
+        op_result,
+    );
     let d_eq = a.op(
         ns.o,
         u_tag,
         Opcode::Equal,
-        vec![pav(d_tag), op_result(d_expected)],
+        vec![pav(d_tag), expected_body_tag],
         vec![TypeExpr::Bool],
         Immediate::None,
     );
@@ -15065,7 +15088,10 @@ fn build_entity_set_decode(
         entity_id: u_tag,
         function: fid,
         parameters: vec![d_tag, d_pos, d_vec, d_len, d_in, d_unit],
-        operations: vec![d_expected, d_eq],
+        operations: d_expected
+            .into_iter()
+            .chain(std::iter::once(d_eq))
+            .collect(),
         terminator: cond(
             op_result(d_eq),
             edge(
@@ -15954,44 +15980,114 @@ fn build_entity_set_decode(
         vec![TypeExpr::Bool],
         Immediate::None,
     );
+    let dynamic_field1 = (body_kind == EntitySetDecodeKind::Dynamic).then(|| a.id(ns.b));
+    let namespace_field1 = edge(
+        par_tag,
+        vec![
+            pav(u1_len),
+            pav(u1_end),
+            pav(u1_uend),
+            pav(u1_vec),
+            pav(u1_ilen),
+            pav(u1_in),
+            pav(u1_unit),
+        ],
+    );
+    let policy_field1 = edge(
+        par_some,
+        vec![
+            pav(u1_len),
+            pav(u1_end),
+            pav(u1_end),
+            pav(u1_uend),
+            pav(u1_vec),
+            pav(u1_ilen),
+            pav(u1_in),
+            pav(u1_unit),
+        ],
+    );
+    let valid_field1 = match body_kind {
+        EntitySetDecodeKind::Namespace => namespace_field1,
+        EntitySetDecodeKind::PolicyBinding => policy_field1,
+        EntitySetDecodeKind::Dynamic => edge(
+            dynamic_field1.expect("dynamic field-1 dispatch block exists"),
+            vec![
+                pav(u1_len),
+                pav(u1_end),
+                pav(u1_uend),
+                pav(u1_vec),
+                pav(u1_ilen),
+                pav(u1_in),
+                pav(u1_unit),
+            ],
+        ),
+    };
     a.blocks.push(Block {
         entity_id: f1_unwrap,
         function: fid,
         parameters: vec![u1_end, u1_len, u1_uend, u1_vec, u1_ilen, u1_in, u1_unit],
         operations: vec![u1_gt],
-        terminator: cond(
-            op_result(u1_gt),
-            edge(b_len, Vec::new()),
-            match body_kind {
-                EntitySetBodyKind::Namespace => edge(
-                    par_tag,
-                    vec![
-                        pav(u1_len),
-                        pav(u1_end),
-                        pav(u1_uend),
-                        pav(u1_vec),
-                        pav(u1_ilen),
-                        pav(u1_in),
-                        pav(u1_unit),
-                    ],
-                ),
-                EntitySetBodyKind::PolicyBinding => edge(
-                    par_some,
-                    vec![
-                        pav(u1_len),
-                        pav(u1_end),
-                        pav(u1_end),
-                        pav(u1_uend),
-                        pav(u1_vec),
-                        pav(u1_ilen),
-                        pav(u1_in),
-                        pav(u1_unit),
-                    ],
-                ),
-            },
-        ),
+        terminator: cond(op_result(u1_gt), edge(b_len, Vec::new()), valid_field1),
         reachability: Reachability::Required,
     });
+    if let Some(dynamic_field1) = dynamic_field1 {
+        let mode_len = a.param(ns.p, dynamic_field1, ParameterRole::Block, u64_type());
+        let mode_end = a.param(ns.p, dynamic_field1, ParameterRole::Block, u64_type());
+        let mode_uend = a.param(ns.p, dynamic_field1, ParameterRole::Block, u64_type());
+        let mode_vec = a.param(ns.p, dynamic_field1, ParameterRole::Block, u8vec_type());
+        let mode_ilen = a.param(ns.p, dynamic_field1, ParameterRole::Block, u64_type());
+        let mode_in = a.param(ns.p, dynamic_field1, ParameterRole::Block, TypeExpr::Bytes);
+        let mode_unit = a.param(ns.p, dynamic_field1, ParameterRole::Block, TypeExpr::Unit);
+        let policy_kind = a.cref(ns.o, dynamic_field1, c17, u64_type());
+        let is_policy = a.op(
+            ns.o,
+            dynamic_field1,
+            Opcode::Equal,
+            vec![
+                pav(in_kind.expect("dynamic entity-set decoder has a kind parameter")),
+                op_result(policy_kind),
+            ],
+            vec![TypeExpr::Bool],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: dynamic_field1,
+            function: fid,
+            parameters: vec![
+                mode_len, mode_end, mode_uend, mode_vec, mode_ilen, mode_in, mode_unit,
+            ],
+            operations: vec![policy_kind, is_policy],
+            terminator: cond(
+                op_result(is_policy),
+                edge(
+                    par_some,
+                    vec![
+                        pav(mode_len),
+                        pav(mode_end),
+                        pav(mode_end),
+                        pav(mode_uend),
+                        pav(mode_vec),
+                        pav(mode_ilen),
+                        pav(mode_in),
+                        pav(mode_unit),
+                    ],
+                ),
+                edge(
+                    par_tag,
+                    vec![
+                        pav(mode_len),
+                        pav(mode_end),
+                        pav(mode_uend),
+                        pav(mode_vec),
+                        pav(mode_ilen),
+                        pav(mode_in),
+                        pav(mode_unit),
+                    ],
+                ),
+            ),
+            reachability: Reachability::Required,
+        });
+    }
     // Parent `Option<EntityId>` union at field-1 payload start.
     // Order mirrors `read_union`-then-match: tag, length, bounds, then
     // tag dispatch; per-tag fit checks come after dispatch (an unknown
@@ -19516,6 +19612,7 @@ fn build_entity_set_decode(
         c1,
         c2,
         c_body_tag,
+        c17,
         c18,
         c32,
         c_max_fields,
@@ -19531,10 +19628,13 @@ fn build_entity_set_decode(
         b_mapord,
     );
 
+    let mut function_parameters = vec![in_body];
+    function_parameters.extend(in_kind);
+    function_parameters.push(in_unit);
     FunctionGraph {
         entity_id: fid,
         type_parameters: Vec::new(),
-        parameters: vec![in_body, in_unit],
+        parameters: function_parameters,
         result_type: res_t,
         effects: Vec::new(),
         entry_block: entry,

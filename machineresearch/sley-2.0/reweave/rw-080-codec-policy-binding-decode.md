@@ -25,8 +25,9 @@ canonical ascending concatenation of all decoded 32-byte identities, and
 `SSMC_RESERVED_FIELD_PRESENT` scope exclusions; tag 0 and tags above 18 return
 `SCB_UNION_INVALID`.
 
-This slice owns standalone body decoding only. Whole-program kind-17 dispatch
-remains the next bounded composition slice.
+This slice owns standalone body decoding. Whole-program kind-17 dispatch
+landed provisionally in slice 16 and is recorded in
+`rw-080-codec-policy-binding-compose-decode.md`.
 
 ## 2. Shared strict parser
 

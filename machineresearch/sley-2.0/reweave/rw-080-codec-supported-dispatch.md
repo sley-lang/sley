@@ -154,3 +154,14 @@ exact 32-byte values. Canonical kind 18 measures 28,855 fuel, 3,283
 instructions, and 996,953 peak value units for the 219-byte fixture under
 the unchanged limits. The matching kind-18 supported encode arm is recorded
 in `rw-080-codec-dependency-binding-compose-encode.md`.
+
+## 9. Slice-16 additive state
+
+The current entry supports kinds 3, 16, 17, and 18. Namespace and
+PolicyBinding share a tagged entity-set arm and one admitted runtime-mode
+parser, while DependencyBinding remains the outer error arm of the semantic
+sum. The complete value shape, fail-closed declaration matrix, shared-parser
+construction, discarded budget studies, and current measurements are recorded
+in `rw-080-codec-policy-binding-compose-decode.md`. The worst valid fixture is
+DependencyBinding at 996,703 peak value units under the unchanged one-million
+ceiling.
