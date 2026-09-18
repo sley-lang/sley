@@ -9,14 +9,14 @@ use super::*;
 use sley_vm::host_abi::{BRIDGE_CODE_B2V1, BRIDGE_CODE_PSH1, BRIDGE_CODE_RHW1, BRIDGE_CODE_V2B1};
 
 #[derive(Clone, Copy)]
-struct EncodeBlocks {
-    function: EntityId,
-    length_error: EntityId,
-    trailing_error: EntityId,
-    resource_error: EntityId,
+pub(super) struct EncodeBlocks {
+    pub(super) function: EntityId,
+    pub(super) length_error: EntityId,
+    pub(super) trailing_error: EntityId,
+    pub(super) resource_error: EntityId,
 }
 
-fn block_parameters(
+pub(super) fn block_parameters(
     assembler: &mut Asm,
     namespace: u8,
     block: EntityId,
@@ -33,7 +33,7 @@ fn block_parameters(
 /// Builds one exact-32-byte gate while preserving the caller's value tuple.
 /// Short inputs use the native fixed-width underflow code; long inputs use the
 /// nested trailing code. The returned block accepts `value_types` in order.
-fn build_exact_32_gate(
+pub(super) fn build_exact_32_gate(
     assembler: &mut Asm,
     ns: Ns,
     control: EncodeBlocks,
@@ -112,7 +112,7 @@ fn build_exact_32_gate(
 /// Builds a backedge-free chain that appends fixed bytes to a `UInt8` vector.
 /// The head accepts `(accumulator, carries...)`; the destination receives the
 /// same shape. Adapter refusal forwards to the supplied resource block.
-fn build_constant_push_chain(
+pub(super) fn build_constant_push_chain(
     assembler: &mut Asm,
     ns: Ns,
     control: EncodeBlocks,
@@ -163,7 +163,7 @@ fn build_constant_push_chain(
 /// Builds an unrolled 32-byte source-vector copy. The head accepts
 /// `(accumulator, source, carries...)`; the destination receives
 /// `(accumulator, carries...)`. Every indexed read is construction-bounded.
-fn build_copy_32_chain(
+pub(super) fn build_copy_32_chain(
     assembler: &mut Asm,
     ns: Ns,
     control: EncodeBlocks,

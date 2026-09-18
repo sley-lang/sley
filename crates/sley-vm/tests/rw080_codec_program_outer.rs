@@ -67,6 +67,8 @@ mod dependency_binding;
 mod dependency_binding_decode;
 #[path = "rw080_codec_program/effect_def.rs"]
 mod effect_def;
+#[path = "rw080_codec_program/fingerprint_outer.rs"]
+mod fingerprint_outer;
 #[path = "rw080_codec_program/function.rs"]
 mod function;
 #[path = "rw080_codec_program/global_value.rs"]
