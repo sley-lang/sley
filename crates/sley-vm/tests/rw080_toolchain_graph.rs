@@ -25,6 +25,9 @@ use sley_ssmc::{
 };
 use std::fmt::Write;
 
+#[path = "rw080_toolchain_graph/rw120_driver.rs"]
+mod rw120_driver;
+
 const DRIVER: u8 = 1;
 const CODEC: u8 = 2;
 const CHECKER: u8 = 3;

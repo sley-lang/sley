@@ -1,0 +1,34 @@
+{
+  "schema": "sley2-rw120-bounded-driver-manifest-v1",
+  "status": "PROVISIONAL",
+  "profile": "bounded dependency-pin validation and typed non-fixed-point assembly over aggregate scaffold leaves",
+  "validated_manifest_fields": [
+    "bootstrap_profile_v2",
+    "host_abi_v2",
+    "exec_package_v2",
+    "raw_blake3_v1",
+    "schema_epoch"
+  ],
+  "carried_unproved_manifest_fields": [
+    "entry_points",
+    "expected_artifact_digests",
+    "state_root"
+  ],
+  "gate_operations": 34,
+  "image_bytes": 3138,
+  "object_count": 80,
+  "object_stored_bytes": 20789,
+  "object_bundle_sha256": "530a6df328131c4f6cc6179af84335a1c61fbcb2b93a980ef0ea2d41d70bd3f3",
+  "state_root": "e4ad2b891c0ccf72c64aceda5af2cb7bac55f2201a268776006083bcae61b4d9",
+  "state_root_stored_bytes": 5707,
+  "state_root_stored_sha256": "4c5dffd8215b09bc2af5d3319f36172e75637484a36c1be7ff985aacf77d427b",
+  "package_digest": "49cf29999395d4950a09c484aea9afbd94d73ccb5e6823f7dcbb5a0056b5ddfe",
+  "changed_closure_changes_result": true,
+  "each_changed_dependency_pin_returns_typed_error": true,
+  "fixed_point": false,
+  "mature_leaf_algorithms_integrated": false,
+  "whole_toolchain_reconstruction": false,
+  "canonical_state_root_s": false,
+  "rw120_complete": false,
+  "r2_ready": false
+}
