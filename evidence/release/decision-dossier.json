@@ -10,7 +10,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "0199b608a6f0088523affee1ef9597128666303c3713fa9a3dca439b7dbd1078",
+  "dossier_digest": "0eb375b7bb39b8d2e377df30f8f6d86ed71b4cb3dd3c1e1913b58f102615fb49",
   "entries": [
     {
       "evidence": [
@@ -35,7 +35,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "c75277b61af7b8438f4265b05baeef19ee63f2de"
+      "value": "a7852028b9748a7de2d05b13516a4623b2c912a2"
     },
     {
       "evidence": [
@@ -284,7 +284,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "3d115ce3c3d00ec1e43e80541df6a8a4d337accbbee3d7e498b125481a4845de"
+      "value": "85324ebb392efdba2bfc476bc3841b427c7f3edfd47d23db6cbc3da679ffb250"
     },
     {
       "evidence": [
@@ -293,7 +293,7 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2507941
+      "value": 2507938
     },
     {
       "evidence": [
@@ -456,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "39070d6bb4f5623eb979696dd4cc323d28ae2c1a807b51007038e441b4828302",
+  "entries_digest": "09b120f281d64c8aa04d0c384ae2926366b99bc9c8f9ba0a300f280b17dcdc3c",
   "evidenced": 24,
   "gated": 10,
   "gates": {
