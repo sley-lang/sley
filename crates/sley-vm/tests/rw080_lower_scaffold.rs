@@ -86,6 +86,9 @@ use sley_ssmc::{
     ValueRef, VariantCase, VariantImmediate, VariantSwitchTerminator, Visibility,
 };
 
+#[path = "rw080_lower_program/canonical.rs"]
+mod canonical;
+
 fn id(byte: u8) -> EntityId {
     EntityId::from_bytes([byte; 32])
 }
@@ -18757,6 +18760,14 @@ fn admitted_scaffold() -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecution
 fn admit_lower_program(
     scaffold: &LowerScaffold,
 ) -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecutionPackage) {
+    admit_lower_program_with_bindings(scaffold, epoch(), root())
+}
+
+fn admit_lower_program_with_bindings(
+    scaffold: &LowerScaffold,
+    schema_epoch: SchemaEpochId,
+    state_root: StateRoot,
+) -> (sley_vm::ExecutionPackage, sley_vm::ApprovedExecutionPackage) {
     use sley_vm::{
         ExecutionPackage, V2Closure, approve_package_v2, bootstrap::BootstrapProfileInput,
         bootstrap::BootstrapProfileVersion,
@@ -18767,8 +18778,8 @@ fn admit_lower_program(
         parameters: &scaffold.parameters,
         blocks: &scaffold.blocks,
         operations: &scaffold.operations,
-        schema_epoch: epoch(),
-        state_root: root(),
+        schema_epoch,
+        state_root,
         profile: sley_vm::CacheProfile::EXTENDED_V1,
         constants: &scaffold.constants,
         globals: &[],
@@ -18779,7 +18790,7 @@ fn admit_lower_program(
     .expect("scaffold lowers under the reference lowerer");
     let gate = sley_vm::bootstrap::judge_bootstrap_profile(&BootstrapProfileInput {
         types: &scaffold.types,
-        schema_epoch: epoch(),
+        schema_epoch,
         entry: &scaffold.entry,
         presented_image_bytes: &lowered.bytes,
         functions: &scaffold.functions,
@@ -18800,8 +18811,8 @@ fn admit_lower_program(
         globals: Vec::new(),
         contracts: Vec::new(),
         entry: scaffold.entry.entity_id,
-        schema_epoch: epoch(),
-        state_root: root(),
+        schema_epoch,
+        state_root,
         profile: sley_vm::CacheProfile::EXTENDED_V1,
         admitted_limits: limits,
         gate_operation_count: gate.operation_count(),
@@ -18812,8 +18823,8 @@ fn admit_lower_program(
     // reference re-lowers before minting; excluded from clean stages.
     let closure = V2Closure {
         types: &scaffold.types,
-        schema_epoch: epoch(),
-        state_root: root(),
+        schema_epoch,
+        state_root,
         entry: scaffold.entry.entity_id,
         functions: &scaffold.functions,
         parameters: &scaffold.parameters,
