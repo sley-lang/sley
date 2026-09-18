@@ -19772,6 +19772,10 @@ fn build_entity_set_encode_with_mode(
     let c1 = a.ku64(ns.k, 1);
     let c2 = a.ku64(ns.k, 2);
     let c32 = a.ku64(ns.k, 32);
+    let canonical_empty_members =
+        (output == EntitySetEncodeOutput::CanonicalSet).then(|| a.kbytes(ns.k, b""));
+    let canonical_empty_set =
+        (output == EntitySetEncodeOutput::CanonicalSet).then(|| a.kbytes(ns.k, &[0]));
     let subject_payload_len = match body_kind {
         EntitySetBodyKind::Namespace | EntitySetBodyKind::Dynamic => 34,
         EntitySetBodyKind::PolicyBinding => 32,
@@ -19876,6 +19880,8 @@ fn build_entity_set_encode_with_mode(
     let item_next2 = a.id(ns.b);
     let set_done = a.id(ns.b);
     let set_return = a.id(ns.b);
+    let set_empty_check = a.id(ns.b);
+    let set_empty_return = a.id(ns.b);
     let f2len_derive = a.id(ns.b);
     let f2len_ok = a.id(ns.b);
     let f2len_err = a.id(ns.b);
@@ -20081,18 +20087,78 @@ fn build_entity_set_encode_with_mode(
     if let Some(kind) = g_kind {
         pu_s0_args.push(pav(kind));
     }
+    let exact_parent_edge = if output == EntitySetEncodeOutput::CanonicalSet {
+        edge(
+            set_empty_check,
+            vec![pav(g_parvec), pav(g_mem), pav(g_unit)],
+        )
+    } else {
+        edge(pu_s0, pu_s0_args)
+    };
     a.blocks.push(Block {
         entity_id: par_len_gt,
         function: fid,
         parameters: par_len_gt_parameters,
         operations: Vec::new(),
-        terminator: cond(
-            pav(g_flag),
-            edge(b_trail, Vec::new()),
-            edge(pu_s0, pu_s0_args),
-        ),
+        terminator: cond(pav(g_flag), edge(b_trail, Vec::new()), exact_parent_edge),
         reachability: Reachability::Required,
     });
+    if output == EntitySetEncodeOutput::CanonicalSet {
+        let empty_subject = a.param(ns.p, set_empty_check, ParameterRole::Block, u8vec_type());
+        let empty_members = a.param(ns.p, set_empty_check, ParameterRole::Block, TypeExpr::Bytes);
+        let empty_unit = a.param(ns.p, set_empty_check, ParameterRole::Block, TypeExpr::Unit);
+        let empty_expected = a.cref(
+            ns.o,
+            set_empty_check,
+            canonical_empty_members.expect("canonical-set encoder has empty-members constant"),
+            TypeExpr::Bytes,
+        );
+        let is_empty = a.op(
+            ns.o,
+            set_empty_check,
+            Opcode::Equal,
+            vec![pav(empty_members), op_result(empty_expected)],
+            vec![TypeExpr::Bool],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: set_empty_check,
+            function: fid,
+            parameters: vec![empty_subject, empty_members, empty_unit],
+            operations: vec![empty_expected, is_empty],
+            terminator: cond(
+                op_result(is_empty),
+                edge(set_empty_return, Vec::new()),
+                edge(
+                    pu_s0,
+                    vec![pav(empty_subject), pav(empty_members), pav(empty_unit)],
+                ),
+            ),
+            reachability: Reachability::Required,
+        });
+        let empty_set = a.cref(
+            ns.o,
+            set_empty_return,
+            canonical_empty_set.expect("canonical-set encoder has empty-set constant"),
+            TypeExpr::Bytes,
+        );
+        let empty_ok = a.op(
+            ns.o,
+            set_empty_return,
+            Opcode::ResultOk,
+            vec![op_result(empty_set)],
+            vec![res_t.clone()],
+            Immediate::None,
+        );
+        a.blocks.push(Block {
+            entity_id: set_empty_return,
+            function: fid,
+            parameters: Vec::new(),
+            operations: vec![empty_set, empty_ok],
+            terminator: ret(op_result(empty_ok)),
+            reachability: Reachability::Required,
+        });
+    }
     if matches!(
         body_kind,
         EntitySetBodyKind::Namespace | EntitySetBodyKind::Dynamic

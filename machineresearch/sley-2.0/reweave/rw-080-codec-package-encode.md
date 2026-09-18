@@ -30,10 +30,13 @@ tests extract the body from native stored objects rather than relying on
 hand-built expected bytes.
 
 This slice owns standalone Package body encoding. The paired strict body
-decoder subsequently landed in program slice 19; whole-program composition
-remains a later bounded slice. See `rw-080-codec-package-decode.md`. The
-supported whole-program dispatcher therefore continues to advertise kinds 3,
-16, 17 and 18 only.
+decoder subsequently landed in program slice 19, followed by whole-program
+decode and encode composition in slices 20 and 21. See
+`rw-080-codec-package-decode.md`,
+`rw-080-codec-package-compose-decode.md` and
+`rw-080-codec-package-compose-encode.md`. The supported whole-program
+dispatcher continues to advertise kinds 3, 16, 17 and 18 until a separate
+dispatch slice adds kind 2.
 
 ## 2. Construction and refusal behavior
 
@@ -60,7 +63,8 @@ dependencies and exports, matching the encoder's field order.
 
 ## 3. Evidence and resource envelope
 
-One admitted image emits byte-identical native Package bodies for empty sets,
+At this slice's landing, one admitted image emitted byte-identical native
+Package bodies for empty sets,
 one member in each set, two dependencies, and one dependency plus two
 exports. A second one-plus-one fixture uses nonuniform workspace and
 root-namespace identities to detect position or copying mistakes hidden by
@@ -78,6 +82,12 @@ The F5 capacity boundary is explicit. Two dependencies plus two exports reach
 profile (43,933 fuel, 4,623 instructions, 997,470 recorded peak before the
 refused allocation). The smaller fixtures prove canonical semantics; this
 slice does not claim an unbounded set size.
+
+The table and F5 figures above preserve the slice-18 landing evidence.
+Program slice 21 subsequently added an exact canonical-empty-set fast path to
+the shared set encoder. Current standalone measurements and the composed
+program envelope are recorded in
+`rw-080-codec-package-compose-encode.md`.
 
 Fourteen refusal vectors cover short and long workspace and root-namespace
 identities, partial, duplicate and descending members in each set, and
