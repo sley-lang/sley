@@ -416,3 +416,35 @@ This adoption qualifies the contract clarification only. It is not premium
 no retained construction permission. Changed contract bytes change the R2
 inventory; previous candidate-bound evidence is not silently reused. The
 unchanged header governs all subsequent construction.
+
+RW080-ID-02 — candidate clarification (2026-09-18); architecture acceptance
+pending. Affected requirement: §3 "never reused for another entity"
+(AMENDED for component re-mints only). Owner: RW-090 integrator. Raised by
+the 178873d7 Nabu review of RW-090 (P2, identity discipline): the bounded
+and the arbitrary codec generations derive their language-owned identities
+under the same genesis `0x80`, candidate nonce `0x87` and ordinal rule
+`1000 + sorted index`, so one `EntityId` binds a different function,
+parameter, block, operation or constant in the superseded S
+`4cbcd1ee…` and the current S, while both roots stay retained artifacts.
+
+Clarification proposed: a component re-mint is a REPLACEMENT of the
+component's entity bindings, not a mutation of them. The superseded
+generation's bindings are dead the moment the re-mint is frozen as the
+canonical input: they are never referenced by any later mutation, carry no
+parent digests forward, and are retained solely as history (their root,
+object bundle and C0/C1 artifacts stay read-only in the artifact store and
+in `superseded_*` manifest blocks). Within one generation §3 holds
+unchanged: an identity is derived once and never reused for another entity
+of that generation. A re-mint therefore records, instead of per-entity
+parent provenance, the pair (superseded root, replacement root) and the
+source commit of each, which every manifest of the generation carries
+(`canonical-s-manifest.json` `superseded_bounded_s`,
+`rw-090-codec-component-manifest.json` `superseded_bounded_component`,
+`c0-c1-seed-artifacts.json` `superseded_candidate`,
+`bootstrap-manifest.json` `superseded_generations`). A future generation
+that must coexist with the current one (rather than replace it) derives
+under a fresh candidate nonce; the dry-run then reproduces both.
+
+This record grants no construction permission and records no review PASS;
+architecture review binds the exact delta and either adopts the
+replacement semantics or requires re-derivation under a fresh nonce.

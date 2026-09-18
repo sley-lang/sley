@@ -29,6 +29,20 @@ REQUIRED_INPUTS = {
     "docs/spec/SSMC1_EPOCH1_SCHEMA.txt",
     "evidence/validation/anti-goal-conformance.json",
 }
+# Library test groups bound to the source digest alongside the suites: the
+# admission-authority invariants and the Sley-owned AR-05 replay (the
+# closure workloads replayed through the v2 path with per-metric
+# attribution), so AR-05 closure evidence is revision-bound by the gate
+# (Nabu P3 at 178873d7).
+LIB_SUITES = {
+    "admission_authority::tests": {
+        "admission_authority::tests::authority_error_codes_are_stable",
+        "admission_authority::tests::sley_evidence_ingress_has_no_minting_path",
+    },
+    "bootstrap_closure::closure_workloads_replay_through_v2_with_attribution": {
+        "bootstrap_closure::closure_workloads_replay_through_v2_with_attribution",
+    },
+}
 SUCCESSOR_SUITES = {
     "rw075_raw_callable": {"v2_package_section_digests_and_observation_are_frozen",
                            "raw_successor_package_binds_and_mismatches_refuse"},
@@ -136,11 +150,10 @@ def run_successor(root: Path, expected_source: str) -> dict:
                    "--", "--show-output", "--test-threads=1"]
         results[suite] = run_suite(root, expected_source, command,
                                   lambda output: test_output_problems(output, required))
-    command = ["cargo", "test", "-p", "sley-vm", "--lib", "admission_authority::tests",
-               "--locked", "--", "--show-output", "--test-threads=1"]
-    required = {"admission_authority::tests::authority_error_codes_are_stable",
-                "admission_authority::tests::sley_evidence_ingress_has_no_minting_path"}
-    results["admission_authority"] = run_suite(
-        root, expected_source, command,
-        lambda output: test_output_problems(output, required, filtered=True))
+    for group, required in LIB_SUITES.items():
+        command = ["cargo", "test", "-p", "sley-vm", "--lib", group,
+                   "--locked", "--", "--show-output", "--test-threads=1"]
+        results[group.split("::")[0]] = run_suite(
+            root, expected_source, command,
+            lambda output, required=required: test_output_problems(output, required, filtered=True))
     return {"pass": all(item["pass"] for item in results.values()), "suites": results}

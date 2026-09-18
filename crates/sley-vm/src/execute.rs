@@ -670,6 +670,19 @@ pub fn execute_approved_package(
             crate::exec_package::PackageError::BindingMismatch,
         ));
     }
+    // Version-specific execution allowlist (AR-08 residual): the raw-hash
+    // row admits only under the successor profile, and the v1 approval is a
+    // public, literal-constructible record, so the v1 path itself refuses a
+    // carried `RHW1` import instead of relying on the admission pin alone.
+    if package
+        .imports
+        .iter()
+        .any(|import| import.entity_id == crate::extended::bridge_entry_id(*b"RHW1"))
+    {
+        return Err(PackageExecutionError::Package(
+            crate::exec_package::PackageError::BindingMismatch,
+        ));
+    }
     let loaded = load_image(&package.image_bytes).map_err(PackageExecutionError::Image)?;
     if loaded.digest != expected.image_digest {
         return Err(PackageExecutionError::Image(ImageError::DigestMismatch));

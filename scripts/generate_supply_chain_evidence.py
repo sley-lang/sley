@@ -538,6 +538,28 @@ def build_outputs() -> dict[Path, bytes]:
     }
 
 
+# Working-tree facts the tracked T54 record carries for legibility but that a
+# commit-bound comparison must not depend on: an untracked, non-ignored file
+# (a Council transcript awaiting its records commit, a scratch note) changes
+# these counters without changing the tracked candidate, so `--check`
+# compares the record with them masked (Ariadne P3 / Nabu P4 at 178873d7).
+WORKING_TREE_FIELDS = ("untracked_bytes_scanned", "untracked_files_scanned")
+
+
+def commit_bound_view(payload: bytes) -> bytes:
+    """The record with its working-tree-only counters masked for comparison."""
+    try:
+        document = json.loads(payload)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return payload
+    if not isinstance(document, dict):
+        return payload
+    for field in WORKING_TREE_FIELDS:
+        if field in document:
+            document[field] = None
+    return canonical_json(document)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--check", action="store_true")
@@ -546,7 +568,9 @@ def main() -> int:
     drift: list[str] = []
     for path, expected in outputs.items():
         if arguments.check:
-            if not path.exists() or path.read_bytes() != expected:
+            if not path.exists() or commit_bound_view(path.read_bytes()) != commit_bound_view(
+                expected
+            ):
                 drift.append(path.relative_to(ROOT).as_posix())
         else:
             path.parent.mkdir(parents=True, exist_ok=True)

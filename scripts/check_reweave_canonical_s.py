@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 
@@ -13,19 +14,24 @@ MANIFEST = ROOT / "machineresearch/sley-2.0/reweave/canonical-s-manifest.json"
 BOOTSTRAP = ROOT / "machineresearch/sley-2.0/reweave/bootstrap-manifest.json"
 CONSTRUCTOR = ROOT / "crates/sley-vm/tests/rw120_toolchain_integration/component.rs"
 HANDOFF = ROOT / "crates/sley-vm/tests/rw120_toolchain_integration/handoff.rs"
+# The binary whose test constructs S; every `#[path]` module it reaches is a
+# seed-constructor source and is bound below, so an edit to any of the codec,
+# checker, lowerer, or handoff sources cannot pass unnoticed.
+SEED_BINARY = ROOT / "crates/sley-vm/tests/rw120_toolchain_integration.rs"
+PATH_ATTRIBUTE = re.compile(r'^#\[path\s*=\s*"([^"]+)"\]\s*$', re.MULTILINE)
 
 EXPECTED = {
-    "state_root": "b1992814cfc2332215d65e1ede6a619fc2ebb8122b8105e5fc527ca8b10548c3",
-    "object_count": 18857,
-    "object_bytes": 4747089,
-    "object_bundle_sha256": "7e10c8a2474fd6d1aca295f025d06562197a061880343ec47802b196bcf48249",
-    "stored_root_bytes": 1244993,
-    "stored_root_sha256": "5fbcdf19be9761daa5dd3ccc617cdf00fdfb68d0ec6d43ad7ccf6cd59ed7bcef",
-    "function_count": 189,
-    "parameter_count": 8748,
-    "block_count": 3077,
-    "operation_count": 6146,
-    "constant_count": 676,
+    "state_root": "1d64fcd1298bbab91e8c42a1b673fba683e1a0e2075f560ecfc6aaf849e16c58",
+    "object_count": 20382,
+    "object_bytes": 5131018,
+    "object_bundle_sha256": "56b600b146130d8338d7b71defed705d6edab16d678f4ade9f630032fb742537",
+    "stored_root_bytes": 1345643,
+    "stored_root_sha256": "8191381eaedea2cbc7daffb16cc8fdc5adfa95bf389da3695e352507b3443eb5",
+    "function_count": 203,
+    "parameter_count": 9761,
+    "block_count": 3236,
+    "operation_count": 6492,
+    "constant_count": 669,
     "adapter_import_count": 4,
     "entry_point_count": 5,
 }
@@ -40,6 +46,28 @@ def load_json(path: Path) -> dict[str, object]:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         fail(f"cannot read {path.relative_to(ROOT)}: {error}")
+
+
+def seed_source_closure() -> list[Path]:
+    """Every source file the seed binary includes through `#[path]`, in a
+    deterministic order: the binary first, then the modules it names,
+    each followed by the modules that module names (depth first)."""
+    ordered: list[Path] = []
+    seen: set[Path] = set()
+
+    def visit(path: Path) -> None:
+        if path in seen:
+            return
+        if not path.is_file():
+            fail(f"seed source missing: {path.relative_to(ROOT)}")
+        seen.add(path)
+        ordered.append(path)
+        text = path.read_text(encoding="utf-8")
+        for relative in PATH_ATTRIBUTE.findall(text):
+            visit((path.parent / relative).resolve())
+
+    visit(SEED_BINARY.resolve())
+    return ordered
 
 
 def main() -> None:
@@ -61,16 +89,18 @@ def main() -> None:
     for source in (CONSTRUCTOR, HANDOFF):
         if not source.is_file():
             fail(f"missing seed constructor {source.relative_to(ROOT)}")
+    closure = seed_source_closure()
+    if CONSTRUCTOR not in closure or HANDOFF not in closure:
+        fail("seed binary no longer includes the component and handoff constructors")
     sources = manifest.get("seed_constructor_sources")
-    expected_sources = [
-        str(CONSTRUCTOR.relative_to(ROOT)),
-        str(HANDOFF.relative_to(ROOT)),
-    ]
+    expected_sources = [str(path.relative_to(ROOT)) for path in closure]
     if sources != expected_sources:
-        fail("seed constructor source list mismatch")
+        fail("seed constructor source list mismatch (the #[path] closure of the seed binary)")
     source_digest = hashlib.sha256()
-    for source in (CONSTRUCTOR, HANDOFF):
+    for source in closure:
+        source_digest.update(str(source.relative_to(ROOT)).encode("utf-8") + b"\0")
         source_digest.update(source.read_bytes())
+        source_digest.update(b"\0")
     if manifest.get("seed_constructor_sha256") != source_digest.hexdigest():
         fail("seed constructor digest mismatch")
 

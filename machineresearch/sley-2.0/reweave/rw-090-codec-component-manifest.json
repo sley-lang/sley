@@ -1,13 +1,13 @@
 {
   "schema": "sley2-rw090-codec-component-manifest-v1",
   "status": "PROVISIONAL",
-  "object_count": 13214,
-  "codec_object_count": 13202,
-  "codec_object_stored_bytes": 3347761,
-  "codec_bundle_sha256": "a46cf3de2c3ce96061c8ca8182671ae7e466770589545f84759d372b9ff1b187",
-  "state_root": "8c933ccab89b6e150e1070ad534b498dad736bd0ae689a5d30fc600084b2d78a",
-  "state_root_stored_bytes": 872421,
-  "state_root_stored_sha256": "5a0d017c85ea2846bdaece500b9963ca5f761a50ed7d73bb291ec2a970a1e289",
+  "object_count": 14739,
+  "codec_object_count": 14727,
+  "codec_object_stored_bytes": 3731690,
+  "codec_bundle_sha256": "e6633dcc886d970c823cd95d7c22a63a076066ce87b26b3188cd8799a1add291",
+  "state_root": "2958619ac0b70cbf4a33e14f26df7fdfe306d527c6f6adf31962bf75e31b7af8",
+  "state_root_stored_bytes": 973071,
+  "state_root_stored_sha256": "e39142274572c908ae5c7eb05f98dea31c8285f26c0ceb56e5f9bcfa4a65fbe1",
   "entry_point_identity": "EntityId::derive(workspace,candidate,16,5)",
   "contract_identity": "EntityId::derive(workspace,candidate,13,1)",
   "test_identity": "EntityId::derive(workspace,candidate,14,1)",
@@ -15,7 +15,7 @@
   "whole_codec_effect_validation": "OPEN_RHW1_BYTES_TO_BYTES_PROFILE_BOUNDARY",
   "canonical_state_root_s": false,
   "r2_ready": false,
-  "codec_generation": "arbitrary four-leg codec (both program legs judge arbitrary canonical bodies; codec re-mint 2026-09-18)",
+  "codec_generation": "arbitrary four-leg codec (codec re-mint 2026-09-18; review repairs of the 178873d7 round): both program legs judge arbitrary canonical bodies of all 18 entity kinds; selector 1 validates and re-frames handed body bytes and does not construct bodies from typed fields, which remains native",
   "superseded_bounded_component": {
     "object_count": 6233,
     "codec_object_count": 6221,
@@ -24,5 +24,46 @@
     "state_root": "87afab53ad6634ae0e169cbe767e641c292a363e7ba435808ce9be64ee36e555",
     "state_root_stored_bytes": 411675,
     "state_root_stored_sha256": "ea8ed0afe3a82d47dc91058196665be766b16733fbde4ea1fd94edb505292a2f"
+  },
+  "review_repairs": {
+    "round": "178873d7 (Ariadne REVISE_0_P0_0_P1_2_P2_4_P3_3_P4, Nabu REVISE_0_P0_1_P1_2_P2_3_P3_4_P4, Vulcan REVISE_0_P0_0_P1_1_P2_3_P3_2_P4; transcripts evidence/review/verdicts/rw090_arbitrary_codec/*-178873d.md)",
+    "kind_18_strict_route": "the canonical decode leg routes kind 18 through the outer decoder and the oracle-parity-tested strict DependencyBinding decoder (build_dependency_binding_decode_from_vector), so its refusals are the native SCB_* codes; the fixed 142-byte template decoder serves only the retained digest profile",
+    "native_depth_charging": "the recursive TypeExpr/ConstValue driver takes the native nesting depth of its root (per-site entries at native depths 2/3/5/6 for TypeExpr, 2..6 for ConstValue roots) and both child projectors report per-slot native container offsets plus the deepest mandatory container, so the 64-level bound is charged as sley-mutate charges it; pinned by arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site (Sley == native across the boundary at seven sites)",
+    "native_parity_mechanized": "every per-kind rejection case (kinds 4, 6-15) asserts the Sley code equals sley_mutate::import_entity_object on the same stored bytes (assert_native_body_parity); kinds 1, 2, 3, 5, 16, 17 and 18 gained canonical-entry refusal cases with the same parity (arbitrary_dispatch_refuses_identity_kind_boundaries_with_native_codes); the fixed-32 identity validator now distinguishes a short payload (SCB_LENGTH_OVERFLOW) from a long one (SCB_TRAILING_BYTES) as the native cursor does",
+    "encode_leg_unknown_kind": "selector 1 refuses kinds 0 and 19 with SSMC_ENTITY_KIND_UNKNOWN (arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies)",
+    "identity_reuse": "RW080-ID-02 candidate clarification filed in rw-080-contract.md section 6 (component re-mint replacement semantics); architecture acceptance pending"
+  },
+  "known_deviations": [
+    {
+      "id": "RW090-DEV-01",
+      "site": "TypeExpr nested inside a ConstValue (value_type of a nested node, type arguments of a FunctionRef constant)",
+      "deviation": "charged from the constant's root depth (value_type at 3, type arguments at 6 for a Constant body) rather than the nested node's own depth, because the shared child projector does not receive the node depth; deeper nodes therefore accept type chains up to (64 - 3) levels where the native codec refuses at (64 - node depth - 1)",
+      "direction": "fail-open at the nesting bound only for type expressions inside nested constant nodes; every other site is exact",
+      "pinned_by": "arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site (known-deviation block: 59 levels under one Sequence level accepted here, refused natively; 61 refused by both)",
+      "closure": "thread the node depth from the driver into the const projector's TypeExpr call"
+    },
+    {
+      "id": "RW090-DEV-02",
+      "site": "ConstValue map entries",
+      "deviation": "key order is checked on raw entry bytes before the key nodes are validated; the native decoder validates each entry first, so only the refusal code for an entry that is both malformed and misordered can differ (rw-090-const-value-recursive-decoder.md)",
+      "direction": "accepted set identical; refusal-code precedence differs in one double-fault case",
+      "pinned_by": "none (documented)",
+      "closure": "validate entries before the order check"
+    },
+    {
+      "id": "RW090-DEV-03",
+      "site": "declared-kind mismatch",
+      "deviation": "the dispatch refuses a body whose union tag differs from the declared kind with SCB_UNION_INVALID; the native codec has no declared kind and decodes the tag's kind",
+      "direction": "a dispatch precondition with no native counterpart, not a codec deviation",
+      "pinned_by": "the wrong_kind cases of every per-kind rejection test",
+      "closure": "none required"
+    }
+  ],
+  "resource_bound": {
+    "profile": "codec_profile_limits: 100000 instructions, 10000000 fuel, 100000000 value units, 10000000 output units",
+    "instruction_cost": "roughly 90 instructions per body byte (a 862-byte TestCase costs 73,591)",
+    "value_unit_bound": "identity-heavy bodies bind on the value-unit envelope first: a 1,750-byte Workspace (48 packages) terminates with ResourceLimit(ValueUnits) at 33,486 instructions; a 958-byte Workspace validates",
+    "outcome_when_exceeded": "a deterministic VM ResourceLimit termination, not a typed LIMIT value (rw-080-contract.md section 1.1 names typed exhaustion; this is an open profile decision recorded here, not silently)",
+    "pinned_by": "arbitrary_dispatch_over_budget_body_terminates_with_a_resource_limit"
   }
 }

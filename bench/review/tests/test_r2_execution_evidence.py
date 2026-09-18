@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'scripts'))
-from r2_execution_evidence import REQUIRED_INPUTS, REQUIRED_TESTS, lifecycle_output_problems, source_digest, test_output_problems
+from r2_execution_evidence import LIB_SUITES, REQUIRED_INPUTS, REQUIRED_TESTS, SUCCESSOR_SUITES, lifecycle_output_problems, source_digest, test_output_problems
 
 
 class LifecycleEvidence(unittest.TestCase):
@@ -43,6 +43,19 @@ class LifecycleEvidence(unittest.TestCase):
         self.assertEqual(test_output_problems(output, {'expected_refusal'}), [])
         self.assertTrue(test_output_problems(output.replace('... ok', '... FAILED'), {'expected_refusal'}))
         self.assertTrue(test_output_problems(output.replace('... ok', '... ignored'), {'expected_refusal'}))
+
+
+class BoundSuites(unittest.TestCase):
+    def test_the_sley_owned_ar05_replay_is_bound_by_the_gate(self):
+        # AR-05 closure evidence is the Sley-owned replay of the closure
+        # workloads through the v2 path with per-metric attribution; the
+        # gate binds it to the source digest like the Rust-driven suites,
+        # so a revision that regresses it cannot read READY (Nabu P3).
+        group = 'bootstrap_closure::closure_workloads_replay_through_v2_with_attribution'
+        self.assertIn(group, LIB_SUITES)
+        self.assertEqual(LIB_SUITES[group], {group})
+        self.assertIn('rw075_hydration_workloads', SUCCESSOR_SUITES)
+        self.assertIn('admission_authority::tests', LIB_SUITES)
 
 
 class SourceInventory(unittest.TestCase):

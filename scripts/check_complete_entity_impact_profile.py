@@ -148,8 +148,15 @@ def lock_packages() -> dict:
 
 
 def lock_reachable(root: str) -> set:
-    """Transitive dependency closure of one package over Cargo.lock."""
+    """Transitive dependency closure of one package over Cargo.lock.
+
+    The root must be present in the lock: an absent root (rename, drop) would
+    otherwise yield an empty closure and let the direction check pass
+    vacuously.
+    """
     packages = lock_packages()
+    if root not in packages:
+        raise KeyError(f"lock-root-absent:{root}")
     seen = {root}
     queue = [root]
     while queue:
@@ -256,9 +263,12 @@ def main() -> int:
         for forbidden in ("sley-store", "sley-mutate", "sley-policy"):
             if forbidden in manifest:
                 problems.append(f"dependency-direction:sley-query-depends-on-{forbidden}")
-        for forbidden in sorted(
-            lock_reachable("sley-query") & {"sley-store", "sley-mutate", "sley-policy"}
-        ):
+        try:
+            reachable = lock_reachable("sley-query")
+        except KeyError as error:
+            reachable = set()
+            problems.append(f"dependency-direction:{error.args[0]}")
+        for forbidden in sorted(reachable & {"sley-store", "sley-mutate", "sley-policy"}):
             problems.append(f"dependency-direction:transitive-sley-query-reaches-{forbidden}")
         if status == COMPLETE_STATUS:
             for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):

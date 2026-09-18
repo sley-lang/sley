@@ -23,16 +23,20 @@ re-mint would produce.)
 
 ## Evidence
 
-- 13,214 canonical objects (119 functions, 6,776 parameters, 1,972 blocks,
-  4,185 operations, 145 constants, four inherited adapter imports, one
+- 14,739 canonical objects (133 functions, 7,789 parameters, 2,131 blocks,
+  4,531 operations, 138 constants, four inherited adapter imports, one
   entry point, the contract, the test, and the workspace/package/namespace
-  spine), 3,350,895 stored object bytes, every one reimporting
-  byte-for-byte through `sley_mutate::import_entity_object` under the
-  registered source epoch;
+  spine), 14,727 codec objects in 3,731,690 stored bytes with ordered-bundle
+  SHA-256 `e6633dcc886d970c823cd95d7c22a63a076066ce87b26b3188cd8799a1add291`
+  (asserted by `canonical_codec_objects_round_trip_and_bind_the_complete_graph`),
+  every one reimporting byte-for-byte through
+  `sley_mutate::import_entity_object` under the registered source epoch
+  (figures after the 178873d7 Council repairs; the pre-review arbitrary
+  generation had 13,214 objects, 119 functions and root `8c933cca…`);
 - an accepted state root
-  `8c933ccab89b6e150e1070ad534b498dad736bd0ae689a5d30fc600084b2d78a`
-  (872,421 stored bytes, SHA-256
-  `5a0d017c85ea2846bdaece500b9963ca5f761a50ed7d73bb291ec2a970a1e289`)
+  `2958619ac0b70cbf4a33e14f26df7fdfe306d527c6f6adf31962bf75e31b7af8`
+  (973,071 stored bytes, SHA-256
+  `e39142274572c908ae5c7eb05f98dea31c8285f26c0ceb56e5f9bcfa4a65fbe1`)
   binding every object, reimporting through the frozen state-root
   registry;
 - the retained schema-decode contract and test validate against the

@@ -1,40 +1,40 @@
 {
   "schema": "sley2-reweave-c0-c1-seed-artifacts-v1",
   "status": "PRESERVED",
-  "source_commit": "e3a50ca7",
-  "canonical_s": "b1992814cfc2332215d65e1ede6a619fc2ebb8122b8105e5fc527ca8b10548c3",
+  "source_commit": "the commit carrying this manifest (the 2026-09-18 repair re-mint; bound by seed_source_binding, named in the records-only descendant)",
+  "canonical_s": "1d64fcd1298bbab91e8c42a1b673fba683e1a0e2075f560ecfc6aaf849e16c58",
   "profile": "BOOTSTRAP_PROFILE_2",
   "profile_digest": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
   "artifact_store": "/home/gfarch/machinelibrary/Sley2.0-artifacts/reweave",
   "C0": {
     "meaning": "preserved native Rust seed executable",
-    "relative_path": "C0/e3a50ca7/sley-c0-seed-linux-x86_64",
-    "sha256": "9c6c5b853e66672c41291d72b1407fd7f9affd510d596390088b4515c4b52389",
-    "bytes": 11355000,
+    "relative_path": "C0/afaa6bef/sley-c0-seed-linux-x86_64",
+    "sha256": "afaa6bef94f4f06b65c5eb3c3dbcb1549178b85641b223d2e443044c87ff06f0",
+    "bytes": 11494520,
     "format": "ELF 64-bit LSB PIE, x86-64, dynamically linked",
-    "build_id_sha1": "8973013be25c5880b5d5ec965ce6e7eccb5a2ae5",
+    "build_id_sha1": "8f347e696815087f12c6dca3ac7c6c7bb1c9a78b",
     "dynamic_dependencies": [
       "libgcc_s.so.1",
       "libc.so.6",
       "/lib64/ld-linux-x86-64.so.2"
     ],
-    "build_command": "cargo test --release -p sley-vm --test rw120_toolchain_integration --no-run --message-format=json",
+    "build_command": "cargo test --release -p sley-vm --test rw120_toolchain_integration --no-run --message-format=json (offline, -j 4, fresh CARGO_TARGET_DIR, detached clean worktree at /home/gfarch/Work/checkpoints/sley2-c0-mint)",
     "mode": "0555"
   },
   "C1_candidate": {
-    "meaning": "C0-produced Sley execution package for the complete retained 189-function toolchain closure (arbitrary codec)",
-    "relative_path": "C1/e3a50ca7/sley-c1-package.execpkg",
-    "sha256": "87db2921370298422d0c3b4dbd5b2fe28d9f3b93b07329ac4da7a1a2b0eb2f79",
-    "bytes": 809732,
+    "meaning": "C0-produced Sley execution package for the complete retained 203-function toolchain closure (arbitrary codec after the 178873d7 repairs)",
+    "relative_path": "C1/18d1264f/sley-c1-package.execpkg",
+    "sha256": "18d1264f8dd352c37305918feefca165fc789f8ec64136211ff92f730998484f",
+    "bytes": 860150,
     "format": "EXEC_PACKAGE_V2 envelope",
-    "image_sha256": "fb19ba9123ec0d862fde323034c3f98cdbac2927c5f010544030e40a8d8e6ae7",
-    "image_bytes": 766958,
-    "execution_package_digest": "4d3800996ca8eba63bda1c2a1e5fc10f3c8edad45ed12abc02148753e5637314",
-    "transitive_callees": 188,
-    "build_instruction_count": 24276433,
-    "build_fuel_used": 115671319,
-    "build_peak_value_units": 13958049818064,
-    "build_seconds": 180.85,
+    "image_sha256": "3e51ae323d69e7c287962834ebc7fa82dc47558fd81cd5e25487e71c84ee3189",
+    "image_bytes": 817286,
+    "execution_package_digest": "29cd6f2a4a5b3a1498b5958447a217367075fa68c3d7b7d8004980ee5443d3c8",
+    "transitive_callees": 202,
+    "build_instruction_count": 25881022,
+    "build_fuel_used": 123242045,
+    "build_peak_value_units": 15798780873178,
+    "build_seconds": 242.07,
     "mode": "0444"
   },
   "qualification": {
@@ -43,18 +43,18 @@
     "create_once_output": true,
     "native_seed_semantics_used": true,
     "official_c1": false,
-    "reason_official_c1_is_open": "the codec is now arbitrary on both program legs but the retained checker and lowerer still have bounded fact-fed semantic gaps, and RW-090 independent review is open, so the package is preserved as a C1 candidate until RW-090 review and RW-100 through RW-120 close"
+    "reason_official_c1_is_open": "the codec is arbitrary on both program legs (repaired after the 178873d7 Council round; re-review pending), but the retained checker and lowerer still have bounded fact-fed semantic gaps (RW-100, RW-110), so the package is preserved as a C1 candidate until RW-090 review and RW-100 through RW-120 close"
   },
   "superseded_candidate": {
-    "source_commit": "cf210232",
-    "canonical_s": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47",
+    "source_commit": "e3a50ca7",
+    "canonical_s": "b1992814cfc2332215d65e1ede6a619fc2ebb8122b8105e5fc527ca8b10548c3",
     "C0": {
       "meaning": "preserved native Rust seed executable",
-      "relative_path": "C0/cf210232/sley-c0-seed-linux-x86_64",
-      "sha256": "6bedd5148fa2a7dc10b03255ba7710816d593a26f6e593b376d73dc541176b6f",
-      "bytes": 9595016,
+      "relative_path": "C0/e3a50ca7/sley-c0-seed-linux-x86_64",
+      "sha256": "9c6c5b853e66672c41291d72b1407fd7f9affd510d596390088b4515c4b52389",
+      "bytes": 11355000,
       "format": "ELF 64-bit LSB PIE, x86-64, dynamically linked",
-      "build_id_sha1": "c00560e3373770b7219ebb9dfdca40c8c62481c8",
+      "build_id_sha1": "8973013be25c5880b5d5ec965ce6e7eccb5a2ae5",
       "dynamic_dependencies": [
         "libgcc_s.so.1",
         "libc.so.6",
@@ -64,21 +64,65 @@
       "mode": "0555"
     },
     "C1_candidate": {
-      "meaning": "C0-produced Sley execution package for the complete retained 101-function toolchain closure",
-      "relative_path": "C1/cf210232/sley-c1-package.execpkg",
-      "sha256": "a73fe4cf621826f490adbb50862d3104a99fba56ba06e1613fd52e1672ec865c",
-      "bytes": 533671,
+      "meaning": "C0-produced Sley execution package for the complete retained 189-function toolchain closure (arbitrary codec)",
+      "relative_path": "C1/e3a50ca7/sley-c1-package.execpkg",
+      "sha256": "87db2921370298422d0c3b4dbd5b2fe28d9f3b93b07329ac4da7a1a2b0eb2f79",
+      "bytes": 809732,
       "format": "EXEC_PACKAGE_V2 envelope",
-      "image_sha256": "dffdfbbd96585d92a1088f46597ec34bf2271248062a3a84437ba844302552c5",
-      "image_bytes": 491378,
-      "execution_package_digest": "d53bde8d226da2aee57bddeaf093464ef7cbd5f857916dee71aa085c5dcd60e1",
-      "transitive_callees": 100,
-      "build_instruction_count": 15480658,
-      "build_fuel_used": 74670072,
-      "build_peak_value_units": 6027165516738,
-      "build_seconds": 179.05,
+      "image_sha256": "fb19ba9123ec0d862fde323034c3f98cdbac2927c5f010544030e40a8d8e6ae7",
+      "image_bytes": 766958,
+      "execution_package_digest": "4d3800996ca8eba63bda1c2a1e5fc10f3c8edad45ed12abc02148753e5637314",
+      "transitive_callees": 188,
+      "build_instruction_count": 24276433,
+      "build_fuel_used": 115671319,
+      "build_peak_value_units": 13958049818064,
+      "build_seconds": 180.85,
       "mode": "0444"
     },
-    "note": "bounded-codec generation, artifacts retained read-only in the same store"
+    "note": "pre-review arbitrary-codec generation (2026-09-18, source commit e3a50ca7), artifacts retained read-only in the same store; replaced after the 178873d7 Council repairs under RW080-ID-02 replacement semantics"
+  },
+  "earlier_superseded_candidates": [
+    {
+      "source_commit": "cf210232",
+      "canonical_s": "4cbcd1eeea202d482895e70ec91f1e0d154c1b7599cc19d60cc6751e61ecfe47",
+      "C0": {
+        "meaning": "preserved native Rust seed executable",
+        "relative_path": "C0/cf210232/sley-c0-seed-linux-x86_64",
+        "sha256": "6bedd5148fa2a7dc10b03255ba7710816d593a26f6e593b376d73dc541176b6f",
+        "bytes": 9595016,
+        "format": "ELF 64-bit LSB PIE, x86-64, dynamically linked",
+        "build_id_sha1": "c00560e3373770b7219ebb9dfdca40c8c62481c8",
+        "dynamic_dependencies": [
+          "libgcc_s.so.1",
+          "libc.so.6",
+          "/lib64/ld-linux-x86-64.so.2"
+        ],
+        "build_command": "cargo test --release -p sley-vm --test rw120_toolchain_integration --no-run --message-format=json",
+        "mode": "0555"
+      },
+      "C1_candidate": {
+        "meaning": "C0-produced Sley execution package for the complete retained 101-function toolchain closure",
+        "relative_path": "C1/cf210232/sley-c1-package.execpkg",
+        "sha256": "a73fe4cf621826f490adbb50862d3104a99fba56ba06e1613fd52e1672ec865c",
+        "bytes": 533671,
+        "format": "EXEC_PACKAGE_V2 envelope",
+        "image_sha256": "dffdfbbd96585d92a1088f46597ec34bf2271248062a3a84437ba844302552c5",
+        "image_bytes": 491378,
+        "execution_package_digest": "d53bde8d226da2aee57bddeaf093464ef7cbd5f857916dee71aa085c5dcd60e1",
+        "transitive_callees": 100,
+        "build_instruction_count": 15480658,
+        "build_fuel_used": 74670072,
+        "build_peak_value_units": 6027165516738,
+        "build_seconds": 179.05,
+        "mode": "0444"
+      },
+      "note": "bounded-codec generation, artifacts retained read-only in the same store"
+    }
+  ],
+  "seed_source_binding": {
+    "seed_constructor_sha256": "acc5d4fd687de5290bda6c755a9d9eb215b653b72c6f37635bc749d50b2295eb",
+    "seed_constructor_sources": "canonical-s-manifest.json seed_constructor_sources (the #[path] closure of crates/sley-vm/tests/rw120_toolchain_integration.rs)",
+    "checker": "scripts/check_reweave_canonical_s.py",
+    "store_layout": "C0/<first 8 hex of the C0 SHA-256>/ and C1/<first 8 hex of the C1 SHA-256>/ (self-describing; earlier generations used the source commit id)"
   }
 }

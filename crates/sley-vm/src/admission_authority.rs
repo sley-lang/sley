@@ -300,8 +300,19 @@ pub struct SleyAdmissionEvidence {
     operation_count: u32,
     /// Gate bridge-use count claimed by the Sley admission program.
     bridge_uses: u32,
+    /// Closure fingerprints claimed by the Sley admission program (the
+    /// exact judged closure, per function, as the gate report carries).
+    closure_fingerprints: Vec<[u8; 32]>,
     /// SHA-256 digest of the reference image bytes (Sley-lowered).
     image_digest: [u8; 32],
+    /// Complete table digests the RW-080 contract section 1.6 names, all
+    /// computed by Sley over Sley-built bytes: constants, type layouts,
+    /// full import rows, globals, contracts.
+    constants_digest: [u8; 32],
+    layouts_digest: [u8; 32],
+    imports_digest: [u8; 32],
+    globals_digest: [u8; 32],
+    contracts_digest: [u8; 32],
 }
 
 /// Reserved post-C1 admission route: mint from Sley-produced evidence
@@ -403,7 +414,13 @@ mod tests {
             closure_digest: [0xA5; 32],
             operation_count: 1,
             bridge_uses: 0,
+            closure_fingerprints: vec![[0xA6; 32]],
             image_digest: [0x5A; 32],
+            constants_digest: [0x01; 32],
+            layouts_digest: [0x02; 32],
+            imports_digest: [0x03; 32],
+            globals_digest: [0x04; 32],
+            contracts_digest: [0x05; 32],
         };
         let package = ExecutionPackage {
             image_bytes: Vec::new(),

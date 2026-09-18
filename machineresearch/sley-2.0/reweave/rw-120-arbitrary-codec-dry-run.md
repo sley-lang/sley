@@ -45,8 +45,21 @@ cargo test -p sley-vm --test rw080_codec_program_outer
 The re-mint was executed the same day (source commit `e3a50ca7`): the release
 seed executable was built and preserved, its create-once qualification over
 the handoff `S` (`b1992814…`) emitted the preserved 809,732-byte C1 candidate,
-and the manifests and verifier now pin the new generation, with the bounded
-generation retained as superseded blocks and `bounded_*` tests.
+and the manifests and verifier pinned that generation.
 
-The checker and lowerer remain bounded; the codec is now arbitrary on both
-program legs. Independent review and acceptance are unchanged.
+Later the same day the 178873d7 Council round (three REVISE lanes) led to
+codec repairs — the strict kind-18 route on the canonical decode leg, native
+nesting-depth charging at every `TypeExpr`/`ConstValue` site, native-parity
+refusal tests for every kind, the fixed-32 trailing-byte parity — and a
+second re-mint: handoff `S` `1d64fcd1…` (203 functions, 9,761 parameters,
+3,236 blocks, 6,492 operations, 669 constants, 20,382 objects, 5,131,018
+bytes, bundle `56b600b1…`, stored root 1,345,643 bytes `8191381e…`), driver
+`S` `9533add0…` (203/9,760/3,234/6,488, 20,375 objects), merged component
+root `1751abdb…` (202/9,685/3,233/6,483, 20,292 objects). The figures in the
+table above are the pre-review arbitrary generation, superseded twice over
+(bounded → arbitrary → repaired arbitrary) under RW080-ID-02 replacement
+semantics; `rw-120-c0-c1-candidate.md` and the generation manifests carry the
+current values.
+
+The checker and lowerer remain bounded; the codec is arbitrary on both
+program legs. Independent re-review of the repairs is pending.

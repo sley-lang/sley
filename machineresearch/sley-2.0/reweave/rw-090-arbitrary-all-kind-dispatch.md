@@ -2,7 +2,7 @@
 
 Date: 2026-09-18
 
-Status: implemented integration slice; RW-090 remains open on codec_main and component re-derivation
+Status: SUPERSEDED as a status record (2026-09-18): `codec_main` was routed to this image, the canonical codec component was re-derived over it and canonical `S`/C0/C1 re-minted the same day (`rw-090-arbitrary-canonical-codec-objects.md`, `rw-120-c0-c1-candidate.md`); the 178873d7 Council round then replaced the kind-18 route with the strict decoder and made depth charging native (`rw-090-codec-component-manifest.json` `review_repairs`), so the measurements below describe the pre-review image. RW-090 remains open on independent review only.
 
 ## Result
 
@@ -68,13 +68,27 @@ cargo test -p sley-vm --test rw080_codec_program_outer
 cargo clippy -p sley-vm --test rw120_toolchain_integration -- -D warnings
 ```
 
-## Remaining for RW-090
+## Remaining for RW-090 (as of 2026-09-18, after the re-mint)
 
-- Route `codec_main` selector 0 to the arbitrary image and re-derive the
-  canonical codec component (`rw-090-canonical-codec-objects.md`) and its
-  manifest over the larger closure.
-- The program encode leg (selector 1) remains the bounded witness emitter.
-- Instruction cost near 90 per body byte bounds a single decode to roughly
-  1.1 KiB of body under the current profile; larger objects need either a
-  profile decision or cheaper byte handling.
-- Independent review and acceptance are unchanged.
+- Routing `codec_main` selector 0 to this image and re-deriving the canonical
+  codec component: done (`rw-090-arbitrary-canonical-codec-objects.md`).
+- The program encode leg (selector 1) validates and re-frames the canonical
+  body bytes it is handed for every kind (`rw-090-arbitrary-codec-main.md`);
+  it does not construct bodies from typed fields, which remains native.
+- Resource bound: instruction cost near 90 per body byte and the value-unit
+  envelope bound a single decode under `codec_profile_limits` (100,000
+  instructions, 100,000,000 value units); an identity-heavy 1,750-byte
+  Workspace terminates with the VM's value-unit limit at 33,486
+  instructions, instruction-heavy bodies with the instruction limit near
+  1.1 KiB. Pinned by
+  `arbitrary_dispatch_over_budget_body_terminates_with_a_resource_limit`
+  and disclosed in `rw-090-codec-component-manifest.json` `resource_bound`.
+- Refusal parity is mechanized: every per-kind rejection case for kinds
+  4, 6–15 and the identity kinds 1, 2, 3, 5, 16, 17, 18 asserts the Sley
+  code equals `sley_mutate::import_entity_object` on the same stored bytes
+  (`assert_native_body_parity`,
+  `arbitrary_dispatch_refuses_identity_kind_boundaries_with_native_codes`);
+  the one case without a native counterpart is the declared-kind mismatch,
+  a dispatch precondition the native codec cannot express.
+- Independent review: 178873d7 round REVISE in all three lanes; repairs
+  landed, re-review pending (machine summary `rw090_arbitrary_codec`).

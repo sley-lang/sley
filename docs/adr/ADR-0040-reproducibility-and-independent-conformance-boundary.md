@@ -1,12 +1,12 @@
 # ADR-0040: reproducibility attestations and independent conformance as derived evidence
 
-Status: proposed; the S20-730 contract is a draft at revision 9 with
+Status: proposed; the S20-730 contract is a draft at revision 10 with
 Council review pending; mechanics implemented (2026-09-03, revised
 2026-09-05) with a single-host reproducibility report, a tracked
 independent conformance report with coverage depths, and `release-check`
 still fail-closed
 
-Note (revision 7, 2026-09-15): the single-host wording in this ADR is historical; the tracked report has carried a second-host attestation minted through the contract's section 5.1 runbook since `6a2eef7`, and decision 1's "names the gated second host" describes the single-host case only.
+Note (revision 7, 2026-09-15; reworded at revision 10): the tracked report carried a second-host attestation minted through the contract's section 5.1 runbook between `6a2eef7` and `22970457`; the re-mint at a7852028 is single-host again, so the current state is the tracked report, and decision 1's "names the gated second host" describes the single-host case.
 
 Note (revision 8, 2026-09-15): host builds use `release-candidate-build`; merge receipts live in the records-only ledger `evidence/release/second-host-lane-records.json`, with retained attestation bytes and checked merge history. Verification follows the merge.
 
@@ -69,3 +69,5 @@ soon as a lane returns.
   attested commit must be an ancestor of the filing HEAD with no
   artifact-surface file changed since (revision 3): the report cannot
   silently drop another host or present an old candidate as current.
+
+Note (revision 10, 2026-09-18): a re-mint carries forward only attestations of the commit it re-attests; attestations of a superseded commit are listed as `superseded_attestations` in the report, never carried onto the new candidate and never dropped silently. The `exec-package-envelope` family's `v2` pin is named in section 3.

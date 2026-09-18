@@ -1095,14 +1095,24 @@ fn canonical_codec_objects_round_trip_and_bind_the_complete_graph() {
         hasher.update(object.stored_bytes());
     }
     let digest: [u8; 32] = hasher.finalize().into();
+    let stored_bytes = objects
+        .iter()
+        .map(|object| object.stored_bytes().len())
+        .sum::<usize>();
     eprintln!(
         "RW090_CANONICAL_CODEC objects={} stored_bytes={} bundle_sha256={}",
         objects.len(),
-        objects
-            .iter()
-            .map(|object| object.stored_bytes().len())
-            .sum::<usize>(),
+        stored_bytes,
         hex(&digest),
+    );
+    // Pinned so the component manifest's figures are asserted, not only
+    // printed (Ariadne P4 at 178873d7): rw-090-codec-component-manifest.json
+    // codec_object_count / codec_object_stored_bytes / codec_bundle_sha256.
+    assert_eq!(objects.len(), 14_727);
+    assert_eq!(stored_bytes, 3_731_690);
+    assert_eq!(
+        hex(&digest),
+        "e6633dcc886d970c823cd95d7c22a63a076066ce87b26b3188cd8799a1add291"
     );
 }
 
@@ -1192,15 +1202,15 @@ fn canonical_codec_component_retains_validated_contract_test_and_executes_from_i
     let objects = canonical_codec_component_objects(&image, &witnesses);
     let root = canonical_codec_component_root(&objects);
     let stored_digest = assert_component_reimports(&objects, &root);
-    assert_eq!(objects.len(), 13_214);
+    assert_eq!(objects.len(), 14_739);
     assert_eq!(
         hex(root.root.as_bytes()),
-        "8c933ccab89b6e150e1070ad534b498dad736bd0ae689a5d30fc600084b2d78a"
+        "2958619ac0b70cbf4a33e14f26df7fdfe306d527c6f6adf31962bf75e31b7af8"
     );
-    assert_eq!(root.stored_bytes.len(), 872_421);
+    assert_eq!(root.stored_bytes.len(), 973_071);
     assert_eq!(
         hex(&stored_digest),
-        "5a0d017c85ea2846bdaece500b9963ca5f761a50ed7d73bb291ec2a970a1e289"
+        "e39142274572c908ae5c7eb05f98dea31c8285f26c0ceb56e5f9bcfa4a65fbe1"
     );
     validate_retained_schema_test(&schema_image, &witnesses, schema_decode);
 

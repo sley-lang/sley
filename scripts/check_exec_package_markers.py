@@ -128,9 +128,26 @@ for marker in [
     "AUTHORITY_REFERENCE_MISMATCH",
     "AUTHORITY_GATE_REFUSED",
     "pub enum AuthorityError",
+    # The reserved post-C1 ingress shape carries exactly the handoff the
+    # RW-080 contract section 1.6 names (judged-closure digest, gate counts
+    # and fingerprints, reference-image digest, complete table digests);
+    # every field is private and the struct is sealed.
+    "pub struct SleyAdmissionEvidence",
+    "    closure_digest: [u8; 32],",
+    "    operation_count: u32,",
+    "    bridge_uses: u32,",
+    "    closure_fingerprints: Vec<[u8; 32]>,",
+    "    image_digest: [u8; 32],",
+    "    constants_digest: [u8; 32],",
+    "    layouts_digest: [u8; 32],",
+    "    imports_digest: [u8; 32],",
+    "    globals_digest: [u8; 32],",
+    "    contracts_digest: [u8; 32],",
 ]:
     if marker not in authority_rs:
         problems.append(f"authority-rs-missing:{marker}")
+if "pub fn sley_admission_evidence(" in authority_rs or "impl SleyAdmissionEvidence" in authority_rs:
+    problems.append("authority-rs-forbidden:evidence-constructor")
 lib_rs = LIB_RS.read_text(encoding="utf-8")
 if "pub mod admission_authority;" not in lib_rs:
     problems.append("lib-module-missing:admission_authority")

@@ -172,7 +172,7 @@ pub enum EntityReadBody<'a> {
 /// The caller binds this revision to the live session root before entry; it
 /// names the bound root facts plus the bindings and tombstones. Objects are
 /// never carried here: the caller supplies them one index at a time through
-/// the `object_at` lookup, so the owner touches only the selected indices
+/// the `view_at` lookup, so the owner touches only the selected indices
 /// and builds no root-wide view.
 #[derive(Clone, Copy, Debug)]
 pub struct EntityReadRevision<'a> {
@@ -469,12 +469,13 @@ pub fn prepare_entity_read<'a, Ctx: Copy>(
 /// `work_units - 1` reservation succeed, so no output allocation precedes
 /// either gate. Capture consumes the held views instead of re-resolving
 /// through the lookup: the bytes cannot drift between selection and
-/// capture, and the surviving identity checks re-pin each view to the
-/// revision the selection was bound under.
+/// capture. The identity checks ran once at selection, against the
+/// revision the selection was bound under; only the byte-ceiling check is
+/// repeated here, over the exact bytes the plan copies out.
 ///
 /// # Errors
 ///
-/// Returns the first failing byte-ceiling or identity check. A failure here
+/// Returns the first failing byte-ceiling check. A failure here
 /// is an unexpected post-reservation failure: the caller retains the
 /// complete debit and returns no object bytes.
 pub fn capture_entity_read_selection(

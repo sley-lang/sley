@@ -166,6 +166,36 @@ class ReproducibilityTests(unittest.TestCase):
         carried = repro.carried_attestations(tracked, {"primary"})
         self.assertEqual([item["host_label"] for item in carried], ["secondary"])
 
+    def test_a_re_mint_supersedes_attestations_of_another_commit(self) -> None:
+        local = repro.local_attestation("primary", self.write_evidence())
+        tracked = self.write_tracked(
+            [local, self.other_attestation("secondary", "c" * 40, "d" * 64)]
+        )
+        superseded: list[dict] = []
+        carried = repro.carried_attestations(tracked, {"primary"}, local["commit"], superseded)
+        self.assertEqual(carried, [])
+        self.assertEqual(
+            superseded,
+            [
+                {
+                    "host_label": "secondary",
+                    "commit": "c" * 40,
+                    "artifact_sha256": "d" * 64,
+                    "reason": "attests a commit the re-mint superseded",
+                }
+            ],
+        )
+        report = repro.build_report([local], superseded)
+        self.assertEqual(report["distinct_hosts"], 1)
+        self.assertEqual(report["superseded_attestations"], superseded)
+        # The same commit's other host is still carried.
+        same = self.other_attestation("secondary", local["commit"], local["artifact_sha256"])
+        tracked = self.write_tracked([local, same])
+        superseded = []
+        carried = repro.carried_attestations(tracked, {"primary"}, local["commit"], superseded)
+        self.assertEqual([item["host_label"] for item in carried], ["secondary"])
+        self.assertEqual(superseded, [])
+
     def test_the_fresh_local_label_supersedes_its_tracked_attestation(self) -> None:
         tracked = self.write_tracked(
             [self.other_attestation("primary", "c" * 40, "d" * 64)]
@@ -586,6 +616,7 @@ class CoverageDepthTests(unittest.TestCase):
         # cannot pass vacuously.
         self.assertIn("docs/spec/SSMC1_EPOCH1_SCHEMA.txt", embedded)
         self.assertIn("conformance/smp1-json-bridge/v2/methods.json", embedded)
+        self.assertIn("conformance/smp1-json-bridge/v3/methods.json", embedded)
         for path in sorted(embedded):
             self.assertIn(path, tracked, f"embedded input {path} is not tracked")
             self.assertTrue(

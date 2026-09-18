@@ -529,6 +529,17 @@ fn build_all_kind_program_decode(
         vec![TypeExpr::Bool],
         Immediate::None,
     );
+    // Under the digest profile kind 18 is the fixed-shape supported program
+    // and bypasses the outer decoder; under the schema profile it is decoded
+    // like every other kind (outer record, then the strict body decoder), so
+    // its refusals are the native SCB_* codes rather than a shape mismatch.
+    let dependency_edge = match body_check {
+        BodyCheck::Digest(_) => edge(call_dependency, vec![pav(payload), pav(envelope_unit)]),
+        BodyCheck::Schema(_) => edge(
+            call_outer,
+            vec![pav(payload), pav(kind), pav(envelope_unit)],
+        ),
+    };
     append_block(
         assembler,
         envelope_ok,
@@ -537,7 +548,7 @@ fn build_all_kind_program_decode(
         vec![dependency_kind, is_dependency],
         cond(
             op_result(is_dependency),
-            edge(call_dependency, vec![pav(payload), pav(envelope_unit)]),
+            dependency_edge,
             edge(
                 check_known,
                 vec![pav(payload), pav(kind), pav(envelope_unit)],
@@ -685,11 +696,55 @@ fn build_all_kind_program_decode(
             );
         }
         BodyCheck::Schema(body_checker) => {
-            let valid = assembler.op(
+            let schema_check = assembler.id(ns.b);
+            let strict_dependency = assembler.id(ns.b);
+            let return_dependency = assembler.id(ns.b);
+            let outer_dependency_kind =
+                assembler.cref(ns.o, outer_ok, dependency_constant, u64_type());
+            let outer_is_dependency = assembler.op(
                 ns.o,
                 outer_ok,
+                Opcode::Equal,
+                vec![pav(checked_kind), op_result(outer_dependency_kind)],
+                vec![TypeExpr::Bool],
+                Immediate::None,
+            );
+            append_block(
+                assembler,
+                outer_ok,
+                function,
+                vec![outer_tuple, checked_kind, checked_unit],
+                vec![entity, body, outer_dependency_kind, outer_is_dependency],
+                cond(
+                    op_result(outer_is_dependency),
+                    edge(
+                        strict_dependency,
+                        vec![op_result(entity), op_result(body), pav(checked_unit)],
+                    ),
+                    edge(
+                        schema_check,
+                        vec![
+                            pav(checked_kind),
+                            op_result(entity),
+                            op_result(body),
+                            pav(checked_unit),
+                        ],
+                    ),
+                ),
+            );
+
+            let schema_kind = assembler.param(ns.p, schema_check, ParameterRole::Block, u64_type());
+            let schema_entity =
+                assembler.param(ns.p, schema_check, ParameterRole::Block, TypeExpr::Bytes);
+            let schema_body =
+                assembler.param(ns.p, schema_check, ParameterRole::Block, TypeExpr::Bytes);
+            let schema_unit =
+                assembler.param(ns.p, schema_check, ParameterRole::Block, TypeExpr::Unit);
+            let valid = assembler.op(
+                ns.o,
+                schema_check,
                 Opcode::CallDirect,
-                vec![pav(checked_kind), op_result(body), pav(checked_unit)],
+                vec![pav(schema_kind), pav(schema_body), pav(schema_unit)],
                 vec![TypeExpr::Result {
                     ok: Box::new(TypeExpr::Unit),
                     error: Box::new(TypeExpr::Bytes),
@@ -701,17 +756,17 @@ fn build_all_kind_program_decode(
             );
             append_block(
                 assembler,
-                outer_ok,
+                schema_check,
                 function,
-                vec![outer_tuple, checked_kind, checked_unit],
-                vec![entity, body, valid],
+                vec![schema_kind, schema_entity, schema_body, schema_unit],
+                vec![valid],
                 switch(
                     op_result(valid),
                     vec![
                         (
                             BuiltinCase::Ok,
                             return_generic,
-                            vec![sav(checked_kind), oav(entity), oav(body)],
+                            vec![sav(schema_kind), sav(schema_entity), sav(schema_body)],
                         ),
                         (
                             BuiltinCase::Err,
@@ -720,6 +775,129 @@ fn build_all_kind_program_decode(
                         ),
                     ],
                 ),
+            );
+
+            // The strict kind-18 body decoder (oracle-parity tested) yields
+            // the three fixed identities; the supported-program tuple keeps
+            // the digest profile's field positions.
+            let strict_entity = assembler.param(
+                ns.p,
+                strict_dependency,
+                ParameterRole::Block,
+                TypeExpr::Bytes,
+            );
+            let strict_body = assembler.param(
+                ns.p,
+                strict_dependency,
+                ParameterRole::Block,
+                TypeExpr::Bytes,
+            );
+            let strict_unit = assembler.param(
+                ns.p,
+                strict_dependency,
+                ParameterRole::Block,
+                TypeExpr::Unit,
+            );
+            let strict = assembler.op(
+                ns.o,
+                strict_dependency,
+                Opcode::CallDirect,
+                vec![pav(strict_body), pav(strict_unit)],
+                vec![super::dependency_binding_decode::dependency_decode_result_type()],
+                Immediate::Function(FunctionRefValue {
+                    function: dependency_decoder,
+                    type_arguments: Vec::new(),
+                }),
+            );
+            append_block(
+                assembler,
+                strict_dependency,
+                function,
+                vec![strict_entity, strict_body, strict_unit],
+                vec![strict],
+                switch(
+                    op_result(strict),
+                    vec![
+                        (
+                            BuiltinCase::Ok,
+                            return_dependency,
+                            vec![sav(strict_entity), SwitchArgument::CasePayload],
+                        ),
+                        (
+                            BuiltinCase::Err,
+                            forward_error,
+                            vec![SwitchArgument::CasePayload],
+                        ),
+                    ],
+                ),
+            );
+
+            let dependency_entity = assembler.param(
+                ns.p,
+                return_dependency,
+                ParameterRole::Block,
+                TypeExpr::Bytes,
+            );
+            let dependency_fields = assembler.param(
+                ns.p,
+                return_dependency,
+                ParameterRole::Block,
+                TypeExpr::Tuple(vec![TypeExpr::Bytes, TypeExpr::Bytes, TypeExpr::Bytes]),
+            );
+            let dependency_kind_value =
+                assembler.cref(ns.o, return_dependency, dependency_constant, u64_type());
+            let dependency_zero =
+                assembler.cref(ns.o, return_dependency, zero_constant, u64_type());
+            let field_ops: Vec<EntityId> = (0..3)
+                .map(|index| {
+                    assembler.op(
+                        ns.o,
+                        return_dependency,
+                        Opcode::TupleGet,
+                        vec![pav(dependency_fields)],
+                        vec![TypeExpr::Bytes],
+                        Immediate::Index(index),
+                    )
+                })
+                .collect();
+            let dependency_value = assembler.op(
+                ns.o,
+                return_dependency,
+                Opcode::TupleNew,
+                vec![
+                    op_result(dependency_kind_value),
+                    pav(dependency_entity),
+                    op_result(field_ops[0]),
+                    op_result(field_ops[1]),
+                    op_result(field_ops[2]),
+                    op_result(dependency_zero),
+                ],
+                vec![super::supported_dispatch::all_supported_program_value_type()],
+                Immediate::None,
+            );
+            let dependency_ok = assembler.op(
+                ns.o,
+                return_dependency,
+                Opcode::ResultOk,
+                vec![op_result(dependency_value)],
+                vec![result_type.clone()],
+                Immediate::None,
+            );
+            append_block(
+                assembler,
+                return_dependency,
+                function,
+                vec![dependency_entity, dependency_fields],
+                vec![
+                    dependency_kind_value,
+                    dependency_zero,
+                    field_ops[0],
+                    field_ops[1],
+                    field_ops[2],
+                    dependency_value,
+                    dependency_ok,
+                ],
+                ret(op_result(dependency_ok)),
             );
         }
     }
@@ -762,29 +940,31 @@ fn build_all_kind_program_decode(
         ret(op_result(ok)),
     );
 
-    let dependency_payload =
-        assembler.param(ns.p, call_dependency, ParameterRole::Block, TypeExpr::Bytes);
-    let dependency_unit =
-        assembler.param(ns.p, call_dependency, ParameterRole::Block, TypeExpr::Unit);
-    let dependency = assembler.op(
-        ns.o,
-        call_dependency,
-        Opcode::CallDirect,
-        vec![pav(dependency_payload), pav(dependency_unit)],
-        vec![result_type.clone()],
-        Immediate::Function(FunctionRefValue {
-            function: dependency_decoder,
-            type_arguments: Vec::new(),
-        }),
-    );
-    append_block(
-        assembler,
-        call_dependency,
-        function,
-        vec![dependency_payload, dependency_unit],
-        vec![dependency],
-        ret(op_result(dependency)),
-    );
+    if matches!(body_check, BodyCheck::Digest(_)) {
+        let dependency_payload =
+            assembler.param(ns.p, call_dependency, ParameterRole::Block, TypeExpr::Bytes);
+        let dependency_unit =
+            assembler.param(ns.p, call_dependency, ParameterRole::Block, TypeExpr::Unit);
+        let dependency = assembler.op(
+            ns.o,
+            call_dependency,
+            Opcode::CallDirect,
+            vec![pav(dependency_payload), pav(dependency_unit)],
+            vec![result_type.clone()],
+            Immediate::Function(FunctionRefValue {
+                function: dependency_decoder,
+                type_arguments: Vec::new(),
+            }),
+        );
+        append_block(
+            assembler,
+            call_dependency,
+            function,
+            vec![dependency_payload, dependency_unit],
+            vec![dependency],
+            ret(op_result(dependency)),
+        );
+    }
 
     let forwarded = assembler.param(ns.p, forward_error, ParameterRole::Block, TypeExpr::Bytes);
     let error = assembler.op(
@@ -956,6 +1136,7 @@ pub(super) fn all_kind_decode_image() -> Image {
 /// identity namespace `12`, and the composer's `234..=237` with identity
 /// namespace `16`), and takes identity namespace `13`, so the same image
 /// merges into `codec_main` unchanged.
+#[allow(clippy::too_many_lines)]
 pub(super) fn arbitrary_all_kind_decode_image() -> Image {
     let mut assembler = Asm::new();
     let root = eid(14, 1);
@@ -996,8 +1177,12 @@ pub(super) fn arbitrary_all_kind_decode_image() -> Image {
         outer,
         uvar,
     );
-    let dependency_graph =
-        super::dependency_binding_decode::build_dependency_supported_program_decode(
+    // Kind 18 uses the strict, oracle-parity-tested body decoder: the
+    // vector core in namespace 150..=153 and the bytes wrapper in the
+    // namespace the fixed-shape decoder used to occupy.
+    let dependency_core = eid(14, 7);
+    let dependency_core_graph =
+        super::dependency_binding_decode::build_dependency_binding_decode_from_vector(
             &mut assembler,
             Ns {
                 k: 150,
@@ -1005,8 +1190,20 @@ pub(super) fn arbitrary_all_kind_decode_image() -> Image {
                 b: 152,
                 o: 153,
             },
-            dependency,
+            dependency_core,
+            uvar,
         );
+    let dependency_graph = super::dependency_binding_decode::build_dependency_binding_decode(
+        &mut assembler,
+        Ns {
+            k: 154,
+            p: 155,
+            b: 156,
+            o: 157,
+        },
+        dependency,
+        dependency_core,
+    );
     let root_graph = build_all_kind_program_decode(
         &mut assembler,
         Ns {
@@ -1024,12 +1221,13 @@ pub(super) fn arbitrary_all_kind_decode_image() -> Image {
     let schema_graphs = super::dependency_binding_decode::build_arbitrary_schema_body_check(
         &mut assembler,
         checker,
-        vec![0..=88, 92..=95, 130..=153, 226..=237],
+        vec![0..=88, 92..=95, 130..=157, 226..=237],
         13,
     );
     let mut functions = vec![
         root_graph.clone(),
         dependency_graph,
+        dependency_core_graph,
         validate_graph,
         outer_graph,
         uvar_graph,
@@ -1276,8 +1474,9 @@ pub(super) fn arbitrary_program_legs_image() -> ProgramLegs {
         outer,
         uvar,
     );
-    let dependency_decode_graph =
-        super::dependency_binding_decode::build_dependency_supported_program_decode(
+    let dependency_core = eid(14, 7);
+    let dependency_core_graph =
+        super::dependency_binding_decode::build_dependency_binding_decode_from_vector(
             &mut assembler,
             Ns {
                 k: 150,
@@ -1285,8 +1484,20 @@ pub(super) fn arbitrary_program_legs_image() -> ProgramLegs {
                 b: 152,
                 o: 153,
             },
-            dependency_decode,
+            dependency_core,
+            uvar,
         );
+    let dependency_decode_graph = super::dependency_binding_decode::build_dependency_binding_decode(
+        &mut assembler,
+        Ns {
+            k: 154,
+            p: 155,
+            b: 156,
+            o: 157,
+        },
+        dependency_decode,
+        dependency_core,
+    );
     let decode_root_graph = build_all_kind_program_decode(
         &mut assembler,
         Ns {
@@ -1354,7 +1565,7 @@ pub(super) fn arbitrary_program_legs_image() -> ProgramLegs {
     let schema_graphs = super::dependency_binding_decode::build_arbitrary_schema_body_check(
         &mut assembler,
         checker,
-        vec![0..=26, 92..=95, 130..=153, 226..=237],
+        vec![0..=26, 92..=95, 130..=157, 226..=237],
         13,
     );
     let mut functions = vec![
@@ -1368,6 +1579,7 @@ pub(super) fn arbitrary_program_legs_image() -> ProgramLegs {
         dependency_encode_graph,
         octet_getter_graph,
         dependency_decode_graph,
+        dependency_core_graph,
         validate_graph,
         outer_graph,
         uvar_graph,

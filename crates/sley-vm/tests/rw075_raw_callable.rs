@@ -586,6 +586,78 @@ fn raw_successor_package_binds_and_mismatches_refuse() {
     );
 }
 
+/// AR-08 residual (Nabu P3 at 178873d7): the v1 approval record is a
+/// public, literal-constructible struct, so a hand-built v1 approval that
+/// carries the `RHW1` import row must still be refused by the v1 execution
+/// path itself; the version-specific allowlist is not only an admission pin.
+#[test]
+fn v1_execution_refuses_a_hand_built_approval_carrying_rhw1() {
+    use sley_vm::{ApprovedExecutionPackage, ExecutionPackage, execute_approved_package};
+    let program = BridgeProgram::new(vec![frozen_rhw1()]);
+    let lowered = lower_function(program.lowering_input()).expect("successor lowers");
+    let limits = generous_limits();
+    let package = ExecutionPackage {
+        image_bytes: lowered.bytes.clone(),
+        constants: Vec::new(),
+        type_definitions: Vec::new(),
+        imports: program.adapters.clone(),
+        globals: Vec::new(),
+        contracts: Vec::new(),
+        entry: program.entry.entity_id,
+        schema_epoch: epoch(),
+        state_root: root(),
+        profile: CacheProfile::EXTENDED_V1,
+        admitted_limits: limits,
+        gate_operation_count: 0,
+        gate_bridge_uses: 0,
+        gate_closure_fingerprints: Vec::new(),
+    };
+    let digests = sley_vm::package_digests(&package).expect("v1 digests");
+    let loaded = sley_vm::host_abi::load_image(&package.image_bytes).expect("image loads");
+    let cache_key = sley_vm::derive_cache_key(
+        package.schema_epoch,
+        package.state_root,
+        loaded.entry.function,
+        package.profile,
+    )
+    .expect("cache key derives");
+    // A literal approval that agrees with every v1 binding, minted by no
+    // authority: the only thing wrong with it is the raw-hash row.
+    let forged = ApprovedExecutionPackage {
+        package_digest: digests.package_digest,
+        image_digest: digests.image_digest,
+        constants_digest: digests.constants_digest,
+        layouts_digest: digests.layouts_digest,
+        imports_digest: digests.imports_digest,
+        dependency_digest: digests.dependency_digest,
+        cache_key,
+        imports: package.imports.clone(),
+        entry: package.entry,
+        schema_epoch: package.schema_epoch,
+        state_root: package.state_root,
+        profile: package.profile,
+        profile_digest: sley_vm::BOOTSTRAP_PROFILE_1_DIGEST,
+        vm_version: package.profile.vm_version,
+        host_abi_version: sley_vm::host_abi::HOST_ABI_VERSION,
+        admitted_limits: limits,
+        receipt: sley_vm::admit_package(digests.package_digest),
+    };
+    let refused = execute_approved_package(
+        &package,
+        &forged,
+        ExecutionRequest {
+            inputs: vec![unit_value(), bytes_value(b"package preimage")],
+            limits,
+        },
+    );
+    match refused {
+        Err(sley_vm::PackageExecutionError::Package(code)) => {
+            assert_eq!(code.as_str(), "PACKAGE_BINDING_MISMATCH");
+        }
+        other => panic!("v1 execution must refuse a carried RHW1 row, got {other:?}"),
+    }
+}
+
 // ── Staged v2 admission authority (graph-to-image correspondence) ───
 //
 // The host path verifies byte-hash equality but cannot prove the package

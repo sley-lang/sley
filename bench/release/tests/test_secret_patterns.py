@@ -80,3 +80,27 @@ class SecretPatternTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CommitBoundViewTests(unittest.TestCase):
+    """`--check` compares the tracked T54 record with its working-tree-only
+    counters masked: an untracked non-ignored file must not read as drift
+    of the commit-bound record (Ariadne P3 / Nabu P4 at 178873d7)."""
+
+    def test_untracked_counters_are_masked_for_comparison(self) -> None:
+        tracked = supply.canonical_json(
+            {"a": 1, "untracked_bytes_scanned": 0, "untracked_files_scanned": 0}
+        )
+        working = supply.canonical_json(
+            {"a": 1, "untracked_bytes_scanned": 288_875, "untracked_files_scanned": 19}
+        )
+        self.assertNotEqual(tracked, working)
+        self.assertEqual(supply.commit_bound_view(tracked), supply.commit_bound_view(working))
+
+    def test_commit_bound_fields_still_drift(self) -> None:
+        tracked = supply.canonical_json({"candidate_file_manifest_sha256": "a" * 64})
+        working = supply.canonical_json({"candidate_file_manifest_sha256": "b" * 64})
+        self.assertNotEqual(supply.commit_bound_view(tracked), supply.commit_bound_view(working))
+
+    def test_non_json_payloads_compare_byte_for_byte(self) -> None:
+        self.assertEqual(supply.commit_bound_view(b"not json"), b"not json")

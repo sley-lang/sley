@@ -752,19 +752,19 @@ fn arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies() {
         package.image_bytes.len(),
         approved.package_digest,
     );
-    assert_eq!(image.functions.len(), 119);
-    assert_eq!(image.parameters.len(), 6_776);
-    assert_eq!(image.blocks.len(), 1_972);
-    assert_eq!(image.operations.len(), 4_185);
-    assert_eq!(image.constants.len(), 145);
+    assert_eq!(image.functions.len(), 133);
+    assert_eq!(image.parameters.len(), 7_789);
+    assert_eq!(image.blocks.len(), 2_131);
+    assert_eq!(image.operations.len(), 4_531);
+    assert_eq!(image.constants.len(), 138);
     assert_eq!(image.adapters.len(), 4);
-    assert_eq!(package.image_bytes.len(), 518_352);
+    assert_eq!(package.image_bytes.len(), 568_680);
     assert_eq!(
         approved.package_digest,
         [
-            0x1d, 0x57, 0xab, 0xa7, 0xf4, 0xce, 0xee, 0x74, 0x4e, 0x7c, 0x19, 0x18, 0x36, 0x99,
-            0xf2, 0x36, 0xaa, 0xbd, 0xca, 0x1f, 0xa9, 0xe6, 0x8f, 0xe7, 0x34, 0x08, 0xa0, 0xfc,
-            0xd7, 0xe2, 0x0b, 0x5c,
+            0x21, 0xe8, 0x3f, 0xd4, 0x51, 0x2c, 0x53, 0x02, 0xf7, 0xeb, 0xee, 0x3a, 0xb1, 0x46,
+            0x7a, 0x52, 0xe8, 0xc1, 0x1f, 0x83, 0xed, 0xe6, 0x1c, 0x90, 0xbf, 0xf2, 0x9f, 0x39,
+            0x6b, 0xf8, 0x2e, 0xbb,
         ]
     );
 
@@ -835,7 +835,7 @@ fn arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies() {
         "ARBITRARY_CODEC_MAIN peak fuel={} instructions={} value_units={}",
         peak.0, peak.1, peak.2
     );
-    assert_eq!(peak, (656_175, 74_950, 45_276_332));
+    assert_eq!(peak, (660_320, 75_558, 45_355_806));
 
     // The schema legs and the typed refusal paths are unchanged.
     let record = sley_state_root::conformance_epoch_record()
@@ -882,6 +882,44 @@ fn arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies() {
         [&[0xcc; 31], workspace_body, &[], &[], &[]],
     );
     assert_refusal(&refused, "SCB_LENGTH_OVERFLOW");
+    // The encode leg refuses an unknown entity kind before composing
+    // anything: kind 0 and kind 19 are outside the closed 1..=18 vocabulary
+    // on both legs.
+    for unknown_kind in [0_u64, 19] {
+        let refused = codec_call(
+            &package,
+            &approved,
+            1,
+            unknown_kind,
+            [&[0xcc; 32], workspace_body, &[], &[], &[]],
+        );
+        assert_refusal(&refused, "SSMC_ENTITY_KIND_UNKNOWN");
+        let refused = codec_call(
+            &package,
+            &approved,
+            0,
+            unknown_kind,
+            [
+                &super::all_kind_digest_dispatch::stored_from_body([0xcc; 32], workspace_body),
+                &[],
+                &[],
+                &[],
+                &[],
+            ],
+        );
+        assert_refusal(&refused, "SSMC_ENTITY_KIND_UNKNOWN");
+    }
+    // Kind 18 on the canonical decode leg answers with the strict decoder's
+    // native codes rather than a template mismatch.
+    let (_, dependency_body) = representative
+        .iter()
+        .find(|(kind, _)| *kind == 18)
+        .expect("DependencyBinding profile exists");
+    let mut trailing = dependency_body.clone();
+    trailing.push(0);
+    let stored = super::all_kind_digest_dispatch::stored_from_body([0xcc; 32], &trailing);
+    let refused = codec_call(&package, &approved, 0, 18, [&stored, &[], &[], &[], &[]]);
+    assert_refusal(&refused, "SCB_TRAILING_BYTES");
 }
 
 #[test]

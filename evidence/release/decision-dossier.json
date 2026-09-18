@@ -2,7 +2,7 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "1 review obligations are open",
+    "15 review obligations are open",
     "20 GA acceptance criteria are not evidenced",
     "no succession trial has been executed",
     "only one host has attested the candidate",
@@ -10,7 +10,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "0eb375b7bb39b8d2e377df30f8f6d86ed71b4cb3dd3c1e1913b58f102615fb49",
+  "dossier_digest": "4be2bc3179a00423bbf1ae71ad50f878aed8fb798f7bbdaab4e01d7d84e490e4",
   "entries": [
     {
       "evidence": [
@@ -146,9 +146,9 @@
           "scanned_manifests": 22
         },
         "property_tests": 0,
-        "python_tests": 500,
+        "python_tests": 505,
         "rust_ignored_emitters": 38,
-        "rust_unit_tests": 1951
+        "rust_unit_tests": 1955
       }
     },
     {
@@ -193,7 +193,7 @@
         "evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md"
       ],
       "item": "security review result",
-      "note": "the independent security review is Vulcan's; the machine summary records it as PASS_0_P0_0_P1_0_P2_3_P3_5_P4 and the finding register classifies it: threat_coverage.independent_security_review reads PASS_0_P0_0_P1_0_P2_3_P3_5_P4, a PASS naming unclaimed findings (P3, P4). The item is evidenced only by a complete PASS (the bare PASS token or an all-zero enumerated count form the register classifies PASS, with no unclaimed finding); the transcript the summary note names (evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md) is cited as evidence and must exist. Its input is measured: of the 56 registered threats, 44 have a located control whose symbol a test region, test file, corpus, fuzz target, or oracle names, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
+      "note": "the independent security review is Vulcan's; the machine summary records it as PASS_P3_P4_CLOSED and the finding register classifies it: threat_coverage.independent_security_review reads PASS_P3_P4_CLOSED, which is not a complete PASS form. The item is evidenced only by a complete PASS (the bare PASS token or an all-zero enumerated count form the register classifies PASS, with no unclaimed finding); the transcript the summary note names (evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md) is cited as evidence and must exist. Its input is measured: of the 56 registered threats, 44 have a located control whose symbol a test region, test file, corpus, fuzz target, or oracle names, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
       "state": "GATED",
       "value": null
     },
@@ -341,22 +341,22 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 442,
-        "open_reviews": 1,
+        "obligations": 458,
+        "open_reviews": 15,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 126,
-          "P1": 170,
-          "P2": 187,
-          "P3": 225,
-          "P4": 68
+          "P1": 176,
+          "P2": 201,
+          "P3": 245,
+          "P4": 89
         },
         "states": {
-          "HISTORICAL_ROUND": 141,
-          "PASS": 300,
-          "PENDING": 1
+          "HISTORICAL_ROUND": 148,
+          "PASS": 295,
+          "PENDING": 15
         },
-        "unclaimed_carried_findings": 32,
+        "unclaimed_carried_findings": 0,
         "unclassified": 0
       }
     },
@@ -387,7 +387,7 @@
         "S20-390 is complete only for restricted fixed-head atomic commit with no selected tests; named refs, branches, recursive recovery, clone-equivalent transaction exchange, full semantics, runtime authority, M3/M4, and GA remain blocked",
         "S20-370 protects policy, oracle roots, and named entity bindings; S20-380 adds narrow local authenticated tokens plus exact scope/expiry/replay/budget enforcement for the in-memory reference wrapper, but policy-transition authentication, candidate/VM integration, live-host confinement, commit, and production-epoch assembly remain blocked",
         "S20-610 preserves offline injected digest claims only; no raw fixture, executable adapter, external head anchor, artifact/oracle/accounting verification, or benchmark trial exists",
-        "S20-710 root licensing is operator-approved; the standards SBOM and unsigned provenance are derived, and the candidate is reproduced on two hosts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and final release Council approval remain held. The reachable-anchor mapping did not advance the scan boundary.",
+        "S20-710 root licensing is operator-approved; the standards SBOM and unsigned provenance are derived, and the current candidate is reproduced on one host (the second host is pending the lab lease; the superseded 5313437 and 45b2cd98 candidates were reproduced on two hosts). Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and final release Council approval remain held. The reachable-anchor mapping did not advance the scan boundary.",
         "The succession corpus is frozen but no benchmark trial has executed"
       ]
     },
@@ -416,7 +416,7 @@
           "M3/M4 effectful runtime: S20-280 full host access and S20-380 full token authority own the semantics of effect_request, adapter_invoke, and capability_narrow. Slice E7a landed contract_assert, which needed neither",
           "M4 test execution: no TestCase has been executed under any authority, so sley-test-report-v1 has no corpus of produced reports",
           "M5 succession: the harness passes its three smokes and no trial has run; the six per-arm metrics need executed trials, which need model access and spend authorization",
-          "M6 release: the evidence chain is built and drift-checked (SBOM, unsigned provenance, two-host reproducibility, finding register, GA acceptance, decision dossier). Root licensing is approved and the second-host lane has been exercised with retained custody receipts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and the release decision remain held.",
+          "M6 release: the evidence chain is built and drift-checked (SBOM, unsigned provenance, single-host reproducibility at the current candidate (the second host is pending the lab lease; two-host reproducibility was last attested for 5313437 and 45b2cd98), finding register, GA acceptance, decision dossier). Root licensing is approved and the second-host lane has been exercised with retained custody receipts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and the release decision remain held.",
           "Independent review: the user-authorized Council qualification rounds are available and recorded under evidence/review/rounds. Current-delta verdicts are distinct from the remaining final independent release and security dispositions; broader pending review obligations remain in their owner records.",
           "Provenance/similarity audit of the Sley 1.2 source: PERFORMED 2026-09-07 (s20-780-similarity-audit-2026-09-07.md, local evidence, independent review pending). Blocks GA acceptance of the clean-room claim until independently reviewed; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
         ]
@@ -456,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "09b120f281d64c8aa04d0c384ae2926366b99bc9c8f9ba0a300f280b17dcdc3c",
+  "entries_digest": "6ab531993e5378419c248bd54e13ba125c68559a27b59e8a52e207f2202d8dbd",
   "evidenced": 24,
   "gated": 10,
   "gates": {

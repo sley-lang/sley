@@ -2,7 +2,7 @@
 
 Date: 2026-09-18
 
-Status: implemented candidate composition; the retained bounded `codec_main`, its canonical codec component, and the preserved C0/C1 candidate are unchanged
+Status: SUPERSEDED as a description of the component authority (2026-09-18): the re-mint this record left for the operator was executed the same day under the `/goal` direction — `arbitrary_codec_main_image` is the canonical codec composition (`rw-090-arbitrary-canonical-codec-objects.md`), canonical `S`, C0 and the C1 candidate were re-minted from it (`rw-120-c0-c1-candidate.md`, `rw-120-arbitrary-codec-dry-run.md`), and the bounded composition is retained under the `bounded_*` names. The 178873d7 Council round then repaired the codec (strict kind-18 route, native depth charging, native-parity refusal tests; see `rw-090-codec-component-manifest.json` `review_repairs`), so the figures below describe the pre-review composition and are superseded by the manifests.
 
 ## Result
 
@@ -69,17 +69,15 @@ cargo clippy -p sley-vm --test rw120_toolchain_integration -- -D warnings
 cargo fmt --check -p sley-vm
 ```
 
-## What this does not do
+## What this did not do at the time (historical)
 
 Deriving the canonical codec component from this composition, binding it
-into canonical `S`, and producing a new C0-built C1 candidate would replace
-the preserved seed artifacts of `rw-120-c0-c1-candidate.md` (a release-built
-seed executable held outside the repository, its 179-second qualification
-run, `bootstrap-manifest.json`, and the RW-120 component manifests). That
-re-mint is a deliberate, operator-visible step and is left for the operator
-to schedule. Until then the bounded codec remains the component authority,
-and RW-090's remaining debt is exactly that derivation plus independent
-review.
+into canonical `S`, and producing a new C0-built C1 candidate replaced the
+preserved seed artifacts of the bounded generation; that re-mint was
+executed on 2026-09-18 and is recorded in `rw-120-c0-c1-candidate.md` and
+the superseded blocks of every generation manifest. RW-090's remaining
+debt is the independent review and its repairs, tracked in the machine
+summary section `rw090_arbitrary_codec`.
 
 What the encode leg does not do: it re-frames a canonical body it is
 handed; it does not construct bodies from typed fields. Field-level

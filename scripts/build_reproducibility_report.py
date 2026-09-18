@@ -268,7 +268,7 @@ def select_attestation(
     )
 
 
-def build_report(attestations: list[dict]) -> dict:
+def build_report(attestations: list[dict], superseded: list[dict] | None = None) -> dict:
     """Merges attestations into the contract section 2 report."""
     by_label: dict[str, dict] = {}
     for attestation in attestations:
@@ -307,6 +307,7 @@ def build_report(attestations: list[dict]) -> dict:
                 else "the second host build is an operator-gated lane; only the primary host attested"
             ),
         },
+        "superseded_attestations": list(superseded or []),
         "ga_claimed": False,
         "publication_authorized": False,
         "blockers": [
@@ -353,7 +354,12 @@ def verify_report(report: object) -> list[str]:
     return problems
 
 
-def carried_attestations(report_path: Path, skip_labels: set[str]) -> list[dict]:
+def carried_attestations(
+    report_path: Path,
+    skip_labels: set[str],
+    current_commit: str | None = None,
+    superseded: list[dict] | None = None,
+) -> list[dict]:
     """Previously merged attestations no fresh input supersedes.
 
     A rebuild with no --attest must not silently drop other hosts' recorded
@@ -362,6 +368,12 @@ def carried_attestations(report_path: Path, skip_labels: set[str]) -> list[dict]
     its own label, and an explicit --attest file wins its label. A tracked
     file that is not a report, or that carries a malformed attestation,
     fails closed instead of being silently skipped.
+
+    Supersession at a re-mint (contract section 2, revision 10): when the
+    fresh local attestation names a commit, a tracked attestation of ANOTHER
+    commit describes a superseded candidate and is not carried onto the new
+    one; it is appended to `superseded` so the report names what the re-mint
+    left behind instead of silently dropping it or silently keeping it.
     """
     if not report_path.exists():
         return []
@@ -385,8 +397,20 @@ def carried_attestations(report_path: Path, skip_labels: set[str]) -> list[dict]
     carried: list[dict] = []
     for attestation in attestations:
         checked = validate_attestation(attestation)
-        if checked["host_label"] not in skip_labels:
-            carried.append(checked)
+        if checked["host_label"] in skip_labels:
+            continue
+        if current_commit is not None and checked["commit"] != current_commit:
+            if superseded is not None:
+                superseded.append(
+                    {
+                        "host_label": checked["host_label"],
+                        "commit": checked["commit"],
+                        "artifact_sha256": checked["artifact_sha256"],
+                        "reason": "attests a commit the re-mint superseded",
+                    }
+                )
+            continue
+        carried.append(checked)
     return carried
 
 
@@ -407,7 +431,9 @@ def main() -> int:
             return 0
         explicit = [load_attestation(path) for path in args.attest]
         skip = {args.host_label} | {attestation["host_label"] for attestation in explicit}
-        report = build_report([local, *explicit, *carried_attestations(args.output, skip)])
+        superseded: list[dict] = []
+        carried = carried_attestations(args.output, skip, local["commit"], superseded)
+        report = build_report([local, *explicit, *carried], superseded)
         text = canonical(report)
         if args.check:
             current = args.output.read_text(encoding="utf-8") if args.output.exists() else None

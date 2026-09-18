@@ -32,7 +32,7 @@ IMPLEMENTATION_STATUSES = (IN_PROGRESS_STATUS, REVIEW_PENDING_STATUS, COMPLETE_S
 # The contract revision the spec header, ADR-0040, and the summary pointer
 # must all name: one constant instead of three hand-synchronised copies
 # (Ariadne P4 carried from 0bcc9c6, closed at revision 7).
-CONTRACT_REVISION = 9
+CONTRACT_REVISION = 10
 
 CODES = (
     (73000, "REPRO_EVIDENCE_MISSING"),

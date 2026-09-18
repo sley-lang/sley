@@ -21,16 +21,20 @@
 //! (`SSMC_RESERVED_FIELD_PRESENT`, pinned divergence vs reference Ok), never
 //! misreported as a format error. A standalone extension handles fingerprint
 //! tag 4. The standalone bounded schema leg accepts the exact frozen
-//! conformance epoch. `codec_main` dispatches all four legs for the declared
-//! bounded bootstrap profile; arbitrary body generality and label/NFC remain
-//! outside that profile.
+//! conformance epoch. The bounded `codec_main` dispatches all four legs for
+//! the declared bounded bootstrap profile; since the RW-090 re-mint
+//! (2026-09-18) the canonical composition is `arbitrary_codec_main_image`,
+//! whose program legs judge arbitrary canonical bodies of all 18 kinds
+//! (`rw080_codec_program/codec_main.rs`, records `rw-090-arbitrary-*.md`);
+//! label/NFC remains outside both.
 //! Construction provenance and contract basis:
 //! machineresearch/sley-2.0/reweave/rw-080-codec-program-outer.md.
 //!
 //! Deliberate non-goals with reasons (not silent gaps):
-//! - `codec_main` is executable for the bounded aggregate profile, not a claim
-//!   of arbitrary body generality. Every kind has one canonical native profile;
-//!   other body shapes fail closed. The full surface remains RW-160 work.
+//! - The bounded `codec_main_image` is executable for the bounded aggregate
+//!   profile only and is retained as history; the arbitrary composition
+//!   carries the generality claim, qualified as "judges arbitrary canonical
+//!   bodies; typed-field construction remains native".
 //! - Label/NFC (tag 3): needs pinned text/Unicode tables and the S20-250
 //!   verifier; excluded with an explicit scope code, not silently.
 //! - Body semantics (18 kinds, type/CFG/effect judgments): owned by later

@@ -139,3 +139,28 @@ repairs fresh-clone regeneration after the attribution rewrite; it does not
 advance the audit boundary to the current release candidate. The history
 scan is regenerated over the rewritten ancestry and its counts are recorded
 in the machine summary. The old review artifacts remain historical evidence.
+
+## Dependency change and curated dispositions — 2026-09-17/18
+
+The native Ed25519 signature enforcement (71600c23) and the later native
+test lanes added twelve `Cargo.lock` entries. The inventory now reads 20
+workspace crates, 40 registry packages, 21 first-party packages (20 crates
+plus `oracle/scb1`), and 177 dependency relationships; the lockfile digest
+is recorded in the machine summary (`s20_710_pre_release_audit.cargo_lock_sha256`)
+and re-derived by `scripts/check_supply_chain_audit.py`.
+
+Three license expressions entered the registry set with those crates and
+were curated into `PERMISSIVE_CARGO_LICENSES`
+(`scripts/generate_supply_chain_evidence.py`) after reading each crate's
+declared expression: `BSD-3-Clause` (curve25519-dalek, ed25519-dalek,
+subtle), `Apache-2.0 OR MIT` (ed25519, signature, zeroize: the dual license
+spelled in the other order, normalized to the same set), and
+`MIT OR Apache-2.0 OR BSD-1-Clause` (fiat-crypto, which adds a BSD-1-Clause
+alternative). These are pre-release dispositions by the implementation
+session under the standing 2026-09-14 operator approval of the root license;
+they are not the held final Argus/Vulcan dispositions
+(`final_argus_and_vulcan_dispositions` stays open in the provenance
+blockers), and the curated set is now the sole fail-closed control on
+dependency growth: a registry crate whose expression is not in the set
+blocks T52, so any new expression must be read and curated here before the
+audit can pass. No legal compatibility opinion is offered here.

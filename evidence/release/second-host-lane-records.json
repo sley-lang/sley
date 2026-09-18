@@ -83,7 +83,7 @@
       "attestation_file_sha256": "f81c7b31b96a4ce2f33a5d8010b7c64ca08da64618175986daf07eb05b793147",
       "bundle_commit": "5313437afb5df66b5fa48b82c374746467d0a1ca",
       "merge_commit": "694b29b92388e73f50f014b07df27e63bec1f4a7",
-      "note": "Revision-9 sequence: provisional commit contains only the merged report and retained secondary; receipt filed next; full evidence refresh and verification follow. Both clean host builds succeeded and artifacts match."
+      "note": "Revision-9 sequence: provisional commit contains only the merged report and retained secondary; receipt filed next; full evidence refresh and verification follow. Both clean host builds succeeded and artifacts match. Superseded 2026-09-17 by the 45b2cd98 candidate (new product source)."
     },
     {
       "candidate_commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
@@ -97,7 +97,7 @@
       "attestation_file_sha256": "273c174040b36f2b5ca0ea6b88c2a8799c156c09477a14e35675d8e09c35811a",
       "bundle_commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
       "merge_commit": "2297045748d84cfbf588a7db5be4127c1e435c83",
-      "note": "Revision-9 sequence: the provisional commit contains only the merged report and retained secondary attestation. Both clean hosts rebuilt the candidate twice and produced byte-identical artifacts; this receipt precedes the final evidence refresh and verification."
+      "note": "Revision-9 sequence: the provisional commit contains only the merged report and retained secondary attestation. Both clean hosts rebuilt the candidate twice and produced byte-identical artifacts; this receipt precedes the final evidence refresh and verification. Superseded 2026-09-18 by the c75277b6/a7852028 re-mints and the current candidate: the receipt commit b0f56b1e also carried five crates/sley-repo/tests changes (not a records-only descendant), the rev-9 refresh/verify/quick for this candidate did not complete before the re-mint, and under contract revision 10 this attestation is listed as superseded, never carried onto a later candidate."
     }
   ]
 }

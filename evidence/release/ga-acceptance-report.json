@@ -118,13 +118,13 @@
     },
     {
       "criterion": "No undefined behavior exists in the program model",
-      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 85 PASS, 0 PENDING, 0 OTHER, 52 historical, 5 unclaimed or unclassified; lane open)",
+      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 84 PASS, 4 PENDING, 0 OTHER, 54 historical, 0 unclaimed or unclassified; lane open)",
       "group": "26.3 semantics",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "No ambient authority exists",
-      "evidence": "protected policy root, capability tokens, and reference adapters at terminal status (protected_policy_root S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; capability_token_profile S20_380_COMPLETE_NARROW_LOCAL_PROFILE); independent security review: threat_coverage.independent_security_review reads PASS_0_P0_0_P1_0_P2_3_P3_5_P4, a PASS naming unclaimed findings (P3, P4); anti-goal 'arbitrary shell' HOLDS",
+      "evidence": "protected policy root, capability tokens, and reference adapters at terminal status (protected_policy_root S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; capability_token_profile S20_380_COMPLETE_NARROW_LOCAL_PROFILE); independent security review: threat_coverage.independent_security_review reads PASS_P3_P4_CLOSED, which is not a complete PASS form; anti-goal 'arbitrary shell' HOLDS",
       "group": "26.3 semantics",
       "state": "AWAITS_REVIEW"
     },
@@ -214,13 +214,13 @@
     },
     {
       "criterion": "policy is protected from the judged candidate",
-      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 81 PASS, 0 PENDING, 0 OTHER, 39 historical, 4 unclaimed or unclassified; lane open",
+      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 80 PASS, 4 PENDING, 0 OTHER, 41 historical, 0 unclaimed or unclassified; lane open",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "capability tokens cannot be forged or replayed across scope",
-      "evidence": "machine summary capability_token_profile status S20_380_COMPLETE_NARROW_LOCAL_PROFILE; independent security review: threat_coverage.independent_security_review reads PASS_0_P0_0_P1_0_P2_3_P3_5_P4, a PASS naming unclaimed findings (P3, P4)",
+      "evidence": "machine summary capability_token_profile status S20_380_COMPLETE_NARROW_LOCAL_PROFILE; independent security review: threat_coverage.independent_security_review reads PASS_P3_P4_CLOSED, which is not a complete PASS form",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
@@ -238,13 +238,13 @@
     },
     {
       "criterion": "all P0/P1 threats have passing tests",
-      "evidence": "threat coverage report: 44 exercised, 0 P0/P1 without a located symbol; 534 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol; independent security review: threat_coverage.independent_security_review reads PASS_0_P0_0_P1_0_P2_3_P3_5_P4, a PASS naming unclaimed findings (P3, P4). Whether a located, exercised control mitigates its threat stays the review's judgment",
+      "evidence": "threat coverage report: 44 exercised, 0 P0/P1 without a located symbol; 534 stable failure symbols, 0 unexercised, 0 numeric codes carrying more than one symbol; independent security review: threat_coverage.independent_security_review reads PASS_P3_P4_CLOSED, which is not a complete PASS form. Whether a located, exercised control mitigates its threat stays the review's judgment",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 0 open P0/P1/P2 findings across 442 obligations",
+      "evidence": "finding register declares 0 open P0/P1/P2 findings across 458 obligations",
       "group": "26.6 policy and security",
       "state": "EVIDENCED"
     },
@@ -304,13 +304,13 @@
     },
     {
       "criterion": "Ariadne approves SSMC1 and semantic correctness",
-      "evidence": "finding register ariadne lane: 85 PASS, 0 PENDING, 0 OTHER, 52 historical, 5 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
+      "evidence": "finding register ariadne lane: 84 PASS, 4 PENDING, 0 OTHER, 54 historical, 0 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "Nabu approves architectural and cross-product boundaries",
-      "evidence": "finding register nabu lane: 81 PASS, 0 PENDING, 0 OTHER, 39 historical, 4 unclaimed or unclassified; lane open",
+      "evidence": "finding register nabu lane: 80 PASS, 4 PENDING, 0 OTHER, 41 historical, 0 unclaimed or unclassified; lane open",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -322,7 +322,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 1 open, 0 unclassified, and 32 unclaimed-carried obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 15 open, 0 unclassified, and 0 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -341,9 +341,9 @@
     "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "9a499ad6d753edfa00615e5160a2a1efecb12e2bdcfb125f9e4b122d73aa6cd4",
-  "register_digest": "deb0046a70821fa1f5aea5b8ccf413677ac81dd8808121bcf7496db56ba70724",
-  "report_digest": "cde69aa3aaa5b5313ddac4eb0126cab5027404c3387bd1c2e822844cd9e241fa",
+  "obligations_digest": "6a919aced97d58b92ea69c7960f7511dc4d8ecafedd0da2aa4750211ce81ff9c",
+  "register_digest": "fbced893539babd00e892c5281f77852fb18a4893feb9f7d7d2995b3dbd7f37f",
+  "report_digest": "1c620be96893795ca31ea6a0009c94bfc86bd09044cef6192d9bb0f11fdef528",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

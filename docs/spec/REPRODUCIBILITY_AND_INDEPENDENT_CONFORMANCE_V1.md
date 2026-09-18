@@ -1,6 +1,6 @@
 # Reproducibility and Independent Conformance v1
 
-Status: S20-730 contract draft, revision 9 (2026-09-15); Council review
+Status: S20-730 contract draft, revision 10 (2026-09-18); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the independent oracles that closed the two
 native-only families (section 5). Revision 3 carries previously merged
@@ -108,6 +108,8 @@ report = {
   "commits": { commit: { "artifact_sha256": hex, "hosts": [host_label, ...] } },
   "result": "SINGLE_HOST_REPRODUCIBLE" | "MULTI_HOST_REPRODUCIBLE",
   "second_host": { "status": "GATED_OPERATOR_LANE" | "ATTESTED", "note": string },
+  "superseded_attestations": [ { "host_label": string, "commit": hex[40],
+                                 "artifact_sha256": hex[64], "reason": string }, ... ],
   "ga_claimed": false,
   "publication_authorized": false,
   "blockers": [string, ...],
@@ -124,9 +126,16 @@ Rules:
 - a rebuild carries the tracked report's attestations forward: every
   previously merged attestation whose label is not re-attested in the run
   (neither as the fresh local attestation nor by an explicit `--attest`
-  file) is re-validated and merged, so a plain rebuild never silently drops
-  another host. A tracked file that is not a report, or that carries a
-  malformed attestation, is `REPRO_ATTESTATION_INVALID`;
+  file) and whose commit is the commit the fresh local attestation names is
+  re-validated and merged, so a plain rebuild never silently drops another
+  host of the same candidate. A tracked attestation of another commit
+  describes a superseded candidate: a re-mint does not carry it onto the
+  new candidate and does not drop it silently either; the report lists it
+  under `superseded_attestations` (`host_label`, `commit`,
+  `artifact_sha256`, `reason`), and the superseded host re-attests the new
+  candidate through section 5.1 (revision 10). A tracked file that is not a
+  report, or that carries a malformed attestation, is
+  `REPRO_ATTESTATION_INVALID`;
 - the result is `MULTI_HOST_REPRODUCIBLE` exactly when some commit carries
   at least `required_hosts` agreeing attestations; otherwise it is
   `SINGLE_HOST_REPRODUCIBLE` and `second_host.status` is
@@ -139,8 +148,9 @@ Rules:
   workspace manifest and lockfile, the toolchain pin, the root license
   files `LICENSE` and `NOTICE`, the demo runner, the SBOM inventory, the
   packaging script whose flags stage the binary, the tracked files the
-  binary embeds at compile time, today `docs/spec/SSMC1_EPOCH1_SCHEMA.txt`
-  and `conformance/smp1-json-bridge/v2/methods.json`, and the conformance
+  binary embeds at compile time, today `docs/spec/SSMC1_EPOCH1_SCHEMA.txt`,
+  `conformance/smp1-json-bridge/v2/methods.json` and
+  `conformance/smp1-json-bridge/v3/methods.json`, and the conformance
   subset) may differ between the attested commit and `HEAD`, else the
   artifact the report describes is not the artifact this tree builds, and
   the report is stale. The unit lane scans every `include_str!` and
@@ -229,8 +239,10 @@ Rules:
   declaring its coverage;
 - each family names its pinned corpus version in the builder's
   `CORPUS_VERSION` map (default `v1`); today every family pins `v1` except
-  `entity-read`, whose S20-310 vectors pin `v2` (section 10); a pin naming a
-  family outside the coverage map is `CONFORMANCE_ORACLE_DRIFT`;
+  `entity-read`, whose S20-310 vectors pin `v2` (section 10), and
+  `exec-package-envelope`, whose only corpus is the `EXEC_PACKAGE_V2`
+  framing vectors under `v2` (section 12); a pin naming a family outside
+  the coverage map is `CONFORMANCE_ORACLE_DRIFT`;
 - a family may carry several tracked corpus versions (`conformance/<name>/v<N>/`,
   `N` digits; any other family-root entry, and any nested entry inside a
   version directory, is `CONFORMANCE_FIXTURE_UNREADABLE`);
@@ -480,3 +492,29 @@ performed in that mint. Section 5.1 now matches the recorded and required
 sequence: commit the merged report and retained secondary, file the receipt
 against that commit, refresh all derived evidence, verify, and run quick.
 The provisional merge is never claimed as a validated closure.
+
+## 12. Revision 10 (2026-09-18): re-mint supersession and the envelope pin
+
+The 178873d7 Council round (Ariadne P2, Nabu P2, Vulcan P2) found that the
+carry-forward rule had no supersession path: at a re-mint the documented
+`make release-candidate-build` carried a secondary attestation of the
+superseded commit onto the new candidate (distinct hosts across two
+commits, no selectable attestation, a stale-report checker failure), and
+the primary-only reports at 75ad17aa and 9316df19 were produced by an
+undocumented step. Section 2 now carries only attestations of the commit
+the fresh local attestation names; attestations of another commit are
+listed as `superseded_attestations` rather than dropped silently or kept
+wrongly. `build_reproducibility_report.carried_attestations` implements
+the rule (`bench/release/tests/test_reproducibility.py::
+test_a_re_mint_supersedes_attestations_of_another_commit`).
+
+The same round (Ariadne P3, Nabu P3, Vulcan P3) found the
+`exec-package-envelope` corpus pinned at `v2` by the builder alone.
+Section 3 now names the pin: the family's only corpus is the
+`EXEC_PACKAGE_V2` framing vectors (`conformance/exec-package-envelope/v2`,
+checked by `scripts/check_exec_package_envelope_v2.py` at
+`codec_and_identity` depth); a `v1` directory never existed because the v1
+package format had no standalone envelope corpus. The fixture's
+`status: PROVISIONAL_RW_080_CONSTRUCTION_REVIEW_PENDING` names the
+RW-080 review state of the construction that emitted it, not the coverage
+class, which is complete for the family (Nabu/Vulcan P4 note).
