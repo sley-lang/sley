@@ -21140,13 +21140,6 @@ fn build_const_value_children_decode(
                 listed: 0,
                 container: 1,
             },
-            // Sequence: Vec at d+2, elements at d+3.
-            9 => DepthOffsets {
-                first: 0,
-                second: 0,
-                listed: 2,
-                container: 2,
-            },
             // Record: RecordConst at d+2, fields Vec at d+3, field record at
             // d+4, value at d+5.
             10 => DepthOffsets {
@@ -21162,11 +21155,17 @@ fn build_const_value_children_decode(
                 listed: 0,
                 container: 3,
             },
+            // Sequence: Vec at d+2, elements at d+3.
             // Map: entries at d+2, entry record at d+3, key and value at d+4.
-            12 => DepthOffsets {
+            // The entry-list projector charges the entry record itself, so
+            // the slot offset is one less than the record family's; the
+            // per-arm boundary loop observes the native boundary (16 nested
+            // maps) — with 3 this arm refused natively valid bodies from 13
+            // (found at c04539b9 by the per-arm sites).
+            9 | 12 => DepthOffsets {
                 first: 0,
                 second: 0,
-                listed: 3,
+                listed: 2,
                 container: 2,
             },
             // Option and Result: an inner union at d+2, the value at d+3.
@@ -22334,9 +22333,9 @@ fn const_value_decoder_accepts_every_family_recursively() {
     assert_eq!(
         approved.package_digest,
         [
-            0x4f, 0x08, 0xdc, 0x11, 0x1d, 0xea, 0x0d, 0xc6, 0xf5, 0xba, 0x98, 0xc9, 0x82, 0xf0,
-            0x3d, 0x9a, 0xa9, 0x7a, 0x5f, 0x09, 0xa7, 0x7c, 0x0a, 0x93, 0x4d, 0xf1, 0x1a, 0xbb,
-            0x0b, 0x71, 0x51, 0x7c,
+            0x18, 0x37, 0x10, 0xfd, 0x61, 0x11, 0x2b, 0xf0, 0x06, 0xd1, 0xb6, 0xa7, 0x65, 0x95,
+            0xd9, 0x54, 0xff, 0x9c, 0x02, 0xdc, 0xd1, 0xc7, 0x8d, 0x32, 0x68, 0x54, 0xa9, 0x71,
+            0xd9, 0xe4, 0x0c, 0xcd,
         ]
     );
 
@@ -22874,9 +22873,9 @@ fn constant_schema_decoder_accepts_recursive_values() {
     assert_eq!(
         approved.package_digest,
         [
-            0x48, 0x16, 0x3b, 0x2a, 0x3c, 0x9c, 0x08, 0x23, 0xfc, 0x71, 0x19, 0x23, 0x5a, 0xe5,
-            0x38, 0x0e, 0x2e, 0x49, 0xdd, 0x69, 0x84, 0x3f, 0xfc, 0x9b, 0x7c, 0x17, 0x8b, 0x18,
-            0xbe, 0x0f, 0xed, 0xb0,
+            0x98, 0x5a, 0x5a, 0x20, 0x2c, 0xc3, 0x74, 0x22, 0x7d, 0x82, 0xcb, 0x2c, 0x8f, 0xde,
+            0x34, 0xe4, 0x53, 0x7d, 0x80, 0x99, 0x49, 0xbd, 0x2d, 0xc0, 0xca, 0x7f, 0x19, 0x62,
+            0x9d, 0x9b, 0xb0, 0x16,
         ]
     );
 
@@ -22996,9 +22995,9 @@ fn capability_requirement_schema_decoder_accepts_scope_lists() {
     assert_eq!(
         approved.package_digest,
         [
-            0x0b, 0xf2, 0x2f, 0xd4, 0x80, 0xa9, 0x13, 0x77, 0xb5, 0x1e, 0x1f, 0xbf, 0x56, 0xbc,
-            0x3f, 0xfd, 0xf6, 0x37, 0x9e, 0x55, 0xab, 0x4c, 0x79, 0xf8, 0xd9, 0x85, 0x50, 0x93,
-            0x14, 0xea, 0xb0, 0xb4,
+            0xd2, 0x5b, 0x7b, 0x55, 0x82, 0xce, 0xe5, 0x63, 0x75, 0xbe, 0x3b, 0x36, 0xe8, 0xdd,
+            0xff, 0xa7, 0xa1, 0x81, 0x2f, 0xde, 0xb7, 0xef, 0xd1, 0x44, 0xa6, 0x97, 0xab, 0x5f,
+            0xef, 0x7a, 0x46, 0x25,
         ]
     );
 
@@ -24580,9 +24579,9 @@ fn test_case_schema_decoder_accepts_both_environments_and_outcomes() {
     assert_eq!(
         approved.package_digest,
         [
-            0xa6, 0xa3, 0x40, 0x8e, 0xdf, 0x9d, 0xf8, 0xb4, 0xdb, 0x1b, 0x02, 0x4c, 0xcc, 0x2a,
-            0x1a, 0x24, 0x3e, 0xf6, 0xe1, 0x01, 0xca, 0xa0, 0xb0, 0x70, 0x1a, 0xba, 0xd9, 0x7c,
-            0xc4, 0x74, 0xe3, 0xcf,
+            0x61, 0xd2, 0xd0, 0xb5, 0x7b, 0xce, 0xdf, 0x5a, 0xa4, 0x24, 0x99, 0x7e, 0xe0, 0x3a,
+            0x8b, 0x19, 0x0f, 0x42, 0x61, 0x08, 0xbf, 0xbc, 0xf2, 0x71, 0x8a, 0x42, 0xa2, 0x4e,
+            0xc6, 0xa2, 0x50, 0x09,
         ]
     );
 
@@ -26440,11 +26439,21 @@ fn arbitrary_dispatch_decode(
     kind: u64,
     stored: &[u8],
 ) -> (Result<Vec<ConstValue>, Vec<u8>>, sley_vm::ExecutionOutcome) {
+    arbitrary_dispatch_decode_with_limits(package, approved, kind, stored, codec_profile_limits())
+}
+
+fn arbitrary_dispatch_decode_with_limits(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    kind: u64,
+    stored: &[u8],
+    limits: sley_vm::ExecutionLimits,
+) -> (Result<Vec<ConstValue>, Vec<u8>>, sley_vm::ExecutionOutcome) {
     let outcome = execute_with_limits(
         package,
         approved,
         vec![u64_input(kind), bytes_input(stored), unit_input()],
-        codec_profile_limits(),
+        limits,
     );
     let sley_vm::ExecutionTermination::Success(value) = &outcome.termination else {
         panic!(
@@ -26497,9 +26506,9 @@ fn arbitrary_dispatch_accepts_representative_and_rich_bodies_for_all_kinds() {
     assert_eq!(
         approved.package_digest,
         [
-            0xe7, 0x0d, 0x1c, 0x08, 0xfe, 0x4f, 0x75, 0x76, 0x6e, 0x8f, 0x3a, 0xa8, 0x41, 0x57,
-            0x5e, 0xf5, 0x5d, 0x96, 0x81, 0x2a, 0x4e, 0x57, 0x67, 0xdc, 0xa5, 0xc2, 0xe0, 0x0c,
-            0x17, 0xb5, 0xbc, 0x55,
+            0xf1, 0xfe, 0x26, 0x4a, 0x67, 0xa3, 0xb6, 0xd6, 0x3a, 0xe3, 0x7e, 0xa9, 0x80, 0xda,
+            0x3c, 0xd6, 0xe9, 0xe0, 0x5b, 0x7c, 0x93, 0x1c, 0xcf, 0xe8, 0xe9, 0x86, 0x1e, 0x97,
+            0x57, 0x7a, 0x13, 0x53,
         ]
     );
 
@@ -26724,9 +26733,36 @@ fn arbitrary_stored_verdict(
     kind: u64,
     stored: &[u8],
 ) -> String {
-    match arbitrary_dispatch_decode(package, approved, kind, stored).0 {
+    arbitrary_stored_verdict_with_limits(package, approved, kind, stored, codec_profile_limits())
+}
+
+fn arbitrary_stored_verdict_with_limits(
+    package: &sley_vm::ExecutionPackage,
+    approved: &sley_vm::ApprovedExecutionPackage,
+    kind: u64,
+    stored: &[u8],
+    limits: sley_vm::ExecutionLimits,
+) -> String {
+    match arbitrary_dispatch_decode_with_limits(package, approved, kind, stored, limits).0 {
         Ok(_) => "OK".to_owned(),
         Err(code) => String::from_utf8(code).expect("refusal codes are ASCII"),
+    }
+}
+
+/// The codec profile with a wider envelope (ten times the instructions,
+/// fuel and value units): identity-carrying constant chains (record
+/// definitions, variant members) reach the profile's value-unit and
+/// instruction bounds before the 64-level nesting bound, so the per-arm
+/// boundary sites are judged under a wider budget. The refusal parity is
+/// independent of the budget; the profile bound itself is pinned by
+/// `arbitrary_dispatch_over_budget_body_terminates_with_a_resource_limit`.
+fn wide_limits() -> sley_vm::ExecutionLimits {
+    let profile = codec_profile_limits();
+    sley_vm::ExecutionLimits {
+        max_instructions: profile.max_instructions * 10,
+        max_fuel: profile.max_fuel * 10,
+        max_value_units: profile.max_value_units * 10,
+        ..profile
     }
 }
 
@@ -26768,6 +26804,86 @@ fn sequence_const_chain(levels: usize, leaf_type: &[u8]) -> Vec<u8> {
     node
 }
 
+/// A `ConstValue` chain of `levels` nodes through one `ConstData` container
+/// arm, wrapping a Unit leaf whose type is `leaf_type`; `wrap` embeds the
+/// child node's bytes in the arm's payload (Record, Variant, Map, Option,
+/// Result), so each arm's native container offsets are observed at the
+/// 64-level bound rather than taken from the `DepthOffsets` table.
+fn const_chain_through(
+    levels: usize,
+    leaf_type: &[u8],
+    wrap: impl Fn(Vec<u8>) -> Vec<u8>,
+) -> Vec<u8> {
+    let unit_type = sley_scb1::encode_union(1, &[]).expect("Unit TypeExpr encodes");
+    let mut node = sley_scb1::encode_record(&[
+        (1, leaf_type.to_vec()),
+        (
+            2,
+            sley_scb1::encode_union(1, &[]).expect("Unit ConstData encodes"),
+        ),
+    ])
+    .expect("ConstValue record encodes");
+    for _ in 0..levels {
+        let data = wrap(node);
+        node = sley_scb1::encode_record(&[(1, unit_type.clone()), (2, data)])
+            .expect("ConstValue record encodes");
+    }
+    node
+}
+
+fn record_const_chain(levels: usize, leaf_type: &[u8]) -> Vec<u8> {
+    const_chain_through(levels, leaf_type, |child| {
+        let field = sley_scb1::encode_record(&[(1, vec![0xd9; 32]), (2, child)])
+            .expect("FieldConst encodes");
+        let fields = sley_scb1::encode_list(&[field]).expect("field list encodes");
+        let record = sley_scb1::encode_record(&[(1, vec![0xda; 32]), (2, fields)])
+            .expect("RecordConst encodes");
+        sley_scb1::encode_union(10, &record).expect("Record ConstData encodes")
+    })
+}
+
+fn variant_const_chain(levels: usize, leaf_type: &[u8]) -> Vec<u8> {
+    const_chain_through(levels, leaf_type, |child| {
+        let payload = sley_scb1::encode_union(1, &child).expect("Some payload encodes");
+        let variant =
+            sley_scb1::encode_record(&[(1, vec![0xda; 32]), (2, vec![0xd9; 32]), (3, payload)])
+                .expect("VariantConst encodes");
+        sley_scb1::encode_union(11, &variant).expect("Variant ConstData encodes")
+    })
+}
+
+fn map_const_chain(levels: usize, leaf_type: &[u8]) -> Vec<u8> {
+    const_chain_through(levels, leaf_type, |child| {
+        let unit_type = sley_scb1::encode_union(1, &[]).expect("Unit TypeExpr encodes");
+        let key = sley_scb1::encode_record(&[
+            (1, unit_type),
+            (
+                2,
+                sley_scb1::encode_union(1, &[]).expect("Unit ConstData encodes"),
+            ),
+        ])
+        .expect("key ConstValue encodes");
+        let entry =
+            sley_scb1::encode_record(&[(1, key), (2, child)]).expect("MapEntryConst encodes");
+        let entries = sley_scb1::encode_list(&[entry]).expect("entry list encodes");
+        sley_scb1::encode_union(12, &entries).expect("Map ConstData encodes")
+    })
+}
+
+fn option_const_chain(levels: usize, leaf_type: &[u8]) -> Vec<u8> {
+    const_chain_through(levels, leaf_type, |child| {
+        let some = sley_scb1::encode_union(1, &child).expect("Some encodes");
+        sley_scb1::encode_union(13, &some).expect("Option ConstData encodes")
+    })
+}
+
+fn result_const_chain(levels: usize, leaf_type: &[u8]) -> Vec<u8> {
+    const_chain_through(levels, leaf_type, |child| {
+        let ok = sley_scb1::encode_union(1, &child).expect("Ok encodes");
+        sley_scb1::encode_union(14, &ok).expect("Result ConstData encodes")
+    })
+}
+
 /// Entity-level nesting boundary parity (RW-090 Nabu P1): every site a
 /// `TypeExpr` or `ConstValue` appears at inside an entity body is charged the
 /// depth the native codec charges, so the Sley verdict equals the native
@@ -26795,6 +26911,11 @@ fn arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site() {
         &constant_schema_body(const_of(TypeExpr::Unit, ConstData::Unit)),
         9,
         1,
+    );
+    let capability_fields = exact_entity_body_fields(
+        &capability_requirement_schema_body(vec![scope_const_value(0x20)]),
+        12,
+        3,
     );
 
     // (site, kind, body builder over the chain length, first refused chain
@@ -26905,6 +27026,28 @@ fn arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site() {
             58,
         ),
         (
+            // A ConstValue rooted deeper than a Constant body (kind-12
+            // allowed_scopes element, root at depth 3, value_type at 4):
+            // the depth-3 ConstEntries entry is observed, not only
+            // constructed (Nabu P4 at c04539b9).
+            "capability allowed_scopes element value_type (const root at depth 3)",
+            12,
+            Box::new({
+                let fields = capability_fields.clone();
+                move |k| {
+                    let mut fields = fields.clone();
+                    let unit_data =
+                        sley_scb1::encode_union(1, &[]).expect("Unit ConstData encodes");
+                    let node =
+                        sley_scb1::encode_record(&[(1, option_type_chain(k)), (2, unit_data)])
+                            .expect("ConstValue record encodes");
+                    fields[1] = sley_scb1::encode_list(&[node]).expect("scope list encodes");
+                    parameter_schema_with_fields(12, &fields)
+                }
+            }),
+            60,
+        ),
+        (
             "constant.value sequence chain (three native levels per node)",
             9,
             Box::new({
@@ -26919,13 +27062,65 @@ fn arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site() {
             21,
         ),
     ];
+    // Every other ConstData container arm, observed at the bound (Ariadne
+    // P4 at c04539b9): Record and Variant charge five native levels per node
+    // (ConstValue, data, record, field list / payload, ConstValue), Map four
+    // (entry list, entry), Option and Result three (data, Some / Ok).
+    let arm_sites: Vec<Site> = [
+        (
+            "record",
+            record_const_chain as fn(usize, &[u8]) -> Vec<u8>,
+            13,
+        ),
+        ("variant", variant_const_chain, 16),
+        ("map", map_const_chain, 16),
+        ("option", option_const_chain, 21),
+        ("result", result_const_chain, 21),
+    ]
+    .into_iter()
+    .map(|(arm, chain, first_refused)| {
+        let fields = constant_fields.clone();
+        let name: &'static str = match arm {
+            "record" => "constant.value record chain",
+            "variant" => "constant.value variant chain",
+            "map" => "constant.value map chain",
+            "option" => "constant.value option chain",
+            _ => "constant.value result chain",
+        };
+        let site: Site = (
+            name,
+            9,
+            Box::new(move |k| {
+                let mut fields = fields.clone();
+                let unit_type = sley_scb1::encode_union(1, &[]).expect("Unit encodes");
+                fields[0] = chain(k, &unit_type);
+                parameter_schema_with_fields(9, &fields)
+            }),
+            first_refused,
+        );
+        site
+    })
+    .collect();
+    let (wide_package, wide_approved) = admit_with_limits(&image, wide_limits());
+    let profile_sites = sites.len();
+    let sites: Vec<Site> = sites.into_iter().chain(arm_sites).collect();
 
-    for (name, kind, build, first_refused) in &sites {
+    for (index, (name, kind, build, first_refused)) in sites.iter().enumerate() {
         let mut observed_first_refused = None;
         for k in first_refused - 4..=first_refused + 2 {
             let stored_bytes = stored(&build(k));
             let native = native_stored_verdict(&stored_bytes);
-            let sley = arbitrary_stored_verdict(&package, &approved, *kind, &stored_bytes);
+            let sley = if index < profile_sites {
+                arbitrary_stored_verdict(&package, &approved, *kind, &stored_bytes)
+            } else {
+                arbitrary_stored_verdict_with_limits(
+                    &wide_package,
+                    &wide_approved,
+                    *kind,
+                    &stored_bytes,
+                    wide_limits(),
+                )
+            };
             assert_eq!(sley, native, "{name}: Sley parity at {k} levels");
             eprintln!("NESTING_BOUNDARY {name} levels={k} verdict={native}");
             if native != "OK" && observed_first_refused.is_none() {
@@ -26980,24 +27175,118 @@ fn arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site() {
             sley_scb1::encode_record(&[(1, unit_type), (2, outer_data)])
                 .expect("ConstValue record encodes")
         };
+        // Both edges are bracketed (Ariadne P3 at c04539b9): the native
+        // codec first refuses at 55 levels (arguments at depth 9), this
+        // codec at 58 (the fixed depth-6 entry), so the window 55..=57 is
+        // the exact three-level deviation.
         let mut fields = constant_fields.clone();
-        fields[0] = function_ref(56);
-        let stored_bytes = stored(&parameter_schema_with_fields(9, &fields));
-        assert_eq!(native_stored_verdict(&stored_bytes), "SCB_RESOURCE_LIMIT");
+        let mut native_first = None;
+        let mut sley_first = None;
+        for k in 53..=59 {
+            fields[0] = function_ref(k);
+            let stored_bytes = stored(&parameter_schema_with_fields(9, &fields));
+            let native = native_stored_verdict(&stored_bytes);
+            let sley = arbitrary_stored_verdict(&package, &approved, 9, &stored_bytes);
+            eprintln!("DEV01_BOUNDARY levels={k} native={native} sley={sley}");
+            if native != "OK" && native_first.is_none() {
+                native_first = Some(k);
+            }
+            if sley != "OK" && sley_first.is_none() {
+                sley_first = Some(k);
+            }
+            assert!(
+                native == "OK" || native == "SCB_RESOURCE_LIMIT",
+                "native refuses only at the bound: {native}"
+            );
+            assert!(
+                sley == "OK" || sley == "SCB_RESOURCE_LIMIT",
+                "this codec refuses only at the bound: {sley}"
+            );
+        }
+        assert_eq!(native_first, Some(55), "RW090-DEV-01: native first refusal");
         assert_eq!(
-            arbitrary_stored_verdict(&package, &approved, 9, &stored_bytes),
-            "OK",
-            "known deviation RW090-DEV-01: nested FunctionRef type arguments"
-        );
-        fields[0] = function_ref(58);
-        let stored_bytes = stored(&parameter_schema_with_fields(9, &fields));
-        assert_eq!(native_stored_verdict(&stored_bytes), "SCB_RESOURCE_LIMIT");
-        assert_eq!(
-            arbitrary_stored_verdict(&package, &approved, 9, &stored_bytes),
-            "SCB_RESOURCE_LIMIT",
-            "the fixed depth-6 bound still applies"
+            sley_first,
+            Some(58),
+            "RW090-DEV-01: this codec's first refusal"
         );
     }
+}
+
+/// Resource bound of the canonical entry under `codec_profile_limits`
+/// (RW-090 Vulcan P3): a valid body the native codec accepts but whose
+/// validation exceeds the profile's budget terminates the VM with a
+/// deterministic resource limit, not with a typed refusal. Identity-heavy
+/// bodies bind on the value-unit envelope first (a 1,750-byte Workspace
+/// here, at 33,486 instructions); instruction-heavy bodies bind on the
+/// 100,000-instruction ceiling (roughly 90 instructions per body byte). Both
+/// bounds are disclosed in rw-090-codec-component-manifest.json
+/// (`resource_bound`).
+#[test]
+fn arbitrary_dispatch_over_budget_body_terminates_with_a_resource_limit() {
+    use sley_mutate::value::{EntityBodyValue, EntityIdSet, WorkspaceBody};
+
+    let image = super::all_kind_digest_dispatch::arbitrary_all_kind_decode_image();
+    let (package, approved) = admit_with_limits(&image, codec_profile_limits());
+    let workspace = |members: u8| {
+        let packages = EntityIdSet::from_unsorted(
+            (1..=members)
+                .map(|fill| EntityId::from_bytes([fill; 32]))
+                .collect(),
+        )
+        .expect("ascending identities form a canonical set");
+        entity_body_bytes(
+            [0xa1; 32],
+            EntityBodyValue::Workspace(WorkspaceBody {
+                packages,
+                root_namespace: EntityId::from_bytes([0xf1; 32]),
+                capability_requirements: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                contracts: EntityIdSet::from_unsorted(vec![]).unwrap(),
+                tests: EntityIdSet::from_unsorted(vec![]).unwrap(),
+            }),
+        )
+    };
+    let stored = |body: &[u8]| super::all_kind_digest_dispatch::stored_from_body([0xa1; 32], body);
+    // 24 packages: 958 bytes stored, inside the budget; 48 packages: 1,750
+    // bytes, over it. Both are accepted by the native codec.
+    let inside = stored(&workspace(24));
+    let over = stored(&workspace(48));
+    for body in [&inside, &over] {
+        sley_mutate::import_entity_object(program_epoch9(), body)
+            .expect("the native codec accepts both workspaces");
+    }
+    let (verdict, outcome) = arbitrary_dispatch_decode(&package, &approved, 1, &inside);
+    assert!(
+        verdict.is_ok(),
+        "the 958-byte workspace validates inside the budget"
+    );
+    eprintln!(
+        "RESOURCE_BOUND inside stored={}B instructions={} fuel={}",
+        inside.len(),
+        outcome.instruction_count,
+        outcome.fuel_used
+    );
+    let outcome = execute_with_limits(
+        &package,
+        &approved,
+        vec![u64_input(1), bytes_input(&over), unit_input()],
+        codec_profile_limits(),
+    );
+    eprintln!(
+        "RESOURCE_BOUND over stored={}B termination={:?} instructions={}",
+        over.len(),
+        outcome.termination,
+        outcome.instruction_count
+    );
+    assert_eq!(over.len(), 1_750);
+    assert!(
+        matches!(
+            outcome.termination,
+            sley_vm::ExecutionTermination::ResourceLimit(sley_vm::ResourceKind::ValueUnits)
+        ),
+        "an over-budget identity-heavy body is the VM's value-unit limit: {:?}",
+        outcome.termination
+    );
+    assert_eq!(outcome.instruction_count, 33_486);
 }
 
 /// Known deviation RW090-DEV-02 (rw-090-codec-component-manifest.json): the
@@ -27133,6 +27422,15 @@ fn arbitrary_dispatch_forwards_schema_refusals_and_refuses_unknown_kinds() {
             18,
             parameter_schema_with_fields(1, &workspace_fields),
             b"SSMC_RESERVED_FIELD_PRESENT",
+        ),
+        (
+            // Declared kind 18 with a body tag outside 1..=18 (RW090-DEV-03's
+            // second clause, pinned at c04539b9): the union tag itself is
+            // refused before any kind routing.
+            "declared_kind_18_body_tag_19",
+            18,
+            parameter_schema_with_fields(19, &workspace_fields),
+            b"SCB_UNION_INVALID",
         ),
         (
             "unknown_kind_zero",

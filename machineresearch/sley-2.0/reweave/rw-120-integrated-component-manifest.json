@@ -11,10 +11,10 @@
   "entry_points": 4,
   "object_count": 20293,
   "object_stored_bytes": 5109711,
-  "object_bundle_sha256": "0c9703d091302c7d693b34032bf9b640079c928a81de8a1f495034a7e5da1248",
-  "state_root": "95f3ca026a3482a6d20ccac47eb41a3967b701eab7cd064c9b553716c691cf40",
+  "object_bundle_sha256": "f9071b0b408994b8d809fea3ef34ed9a997217ab2c9115d05c5b1e96659bdf1d",
+  "state_root": "f05f2c2380b108ef9948eb77efe411b0c0a54f4c39865abec6ba0569207dd200",
   "state_root_stored_bytes": 1339736,
-  "state_root_stored_sha256": "b51ba7ca953d63bd8cba9982b3cc0c88281ea52b1024e5f0afcd827bdef138f2",
+  "state_root_stored_sha256": "e0960def2d81df5546fa4d25ec7aadfbfe0b9e2b4c9689ff93c59a3eb69c7998",
   "exact_codec_execution_from_root": true,
   "exact_checker_execution_from_root": true,
   "exact_lowerer_execution_from_root": true,
@@ -42,7 +42,7 @@
     "state_root_stored_bytes": 778273,
     "state_root_stored_sha256": "b28ab1c1d237d3f4cf6694cba67e23c07101065d01828ffc7e28060a63daba9c"
   },
-  "codec_generation": "arbitrary four-leg codec after the 178873d7 and 92fa6646 Council repairs (re-mint 2026-09-18); judges arbitrary canonical bodies with native nesting-depth charging at every node (RW090-DEV-01 residual disclosed), typed-field construction remains native",
+  "codec_generation": "arbitrary four-leg codec after the 178873d7, 92fa6646 and c04539b9 Council rounds (re-mint 2026-09-18): both program legs judge arbitrary canonical bodies of all 18 kinds with native nesting-depth charging at every node and every ConstData container arm observed at the bound (RW090-DEV-01 residual disclosed); selector 1 re-frames handed body bytes, typed-field construction remains native",
   "pinned_by": "merged_component_root_executes_all_four_canonical_programs (the bounded generation by bounded_merged_component_root_executes_all_four_canonical_programs)",
   "superseded_first_repair_component": {
     "functions": 202,
@@ -59,5 +59,22 @@
     "state_root_stored_bytes": 1339670,
     "state_root_stored_sha256": "2fa1d6838a7d15d7697b6eec6d3595f6f9179c7c15e9422c58bb232b9b072a2d",
     "note": "first-repair generation (7426bc0b) superseded 2026-09-18 by the re-review repair re-mint"
+  },
+  "superseded_third_repair_component": {
+    "profile": "one canonical object root retaining the arbitrary codec, bounded checker, fact-fed lowerer, and populated package builder",
+    "functions": 201,
+    "parameters": 9687,
+    "blocks": 3233,
+    "operations": 6483,
+    "constants": 669,
+    "adapters": 4,
+    "entry_points": 4,
+    "object_count": 20293,
+    "object_stored_bytes": 5109711,
+    "object_bundle_sha256": "0c9703d091302c7d693b34032bf9b640079c928a81de8a1f495034a7e5da1248",
+    "state_root": "95f3ca026a3482a6d20ccac47eb41a3967b701eab7cd064c9b553716c691cf40",
+    "state_root_stored_bytes": 1339736,
+    "state_root_stored_sha256": "b51ba7ca953d63bd8cba9982b3cc0c88281ea52b1024e5f0afcd827bdef138f2",
+    "note": "third-repair generation (0b7a1482) superseded 2026-09-18 by the re-mint after the c04539b9 round (Map constant arm charged one level too many; the per-arm boundary sites found it)"
   }
 }

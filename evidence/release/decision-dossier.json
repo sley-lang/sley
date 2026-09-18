@@ -3,14 +3,14 @@
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
     "14 review obligations are open",
-    "20 GA acceptance criteria are not evidenced",
+    "21 GA acceptance criteria are not evidenced",
     "no succession trial has been executed",
     "only one host has attested the candidate",
     "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "93fcef33cb03f184a19a6fa79cea76eeb8031d07d557255e1990d1f6e13bdb3b",
+  "dossier_digest": "7e5072e0b534eaa87c36e9f37da621d4926475f8893ae68afd3c9d0894e89830",
   "entries": [
     {
       "evidence": [
@@ -341,22 +341,22 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 463,
+        "obligations": 466,
         "open_reviews": 14,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 126,
-          "P1": 173,
-          "P2": 203,
-          "P3": 253,
-          "P4": 102
+          "P1": 174,
+          "P2": 204,
+          "P3": 258,
+          "P4": 106
         },
         "states": {
-          "HISTORICAL_ROUND": 147,
-          "PASS": 302,
+          "HISTORICAL_ROUND": 149,
+          "PASS": 303,
           "PENDING": 14
         },
-        "unclaimed_carried_findings": 0,
+        "unclaimed_carried_findings": 1,
         "unclassified": 0
       }
     },
@@ -432,7 +432,7 @@
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 32 evidenced, 17 awaiting review, and 3 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 31 evidenced, 17 awaiting review, and 4 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -456,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "ce7ade9fe9681d01de0cd7d05b1889f3ef56e5c945ca879d7701f3c2362b8aec",
+  "entries_digest": "a45588245bafb1d0e33c44ea98730eb885bb133eeb6c5ce719db281193f00999",
   "evidenced": 24,
   "gated": 10,
   "gates": {

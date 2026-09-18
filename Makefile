@@ -58,6 +58,10 @@ quick:
 	python3 scripts/check_bootstrap_profile_2.py
 	python3 scripts/check_bootstrap_gate_markers.py
 	python3 scripts/check_bootstrap_capability.py
+	# REWEAVE generation records bound to their test pins (S, seed artifacts, codec component).
+	python3 scripts/check_reweave_canonical_s.py
+	python3 scripts/check_reweave_seed_artifacts.py
+	python3 scripts/check_reweave_codec_component.py
 	python3 scripts/check_host_abi_v1.py
 	python3 scripts/check_host_abi_v2.py
 	python3 scripts/check_host_abi_markers.py

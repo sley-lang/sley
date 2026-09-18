@@ -5,24 +5,24 @@
    "meaning": "preserved Rust bootstrap compiler (executable image)",
    "running_bootstrap_source": "sley2@3fc2275 (adoption commit; source line, not the C0 image)",
    "status": "preserved",
-   "value": "sha256:03378aa03709ddb1ab938ec3b21a2e2a9a35e6f061d839cbdf6a6a0989bf1d0e",
+   "value": "sha256:ee7582afe6e1c471d7d7fb8d37cd579bf1dfb2742a9050e46018c1970d0cef25",
    "artifact": "c0-c1-seed-artifacts.json",
-   "source_commit": "0b7a1482",
-   "digest": "03378aa03709ddb1ab938ec3b21a2e2a9a35e6f061d839cbdf6a6a0989bf1d0e",
+   "source_commit": "the commit carrying c0-c1-seed-artifacts.json (fourth re-mint 2026-09-18)",
+   "digest": "ee7582afe6e1c471d7d7fb8d37cd579bf1dfb2742a9050e46018c1970d0cef25",
    "provenance": {
     "artifact": "c0-c1-seed-artifacts.json",
     "checker": "scripts/check_reweave_seed_artifacts.py --require-local",
-    "source_commit": "0b7a1482",
+    "source_commit": "the commit carrying c0-c1-seed-artifacts.json (fourth re-mint 2026-09-18)",
     "build_command": "cargo test --release -p sley-vm --test rw120_toolchain_integration --no-run --message-format=json (offline, -j 4, fresh CARGO_TARGET_DIR, detached clean worktree at /home/gfarch/Work/checkpoints/sley2-c0-mint)",
     "digest_method": "raw-byte SHA-256 of the preserved executable",
-    "preserved_by": "RW-120 C0/C1 candidate re-mint after the 178873d7 and 92fa6646 Council repairs (2026-09-18)"
+    "preserved_by": "RW-120 C0/C1 candidate re-mint after the 178873d7, 92fa6646 and c04539b9 Council repairs (2026-09-18)"
    }
   },
   "C1": {
    "meaning": "C0.build(S, P)",
    "status": "does not exist; exact C0-produced candidate preserved while semantic prerequisites remain open",
    "value": null,
-   "candidate": "sha256:2b35e6e76fe325b96869c0ca65ac0070a5e98683866042596891ab6a614a0210",
+   "candidate": "sha256:a329e0bca641e90c6477b06f85204eca17bf5ffb90683a518275dec587559192",
    "artifact": "c0-c1-seed-artifacts.json"
   },
   "C2": {
@@ -66,17 +66,17 @@
   "S": {
    "meaning": "immutable canonical root and complete dependency closure of the Sley toolchain program",
    "status": "canonical input frozen",
-   "value": "48f8af2422b3e56b2924f56b11ca07f141b87541cdba6584cf1c6e87602577dd",
+   "value": "5332d4d758c17c928039cd321ba593aedc5e87f8a57e43ab8e43bc5d877308b3",
    "manifest": "canonical-s-manifest.json",
-   "scope": "RW-080 graph-root input with the arbitrary RW-090 codec after the 178873d7 and 92fa6646 Council repairs (re-mint 2026-09-18): the codec judges arbitrary canonical bodies on both program legs with native nesting-depth charging at every node and selector 1 re-frames handed body bytes (typed-field construction remains native; RW090-DEV-01..03 disclosed); checker/lowerer semantic gates and bootstrap gates remain open",
-   "digest": "48f8af2422b3e56b2924f56b11ca07f141b87541cdba6584cf1c6e87602577dd",
+   "scope": "RW-080 graph-root input with the arbitrary RW-090 codec after the 178873d7, 92fa6646 and c04539b9 Council repairs (re-mint 2026-09-18): the codec judges arbitrary canonical bodies on both program legs with native nesting-depth charging at every node and selector 1 re-frames handed body bytes (typed-field construction remains native; RW090-DEV-01..03 disclosed); checker/lowerer semantic gates and bootstrap gates remain open",
+   "digest": "5332d4d758c17c928039cd321ba593aedc5e87f8a57e43ab8e43bc5d877308b3",
    "provenance": {
     "artifact": "canonical-s-manifest.json",
     "checker": "scripts/check_reweave_canonical_s.py",
     "construction_test": "cargo test -p sley-vm --test rw120_toolchain_integration integrated_driver_hands_lowered_bytes_to_the_package_builder -- --nocapture",
-    "source_commit": "0b7a1482",
+    "source_commit": "the commit carrying canonical-s-manifest.json (fourth re-mint 2026-09-18)",
     "digest_method": "accepted state root of the canonical closure (value and digest are the same root)",
-    "frozen_by": "RW-080 construction (2026-09-18), re-minted with the arbitrary RW-090 codec (2026-09-18) and again after the 178873d7 Council repairs (2026-09-18), and after the 92fa6646 re-review repair (2026-09-18)"
+    "frozen_by": "RW-080 construction (2026-09-18), re-minted with the arbitrary RW-090 codec (2026-09-18) and again after the 178873d7 Council repairs (2026-09-18), and after the 92fa6646 re-review repair (2026-09-18), and after the c04539b9 round (2026-09-18)"
    }
   }
  },
@@ -90,6 +90,9 @@
   "C1_candidate_pre_review_arbitrary": "sha256:87db2921370298422d0c3b4dbd5b2fe28d9f3b93b07329ac4da7a1a2b0eb2f79 (e3a50ca7)",
   "S_first_repair": "1d64fcd1298bbab91e8c42a1b673fba683e1a0e2075f560ecfc6aaf849e16c58 (arbitrary-codec generation after the 178873d7 repairs, 7426bc0b)",
   "C0_first_repair": "sha256:afaa6bef94f4f06b65c5eb3c3dbcb1549178b85641b223d2e443044c87ff06f0 (7426bc0b, retained in the artifact store)",
-  "C1_candidate_first_repair": "sha256:18d1264f8dd352c37305918feefca165fc789f8ec64136211ff92f730998484f (7426bc0b)"
+  "C1_candidate_first_repair": "sha256:18d1264f8dd352c37305918feefca165fc789f8ec64136211ff92f730998484f (7426bc0b)",
+  "S_third_repair": "48f8af2422b3e56b2924f56b11ca07f141b87541cdba6584cf1c6e87602577dd (0b7a1482)",
+  "C0_third_repair": "sha256:03378aa03709ddb1ab938ec3b21a2e2a9a35e6f061d839cbdf6a6a0989bf1d0e (0b7a1482, retained in the artifact store)",
+  "C1_candidate_third_repair": "sha256:2b35e6e76fe325b96869c0ca65ac0070a5e98683866042596891ab6a614a0210 (0b7a1482)"
  }
 }

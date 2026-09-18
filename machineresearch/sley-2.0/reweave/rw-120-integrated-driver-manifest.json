@@ -12,12 +12,12 @@
   "driver_inputs": 75,
   "object_count": 20376,
   "object_stored_bytes": 5129407,
-  "object_bundle_sha256": "c501299d61cd3354b45206a38b50fb2ce496011d7d7de5591280302ab1c927c8",
-  "state_root": "748312058f8a13f7a27c03e91cf1d7a1eaf0b9f8cefd56ed39ed88fab0394af5",
+  "object_bundle_sha256": "6dd42f899fb3ea41966922e183542708bc43e2598ee3afca15d87d6d3faee163",
+  "state_root": "2d8448d874bdfc3b0b53c9c4a17eea65215d70bff80b39c7393867aced88099d",
   "state_root_stored_bytes": 1345247,
-  "state_root_stored_sha256": "d3a5b0a01d64b59ab85150a6fae6b50fe3280b8cc6764acb7dbb0442bb19d039",
+  "state_root_stored_sha256": "bb46b6dca5a6fa1a0864795c6e9ef4a3c8505eb50090b77a34175980c7ca49bf",
   "executable_image_bytes": 816822,
-  "execution_package_digest": "9514c3193c74af11e717ca548b05fe8cb58185cb96a2bed2e7987c9122763da0",
+  "execution_package_digest": "e9a70ff44f77c2af10af47e6dcfd8cc6d2bcb091171ef7960b59da260ca7d459",
   "gate_operation_count": 6488,
   "gate_bridge_uses": 217,
   "single_vm_invocation": true,
@@ -51,7 +51,7 @@
     "gate_operation_count": 4054,
     "gate_bridge_uses": 147
   },
-  "codec_generation": "arbitrary four-leg codec after the 178873d7 and 92fa6646 Council repairs (re-mint 2026-09-18); judges arbitrary canonical bodies with native nesting-depth charging at every node (RW090-DEV-01 residual disclosed), typed-field construction remains native",
+  "codec_generation": "arbitrary four-leg codec after the 178873d7, 92fa6646 and c04539b9 Council rounds (re-mint 2026-09-18): both program legs judge arbitrary canonical bodies of all 18 kinds with native nesting-depth charging at every node and every ConstData container arm observed at the bound (RW090-DEV-01 residual disclosed); selector 1 re-frames handed body bytes, typed-field construction remains native",
   "pinned_by": "integrated_driver_calls_all_four_real_programs_in_one_execution",
   "superseded_first_repair_driver": {
     "functions": 203,
@@ -73,5 +73,27 @@
     "gate_operation_count": 6488,
     "gate_bridge_uses": 217,
     "note": "first-repair generation (7426bc0b) superseded 2026-09-18 by the re-review repair re-mint"
+  },
+  "superseded_third_repair_driver": {
+    "profile": "one admitted Sley invocation directly calls the arbitrary codec, bounded checker, fact-fed lowerer, and populated package builder",
+    "functions": 202,
+    "parameters": 9762,
+    "blocks": 3234,
+    "operations": 6488,
+    "constants": 669,
+    "adapters": 4,
+    "entry_points": 5,
+    "driver_inputs": 75,
+    "object_count": 20376,
+    "object_stored_bytes": 5129407,
+    "object_bundle_sha256": "c501299d61cd3354b45206a38b50fb2ce496011d7d7de5591280302ab1c927c8",
+    "state_root": "748312058f8a13f7a27c03e91cf1d7a1eaf0b9f8cefd56ed39ed88fab0394af5",
+    "state_root_stored_bytes": 1345247,
+    "state_root_stored_sha256": "d3a5b0a01d64b59ab85150a6fae6b50fe3280b8cc6764acb7dbb0442bb19d039",
+    "executable_image_bytes": 816822,
+    "execution_package_digest": "9514c3193c74af11e717ca548b05fe8cb58185cb96a2bed2e7987c9122763da0",
+    "gate_operation_count": 6488,
+    "gate_bridge_uses": 217,
+    "note": "third-repair generation (0b7a1482) superseded 2026-09-18 by the re-mint after the c04539b9 round (Map constant arm charged one level too many; the per-arm boundary sites found it)"
   }
 }

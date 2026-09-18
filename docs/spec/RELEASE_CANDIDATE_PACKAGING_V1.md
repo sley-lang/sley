@@ -1,6 +1,6 @@
 # Release Candidate Packaging v1
 
-Status: S20-720 contract draft, revision 5 (2026-09-15), with round-7
+Status: S20-720 contract draft, revision 6 (2026-09-18), with round-7
 clarifications (2026-09-11, section 13); Council review pending (Ariadne
 contract review, Nabu architecture review, Vulcan surface review). Revision
 2 records the clarifications found while implementing
@@ -174,7 +174,14 @@ commit, artifact digest, manifest digest, size, member count, cleanliness,
 reproducibility, and toolchain, with the attestation clean and
 `REPRODUCIBLE`; the checker enforces the binding as
 `candidate-attestation-mismatch`, so the register cannot name
-a candidate no attestation describes.
+a candidate no attestation describes. The lint report
+`evidence/build/lint-report.json` (`sley2.lint-report.v1`: `commit`,
+`fmt_clean`, `clippy_clean`, `clippy_warnings`, `result`, and since
+revision 6 `working_tree_clean`, `lint_inputs_clean`, `dirty_lint_inputs`)
+is bound to the candidate as well: its `commit` must equal
+`candidate_commit`, `lint_inputs_clean` must be true and `result` `PASS`;
+the checker enforces this as `lint-report:commit-differs-from-candidate`
+and `lint-report:not-a-clean-pass` (revision 6, section 16).
 `machine-summary.json` `artifact` stays null until an operator-approved
 release candidate exists.
 
@@ -220,6 +227,7 @@ become an S20-720 acceptance decision merely because it runs in that target.
 | `evidence/review/finding-register.json` | S20-740 finding disposition and clearance |
 | `evidence/release/ga-acceptance-report.json` and `evidence/release/decision-dossier.json` | S20-750 GA criteria and decision assembly; neither is itself an operator release decision |
 | `evidence/security/T52/pre-release-inventory.json` and `evidence/security/T54/secret-scan.json` | Threat-register T52/T54 supply-chain evidence, consumed by S20-710 and security review |
+| `evidence/build/lint-report.json` (`sley2.lint-report.v1`) | `make lint` / `scripts/record_lint_report.py`; bound to `candidate_commit` by this package's checker (revision 6) |
 
 `sync_evidence_counters.py` synchronizes derived summary counters; it grants
 no acceptance. The final supply-chain refresh accounts for generated file
@@ -351,3 +359,18 @@ verification. The split preserves build-before-verify ordering even under
 parallel make. The machine summary's `candidate_content_report` and
 `candidate_content_checker` point to the owned files; the packaging checker
 binds those pointers and this contract section.
+
+## 16. Lint-report binding (revision 6, 2026-09-18; gate semantics unchanged)
+
+The c04539b9 Council round (Nabu P3) found the checker enforcing a lint
+report binding the contract named nowhere. Revision 6 records it: the lint
+report names the tree it linted (`commit`, and `lint_inputs_clean` — the
+porcelain state of `crates/`, `.cargo/`, `Cargo.toml`, `Cargo.lock`,
+`rust-toolchain.toml`, `clippy.toml`, `rustfmt.toml` when recorded, with
+`dirty_lint_inputs` listing any dirty entry and `working_tree_clean` the
+whole-tree state), and the packaging checker requires `commit ==
+candidate_commit`, `lint_inputs_clean == true` and `result == PASS`
+(`lint-report:commit-differs-from-candidate`, `lint-report:not-a-clean-pass`).
+The report is therefore recorded at the candidate commit with only
+records dirty, in the records-only descendant, after `make lint`. Section 10
+names its owner.

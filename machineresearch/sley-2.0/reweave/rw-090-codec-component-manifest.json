@@ -1,13 +1,20 @@
 {
   "schema": "sley2-rw090-codec-component-manifest-v1",
   "status": "PROVISIONAL",
-  "object_count": 14739,
-  "codec_object_count": 14727,
-  "codec_object_stored_bytes": 3731690,
-  "codec_bundle_sha256": "e6633dcc886d970c823cd95d7c22a63a076066ce87b26b3188cd8799a1add291",
-  "state_root": "2958619ac0b70cbf4a33e14f26df7fdfe306d527c6f6adf31962bf75e31b7af8",
-  "state_root_stored_bytes": 973071,
-  "state_root_stored_sha256": "e39142274572c908ae5c7eb05f98dea31c8285f26c0ceb56e5f9bcfa4a65fbe1",
+  "object_count": 14740,
+  "codec_object_count": 14728,
+  "codec_object_stored_bytes": 3732076,
+  "codec_bundle_sha256": "018dcd88fb5e3caa204a3537ec3066cb74e3da5a8424af9fec94f0d3aa3da51a",
+  "state_root": "d35a5d6d7b3e2c423c01d92b73043bfcb69ab1c08dee4f1c2cef8211300c6dc8",
+  "state_root_stored_bytes": 973137,
+  "state_root_stored_sha256": "3fb01d5633bbc24d07b72d51bb49e0fc0b5086ef944525c96eaffaf95bd149c9",
+  "image_functions": 132,
+  "image_parameters": 7791,
+  "image_blocks": 2131,
+  "image_operations": 4531,
+  "image_constants": 138,
+  "image_adapters": 4,
+  "pinned_by": "canonical_codec_objects_round_trip_and_bind_the_complete_graph (image counts, codec objects, stored bytes, bundle) and canonical_codec_component_retains_validated_contract_test_and_executes_from_its_root (object_count, state_root, stored root bytes and digest) in crates/sley-vm/tests/rw080_codec_program/canonical_codec.rs; bound by scripts/check_reweave_codec_component.py",
   "entry_point_identity": "EntityId::derive(workspace,candidate,16,5)",
   "contract_identity": "EntityId::derive(workspace,candidate,13,1)",
   "test_identity": "EntityId::derive(workspace,candidate,14,1)",
@@ -33,16 +40,17 @@
     "native_parity_mechanized": "every per-kind rejection case (kinds 4, 5, 6-15) asserts the Sley code equals sley_mutate::import_entity_object on the same stored bytes (assert_native_body_parity); kinds 1, 2, 3, 5, 16, 17 and 18 gained canonical-entry refusal cases with the same parity (arbitrary_dispatch_refuses_identity_kind_boundaries_with_native_codes); the fixed-32 identity validator now distinguishes a short payload (SCB_LENGTH_OVERFLOW) from a long one (SCB_TRAILING_BYTES) as the native cursor does",
     "encode_leg_unknown_kind": "selector 1 refuses kinds 0 and 19 with SSMC_ENTITY_KIND_UNKNOWN (arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies)",
     "identity_reuse": "RW080-ID-02 candidate clarification filed in rw-080-contract.md section 6 (component re-mint replacement semantics); architecture acceptance pending",
-    "round_2": "92fa6646 (Ariadne REVISE_0_P0_0_P1_1_P2_3_P3_1_P4, Nabu REVISE_0_P0_0_P1_1_P2_0_P3_4_P4_PRIOR_P3_P4_CLOSED, Vulcan REVISE_0_P0_0_P1_1_P2_0_P3_4_P4_PRIOR_P3_P4_CLOSED; transcripts evidence/review/verdicts/rw090_arbitrary_codec/*-92fa664.md): shared P2 closed by threading the node depth into the constant projector (value_type charged at depth + 1; RW090-DEV-01 narrowed to FunctionRef type arguments), kind-5 parity added, RW090-DEV-02 pinned, RW090-DEV-03 restated with the kind-18 code and a canonical-entry case, the resource-limit profile decision filed as the rw-080-contract.md section 1.1 clarification, contract_mapping_open recorded; re-review of this generation pending"
+    "round_2": "92fa6646 (Ariadne REVISE_0_P0_0_P1_1_P2_3_P3_1_P4, Nabu REVISE_0_P0_0_P1_1_P2_0_P3_4_P4_PRIOR_P3_P4_CLOSED, Vulcan REVISE_0_P0_0_P1_1_P2_0_P3_4_P4_PRIOR_P3_P4_CLOSED; transcripts evidence/review/verdicts/rw090_arbitrary_codec/*-92fa664.md): shared P2 closed by threading the node depth into the constant projector (value_type charged at depth + 1; RW090-DEV-01 narrowed to FunctionRef type arguments), kind-5 parity added, RW090-DEV-02 pinned, RW090-DEV-03 restated with the kind-18 code and a canonical-entry case, the resource-limit profile decision filed as the rw-080-contract.md section 1.1 clarification, contract_mapping_open recorded; re-review of this generation pending",
+    "round_3": "c04539b9 (Ariadne REVISE_0_P0_1_P1_1_P2_1_P3_2_P4, Nabu REVISE_0_P0_0_P1_1_P2_1_P3_3_P4_PRIOR_P3_P4_CLOSED, Vulcan REVISE_0_P0_0_P1_2_P2_0_P3_1_P4; transcripts evidence/review/verdicts/rw090_arbitrary_codec/*-c04539b.md): this manifest and the codec-objects record had kept the 7426bc0b component figures (P1/P2) \u2014 re-minted and bound by scripts/check_reweave_codec_component.py; the over-budget test deleted at 0b7a1482 is restored and re-measured (P2); RW090-DEV-01 edges bracketed (native first refusal 55, this codec 58; P3); DEV-01 offset corrected to +4 and DEV-03's tag-19 clause pinned (P4s); a kind-12 deeper-root value_type site and one boundary site per ConstData container arm added (P4s) \u2014 the map arm charged one level too many (refused natively valid bodies from 13 nested maps; native bound 16), repaired in this generation"
   },
   "known_deviations": [
     {
       "id": "RW090-DEV-01",
       "site": "type arguments of a FunctionRef constant (ConstData tag 15) inside a ConstValue",
-      "deviation": "validated by a fixed depth-6 TypeExpr entry (the depth of a Constant body's root value's type arguments), because the type-argument list validator has no depth parameter; a FunctionRef constant rooted deeper (CapabilityRequirement scopes, TestCase inputs/observations/adapter configs/replay bindings) or nested under other constant nodes is charged from depth 6 instead of its native depth (root depth + 3 for a Constant, +1 per enclosing container path as the native codec charges)",
+      "deviation": "validated by a fixed depth-6 TypeExpr entry (the depth of a Constant body's root value's type arguments), because the type-argument list validator has no depth parameter; a FunctionRef constant rooted deeper (CapabilityRequirement scopes, TestCase inputs/observations/adapter configs/replay bindings) or nested under other constant nodes is charged from depth 6 instead of its native depth (node depth + 4: the type-argument list elements sit four native levels beneath the FunctionRef constant's ConstValue node \u2014 data union, FunctionRefValue record, argument list, element; a Constant body's root at 2 puts them at 6, a node under one Sequence level at 5 puts them at 9)",
       "direction": "fail-open at the nesting bound only for type expressions inside FunctionRef constants that sit deeper than depth 6; every node's value_type is charged at its own depth (the driver hands the projector the node depth), and every other site is exact",
-      "pinned_by": "arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site (nested value_type parity block: both codecs refuse from 58 Option levels under one Sequence level; known-deviation block: a FunctionRef nested under one Sequence level accepts 56 levels here and is refused natively, 58 refused by both)",
-      "closure": "a depth-carrying list validator (or a per-node type-argument entry) so the type arguments are charged at node depth + 3"
+      "pinned_by": "arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site (nested value_type parity block: both codecs refuse from 58 Option levels under one Sequence level; known-deviation block: a FunctionRef nested under one Sequence level is refused natively from 55 Option levels and here from 58 \u2014 the window 55..=57 is the exact three-level deviation, both edges bracketed)",
+      "closure": "a depth-carrying list validator (or a per-node type-argument entry) so the type arguments are charged at node depth + 4"
     },
     {
       "id": "RW090-DEV-02",
@@ -57,7 +65,7 @@
       "site": "declared-kind mismatch",
       "deviation": "the dispatch refuses a body whose union tag differs from the declared kind: for declared kinds 1..=17 the schema body check answers SCB_UNION_INVALID; for declared kind 18 the strict DependencyBinding decoder's tag validator answers SSMC_RESERVED_FIELD_PRESENT for a body tag in 1..=17 and SCB_UNION_INVALID for a tag outside 1..=18. The native codec has no declared kind and decodes the tag's kind",
       "direction": "a dispatch precondition with no native counterpart, not a codec deviation",
-      "pinned_by": "the wrong_kind cases of every per-kind rejection test and the declared_kind_mismatch / declared_kind_18_mismatch cases of arbitrary_dispatch_forwards_schema_refusals_and_refuses_unknown_kinds",
+      "pinned_by": "the wrong_kind cases of every per-kind rejection test and the declared_kind_mismatch / declared_kind_18_mismatch cases of arbitrary_dispatch_forwards_schema_refusals_and_refuses_unknown_kinds; declared_kind_18_body_tag_19 (SCB_UNION_INVALID for a body tag outside 1..=18)",
       "closure": "none required"
     }
   ],
@@ -66,8 +74,8 @@
     "instruction_cost": "roughly 90 instructions per body byte (a 862-byte TestCase costs 73,591)",
     "value_unit_bound": "identity-heavy bodies bind on the value-unit envelope first: a 1,750-byte Workspace (48 packages) terminates with ResourceLimit(ValueUnits) at 33,486 instructions; a 958-byte Workspace validates",
     "outcome_when_exceeded": "a deterministic VM ResourceLimit termination of the admitted invocation; rw-080-contract.md section 1.1 (clarification of 2026-09-18) records that under the bootstrap profile this termination IS the codec's Limit outcome for the driver, so no typed LIMIT value is emitted and nothing traps",
-    "pinned_by": "arbitrary_dispatch_over_budget_body_terminates_with_a_resource_limit",
-    "value_unit_growth": "not yet measured between the two pinned points (958-byte Workspace validates; 1,750-byte / 48-package Workspace exceeds 100,000,000 value units at 33,486 instructions); the identity-set validation of a Workspace re-validates each package identity through the fixed-32 validator and the ordered-set check, so a superlinear component in the package count is plausible and is an open measurement, not a claim"
+    "pinned_by": "arbitrary_dispatch_over_budget_body_terminates_with_a_resource_limit (restored after 0b7a1482 had replaced it; re-measured at this generation: 958-byte Workspace validates at 32,352 instructions, 1,750-byte Workspace terminates ResourceLimit(ValueUnits) at 33,486 instructions)",
+    "value_unit_growth": "not yet measured between the two pinned points (re-pinned at this generation) (958-byte Workspace validates; 1,750-byte / 48-package Workspace exceeds 100,000,000 value units at 33,486 instructions); the identity-set validation of a Workspace re-validates each package identity through the fixed-32 validator and the ordered-set check, so a superlinear component in the package count is plausible and is an open measurement, not a claim"
   },
   "contract_mapping_open": "rw-080-contract.md section 1.1 names Result<CanonicalObject, CodecError> with a seven-code CodecError vocabulary: the decode leg returns the validated body as opaque canonical bytes (schema projections are judged, not materialized as a typed CanonicalObject), refusals are the exact native SCB_*/SSMC_* code strings (identical to sley-mutate's) rather than the seven-code enum, and resource exhaustion under the bootstrap profile is the VM's deterministic ResourceLimit termination of the admitted invocation (section 1.1 clarification of 2026-09-18) rather than a typed LIMIT value; rw090_complete_codec stays false in canonical-s-manifest.json until these three mappings close",
   "superseded_pre_review_arbitrary_component": {
@@ -80,5 +88,28 @@
     "state_root_stored_sha256": "5a0d017c85ea2846bdaece500b9963ca5f761a50ed7d73bb291ec2a970a1e289",
     "source_commit": "e3a50ca7"
   },
-  "source_commit": "0b7a1482 (second repair re-mint of 2026-09-18)"
+  "superseded_first_repair_component": {
+    "object_count": 14739,
+    "codec_object_count": 14727,
+    "codec_object_stored_bytes": 3731690,
+    "codec_bundle_sha256": "e6633dcc886d970c823cd95d7c22a63a076066ce87b26b3188cd8799a1add291",
+    "state_root": "2958619ac0b70cbf4a33e14f26df7fdfe306d527c6f6adf31962bf75e31b7af8",
+    "state_root_stored_bytes": 973071,
+    "state_root_stored_sha256": "e39142274572c908ae5c7eb05f98dea31c8285f26c0ceb56e5f9bcfa4a65fbe1",
+    "source_commit": "7426bc0b",
+    "note": "first-repair component (after the 178873d7 Council repairs), superseded 2026-09-18 by the 0b7a1482 component under RW080-ID-02 replacement semantics"
+  },
+  "superseded_third_repair_component": {
+    "object_count": 14740,
+    "codec_object_count": 14728,
+    "codec_object_stored_bytes": 3732076,
+    "codec_bundle_sha256": "d4512319c23d62918bf9e3679f24f45e994ff108ee4d50ed72e44ff56b864dff",
+    "state_root": "3398fa0dc92df884a62d491edfdc0b292fee7f95dbf15460eec237dc01f674c6",
+    "state_root_stored_bytes": 973137,
+    "state_root_stored_sha256": "f9e9f656a5e2c09aaf0139395bc2684420a06052737b826da9afc8fe661ac770",
+    "source_commit": "0b7a1482",
+    "note": "third-repair component (node-depth value_type charging), superseded 2026-09-18 by the fourth re-mint (Map constant-arm over-charge repaired) under RW080-ID-02 replacement semantics"
+  },
+  "source_commit": "the commit carrying this manifest (fourth re-mint of 2026-09-18 after the c04539b9 round; named in the records-only descendant)",
+  "arm_boundaries_observed": "every ConstData container arm is observed against the native codec at the 64-level bound (arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site, per-arm sites under a ten-times-wider budget): Sequence 21 nested nodes, Record 13, Variant 16, Map 16, Option 21, Result 21 (first refused chain length; native and this codec agree across the window)"
 }

@@ -1,6 +1,6 @@
 # ADR-0038: release candidate mechanics without a release
 
-Status: proposed; the S20-720 contract is a draft at revision 5 with
+Status: proposed; the S20-720 contract is a draft at revision 6 with
 Council review pending; mechanics implemented (2026-09-03, revised
 2026-09-05) with a reproducible artifact, an unpacked demo, and
 `release-check` still fail-closed

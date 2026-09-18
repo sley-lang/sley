@@ -2,7 +2,7 @@
 
 Date: 2026-09-18
 
-Status: SUPERSEDED BY THE RE-MINTS (same day). The dry run below preceded the codec re-mint recorded in `rw-120-c0-c1-candidate.md`; the canonical `S` was first re-minted as `b1992814…` (pre-review arbitrary generation, e3a50ca7) after the 178873d7 Council repairs as `1d64fcd1…` (7426bc0b), and after the 92fa6646 re-review round as `48f8af24…` (source commit in `canonical-s-manifest.json`), which is the installed canonical `S`. The table below is retained as the dry-run evidence of the first re-mint.
+Status: SUPERSEDED BY THE RE-MINTS (same day). The dry run below preceded the codec re-mint recorded in `rw-120-c0-c1-candidate.md`; the canonical `S` was first re-minted as `b1992814…` (pre-review arbitrary generation, e3a50ca7) after the 178873d7 Council repairs as `1d64fcd1…` (7426bc0b), after the 92fa6646 re-review round as `48f8af24…` (0b7a1482), and after the c04539b9 round as `5332d4d7…` (source commit in `canonical-s-manifest.json`), which is the installed canonical `S`. The table below is retained as the dry-run evidence of the first re-mint.
 
 ## What was computed
 
@@ -62,11 +62,16 @@ handoff `S` `48f8af24…` (202 functions, 9,763 parameters, 3,236 blocks,
 6,492 operations, 669 constants, 20,383 objects, 5,131,404 bytes, bundle
 `d7d2fcb5…`, stored root 1,345,709 bytes `76235656…`), driver `S`
 `74831205…` (202/9,762/3,234/6,488, 20,376 objects), merged component root
-`95f3ca02…` (201/9,687/3,233/6,483, 20,293 objects). The figures in the
-table above are the pre-review arbitrary generation, superseded three times
-over (bounded → arbitrary → repaired arbitrary → re-review repaired) under
-RW080-ID-02 replacement semantics; `rw-120-c0-c1-candidate.md` and the
-generation manifests carry the current values.
+`95f3ca02…` (201/9,687/3,233/6,483, 20,293 objects). The c04539b9 round
+(per-arm ConstData boundary sites) found the Map constant arm charging one
+nesting level too many and led to the fourth re-mint: the same counts with
+handoff `S` `5332d4d7…` (bundle `bee7da94…`, stored root `35256f88…`),
+driver `S` `2d8448d8…`, merged component root `f05f2c23…`. The figures in
+the table above are the pre-review arbitrary generation, superseded four
+times over (bounded → arbitrary → repaired arbitrary → re-review repaired →
+arm-parity repaired) under RW080-ID-02 replacement semantics;
+`rw-120-c0-c1-candidate.md` and the generation manifests carry the
+current values.
 
 The checker and lowerer remain bounded; the codec is arbitrary on both
 program legs. Independent re-review of the repairs is pending.

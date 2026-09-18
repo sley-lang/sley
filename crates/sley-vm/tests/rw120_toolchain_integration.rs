@@ -580,16 +580,16 @@ fn merged_component_root_executes_all_four_canonical_programs() {
     assert_eq!(object_bytes, 5_109_711);
     assert_eq!(
         object_digest,
-        "0c9703d091302c7d693b34032bf9b640079c928a81de8a1f495034a7e5da1248"
+        "f9071b0b408994b8d809fea3ef34ed9a997217ab2c9115d05c5b1e96659bdf1d"
     );
     assert_eq!(
         hex(evidence.root.root.as_bytes()),
-        "95f3ca026a3482a6d20ccac47eb41a3967b701eab7cd064c9b553716c691cf40"
+        "f05f2c2380b108ef9948eb77efe411b0c0a54f4c39865abec6ba0569207dd200"
     );
     assert_eq!(evidence.root.stored_bytes.len(), 1_339_736);
     assert_eq!(
         root_digest,
-        "b51ba7ca953d63bd8cba9982b3cc0c88281ea52b1024e5f0afcd827bdef138f2"
+        "e0960def2d81df5546fa4d25ec7aadfbfe0b9e2b4c9689ff93c59a3eb69c7998"
     );
     eprintln!(
         "RW120_COMPONENT functions={} parameters={} blocks={} operations={} constants={} objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={}",
@@ -630,21 +630,21 @@ fn integrated_driver_calls_all_four_real_programs_in_one_execution() {
     assert_eq!(object_bytes, 5_129_407);
     assert_eq!(
         object_digest,
-        "c501299d61cd3354b45206a38b50fb2ce496011d7d7de5591280302ab1c927c8"
+        "6dd42f899fb3ea41966922e183542708bc43e2598ee3afca15d87d6d3faee163"
     );
     assert_eq!(
         hex(evidence.root.root.as_bytes()),
-        "748312058f8a13f7a27c03e91cf1d7a1eaf0b9f8cefd56ed39ed88fab0394af5"
+        "2d8448d874bdfc3b0b53c9c4a17eea65215d70bff80b39c7393867aced88099d"
     );
     assert_eq!(evidence.root.stored_bytes.len(), 1_345_247);
     assert_eq!(
         root_digest,
-        "d3a5b0a01d64b59ab85150a6fae6b50fe3280b8cc6764acb7dbb0442bb19d039"
+        "bb46b6dca5a6fa1a0864795c6e9ef4a3c8505eb50090b77a34175980c7ca49bf"
     );
     assert_eq!(execution.image_bytes, 816_822);
     assert_eq!(
         hex(&execution.package_digest),
-        "9514c3193c74af11e717ca548b05fe8cb58185cb96a2bed2e7987c9122763da0"
+        "e9a70ff44f77c2af10af47e6dcfd8cc6d2bcb091171ef7960b59da260ca7d459"
     );
     assert_eq!(execution.gate_operation_count, 6_488);
     assert_eq!(execution.gate_bridge_uses, 217);
@@ -697,21 +697,21 @@ fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
     assert_eq!(object_bytes, 5_131_404);
     assert_eq!(
         object_digest,
-        "d7d2fcb57d19676c269559bc2a938c04ada682a46b4c34f197b5126901ded25a"
+        "bee7da94a659c31366ca81fe634cd84d5aa9e5b2108bd56d5d1112cda55e3a5e"
     );
     assert_eq!(
         hex(evidence.root.root.as_bytes()),
-        "48f8af2422b3e56b2924f56b11ca07f141b87541cdba6584cf1c6e87602577dd"
+        "5332d4d758c17c928039cd321ba593aedc5e87f8a57e43ab8e43bc5d877308b3"
     );
     assert_eq!(evidence.root.stored_bytes.len(), 1_345_709);
     assert_eq!(
         root_digest,
-        "76235656984ec59963b8b39a425cb6af721069a25cafca0b6988dfea3ffb2e8c"
+        "35256f888669cb2ce6cc446b3bc955b75e58ea6376202b3b5a20d3a1152af098"
     );
     assert_eq!(execution.image_bytes, 817_280);
     assert_eq!(
         hex(&execution.package_digest),
-        "9e684e1c84c955e0451bfd9443436224cac5358e51e4cbe8b6f518bb9dc2503c"
+        "50f454bde0d6efcab8bfff4c17ea5b716330a438f030dfef95f5094a4f126579"
     );
     assert_eq!(execution.gate_operation_count, 6_492);
     assert_eq!(execution.gate_bridge_uses, 217);
@@ -788,16 +788,16 @@ fn integrated_driver_reconstructs_its_complete_executable_package() {
     assert_eq!(decoded.image_bytes.len(), 817_280);
     assert_eq!(
         hex(&image_digest),
-        "b9b18cabbb5609dfa52049ce0358c0f6d65c10ced0ef371882c35b4f85368d37"
+        "2e53152bda7f85cfce32f2a9b8cf0f63b65b70ef0c4c8f90258f4fbaaf66c270"
     );
     assert_eq!(envelope.len(), 860_112);
     assert_eq!(
         hex(&envelope_digest),
-        "2b35e6e76fe325b96869c0ca65ac0070a5e98683866042596891ab6a614a0210"
+        "a329e0bca641e90c6477b06f85204eca17bf5ffb90683a518275dec587559192"
     );
     assert_eq!(
         hex(&decoded.digests.package_digest),
-        "fade888f2037e7202d18f7ade5ef7e6f5a38f038028cf6fe6759ba6c98504d11"
+        "3bb7f46a9b61b57c2bf358fb5924ce17df5b3453601d591129683a5d16a13989"
     );
     assert_eq!(execution.instruction_count, 25_881_896);
     assert_eq!(execution.fuel_used, 123_242_409);

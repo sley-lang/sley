@@ -309,7 +309,17 @@ def derive_criteria(sources: dict) -> list[dict]:
         return got if isinstance(got, str) else ""
 
     declared = register.get("declared_open_findings", {}) or {}
-    open_p0_p2 = sum(int(declared.get(key, 0) or 0) for key in ("p0", "p1", "p2"))
+    # Open P0-P2 findings are the top-level declaration PLUS every
+    # per-package claim (contract section 3): a section's `pN_open` ledger
+    # is an open finding the register's CLEAR predicate already refuses, so
+    # the GA row cannot read EVIDENCED past it (Vulcan P3 at c04539b9).
+    claims = register.get("package_open_claims", {}) or {}
+    claimed_p0_p2 = sum(
+        int(value or 0)
+        for key, value in claims.items()
+        if key.endswith(("p0_open_count", "p1_open_count", "p2_open_count"))
+    )
+    open_p0_p2 = sum(int(declared.get(key, 0) or 0) for key in ("p0", "p1", "p2")) + claimed_p0_p2
     obligations = [row for row in register.get("obligations", []) or [] if isinstance(row, dict)]
     flagged = flagged_rows(register)
 
@@ -580,7 +590,8 @@ def derive_criteria(sources: dict) -> list[dict]:
          f"{len(symbols.get('ambiguous_codes', []) or [])} numeric codes carrying more than one symbol; "
          f"independent security review: {security_note}. Whether a located, exercised control mitigates its threat stays the review's judgment"),
         ("26.6 policy and security", "no P0/P1/P2 finding remains open", state(open_p0_p2 == 0, GATED),
-         f"finding register declares {open_p0_p2} open P0/P1/P2 findings across {register.get('obligation_count')} obligations"),
+         f"finding register declares {open_p0_p2} open P0/P1/P2 findings across {register.get('obligation_count')} obligations "
+         f"({claimed_p0_p2} of them per-package open claims)"),
         ("26.6 policy and security", "opacity is not used as a security argument",
          state(anti_goal("opacity as security") == "HOLDS"),
          f"anti-goal conformance report 'opacity as security' {anti_goal('opacity as security')}; every contract is public in docs/spec "

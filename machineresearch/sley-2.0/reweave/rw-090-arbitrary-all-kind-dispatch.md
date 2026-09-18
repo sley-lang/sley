@@ -82,7 +82,9 @@ cargo clippy -p sley-vm --test rw120_toolchain_integration -- -D warnings
   instructions, instruction-heavy bodies with the instruction limit near
   1.1 KiB. Pinned by
   `arbitrary_dispatch_over_budget_body_terminates_with_a_resource_limit`
-  and disclosed in `rw-090-codec-component-manifest.json` `resource_bound`.
+  (deleted by mistake at 0b7a1482, restored and re-measured at the fourth
+  generation) and disclosed in `rw-090-codec-component-manifest.json`
+  `resource_bound`.
 - Refusal parity is mechanized: every per-kind rejection case for kinds
   4, 6–15 and the identity kinds 1, 2, 3, 5, 16, 17, 18 asserts the Sley
   code equals `sley_mutate::import_entity_object` on the same stored bytes

@@ -1100,6 +1100,15 @@ fn canonical_codec_objects_round_trip_and_bind_the_complete_graph() {
         .map(|object| object.stored_bytes().len())
         .sum::<usize>();
     eprintln!(
+        "RW090_CANONICAL_CODEC_IMAGE functions={} parameters={} blocks={} operations={} constants={} adapters={}",
+        image.functions.len(),
+        image.parameters.len(),
+        image.blocks.len(),
+        image.operations.len(),
+        image.constants.len(),
+        image.adapters.len()
+    );
+    eprintln!(
         "RW090_CANONICAL_CODEC objects={} stored_bytes={} bundle_sha256={}",
         objects.len(),
         stored_bytes,
@@ -1108,11 +1117,20 @@ fn canonical_codec_objects_round_trip_and_bind_the_complete_graph() {
     // Pinned so the component manifest's figures are asserted, not only
     // printed (Ariadne P4 at 178873d7): rw-090-codec-component-manifest.json
     // codec_object_count / codec_object_stored_bytes / codec_bundle_sha256.
+    // The generation manifest's image counts, bound by
+    // scripts/check_reweave_codec_component.py (Ariadne P1 / Nabu P2 /
+    // Vulcan P2 at c04539b9: the manifest had kept the 7426bc0b figures).
+    assert_eq!(image.functions.len(), 132);
+    assert_eq!(image.parameters.len(), 7_791);
+    assert_eq!(image.blocks.len(), 2_131);
+    assert_eq!(image.operations.len(), 4_531);
+    assert_eq!(image.constants.len(), 138);
+    assert_eq!(image.adapters.len(), 4);
     assert_eq!(objects.len(), 14_728);
     assert_eq!(stored_bytes, 3_732_076);
     assert_eq!(
         hex(&digest),
-        "d4512319c23d62918bf9e3679f24f45e994ff108ee4d50ed72e44ff56b864dff"
+        "018dcd88fb5e3caa204a3537ec3066cb74e3da5a8424af9fec94f0d3aa3da51a"
     );
 }
 
@@ -1205,12 +1223,12 @@ fn canonical_codec_component_retains_validated_contract_test_and_executes_from_i
     assert_eq!(objects.len(), 14_740);
     assert_eq!(
         hex(root.root.as_bytes()),
-        "3398fa0dc92df884a62d491edfdc0b292fee7f95dbf15460eec237dc01f674c6"
+        "d35a5d6d7b3e2c423c01d92b73043bfcb69ab1c08dee4f1c2cef8211300c6dc8"
     );
     assert_eq!(root.stored_bytes.len(), 973_137);
     assert_eq!(
         hex(&stored_digest),
-        "f9e9f656a5e2c09aaf0139395bc2684420a06052737b826da9afc8fe661ac770"
+        "3fb01d5633bbc24d07b72d51bb49e0fc0b5086ef944525c96eaffaf95bd149c9"
     );
     validate_retained_schema_test(&schema_image, &witnesses, schema_decode);
 

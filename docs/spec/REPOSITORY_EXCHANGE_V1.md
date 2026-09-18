@@ -410,11 +410,13 @@ unknown-entry rule fires on an X-07 clone.
 
 The head is the completion witness and the marker is the write guard. On a
 marked root (an `exchange/v1/` directory containing any entry whose name
-ends in `.stage`, read without following symlinks) none of the frozen
-S20-540 readers listed below resolves an accepted head (the later native
-attempt-status and promotion-claim readers in `sley-txn` report the raw head
-pointer for a journal a fresh clone does not have and are outside this
-list), and every frozen acceptance-establishing,
+ends in `.stage`, read without following symlinks) no accepted-head reader
+of the frozen S20-540 surface resolves an accepted head — `sley-txn`
+`accepted_head`, `accepted_head_with_maintenance` and
+`accepted_head_any_with_maintenance` fail closed with `TXN_INCOMPLETE_CLONE`
+(the later native attempt-status and promotion-claim readers in `sley-txn`
+report the raw head pointer for a journal a fresh clone does not have and
+are outside that surface) — and every frozen acceptance-establishing,
 ref-mutating, or deleting path fails closed with `TXN_INCOMPLETE_CLONE`:
 `sley-txn` `initialize_trusted_genesis`, `commit`, and `recover`, and
 `sley-repo` `create_branch`, `advance_branch`, `recover_refs`,
