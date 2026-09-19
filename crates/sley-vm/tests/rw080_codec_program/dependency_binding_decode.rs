@@ -7680,9 +7680,10 @@ fn children_tuple_type() -> TypeExpr {
 }
 
 /// Depth offsets one projector success path reports: `(first, second, listed,
-/// container)`; each child slot offset is the number of native containers
-/// between the node and that child minus one (a direct child is 0), the
-/// container offset names the deepest mandatory container beneath the node.
+/// container)`; a child in a slot is charged `node depth + offset + 1`, so
+/// the offset is the number of native containers strictly between the node
+/// and that child (a direct child is 0); the container offset names the
+/// deepest mandatory container beneath the node.
 #[derive(Clone, Copy)]
 struct DepthOffsets {
     first: u64,
@@ -21140,11 +21141,12 @@ fn build_const_value_children_decode(
             ),
         };
         // Native depth beneath a `ConstValue` node at d: the `data` union is
-        // at d+1 and the family payload at d+2. Children offsets count the
-        // containers between the node and the child minus one; the container
-        // offset is the deepest mandatory container (crates/sley-mutate/src/
-        // codec.rs `ConstData`, `RecordConst`, `VariantConst`,
-        // `decode_map_entries`, `ResultConst`).
+        // at d+1 and the family payload at d+2. A child is charged
+        // d + offset + 1, so each slot offset counts the native containers
+        // strictly between the node and the child; the container offset is
+        // the deepest mandatory container (crates/sley-mutate/src/codec.rs
+        // `ConstData`, `RecordConst`, `VariantConst`, `decode_map_entries`,
+        // `ResultConst`).
         let tag = index + 1;
         let offsets = match tag {
             // Unit and the seven scalar leaves: union at d+1, leaf at d+2.
@@ -27081,9 +27083,11 @@ fn arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site() {
         ),
     ];
     // Every other ConstData container arm, observed at the bound (Ariadne
-    // P4 at c04539b9): Record and Variant charge five native levels per node
-    // (ConstValue, data, record, field list / payload, ConstValue), Map four
-    // (entry list, entry), Option and Result three (data, Some / Ok).
+    // P4 at c04539b9): Record charges five native levels per node
+    // (ConstValue, data, record, field list, field record), Variant four
+    // (data, record, payload option), Map four (data, entry list, entry),
+    // Option and Result three (data, Some / Ok); the first refused chain
+    // lengths below (13, 16, 16, 21, 21) are the observed native boundaries.
     let arm_sites: Vec<Site> = [
         (
             "record",

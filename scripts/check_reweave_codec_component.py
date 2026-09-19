@@ -41,8 +41,17 @@ def fail(message: str) -> None:
     raise SystemExit(f"FAIL: {message}")
 
 
+def function_body(source: str, name: str) -> str:
+    """The text of one test function (from its head to the next `fn`)."""
+    start = source.find(f"\nfn {name}(")
+    if start < 0:
+        fail(f"test function {name} not found in canonical_codec.rs")
+    end = source.find("\nfn ", start + 1)
+    return source[start : end if end > start else len(source)]
+
+
 def pinned(source: str, expression: str, kind: str) -> list:
-    """Every `assert_eq!(<expression>, <literal>)` value in the test source."""
+    """Every `assert_eq!(<expression>, <literal>)` value in the given source text."""
     pattern = re.escape(expression) + r",\s*(?:\"([0-9a-f]{64})\"|([0-9_]+))\s*\)"
     values = []
     for match in re.finditer(r"assert_eq!\(\s*" + pattern, source, re.S):
@@ -58,18 +67,30 @@ def main() -> None:
     source = TEST.read_text(encoding="utf-8")
     if manifest.get("schema") != "sley2-rw090-codec-component-manifest-v1":
         fail("component manifest schema mismatch")
+    # Each figure is bound to the ONE test function that pins the current
+    # generation (Nabu P4 at 76227765: membership across every pinned
+    # literal let fields mix generations): the round-trip test pins the
+    # image counts, codec objects, stored bytes and bundle; the root test
+    # pins the complete object count, state root, stored root bytes and
+    # digest.
+    round_trip = function_body(source, "canonical_codec_objects_round_trip_and_bind_the_complete_graph")
+    root_test = function_body(source, "canonical_codec_component_retains_validated_contract_test_and_executes_from_its_root")
+    OWNER = {
+        "image_functions": round_trip, "image_parameters": round_trip, "image_blocks": round_trip,
+        "image_operations": round_trip, "image_constants": round_trip, "image_adapters": round_trip,
+        "codec_object_stored_bytes": round_trip, "codec_bundle_sha256": round_trip,
+        "state_root": root_test, "state_root_stored_bytes": root_test, "state_root_stored_sha256": root_test,
+    }
     for field, (expression, kind) in PINS.items():
-        values = pinned(source, expression, kind)
-        if not values:
-            fail(f"no pin for {field} ({expression}) in canonical_codec.rs")
-        if manifest.get(field) not in values:
-            fail(f"{field}: manifest {manifest.get(field)!r} is not among the pinned {values!r}")
-    # objects.len() is pinned twice: codec objects (round-trip test) and the
-    # component's complete object set (root test); both must be present.
-    object_pins = pinned(source, "objects.len()", "int")
-    for field in ("codec_object_count", "object_count"):
-        if manifest.get(field) not in object_pins:
-            fail(f"{field}: manifest {manifest.get(field)!r} is not among the pinned {object_pins!r}")
+        values = pinned(OWNER[field], expression, kind)
+        if len(values) != 1:
+            fail(f"{field} ({expression}) must be pinned exactly once in its test, found {values!r}")
+        if manifest.get(field) != values[0]:
+            fail(f"{field}: manifest {manifest.get(field)!r} differs from the pinned {values[0]!r}")
+    for field, body in (("codec_object_count", round_trip), ("object_count", root_test)):
+        values = pinned(body, "objects.len()", "int")
+        if len(values) != 1 or manifest.get(field) != values[0]:
+            fail(f"{field}: manifest {manifest.get(field)!r} differs from the pinned {values!r}")
     if manifest["object_count"] <= manifest["codec_object_count"]:
         fail("object_count must exceed codec_object_count (spine, contract, test, entry point)")
     # RW080-ID-02: every superseded component root is carried with its
