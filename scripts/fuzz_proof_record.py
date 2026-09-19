@@ -114,11 +114,13 @@ def proof_record_problems(root: Path, proof: object, runner: str, binaries: list
                 problems.append(f"proof-record-not-int:{key}")
         if isinstance(runs, int) and isinstance(floor, int) and runs < floor:
             problems.append("proof-record-below-floor")
-    if not _all_empty(proof.get("new_crash_artifacts")):
+    # Every runner emits both keys; a record without them is not a proof
+    # (Vulcan P3 at 76227765: the shared validator had accepted absent keys).
+    if "new_crash_artifacts" not in proof:
+        problems.append("proof-record-missing:new_crash_artifacts")
+    elif not _all_empty(proof.get("new_crash_artifacts")):
         problems.append("proof-record-new-crashes")
-    if "owner_lib_sancov" in proof and (
-        not isinstance(proof.get("owner_lib_sancov"), int) or proof["owner_lib_sancov"] <= 0
-    ):
+    if not isinstance(proof.get("owner_lib_sancov"), int) or proof["owner_lib_sancov"] <= 0:
         problems.append("proof-record-no-owner-sancov")
     commit = proof.get("source_commit")
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):

@@ -231,12 +231,19 @@ def closed_severities(disposition: str) -> set[str]:
     closed (the row lists as unclaimed) until the contract is amended.
     """
     closed: set[str] = set()
-    for severity in ("P0", "P1", "P2", "P3", "P4"):
-        if re.search(
-            rf"{severity}(?:_(?:PRIOR|P[0-4]))*_CLOSED(?=$|_(?:NO|WITH)_[A-Z0-9])",
-            disposition,
-        ):
-            closed.add(severity)
+    anchored = re.compile(r"(?:_(?:PRIOR|P[0-4]))*_CLOSED(?=$|_(?:NO|WITH)_[A-Z0-9])")
+    for match in re.finditer(r"(?<![A-Z0-9])(P[0-4])(?![A-Z0-9])", disposition):
+        # A count-prefixed severity (`2_P4`) is a fresh count, never a
+        # closure claim, even when a `_PRIOR_..._CLOSED` clause follows it
+        # (Vulcan/Nabu P3 at 76227765: `2_P4_PRIOR_P3_CLOSED` had read P4
+        # closed); only severities named inside the PRIOR clause, or in a
+        # run of severities ending at the anchor, are closed. Every
+        # occurrence is tried, so `0_P3_PRIOR_P3_CLOSED` closes P3 through
+        # its second occurrence.
+        if re.search(r"(?:^|_)\d+_$", disposition[: match.start()]):
+            continue
+        if anchored.match(disposition, match.end()):
+            closed.add(match.group(1))
     return closed
 
 
@@ -531,6 +538,53 @@ def package_open_claims(summary: dict) -> dict[str, int]:
     return dict(sorted(claims.items()))
 
 
+CLOSURE_LINE = re.compile(r"\bCLOSED\b")
+
+
+def cited_closure_lines(path: Path, severity: str) -> list[int]:
+    """Lines of a transcript that record a closure of `severity` (1-based).
+
+    A closure line carries the word `CLOSED` and names the severity; when
+    no line names the severity, every closure line of a `PRIOR_...` verdict
+    that closes that severity counts, because the lane closed its carried
+    findings item by item and the token names the severity. Empty when the
+    transcript records no such closure (the retirement is refused).
+    """
+    if not path.is_file():
+        return []
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    named = [
+        index + 1
+        for index, line in enumerate(lines)
+        if CLOSURE_LINE.search(line) and re.search(rf"(?<![A-Z0-9]){severity}(?![0-9])", line)
+        and not line.startswith("VERDICT:")
+    ]
+    if named:
+        return named
+    verdict = next((line for line in reversed(lines) if line.startswith("VERDICT:")), "")
+    if severity in closed_severities(verdict.split(":", 1)[1].strip() if ":" in verdict else ""):
+        return [index + 1 for index, line in enumerate(lines) if CLOSURE_LINE.search(line) and not line.startswith("VERDICT:")]
+    return []
+
+
+def transcript_path(reference: str) -> Path | None:
+    """The transcript a `verified_by` names, or None when it is not one.
+
+    The reference is `<path>[#L<n>,...][ — note]`; the path is taken
+    literally (no `..`, no absolute path, no symlink escape — Vulcan P3 at
+    76227765) and must resolve to a regular file under a transcript root.
+    """
+    path = reference.split(" — ")[0].split(" \u2014 ")[0].split("#")[0].strip()
+    if not path.startswith(TRANSCRIPT_ROOTS) or ".." in Path(path).parts or Path(path).is_absolute():
+        return None
+    resolved = (ROOT / path).resolve()
+    try:
+        resolved.relative_to(ROOT.resolve())
+    except ValueError:
+        return None
+    return resolved if resolved.is_file() else None
+
+
 def package_closed_claims(summary: dict) -> dict[str, int]:
     """Every retired per-package claim, dotted field to count, shape-checked.
 
@@ -563,11 +617,24 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field} entries are {{claim, verified_by}} strings",
                     )
-                path = entry["verified_by"].split(" \u2014 ")[0].split(" — ")[0].strip()
-                if not path.startswith(TRANSCRIPT_ROOTS) or not (ROOT / path).is_file():
+                resolved = transcript_path(entry["verified_by"])
+                if resolved is None:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
-                        f"{section}.{field}: verified_by must name an existing transcript, got {path!r}",
+                        f"{section}.{field}: verified_by must name an existing transcript, got {entry['verified_by'][:80]!r}",
+                    )
+                # The transcript must record the closure at this severity
+                # (the claim-to-transcript relation: cited `#L` lines that
+                # carry CLOSED and name the severity, or a PRIOR verdict
+                # closing it — Nabu/Vulcan/Ariadne P3 at 76227765).
+                severity = "P" + field[1]
+                cited = re.search(r"#L([0-9,]+)", entry["verified_by"])
+                lines = cited_closure_lines(resolved, severity)
+                wanted = [int(n) for n in cited.group(1).split(",")] if cited else []
+                if not lines or (wanted and not set(wanted) <= set(lines)):
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: {resolved.relative_to(ROOT.resolve())} records no closure of {severity} at the cited lines",
                     )
             claims[f"{section}.{field}"] = len(item)
     return dict(sorted(claims.items()))

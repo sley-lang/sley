@@ -33,6 +33,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+from build_finding_register import closed_severities, cited_closure_lines  # noqa: E402
+
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 RETIREMENTS = ROOT / "evidence/review/claim-retirements.json"
 REVIEWERS = ("ariadne", "nabu", "vulcan", "merlin", "codex")
@@ -78,7 +81,16 @@ def strictly_later(later: str | None, earlier: str | None) -> bool:
     return _ancestry[key]
 
 
-def closers(section: dict) -> list[tuple[str, str, set[str], str | None, str | None]]:
+def transcript_for(section_name: str, lane: str, scope: str | None, fallback: str | None) -> str | None:
+    """The lane's transcript at `scope` (`<section>/<lane>*-<scope7>.md`), else the note's."""
+    if scope:
+        matches = sorted((ROOT / "evidence/review/verdicts" / section_name).glob(f"{lane}*-{scope[:7]}.md"))
+        if len(matches) == 1:
+            return matches[0].relative_to(ROOT).as_posix()
+    return fallback
+
+
+def closers(section: dict, section_name: str = "") -> list[tuple[str, str, set[str], str | None, str | None]]:
     """(field, lane, closed severities, scope, transcript) per PRIOR verdict."""
     found = []
     candidates: list[tuple[str, object]] = [
@@ -90,18 +102,21 @@ def closers(section: dict) -> list[tuple[str, str, set[str], str | None, str | N
     for field, value in candidates:
         if not isinstance(value, str) or role(field) is None:
             continue
-        match = PRIOR.search(value)
-        if not match:
+        if not PRIOR.search(value):
             continue
+        # One grammar (Nabu P3 at 76227765): the closed set is the register's
+        # `closed_severities`, never a second parse of the token.
+        severities = closed_severities(value)
         note = note_of(section, field) or ""
         scope = SCOPE.search(note)
         transcript = TRANSCRIPT.search(note)
+        scope_sha = scope.group(1) if scope else None
         found.append((
             field,
             role(field),
-            set(match.group(1).split("_")),
-            scope.group(1) if scope else None,
-            transcript.group(1) if transcript else None,
+            severities,
+            scope_sha,
+            transcript_for(section_name, role(field), scope_sha, transcript.group(1) if transcript else None),
         ))
     return found
 
@@ -111,7 +126,7 @@ def retire(summary: dict, retirements: list[dict]) -> int:
     for name, section in summary.items():
         if not isinstance(section, dict):
             continue
-        lane_closers = closers(section)
+        lane_closers = closers(section, name)
         for severity in range(5):
             key = f"p{severity}_open"
             entries = section.get(key)
@@ -131,7 +146,10 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                         and transcript
                         and strictly_later(closer_scope, scope)
                     ):
-                        verified = f"{transcript} — {field} at {closer_scope[:8]} verified the carried P{severity} closed"
+                        lines = cited_closure_lines(ROOT / transcript, f"P{severity}")
+                        if not lines:
+                            continue
+                        verified = f"{transcript}#L{','.join(map(str, lines))} — {field} at {closer_scope[:8]} verified the carried P{severity} closed"
                         break
                 for item in retirements:
                     if (
@@ -139,7 +157,10 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                         and severity in item["severities"]
                         and entry.startswith(tuple(item["prefixes"]))
                     ):
-                        verified = f"{item['verified_by']} — {item['reason']}"
+                        lines = item.get("lines") or cited_closure_lines(ROOT / item["verified_by"], f"P{severity}")
+                        if not lines:
+                            raise SystemExit(f"retirement for {name} P{severity} cites {item['verified_by']} which records no closure of P{severity}")
+                        verified = f"{item['verified_by']}#L{','.join(map(str, lines))} — {item['reason']}"
                 if verified:
                     closed.append({"claim": entry, "verified_by": verified})
                     retired += 1

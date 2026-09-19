@@ -107,6 +107,18 @@ quick:
 	python3 scripts/check_external_comparison_availability.py
 	python3 scripts/check_supply_chain_audit.py
 	python3 scripts/check_schema_fuzz_slice.py
+	# Every persistent-fuzz slice checker validates its durable proof record
+	# (scripts/fuzz_proof_record.py); quick runs all of them, not a subset
+	# (Vulcan P3 at 76227765).
+	python3 scripts/check_scb1_persistent_fuzz_slice.py
+	python3 scripts/check_schema_persistent_fuzz_slice.py
+	python3 scripts/check_pack_persistent_fuzz_slice.py
+	python3 scripts/check_semantic_checkers_persistent_fuzz_slice.py
+	python3 scripts/check_query_persistent_fuzz_slice.py
+	python3 scripts/check_vm_persistent_fuzz_slice.py
+	python3 scripts/check_adapter_responses_persistent_fuzz_slice.py
+	python3 scripts/check_exchange_persistent_fuzz_slice.py
+	python3 scripts/check_merge_judgment_fuzz_slice.py
 	python3 scripts/check_s20_700_frontier.py
 	python3 scripts/check_local_completion_frontier.py
 	python3 scripts/check_candidate_contract_freeze.py

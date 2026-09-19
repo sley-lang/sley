@@ -9,16 +9,27 @@ Revision 6 (2026-09-18) names the per-package claim ledger's retirement
 path (Nabu/Vulcan/Ariadne P3s at db53894e: the retirement had been done by
 an untracked script and recorded in fields no contract named): an entry of
 `pN_open` is `"<field>[@<scope7>]: <finding>"` and leaves the open list only
-into `pN_closed_claims` as `{claim, verified_by}` where `verified_by`
-starts with the repository path of an existing transcript that verified
-the closure — either the same lane's later verdict carrying
-`PRIOR_…_PN_…_CLOSED` at a strictly later scope (automatic rule) or a
-closure review named in the tracked `evidence/review/claim-retirements.json`
-(explicit rule, with a reason). `scripts/retire_review_claims.py` applies
-both rules; the register builder refuses a `verified_by` whose transcript
-does not exist and reports `package_closed_claims`. Retired claims are not
-open claims: the CLEAR predicate and the GA open-findings row read only
-`pN_open`.
+into `pN_closed_claims` as `{claim, verified_by}` where `verified_by` is
+`<path>#L<n>[,<m>...] — <note>`: the repository path of an existing
+transcript (literal, under `evidence/review/verdicts/` or
+`machineresearch/sley-2.0/reviews/`, no `..`, no absolute path) and the
+lines of it that record the closure — lines carrying `CLOSED` that name the
+severity, or, when the transcript names none, every closure line of a
+verdict whose `PRIOR` clause closes that severity. The verifying transcript
+is either the same lane's later verdict carrying `PRIOR_…_PN_…_CLOSED` at a
+strictly later scope, resolved as `<section>/<lane>*-<scope7>.md`
+(automatic rule), or a closure review named in the tracked
+`evidence/review/claim-retirements.json` with the cited lines and a reason
+(explicit rule). `scripts/retire_review_claims.py` applies both rules with
+the register's own `closed_severities` grammar (one grammar); the register
+builder refuses a `verified_by` whose transcript does not exist, is not a
+transcript path, or records no closure of the severity at the cited lines,
+and reports `package_closed_claims`. Retired claims are not open claims:
+the CLEAR predicate and the GA open-findings row read only `pN_open`. The
+same round's Vulcan/Nabu P3 corrected the closure grammar: a
+count-prefixed severity (`2_P4`) is a fresh count and never binds across a
+following `_PRIOR_…_CLOSED` clause; only the severities inside the `PRIOR`
+clause, or in a run of severities ending at the anchor, are closed.
 
 Revision 5 (2026-09-18) adds chronology to round folding: a `PASS` whose
 `_note` is dated before the `FAIL`/`REVISE` round's `_note` never folds
@@ -177,7 +188,8 @@ register = {
     severities (after valid-negation strip and zero-count absence) where
     every named severity is unaccounted for: outside the review's own
     per-severity `CLOSED` scope (only lane words may stand between the
-    severity and the `_CLOSED` anchor, the anchor needs a right word
+    severity and the `_CLOSED` anchor, a count-prefixed severity such as
+    `2_P4` is a fresh count and never a closure claim, the anchor needs a right word
     boundary, and the claim must be terminal except for absence
     (`NO_...`) and followup (`WITH_...`) declarations carrying content
     (a bare trailing `NO`/`WITH` keyword is vacuous) — so a `P2`
@@ -206,7 +218,8 @@ register = {
   "package_closed_claims": { "section.pN_closed_claims": count } ascending,
     every retired per-package claim list (revision 6); each entry is
     {claim, verified_by} with verified_by naming an existing transcript
-    under evidence/review/verdicts/ or machineresearch/sley-2.0/reviews/,
+    under evidence/review/verdicts/ or machineresearch/sley-2.0/reviews/
+    and the cited lines that record the closure of that severity,
   "result": "FINDING_REGISTER_CLEAR" | "FINDING_REGISTER_OPEN",
   "register_digest": SHA-256 of the canonical register without this field
 }

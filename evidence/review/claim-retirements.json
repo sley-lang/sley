@@ -306,5 +306,253 @@
   ],
   "verified_by": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md",
   "reason": "PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED: the lane-less row's carried P2/P3/P4 verified closed (its own P4 is the records step this retirement performs)"
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   1
+  ],
+  "prefixes": [
+   "nabu_architecture_review_revision_1:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-7622776.md",
+  "reason": "the 178873d7 P1 (native nesting depth not threaded) was reduced at 92fa6646 (nabu_architecture_review-92fa664.md line 21) and its residual \u2014 the driver's listed-sibling depth creep \u2014 closed at the cause at 76227765 where the lane traced the repaired driver (line 19)",
+  "lines": [
+   19
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   1
+  ],
+  "prefixes": [
+   "ariadne_contract_review_revision_3:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-db53894.md",
+  "reason": "PRIOR_P3_P4_CLOSED at db53894e with the revision-3 P1 (component identity) recorded CLOSED (lines 13, 17)",
+  "lines": [
+   13,
+   17
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "ariadne_contract_review_revision_3:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-db53894.md",
+  "reason": "the revision-3 P2 (deleted over-budget test) recorded CLOSED at db53894e (line 14)",
+  "lines": [
+   14
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   1
+  ],
+  "prefixes": [
+   "nabu_architecture_review_revision_4@db53894:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-7622776.md",
+  "reason": "the db53894e P1 (listed-sibling depth creep) verified closed at the driver by the lane's own trace (line 19)",
+  "lines": [
+   19
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   1
+  ],
+  "prefixes": [
+   "vulcan_surface_review_revision_4@db53894:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-7622776.md",
+  "reason": "the db53894e P1 (list-depth creep) verified closed by the lane's own trace of the repaired driver (line 28)",
+  "lines": [
+   28
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "ariadne_contract_review_revision_1:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md",
+  "reason": "the 178873d7 P2s (kind-18 route/contract, oracle parity) recorded CLOSED at c04539b9 (lines 13-15)",
+  "lines": [
+   13,
+   15
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "nabu_architecture_review_revision_1:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-92fa664.md",
+  "reason": "the 178873d7 P2s (oracle parity mechanized, identity reuse) recorded CLOSED at 92fa6646 (lines 22-23)",
+  "lines": [
+   22,
+   23
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "vulcan_surface_review_revision_1:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-92fa664.md",
+  "reason": "the 178873d7 P2 (kind-18 refusal parity) recorded CLOSED at 92fa6646 (line 25)",
+  "lines": [
+   25
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "ariadne_contract_review_revision_2:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md",
+  "reason": "the 92fa6646 P2 (RW090-DEV-01 disclosure exactness) recorded CLOSED at c04539b9 (lines 13-15)",
+  "lines": [
+   13,
+   15
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "nabu_architecture_review_revision_2:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-c04539b.md",
+  "reason": "the 92fa6646 P2 (value_type charged from a fixed depth) recorded CLOSED at c04539b9 (lines 20-22)",
+  "lines": [
+   20,
+   22
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "vulcan_surface_review_revision_2:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-c04539b.md",
+  "reason": "the 92fa6646 P2 (fixed-depth value_type) recorded CLOSED at c04539b9 (line 26)",
+  "lines": [
+   26
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "nabu_architecture_review_revision_3:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-db53894.md",
+  "reason": "the c04539b9 P2 (stale component manifest) recorded CLOSED at db53894e (line 19)",
+  "lines": [
+   19
+  ]
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "vulcan_surface_review_revision_3:"
+  ],
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-db53894.md",
+  "reason": "the c04539b9 P2s (deleted over-budget test, stale component manifest) recorded CLOSED at db53894e (lines 27, 29)",
+  "lines": [
+   27,
+   29
+  ]
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "ariadne_contract_review_revision_7:",
+   "ariadne_contract_review_revision_8:"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md",
+  "reason": "the 178873d7 P2s (supersession rule, second-host prerequisites) recorded CLOSED at 92fa6646 (lines 23-24); the revision-8 P2 (listing survives one build) closed by contract revision 11 and recorded CLOSED at c04539b9 (ariadne_contract_review-c04539b.md PRIOR_P2_P4_CLOSED)",
+  "lines": [
+   23,
+   24
+  ]
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "nabu_architecture_review_revision_8:"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-92fa664.md",
+  "reason": "the 178873d7 P2s (ownership/fail-closed, evidence binding) recorded CLOSED at 92fa6646 (lines 22-23)",
+  "lines": [
+   22,
+   23
+  ]
+ },
+ {
+  "section": "s20_700_remaining_surface_audit",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "vulcan_review_closure_note: [evidence] machineresearch/sley-2.0/machine-summary.json:3026",
+   "vulcan_review_closure_note@db53894:"
+  ],
+  "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-7622776.md",
+  "reason": "the prior P2 (VM proof non-ancestor; merge_judgment proof non-ancestor / binary not re-run) recorded CLOSED on leg 1 at 76227765 (line 30; leg 2 \u2014 quick does not run every slice checker \u2014 is the P3 repaired in the next source commit)",
+  "lines": [
+   30
+  ]
+ },
+ {
+  "section": "s20_700_vm_persistent_fuzz_slice",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "vulcan_review_closure_note:"
+  ],
+  "verified_by": "evidence/review/verdicts/s20_700_vm_persistent_fuzz_slice/vulcan_review_closure-db53894.md",
+  "reason": "the carried P2 (proof bound to non-ancestor 209c661) recorded CLOSED at db53894e (line 11)",
+  "lines": [
+   11
+  ]
  }
 ]

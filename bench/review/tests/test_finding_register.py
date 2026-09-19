@@ -312,6 +312,32 @@ class InvariantTests(unittest.TestCase):
         self.assertEqual(register.round_date("x 2026-09-01 y 2026-09-18 z"), "2026-09-18")
         self.assertIsNone(register.round_date(None))
 
+    def test_count_tokens_never_bind_across_a_prior_clause(self) -> None:
+        # Vulcan/Nabu P3 at 76227765: `2_P4_PRIOR_P3_CLOSED` had read P4 closed.
+        self.assertEqual(register.closed_severities("PASS_0_P0_0_P1_0_P2_0_P3_2_P4_PRIOR_P3_CLOSED"), {"P3"})
+        self.assertEqual(register.closed_severities("PASS_0_P0_0_P1_0_P2_1_P3_2_P4_PRIOR_P3_P4_CLOSED"), {"P3", "P4"})
+        self.assertEqual(register.closed_severities("PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED"), {"P3"})
+        self.assertEqual(register.closed_severities("PASS_P2_P3_P4_CLOSED"), {"P2", "P3", "P4"})
+        self.assertEqual(register.closed_severities("PASS_0_P0_0_P1_0_P2_2_P3_2_P4"), set())
+
+    def test_cited_closure_lines_and_transcript_paths(self) -> None:
+        # The claim-to-transcript relation (revision 6, 76227765 round): a
+        # retirement cites lines carrying CLOSED that name the severity; a
+        # traversal or non-transcript path is not a transcript.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "evidence/review/verdicts/x"
+            root.mkdir(parents=True)
+            transcript = root / "nabu_review-abc1234.md"
+            transcript.write_text("intro\n- **P2 stale — CLOSED.**\n- **P3 wording — OPEN.**\nVERDICT: PASS_0_P0_0_P1_0_P2_1_P3_PRIOR_P2_CLOSED\n")
+            self.assertEqual(register.cited_closure_lines(transcript, "P2"), [2])
+            self.assertEqual(register.cited_closure_lines(transcript, "P3"), [])
+            self.assertEqual(register.cited_closure_lines(transcript / "absent", "P2"), [])
+        self.assertIsNone(register.transcript_path("evidence/review/verdicts/../../../docs/spec/FINDING_REGISTER_V1.md"))
+        self.assertIsNone(register.transcript_path("docs/spec/FINDING_REGISTER_V1.md"))
+        self.assertIsNone(register.transcript_path("/etc/passwd"))
+        real = "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md"
+        self.assertIsNotNone(register.transcript_path(real + "#L22 — line 22"))
+
     def test_retired_claims_must_name_an_existing_transcript(self) -> None:
         # Revision 6: a pN_closed_claims entry is {claim, verified_by} with an
         # existing transcript path; anything else is SUMMARY_INVALID.
@@ -324,7 +350,7 @@ class InvariantTests(unittest.TestCase):
                 "p3_open": [],
                 "p3_open_count": 0,
                 "p3_closed_claims": [
-                    {"claim": "vulcan_review_revision_1@92fa664: [record] x", "verified_by": transcript + " — line 22"}
+                    {"claim": "vulcan_review_revision_1@92fa664: [record] x", "verified_by": transcript + "#L23 — line 23"}
                 ],
             },
             "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
@@ -334,6 +360,8 @@ class InvariantTests(unittest.TestCase):
         for bad_entry in (
             {"claim": "x", "verified_by": "evidence/review/verdicts/nowhere/none-0000000.md"},
             {"claim": "x", "verified_by": "docs/spec/FINDING_REGISTER_V1.md"},
+            {"claim": "x", "verified_by": "evidence/review/verdicts/../../../docs/spec/FINDING_REGISTER_V1.md"},
+            {"claim": "x", "verified_by": transcript + "#L1 — a line that records no P3 closure"},
             {"claim": "x"},
             "x",
         ):
