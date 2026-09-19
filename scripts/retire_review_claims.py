@@ -38,8 +38,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from build_finding_register import (  # noqa: E402
     claim_relation_problem, claim_scope, closed_severities, cited_closure_lines, finding_key, is_carry,
-    is_closure_line, is_tracked, line_speaks_about, open_lines_about, shared_vocabulary, shares_its_kind,
-    transcript_path,
+    is_closure_line, is_tracked, line_speaks_about, open_lines_about, raising_scope, scope_generation,
+    shared_vocabulary, shares_its_kind, transcript_path,
 )
 
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
@@ -189,6 +189,9 @@ def closers(section: dict, section_name: str = "") -> list[tuple[str, str, set[s
         ))
     seen = {item[4] for item in found if item[4]}
     found.extend(item for item in transcript_closers(section_name) if item[4] not in seen)
+    # Earliest closing transcript first, by git ancestry (Nabu P3 at
+    # 79fdcc63: filename order had rebound closures to later rounds).
+    found.sort(key=lambda item: (scope_generation(item[3][:7]) if item[3] else 10**9, item[4] or ""))
     return found
 
 
@@ -201,6 +204,9 @@ def relation_problem(section_name: str, claim: str, transcript: str, section: di
     return claim_relation_problem(section_name, claim, resolved, section)
 
 
+from build_finding_register import closure_head  # noqa: E402
+
+
 def speaking_lines(path: Path, severity: str, claim: str, section: dict | None = None) -> list[int]:
     """Closure lines of `severity` that name the claim's finding identity —
     a strong identity when the lane files several findings under the
@@ -211,7 +217,12 @@ def speaking_lines(path: Path, severity: str, claim: str, section: dict | None =
     strong = shares_its_kind(section, severity, claim) if section is not None else False
     shared = shared_vocabulary(section, severity, claim) if section is not None else set()
     text = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    return [n for n in cited_closure_lines(path, severity) if line_speaks_about(text[n - 1], claim, strong=strong, shared=shared)]
+    speaking = [n for n in cited_closure_lines(path, severity) if line_speaks_about(text[n - 1], claim, strong=strong, shared=shared)]
+    # A line whose own head (before the CLOSED marker) names the finding is
+    # that finding's closure; a line naming it only in trailing evidence
+    # prose is used only when no head names it (Nabu P3 at 79fdcc63).
+    heads = [n for n in speaking if line_speaks_about(closure_head(text[n - 1]), claim, strong=strong, shared=shared)]
+    return heads or speaking
 
 
 def retire(summary: dict, retirements: list[dict]) -> int:
@@ -232,12 +243,10 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                 binding = None
                 tag = TAG.match(entry)
                 prefix = tag.group(1) if tag else entry.split(":", 1)[0]
-                scope = tag.group(2) if tag else None
-                if scope is None and re.search(r"_revision_[0-9]+$", prefix):
-                    # A frozen revision field's untagged claims take the
-                    # scope their field's note records (the builder's rule).
-                    noted = re.search(r"\bon ([0-9a-f]{40})\b", section.get(prefix + "_note") or "")
-                    scope = noted.group(1)[:7] if noted else None
+                # The claim's raising scope: its tag, else the transcript that
+                # raised it, else its field's note (the builder's rule); a
+                # claim with no raising scope never retires automatically.
+                scope = raising_scope(name, entry, section)
                 for field, lane, severities, closer_scope, transcript in lane_closers:
                     lane_match = lane == role(prefix) if role(prefix) else (
                         lane is None and Path(transcript or "").name.startswith(prefix.removesuffix("_note"))

@@ -46,6 +46,8 @@ class RetireReviewClaimsTests(unittest.TestCase):
         retire._ancestry.clear()
         retire._resolved.clear()
         register._scope_order.clear()
+        register._raising.clear()
+        register._generation.clear()
 
     def git(self, *args: str) -> str:
         return subprocess.check_output(
@@ -73,13 +75,15 @@ class RetireReviewClaimsTests(unittest.TestCase):
         closed = summary["release_candidate_packaging"]["p3_closed_claims"][0]
         self.assertIn(f"vulcan_surface_review-{self.second[:7]}.md#L1", closed["verified_by"])
         self.assertEqual(summary["release_candidate_packaging"]["p3_open"], [])
-        # The claim's own round, and an untagged claim, never retire automatically.
-        for claim in (
-            f"vulcan_surface_review@{self.second[:7]}: [record-note] scripts/a.py:1 - stale note",
-            "vulcan_surface_review: [record-note] scripts/a.py:1 - stale note",
-        ):
-            summary = self.summary(claim)
-            self.assertEqual(retire.retire(summary, []), 0, claim)
+        # The claim's own round never retires; an untagged claim retires only
+        # through its raising transcript's scope (79fdcc63 round) — here the
+        # first-round FINDINGS line raises it, so the second round closes it.
+        summary = self.summary(f"vulcan_surface_review@{self.second[:7]}: [record-note] scripts/a.py:1 - stale note")
+        self.assertEqual(retire.retire(summary, []), 0)
+        summary = self.summary("vulcan_surface_review: [record-note] scripts/a.py:1 - stale note")
+        self.assertEqual(retire.retire(summary, []), 1)
+        summary = self.summary("vulcan_surface_review: [record-note] scripts/a.py:1 - a note no transcript raised")
+        self.assertEqual(retire.retire(summary, []), 0)
         # A closure line that does not speak about the claim retires nothing.
         summary = self.summary(f"vulcan_surface_review@{self.first[:7]}: [wording] docs/other.md:9 - unrelated")
         self.assertEqual(retire.retire(summary, []), 0)
@@ -117,7 +121,9 @@ class RetireReviewClaimsTests(unittest.TestCase):
         self.git("add", ".")
         register._tracked = None
         summary = {"mutation_value_profile": {
-            "epoch1_reanchor_review_closure_note": f"on {self.second}: verified",
+            # The claim was raised by the closure review at `first`; the review
+            # at `second` closes it (an own-round line never retires a claim).
+            "epoch1_reanchor_review_closure_note": f"on {self.first}: verified",
             "p4_open": ["epoch1_reanchor_review_closure_note: [checker] scripts/check_capsule.py:24 - pinned only the summary side"],
             "p4_open_count": 1,
         }}
@@ -203,6 +209,40 @@ class RetireReviewClaimsTests(unittest.TestCase):
         self.assertEqual([(c[1], c[2]) for c in closers], [("vulcan", {"P3"})])
         summary = self.summary(f"vulcan_surface_review@{self.first[:7]}: [record-note] scripts/a.py:1 - stale note")
         self.assertEqual(retire.retire(summary, []), 1)
+
+    def test_an_untagged_claim_takes_its_raising_transcripts_scope(self) -> None:
+        # 79fdcc63 round: an own-round line never retires an untagged claim;
+        # the raising transcript (its [Pn] line) gives the claim its scope.
+        claim = "vulcan_surface_review: [record-note] scripts/a.py:1 - stale note"
+        self.assertEqual(register.raising_scope("release_candidate_packaging", claim, {}), self.first[:7])
+        summary = self.summary(claim)
+        self.assertEqual(retire.retire(summary, []), 1)  # the second-round transcript closes it
+        own = {"section": "release_candidate_packaging", "severities": [3], "prefixes": ["vulcan_surface_review: [record-note]"],
+               "verified_by": f"evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-{self.first[:7]}.md", "reason": "x"}
+        (self.section / f"vulcan_surface_review-{self.first[:7]}.md").write_text(
+            "FINDINGS: [P3] [record-note] scripts/a.py:1 - stale note\n- **[P3] record-note stale in scripts/a.py — CLOSED.**\nVERDICT: PASS\n"
+        )
+        self.git("add", ".")
+        register._tracked = None
+        register._raising.clear()
+        with self.assertRaises(SystemExit):
+            retire.retire(self.summary(claim), [own])
+
+    def test_closers_bind_the_earliest_transcript_and_prefer_own_head_lines(self) -> None:
+        (self.root / "x").write_text("c\n")
+        self.commit("third")
+        third = self.git("rev-parse", "HEAD").strip()
+        (self.section / f"vulcan_surface_review-{third[:7]}.md").write_text(
+            "- **[P3] something else — CLOSED.** the record-note stale item in scripts/a.py was handled earlier\n"
+            "VERDICT: PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED\n"
+        )
+        self.git("add", ".")
+        register._tracked = None
+        retire._resolved.clear()
+        claim = f"vulcan_surface_review@{self.first[:7]}: [record-note] scripts/a.py:1 - stale note"
+        summary = self.summary(claim)
+        retire.retire(summary, [])
+        self.assertIn(f"-{self.second[:7]}.md#L1", summary["release_candidate_packaging"]["p3_closed_claims"][0]["verified_by"])
 
     def test_regeneration_must_reproduce_the_tracked_ledger(self) -> None:
         claim = f"vulcan_surface_review@{self.first[:7]}: [record-note] scripts/a.py:1 - stale note"

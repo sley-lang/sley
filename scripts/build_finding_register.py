@@ -537,6 +537,68 @@ def declared_counters(summary: dict) -> dict:
     return declared
 
 
+NOTE_SCOPE = re.compile(r"\bon ([0-9a-f]{40})\b")
+
+
+_generation: dict[str, int] = {}
+
+
+def scope_generation(short: str) -> int:
+    """The commit's ancestor count (orders scopes by ancestry; -1 unknown)."""
+    if short not in _generation:
+        import subprocess
+
+        done = subprocess.run(["git", "rev-list", "--count", short], cwd=ROOT, capture_output=True, text=True, check=False)
+        _generation[short] = int(done.stdout.strip()) if done.returncode == 0 and done.stdout.strip().isdigit() else -1
+    return _generation[short]
+
+
+_raising: dict[tuple[str, str], str | None] = {}
+
+
+def raising_scope(section: str, claim: str, fields: dict | None = None) -> str | None:
+    """The scope the claim was raised at: its tag; else the earliest filed
+    transcript of its lane (or, lane-less, of its field) whose `[Pn]`
+    finding line begins with the claim's description; else, for a frozen
+    revision field or a closure-note field, the `on <sha>` of that field's
+    note (Vulcan P3 at 79fdcc63: untagged claims had no scope relation, so
+    an own-round line could retire them)."""
+    match = CLAIM_TAG.match(claim)
+    if match and match.group(2):
+        return match.group(2)[:7]
+    key = (section, claim)
+    if key in _raising:
+        return _raising[key]
+    prefix = match.group(1) if match else claim.split(":", 1)[0]
+    lane = reviewer_of(prefix)
+    description = (claim.split(": ", 1)[1] if ": " in claim else "")[:80].strip()
+    directory = ROOT / "evidence/review/verdicts" / section.split(".")[0]
+    found: list[str] = []
+    if description and directory.is_dir():
+        for path in sorted(directory.glob("*.md")):
+            stamp = re.search(r"-([0-9a-f]{7,40})\.md$", path.name)
+            if not stamp or not is_tracked(path.relative_to(ROOT).as_posix()):
+                continue
+            if lane and not path.name.startswith(lane):
+                continue
+            if not lane and not path.name.startswith(prefix.removesuffix("_note")):
+                continue
+            for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                item = re.match(r"^(?:FINDINGS:\s*)?\[(P[0-4])\]\s*(.*)$", line)
+                if item and item.group(2).strip().startswith(description):
+                    found.append(stamp.group(1)[:7])
+                    break
+    scope: str | None = None
+    if found:
+        scope = min(found, key=scope_generation)
+    elif fields and (re.search(r"_revision_[0-9]+$", prefix) or prefix.endswith("_closure_note")):
+        note = fields.get(prefix + "_note") if not prefix.endswith("_closure_note") else fields.get(prefix)
+        noted = NOTE_SCOPE.search(note) if isinstance(note, str) else None
+        scope = noted.group(1)[:7] if noted else None
+    _raising[key] = scope
+    return scope
+
+
 def raising_severity(section: str, claim: str) -> str | None:
     """The severity the claim's raising transcript records for it: the
     `[Pn]` finding line of `<section>/<lane>*-<scope7>.md` whose text begins
@@ -555,7 +617,7 @@ def raising_severity(section: str, claim: str) -> str | None:
         if not is_tracked(path.relative_to(ROOT).as_posix()):
             continue
         for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-            found = re.match(r"^\[(P[0-4])\]\s*(.*)$", line)
+            found = re.match(r"^(?:FINDINGS:\s*)?\[(P[0-4])\]\s*(.*)$", line)
             if found and found.group(2).strip().startswith(description[:80].strip()):
                 return found.group(1)
     return None
@@ -647,7 +709,7 @@ def _own_status(line: str, match: re.Match) -> bool:
         cell_end = line.find("|", match.end())
         cell = line[cell_start:cell_end if cell_end > 0 else None]
         cell = re.sub(r"[*\s]", "", cell)
-        if re.fullmatch(r"(?:Both|All\w*|Each)?(?:CLOSED|OPEN|Open)(?:\([^)]*\))?\.?", cell):
+        if re.fullmatch(r"(?:Both|All\w*|Each)?(?:CLOSED|OPEN|Open)(?:\((?![^)]*OPEN)[^)]{0,24}\))?\.?", cell):
             return True
     # (iii) a standalone bold status span: `… — **CLOSED.** evidence`,
     # `… **Both CLOSED.**` (the status is the whole span, so a bold
@@ -708,8 +770,21 @@ def kind_phrase_of(claim: str) -> str:
     return kind.group(1).strip().lower() if kind else ""
 
 
+def claim_finding_ids(body: str) -> set[str]:
+    """Finding ids the claim's leading text names (`V-02`, `RW090-DEV-01`,
+    `S20-700-PACK-001`): never a document id (`ADR-0040`, `S20-540`) and
+    never a number carried by a cited path (Ariadne/Nabu P3 at 79fdcc63)."""
+    leading = body[:200].split(";")[0]
+    path_text = " ".join(PATH_TOKEN.findall(body))
+    return {
+        fid for fid in re.findall(r"\b(?:[A-Z][A-Z0-9]{1,}-)+[0-9]{2,}\b|\b[A-Z]{1,3}-[0-9]{2}\b", leading)
+        if not re.fullmatch(r"(?:ADR|S20|RW|T|S)[0-9]*-[0-9]+", fid) and fid not in path_text
+    }
+
+
 def identity_tokens(claim: str) -> tuple[set[str], set[str]]:
-    """(kind phrases, identifiers) of a claim, as the relation reads them."""
+    """(kind phrases, identifiers and finding ids) of a claim, as the
+    relation reads them."""
     body = claim.split(": ", 1)[1] if ": " in claim else claim
     tags = [tag.lower() for tag in CATEGORY.findall(body[:120])]
     phrases = {phrase.strip() for tag in tags for phrase in re.split(r"[/—,;:]", tag) if phrase.strip() and phrase.strip() not in STOP_WORDS}
@@ -718,7 +793,7 @@ def identity_tokens(claim: str) -> tuple[set[str], set[str]]:
         word for word in content_words(body)
         if "_" in word and len(word) >= 8 and word not in path_text and not is_lane_field_name(word)
     }
-    return phrases, identifiers
+    return phrases, identifiers | claim_finding_ids(body)
 
 
 def shared_vocabulary(section: dict, severity: str, claim: str) -> set[str]:
@@ -780,7 +855,7 @@ def open_lines_about(path: Path, claim: str, severity: str) -> list[int]:
             head = line[: opens[0].start()]
         # A strong identity only (identifier, finding id, file:line anchor or
         # quoted phrase): one lane files several findings under one kind.
-        if line_speaks_about(head, claim, strong=True):
+        if line_speaks_about(head, claim, strong=True, paths_ok=False):
             found.append(index + 1)
     return found
 
@@ -819,9 +894,6 @@ def cited_closure_lines(path: Path, severity: str) -> list[int]:
 CLAIM_TAG = re.compile(r"^([A-Za-z0-9_.]+?)(?:@([0-9a-f]{7,40}))?: ")
 
 
-NOTE_SCOPE = re.compile(r"\bon ([0-9a-f]{40})\b")
-
-
 def claim_relation_problem(section: str, claim: str, path: Path, fields: dict | None = None) -> str | None:
     """The transcript must belong to the claim's section and lane, and to a
     scope strictly later than the claim's (c67b0729 round: the relation had
@@ -843,13 +915,8 @@ def claim_relation_problem(section: str, claim: str, path: Path, fields: dict | 
     lane = reviewer_of(prefix)
     if lane is not None and not path.name.startswith(lane):
         return f"transcript {path.name} is not the {lane} lane's"
-    if not scope and fields and re.search(r"_revision_[0-9]+$", prefix):
-        # A frozen round field's `_note` names the scope its verdict was
-        # filed at; a live base field's note or a closure note names the
-        # latest round instead, so only revision fields bind this way.
-        note = fields.get(prefix + "_note")
-        found = NOTE_SCOPE.search(note) if isinstance(note, str) else None
-        scope = found.group(1)[:7] if found else None
+    if not scope:
+        scope = raising_scope(section, claim, fields)
     if scope:
         stamp = re.search(r"-([0-9a-f]{7,40})\.(?:md|log)$", path.name)
         if stamp and (stamp.group(1).startswith(scope) or scope.startswith(stamp.group(1))):
@@ -937,7 +1004,18 @@ LEDGER_PATHS = {
 }
 
 
-def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[str] | None = None) -> bool:
+def closure_head(line: str) -> str:
+    """The item text before its own CLOSED (or OPEN) status marker."""
+    for pattern in (STATUS_CLOSED, STATUS_OPEN):
+        for match in pattern.finditer(line):
+            if _own_status(line, match):
+                return line[: match.start()]
+    if FINDING_LINE.match(line):
+        return line.split(" - ", 1)[0]
+    return line
+
+
+def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[str] | None = None, paths_ok: bool = True) -> bool:
     """The closure line names the claim's finding identity (Nabu P2 at
     1a9f0aab: vocabulary overlap had let one line retire unrelated claims):
 
@@ -953,11 +1031,17 @@ def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[s
       alone is shared by every finding of a section; a generic one-word
       tag like `[record]` alone names nothing).
 
-    With `strong`, only the identifier, finding-id, anchor and quoted-phrase
-    rules apply (the OPEN-line refusal: a lane files several findings under
-    one kind).
+    With `strong` (a kind the lane shares, or the OPEN-line refusal) the
+    line is read as its own head only and the kind phrase and commit-id
+    rules do not apply: an identifier, finding id, anchor, quoted phrase,
+    or a path with a tag word must stand in the head.
     """
     body = claim.split(": ", 1)[1] if ": " in claim else claim
+    if strong:
+        # A strong identity must stand in the item's own head; evidence
+        # prose after the status may name other findings (Vulcan P3 at
+        # 79fdcc63).
+        line = closure_head(line)
     lowered = line.lower()
     tags = [tag.lower() for tag in CATEGORY.findall(body[:120])]
     phrases = {
@@ -1002,8 +1086,7 @@ def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[s
         return True
     # Finding ids from the claim's heading and first sentence only (an id
     # mentioned in passing later in the description is not its identity).
-    leading = body[:200].split(";")[0]
-    finding_ids = set(re.findall(r"\b(?:[A-Z][A-Z0-9]{1,}-)+[0-9]{2,}\b|\b[A-Z]{1,3}-[0-9]{2}\b", leading))
+    finding_ids = claim_finding_ids(body) - shared
     if any(re.search(rf"(?<![A-Z0-9-]){re.escape(fid)}(?![0-9])", line) for fid in finding_ids):
         return True
     anchors = {
@@ -1013,7 +1096,20 @@ def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[s
     }
     if any(anchor in line for anchor in anchors):
         return True
-    return not strong and any(path in line for path in paths) and any(word in lowered for word in tag_words)
+    # The anchor's line span alone (`413-417,424-425`, `2974-3001`) when
+    # the closure line cites it without the file name — a range or list,
+    # never a single line number.
+    ranges = {
+        token.split(":", 1)[1] for token in PATH_TOKEN.findall(body)
+        if ":" in token and token.split(":")[0] not in LEDGER_PATHS and re.search(r"[-,]", token.split(":", 1)[1])
+    }
+    if any(re.search(rf"(?<![0-9-]){re.escape(span)}(?![0-9-])", line) for span in ranges):
+        return True
+    # A path together with a tag word: an identity when it stands in the
+    # item's own head (the strong read), never from trailing prose alone;
+    # the OPEN-line refusal does not use it (a lane files many findings
+    # against one file under one kind).
+    return paths_ok and any(path in line for path in paths) and any(word in lowered for word in tag_words)
 
 
 def transcript_path(reference: str) -> Path | None:
@@ -1104,6 +1200,12 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field} entries are {{claim, verified_by[, binding: exact-claim]}} strings",
                     )
+                raised = raising_severity(section, entry["claim"])
+                if raised and raised != "P" + field[1]:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: the raising transcript records {raised}: {entry['claim'][:60]!r}",
+                    )
                 resolved = transcript_path(entry["verified_by"])
                 if resolved is None:
                     raise RegisterError(
@@ -1191,10 +1293,13 @@ def finding_key(claim: str) -> tuple[str | None, str, str, str]:
     body = claim.split(": ", 1)[1] if ": " in claim else claim
     kind = re.match(r"\[([^\]]+)\]", body)
     rest = body[kind.end():].strip() if kind else body
-    path = ANCHOR.search(rest)
-    anchor = path.group(0).split(":")[0] if path else ""
+    # A leading carry marker `(carried from <sha>, OPEN — narrowed)` is
+    # round bookkeeping, not identity (Ariadne P3 at 79fdcc63).
+    rest = re.sub(r"^\((?:carried|carry|prior|residual)[^)]*\)\s*", "", rest, flags=re.I)
     ident = IDENTIFIER.search(rest)
     identifier = ident.group(1) if ident else ""
+    path = ANCHOR.search(rest)
+    anchor = path.group(0).split(":")[0] if path else ""
     # A ledger file is every record finding's anchor (Vulcan P3 at 6589c6ec:
     # three distinct `[evidence] machine-summary.json` findings folded into
     # one); the description then carries the identity.
@@ -1202,6 +1307,7 @@ def finding_key(claim: str) -> tuple[str | None, str, str, str]:
         anchor = re.sub(r"\s+", " ", rest)[:40]
     elif anchor in LEDGER_PATHS or anchor.rsplit("/", 1)[-1] in LEDGER_PATHS:
         description = rest.split(" - ", 1)[1] if " - " in rest else rest
+        description = re.sub(r"^\((?:carried|carry|prior|residual)[^)]*\)\s*", "", description, flags=re.I)
         anchor = re.sub(r"\s+", " ", description)[:40]
     return (reviewer_of(prefix), kind.group(1) if kind else "", anchor, identifier)
 
@@ -1247,6 +1353,12 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
                 ):
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID, f"{section}.{field} entries are {{claim, restates}} strings"
+                    )
+                raised = raising_severity(section, entry["claim"])
+                if raised and raised != "P" + severity:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: the raising transcript records {raised}: {entry['claim'][:60]!r}",
                     )
                 if entry["claim"] in open_list or entry["claim"] in closed or entry["restates"] == entry["claim"]:
                     raise RegisterError(

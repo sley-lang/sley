@@ -392,6 +392,13 @@ class InvariantTests(unittest.TestCase):
         self.assertTrue(register.scoped_before("178873d7" + "0" * 32, "76ae15ab" + "0" * 32) or True)  # unresolvable shas: no fold refusal by scope
         self.assertTrue(register.scoped_before("76ae15a", "1a9f0aa"))   # the PASS is an ancestor of the REVISE round
         self.assertFalse(register.scoped_before("1a9f0aa", "76ae15a"))
+        # Document ids are not finding ids; a line span relates without its
+        # file name; a carry marker does not change a re-statement's key.
+        self.assertFalse(register.line_speaks_about("- **[P4] the ADR-0040 note — CLOSED.**", "v: [records] docs/adr/x.md:9 - ADR-0040 says"))
+        self.assertTrue(register.line_speaks_about("- **[P3] spec 413-417,424-425 reader sentence — CLOSED.**", "v: [contract-text] docs/spec/X.md:413-417,424-425 - the sentence"))
+        self.assertFalse(register.line_speaks_about("- **[P4] x — CLOSED.** builder :100-107", "v: [records] evidence/release/lane.json:100 - y"))
+        self.assertEqual(register.finding_key("v@c67b072: [ledger-duplication] (carried from 76227765, OPEN) machineresearch/sley-2.0/machine-summary.json:1 - `p4_open` twice"),
+                         register.finding_key("v@1a9f0aa: [ledger-duplication] machineresearch/sley-2.0/machine-summary.json:2 - `p4_open` twice"))
         # The PRIOR fallback never serves P0-P2.
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "t.md"

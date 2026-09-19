@@ -1,20 +1,20 @@
 {
  "contract": "finding-register-revision-7-retirement-changes-v2",
  "baseline": "76ae15ab",
- "round": "re-issued at the 6589c6ec round (Ariadne P3: per-row decisions and counts derived by a stated keying)",
+ "round": "re-issued at the 79fdcc63 round",
  "keying": "a closure is keyed by (section, severity, full claim string); an entry of evidence/review/claim-retirements.json by (section, transcript path, prefixes tuple, exact claims tuple). 'restored' = the 76ae15ab closure is in the tracked ledger now (same or re-cited transcript line); 'refused (open|restated)' = it is not, with the rule that refuses its 76ae15ab citation. Counts are set sizes under that keying.",
- "summary": "91 closures were recorded at 76ae15ab; 84 are in the tracked ledger now and 7 are not (each with its refusing rule). The 7995e057 round's statement 'none reopened' was measured against 320ea8aa and was wrong: 27 had reopened at 1a9f0aab.",
+ "summary": "91 closures were recorded at 76ae15ab; 86 are in the tracked ledger now and 5 are not (each with its refusing rule). The 7995e057 round's statement 'none reopened' was measured against 320ea8aa and was wrong: 27 had reopened at 1a9f0aab.",
  "counts": {
   "entries_at_76ae15ab": 45,
-  "entries_now": 114,
-  "entries_added": 82,
+  "entries_now": 127,
+  "entries_added": 95,
   "entries_removed": 13,
-  "exact_claim_entries_now": 65,
+  "exact_claim_entries_now": 78,
   "closures_at_76ae15ab": 91,
-  "closures_now": 196,
-  "restored": 84,
-  "refused": 7,
-  "exact_claim_closures_now": 64
+  "closures_now": 250,
+  "restored": 86,
+  "refused": 5,
+  "exact_claim_closures_now": 77
  },
  "changes": [
   {
@@ -47,7 +47,7 @@
    "claim": "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json:1388-1394,1400-1403 - `p2_open`/`p3_open`/`p4_open` still list the 178873d P2, the 178873d P3 and the 92f",
    "decision": "refused (open)",
    "verified_by_at_76ae15ab": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md#L13",
-   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[13]; closure lines [13])"
+   "refusing_rule": "transcript epoch1_reanchor_review_closure-c04539b.md is the claim's own round"
   },
   {
    "section": "release_candidate_packaging",
@@ -461,9 +461,9 @@
    "section": "reproducibility_and_independent_conformance",
    "severity": 4,
    "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The 45b2cd98 row says \"u",
-   "decision": "refused (open)",
+   "decision": "restored (re-cited)",
    "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L24,25,26",
-   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[24, 25, 26]; closure lines [24, 25, 26])"
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L25"
   },
   {
    "section": "reproducibility_and_independent_conformance",
@@ -541,9 +541,9 @@
    "section": "rw090_arbitrary_codec",
    "severity": 2,
    "claim": "ariadne_contract_review_revision_1: [correctness/contract] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:4291-4467, crates/sley-vm/tests/rw080_codec_program/all_kind_digest",
-   "decision": "refused (open)",
+   "decision": "restored (re-cited)",
    "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md#L13",
-   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[13]; closure lines [13])"
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review_closure-79fdcc6.md#L13"
   },
   {
    "section": "rw090_arbitrary_codec",
@@ -551,7 +551,7 @@
    "claim": "ariadne_contract_review_revision_1: [test-coverage/oracle-parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:16184-16249,25719-25793,25205-25228,25290-25314 - Refusal-co",
    "decision": "restored (re-cited)",
    "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md#L13",
-   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-92fa664.md#L13,14"
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-92fa664.md#L14"
   },
   {
    "section": "rw090_arbitrary_codec",

@@ -117,7 +117,7 @@
     },
     {
       "criterion": "No undefined behavior exists in the program model",
-      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 87 PASS, 3 PENDING, 0 OTHER, 59 historical, 0 unclaimed or unclassified; lane open)",
+      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 87 PASS, 4 PENDING, 0 OTHER, 59 historical, 0 unclaimed or unclassified; lane open)",
       "group": "26.3 semantics",
       "state": "AWAITS_REVIEW"
     },
@@ -243,7 +243,7 @@
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 10 open P0/P1/P2 findings across 473 obligations (10 of them per-package open claims)",
+      "evidence": "finding register declares 8 open P0/P1/P2 findings across 474 obligations (8 of them per-package open claims)",
       "group": "26.6 policy and security",
       "state": "GATED"
     },
@@ -303,7 +303,7 @@
     },
     {
       "criterion": "Ariadne approves SSMC1 and semantic correctness",
-      "evidence": "finding register ariadne lane: 87 PASS, 3 PENDING, 0 OTHER, 59 historical, 0 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
+      "evidence": "finding register ariadne lane: 87 PASS, 4 PENDING, 0 OTHER, 59 historical, 0 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -321,7 +321,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 5 open, 0 unclassified, and 0 unclaimed-carried obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 6 open, 0 unclassified, and 0 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -341,9 +341,9 @@
     "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "333a1e8fa37e4de4a5a6465a7799579c4311cf34d183f47e2f44486adace187c",
-  "register_digest": "7aebd0e3b0d04f9c5dea33ffee179f9cc043e8cc092d82ce0d9ba23e9e8d412d",
-  "report_digest": "c3bf6a93510d74418ca0acab7878f2d556a8b7067926d4ce55b7ec1a27c0ef20",
+  "obligations_digest": "c149d6fbdd09eb41ec2769f81974335e87cafb4c2f8285249c7b7368e4610f96",
+  "register_digest": "6144ca09038b9fbcde990f06b0af52bf21d9e60a63198f2e2cb1cc2bf399fa42",
+  "report_digest": "d685b714947dcbb2f762b731b98a0afe80d0c1df50f4dfdeaaafc163af52614d",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 16,

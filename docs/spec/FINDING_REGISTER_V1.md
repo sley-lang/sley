@@ -80,7 +80,29 @@ round's scope by git ancestry never folds it, whatever the calendar day.
 `retire_review_claims.py --regenerate` runs reopen → fold → retire in
 that order and `--check` also regenerates in memory and refuses a
 tracked ledger the regeneration does not reproduce
-(`regeneration_divergence`). The change record
+(`regeneration_divergence`).
+
+After the 79fdcc63 round (Ariadne/Nabu/Vulcan P3): every claim has a
+raising scope — its tag, else the earliest filed transcript of its lane
+(or, lane-less, of its field) whose `[Pn]` finding line begins with the
+claim's description, else a frozen revision field's or closure-note
+field's `on <sha>` — and the own-round and strictly-later rules apply to
+it on every path; a claim with no raising scope never retires
+automatically. Closers are ordered by git ancestry (the earliest closing
+transcript binds) and a line whose own head names the finding is
+preferred over one naming it only in trailing prose. Document ids
+(`ADR-0040`, `S20-540`) are not finding ids; an anchor's line span
+(`413-417,424-425`) relates without its file name, a single line number
+never does; a re-statement's leading carry marker
+(`(carried from <sha>, OPEN …)`) is stripped before its finding key is
+taken. Finding ids are shared vocabulary like kinds and identifiers; a
+finding id carried by a cited path is not the claim's. The strong read
+(a kind the lane shares) is the item's own head: an identifier, finding
+id, anchor, quoted phrase, or a path with a tag word standing there; the
+OPEN-line refusal reads the head without the path rule. A table cell's
+parenthetical is at most 24 characters and never carries OPEN
+(`**CLOSED (leg 2 OPEN)**` is not a closure). The raising-severity
+binding applies to open, retired and re-stated claims alike. The change record
 `evidence/review/rounds/revision-7-retirement-changes.json` is derived
 from the tracked ledgers by a stated keying (see its `keying`). Where the reviewer's per-finding closure line
 cannot be seen by that relation (a claim recorded truncated or phrased
