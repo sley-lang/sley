@@ -267,7 +267,7 @@
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit 7527d82a8ef84fe93ae09b49725b4037640a496a; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
+      "evidence": "attested commit 4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
       "group": "26.8 packaging",
       "state": "GATED"
     },
@@ -285,7 +285,7 @@
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "attested manifest digest c7c81c170440, artifact digest da0a65abbe31, 2507937 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
+      "evidence": "attested manifest digest 73e967332d45, artifact digest 36b87bdc2012, 2507941 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
@@ -343,7 +343,7 @@
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "c149d6fbdd09eb41ec2769f81974335e87cafb4c2f8285249c7b7368e4610f96",
   "register_digest": "6144ca09038b9fbcde990f06b0af52bf21d9e60a63198f2e2cb1cc2bf399fa42",
-  "report_digest": "d685b714947dcbb2f762b731b98a0afe80d0c1df50f4dfdeaaafc163af52614d",
+  "report_digest": "6f76ecb5836b11fda54f5a4d3e857681b64d1224aa8dbf947d88eb6176d5fe0b",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 16,

@@ -2270,19 +2270,19 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 1127,
-      "corpus_file_count": 1242,
+      "corpus_file_count": 1257,
       "runs_requested": 2156,
       "runs_floor": 2156,
       "executed_runs": 2156,
       "coverage": {
         "counters": 1453,
-        "ft_done": 606,
-        "ft_inited": 581,
+        "ft_done": 610,
+        "ft_inited": 607,
         "new_events": true,
-        "seed": 377807946
+        "seed": 1553171721
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2304,7 +2304,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review": "PASS_PRIOR_P2_CLOSED_NO_OPEN_P0_P1_P2_WITH_P3_P4_FOLLOWUPS",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_5_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_scb1_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 f732858fd7d8c8823d3f97416fd798c23551869bef771c8e5ba681b99656849c) (transcript FIELD line reads vulcan_review_closure). Two of the eight unclaimed P3/P4 findings are verified closed (register field at af9dba84, docs at c5424aa4); four P3 and two P4 remain open because the target and checker are unchanged since b64ab9e and the runner change did not touch the cited lines. The doc closure copied the overstated re-encode-oracle claim into tracked docs, and the b1218578 runner rewrite left the register's last_local_proof bound to a superseded runner while a canonical on-disk proof cites a non-ancestor commit. Checker exit 0 PASS was reproduced but cannot see any of these. Row not closable at this SHA.",
@@ -2343,7 +2343,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 259,
       "corpus_file_count": 271,
@@ -2352,10 +2352,10 @@
       "executed_runs": 527,
       "coverage": {
         "counters": 2812,
-        "ft_done": 500,
+        "ft_done": 501,
         "ft_inited": 500,
-        "new_events": false,
-        "seed": 651223604
+        "new_events": true,
+        "seed": 790503271
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2377,7 +2377,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_4_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_4_P3_3_P4",
@@ -2436,24 +2436,24 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 500,
-      "corpus_file_count": 542,
-      "executed_runs": 798,
+      "corpus_file_count": 544,
+      "executed_runs": 800,
       "coverage": {
         "counters": 9022,
-        "ft_done": 3809,
-        "ft_inited": 3804,
+        "ft_done": 3821,
+        "ft_inited": 3809,
         "new_events": true,
-        "seed": 2883267255
+        "seed": 3452833374
       },
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "cc": "/usr/lib/llvm18/bin/clang-18",
       "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "runs_floor": 798,
+      "runs_floor": 800,
       "owner_lib_sancov": 149,
       "coverage_ok": true,
       "worktree_dirty": false,
@@ -2481,7 +2481,7 @@
         "fuzz/regressions/S20_700_PACK_001.json",
         "fuzz/regressions/S20_700_PACK_002.json"
       ],
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant; tracked regression records retested"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant; tracked regression records retested"
     },
     "vulcan_review_note": "Qualifying re-review of the c7fec98 fix at a525797 (transcript vulcan_review-c7fec98.md, FIELD vulcan_review, ROUND final): all five classes verified executing (static + seed-0493 probe + 775/775 proof), precedence sets match S20-540 order, no-store exemption intact, verdict field Honest. PASS with 3 P3 + 4 P4. VR-C7-01 (tracked proof still 4c30d1b; reseal_lane still exact-class wording) closes with the standard proof-refresh records commit; VR-C7-02/03 are owner items for the next target round; VR-C7-04..07 are P4 notes. Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_4_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 9f41fe3f93805e0cbe17b4694252f107879a97d7e3b7917609b3e6358edbbced) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-c7fec98.md) was located; of its 3 P3 + 4 P4 findings, VR-C7-01 and VR-C7-04 are verified closed by records commit 1f969f99, while VR-C7-02, VR-C7-03, VR-C7-05, VR-C7-06 and VR-C7-07 remain open because the target and checker are byte-identical to c7fec98 and the owners explicitly deferred the target round. One new P4 record note: the tracked proof is bound to a SHA reachable from no branch and the on-disk canonical-toolchain proof is unfolded. The lane's fix itself remains sound and the checker passes at HEAD, but the row cannot be closed as PRIOR_P3_P4_CLOS",
@@ -2517,7 +2517,7 @@
     "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 518,
       "corpus_file_count": 560,
@@ -2529,7 +2529,7 @@
         "ft_done": 8011,
         "ft_inited": 8011,
         "new_events": false,
-        "seed": 1801477727
+        "seed": 2569887560
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2551,7 +2551,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     }
   },
   "s20_700_complete_root_persistent_fuzz_slice": {
@@ -2573,19 +2573,19 @@
     "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 491,
-      "corpus_file_count": 777,
+      "corpus_file_count": 799,
       "runs_requested": 512,
-      "runs_floor": 1033,
-      "executed_runs": 1033,
+      "runs_floor": 1055,
+      "executed_runs": 1055,
       "coverage": {
         "counters": 7189,
-        "ft_done": 5748,
-        "ft_inited": 5625,
+        "ft_done": 5794,
+        "ft_inited": 5748,
         "new_events": true,
-        "seed": 192240284
+        "seed": 987498916
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2607,7 +2607,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "fact_lanes": "bits 2/3/4 select facts-from-bytes (bound/entry-points/dependency-roots); kind-8 encode guard loud"
   },
@@ -2629,19 +2629,19 @@
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 330,
-      "corpus_file_count": 364,
+      "corpus_file_count": 368,
       "runs_requested": 644,
       "runs_floor": 644,
       "executed_runs": 644,
       "coverage": {
         "counters": 4245,
-        "ft_done": 1900,
-        "ft_inited": 1891,
+        "ft_done": 1902,
+        "ft_inited": 1900,
         "new_events": true,
-        "seed": 2391643107
+        "seed": 3313625209
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2663,7 +2663,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     }
   },
   "s20_700_merge_persistent_fuzz_slice": {
@@ -2685,19 +2685,19 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 319,
-      "corpus_file_count": 431,
+      "corpus_file_count": 435,
       "runs_requested": 638,
-      "runs_floor": 687,
-      "executed_runs": 687,
+      "runs_floor": 691,
+      "executed_runs": 691,
       "coverage": {
         "counters": 3577,
-        "ft_done": 1502,
-        "ft_inited": 1500,
+        "ft_done": 1508,
+        "ft_inited": 1502,
         "new_events": true,
-        "seed": 494462131
+        "seed": 1440957213
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2719,7 +2719,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_4_P3_0_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 a359ecde4a9c057c954048e8e0eed9ab313b6677d71ab83f16fd79e0a2851911) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-7cf25acd25d2.md) was located and its three P3s enumerated; at 178873d7 F2 is verified closed (audit :28-33 now names the five decoder codes, commit 71232591), F3 is untouched, and F1 is mitigated in code by the b1218578 pin-layout repair with an unoverridden clang 18.1.8 PASS on disk, but that proof is unfiled while the tracked record still carries the clang-22 override run and the \"unproven\" clause. Two new P3s: the tracked proof commit is not in HEAD's lineage and predates the HEAD harness, and the slice checker is marker-only so it cannot reject a stale p",
     "p3_open": [
@@ -2745,19 +2745,19 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 47,
-      "corpus_file_count": 199,
+      "corpus_file_count": 203,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
         "counters": 35437,
-        "ft_done": 4370,
-        "ft_inited": 4348,
+        "ft_done": 4377,
+        "ft_inited": 4370,
         "new_events": true,
-        "seed": 3215868164
+        "seed": 5316368
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2779,7 +2779,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     }
   },
   "s20_700_complete_root_snapshot_persistent_fuzz_slice": {
@@ -2800,19 +2800,19 @@
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 480,
-      "corpus_file_count": 546,
+      "corpus_file_count": 549,
       "runs_requested": 960,
       "runs_floor": 960,
       "executed_runs": 960,
       "coverage": {
         "counters": 1243,
         "ft_done": 1204,
-        "ft_inited": 1201,
-        "new_events": true,
-        "seed": 2875242101
+        "ft_inited": 1204,
+        "new_events": false,
+        "seed": 3719650036
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2834,7 +2834,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 ac28060f28335665321cfc69695887b309e1f494f7f69edd624c2bcdeed4ecff) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) names three P3s; at 178873d7 one is verified closed (rehash-lane rationale, made true by a069a246's digest-before-inversion reorder at snapshot.rs:743-748, matching spec \u00a75) and two remain open (target oracles only partly narrowed at fuzz/targets/complete_root_snapshot_decoder.rs:28,51-57,68-78; checker still marker-only at scripts/check_complete_root_snapshot_persistent_fuzz_slice.py:18-118, exit 0 despite a stale proof). One new P3 is recorded: the tracked last_local_proof (machine-summary.json:2536-2572) cites non-ancestor d3dee564 that p",
     "p3_open": [
@@ -2867,19 +2867,19 @@
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 971,
-      "corpus_file_count": 1454,
+      "corpus_file_count": 1483,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 11294,
-        "ft_done": 7496,
-        "ft_inited": 7351,
+        "ft_done": 7549,
+        "ft_inited": 7496,
         "new_events": true,
-        "seed": 1295377135
+        "seed": 2157680784
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2901,7 +2901,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "seed_derivation": "generated synthetically; the fixture contributes contract and class-count drift checks only, no seed bytes"
   },
@@ -2923,19 +2923,19 @@
     "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 971,
-      "corpus_file_count": 1457,
+      "corpus_file_count": 1486,
       "runs_requested": 1942,
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
         "counters": 11767,
-        "ft_done": 7427,
-        "ft_inited": 7382,
+        "ft_done": 7497,
+        "ft_inited": 7427,
         "new_events": true,
-        "seed": 3993820145
+        "seed": 648968907
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2957,7 +2957,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     }
   },
   "s20_700_smp1_persistent_fuzz_slice": {
@@ -2980,19 +2980,19 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 713,
-      "corpus_file_count": 791,
+      "corpus_file_count": 802,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
         "counters": 4486,
-        "ft_done": 2962,
-        "ft_inited": 2771,
+        "ft_done": 3026,
+        "ft_inited": 2962,
         "new_events": true,
-        "seed": 1695902369
+        "seed": 2890873206
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3014,7 +3014,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "generated_seed_count": 713,
     "lane_3_seeds": "multi-frame concatenated pairs reach reassemble_stream (proven); bare prefix-stripped bodies removed in 7h (they never decoded as hello records); negotiation executes through check_frame Hello arm on fixture hello frames (shared oracle); see S20-700-SMP1-001 + negotiate divergence packet",
@@ -3053,19 +3053,19 @@
     "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 643,
-      "corpus_file_count": 768,
+      "corpus_file_count": 777,
       "runs_requested": 1286,
       "runs_floor": 1286,
       "executed_runs": 1286,
       "coverage": {
         "counters": 7117,
-        "ft_done": 4462,
-        "ft_inited": 4455,
+        "ft_done": 4466,
+        "ft_inited": 4462,
         "new_events": true,
-        "seed": 214064917
+        "seed": 1321609818
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3087,7 +3087,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 4f1f806240e607c0db75d63a4d7340147416a86f12517b77b3d1391e2cac3ed3) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) was located and all eleven P3/P4 findings enumerated; eight are verified closed at 178873d7 by code and audit changes in rounds 7h-7j and the b1218578 pin-layout repair, with the checker passing (exit 0). Two carried P3s (stale \"thirty-one\" count; tautological `known()` oracle) and one carried P4 (unbound checker markers) remain open and untracked, so the row cannot be closed. Two new records defects were found: the durable `last_local_proof` is stale against both runner and governed crate and contradicts the on-disk canonical-layout proof, ",
     "p3_open": [
@@ -3135,7 +3135,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "cc": "/usr/lib/llvm18/bin/clang-18",
       "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
@@ -3156,17 +3156,17 @@
         "graph-cfg": {
           "build_result": "PASS",
           "corpus_count": 408,
-          "corpus_file_count": 602,
+          "corpus_file_count": 612,
           "coverage": {
             "counters": 5067,
-            "ft_done": 2498,
-            "ft_inited": 2483,
+            "ft_done": 2527,
+            "ft_inited": 2498,
             "new_events": true,
-            "seed": 1696705241
+            "seed": 2280367248
           },
           "coverage_ok": true,
           "crash_artifacts": [],
-          "executed_runs": 858,
+          "executed_runs": 868,
           "fuzz_result": "PASS",
           "minimized_crashes": [],
           "new_crash_artifacts": [],
@@ -3183,7 +3183,7 @@
               "still_crashes": false
             }
           ],
-          "runs_floor": 858,
+          "runs_floor": 868,
           "scope": "S20_220_PUBLIC_TYPED_GRAPH_CFG_CHECKER",
           "stale_seeds_removed": 0,
           "unexpected_warnings": []
@@ -3191,17 +3191,17 @@
         "type-checker": {
           "build_result": "PASS",
           "corpus_count": 385,
-          "corpus_file_count": 587,
+          "corpus_file_count": 601,
           "coverage": {
             "counters": 2752,
-            "ft_done": 3721,
-            "ft_inited": 3686,
+            "ft_done": 3735,
+            "ft_inited": 3721,
             "new_events": true,
-            "seed": 1622801642
+            "seed": 2191863980
           },
           "coverage_ok": true,
           "crash_artifacts": [],
-          "executed_runs": 858,
+          "executed_runs": 868,
           "fuzz_result": "PASS",
           "minimized_crashes": [],
           "new_crash_artifacts": [],
@@ -3213,7 +3213,7 @@
               "still_crashes": false
             }
           ],
-          "runs_floor": 858,
+          "runs_floor": 868,
           "scope": "S20_210_PUBLIC_TYPED_TYPE_CHECKER",
           "stale_seeds_removed": 0,
           "unexpected_warnings": []
@@ -3228,8 +3228,8 @@
         ]
       },
       "executed_runs": {
-        "graph-cfg": 858,
-        "type-checker": 858
+        "graph-cfg": 868,
+        "type-checker": 868
       },
       "new_crash_artifacts": {
         "graph-cfg": [],
@@ -3239,7 +3239,7 @@
         "graph-cfg": [],
         "type-checker": []
       },
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant; tracked regression records retested"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant; tracked regression records retested"
     },
     "vulcan_review_note": "Qualifying round-4 re-review at 5966d83 (transcript vulcan_review-df295d8.md, FIELD vulcan_review, ROUND final): PASS_0_P0_0_P1_0_P2_2_P3_3_P4. Single branch verified exact-or-sound (full per-arm table), multi branch closed by construction (42-entry universe == engine as_str matches), all six falsifying inputs traced to pass, seeds executed, proof binds df295d8 clean. Follow-ups applied post-verdict: arm-22 DOMINANCE removed again (dead in single scope; combos use universe branch), audit counts corrected (406 seeds, 949 proof), VS-R3-004 sentence corrected (closed by regeneration in 56ef0c6 \u2014 the owner wrongly wrote 'refuted'), checker pins tightened (universe-body scope, lib.rs TYPE scan, full seed lists), sixth [9,16] input pinned as seed-0013. Fresh PASS proof 955/955 both targets (override lane). Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_1_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 7b1d268320685a707e7381ee61820da598c5840facb17dd10ba7873c73cfdaba) (transcript FIELD line reads vulcan_review_closure). The round-4 transcript (vulcan_review-df295d8.md) was located and its five P3/P4 findings enumerated; VS-R4-002/003/004/005 are verified closed at HEAD by 634807f8 with the arm-22 derivation, seed-0013 bytes, checker pins, and audit wording independently checked, and the slice checker passes. VS-R4-001 remains half open because the audit's \"945/945 \u2026 fix awaits re-review\" line was never edited despite the commit message and summary note claiming it was. Two new record findings: the tracked PASS proof binds a dirty tree at a rebased-away commit (P3), and the new checker TYPE-scan has a bypassab",
@@ -3279,7 +3279,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 525,
       "corpus_file_count": 552,
@@ -3288,10 +3288,10 @@
       "executed_runs": 1050,
       "coverage": {
         "counters": 3896,
-        "ft_done": 1370,
+        "ft_done": 1380,
         "ft_inited": 1370,
-        "new_events": false,
-        "seed": 4115613189
+        "new_events": true,
+        "seed": 334479931
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3313,7 +3313,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_5_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_2_P3",
@@ -3382,13 +3382,13 @@
       "build_locked": true,
       "cc": "/usr/lib/llvm18/bin/clang-18",
       "corpus_count": 789,
-      "corpus_file_count": 957,
+      "corpus_file_count": 965,
       "coverage": {
         "counters": 18420,
-        "ft_done": 10863,
-        "ft_inited": 10853,
+        "ft_done": 11026,
+        "ft_inited": 10863,
         "new_events": true,
-        "seed": 2932866230
+        "seed": 3475573462
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3403,7 +3403,7 @@
       "runs_floor": 1576,
       "runs_requested": 1576,
       "sancov_scope": "workspace-target-units-via-host-config",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "toolchain_overridden": false,
       "toolchain_versions": {
         "cc": "clang version 18.1.8",
@@ -3435,7 +3435,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "restricted_profile_opcodes": [
       102,
@@ -3522,19 +3522,19 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 821,
-      "corpus_file_count": 936,
+      "corpus_file_count": 942,
       "runs_requested": 1642,
       "runs_floor": 1642,
       "executed_runs": 1642,
       "coverage": {
         "counters": 7041,
-        "ft_done": 3409,
-        "ft_inited": 3385,
+        "ft_done": 3420,
+        "ft_inited": 3409,
         "new_events": true,
-        "seed": 1652570439
+        "seed": 2172521008
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3556,7 +3556,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "must_reject_classes": [
       "identity-changed (adapter_id)",
@@ -3597,7 +3597,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+      "source_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
       "worktree_dirty_files": [],
       "corpus_count": 32,
       "corpus_file_count": 32,
@@ -3606,10 +3606,10 @@
       "executed_runs": 512,
       "coverage": {
         "counters": 17506,
-        "ft_done": 3305,
+        "ft_done": 3118,
         "ft_inited": 2510,
         "new_events": true,
-        "seed": 1306867944
+        "seed": 1880636597
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3631,7 +3631,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 7527d82a candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh 2026-09-19 at the 4e128def candidate (clean detached worktree of the source commit); checker-verified in the records-only descendant"
     }
   },
   "s20_360_candidate_validation": {
@@ -4488,8 +4488,8 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "da0a65abbe31e129a50b0f6f90622bbcf6cb1e3c3e72717132eda98f6a94ee5a",
-    "candidate_artifact_size_bytes": 2507937,
+    "candidate_artifact_sha256": "36b87bdc2012c5c210e17ebae0a382f0bc246b0d9b6979c5f179e6187e312374",
+    "candidate_artifact_size_bytes": 2507941,
     "candidate_member_count": 15,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
@@ -4497,14 +4497,14 @@
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "c7c81c17044054a4e8acc8ba037440026903ffda414bf17eaac4ebff4023705f",
-    "candidate_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+    "candidate_manifest_digest": "73e967332d4568991e622e47c84d879cbd070d4cebfcfba400b4fa044dddaa79",
+    "candidate_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+    "candidate_evidence_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
     "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) was minted in a detached linked worktree of that commit (two clean musl builds, REPRODUCIBLE) after the RW-090 codec repairs; the secondary attestation is pending because greyforgelab is under an exclusive ZJX qualification lease until 2026-09-21T03:24Z. The superseded 45b2cd98 secondary attestation is not carried and is not in the tracked report (it had already been removed at 75ad17aa (the c75277b6 mint; 9316df19 inherited the primary-only state), before contract revision 10 existed, so the report's superseded_attestations list is empty); its supersession is recorded in git history, the second-host lane ledger and the reproducibility section's attestation_supersedes chain. Next, after the lease is released and the host acquired under the coordination rules: bundle main, clone detached at the candidate commit named by candidate_commit on the lab, make release-candidate-build, build_reproducibility_report.py --host-label secondary --emit-attestation, merge with --attest, file the lane receipt, re-pin attested_hosts/reproducibility_result/second_host_status/blockers (runbook script: scripts/second_host_attest.sh, tracked since the 76ae15ab round, which reads the candidate identity from the tracked report and refuses while the lease is held; phases check | build | merge).",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
@@ -5403,7 +5403,7 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since (surface: build_release_candidate.ARTIFACT_INPUT_PATHS, completed at revision 7 with the root license files and the compile-time embedded inputs); attested toolchain must match",
-    "attested_commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+    "attested_commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
@@ -5930,6 +5930,12 @@
       },
       {
         "commit": "7527d82a8ef84fe93ae09b49725b4037640a496a",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "4e128defc05d5f5c648a6e18c0ad1e2eb9c9f3b0",
         "hosts": [
           "primary"
         ]
@@ -7420,7 +7426,7 @@
     "c0_sha256": "a94580d7e96eda2bd0b4c59e72391758e8470ed856f6bde6a1fb4f8521cf1378",
     "c1_candidate_sha256": "2e434790836dee0615d68a3cd14ad7390ac49773680a4871dce0e01f2e716417",
     "official_c1": null,
-    "source_commit": "7527d82a (records/gate repairs only; S 3d2ed8f8\u2026, C0 a94580d7\u2026 and C1 2e434790\u2026 unchanged since 9d1ba8f1 \u2014 C0 rebuilt byte for byte from fresh detached worktrees of 320ea8aa, 7995e057, 6d752779, f3d4f450 and 7527d82a)",
+    "source_commit": "4e128def (records/gate repairs only; S 3d2ed8f8\u2026, C0 a94580d7\u2026 and C1 2e434790\u2026 unchanged since 9d1ba8f1 \u2014 C0 rebuilt byte for byte from a fresh detached worktree of every source commit since 320ea8aa, 4e128def included)",
     "checkers": [
       "scripts/check_reweave_canonical_s.py",
       "scripts/check_reweave_seed_artifacts.py",
