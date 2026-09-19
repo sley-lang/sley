@@ -251,6 +251,14 @@
   "prefixes": [
    "ariadne_implementation_review_final: [contract-text] docs/spec/REPOSITORY_EXCHANGE_V1.md:413-417"
   ],
+  "claims": [
+   {
+    "claim": "ariadne_implementation_review_final: [contract-text] docs/spec/REPOSITORY_EXCHANGE_V1.md:413-417,424-425 - The scoped sentence \"none of the frozen S20-540 readers listed below resolves an accepted ",
+    "lines": [
+     23
+    ]
+   }
+  ],
   "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-db53894.md",
   "reason": "PRIOR_P3_CLOSED at db53894e: the c04539b9 reader-list P3 verified closed"
  },
@@ -2011,5 +2019,33 @@
    }
   ],
   "reason": "exact-claim binding (8f774d0c round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-b58ac1e.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review@76ae15a: [evidence-integrity] machineresearch/sley-2.0/machine-summary.json:1404-1415 (`mutation_value_profile.p2_closed_claims[0]`, `p3_closed_claims[0]`) with evidence",
+    "lines": [
+     27
+    ],
+    "reason": "the lane's own P3 item status line for this finding names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (8966da2e round)"
+   },
+   {
+    "claim": "vulcan_surface_review@c67b072: [records] machineresearch/sley-2.0/machine-summary.json standards `p1_closed_claims[0-1]`, `p2_closed_claims[0]`, `p3_closed_claims[0,1,4]` with evidence/review",
+    "lines": [
+     49
+    ],
+    "reason": "the lane's own P4 item status line for this finding names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (8966da2e round)"
+   },
+   {
+    "claim": "vulcan_surface_review: [record-staleness] machineresearch/sley-2.0/machine-summary.json:4274-4293 (`p2_open`, `p3_open`) - the owned open-claims still list the 178873d7 revision-5 fin",
+    "lines": [
+     50
+    ],
+    "reason": "the lane's own P4 item status line for this finding names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (8966da2e round)"
+   }
+  ],
+  "reason": "exact-claim bindings (8966da2e round): Vulcan record-staleness P4 \u2014 the reviewer's own b58ac1e per-finding closure lines, verified line by line"
  }
 ]

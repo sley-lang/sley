@@ -79,6 +79,26 @@ class ProofRecordTests(unittest.TestCase):
             self.assertIn(expected, self.problems(proof), expected)
         self.assertEqual(proof_record_problems(self.root, None, "x", []), ["proof-record-missing"])
 
+    def test_regression_records_are_bound_and_crashes_refused(self) -> None:
+        # Vulcan P4 at 8966da2e: the shared validator binds a proof's
+        # `regression_records` to tracked files and refuses `still_crashes`.
+        (self.root / "fuzz/regressions").mkdir(parents=True)
+        (self.root / "fuzz/regressions/S20_700_VM_001.json").write_text("{}")
+        self.commit()
+        bound = dict(self.good(), source_commit=self.git("rev-parse", "HEAD").strip(),
+                     regression_records=["fuzz/regressions/S20_700_VM_001.json"],
+                     retested_regressions=[{"artifact": "x", "returncode": 0, "still_crashes": False}])
+        self.assertEqual(self.problems(bound), [])
+        self.assertEqual(self.problems(dict(bound, regression_records={"t": ["fuzz/regressions/S20_700_VM_001.json"]})), [])
+        self.assertIn("proof-record-unbound-regression:fuzz/regressions/MISSING.json",
+                      self.problems(dict(bound, regression_records=["fuzz/regressions/MISSING.json"])))
+        self.assertIn("proof-record-not-list:regression_records",
+                      self.problems(dict(bound, regression_records="fuzz/regressions/S20_700_VM_001.json")))
+        self.assertIn("proof-record-still-crashes",
+                      self.problems(dict(bound, retested_regressions=[{"artifact": "x", "returncode": 1, "still_crashes": True}])))
+        self.assertIn("proof-record-still-crashes",
+                      self.problems(dict(bound, retested_prior_crashes=[{"artifact": "y", "still_crashes": True}])))
+
     def test_multi_target_records_are_judged_per_target(self) -> None:
         proof = dict(self.good(), executed_runs={"a": 700, "b": 792}, targets={"a": {"runs_floor": 792}, "b": {"runs_floor": 792}},
                      new_crash_artifacts={"a": [], "b": []})

@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 CONTRACT = "sley2.finding-register.v1"
-CONTRACT_REVISION = 7
+CONTRACT_REVISION = 8
 # Field names that name a role, actor, session, instant, or free note rather
 # than a disposition (contract section 1). All suffix-anchored: a bare
 # substring match would silently drop a future field that merely contains
@@ -571,10 +571,11 @@ def raising_scope(section: str, claim: str, fields: dict | None = None) -> str |
         return _raising[key]
     prefix = match.group(1) if match else claim.split(":", 1)[0]
     lane = reviewer_of(prefix)
-    description = (claim.split(": ", 1)[1] if ": " in claim else "")[:80].strip()
+    description = (claim.split(": ", 1)[1] if ": " in claim else "").strip()
     directory = ROOT / "evidence/review/verdicts" / section.split(".")[0]
     found: list[str] = []
     if description and directory.is_dir():
+        paths = []
         for path in sorted(directory.glob("*.md")):
             stamp = re.search(r"-([0-9a-f]{7,40})\.md$", path.name)
             if not stamp or not is_tracked(path.relative_to(ROOT).as_posix()):
@@ -583,11 +584,20 @@ def raising_scope(section: str, claim: str, fields: dict | None = None) -> str |
                 continue
             if not lane and not path.name.startswith(prefix.removesuffix("_note")):
                 continue
-            for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-                item = re.match(r"^(?:FINDINGS:\s*)?\[(P[0-4])\]\s*(.*)$", line)
-                if item and item.group(2).strip().startswith(description):
-                    found.append(stamp.group(1)[:7])
-                    break
+            paths.append((path, stamp.group(1)[:7]))
+        # The full stored description first (Nabu P4 at b58ac1e0: an
+        # 80-character prefix had collided transcripts differing past it);
+        # the prefix only for older truncated rounds. Carry decorations are
+        # stripped: the raising line recorded the original prose.
+        for text in (_strip_carry(description), description[:80]):
+            for path, stamp in paths:
+                for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+                    item = re.match(r"^(?:FINDINGS:\s*)?\[(P[0-4])\]\s*(.*)$", line)
+                    if item and _strip_carry(item.group(2).strip()).startswith(text):
+                        found.append(stamp)
+                        break
+            if found:
+                break
     scope: str | None = None
     if found:
         scope = min(found, key=scope_generation)
@@ -597,6 +607,41 @@ def raising_scope(section: str, claim: str, fields: dict | None = None) -> str |
         scope = noted.group(1)[:7] if noted else None
     _raising[key] = scope
     return scope
+
+
+def _strip_carry(description: str) -> str:
+    """The claim's description without its carry decorations: a re-statement
+    appends its `carried from <sha>` root and status to the original prose,
+    while the raising transcript recorded the original (Nabu P4 at b58ac1e0:
+    the carry tail had blocked the raising-transcript match). Only the
+    carry clause itself is removed — never the text around it (a trailing
+    `OPEN.*` cut had eaten the distinguishing path and false-matched a
+    same-kind finding)."""
+    text = re.sub(r"\(\s*carr(?:ied|y)\s+(?:over\s+)?from\s+[0-9a-f]{7,40}[^)]*\)", "", description)
+    text = CARRIED_FROM.sub("", text)
+    text = LEADING_CARRY.sub("", text)
+    text = re.sub(r"\s*[—–\-:,]\s*\bOPEN\b\s*(\([^)]*\))?\s*$", "", text)
+    return re.sub(r"[\s\-–—,;:.()]+$", "", text).strip()
+
+
+def _finding_line_match(lines: list[str], description: str) -> str | None:
+    """The `[Pn]` severity of the finding line beginning with the claim's
+    description: the full stored description first, the 80-character prefix
+    only for older rounds that recorded truncated descriptions (Nabu P4 at
+    b58ac1e0: prefix-only matching had collided two transcripts differing
+    past character 80). Both sides are carry-stripped: the raising line of
+    a carried finding carries the same decorations."""
+    full = _strip_carry(description.strip())
+    for line in lines:
+        found = re.match(r"^(?:FINDINGS:\s*)?\[(P[0-4])\]\s*(.*)$", line)
+        if found and _strip_carry(found.group(2).strip()).startswith(full):
+            return found.group(1)
+    prefix = description.strip()[:80]
+    for line in lines:
+        found = re.match(r"^(?:FINDINGS:\s*)?\[(P[0-4])\]\s*(.*)$", line)
+        if found and found.group(2).strip().startswith(prefix):
+            return found.group(1)
+    return None
 
 
 def raising_severity(section: str, claim: str) -> str | None:
@@ -616,10 +661,9 @@ def raising_severity(section: str, claim: str) -> str | None:
     for path in sorted(directory.glob(f"{lane}*-{match.group(2)[:7]}.md")) if directory.is_dir() else []:
         if not is_tracked(path.relative_to(ROOT).as_posix()):
             continue
-        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
-            found = re.match(r"^(?:FINDINGS:\s*)?\[(P[0-4])\]\s*(.*)$", line)
-            if found and found.group(2).strip().startswith(description[:80].strip()):
-                return found.group(1)
+        hit = _finding_line_match(path.read_text(encoding="utf-8", errors="replace").splitlines(), description)
+        if hit:
+            return hit
     return None
 
 
@@ -633,6 +677,15 @@ def package_open_claims(summary: dict) -> dict[str, int]:
             continue
         for field, item in value.items():
             if PACKAGE_OPEN_LIST.match(field) and isinstance(item, list):
+                # An open list without its count is refused (Vulcan P4 at
+                # 8966da2e: the GA row sums the count keys, so a missing
+                # count had undercounted silently).
+                count = value.get(f"{field}_count")
+                if not isinstance(count, int) or count < 0:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field} has no matching {field}_count",
+                    )
                 for claim in item:
                     raised = raising_severity(section, claim) if isinstance(claim, str) else None
                     if raised and raised != "P" + field[1]:
@@ -676,7 +729,10 @@ def package_open_claims(summary: dict) -> dict[str, int]:
 # 76ae15ab).
 STATUS_MARK = r"(?:—|-|:|→|\*\*)\s*\**\s*(?:(?:Both|All(?:\s+\w+)?|Each|Three|Four)\s+)?"
 STATUS_CLOSED = re.compile(STATUS_MARK + r"CLOSED\b")
-STATUS_OPEN = re.compile(STATUS_MARK + r"(?:OPEN|Open)\b")
+# `STILL`/`still`/`remains OPEN` reads OPEN (Vulcan P4 at 8966da2e: thirteen
+# live `— STILL OPEN` finding lines had been invisible to the OPEN check);
+# a bare `open` never counts, and `reopened` prose is not a status.
+STATUS_OPEN = re.compile(STATUS_MARK + r"(?:(?:STILL|still|remains)\s+)?(?:OPEN|Open)\b")
 FINDING_LINE = re.compile(r"^\[P[0-4]\]\s+\[")
 STANDALONE_STATUS = re.compile(r"(?:[-—:→]\s*)?(?:(?:Both|All(?:\s+\w+)?|Each|Three|Four)\s+)?(?:CLOSED|OPEN|Open)(?:\s*\(P[0-4]\))?\.?")
 BOLD = re.compile(r"\*\*(.+?)\*\*")
@@ -709,7 +765,10 @@ def _own_status(line: str, match: re.Match) -> bool:
         cell_end = line.find("|", match.end())
         cell = line[cell_start:cell_end if cell_end > 0 else None]
         cell = re.sub(r"[*\s]", "", cell)
-        if re.fullmatch(r"(?:Both|All\w*|Each)?(?:CLOSED|OPEN|Open)(?:\((?![^)]*OPEN)[^)]{0,24}\))?\.?", cell):
+        # A paren qualifier naming open (any case) refuses the cell
+        # (Vulcan P4 at 8966da2e: `**CLOSED (leg 2 open)**` had counted as
+        # an own status through the uppercase-only lookahead).
+        if re.fullmatch(r"(?:Both|All\w*|Each)?(?:CLOSED|OPEN|Open)(?:\((?![^)]*[Oo][Pp][Ee][Nn])[^)]{0,24}\))?\.?", cell):
             return True
     # (iii) a standalone bold status span: `… — **CLOSED.** evidence`,
     # `… **Both CLOSED.**` (the status is the whole span, so a bold
@@ -752,9 +811,14 @@ def is_open_line(line: str, severity: str) -> bool:
     if line.startswith(("VERDICT:", "SUMMARY:", "FINDINGS:")):
         return False
     if FINDING_LINE.match(line):
-        # A finding-raising line states its status as a bare word
-        # (`… - prior item 10 OPEN (advisory): …`).
-        bare = [m for m in re.finditer(r"\bOPEN\b", line) if not _quoted(line, m.start(), m.end())]
+        # A finding-raising line states its status as a bare word standing
+        # as one (`… - prior item 10 OPEN (advisory): …`); prose merely
+        # mentioning OPEN (`OPEN refusal`) is not a status (Nabu P4 at
+        # b58ac1e0).
+        bare = [
+            m for m in re.finditer(r"\bOPEN\b(?=\s*(?:\(|:|$))", line)
+            if not _quoted(line, m.start(), m.end())
+        ]
         return bool(bare) and line.startswith(f"[{severity}]")
     opens = [m for m in STATUS_OPEN.finditer(line) if not _quoted(line, m.start(), m.end())]
     if not opens:
@@ -773,11 +837,13 @@ def kind_phrase_of(claim: str) -> str:
 def claim_finding_ids(body: str) -> set[str]:
     """Finding ids the claim's leading text names (`V-02`, `RW090-DEV-01`,
     `S20-700-PACK-001`): never a document id (`ADR-0040`, `S20-540`) and
-    never a number carried by a cited path (Ariadne/Nabu P3 at 79fdcc63)."""
+    never a number carried by a cited path (Ariadne/Nabu P3 at 79fdcc63;
+    Ariadne P4 at 8966da2e: digit-led middle segments such as `700` had
+    split the id, so `S20-700-PACK-001` read as `PACK-001`)."""
     leading = body[:200].split(";")[0]
     path_text = " ".join(PATH_TOKEN.findall(body))
     return {
-        fid for fid in re.findall(r"\b(?:[A-Z][A-Z0-9]{1,}-)+[0-9]{2,}\b|\b[A-Z]{1,3}-[0-9]{2}\b", leading)
+        fid for fid in re.findall(r"\b[A-Z](?:[A-Z0-9]+-)+[0-9]{2,}\b|\b[A-Z]{1,3}-[0-9]{2}\b", leading)
         if not re.fullmatch(r"(?:ADR|S20|RW|T|S)[0-9]*-[0-9]+", fid) and fid not in path_text
     }
 
@@ -812,10 +878,6 @@ def shared_vocabulary(section: dict, severity: str, claim: str, section_name: st
     others = list(section.get(f"p{number}_open") or [])
     others += [item.get("claim", "") for item in section.get(f"p{number}_closed_claims") or [] if isinstance(item, dict)]
     others += [item.get("claim", "") for item in section.get(f"p{number}_restated_claims") or [] if isinstance(item, dict)]
-    restates = {
-        item.get("claim"): item.get("restates")
-        for item in section.get(f"p{number}_restated_claims") or [] if isinstance(item, dict)
-    }
     shared: set[str] = set()
     own_key = finding_key(claim, section_name, section) if section_name else finding_key(claim)
     for other in others:
@@ -824,13 +886,23 @@ def shared_vocabulary(section: dict, severity: str, claim: str, section_name: st
         tag = CLAIM_TAG.match(other)
         other_lane = reviewer_of(tag.group(1) if tag else other.split(":", 1)[0])
         # A re-statement of the same finding (same finding key) is not
-        # another finding; its vocabulary is this claim's own.
-        # Only an equal key, or the re-statement the ledger links to this
-        # claim (either way), is this finding; every other claim of the lane
-        # counts (8f774d0c round: an identifier-less neighbour had been
-        # read as the same finding).
+        # another finding; its vocabulary is this claim's own. Identity is
+        # derived from the claims themselves — an equal key, or a
+        # same-finding carry in either direction — never from the ledger's
+        # `restates` link, which reopen_all pops before retire runs (Nabu P4
+        # at 8966da2e: 48 claims read weak incrementally and strong on
+        # regenerate). Every other claim of the lane counts (8f774d0c
+        # round: an identifier-less neighbour had been read as the same
+        # finding).
         other_key = finding_key(other, section_name, section) if section_name else finding_key(other)
-        if other_lane != lane or other_key == own_key or restates.get(other) == claim or restates.get(claim) == other:
+        # Equal keys are one finding only when a carry links them: two
+        # originals sharing a key (no backticked identifier to tell them
+        # apart) still count toward each other's vocabulary, so a generic
+        # head never retires either (Vulcan P4 at 8966da2e: 28 equal-key
+        # groups had dropped from each other's shared set).
+        if other_lane != lane or (
+            other_key == own_key and (is_carry(other) or is_carry(claim))
+        ):
             continue
         other_phrases, other_identifiers = identity_tokens(other)
         shared |= mine & (other_phrases | other_identifiers)
@@ -844,10 +916,19 @@ def shares_its_kind(section: dict, severity: str, claim: str, section_name: str 
     return bool(phrases & shared_vocabulary(section, severity, claim, section_name))
 
 
-def open_lines_about(path: Path, claim: str, severity: str) -> list[int]:
+def open_lines_about(
+    path: Path,
+    claim: str,
+    severity: str,
+    section: dict | None = None,
+    section_name: str | None = None,
+) -> list[int]:
     """Lines of the transcript that record the claim's severity OPEN and speak
     about the claim: a transcript that records the claim OPEN cannot close it
-    on another line (Vulcan P3 at 1a9f0aab)."""
+    on another line (Vulcan P3 at 1a9f0aa). The OPEN item's head is bounded
+    to the finding's own tag and anchor list, and the claim's shared
+    vocabulary never relates (Ariadne P4 at 8966da2e: a carry parenthetical
+    quoting another finding's kind had held a claim open)."""
     if not path.is_file():
         return []
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -862,9 +943,11 @@ def open_lines_about(path: Path, claim: str, severity: str) -> list[int]:
         else:
             opens = [m for m in STATUS_OPEN.finditer(line) if not _quoted(line, m.start(), m.end())]
             head = line[: opens[0].start()]
+        head = " ".join(CATEGORY.findall(head) + PATH_TOKEN.findall(head))
+        shared = shared_vocabulary(section, severity, claim, section_name) if section is not None else set()
         # A strong identity only (identifier, finding id, file:line anchor or
         # quoted phrase): one lane files several findings under one kind.
-        if line_speaks_about(head, claim, strong=True, paths_ok=False):
+        if line_speaks_about(head, claim, strong=True, shared=shared, paths_ok=False):
             found.append(index + 1)
     return found
 
@@ -942,7 +1025,11 @@ _scope_order: dict[tuple[str, str], bool] = {}
 
 
 def strictly_later_scope(later_short: str, earlier_short: str) -> bool:
-    """`later` is a strict descendant of `earlier` (by short id, via git)."""
+    """`later` is a strict descendant of `earlier` (by short id, via git):
+    equal scopes never count (Ariadne P4 at 8966da2e: `merge-base
+    --is-ancestor x x` exits 0, so the equal-scope case read True)."""
+    if not later_short or not earlier_short or later_short == earlier_short:
+        return False
     key = (earlier_short, later_short)
     if key not in _scope_order:
         import subprocess
@@ -978,7 +1065,9 @@ def ledger_words() -> set[str]:
     if _ledger_words is None:
         words = {f"p{n}_{suffix}" for n in range(5) for suffix in ("open", "open_count", "closed_claims", "restated_claims")}
         words |= {"closed_claims", "restated_claims", "open_claims", "open_count", "machine_summary", "finding_register",
-                  "claim_retirements", "verified_by", "original_note", "closure_note"}
+                  "claim_retirements", "verified_by", "original_note", "closure_note",
+                  "package_open_claims", "package_closed_claims", "package_restated_claims",
+                  "package_open", "package_open_count"}
         try:
             summary = json.loads(SUMMARY.read_text(encoding="utf-8"))
             # Per-package section names (a section carries a status or a
@@ -996,9 +1085,43 @@ def ledger_words() -> set[str]:
 def is_lane_field_name(word: str) -> bool:
     """A Council lane's field name or transcript stem (`nabu_architecture_review`,
     `vulcan_surface_review_revision_5`, `ariadne_implementation_review_closure`),
-    a section name or a ledger field is the ledger's own vocabulary, never a
-    finding identity (Ariadne P3 at 6589c6ec)."""
-    return any(word.startswith(lane + "_") and "review" in word for lane in REVIEWERS) or word in ledger_words()
+    a section name, a ledger field (`p3_open`, the `package_*` family) or a
+    verdict-bearing field name
+    (`final_vulcan_disposition`, `implementation_ariadne_review`) is the
+    ledger's own vocabulary, never a finding identity (Ariadne P3 at
+    6589c6ec; Ariadne P4 at 8966da2e: the verdict-bearing names had read
+    as identities)."""
+    if any(word.startswith(lane + "_") and "review" in word for lane in REVIEWERS):
+        return True
+    if word in ledger_words():
+        return True
+    return word in verdict_field_names()
+
+
+_verdict_fields: set[str] | None = None
+
+
+def verdict_field_names() -> set[str]:
+    """Field names of the tracked summary that bear a lane verdict
+    (`<lane>…review…`, `final_<lane>_disposition`, `implementation_…
+    _review`, …): derived from the summary itself, never a fixed list."""
+    global _verdict_fields
+    if _verdict_fields is None:
+        words: set[str] = set()
+        try:
+            summary = json.loads(SUMMARY.read_text(encoding="utf-8"))
+            for value in summary.values():
+                if not isinstance(value, dict):
+                    continue
+                for key in value:
+                    if any(lane in key for lane in REVIEWERS) and (
+                        "review" in key or "disposition" in key or "delta" in key
+                    ):
+                        words.add(key)
+        except (OSError, json.JSONDecodeError):
+            pass
+        _verdict_fields = words
+    return _verdict_fields
 
 
 LEDGER_PATHS = {
@@ -1112,13 +1235,20 @@ def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[s
         return True
     # The anchor's line span alone (`413-417,424-425`, `2974-3001`) when
     # the closure line cites it without the file name — a range or list,
-    # never a single line number.
+    # never a single line number — and only when the line also names the
+    # claim's file basename, or the claim cites no file at all (Vulcan P4
+    # at b58ac1e0: a bare span had related across files).
     ranges = {
         token.split(":", 1)[1] for token in PATH_TOKEN.findall(body)
         if ":" in token and token.split(":")[0] not in LEDGER_PATHS and re.search(r"[-,]", token.split(":", 1)[1])
     }
-    if any(re.search(rf"(?<![0-9-]){re.escape(span)}(?![0-9-])", line) for span in ranges):
-        return True
+    anchors_named = {
+        token.split(":")[0].rsplit("/", 1)[-1] for token in PATH_TOKEN.findall(body)
+        if token.split(":")[0] not in LEDGER_PATHS
+    }
+    if ranges and (not anchors_named or any(base in line for base in anchors_named)):
+        if any(re.search(rf"(?<![0-9-]){re.escape(span)}(?![0-9-])", line) for span in ranges):
+            return True
     # A path together with a tag word relates only under an unshared kind
     # (Nabu/Vulcan P2 at b58ac1e0: under a shared kind one generic head
     # `[<kind>] <path> — CLOSED` would close every finding of the lane
@@ -1150,16 +1280,20 @@ _tracked: set[str] | None = None
 
 def is_tracked(path: str) -> bool:
     """The transcript is in the git index (tracked or staged): an untracked
-    file in a worktree is not a filed transcript (Vulcan P3 at 1a9f0aab).
-    Without git every path counts as tracked."""
+    file in a worktree is not a filed transcript (Vulcan P3 at 1a9f0aa).
+    A failed git listing refuses everything (Nabu P4 at 6589c6ec);
+    without git every path counts as tracked."""
     global _tracked
     if _tracked is None:
         import subprocess
 
-        done = subprocess.run(["git", "ls-files", "-z", "--", "evidence/review", "machineresearch/sley-2.0/reviews"],
-                              cwd=ROOT, capture_output=True, text=True, check=False)
-        _tracked = set(done.stdout.split("\0")) if done.returncode == 0 else None
-    return _tracked is None or path in _tracked
+        try:
+            done = subprocess.run(["git", "ls-files", "-z", "--", "evidence/review", "machineresearch/sley-2.0/reviews"],
+                                  cwd=ROOT, capture_output=True, text=True, check=False)
+        except OSError:
+            return True
+        _tracked = set(done.stdout.split("\0")) if done.returncode == 0 else set()
+    return path in _tracked
 
 
 RETIREMENTS = ROOT / "evidence/review/claim-retirements.json"
@@ -1282,10 +1416,10 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                     )
                 # A transcript that records the claim's severity OPEN cannot
                 # close it on another line — exact-claim bindings included.
-                if open_lines_about(resolved, entry["claim"], severity):
+                if open_lines_about(resolved, entry["claim"], severity, value, section):
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
-                        f"{section}.{field}: {resolved.name} also records the claim OPEN at {open_lines_about(resolved, entry['claim'], severity)}",
+                        f"{section}.{field}: {resolved.name} also records the claim OPEN at {open_lines_about(resolved, entry['claim'], severity, value, section)}",
                     )
             claims[f"{section}.{field}"] = len(item)
     return dict(sorted(claims.items()))
@@ -1293,11 +1427,34 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
 
 ANCHOR = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+")
 IDENTIFIER = re.compile(r"`([A-Za-z_][A-Za-z0-9_.]*)")
-CARRY = re.compile(r"\b(?:carried|carry|prior|residual|unchanged|still open|again|byte-identical)\b", re.I)
 
 
+def _own_identifier(text: str) -> str:
+    """The finding's own backticked identifier: never a path's stem. A
+    backticked word that prefixes a path token of the same text (or ends
+    it as one) names the file, not the finding (Nabu P4 at b58ac1e0: the
+    `retire_review_claims` stem had keyed an open claim like the retired
+    guard)."""
+    stems = set()
+    for token in PATH_TOKEN.findall(text):
+        base = token.split(":")[0].rsplit("/", 1)[-1]
+        stems.add(base.lower())
+        stems.add(re.sub(r"\.(?:py|rs|md|json|toml)$", "", base.lower()))
+    for found in IDENTIFIER.finditer(text):
+        word = found.group(1)
+        if is_lane_field_name(word):
+            continue
+        if word.lower() in stems or any(word.lower() in stem or stem.startswith(word.lower()) for stem in stems if stem):
+            continue
+        return word
+    return ""
+# A leading carry clause names its carried root: `(carried from <sha>, …)`,
+# `(prior from <sha>, …)` — a bare `(prior)`, `(carried, unchanged)` or any
+# other prose parenthetical never makes a re-statement (Ariadne/Nabu/Vulcan
+# P2 at 8966da2e: sha-less leading clauses had keyed five open
+# `[predicate-precision]` findings without an identifier of their own).
 CARRIED_FROM = re.compile(r"\bcarr(?:ied|y)\s+(?:over\s+)?from\s+([0-9a-f]{7,40})\b", re.I)
-LEADING_CARRY = re.compile(r"^\((?:carried|carry|prior|residual)[^)]*\)\s*", re.I)
+LEADING_CARRY = re.compile(r"^\((?:carried|carry|prior|residual)[^)]*from\s+[0-9a-f]{7,40}[^)]*\)\s*", re.I)
 
 
 def finding_key(claim: str, section: str | None = None, fields: dict | None = None) -> tuple[str | None, str, str, str]:
@@ -1316,18 +1473,20 @@ def finding_key(claim: str, section: str | None = None, fields: dict | None = No
     # A re-statement is a claim that names its carried root: a leading
     # `(carried from <sha>, …)` clause or a `carried from <sha>` phrase — a
     # prose word (`prior`, `unchanged`, `again`) never makes one (Ariadne/
-    # Nabu/Vulcan P2 at 8f774d0c). Only such a claim keys without an
-    # identifier of its own (None = matches its root's); an original that
-    # simply has no backticked identifier keys on "" and matches "" only.
-    named = CARRIED_FROM.search(body) or LEADING_CARRY.match(rest)
+    # Nabu/Vulcan P2 at 8f774d0c). Either way the claim keys on its OWN
+    # backticked identifier (or "" when it has none): a named re-statement
+    # is the same finding as the claim at the named scope carrying that
+    # identifier — never a wildcard over the lane/kind/file (Ariadne/Nabu/
+    # Vulcan P2 at 8966da2e: `identifier = None` had matched every
+    # identifier, folding five `[predicate-precision]` re-statements into
+    # an unrelated closed root).
     rest = LEADING_CARRY.sub("", rest)
     path = ANCHOR.search(rest)
     anchor = path.group(0).split(":")[0] if path else ""
     if anchor in LEDGER_PATHS or anchor.rsplit("/", 1)[-1] in LEDGER_PATHS:
         anchor = ""
     if anchor:
-        ident = IDENTIFIER.search(rest)
-        identifier = None if named else (ident.group(1) if ident else "")
+        identifier = _own_identifier(rest)
         return (reviewer_of(prefix), kind.group(1).strip().lower() if kind else "", anchor, identifier)
     # A finding against the ledger itself: its kind and the round it
     # originates from (the `carried from <sha>` scope a re-statement names,
@@ -1338,28 +1497,52 @@ def finding_key(claim: str, section: str | None = None, fields: dict | None = No
     if origin is None:
         description = rest.split(" - ", 1)[1] if " - " in rest else rest
         origin = "desc:" + re.sub(r"\s+", " ", description)[:40]
-    ident = IDENTIFIER.search(rest)
-    identifier = None if named else (ident.group(1) if ident else "")
+    ident = _own_identifier(rest)
+    identifier = ident if ident else ""
     return (reviewer_of(prefix), kind.group(1).strip().lower() if kind else "", origin, identifier)
 
 
 def same_finding(one: tuple, other: tuple) -> bool:
     """Two finding keys name one finding: same lane, kind and anchor/origin,
-    and identifiers equal — or absent (None) on the side of a re-statement
-    that names its carried root; an original without a backticked
-    identifier ("") matches only another "" (8f774d0c round: an absent
-    identifier had matched any)."""
-    return one[:3] == other[:3] and (one[3] == other[3] or one[3] is None or other[3] is None)
+    and equal     identifiers (8f774d0c round: an absent identifier had matched
+    any; 8966da2e round: a named re-statement's `None` had matched every
+    identifier of its lane/kind/file). A named re-statement therefore meets
+    only the claim carrying its own identifier — the fold additionally
+    requires that claim to sit at the named scope."""
+    return one == other
 
 
 def is_carry(claim: str) -> bool:
     """The claim names its carried root: a leading `(carried from <sha>, …)`
     clause or a `carried from <sha>` phrase (8f774d0c round: a prose word
-    such as `prior` or `unchanged` had made an original a re-statement)."""
+    such as `prior` or `unchanged` had made an original a re-statement;
+    8966da2e round: a sha-less leading clause such as `(prior)` or
+    `(carried, unchanged)` had done the same)."""
     body = claim.split(": ", 1)[1] if ": " in claim else claim
     kind = re.match(r"\[([^\]]+)\]", body)
     rest = body[kind.end():].strip() if kind else body
     return CARRIED_FROM.search(body) is not None or LEADING_CARRY.match(rest) is not None
+
+
+def named_carry_sha(claim: str) -> str | None:
+    """The seven-hex root scope a re-statement names (`carried from <sha>`,
+    whether as a phrase or inside a sha-bearing leading clause), else None.
+    A fold resolves its root by this sha — never by list position or by the
+    earliest scope alone (Ariadne/Nabu/Vulcan P2 at 8966da2e: five open
+    `[predicate-precision]` findings naming 79fdcc6/b58ac1e/8f774d0 had
+    folded into a closed root at 76ae15a)."""
+    found = CARRIED_FROM.search(claim)
+    if found:
+        return found.group(1)[:7]
+    body = claim.split(": ", 1)[1] if ": " in claim else claim
+    kind = re.match(r"\[([^\]]+)\]", body)
+    rest = body[kind.end():].strip() if kind else body
+    leading = LEADING_CARRY.match(rest)
+    if leading:
+        inner = re.search(r"from\s+([0-9a-f]{7,40})", leading.group(0), re.I)
+        if inner:
+            return inner.group(1)[:7]
+    return None
 
 
 def claim_scope(claim: str) -> str | None:
@@ -1404,6 +1587,17 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: the raising transcript records {raised}: {entry['claim'][:60]!r}",
                     )
+                # A tagged claim names its raising round: the raising
+                # transcript must record it, or the binding is refused
+                # (Vulcan P4 at 8966da2e: `None` had been accepted on no
+                # match; untagged claims still resolve through transcripts
+                # and notes).
+                tag = CLAIM_TAG.match(entry["claim"])
+                if tag and tag.group(2) and raised is None:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: no raising transcript records the tagged claim: {entry['claim'][:60]!r}",
+                    )
                 if entry["claim"] in open_list or entry["claim"] in closed or entry["restates"] == entry["claim"]:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
@@ -1423,17 +1617,37 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: re-statement is not the same finding: {entry['claim'][:60]!r}",
                     )
-                if not is_carry(entry["claim"]):
+                # The fold resolves its root by the named sha (Vulcan P2 at
+                # 8966da2e); the ledger replays the same rule, except for an
+                # exact-key inheritance into a retired claim (one finding,
+                # one status — Ariadne P2 at 8966da2e).
+                named_sha = named_carry_sha(entry["claim"])
+                target_scope = claim_scope(entry["restates"]) or raising_scope(section, entry["restates"], value)
+                retired_targets = {item.get("claim") for item in value.get(f"p{severity}_closed_claims") or [] if isinstance(item, dict)}
+                exact_inherit = (
+                    finding_key(entry["claim"], section, value) == finding_key(entry["restates"], section, value)
+                    and entry["restates"] in retired_targets
+                )
+                if named_sha and not exact_inherit and (target_scope or "")[:7] != named_sha:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
-                        f"{section}.{field}: re-statement carries no carried/prior marker: {entry['claim'][:60]!r}",
+                        f"{section}.{field}: re-statement names {named_sha} but restates a claim at {target_scope}: {entry['claim'][:60]!r}",
                     )
-                later, first = claim_scope(entry["claim"]), claim_scope(entry["restates"])
-                if later is None or (first is not None and not strictly_later_scope(later, first)):
-                    raise RegisterError(
-                        RegisterErrorCode.SUMMARY_INVALID,
-                        f"{section}.{field}: re-statement is not a strictly later round: {entry['claim'][:60]!r}",
-                    )
+                # An exact-key inheritance into a retired claim needs
+                # neither a carry phrase nor a later scope: it is the same
+                # finding, already judged (Ariadne P2 at 8966da2e).
+                if not exact_inherit:
+                    if not is_carry(entry["claim"]):
+                        raise RegisterError(
+                            RegisterErrorCode.SUMMARY_INVALID,
+                            f"{section}.{field}: re-statement carries no carried/prior marker: {entry['claim'][:60]!r}",
+                        )
+                    later, first = claim_scope(entry["claim"]), claim_scope(entry["restates"])
+                    if later is None or (first is not None and not strictly_later_scope(later, first)):
+                        raise RegisterError(
+                            RegisterErrorCode.SUMMARY_INVALID,
+                            f"{section}.{field}: re-statement is not a strictly later round: {entry['claim'][:60]!r}",
+                        )
                 links = {item["claim"]: item["restates"] for item in item_entries if isinstance(item, dict) and "claim" in item and "restates" in item}
                 seen: set[str] = set()
                 target = entry["restates"]

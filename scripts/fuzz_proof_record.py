@@ -139,6 +139,24 @@ def proof_record_problems(root: Path, proof: object, runner: str, binaries: list
         problems.append("proof-record-missing:worktree_dirty_files")
     elif dirty:
         problems.append("proof-record-dirty-worktree")
+    # Regression fixtures the proof retested are bound to the tracked
+    # files, and no retest may still crash (Vulcan P4 at 8966da2e: the
+    # shared validator had read neither key).
+    records = proof.get("regression_records")
+    if records is not None:
+        if isinstance(records, dict):
+            records = [path for paths in records.values() for path in (paths if isinstance(paths, list) else [])]
+        if not isinstance(records, list):
+            problems.append("proof-record-not-list:regression_records")
+        else:
+            for record in records:
+                if not isinstance(record, str) or not (root / record).is_file():
+                    problems.append(f"proof-record-unbound-regression:{record}")
+    retested = proof.get("retested_regressions") or []
+    prior = proof.get("retested_prior_crashes") or []
+    entries = (retested if isinstance(retested, list) else []) + (prior if isinstance(prior, list) else [])
+    if any(isinstance(entry, dict) and entry.get("still_crashes") for entry in entries):
+        problems.append("proof-record-still-crashes")
     commit = proof.get("source_commit")
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         problems.append("proof-record-bad-source-commit")

@@ -6,6 +6,7 @@ import importlib.util
 import json
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -389,13 +390,16 @@ class InvariantTests(unittest.TestCase):
         ]}
         self.assertIn("last_local_proof", register.shared_vocabulary(section, "P4", section["p4_open"][0]))
         self.assertNotEqual(register.finding_key(section["p4_open"][0]), register.finding_key(section["p4_open"][1]))
-        self.assertTrue(register.scoped_before("178873d7" + "0" * 32, "76ae15ab" + "0" * 32) or True)  # unresolvable shas: no fold refusal by scope
+        self.assertTrue(register.scoped_before("178873d7" + "0" * 32, "76ae15ab" + "0" * 32))  # unresolvable shas: no fold refusal by scope
+        self.assertFalse(register.scoped_before("nope1", "nope2") and register.strictly_later_scope("nope1", "nope2"))  # unresolvable: never strictly later
         self.assertTrue(register.scoped_before("76ae15a", "1a9f0aa"))   # the PASS is an ancestor of the REVISE round
         self.assertFalse(register.scoped_before("1a9f0aa", "76ae15a"))
         # Document ids are not finding ids; a line span relates without its
         # file name; a carry marker does not change a re-statement's key.
         self.assertFalse(register.line_speaks_about("- **[P4] the ADR-0040 note — CLOSED.**", "v: [records] docs/adr/x.md:9 - ADR-0040 says"))
-        self.assertTrue(register.line_speaks_about("- **[P3] spec 413-417,424-425 reader sentence — CLOSED.**", "v: [contract-text] docs/spec/X.md:413-417,424-425 - the sentence"))
+        self.assertTrue(register.line_speaks_about("- **[P3] spec X.md 413-417,424-425 reader sentence — CLOSED.**", "v: [contract-text] docs/spec/X.md:413-417,424-425 - the sentence"))
+        self.assertFalse(register.line_speaks_about("- **[P3] spec 413-417,424-425 reader sentence — CLOSED.**", "v: [contract-text] docs/spec/X.md:413-417,424-425 - the sentence"))  # bare span across files: no basename
+        self.assertFalse(register.line_speaks_about("- **[P3] spec Y.md 413-417,424-425 reader sentence — CLOSED.**", "v: [contract-text] docs/spec/X.md:413-417,424-425 - the sentence"))  # another file's basename
         self.assertFalse(register.line_speaks_about("- **[P4] x — CLOSED.** builder :100-107", "v: [records] evidence/release/lane.json:100 - y"))
         self.assertTrue(register.same_finding(
             register.finding_key("v@c67b072: [ledger-duplication] (carried from 76227765, OPEN) machineresearch/sley-2.0/machine-summary.json:1 - `p4_open` twice"),
@@ -443,17 +447,27 @@ class InvariantTests(unittest.TestCase):
         # A fold is the same finding (lane, kind, anchor, identifier), marked
         # carried, at a strictly later round, and its chain ends at an open or
         # retired claim (1a9f0aab round: the builder had checked membership only).
-        restatement = "vulcan_review_revision_1@76ae15a: [record] open_risks / dossier reproduced on two hosts - carried from 178873d7, OPEN"
+        # The restatement's raising transcript must record it (Vulcan P4 at
+        # 8966da2e), so the fixture mirrors a real raising line
+        # (vulcan_surface_review-76ae15a.md FINDINGS).
+        core = ("[robustness] build_finding_register.py:550-557,576-583,590-610,677-684 "
+                "with retire_review_claims.py:142-153,187-189 and FINDING_REGISTER_V1.md:20-26 "
+                "- carried, narrowed: `open_risks` still open")
+        restatement = (f"vulcan_review_revision_1@76ae15a: {core} - carried from 178873d7, OPEN")
+        folded_claim = f"vulcan_review_revision_1@178873d: {core}"
         good = json.loads(json.dumps(base))
-        good["release_candidate_packaging"]["p3_restated_claims"] = [{"claim": restatement, "restates": claim}]
+        good["release_candidate_packaging"]["p3_closed_claims"] = [
+            {"claim": folded_claim, "verified_by": transcript + "#L23 — line 23"}
+        ]
+        good["release_candidate_packaging"]["p3_restated_claims"] = [{"claim": restatement, "restates": folded_claim}]
         self.assertEqual(self.build_from(good)["package_restated_claims"], {"release_candidate_packaging.p3_restated_claims": 1})
         for bad_fold in (
-            [{"claim": "vulcan_review@c67b072: [record] carried", "restates": claim}],  # another finding
-            [{"claim": "vulcan_review_revision_1@76ae15a: [record] open_risks / dossier reproduced on two hosts - fresh", "restates": claim}],  # no carry marker
-            [{"claim": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried from 178873d7", "restates": claim.replace("@178873d", "@76ae15a")}],  # earlier round
-            [{"claim": restatement, "restates": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried from 178873d7"},
-             {"claim": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried from 178873d7", "restates": restatement}],  # cycle
-            [{"claim": restatement, "restates": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried from 178873d7"}],  # dangling
+            [{"claim": "vulcan_review@c67b072: [record] carried", "restates": folded_claim}],  # another finding
+            [{"claim": f"vulcan_review_revision_1@76ae15a: {core} - fresh", "restates": folded_claim}],  # no carry marker
+            [{"claim": f"vulcan_review_revision_1@c04539b: {core} - carried from 178873d7", "restates": folded_claim.replace("@178873d", "@76ae15a")}],  # earlier round
+            [{"claim": restatement, "restates": f"vulcan_review_revision_1@c04539b: {core} - carried from 178873d7"},
+             {"claim": f"vulcan_review_revision_1@c04539b: {core} - carried from 178873d7", "restates": restatement}],  # cycle
+            [{"claim": restatement, "restates": f"vulcan_review_revision_1@c04539b: {core} - carried from 178873d7"}],  # dangling
         ):
             bad = json.loads(json.dumps(base))
             bad["release_candidate_packaging"]["p3_restated_claims"] = bad_fold
@@ -485,6 +499,122 @@ class InvariantTests(unittest.TestCase):
         self.assertFalse(register.line_speaks_about("- **[P2] RW090-DEV-011 — CLOSED.**", "v: [contract] crates/x.rs:1 - the RW090-DEV-01 scope"))
         self.assertTrue(register.strictly_later_scope("76ae15a", "178873d"))
         self.assertFalse(register.strictly_later_scope("178873d", "76ae15a"))
+
+    def test_sha_less_carry_clauses_are_originals(self) -> None:
+        # 8966da2e round: a bare `(prior)` or `(carried, unchanged)` leading
+        # clause never makes a re-statement; the claim keeps its own
+        # identifier and never matches its neighbour's.
+        prior = "v@abc1234: [predicate-precision] (prior) scripts/build_finding_register.py `scoped_before` - test"
+        unchanged = "v@abc1234: [predicate-precision] (carried, unchanged) scripts/build_finding_register.py `scoped_before` - test"
+        other = "v@abc1234: [predicate-precision] (prior) scripts/build_finding_register.py `is_closure_line` - test"
+        self.assertFalse(register.is_carry(prior))
+        self.assertFalse(register.is_carry(unchanged))
+        self.assertIsNone(register.named_carry_sha(prior))
+        self.assertNotEqual(register.finding_key(prior), register.finding_key(other))
+        self.assertFalse(register.same_finding(register.finding_key(prior), register.finding_key(other)))
+        named = "v@abc1234: [predicate-precision] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py `scoped_before` - test"
+        self.assertTrue(register.is_carry(named))
+        self.assertEqual(register.named_carry_sha(named), "79fdcc6")
+        phrase = "v@abc1234: [predicate-precision] scripts/build_finding_register.py `scoped_before` - carried from 79fdcc63, OPEN"
+        self.assertTrue(register.is_carry(phrase))
+        self.assertEqual(register.named_carry_sha(phrase), "79fdcc6")
+        # 8966da2e round: a named re-statement keys on its OWN identifier —
+        # never a wildcard. It meets the original carrying that identifier
+        # (the fold additionally requires the named scope) and no other.
+        origin = "v@abc1234: [predicate-precision] scripts/build_finding_register.py `scoped_before` - test"
+        stranger = "v@abc1234: [predicate-precision] scripts/build_finding_register.py `is_closure_line` - test"
+        self.assertEqual(register.finding_key(named)[3], "scoped_before")
+        self.assertTrue(register.same_finding(register.finding_key(named), register.finding_key(origin)))
+        self.assertFalse(register.same_finding(register.finding_key(named), register.finding_key(stranger)))
+        # Two identifier-less originals share a key but still count toward
+        # each other's shared vocabulary (Vulcan P4 at 8966da2e: the
+        # exemption needs a carry).
+        bare_a = "v@abc1234: [record-note] docs/a.md:1 - one"
+        bare_b = "v@abc1234: [record-note] docs/a.md:2 - two"
+        section = {"p4_open": [bare_a, bare_b]}
+        self.assertEqual(register.finding_key(bare_a), register.finding_key(bare_b))
+        self.assertIn("record-note", register.shared_vocabulary(section, "P4", bare_a))
+
+    def test_8966da2_predicates_guards_and_refusals(self) -> None:
+        # Equal scopes are never strictly later; a same-scope PASS counts
+        # as before-or-at but never folds (Ariadne P4 at 8966da2e).
+        self.assertFalse(register.strictly_later_scope("76ae15a", "76ae15a"))
+        self.assertTrue(register.scoped_before("76ae15a", "76ae15a"))
+        self.assertTrue(register.scoped_before("76ae15a", "1a9f0aa"))
+        self.assertFalse(register.scoped_before("1a9f0aa", "76ae15a"))
+        # Finding ids admit digit-led middle segments, never document ids
+        # (Ariadne P4 at 8966da2e).
+        self.assertEqual(register.claim_finding_ids("the S20-700-PACK-001 scope"), {"S20-700-PACK-001"})
+        self.assertEqual(register.claim_finding_ids("the RW090-DEV-01 scope"), {"RW090-DEV-01"})
+        self.assertEqual(register.claim_finding_ids("the V-02 regression"), {"V-02"})
+        self.assertEqual(register.claim_finding_ids("the ADR-0040 note"), set())
+        self.assertEqual(register.claim_finding_ids("the S20-540 note"), set())
+        # Verdict-bearing field names are the ledger's own vocabulary, never
+        # an identity (Ariadne P4 at 8966da2e).
+        self.assertTrue(register.is_lane_field_name("final_vulcan_disposition"))
+        self.assertTrue(register.is_lane_field_name("implementation_ariadne_review"))
+        self.assertFalse(register.is_lane_field_name("scoped_before"))
+        # The full stored description wins over an 80-character prefix
+        # collision (Nabu P4 at b58ac1e0).
+        lines = ["[P4] [record] scripts/a.py:1 - alpha finding here and more text past eighty characters total",
+                 "[P3] [record] scripts/a.py:1 - alpha finding here and more text past eighty characters OTHER"]
+        hit = register._finding_line_match(lines, "[record] scripts/a.py:1 - alpha finding here and more text past eighty characters OTHER")
+        self.assertEqual(hit, "P3")
+        # A bare OPEN states a status only where it stands as one (Nabu P4
+        # at b58ac1e0).
+        self.assertFalse(register.is_open_line("[P4] [record] scripts/a.py - OPEN refusal prose here", "P4"))
+        self.assertTrue(register.is_open_line("[P4] [record] scripts/a.py - prior item 10 OPEN (advisory): rest", "P4"))
+        # A path stem is never the finding's own identifier (Nabu P4 at
+        # b58ac1e0).
+        key = register.finding_key("v: [record] scripts/retire_review_claims.py:12 - the retire_review_claims entry")
+        self.assertNotEqual(key[3], "retire_review_claims")
+        # An unmatched tagged restated claim is refused (Vulcan P4 at
+        # 8966da2e).
+        lonely = {"release_candidate_packaging": {
+            "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+            "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED",
+            "p3_open": ["vulcan_review_revision_1@76ae15a: [robustness] build_finding_register.py:550-557 `zzz_qqq_www` still open"],
+            "p3_open_count": 1,
+            "p3_closed_claims": [],
+            "p3_restated_claims": [{"claim": "vulcan_review_revision_1@76ae15a: [robustness] build_finding_register.py:550-557 `zzz_qqq_www` still open - carried from 178873d7, OPEN",
+                                    "restates": "vulcan_review_revision_1@178873d: [robustness] build_finding_register.py:550-557 `zzz_qqq_www` still open"}],
+        }, "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0}}
+        self.assertIn("no raising transcript", str(self.build_fails(lonely)))
+        # An open list without its count is refused (Vulcan P4 at 8966da2e).
+        nocount = {"release_candidate_packaging": {
+            "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+            "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED",
+            "p3_open": ["vulcan_review@178873d: [record] x"],
+        }, "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0}}
+        self.assertIn("no matching p3_open_count", str(self.build_fails(nocount)))
+        # A failed git listing refuses every transcript (Nabu P4 at 6589c6ec).
+        with unittest.mock.patch("subprocess.run") as run:
+            run.return_value = unittest.mock.Mock(returncode=1, stdout="")
+            register._tracked = None
+            try:
+                self.assertFalse(register.is_tracked("evidence/review/verdicts/x.md"))
+            finally:
+                register._tracked = None
+
+    def test_open_check_bounded_head_and_shared(self) -> None:
+        # Ariadne P4 at 8966da2e: the OPEN head is bounded to the finding's
+        # own tag and anchor list, and the claim's shared vocabulary never
+        # relates — another finding quoting this finding's identifier in
+        # its head holds it only while nothing else of the lane carries it.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "evidence/review/verdicts/x"
+            root.mkdir(parents=True)
+            transcript = root / "nabu_review-abc1234.md"
+            transcript.write_text(
+                "- **[P4] [ledger-duplication] [`alpha_guard`] note — OPEN.** (carried from 76227765)\n"
+                "- **[P4] [`alpha_guard`] still stale in scripts/a.py:1 — OPEN.**\n")
+            claim = "nabu@c67b072: [revision-identity] scripts/a.py:1 - `alpha_guard` open here"
+            twin = "nabu@c67b072: [revision-identity] scripts/a.py:2 - `alpha_guard` twin"
+            # The twin carries the identifier too: shared, so the foreign
+            # head never holds this claim — only its own anchored line does.
+            self.assertEqual(register.open_lines_about(transcript, claim, "P4", {"p4_open": [claim, twin]}, "x"), [2])
+            # Alone, the foreign head naming the identifier holds it.
+            self.assertEqual(register.open_lines_about(transcript, claim, "P4", {"p4_open": [claim]}, "x"), [1, 2])
 
     def test_cited_closure_lines_and_transcript_paths(self) -> None:
         # The claim-to-transcript relation (revision 6, 76227765 round): a
@@ -819,6 +949,38 @@ class InvariantTests(unittest.TestCase):
         with self.assertRaises(register.RegisterError) as error:
             register.build_register()
         self.assertEqual(error.exception.code, register.RegisterErrorCode.SUMMARY_MISSING)
+
+    def test_retirement_change_record_is_keyed(self) -> None:
+        # Nabu P4 at 79fdcc63 (carried OPEN at 8966da2e): the revision-7
+        # retirement change record is read in bench — every change is
+        # keyed by section, severity and claim with a decision.
+        record = json.loads((ROOT / "evidence/review/rounds/revision-7-retirement-changes.json").read_text(encoding="utf-8"))
+        self.assertIn("keying", record)
+        self.assertTrue(record["changes"])
+        for change in record["changes"]:
+            self.assertTrue(change["section"])
+            self.assertIsInstance(change["severity"], int)
+            self.assertTrue(change["claim"])
+            self.assertTrue(change["decision"])
+
+    def test_raising_severity_own_status_cell_and_own_head(self) -> None:
+        # Ariadne P4 at 79fdcc63 (carried OPEN at 8966da2e): the raising
+        # severity is bound to the raising transcript's finding line; a
+        # table cell is an own status unless its qualifier names open (any
+        # case); a line whose own head names the finding is preferred.
+        claim = ("nabu_architecture_review@7622776: [test-coverage] (carried from c04539b9, OPEN) "
+                 "bench/release/tests/test_packaging.py - no test exercises the lint branch")
+        self.assertEqual(register.raising_severity("release_candidate_packaging", claim), "P4")
+        self.assertIsNone(register.raising_severity("release_candidate_packaging",
+                                                    "nabu_architecture_review: [test-coverage] x"))
+        def own(line: str, marker: str) -> bool:
+            matches = list(register.STATUS_CLOSED.finditer(line)) if marker == "CLOSED" else list(register.STATUS_OPEN.finditer(line))
+            matches = [m for m in matches if not register._quoted(line, m.start(), m.end())]
+            self.assertTrue(matches)
+            return any(register._own_status(line, m) for m in matches)
+        self.assertTrue(own("| P3 | **CLOSED (P3)** |", "CLOSED"))
+        self.assertFalse(own("| P3 | **CLOSED (leg 2 open)** |", "CLOSED"))
+        self.assertTrue(own("| P4 | **OPEN** |", "OPEN"))
 
 
 if __name__ == "__main__":

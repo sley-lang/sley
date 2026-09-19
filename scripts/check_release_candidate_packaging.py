@@ -130,10 +130,17 @@ def gate_stays_closed(gate: str) -> bool:
 def lint_report_problems(lint: object, candidate_commit: object) -> list[str]:
     """The lint-report binding (section 16): the report names the candidate
     commit, its lint inputs were clean and it is a PASS. A missing or
-    malformed report fails both codes."""
+    malformed report fails both codes. Revision 7 pins the eleven-field
+    set (Vulcan P4 at 8966da2e: the field set had no pin)."""
     problems: list[str] = []
     if not isinstance(lint, dict):
         lint = {}
+    if set(lint) != {
+        "contract", "commit", "fmt_clean", "fmt_detail", "clippy_clean",
+        "clippy_warnings", "result", "working_tree_clean", "lint_inputs_clean",
+        "dirty_lint_inputs", "dirty_paths",
+    }:
+        problems.append("lint-report:field-set")
     if not isinstance(candidate_commit, str) or lint.get("commit") != candidate_commit:
         problems.append("lint-report:commit-differs-from-candidate")
     if lint.get("lint_inputs_clean") is not True or lint.get("result") != "PASS":
@@ -193,13 +200,13 @@ def main() -> int:
     if status not in (DRAFT_STATUS, FROZEN_STATUS) + IMPLEMENTATION_STATUSES:
         problems.append("machine-summary:status")
     for key, expected in (
-        ("contract_revision", 6),
+        ("contract_revision", 7),
         ("candidate_content_report", "evidence/release/candidate-content-checks.json"),
         ("candidate_content_checker", "scripts/build_candidate_content_report.py"),
     ):
         if section.get(key) != expected:
             problems.append(f"machine-summary:{key}")
-    if "revision 6 (2026-09-18)" not in spec:
+    if "revision 7 (2026-09-19)" not in spec:
         problems.append("spec-revision")
     content_script = ROOT / "scripts/build_candidate_content_report.py"
     if not content_script.exists() or "sley2.candidate-content-checks.v1" not in read(content_script):

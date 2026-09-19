@@ -288,7 +288,9 @@ class LintReportBindingTests(unittest.TestCase):
         spec.loader.exec_module(self.recorder)
 
     def test_every_binding_failure_names_its_code(self) -> None:
-        good = {"commit": "a" * 40, "lint_inputs_clean": True, "result": "PASS"}
+        good = {"contract": "sley2.lint-report.v1", "commit": "a" * 40, "fmt_clean": True, "fmt_detail": "",
+                "clippy_clean": True, "clippy_warnings": 0, "result": "PASS", "working_tree_clean": True,
+                "lint_inputs_clean": True, "dirty_lint_inputs": [], "dirty_paths": []}
         problems = self.checker.lint_report_problems
         self.assertEqual(problems(good, "a" * 40), [])
         self.assertEqual(problems(dict(good, commit="b" * 40), "a" * 40), ["lint-report:commit-differs-from-candidate"])
@@ -296,9 +298,22 @@ class LintReportBindingTests(unittest.TestCase):
         self.assertEqual(problems(dict(good, result="FAIL"), "a" * 40), ["lint-report:not-a-clean-pass"])
         self.assertEqual(
             problems({}, "a" * 40),
-            ["lint-report:commit-differs-from-candidate", "lint-report:not-a-clean-pass"],
+            ["lint-report:field-set", "lint-report:commit-differs-from-candidate", "lint-report:not-a-clean-pass"],
         )
-        self.assertEqual(len(problems("not a report", None)), 2)
+        self.assertEqual(len(problems("not a report", None)), 3)
+
+    def test_the_eleven_field_set_is_pinned(self) -> None:
+        # Vulcan P4 at 8966da2e: the lint report carries exactly eleven
+        # fields (contract section 7, revision 7).
+        good = {"contract": "sley2.lint-report.v1", "commit": "a" * 40, "fmt_clean": True, "fmt_detail": "",
+                "clippy_clean": True, "clippy_warnings": 0, "result": "PASS", "working_tree_clean": True,
+                "lint_inputs_clean": True, "dirty_lint_inputs": [], "dirty_paths": []}
+        problems = self.checker.lint_report_problems
+        self.assertEqual(problems(good, "a" * 40), [])
+        short = dict(good)
+        del short["dirty_paths"]
+        self.assertIn("lint-report:field-set", problems(short, "a" * 40))
+        self.assertIn("lint-report:field-set", problems(dict(good, extra=1), "a" * 40))
 
     def test_dirty_paths_are_read_literally_from_porcelain_z(self) -> None:
         # Paths with spaces, quotes or non-ASCII bytes are literal under -z;

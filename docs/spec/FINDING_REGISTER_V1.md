@@ -1,6 +1,6 @@
 # Finding Register v1
 
-Status: S20-740 contract draft, revision 7 (2026-09-19); Council review
+Status: S20-740 contract draft, revision 8 (2026-09-19); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). The mechanics are `scripts/build_finding_register.py`;
 implementation state is tracked in the machine summary.
@@ -30,11 +30,12 @@ an earlier automatic closure on regeneration
 (`retire_review_claims.py --regenerate` re-derives every closure; `--check`
 replays every recorded closure and refuses a stale one). A lane's later
 re-statement of a carried open finding (same lane, kind, path and
-identifier, marked carried/prior/residual/unchanged) folds into the
-earliest claim as `pN_restated_claims` `{claim, restates}`
-(`--fold-restatements`); the earliest claim stays open, a closure must
+identifier, naming its carried root) folds into the claim at the round
+it names as `pN_restated_claims` `{claim, restates}`
+(`--fold-restatements`); the named root stays open, a closure must
 still postdate its scope and speak about it, and the register reports
-`package_restated_claims`. After the 1a9f0aab round (Nabu P2, Ariadne
+`package_restated_claims`. One finding receives one status: no key is
+open in one copy and closed in another (`--check` refuses a split). After the 1a9f0aab round (Nabu P2, Ariadne
 P2/P3, Vulcan P3): the severity a closure line records is the one its own
 leading token names (`[P1]`, `Prior P3`, `P2/P3`), never a severity
 mentioned later in the head; the claim-to-line relation is a finding
@@ -77,7 +78,10 @@ raising transcript records for it (`raising_severity`; a mismatch is
 `REGISTER_SUMMARY_INVALID`). Round folding consults the notes' `on <sha>`
 scopes: a PASS whose scope is not strictly later than a FAIL/REVISE
 round's scope by git ancestry never folds it, whatever the calendar day.
-`retire_review_claims.py --regenerate` runs reopen → fold → retire in
+Equal scopes are never strictly later (Ariadne P4 at 8966da2e:
+`merge-base --is-ancestor x x` exits 0); a same-scope PASS counts as
+filed before-or-at the FAIL for scope ordering but never folds it.
+`retire_review_claims.py --regenerate` runs reopen → retire → fold in
 that order and `--check` also regenerates in memory and refuses a
 tracked ledger the regeneration does not reproduce
 (`regeneration_divergence`).
@@ -106,14 +110,15 @@ binding applies to open, retired and re-stated claims alike.
 
 After the b58ac1e0 round (Ariadne/Nabu/Vulcan P3): a finding key is the
 lane, the kind and — for a finding against a source or document file —
-that file plus, for an original statement, its first identifier (a
-carried re-statement carries none of its own); for a finding against
+that file plus its first identifier (a carried re-statement keys on the
+identifier it carries, never a wildcard); for a finding against
 the ledger itself, the round it originates from (the `carried from
 <sha>` scope a re-statement names, else the claim's raising scope, else
-its description) plus the original's identifier. Two keys name one
+its description) plus the identifier. Two keys name one
 finding when lane, kind and file/origin agree and their identifiers are
-equal or absent on either side (`same_finding`); a carry marker anywhere
-in the description makes a claim a re-statement. A shared kind's own
+equal (`same_finding`); whether a claim is a
+re-statement is decided by the 8f774d0c rule below, never by a bare carry
+word. A shared kind's own
 words are not tag words under the strong read. A live `PRIOR` field's
 closer carries the union of its token's closed severities and the
 severities its transcript's status lines record.
@@ -121,12 +126,12 @@ severities its transcript's status lines record.
 After the 8f774d0c round (Ariadne/Nabu/Vulcan P2): a re-statement is
 only a claim that names its carried root — a leading
 `(carried from <sha>, …)` clause or a `carried from <sha>` phrase — never
-a claim whose prose merely says `prior`, `unchanged` or `again`; only
-such a claim keys without an identifier of its own and matches its
-root's; an original without a backticked identifier matches only another
-identifier-less original. Shared vocabulary counts every other claim of
-the lane and severity except one of equal key or one the ledger links to
-this claim as its re-statement. Regeneration runs reopen (closures and
+a claim whose prose merely says `prior`, `unchanged` or `again`; such a
+claim keys on the identifier it carries and meets only the claim
+carrying that identifier; an original without a backticked identifier
+matches only another identifier-less original. Shared vocabulary counts
+every other claim of the lane and severity except a same-finding carry
+in either direction. Regeneration runs reopen (closures and
 folds alike) → retire → fold: a re-statement folds into a retired root
 only when the root's closing line names the re-statement too, else it
 stays open. The change record
@@ -140,6 +145,30 @@ closure the tracked file does not carry line for line. An untagged claim
 of a frozen `_revision_N` field takes its scope from that field's `_note`;
 an explicit prefix names one whole field of the section, lane-less fields
 included.
+
+After the 8966da2e round (Ariadne/Nabu/Vulcan P2): a leading carry clause
+counts only when it names its root (`from <sha>` inside the parentheses);
+a bare `(prior)`, `(carried, unchanged)` or any other sha-less
+parenthetical leaves an original with its own identifier. A fold resolves
+its root by the sha the re-statement names (tag or raising scope of a
+same-finding claim), nearest by git ancestry when several match, and stays
+open when nothing at that round matches — never by earliest scope or list
+position. A fold into a retired root requires the root's own cited closing
+lines to name the re-statement under the retirement read (strong identity
+with shared vocabulary, OPEN-line refusal). The closing transcript must
+strictly postdate the re-statement — a claim filed after the closure was
+written inherits nothing. An open claim whose exact key matches a
+retired claim inherits that status (it restates the closed member)
+under the same postdating rule, unless the closing transcript records
+it OPEN — one finding, one status; a remaining split is refused by
+`--check` until explicitly reconciled. The ledger replays the fold's
+rule: a re-statement naming a sha restates a claim at that scope,
+except for an exact-key inheritance into a retired claim. Shared
+vocabulary exempts a same-finding carry derived from the claims
+themselves, never from the ledger's popped `restates` link, so the
+incremental and regenerated reads agree; two originals sharing one key
+still count toward each other's vocabulary. This is contract revision
+8.
 Every closure recorded at 76ae15ab that revision 7 changed is listed per
 claim, with the refusing rule where it stays open, in
 `evidence/review/rounds/revision-7-retirement-changes.json` (the round's

@@ -1,8 +1,9 @@
 # Release Candidate Packaging v1
 
-Status: S20-720 contract draft, revision 6 (2026-09-18), with round-7
+Status: S20-720 contract draft, revision 7 (2026-09-19), with round-7
 clarifications (2026-09-11, section 13); Council review pending (Ariadne
 contract review, Nabu architecture review, Vulcan surface review). Revision
+7 pins the lint report's eleven-field set (section 7). Revision
 2 records the clarifications found while implementing
 revision 1 (section 11). Revision 3 orders the remaps most-general-first,
 describes the manifest's non-release status, requires a clean tree for

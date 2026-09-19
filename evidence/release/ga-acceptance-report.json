@@ -343,8 +343,8 @@
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "a7c803f2f86330216499a923af7e014a5b71182864db7f43d14fa0aac5c6073a",
-  "register_digest": "bcea493779e2e63eb3d8c737736195059b84a36861d7fd67d8c67ac6b5b7e2ea",
-  "report_digest": "2256c138b754123354a09d595a1acc12aa48e430496fb20a62a5669c713f3ecd",
+  "register_digest": "6c6cfdd3bcb0504635c7c4d25ba2f4770f5f28bede87595021928faf36c0c860",
+  "report_digest": "e967f9ddeaa29b98bf2ec3151c0512a08a5852adc71feb9653e60f293c09bd09",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,
