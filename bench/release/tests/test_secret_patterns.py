@@ -132,13 +132,21 @@ class CommitBoundViewTests(unittest.TestCase):
         self.assertTrue(supply.record_drifted(b"not json", b"not json"))
         # A counter is clear only as the integer zero: absent, false and 0.0
         # are not counted zeros (Vulcan P4 carried c04539b9..76ae15ab).
+        scan = {"contract": "s20-710-secret-scan-v1", "a": 1}
+        scan_working = supply.canonical_json({**scan, "untracked_bytes_scanned": 5, "untracked_files_scanned": 1})
         for counters in (
             {"untracked_bytes_scanned": 0},
             {"untracked_bytes_scanned": False, "untracked_files_scanned": 0},
             {"untracked_bytes_scanned": 0.0, "untracked_files_scanned": 0},
         ):
-            tolerant = supply.canonical_json({"a": 1, **counters})
-            self.assertTrue(supply.record_drifted(tolerant, working), counters)
+            tolerant = supply.canonical_json({**scan, **counters})
+            self.assertTrue(supply.record_drifted(tolerant, scan_working), counters)
+        # A record without counters (the T52 inventory) has nothing to clear;
+        # a stray non-zero counter in it is still drift.
+        inventory = supply.canonical_json({"contract": "s20-710-pre-release-inventory-v1", "a": 1})
+        self.assertFalse(supply.record_drifted(inventory, inventory))
+        stray = supply.canonical_json({"contract": "s20-710-pre-release-inventory-v1", "a": 1, "untracked_files_scanned": 0.0})
+        self.assertTrue(supply.record_drifted(stray, stray))
 
 
 if __name__ == "__main__":

@@ -583,11 +583,15 @@ def working_tree_counters_clear(payload: bytes) -> bool:
         return False
     if not isinstance(document, dict):
         return False
-    # A counter is clear only when it is present and the integer zero: an
-    # absent field, `false` or `0.0` is not a counted zero (Vulcan P4 at
-    # c04539b9..76ae15ab).
+    # The secret scan always emits both counters, so for it a counter is
+    # clear only when present and the integer zero: an absent field, `false`
+    # or `0.0` is not a counted zero (Vulcan P4 at c04539b9..76ae15ab). A
+    # record that carries no working-tree counters (the T52 inventory) has
+    # nothing to clear, but a stray counter in it is judged the same way.
+    scan = document.get("contract") == "s20-710-secret-scan-v1"
     return all(
-        type(document.get(field)) is int and document.get(field) == 0
+        (type(document.get(field)) is int and document.get(field) == 0)
+        or (not scan and field not in document)
         for field in WORKING_TREE_FIELDS
     )
 
