@@ -36,7 +36,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from build_finding_register import closed_severities, cited_closure_lines, line_speaks_about  # noqa: E402
+from build_finding_register import (  # noqa: E402
+    claim_relation_problem, claim_scope, closed_severities, cited_closure_lines, finding_key, is_carry,
+    is_tracked, line_speaks_about, open_lines_about, transcript_path,
+)
 
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 RETIREMENTS = ROOT / "evidence/review/claim-retirements.json"
@@ -128,7 +131,11 @@ def transcript_closers(section_name: str) -> list[tuple[str, str, set[str], str 
     for path in sorted(directory.glob("*.md")):
         stamp = re.search(r"-([0-9a-f]{7,40})\.md$", path.name)
         lane = role(path.name)
-        if not stamp or lane is None:
+        # Only filed transcripts (in the git index) are closers: an untracked
+        # in-flight file must not retire anything (Vulcan P3 at 1a9f0aab). A
+        # lane-less closure transcript (`<field>_closure-<scope>.md`) closes
+        # for its own field, matched by stem in `retire()`.
+        if not stamp or not is_tracked(path.relative_to(ROOT).as_posix()):
             continue
         verdicts = VERDICT_LINE.findall(path.read_text(encoding="utf-8", errors="replace"))
         if not verdicts or not PRIOR.search(verdicts[-1]):
@@ -171,9 +178,19 @@ def closers(section: dict, section_name: str = "") -> list[tuple[str, str, set[s
     return found
 
 
+def relation_problem(section_name: str, claim: str, transcript: str, section: dict) -> str | None:
+    """The builder's section/lane/scope relation for a transcript path, plus
+    the tracked-transcript rule (an untracked file is not a filed transcript)."""
+    resolved = transcript_path(transcript)
+    if resolved is None:
+        return f"{transcript} is not a tracked transcript"
+    return claim_relation_problem(section_name, claim, resolved, section)
+
+
 def speaking_lines(path: Path, severity: str, claim: str) -> list[int]:
-    """Closure lines of `severity` that name the claim's category or path."""
-    if not path.is_file():
+    """Closure lines of `severity` that name the claim's finding identity —
+    none when the same transcript records the claim OPEN on another line."""
+    if not path.is_file() or open_lines_about(path, claim, severity):
         return []
     text = path.read_text(encoding="utf-8", errors="replace").splitlines()
     return [n for n in cited_closure_lines(path, severity) if line_speaks_about(text[n - 1], claim)]
@@ -194,48 +211,84 @@ def retire(summary: dict, retirements: list[dict]) -> int:
             closed = list(section.get(f"p{severity}_closed_claims", []))
             for entry in entries:
                 verified = None
+                binding = None
                 tag = TAG.match(entry)
                 prefix = tag.group(1) if tag else entry.split(":", 1)[0]
                 scope = tag.group(2) if tag else None
                 for field, lane, severities, closer_scope, transcript in lane_closers:
+                    lane_match = lane == role(prefix) if role(prefix) else (
+                        lane is None and Path(transcript or "").name.startswith(prefix.removesuffix("_note"))
+                    )
                     if (
-                        lane == role(prefix)
+                        lane_match
                         and f"P{severity}" in severities
                         and transcript
                         and strictly_later(closer_scope, scope)
                     ):
                         lines = speaking_lines(ROOT / transcript, f"P{severity}", entry)
-                        if not lines:
+                        if not lines or relation_problem(name, entry, transcript, section):
                             continue
                         verified = f"{transcript}#L{','.join(map(str, lines))} — {field} at {closer_scope[:8]} verified the carried P{severity} closed"
                         break
+                # Exact-claim bindings first: the whole claim string and its
+                # lines, the reviewer's per-finding closure line bound by hand
+                # where the identity relation cannot see it.
+                for item in retirements:
+                    for exact in item.get("claims") or []:
+                        if item["section"] == name and exact.get("claim") == entry:
+                            closure = cited_closure_lines(ROOT / item["verified_by"], f"P{severity}")
+                            lines = exact.get("lines") or []
+                            relation = relation_problem(name, entry, item["verified_by"], section)
+                            if relation or not lines or not set(lines) <= set(closure):
+                                raise SystemExit(
+                                    f"exact-claim retirement for {name} P{severity} cites {item['verified_by']}#L{lines} "
+                                    f"which records a closure of P{severity} at {closure} :: {entry[:90]}"
+                                )
+                            verified = f"{item['verified_by']}#L{','.join(map(str, lines))} — {exact.get('reason') or item.get('reason', '')}"
+                            binding = "exact-claim"
                 for item in retirements:
                     if (
-                        item["section"] == name
-                        and severity in item["severities"]
+                        binding is None
+                        and item["section"] == name
+                        and severity in item.get("severities", [])
+                        and item.get("prefixes")
                         and entry.startswith(tuple(item["prefixes"]))
                     ):
-                        # A prefix names at least a whole lane field
-                        # (`<field>[@scope]: `); a bare-lane or empty prefix
-                        # would sweep the section (Vulcan P4 at 76ae15ab). Each
-                        # matched claim is still bound to its own speaking line.
+                        # A prefix names one whole field of the section
+                        # (`<field>[@scope]:`, the field or its `_note`
+                        # present in the section); a bare-lane or empty
+                        # prefix would sweep the section (Vulcan P4 at
+                        # 76ae15ab; lane-less fields qualify — Vulcan P3 at
+                        # 1a9f0aab). Each matched claim is still bound to
+                        # its own speaking line.
                         for prefix in item["prefixes"]:
                             head = re.match(r"^([A-Za-z0-9_.]+)(?:@[0-9a-f]{7,40})?:", prefix)
-                            if not head or head.group(1) in REVIEWERS or role(head.group(1)) is None:
-                                raise SystemExit(f"retirement for {name}: prefix too broad: {prefix!r}")
+                            field_name = head.group(1) if head else ""
+                            known = field_name in section or field_name.removesuffix("_note") in section or (
+                                "." in field_name and isinstance(section.get(field_name.split(".")[0]), dict)
+                            )
+                            if not head or field_name in REVIEWERS or not known:
+                                raise SystemExit(f"retirement for {name}: prefix names no field of the section: {prefix!r}")
                         recorded = speaking_lines(ROOT / item["verified_by"], f"P{severity}", entry)
                         closure = cited_closure_lines(ROOT / item["verified_by"], f"P{severity}")
                         lines = item.get("lines") or recorded
-                        # Every cited line records a closure of the severity and
-                        # at least one speaks about the claim (the builder's rule).
-                        if not lines or not set(lines) <= set(closure) or not set(lines) & set(recorded):
+                        # Every cited line records a closure of the severity, at
+                        # least one speaks about the claim, and the transcript
+                        # stands in the section/lane/scope relation (the
+                        # builder's rules; Vulcan P3 at 1a9f0aab: the explicit
+                        # path had checked no relation).
+                        relation = relation_problem(name, entry, item["verified_by"], section)
+                        if relation or not lines or not set(lines) <= set(closure) or not set(lines) & set(recorded):
                             raise SystemExit(
                                 f"retirement for {name} P{severity} cites {item['verified_by']}#L{lines} "
                                 f"which records a closure of P{severity} at {closure}, naming the claim only at {recorded} :: {entry[:90]}"
                             )
                         verified = f"{item['verified_by']}#L{','.join(map(str, lines))} — {item['reason']}"
                 if verified:
-                    closed.append({"claim": entry, "verified_by": verified})
+                    record = {"claim": entry, "verified_by": verified}
+                    if binding:
+                        record["binding"] = binding
+                    closed.append(record)
                     retired += 1
                 else:
                     keep.append(entry)
@@ -244,40 +297,6 @@ def retire(summary: dict, retirements: list[dict]) -> int:
             if closed:
                 section[f"p{severity}_closed_claims"] = closed
     return retired
-
-
-ANCHOR = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+")
-IDENTIFIER = re.compile(r"`([A-Za-z_][A-Za-z0-9_.]*)")
-CARRY = re.compile(r"\b(?:carried|carry|prior|residual|unchanged|still open|again|byte-identical)\b", re.I)
-
-
-def finding_key(claim: str) -> tuple[str | None, str, str, str]:
-    """(lane, category tag, anchor, identifier) — the identity of a finding
-    across the rounds that re-state it: the lane that raised it, its
-    bracketed kind, the first path-like token (line numbers stripped) or,
-    without one, the first forty characters of its description, and the
-    first backticked identifier (index suffix stripped) so that distinct
-    findings citing one records file stay distinct."""
-    tag = TAG.match(claim)
-    prefix = tag.group(1) if tag else claim.split(":", 1)[0]
-    body = claim.split(": ", 1)[1] if ": " in claim else claim
-    kind = re.match(r"\[([^\]]+)\]", body)
-    rest = body[kind.end():].strip() if kind else body
-    path = ANCHOR.search(rest)
-    anchor = path.group(0).split(":")[0] if path else re.sub(r"\s+", " ", rest)[:40]
-    ident = IDENTIFIER.search(rest)
-    return (role(prefix), kind.group(1) if kind else "", anchor, ident.group(1) if ident else "")
-
-
-def is_carry(claim: str) -> bool:
-    """The claim's description marks itself as a carried/re-stated finding."""
-    body = claim.split(": ", 1)[1] if ": " in claim else claim
-    return CARRY.search(body[:160]) is not None
-
-
-def claim_scope(claim: str) -> str | None:
-    tag = TAG.match(claim)
-    return tag.group(2) if tag else None
 
 
 def fold_restatements(summary: dict) -> int:
@@ -354,9 +373,17 @@ def replay_problems(summary: dict) -> list[str]:
                 path = verified_by.split("#")[0]
                 cited = re.search(r"#L([0-9,]+)", verified_by)
                 wanted = {int(n) for n in cited.group(1).split(",") if n} if cited else set()
+                relation = relation_problem(name, claim, path, section) if path else "no transcript"
+                if relation:
+                    problems.append(f"{name}.p{severity}_closed_claims: {relation} :: {claim[:60]}")
+                    continue
                 recorded = set(speaking_lines(ROOT / path, f"P{severity}", claim)) if path else set()
                 closure = set(cited_closure_lines(ROOT / path, f"P{severity}")) if path else set()
-                if not wanted or not wanted <= closure or not wanted & recorded:
+                if item.get("binding") == "exact-claim":
+                    from build_finding_register import exact_claim_binding
+                    if not wanted or not wanted <= closure or not exact_claim_binding(name, claim, ROOT / path, sorted(wanted)):
+                        problems.append(f"{name}.p{severity}_closed_claims (exact-claim): {verified_by[:100]} :: {claim[:60]}")
+                elif not wanted or not wanted <= closure or not wanted & recorded:
                     problems.append(f"{name}.p{severity}_closed_claims: {verified_by[:100]} :: {claim[:60]}")
                 if claim in open_entries:
                     problems.append(f"{name}.p{severity}: open and closed: {claim[:60]}")

@@ -30,11 +30,36 @@ identifier, marked carried/prior/residual/unchanged) folds into the
 earliest claim as `pN_restated_claims` `{claim, restates}`
 (`--fold-restatements`); the earliest claim stays open, a closure must
 still postdate its scope and speak about it, and the register reports
-`package_restated_claims`. Retirements changed by this revision are listed
-in the round's records commit; two explicit citations the relation cannot
-see (the epoch-1 `**Both CLOSED.**` paragraph does not name the ADR-0019
-claim; the revision-7/8 ADR-note and envelope-note P4s) stay open until a
-closure line names them.
+`package_restated_claims`. After the 1a9f0aab round (Nabu P2, Ariadne
+P2/P3, Vulcan P3): the severity a closure line records is the one its own
+leading token names (`[P1]`, `Prior P3`, `P2/P3`), never a severity
+mentioned later in the head; the claim-to-line relation is a finding
+identity, not vocabulary — a specific kind phrase of the claim's bracketed
+tag verbatim (`fail-closed-gap`, `list-depth creep`; hyphen and space
+equivalent), an identifier the finding names (never a path's own words),
+a commit id, a finding id (`RW090-DEV-01`, `V-02`), a file anchor with
+its lines (`exchange.rs:2974-3001`), a quoted phrase repeated verbatim,
+or a path together with a tag word (a commit id likewise only together
+with a tag word or a path); a generic one-word tag, a shared path alone,
+or the ledger's own files (`machine-summary.json`, `finding-register.json`,
+`claim-retirements.json`, the GA report and dossier) never relate. A
+transcript must be in the git index (tracked or staged): an untracked
+file is not a filed transcript. The section/lane/scope relation is
+applied on every path — automatic, explicit, exact-claim and `--check`
+replay. Where the reviewer's per-finding closure line
+cannot be seen by that relation (a claim recorded truncated or phrased
+differently), the tracked retirement file may bind the whole claim string
+to its lines (`claims: [{claim, lines, reason}]`, recorded as
+`binding: exact-claim`); the builder and `--check` refuse an exact-claim
+closure the tracked file does not carry line for line. An untagged claim
+of a frozen `_revision_N` field takes its scope from that field's `_note`;
+an explicit prefix names one whole field of the section, lane-less fields
+included.
+Every closure recorded at 76ae15ab that revision 7 changed is listed per
+claim, with the refusing rule where it stays open, in
+`evidence/review/rounds/revision-7-retirement-changes.json` (the round's
+first statement that "none reopened" was measured against the wrong
+baseline and is corrected there).
 
 Revision 6 (2026-09-18) names the per-package claim ledger's retirement
 path (Nabu/Vulcan/Ariadne P3s at db53894e: the retirement had been done by
@@ -260,7 +285,7 @@ register = {
     claim listed nowhere else,
   "package_closed_claims": { "section.pN_closed_claims": count } ascending,
     every retired per-package claim list (revision 6); each entry is
-    {claim, verified_by} with verified_by naming an existing transcript
+    {claim, verified_by[, binding: "exact-claim"]} with verified_by naming an existing transcript
     under evidence/review/verdicts/ or machineresearch/sley-2.0/reviews/
     and the cited lines that record the closure of that severity,
   "result": "FINDING_REGISTER_CLEAR" | "FINDING_REGISTER_OPEN",

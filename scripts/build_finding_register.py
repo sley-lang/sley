@@ -612,8 +612,59 @@ def is_closure_line(line: str, severity: str) -> bool:
     closed = [m for m in STATUS_CLOSED.finditer(line) if _own_status(line, m)]
     if not closed:
         return False
-    head = line[: closed[0].start()]
-    return re.search(rf"(?<![A-Z0-9]){severity}(?![0-9])", head) is not None
+    return severity in item_severities(line[: closed[0].start()])
+
+
+SEVERITY_RUN = re.compile(r"(?<![A-Z0-9])P[0-4](?![0-9])(?:\s*(?:/|,|and|&|\+)\s*P[0-4](?![0-9]))*")
+
+
+def item_severities(head: str) -> set[str]:
+    """The severities the item's own leading token names: the first severity
+    run of the head (`[P1]`, `Prior P3`, `P2/P3`, `P3, P4 and P2`), never a
+    severity mentioned later in the head's prose (Vulcan P3 at 1a9f0aab: a
+    `[P3] record-provenance …` line had been citable for a P2 it discussed)."""
+    run = SEVERITY_RUN.search(head)
+    return set(re.findall(r"P[0-4]", run.group(0))) if run else set()
+
+
+def is_open_line(line: str, severity: str) -> bool:
+    """The line records `severity` OPEN: an item status line (`| P3 | **OPEN**
+    |`, `- **[P3] … — OPEN.**`) or a finding-raising `[P3] …` line carrying
+    an unquoted OPEN status, whose own leading severity is `severity`."""
+    if line.startswith(("VERDICT:", "SUMMARY:", "FINDINGS:")):
+        return False
+    opens = [m for m in STATUS_OPEN.finditer(line) if not _quoted(line, m.start(), m.end())]
+    if not opens:
+        return False
+    if FINDING_LINE.match(line):
+        return line.startswith(f"[{severity}]")
+    own = [m for m in opens if _own_status(line, m)]
+    return bool(own) and severity in item_severities(line[: own[0].start()])
+
+
+def open_lines_about(path: Path, claim: str, severity: str) -> list[int]:
+    """Lines of the transcript that record the claim's severity OPEN and speak
+    about the claim: a transcript that records the claim OPEN cannot close it
+    on another line (Vulcan P3 at 1a9f0aab)."""
+    if not path.is_file():
+        return []
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    found = []
+    for index, line in enumerate(lines):
+        if not is_open_line(line, severity):
+            continue
+        # The OPEN item's own head names the finding (its trailing prose may
+        # mention other findings by name).
+        if FINDING_LINE.match(line):
+            head = line.split(" - ", 1)[0]
+        else:
+            opens = [m for m in STATUS_OPEN.finditer(line) if not _quoted(line, m.start(), m.end())]
+            head = line[: opens[0].start()]
+        # A strong identity only (identifier, finding id, file:line anchor or
+        # quoted phrase): one lane files several findings under one kind.
+        if line_speaks_about(head, claim, strong=True):
+            found.append(index + 1)
+    return found
 
 
 def cited_closure_lines(path: Path, severity: str) -> list[int]:
@@ -650,10 +701,16 @@ def cited_closure_lines(path: Path, severity: str) -> list[int]:
 CLAIM_TAG = re.compile(r"^([A-Za-z0-9_.]+?)(?:@([0-9a-f]{7,40}))?: ")
 
 
-def claim_relation_problem(section: str, claim: str, path: Path) -> str | None:
+NOTE_SCOPE = re.compile(r"\bon ([0-9a-f]{40})\b")
+
+
+def claim_relation_problem(section: str, claim: str, path: Path, fields: dict | None = None) -> str | None:
     """The transcript must belong to the claim's section and lane, and to a
-    scope strictly later than a scope-tagged claim (c67b0729 round: the
-    relation had been lexical only)."""
+    scope strictly later than the claim's (c67b0729 round: the relation had
+    been lexical only). A scope-tagged claim carries its scope; an untagged
+    claim of a frozen `_revision_N` field takes the `on <sha>` scope of that
+    field's `_note` (Vulcan P3 at 1a9f0aab: untagged claims had never been
+    ancestry-checked)."""
     relative = path.resolve().relative_to(ROOT.resolve()).as_posix()
     in_section = relative.startswith(f"evidence/review/verdicts/{section.split('.')[0]}/") or (
         relative.startswith("machineresearch/sley-2.0/reviews/") and section.startswith("rw0")
@@ -668,6 +725,13 @@ def claim_relation_problem(section: str, claim: str, path: Path) -> str | None:
     lane = reviewer_of(prefix)
     if lane is not None and not path.name.startswith(lane):
         return f"transcript {path.name} is not the {lane} lane's"
+    if not scope and fields and re.search(r"_revision_[0-9]+$", prefix):
+        # A frozen round field's `_note` names the scope its verdict was
+        # filed at; a live base field's note or a closure note names the
+        # latest round instead, so only revision fields bind this way.
+        note = fields.get(prefix + "_note")
+        found = NOTE_SCOPE.search(note) if isinstance(note, str) else None
+        scope = found.group(1)[:7] if found else None
     if scope:
         stamp = re.search(r"-([0-9a-f]{7,40})\.(?:md|log)$", path.name)
         if stamp and (stamp.group(1).startswith(scope) or scope.startswith(stamp.group(1))):
@@ -697,7 +761,7 @@ def strictly_later_scope(later_short: str, earlier_short: str) -> bool:
     return _scope_order[key]
 
 
-CATEGORY = re.compile(r"\[([a-z0-9/_ +.-]+)\]")
+CATEGORY = re.compile(r"\[([^\]\n]+)\]")
 PATH_TOKEN = re.compile(r"[A-Za-z0-9_./-]+\.(?:py|rs|md|json|toml)(?::[0-9,-]+)?")
 
 
@@ -710,36 +774,85 @@ def content_words(text: str) -> set[str]:
     return {word for word in re.findall(r"[a-z][a-z0-9_]{5,}", text.lower()) if word not in STOP_WORDS}
 
 
-def line_speaks_about(line: str, claim: str) -> bool:
-    """The closure line speaks about the claim: it names the claim's category
-    tag, one of its paths, or shares at least two content words (six or more
-    characters, common ledger words excluded) with the finding text."""
+LEDGER_PATHS = {
+    "machineresearch/sley-2.0/machine-summary.json",
+    "machine-summary.json",
+    "evidence/review/finding-register.json",
+    "finding-register.json",
+    "evidence/review/claim-retirements.json",
+    "claim-retirements.json",
+    "evidence/release/ga-acceptance-report.json",
+    "evidence/release/decision-dossier.json",
+}
+
+
+def line_speaks_about(line: str, claim: str, strong: bool = False) -> bool:
+    """The closure line names the claim's finding identity (Nabu P2 at
+    1a9f0aab: vocabulary overlap had let one line retire unrelated claims):
+
+    - a specific kind phrase of the claim's bracketed tag, verbatim — a
+      phrase of eight characters or more carrying a hyphen or a space
+      (`fail-closed-gap`, `list-depth creep`, `contract-vs-mechanics`);
+    - an identifier the claim names (a field, function or variable with an
+      underscore, eight characters or more), a commit id, a finding id
+      (`RW090-DEV-01`, `V-02`, `AR-06`, `S20-700-PACK-001`), a file anchor
+      with its line numbers (`exchange.rs:2974-3001`), or a quoted phrase
+      of the finding repeated verbatim;
+    - or a path the claim names together with a word of its tag (a path
+      alone is shared by every finding of a section; a generic one-word
+      tag like `[record]` alone names nothing).
+
+    With `strong`, only the identifier, finding-id, anchor and quoted-phrase
+    rules apply (the OPEN-line refusal: a lane files several findings under
+    one kind).
+    """
     body = claim.split(": ", 1)[1] if ": " in claim else claim
     lowered = line.lower()
-    tag_words = {
-        word
-        for tag in CATEGORY.findall(body)
-        for word in re.findall(r"[a-z0-9]{6,}", tag.lower())
-        if word not in STOP_WORDS
+    tags = [tag.lower() for tag in CATEGORY.findall(body[:120])]
+    phrases = {
+        phrase.strip()
+        for tag in tags
+        for phrase in re.split(r"[/—,;:]", tag)
+        if phrase.strip() and phrase.strip() not in STOP_WORDS
     }
-    if tag_words and any(word in lowered for word in tag_words):
+    specific = {phrase.replace("-", " ") for phrase in phrases if len(phrase) >= 8 and re.search(r"[- ]", phrase)}
+    if not strong and any(phrase in lowered.replace("-", " ") for phrase in specific):
         return True
-    paths = {token.split(":")[0] for token in PATH_TOKEN.findall(body)}
-    if any(path in line for path in paths):
-        return True
-    # A shared identifier (a field, function or variable name with an
-    # underscore, eight characters or more), a shared commit id, or a
-    # quoted phrase of the finding repeated verbatim names it on its own.
-    identifiers = {word for word in content_words(body) if "_" in word and len(word) >= 8}
+    path_text = " ".join(PATH_TOKEN.findall(body)).lower()
+    # Identifiers are names the finding text carries, never the words of a
+    # path it cites (a basename with underscores is a path, not a name).
+    identifiers = {word for word in content_words(body) if "_" in word and len(word) >= 8 and word not in path_text}
     if identifiers & content_words(line):
         return True
-    commits = set(re.findall(r"(?<![0-9a-zA-Z])[0-9a-f]{7,40}(?![0-9a-zA-Z])", body)) - {"1" * 7}
-    if any(commit in line for commit in commits if re.search(r"[a-f]", commit) and re.search(r"[0-9]", commit)):
+    # The ledger's own files are cited by most findings, so they never
+    # relate (Ariadne P3 at 1a9f0aab: a line naming machine-summary.json
+    # spoke about seven claims of one lane).
+    paths = {token.split(":")[0] for token in PATH_TOKEN.findall(body)} - LEDGER_PATHS
+    tag_words = {
+        word for tag in tags for word in re.findall(r"[a-z0-9]{5,}", tag) if word not in STOP_WORDS
+    }
+    # A commit id relates only together with a tag word or a path (Vulcan
+    # P3 at 1a9f0aab: a shared commit id alone bound unrelated lines).
+    commits = set(re.findall(r"(?<![0-9a-zA-Z])[0-9a-f]{7,40}(?![0-9a-zA-Z])", body))
+    commits = {commit for commit in commits if re.search(r"[a-f]", commit) and re.search(r"[0-9]", commit)}
+    if not strong and any(commit in line for commit in commits) and (
+        any(path in line for path in paths) or any(word in lowered for word in tag_words)
+    ):
         return True
-    phrases = {phrase for phrase in re.findall(r'"([^"]{12,})"', body)}
-    if any(phrase in line for phrase in phrases):
+    quoted = {phrase for phrase in re.findall(r'"([^"]{12,})"', body)}
+    if any(phrase in line for phrase in quoted):
         return True
-    return len(content_words(body) & content_words(line)) >= 2
+    finding_ids = set(re.findall(r"\b(?:[A-Z][A-Z0-9]{1,}-)+[0-9]{2,}\b|\b[A-Z]{1,3}-[0-9]{2}\b", body))
+    if any(re.search(rf"(?<![A-Z0-9-]){re.escape(fid)}(?![0-9])", line) for fid in finding_ids):
+        return True
+    anchors = {
+        token.rsplit("/", 1)[-1]
+        for token in PATH_TOKEN.findall(body)
+        if ":" in token and token.split(":")[0] not in LEDGER_PATHS
+    }
+    if any(anchor in line for anchor in anchors):
+        return True
+    return not strong and any(path in line for path in paths) and any(word in lowered for word in tag_words)
 
 
 def transcript_path(reference: str) -> Path | None:
@@ -757,7 +870,44 @@ def transcript_path(reference: str) -> Path | None:
         resolved.relative_to(ROOT.resolve())
     except ValueError:
         return None
-    return resolved if resolved.is_file() else None
+    return resolved if resolved.is_file() and is_tracked(path) else None
+
+
+_tracked: set[str] | None = None
+
+
+def is_tracked(path: str) -> bool:
+    """The transcript is in the git index (tracked or staged): an untracked
+    file in a worktree is not a filed transcript (Vulcan P3 at 1a9f0aab).
+    Without git every path counts as tracked."""
+    global _tracked
+    if _tracked is None:
+        import subprocess
+
+        done = subprocess.run(["git", "ls-files", "-z", "--", "evidence/review", "machineresearch/sley-2.0/reviews"],
+                              cwd=ROOT, capture_output=True, text=True, check=False)
+        _tracked = set(done.stdout.split("\0")) if done.returncode == 0 else None
+    return _tracked is None or path in _tracked
+
+
+RETIREMENTS = ROOT / "evidence/review/claim-retirements.json"
+
+
+def exact_claim_binding(section: str, claim: str, transcript: Path, lines: list[int]) -> bool:
+    """The tracked retirement file names this exact claim, transcript and
+    lines under an entry's `claims` list."""
+    try:
+        entries = json.loads(RETIREMENTS.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    relative = transcript.resolve().relative_to(ROOT.resolve()).as_posix()
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("section") != section or entry.get("verified_by") != relative:
+            continue
+        for item in entry.get("claims") or []:
+            if isinstance(item, dict) and item.get("claim") == claim and sorted(item.get("lines") or []) == sorted(lines):
+                return True
+    return False
 
 
 def package_closed_claims(summary: dict) -> dict[str, int]:
@@ -784,13 +934,14 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
             for entry in item:
                 if (
                     not isinstance(entry, dict)
-                    or set(entry) != {"claim", "verified_by"}
+                    or set(entry) not in ({"claim", "verified_by"}, {"claim", "verified_by", "binding"})
                     or not isinstance(entry["claim"], str)
                     or not isinstance(entry["verified_by"], str)
+                    or entry.get("binding", "exact-claim") != "exact-claim"
                 ):
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
-                        f"{section}.{field} entries are {{claim, verified_by}} strings",
+                        f"{section}.{field} entries are {{claim, verified_by[, binding: exact-claim]}} strings",
                     )
                 resolved = transcript_path(entry["verified_by"])
                 if resolved is None:
@@ -823,17 +974,68 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: {resolved.relative_to(ROOT.resolve())} records no closure of {severity} at the cited lines",
                     )
-                relation = claim_relation_problem(section, entry["claim"], resolved)
+                relation = claim_relation_problem(section, entry["claim"], resolved, value)
                 if relation:
                     raise RegisterError(RegisterErrorCode.SUMMARY_INVALID, f"{section}.{field}: {relation}")
                 text = resolved.read_text(encoding="utf-8", errors="replace").splitlines()
-                if not any(line_speaks_about(text[n - 1], entry["claim"]) for n in wanted if 0 < n <= len(text)):
+                if entry.get("binding") == "exact-claim":
+                    # An exact-claim binding names the whole claim string and
+                    # its lines in the tracked retirement file: the reviewer's
+                    # own per-finding closure line, bound by hand where the
+                    # finding-identity relation cannot see it (Nabu P2 at
+                    # 1a9f0aab). It is refused unless the tracked file
+                    # carries exactly that binding.
+                    if not exact_claim_binding(section, entry["claim"], resolved, wanted):
+                        raise RegisterError(
+                            RegisterErrorCode.SUMMARY_INVALID,
+                            f"{section}.{field}: exact-claim binding not in {RETIREMENTS.relative_to(ROOT)}: {entry['claim'][:60]!r}",
+                        )
+                elif not any(line_speaks_about(text[n - 1], entry["claim"]) for n in wanted if 0 < n <= len(text)):
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: no cited line of {resolved.name} names the claim's category or path",
                     )
+                if entry.get("binding") != "exact-claim" and open_lines_about(resolved, entry["claim"], severity):
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: {resolved.name} also records the claim OPEN at {open_lines_about(resolved, entry['claim'], severity)}",
+                    )
             claims[f"{section}.{field}"] = len(item)
     return dict(sorted(claims.items()))
+
+
+ANCHOR = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+")
+IDENTIFIER = re.compile(r"`([A-Za-z_][A-Za-z0-9_.]*)")
+CARRY = re.compile(r"\b(?:carried|carry|prior|residual|unchanged|still open|again|byte-identical)\b", re.I)
+
+
+def finding_key(claim: str) -> tuple[str | None, str, str, str]:
+    """(lane, category tag, anchor, identifier) — the identity of a finding
+    across the rounds that re-state it: the lane that raised it, its
+    bracketed kind, the first path-like token (line numbers stripped) or,
+    without one, the first forty characters of its description, and the
+    first backticked identifier (index suffix stripped) so that distinct
+    findings citing one records file stay distinct."""
+    tag = CLAIM_TAG.match(claim)
+    prefix = tag.group(1) if tag else claim.split(":", 1)[0]
+    body = claim.split(": ", 1)[1] if ": " in claim else claim
+    kind = re.match(r"\[([^\]]+)\]", body)
+    rest = body[kind.end():].strip() if kind else body
+    path = ANCHOR.search(rest)
+    anchor = path.group(0).split(":")[0] if path else re.sub(r"\s+", " ", rest)[:40]
+    ident = IDENTIFIER.search(rest)
+    return (reviewer_of(prefix), kind.group(1) if kind else "", anchor, ident.group(1) if ident else "")
+
+
+def is_carry(claim: str) -> bool:
+    """The claim's description marks itself as a carried/re-stated finding."""
+    body = claim.split(": ", 1)[1] if ": " in claim else claim
+    return CARRY.search(body[:160]) is not None
+
+
+def claim_scope(claim: str) -> str | None:
+    tag = CLAIM_TAG.match(claim)
+    return tag.group(2) if tag else None
 
 
 def package_restated_claims(summary: dict) -> dict[str, int]:
@@ -856,6 +1058,7 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
             open_list = value.get(f"p{severity}_open") or []
             closed = [entry.get("claim") for entry in value.get(f"p{severity}_closed_claims") or [] if isinstance(entry, dict)]
             restated = [entry.get("claim") for entry in item if isinstance(entry, dict)]
+            item_entries = item
             for entry in item:
                 if (
                     not isinstance(entry, dict)
@@ -866,15 +1069,45 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID, f"{section}.{field} entries are {{claim, restates}} strings"
                     )
-                if entry["restates"] not in open_list and entry["restates"] not in closed and entry["restates"] not in restated:
-                    raise RegisterError(
-                        RegisterErrorCode.SUMMARY_INVALID,
-                        f"{section}.{field}: restates a claim the section does not carry: {entry['restates'][:60]!r}",
-                    )
                 if entry["claim"] in open_list or entry["claim"] in closed or entry["restates"] == entry["claim"]:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: re-stated claim is also listed elsewhere: {entry['claim'][:60]!r}",
+                    )
+                # The fold's identity rule is the builder's, not the
+                # generator's (Vulcan P3 at 1a9f0aab): same lane, kind,
+                # anchor and identifier, a carried marker on the re-statement,
+                # a strictly later scope than the claim it restates, and a
+                # chain that ends at an open or retired claim (no cycle, no
+                # dangling link).
+                if finding_key(entry["claim"]) != finding_key(entry["restates"]) or finding_key(entry["claim"])[0] is None:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: re-statement is not the same finding: {entry['claim'][:60]!r}",
+                    )
+                if not is_carry(entry["claim"]):
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: re-statement carries no carried/prior marker: {entry['claim'][:60]!r}",
+                    )
+                later, first = claim_scope(entry["claim"]), claim_scope(entry["restates"])
+                if later is None or (first is not None and not strictly_later_scope(later, first)):
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: re-statement is not a strictly later round: {entry['claim'][:60]!r}",
+                    )
+                links = {item["claim"]: item["restates"] for item in item_entries if isinstance(item, dict) and "claim" in item and "restates" in item}
+                seen: set[str] = set()
+                target = entry["restates"]
+                while target in links:
+                    if target in seen:
+                        raise RegisterError(RegisterErrorCode.SUMMARY_INVALID, f"{section}.{field}: re-statement cycle at {target[:60]!r}")
+                    seen.add(target)
+                    target = links[target]
+                if target not in open_list and target not in closed:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: restates a claim the section does not carry: {target[:60]!r}",
                     )
             claims[f"{section}.{field}"] = len(item)
     return dict(sorted(claims.items()))

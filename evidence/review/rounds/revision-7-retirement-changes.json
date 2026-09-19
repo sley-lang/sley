@@ -1,0 +1,579 @@
+{
+ "contract": "finding-register-revision-7-retirement-changes-v1",
+ "baseline": "76ae15ab",
+ "round": "batch 9 at 1a9f0aab (Ariadne packaging P2, Nabu reproducibility P2 x2, Ariadne reproducibility P3, Vulcan packaging P3 x3)",
+ "entries_restored": 7,
+ "entries_widened": 5,
+ "changes": [
+  {
+   "claim": "ariadne_contract_review_revision_5: [record] machineresearch/sley-2.0/machine-summary.json:3882 - `offline_tests_note` still says \"the checker does not enforce this field\", but `scripts/check_rele",
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md",
+   "lines": [
+    26
+   ]
+  },
+  {
+   "claim": "ariadne_contract_review_revision_5: [record] evidence/release/decision-dossier.json:390,419 (mirrored from machine-summary `open_risks` :4064 and `evidence_gaps` :4040, outside this section's owne",
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md",
+   "lines": [
+    27
+   ]
+  },
+  {
+   "claim": "ariadne_contract_review_revision_5: [contract] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:142-143 (S20-730-owned, cross-section note) - the illustrative embed list (\"today \u2026 SSMC1",
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md",
+   "lines": [
+    28
+   ]
+  },
+  {
+   "claim": "vulcan_surface_review_revision_10: [note] conformance/exec-package-envelope/v2/envelope.json:10; scripts/build_independent_conformance_report.py:298-337 - The corpus declares `status: PROVISIONAL",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md",
+   "lines": [
+    25
+   ]
+  },
+  {
+   "claim": "vulcan_surface_review_revision_10: [note] scripts/check_exec_package_envelope_v2.py:26-74 - The oracle embeds the vector's inputs (profile digest `fb2d8cc8\u2026`, dependency-section constants) rather",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "decision": "refused",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md",
+   "rule": "no closure line of P4 speaks about the claim (closure lines [25, 27])"
+  },
+  {
+   "claim": "vulcan_surface_review_revision_10: [record-note] machineresearch/sley-2.0/machine-summary.json:4152; evidence/release/decision-dossier.json:419 - `attestation_supersedes` still narrates only 1023",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md",
+   "lines": [
+    27
+   ]
+  },
+  {
+   "claim": "nabu_architecture_review: [records] evidence/release/second-host-lane-records.json:100 (45b2cd98 note), docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The disposit",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c04539b.md",
+   "lines": [
+    24
+   ]
+  },
+  {
+   "claim": "nabu_architecture_review: [checker/binding] scripts/check_reproducibility_and_independent_conformance.py (no `superseded` rule; grep zero hits), machineresearch/sley-2.0/machine-summary.",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c04539b.md",
+   "lines": [
+    25
+   ]
+  },
+  {
+   "claim": "vulcan_surface_review: [fail-closed-gap] scripts/build_reproducibility_report.py:330-354; scripts/check_reproducibility_and_independent_conformance.py:397-407; docs/spec/REPRODUCIBILI",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 3,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md",
+   "lines": [
+    23
+   ]
+  },
+  {
+   "claim": "vulcan_surface_review: [record-note] docs/adr/ADR-0040-reproducibility-and-independent-conformance-boundary.md:9 - The note \"reworded at revision 10\" (2026-09-18) still says \"the re-m",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "decision": "refused",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md",
+   "rule": "no closure line of P4 speaks about the claim (closure lines [24, 25, 26])"
+  },
+  {
+   "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The 45b2cd98 row says \"u",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "decision": "refused",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md",
+   "rule": "no closure line of P4 speaks about the claim (closure lines [24, 25, 26])"
+  },
+  {
+   "claim": "vulcan_surface_review: [note] scripts/build_reproducibility_report.py:432-436; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:126-129 - The supersession rule applies only",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "decision": "refused",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md",
+   "rule": "no closure line of P4 speaks about the claim (closure lines [24, 25, 26])"
+  },
+  {
+   "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; machineresearch/sley-2.0/machine-summary.json:4534 (attestation_supersedes), :4200 (release_ca",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-db53894.md",
+   "lines": [
+    25
+   ]
+  },
+  {
+   "claim": "nabu_architecture_review_revision_7: [record] evidence/security/T54/secret-scan.json:4 - the tracked `candidate_file_manifest_sha256` (`6e61516d\u2026`) binds the 9316df19 tree; 178873d7 changed `eviden",
+   "section": "standards_sbom_and_provenance",
+   "severity": 2,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-92fa664.md",
+   "lines": [
+    18
+   ]
+  },
+  {
+   "claim": "epoch1_reanchor_review_closure_note: [record] docs/adr/ADR-0019-unreleased-epoch1-option-reanchor.md:54-56 - the carried P2 (\"stale machine-summary query/capsule vectors\") cannot be verified closed",
+   "section": "mutation_value_profile",
+   "severity": 2,
+   "decision": "refused",
+   "verified_by": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md",
+   "rule": "no closure line of P2 speaks about the claim (closure lines [15])"
+  },
+  {
+   "claim": "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (mutation_value_profile.epoch1_reanchor_review) - the field carries a PASS-with-P2 disposition that has n",
+   "section": "mutation_value_profile",
+   "severity": 3,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md",
+   "lines": [
+    15
+   ]
+  },
+  {
+   "claim": "epoch1_reanchor_review_closure_note: [checker] scripts/check_restricted_query_capsule_profile.py:24-31 - unlike the query/report/adapter checkers added in the same commit, the capsule checker pins ",
+   "section": "mutation_value_profile",
+   "severity": 4,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md",
+   "lines": [
+    13
+   ]
+  },
+  {
+   "claim": "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json:1388-1394,1400-1403 - `p2_open`/`p3_open`/`p4_open` still list the 178873d P2, the 178873d P3 and the 92f",
+   "section": "mutation_value_profile",
+   "severity": 4,
+   "decision": "refused",
+   "verified_by": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md",
+   "rule": "no closure line of P4 speaks about the claim (closure lines [13])"
+  },
+  {
+   "claim": "nabu_architecture_review_revision_1: [correctness/oracle-parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:11855-11859,13156-13160,8832 - The arbitrary schema decoders i",
+   "section": "rw090_arbitrary_codec",
+   "severity": 1,
+   "decision": "refused",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-7622776.md",
+   "rule": "no closure line of P1 speaks about the claim (closure lines [19])"
+  },
+  {
+   "claim": "nabu_architecture_review_revision_4@db53894: [correctness/parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:8936-8942,8975,9093-9101,9195-9200,9225-9227,9267-9289,21158-211",
+   "section": "rw090_arbitrary_codec",
+   "severity": 1,
+   "decision": "refused",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-7622776.md",
+   "rule": "no closure line of P1 speaks about the claim (closure lines [19])"
+  },
+  {
+   "claim": "vulcan_surface_review_revision_4@db53894: [correctness/parity \u2014 list-depth creep] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:8936-8943 + :9183-9214 + :9216-9245 (recursive c",
+   "section": "rw090_arbitrary_codec",
+   "severity": 1,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-7622776.md",
+   "lines": [
+    28
+   ]
+  },
+  {
+   "claim": "ariadne_contract_review_revision_1: [correctness/contract] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:4291-4467, crates/sley-vm/tests/rw080_codec_program/all_kind_digest",
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "decision": "refused",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md",
+   "rule": "no closure line of P2 speaks about the claim (closure lines [13])"
+  },
+  {
+   "claim": "ariadne_contract_review_revision_1: [test-coverage/oracle-parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:16184-16249,25719-25793,25205-25228,25290-25314 - Refusal-co",
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md",
+   "lines": [
+    13
+   ]
+  },
+  {
+   "claim": "ariadne_contract_review_revision_2: [contract/known-deviation-scope] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:25026-25033,25166-25171,25211-25217,25698,25829,25837,258",
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md",
+   "lines": [
+    13
+   ]
+  },
+  {
+   "claim": "vulcan_surface_review_revision_2: [contract/known-deviation] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:25026-25033,25699,25829,25837,25846-25847,25875,25910,25920 + m",
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-c04539b.md",
+   "lines": [
+    26
+   ]
+  },
+  {
+   "claim": "ariadne_contract_review_revision_7: [contract-vs-mechanics] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:124-129, scripts/build_reproducibility_report.py:356-390, Makefile:245 - Sec",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 2,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md",
+   "lines": [
+    23
+   ]
+  },
+  {
+   "claim": "ariadne_contract_review_revision_7: [records] machineresearch/sley-2.0/machine-summary.json:3874 - The second-host prerequisites say \"Next: bundle main, clone detached at c75277b6 on the lab, make",
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 2,
+   "decision": "restored",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md",
+   "lines": [
+    23
+   ]
+  }
+ ],
+ "closures_of_76ae15ab_still_open": [
+  {
+   "section": "mutation_value_profile",
+   "severity": 4,
+   "claim": "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json:1388-1394,1400-1403 - `p2_open`/`p3_open`/`p4_open` still list the 178873d P2, the 178873d P3 and the 92f",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md#L13 \u2014 PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED: the lane-le",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[13]; closure lines [13])"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [record-note] docs/adr/ADR-0040-reproducibility-and-independent-conformance-boundary.md:9 - The note \"reworded at revision 10\" (2026-09-18) still says \"the re-m",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L24,25,26 \u2014 lines 23-26: the lane's 92fa6646 P3 and P4s re",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[24, 25, 26]; closure lines [24, 25, 26])"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The 45b2cd98 row says \"u",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L24,25,26 \u2014 lines 23-26: the lane's 92fa6646 P3 and P4s re",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[24, 25, 26]; closure lines [24, 25, 26])"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [note] scripts/build_reproducibility_report.py:432-436; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:126-129 - The supersession rule applies only",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L24,25,26 \u2014 lines 23-26: the lane's 92fa6646 P3 and P4s re",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[24, 25, 26]; closure lines [24, 25, 26])"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review_revision_10: [note] scripts/check_exec_package_envelope_v2.py:26-74 - The oracle embeds the vector's inputs (profile digest `fb2d8cc8\u2026`, dependency-section constants) rather",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L25,27 \u2014 lines 22-27: the revision-10 P2, P3s and P4s reco",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[25, 27]; closure lines [25, 27])"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "nabu_architecture_review: [checker/binding] scripts/check_reproducibility_and_independent_conformance.py (no `superseded` rule; grep zero hits), machineresearch/sley-2.0/machine-summary.",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c04539b.md#L24,25 \u2014 PRIOR_P3_P4_CLOSED at c04539b9: the lane's 92f",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[24, 25]; closure lines [24, 25])"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 1,
+   "claim": "nabu_architecture_review_revision_1: [correctness/oracle-parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:11855-11859,13156-13160,8832 - The arbitrary schema decoders i",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-7622776.md#L19 \u2014 the 178873d7 P1 (native nesting depth not threaded) was reduced at 92fa",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[19]; closure lines [19])"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 1,
+   "claim": "nabu_architecture_review_revision_4@db53894: [correctness/parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:8936-8942,8975,9093-9101,9195-9200,9225-9227,9267-9289,21158-21170; c",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-7622776.md#L19 \u2014 the db53894e P1 (listed-sibling depth creep) verified closed at the dri",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[19]; closure lines [19])"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "ariadne_contract_review_revision_1: [correctness/contract] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:4291-4467, crates/sley-vm/tests/rw080_codec_program/all_kind_digest",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md#L13 \u2014 the 178873d7 P2s (kind-18 route/contract, oracle parity) recorded CLOSED",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[13]; closure lines [13])"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "ariadne_contract_review_revision_1: [test-coverage/oracle-parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:16184-16249,25719-25793,25205-25228,25290-25314 - Refusal-co",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md#L13 \u2014 the 178873d7 P2s (kind-18 route/contract, oracle parity) recorded CLOSED",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[13]; closure lines [13])"
+  }
+ ],
+ "summary": "Baseline 76ae15ab. The 7995e057 round's statement 'none reopened' was measured against 320ea8aa and was wrong: 27 closures of 76ae15ab had reopened. Under the finding-identity relation (batch-9 repair) 27 closures are bound by exact-claim entries (the reviewer's own per-finding closure line, listed here), the rest by the relation; 10 remain open with the refusing rule (the rw090 revision-1 P1/P2 and revision-4 P1 await per-finding closure lines from their lanes; the epoch-1 ADR-0019 P2 was closed by the 1a9f0aab closure review).",
+ "exact_claim_bindings": [
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md",
+   "claim": "ariadne_contract_review_revision_7: [contract] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:230-233 - Section 3 states \"today every family pins `v1` except `entity-read`, whose S20-",
+   "lines": [
+    25
+   ],
+   "reason": "Finding 3 [P3] stale pin sentence \u2014 CLOSED (the revision-7 P3 is the stale \"every family pins v1 except entity-read\" sentence)"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-db53894.md",
+   "claim": "ariadne_contract_review: [record-accuracy] evidence/release/second-host-lane-records.json:100; machineresearch/sley-2.0/machine-summary.json (`reproducibility_and_independent_conformanc",
+   "lines": [
+    23
+   ],
+   "reason": "Finding 1 [P3] three 45b2cd98 notes mis-attribute the manual removal \u2014 CLOSED (rewrites second-host-lane-records.json:100)"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md",
+   "claim": "vulcan_surface_review_revision_10: [note] conformance/exec-package-envelope/v2/envelope.json:10; scripts/build_independent_conformance_report.py:298-337 - The corpus declares `status: PROVISIONAL",
+   "lines": [
+    25
+   ],
+   "reason": "[P4] provisional-status corpus counts toward COMPLETE \u2014 CLOSED (noted): the revision-10 note on the corpus status"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-92fa664.md",
+   "claim": "ariadne_contract_review_revision_8: [record] evidence/security/T54/secret-scan.json:4 - The tracked T54 document at the scope SHA is stale: `candidate_file_manifest_sha256` `6e61516d\u2026` is byte-exa",
+   "lines": [
+    27
+   ],
+   "reason": "P1 (T54 stale at scope SHA) \u2014 CLOSED: the revision-8 P1 is the stale tracked T54 manifest"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-db53894.md",
+   "claim": "ariadne_contract_review: [record] machineresearch/sley-2.0/machine-summary.json:4704-4727 - The section's `p1_open` (2), `p2_open` (1), `p3_open` (3) and the first four `p4_open` entrie",
+   "lines": [
+    29
+   ],
+   "reason": "P3 (record: p1_open/p2_open/p3_open/p4_open still carried the 178873d7-round findings) \u2014 CLOSED"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-7622776.md",
+   "claim": "vulcan_surface_review@db53894: [record] machineresearch/sley-2.0/machine-summary.json:4819-4829 (`standards_sbom_and_provenance.p4_open`/`p4_open_count` 8) - six of the eight entries (`:4820-",
+   "lines": [
+    27
+   ],
+   "reason": "Prior P4 (six 92fa6646 P4s still in p4_open) \u2014 CLOSED"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md",
+   "claim": "ariadne_contract_review_revision_2: [contract/known-deviation-scope] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:25026-25033,25166-25171,25211-25217,25698,25829,25837,258",
+   "lines": [
+    13
+   ],
+   "reason": "P2 RW090-DEV-01 inexact (fixed depth-3 value_type) \u2014 CLOSED in substance: the revision-2 P2 is the DEV-01 known-deviation scope"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-92fa664.md",
+   "claim": "nabu_architecture_review_revision_1: [test-coverage/oracle-parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:16184-16249,25719-25793 (and every kind 1\u201317 `*_rejects_*` t",
+   "lines": [
+    22
+   ],
+   "reason": "P2 (oracle parity mechanized) \u2014 CLOSED: assert_native_body_parity at every *_rejects_* site"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-92fa664.md",
+   "claim": "nabu_architecture_review_revision_1: [identity-discipline] crates/sley-vm/tests/rw080_codec_program/canonical_codec.rs:21-22,288-296 - Both codec generations derive language-owned identities under ",
+   "lines": [
+    23
+   ],
+   "reason": "P2 (identity reuse) \u2014 CLOSED: RW080-ID-02 filed"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-c04539b.md",
+   "claim": "nabu_architecture_review_revision_2: [correctness/disclosure-exactness] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:25026-25033,21348-21354,20896-20897; machineresearch/sl",
+   "lines": [
+    20
+   ],
+   "reason": "P2 (RW090-DEV-01 inexact scope) \u2014 CLOSED"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-db53894.md",
+   "claim": "nabu_architecture_review_revision_3: [identity/records] machineresearch/sley-2.0/reweave/rw-090-codec-component-manifest.json:4-10,83; machineresearch/sley-2.0/reweave/rw-090-arbitrary-canonical-co",
+   "lines": [
+    19
+   ],
+   "reason": "P2 (component manifest stale, no superseded block, unbound) \u2014 CLOSED"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-db53894.md",
+   "claim": "vulcan_surface_review_revision_3: [records-exactness/identity] machineresearch/sley-2.0/reweave/rw-090-codec-component-manifest.json:4-10,83 + rw-090-arbitrary-canonical-codec-objects.md:5,29-40",
+   "lines": [
+    29
+   ],
+   "reason": "Prior finding 2 \u2014 [P2] component manifest carried the previous generation's root: CLOSED (line 27 closes a different finding and is not cited)"
+  },
+  {
+   "section": "repository_exchange",
+   "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md",
+   "claim": "ariadne_implementation_review_final: [record] docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md:59-62,178-180 - The closeout paraphrase is stale against HEAD: it lists seven allowlisted incomplet",
+   "lines": [
+    29
+   ],
+   "reason": "Prior finding 5 \u2014 [P4] closeout counts stale: CLOSED at 5bba01b3 (the closeout paraphrase claim)"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md",
+   "claim": "ariadne_contract_review_revision_5: [contract] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:142-143 (S20-730-owned, cross-section note) - the illustrative embed list (\"today \u2026 SSMC1",
+   "lines": [
+    28
+   ],
+   "reason": "5. P4 repro-spec embed list omits v3 \u2014 CLOSED (the revision-5 cross-section embed-list note)"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md",
+   "claim": "vulcan_surface_review_revision_5: [test-coverage] bench/release/tests/test_reproducibility.py:587-588 - the positive-control assertions name only the two pre-existing embeds; the v3 table added ",
+   "lines": [
+    26
+   ],
+   "reason": "[P4] positive control omits the v3 embed \u2014 CLOSED (test_reproducibility.py:619)"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md",
+   "claim": "ariadne_contract_review_revision_7: [contract-vs-mechanics] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:124-129, scripts/build_reproducibility_report.py:356-390, Makefile:245 - Sec",
+   "lines": [
+    23
+   ],
+   "reason": "Finding 1 [P2] carry-forward/supersession \u2014 CLOSED: the revision-7 contract-vs-mechanics P2 is the carry-forward supersession gap (Ariadne and Nabu re-read the line at 1a9f0aab)"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-c04539b.md",
+   "claim": "ariadne_contract_review_revision_8: [contract-vs-mechanics] scripts/build_reproducibility_report.py:391-413,432-436 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:131-136, docs/adr",
+   "lines": [
+    22
+   ],
+   "reason": "Finding 1 [P2] listing survives one build \u2014 CLOSED: the revision-8 contract-vs-mechanics P2 is the superseded-listing persistence gap (verified by the lane at 76ae15ab)"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-c04539b.md",
+   "claim": "vulcan_surface_review_revision_2: [contract/known-deviation] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:25026-25033,25699,25829,25837,25846-25847,25875,25910,25920 + m",
+   "lines": [
+    26
+   ],
+   "reason": "Prior finding A \u2014 [P2] RW090-DEV-01 footprint: CLOSED (the revision-2 known-deviation P2)"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-92fa664.md",
+   "claim": "nabu_architecture_review_revision_7: [record] docs/audits/S20_710_PRE_RELEASE_AUDIT.md:108-112 - the audit record the summary cites as `contract` still states 18 workspace crates and 19 first-party",
+   "lines": [
+    19
+   ],
+   "reason": "[P3] audit record lacked the dated dependency/disposition entry \u2192 CLOSED (S20_710_PRE_RELEASE_AUDIT.md:143-166)"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-c04539b.md",
+   "claim": "nabu_architecture_review: [test-layout] bench/release/tests/test_secret_patterns.py:82-83,86 - `CommitBoundViewTests` is defined after the `if __name__ == \"__main__\": unittest.main()` gu",
+   "lines": [
+    21
+   ],
+   "reason": "[P4] CommitBoundViewTests defined after the __main__ guard \u2192 CLOSED"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md",
+   "claim": "vulcan_surface_review: [record] evidence/build/lint-report.json:4 and scripts/record_lint_report.py:59-63 - the lint report at HEAD names `commit 178873d7` while the candidate source ",
+   "lines": [
+    26
+   ],
+   "reason": "Prior P4-2 (lint report commit binding loose) \u2014 CLOSED"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md",
+   "claim": "ariadne_contract_review_revision_7: [records] machineresearch/sley-2.0/machine-summary.json:3874 - The second-host prerequisites say \"Next: bundle main, clone detached at c75277b6 on the lab, make",
+   "lines": [
+    24
+   ],
+   "reason": "Finding 2 [P2] wrong lab checkout commit \u2014 CLOSED: the revision-7 [records] P2 is the \"clone detached at c75277b6\" prerequisite step"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c04539b.md",
+   "claim": "nabu_architecture_review: [records] evidence/release/second-host-lane-records.json:100 (45b2cd98 note), docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The disposit",
+   "lines": [
+    24
+   ],
+   "reason": "P4 [records] 45b2cd98 note vs empty list \u2014 CLOSED as to the wording (ledger :100)"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-92fa664.md",
+   "claim": "vulcan_surface_review_revision_9: [evidence-integrity] evidence/security/T54/secret-scan.json:3-5 and evidence/build/lint-report.json (commit 178873d7) - the tracked T54 candidate manifest `6e61",
+   "lines": [
+    25
+   ],
+   "reason": "Prior P1 (T54 stale at 178873d7) \u2014 CLOSED: the revision-9 P1 is the stale tracked T54 manifest 6e61516d"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-92fa664.md",
+   "claim": "nabu_architecture_review_revision_7: [record] evidence/security/T54/secret-scan.json:4 - the tracked `candidate_file_manifest_sha256` (`6e61516d\u2026`) binds the 9316df19 tree; 178873d7 changed `eviden",
+   "lines": [
+    18
+   ],
+   "reason": "[P2] T54 manifest bound the 9316df19 tree \u2192 CLOSED (Vulcan re-read the line at 76ae15ab and 1a9f0aab)"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-db53894.md",
+   "claim": "vulcan_surface_review_revision_3: [evidence-integrity/resource-bounds] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:27003-27010 (deleted test; commit 0b7a1482) + machine",
+   "lines": [
+    27
+   ],
+   "reason": "Prior finding 1 \u2014 [P2] over-budget test deleted while cited: CLOSED (the test is back at dependency_binding_decode.rs:27225-27290)"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-7622776.md",
+   "claim": "ariadne_contract_review@db53894: [record] docs/spec/FINDING_REGISTER_V1.md:189-190 and the 867009de commit message - the `p*_closed_claims` shape and the rule that moves a per-package open clai",
+   "lines": [
+    29
+   ],
+   "reason": "P4 (the retirement rule and its retire_claims.py tool existed only in the 867009de commit message) \u2014 CLOSED"
+  }
+ ]
+}

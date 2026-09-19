@@ -13,6 +13,8 @@
     "all P0/P1 threats have passing tests",
     "opacity is not used as a security argument",
     "artifact runs with no source-tree access",
+    "Ariadne approves SSMC1 and semantic correctness",
+    "Nabu approves architectural and cross-product boundaries",
     "Vulcan or current independent reviewer issues a complete PASS",
     "all reviewer findings are resolved or dispositioned below P3"
   ],
@@ -116,7 +118,7 @@
     },
     {
       "criterion": "No undefined behavior exists in the program model",
-      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 88 PASS, 0 PENDING, 0 OTHER, 59 historical, 0 unclaimed or unclassified; lane clear)",
+      "evidence": "the exhaustive judgment and execution contracts at terminal status (s20_360_candidate_validation COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_OPERATION_ANALYSIS_BOUNDARY; s20_390_atomic_commit COMPLETE_RESTRICTED_EXECUTABLE_PROGRAM_TEST_FREE_BOUNDARY_WITH_EXTENDED_OPERATION_PROFILE) with the Ariadne lane clear in the finding register (finding register ariadne lane: 87 PASS, 1 PENDING, 0 OTHER, 60 historical, 0 unclaimed or unclassified; lane open)",
       "group": "26.3 semantics",
       "state": "AWAITS_REVIEW"
     },
@@ -212,7 +214,7 @@
     },
     {
       "criterion": "policy is protected from the judged candidate",
-      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 83 PASS, 0 PENDING, 0 OTHER, 45 historical, 0 unclaimed or unclassified; lane clear",
+      "evidence": "machine summary protected_policy_root status S20_370_COMPLETE_PROTECTED_ROOT_AND_PURE_JUDGMENT; finding register nabu lane: 82 PASS, 1 PENDING, 0 OTHER, 46 historical, 0 unclaimed or unclassified; lane open",
       "group": "26.6 policy and security",
       "state": "AWAITS_REVIEW"
     },
@@ -242,7 +244,7 @@
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 19 open P0/P1/P2 findings across 470 obligations (19 of them per-package open claims)",
+      "evidence": "finding register declares 15 open P0/P1/P2 findings across 472 obligations (15 of them per-package open claims)",
       "group": "26.6 policy and security",
       "state": "GATED"
     },
@@ -302,15 +304,15 @@
     },
     {
       "criterion": "Ariadne approves SSMC1 and semantic correctness",
-      "evidence": "finding register ariadne lane: 88 PASS, 0 PENDING, 0 OTHER, 59 historical, 0 unclaimed or unclassified; lane clear; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
+      "evidence": "finding register ariadne lane: 87 PASS, 1 PENDING, 0 OTHER, 60 historical, 0 unclaimed or unclassified; lane open; ssmc1 S20_200_COMPLETE; VM profiles: all at terminal status",
       "group": "26.9 review",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "Nabu approves architectural and cross-product boundaries",
-      "evidence": "finding register nabu lane: 83 PASS, 0 PENDING, 0 OTHER, 45 historical, 0 unclaimed or unclassified; lane clear",
+      "evidence": "finding register nabu lane: 82 PASS, 1 PENDING, 0 OTHER, 46 historical, 0 unclaimed or unclassified; lane open",
       "group": "26.9 review",
-      "state": "EVIDENCED"
+      "state": "AWAITS_REVIEW"
     },
     {
       "criterion": "Vulcan or current independent reviewer issues a complete PASS",
@@ -320,7 +322,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 2 open, 0 unclassified, and 0 unclaimed-carried obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 4 open, 0 unclassified, and 0 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -340,13 +342,13 @@
     "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "acea0b5df8aaf8f801e470d6236909fbc533cd6fcfb7f4930202bc5910b82a92",
-  "register_digest": "a3af72a919e12bd4f3bf51f58121cf22ed1bd7546cb15cd483e7e5ee04341e7c",
-  "report_digest": "93c7da5ee3a13bea4ddedb2f31384da85b190f122398c6db77d737b1edc689b3",
+  "obligations_digest": "ceca2f736f0b0177de5b7ea5b182601ed686fa71ac150d3a53f9f81f160387d3",
+  "register_digest": "0a341420d2a03967fd47657bd497e4e80f59b45a795fbc09bd7ac59c298937ec",
+  "report_digest": "1c719b13cbae22c6f6636013227a1e2d5a8755e89d3eaae4a5ae8deebedb4958",
   "source": "master goal section 26",
   "states": {
-    "AWAITS_REVIEW": 15,
-    "EVIDENCED": 33,
+    "AWAITS_REVIEW": 17,
+    "EVIDENCED": 31,
     "GATED": 4
   },
   "thresholds_source": "evidence/release/succession-accounting-report.json"

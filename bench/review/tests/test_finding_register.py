@@ -347,6 +347,16 @@ class InvariantTests(unittest.TestCase):
             self.assertTrue(register.is_closure_line(line, severity), line)
         for line, severity in no:
             self.assertFalse(register.is_closure_line(line, severity), line)
+        # The severity is the item's own leading token; the kind relates by
+        # phrase even with an em-dash or a capital in the tag (1a9f0aab round).
+        self.assertFalse(register.is_closure_line("- **[P3] record-provenance, the P2 it discussed — CLOSED.**", "P2"))
+        self.assertTrue(register.is_closure_line("**Prior P2/P3 (both items) — CLOSED.**", "P3"))
+        self.assertTrue(register.line_speaks_about(
+            "**Prior finding 1 — [P1] list-depth creep: CLOSED.** I traced the repaired driver myself.",
+            "vulcan_surface_review_revision_4@db53894: [correctness/parity — list-depth creep] crates/sley-vm/tests/x.rs:8936",
+        ))
+        self.assertTrue(register.line_speaks_about("- **[P3] fail-closed-gap, `superseded_attestations` unvalidated — CLOSED.**", "v: [fail-closed-gap] scripts/a.py:1 - x"))
+        self.assertFalse(register.line_speaks_about("- **[P3] the record — CLOSED.** a records step", "v: [record] docs/adr/ADR-0019.md:54 - stale vectors"))
         # The PRIOR fallback never serves P0-P2.
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "t.md"
@@ -380,13 +390,31 @@ class InvariantTests(unittest.TestCase):
             lambda s: s["release_candidate_packaging"].__setitem__("p3_restated_claims", [{"claim": "vulcan_review@c67b072: [record] x", "restates": "nobody"}]),
             lambda s: s["release_candidate_packaging"].__setitem__("p3_restated_claims", [{"claim": claim, "restates": claim}]),
             lambda s: s["release_candidate_packaging"].__setitem__("p3_restated_claims", [{"claim": "x"}]),
+            # An exact-claim closure the tracked retirement file does not carry.
+            lambda s: s["release_candidate_packaging"]["p3_closed_claims"].__setitem__(0, {"claim": claim, "verified_by": transcript + "#L23 — x", "binding": "exact-claim"}),
+            lambda s: s["release_candidate_packaging"]["p3_closed_claims"].__setitem__(0, {"claim": claim, "verified_by": transcript + "#L23 — x", "binding": "other"}),
         ):
             summary = json.loads(json.dumps(base))
             mutate(summary)
             self.assertEqual(self.build_fails(summary).code, register.RegisterErrorCode.SUMMARY_INVALID)
+        # A fold is the same finding (lane, kind, anchor, identifier), marked
+        # carried, at a strictly later round, and its chain ends at an open or
+        # retired claim (1a9f0aab round: the builder had checked membership only).
+        restatement = "vulcan_review_revision_1@76ae15a: [record] open_risks / dossier reproduced on two hosts - carried OPEN"
         good = json.loads(json.dumps(base))
-        good["release_candidate_packaging"]["p3_restated_claims"] = [{"claim": "vulcan_review@c67b072: [record] carried", "restates": claim}]
+        good["release_candidate_packaging"]["p3_restated_claims"] = [{"claim": restatement, "restates": claim}]
         self.assertEqual(self.build_from(good)["package_restated_claims"], {"release_candidate_packaging.p3_restated_claims": 1})
+        for bad_fold in (
+            [{"claim": "vulcan_review@c67b072: [record] carried", "restates": claim}],  # another finding
+            [{"claim": "vulcan_review_revision_1@76ae15a: [record] open_risks / dossier reproduced on two hosts - fresh", "restates": claim}],  # no carry marker
+            [{"claim": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried", "restates": claim.replace("@178873d", "@76ae15a")}],  # earlier round
+            [{"claim": restatement, "restates": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried"},
+             {"claim": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried", "restates": restatement}],  # cycle
+            [{"claim": restatement, "restates": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried"}],  # dangling
+        ):
+            bad = json.loads(json.dumps(base))
+            bad["release_candidate_packaging"]["p3_restated_claims"] = bad_fold
+            self.assertEqual(self.build_fails(bad).code, register.RegisterErrorCode.SUMMARY_INVALID, str(bad_fold)[:80])
 
     def test_closure_line_and_speaking_predicates(self) -> None:
         # 76ae15ab round: a closure line names the severity before a CLOSED
@@ -397,12 +425,20 @@ class InvariantTests(unittest.TestCase):
         self.assertFalse(register.is_closure_line("No P0, P1, or P2-class defect exists; the P3 is CLOSED in spirit", "P2"))
         self.assertFalse(register.is_closure_line("- **[P3] wording — CLOSED.** (the P2 remains)", "P2"))
         self.assertFalse(register.is_closure_line("VERDICT: PASS_PRIOR_P2_CLOSED", "P2"))
-        claim = "vulcan_review_revision_1@178873d: [record/ledger] scripts/retire_review_claims.py cites a transcript"
-        self.assertTrue(register.line_speaks_about("- **[P3] ledger citation — CLOSED.**", claim))
-        self.assertTrue(register.line_speaks_about("- **[P3] x — CLOSED.** scripts/retire_review_claims.py:12 now refuses", claim))
-        self.assertTrue(register.line_speaks_about("- **[P3] the transcript that retire_review_claims cites — CLOSED.**", claim))
+        # Finding identity (1a9f0aab round): a generic one-word tag or a
+        # shared path alone never relates; a path plus a tag word, an
+        # identifier, a finding id or a file:line anchor does.
+        claim = "vulcan_review_revision_1@178873d: [record/ledger] scripts/retire_review_claims.py:12 cites a transcript"
+        self.assertFalse(register.line_speaks_about("- **[P3] ledger citation — CLOSED.**", claim))
+        self.assertTrue(register.line_speaks_about("- **[P3] ledger x — CLOSED.** scripts/retire_review_claims.py now refuses", claim))
+        self.assertTrue(register.line_speaks_about("- **[P3] x — CLOSED.** retire_review_claims.py:12 now refuses", claim))
+        # A path basename is a path, not an identifier (`retire_review_claims` alone names nothing).
+        self.assertFalse(register.line_speaks_about("- **[P3] the transcript that retire_review_claims cites — CLOSED.**", claim))
+        self.assertTrue(register.line_speaks_about("- **[P3] `p3_closed_claims` cites — CLOSED.**", "v: [record] a.md:1 - the p3_closed_claims entry"))
         self.assertFalse(register.line_speaks_about("- **[P3] the transcript — CLOSED.**", claim))
-        self.assertFalse(register.line_speaks_about("- **[P3] unrelated wording — CLOSED.**", claim))
+        self.assertFalse(register.line_speaks_about("- **[P3] unrelated wording about scripts/retire_review_claims.py — CLOSED.**", "v: [record] scripts/retire_review_claims.py - x"))
+        self.assertTrue(register.line_speaks_about("- **[P2] RW090-DEV-01 inexact — CLOSED.**", "v: [contract] crates/x.rs:1 - the RW090-DEV-01 scope"))
+        self.assertFalse(register.line_speaks_about("- **[P2] RW090-DEV-011 — CLOSED.**", "v: [contract] crates/x.rs:1 - the RW090-DEV-01 scope"))
         self.assertTrue(register.strictly_later_scope("76ae15a", "178873d"))
         self.assertFalse(register.strictly_later_scope("178873d", "76ae15a"))
 

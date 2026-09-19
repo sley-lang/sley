@@ -101,7 +101,7 @@
       "status": "IMPLEMENTED_SCOPED_S20_300_FULL_COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY"
     }
   ],
-  "obligation_count": 470,
+  "obligation_count": 472,
   "obligations": [
     {
       "declares_closed_findings": false,
@@ -2215,7 +2215,7 @@
     {
       "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_P2_P3_P4_CLOSED",
+      "disposition": "PASS_P2_P3_CLOSED",
       "field": "epoch1_reanchor_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
       "reviewer": null,
@@ -2223,8 +2223,7 @@
       "section": "mutation_value_profile",
       "severities": [
         "P2",
-        "P3",
-        "P4"
+        "P3"
       ],
       "state": "PASS",
       "superseded_by": null
@@ -2653,6 +2652,23 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
+      "field": "ariadne_contract_review_revision_6",
+      "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "ariadne",
+      "round_date": "2026-09-19",
+      "section": "release_candidate_packaging",
+      "severities": [
+        "P2",
+        "P3",
+        "P4"
+      ],
+      "state": "HISTORICAL_ROUND",
+      "superseded_by": "ariadne_contract_review"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
       "field": "ariadne_final_review",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
@@ -2664,9 +2680,9 @@
       "superseded_by": null
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_2_P3_12_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_7_P4_PRIOR_P3_CLOSED",
       "field": "nabu_architecture_review",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
@@ -2803,7 +2819,7 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_3_P3_12_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_3_P3_8_P4",
       "field": "vulcan_surface_review",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
@@ -2917,23 +2933,24 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_1_P3_3_P4",
+      "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
       "field": "current_delta_review.ariadne",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
       "round_date": "2026-09-19",
       "section": "release_candidate_packaging.current_delta_review",
       "severities": [
+        "P2",
         "P3",
         "P4"
       ],
-      "state": "PASS",
+      "state": "PENDING",
       "superseded_by": null
     },
     {
-      "declares_closed_findings": false,
+      "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_2_P3_12_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_7_P4_PRIOR_P3_CLOSED",
       "field": "current_delta_review.nabu",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
@@ -2949,7 +2966,7 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_3_P3_12_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_3_P3_8_P4",
       "field": "current_delta_review.vulcan",
       "package_status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
@@ -3209,7 +3226,7 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_2_P3_5_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_1_P3_5_P4",
       "field": "ariadne_contract_review",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
@@ -3541,6 +3558,22 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
+      "disposition": "REVISE_0_P0_0_P1_2_P2_0_P3_6_P4",
+      "field": "nabu_architecture_review_revision_9",
+      "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
+      "reviewer": "nabu",
+      "round_date": "2026-09-19",
+      "section": "reproducibility_and_independent_conformance",
+      "severities": [
+        "P2",
+        "P4"
+      ],
+      "state": "HISTORICAL_ROUND",
+      "superseded_by": "nabu_architecture_review"
+    },
+    {
+      "declares_closed_findings": false,
+      "declares_no_open_p0_p1_p2": false,
       "disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
       "field": "vulcan_final_review",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
@@ -3762,7 +3795,7 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_2_P3_5_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_1_P3_5_P4",
       "field": "current_delta_review.ariadne",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "ariadne",
@@ -3776,19 +3809,19 @@
       "superseded_by": null
     },
     {
-      "declares_closed_findings": true,
+      "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_0_P3_8_P4_PRIOR_P3_CLOSED",
+      "disposition": "REVISE_0_P0_0_P1_2_P2_0_P3_6_P4",
       "field": "current_delta_review.nabu",
       "package_status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "nabu",
       "round_date": "2026-09-19",
       "section": "reproducibility_and_independent_conformance.current_delta_review",
       "severities": [
-        "P3",
+        "P2",
         "P4"
       ],
-      "state": "PASS",
+      "state": "PENDING",
       "superseded_by": null
     },
     {
@@ -6585,7 +6618,7 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_2_P3_4_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_3_P3_3_P4",
       "field": "vulcan_surface_review",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
@@ -6772,7 +6805,7 @@
     {
       "declares_closed_findings": false,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_0_P0_0_P1_0_P2_2_P3_4_P4",
+      "disposition": "PASS_0_P0_0_P1_0_P2_3_P3_3_P4",
       "field": "current_delta_review.vulcan",
       "package_status": "S20_710_FULL_SBOM_AND_PROVENANCE_IMPLEMENTED_REVIEW_PENDING",
       "reviewer": "vulcan",
@@ -7406,8 +7439,27 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "obligations_digest": "acea0b5df8aaf8f801e470d6236909fbc533cd6fcfb7f4930202bc5910b82a92",
+  "obligations_digest": "ceca2f736f0b0177de5b7ea5b182601ed686fa71ac150d3a53f9f81f160387d3",
   "open_reviews": [
+    {
+      "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
+      "field": "current_delta_review.ariadne",
+      "section": "release_candidate_packaging.current_delta_review",
+      "severities": [
+        "P2",
+        "P3",
+        "P4"
+      ]
+    },
+    {
+      "disposition": "REVISE_0_P0_0_P1_2_P2_0_P3_6_P4",
+      "field": "current_delta_review.nabu",
+      "section": "reproducibility_and_independent_conformance.current_delta_review",
+      "severities": [
+        "P2",
+        "P4"
+      ]
+    },
     {
       "disposition": "PENDING",
       "field": "independent_completion_review",
@@ -7427,23 +7479,27 @@
     }
   ],
   "package_closed_claims": {
+    "mutation_value_profile.p2_closed_claims": 1,
+    "mutation_value_profile.p3_closed_claims": 1,
+    "mutation_value_profile.p4_closed_claims": 1,
     "release_candidate_packaging.p2_closed_claims": 1,
-    "release_candidate_packaging.p3_closed_claims": 16,
-    "release_candidate_packaging.p4_closed_claims": 10,
+    "release_candidate_packaging.p3_closed_claims": 21,
+    "release_candidate_packaging.p4_closed_claims": 13,
     "repository_exchange.p1_closed_claims": 1,
     "repository_exchange.p3_closed_claims": 7,
     "repository_exchange.p4_closed_claims": 3,
-    "reproducibility_and_independent_conformance.p2_closed_claims": 4,
-    "reproducibility_and_independent_conformance.p3_closed_claims": 13,
-    "reproducibility_and_independent_conformance.p4_closed_claims": 3,
-    "rw090_arbitrary_codec.p1_closed_claims": 2,
-    "rw090_arbitrary_codec.p2_closed_claims": 8,
+    "reproducibility_and_independent_conformance.p2_closed_claims": 6,
+    "reproducibility_and_independent_conformance.p3_closed_claims": 14,
+    "reproducibility_and_independent_conformance.p4_closed_claims": 7,
+    "rw090_arbitrary_codec.p1_closed_claims": 3,
+    "rw090_arbitrary_codec.p2_closed_claims": 10,
     "rw090_arbitrary_codec.p4_closed_claims": 1,
     "s20_700_remaining_surface_audit.p2_closed_claims": 2,
     "s20_700_remaining_surface_audit.p3_closed_claims": 4,
     "s20_700_remaining_surface_audit.p4_closed_claims": 2,
     "s20_700_vm_persistent_fuzz_slice.p2_closed_claims": 1,
     "standards_sbom_and_provenance.p1_closed_claims": 2,
+    "standards_sbom_and_provenance.p2_closed_claims": 1,
     "standards_sbom_and_provenance.p3_closed_claims": 7,
     "standards_sbom_and_provenance.p4_closed_claims": 8
   },
@@ -7468,8 +7524,8 @@
     "finding_register.p0_open_count": 0,
     "json_bridge.p0_open_count": 0,
     "merge.p0_open_count": 0,
-    "mutation_value_profile.p2_open": 1,
-    "mutation_value_profile.p2_open_count": 1,
+    "mutation_value_profile.p2_open": 0,
+    "mutation_value_profile.p2_open_count": 0,
     "mutation_value_profile.p3_open": 3,
     "mutation_value_profile.p3_open_count": 3,
     "mutation_value_profile.p4_open": 4,
@@ -7484,27 +7540,27 @@
     "release_candidate_packaging.p0_open_count": 0,
     "release_candidate_packaging.p1_open": 0,
     "release_candidate_packaging.p1_open_count": 0,
-    "release_candidate_packaging.p2_open": 0,
-    "release_candidate_packaging.p2_open_count": 0,
+    "release_candidate_packaging.p2_open": 1,
+    "release_candidate_packaging.p2_open_count": 1,
     "release_candidate_packaging.p3_open": 14,
     "release_candidate_packaging.p3_open_count": 14,
-    "release_candidate_packaging.p4_open": 59,
-    "release_candidate_packaging.p4_open_count": 59,
+    "release_candidate_packaging.p4_open": 71,
+    "release_candidate_packaging.p4_open_count": 71,
     "repository_exchange.p1_open": 0,
     "repository_exchange.p1_open_count": 0,
-    "repository_exchange.p3_open": 1,
-    "repository_exchange.p3_open_count": 1,
-    "repository_exchange.p4_open": 12,
-    "repository_exchange.p4_open_count": 12,
+    "repository_exchange.p3_open": 2,
+    "repository_exchange.p3_open_count": 2,
+    "repository_exchange.p4_open": 14,
+    "repository_exchange.p4_open_count": 14,
     "reproducibility_and_independent_conformance.p0_open_count": 0,
     "reproducibility_and_independent_conformance.p1_open": 0,
     "reproducibility_and_independent_conformance.p1_open_count": 0,
     "reproducibility_and_independent_conformance.p2_open": 2,
     "reproducibility_and_independent_conformance.p2_open_count": 2,
-    "reproducibility_and_independent_conformance.p3_open": 12,
-    "reproducibility_and_independent_conformance.p3_open_count": 12,
-    "reproducibility_and_independent_conformance.p4_open": 62,
-    "reproducibility_and_independent_conformance.p4_open_count": 62,
+    "reproducibility_and_independent_conformance.p3_open": 13,
+    "reproducibility_and_independent_conformance.p3_open_count": 13,
+    "reproducibility_and_independent_conformance.p4_open": 75,
+    "reproducibility_and_independent_conformance.p4_open_count": 75,
     "root_backed_query_profile.p0_open": 0,
     "root_backed_query_profile.p0_open_count": 0,
     "root_backed_query_profile.p4_open": 1,
@@ -7517,10 +7573,10 @@
     "rw075_correction.p3_open_count": 5,
     "rw075_correction.p4_open": 8,
     "rw075_correction.p4_open_count": 8,
-    "rw090_arbitrary_codec.p1_open": 3,
-    "rw090_arbitrary_codec.p1_open_count": 3,
-    "rw090_arbitrary_codec.p2_open": 4,
-    "rw090_arbitrary_codec.p2_open_count": 4,
+    "rw090_arbitrary_codec.p1_open": 2,
+    "rw090_arbitrary_codec.p1_open_count": 2,
+    "rw090_arbitrary_codec.p2_open": 2,
+    "rw090_arbitrary_codec.p2_open_count": 2,
     "rw090_arbitrary_codec.p3_open": 18,
     "rw090_arbitrary_codec.p3_open_count": 18,
     "rw090_arbitrary_codec.p4_open": 33,
@@ -7558,10 +7614,10 @@
     "s20_700_remaining_surface_audit.p0_open_count": 0,
     "s20_700_remaining_surface_audit.p2_open": 0,
     "s20_700_remaining_surface_audit.p2_open_count": 0,
-    "s20_700_remaining_surface_audit.p3_open": 8,
-    "s20_700_remaining_surface_audit.p3_open_count": 8,
-    "s20_700_remaining_surface_audit.p4_open": 7,
-    "s20_700_remaining_surface_audit.p4_open_count": 7,
+    "s20_700_remaining_surface_audit.p3_open": 10,
+    "s20_700_remaining_surface_audit.p3_open_count": 10,
+    "s20_700_remaining_surface_audit.p4_open": 10,
+    "s20_700_remaining_surface_audit.p4_open_count": 10,
     "s20_700_scb1_persistent_fuzz_slice.p3_open": 5,
     "s20_700_scb1_persistent_fuzz_slice.p3_open_count": 5,
     "s20_700_scb1_persistent_fuzz_slice.p4_open": 2,
@@ -7602,12 +7658,12 @@
     "standards_sbom_and_provenance.p0_open_count": 0,
     "standards_sbom_and_provenance.p1_open": 0,
     "standards_sbom_and_provenance.p1_open_count": 0,
-    "standards_sbom_and_provenance.p2_open": 1,
-    "standards_sbom_and_provenance.p2_open_count": 1,
-    "standards_sbom_and_provenance.p3_open": 5,
-    "standards_sbom_and_provenance.p3_open_count": 5,
-    "standards_sbom_and_provenance.p4_open": 19,
-    "standards_sbom_and_provenance.p4_open_count": 19,
+    "standards_sbom_and_provenance.p2_open": 0,
+    "standards_sbom_and_provenance.p2_open_count": 0,
+    "standards_sbom_and_provenance.p3_open": 8,
+    "standards_sbom_and_provenance.p3_open_count": 8,
+    "standards_sbom_and_provenance.p4_open": 22,
+    "standards_sbom_and_provenance.p4_open_count": 22,
     "succession_accounting.p0_open_count": 0,
     "succession_accounting.p1_open_count": 0,
     "threat_coverage.p4_open": 2,
@@ -7622,28 +7678,28 @@
     "vm_extended_opcode_profile.p3_open_count": 0
   },
   "package_restated_claims": {
-    "release_candidate_packaging.p4_restated_claims": 34,
-    "reproducibility_and_independent_conformance.p4_restated_claims": 12,
+    "release_candidate_packaging.p4_restated_claims": 36,
+    "reproducibility_and_independent_conformance.p4_restated_claims": 13,
     "rw090_arbitrary_codec.p4_restated_claims": 1,
     "s20_700_remaining_surface_audit.p3_restated_claims": 4,
     "s20_700_remaining_surface_audit.p4_restated_claims": 7,
     "s20_700_vm_persistent_fuzz_slice.p4_restated_claims": 3,
     "standards_sbom_and_provenance.p4_restated_claims": 5
   },
-  "register_digest": "a3af72a919e12bd4f3bf51f58121cf22ed1bd7546cb15cd483e7e5ee04341e7c",
+  "register_digest": "0a341420d2a03967fd47657bd497e4e80f59b45a795fbc09bd7ac59c298937ec",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
     "P1": 178,
-    "P2": 202,
+    "P2": 206,
     "P3": 263,
-    "P4": 113
+    "P4": 114
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
-    "HISTORICAL_ROUND": 162,
-    "PASS": 306,
-    "PENDING": 2
+    "HISTORICAL_ROUND": 164,
+    "PASS": 304,
+    "PENDING": 4
   },
   "superseded_rounds": [
     {
@@ -7911,6 +7967,12 @@
       "superseded_by": "ariadne_contract_review"
     },
     {
+      "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
+      "field": "ariadne_contract_review_revision_6",
+      "section": "release_candidate_packaging",
+      "superseded_by": "ariadne_contract_review"
+    },
+    {
       "disposition": "FAIL_1_P0_6_P1_5_P2_3_P3",
       "field": "nabu_architecture_review_initial",
       "section": "release_candidate_packaging",
@@ -8069,6 +8131,12 @@
     {
       "disposition": "REVISE_0_P0_0_P1_2_P2_1_P3_1_P4",
       "field": "nabu_architecture_review_revision_8",
+      "section": "reproducibility_and_independent_conformance",
+      "superseded_by": "nabu_architecture_review"
+    },
+    {
+      "disposition": "REVISE_0_P0_0_P1_2_P2_0_P3_6_P4",
+      "field": "nabu_architecture_review_revision_9",
       "section": "reproducibility_and_independent_conformance",
       "superseded_by": "nabu_architecture_review"
     },

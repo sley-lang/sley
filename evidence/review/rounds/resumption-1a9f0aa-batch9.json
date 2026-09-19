@@ -1,0 +1,127 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "vulcan",
+      "section": "mutation_value_profile",
+      "field": "epoch1_reanchor_review_closure",
+      "verdict": "PASS_0_P0_0_P1_0_P2_1_P3_1_P4_PRIOR_P2_P3_CLOSED",
+      "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+      "path": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-1a9f0aa.md",
+      "sha256": "6574b8d91d462230fd82390543810aff08ac06eefa16ebd1c300bfa6c296302c",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5",
+      "duration_s": 644
+    },
+    {
+      "role": "ariadne",
+      "section": "release_candidate_packaging",
+      "field": "ariadne_contract_review",
+      "verdict": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
+      "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+      "path": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-1a9f0aa.md",
+      "sha256": "62020fcded0eaad88dbe92c1e7ec3f335bc8ba11e6ecdd98658f7390a77426f1",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5",
+      "duration_s": 1110
+    },
+    {
+      "role": "nabu",
+      "section": "release_candidate_packaging",
+      "field": "nabu_architecture_review",
+      "verdict": "PASS_0_P0_0_P1_0_P2_0_P3_7_P4_PRIOR_P3_CLOSED",
+      "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+      "path": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+      "sha256": "fb1100d61e33e8998825bae12ed2623c5cafcc52d981a6069eef35074bae740f",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5",
+      "duration_s": 1027
+    },
+    {
+      "role": "vulcan",
+      "section": "release_candidate_packaging",
+      "field": "vulcan_surface_review",
+      "verdict": "PASS_0_P0_0_P1_0_P2_3_P3_8_P4",
+      "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+      "path": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-1a9f0aa.md",
+      "sha256": "132c31a7fcda493506269d8936a55f70b79626fdb97b4c8714991bf54e8df114",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5",
+      "duration_s": 1406
+    },
+    {
+      "role": "ariadne",
+      "section": "repository_exchange",
+      "field": "ariadne_implementation_review_closure",
+      "verdict": "PASS_0_P0_0_P1_0_P2_1_P3_2_P4",
+      "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+      "path": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-1a9f0aa.md",
+      "sha256": "00279b273ea4239dbc226bbeeb3592394755b1582335bb7bf1f9e11c67cbf346",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5",
+      "duration_s": 552
+    },
+    {
+      "role": "ariadne",
+      "section": "reproducibility_and_independent_conformance",
+      "field": "ariadne_contract_review",
+      "verdict": "PASS_0_P0_0_P1_0_P2_1_P3_5_P4",
+      "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-1a9f0aa.md",
+      "sha256": "6a049cebc01937d1500398e70adbc3bf6df4d7f3f3d0cd862b03f6cbea85e335",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5",
+      "duration_s": 839
+    },
+    {
+      "role": "nabu",
+      "section": "reproducibility_and_independent_conformance",
+      "field": "nabu_architecture_review",
+      "verdict": "REVISE_0_P0_0_P1_2_P2_0_P3_6_P4",
+      "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-1a9f0aa.md",
+      "sha256": "b0694d6abd9726859861685a56d708b6920bd6be55150ba02d06e4b06d804dfc",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5",
+      "duration_s": 1039
+    },
+    {
+      "role": "vulcan",
+      "section": "reproducibility_and_independent_conformance",
+      "field": "vulcan_surface_review",
+      "verdict": "PASS_0_P0_0_P1_0_P2_1_P3_7_P4",
+      "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-1a9f0aa.md",
+      "sha256": "87d0f9a2919d722f87fea00c6e351e3de71ba73c3b92d45d5bf91d80568261dd",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5",
+      "duration_s": 805
+    },
+    {
+      "role": "vulcan",
+      "section": "s20_700_remaining_surface_audit",
+      "field": "vulcan_review_closure",
+      "verdict": "PASS_0_P0_0_P1_0_P2_2_P3_3_P4",
+      "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+      "path": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-1a9f0aa.md",
+      "sha256": "54dc3545212f21416a7ee36237ebbcc437dcab03077b012218ce45e260c5e33d",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5",
+      "duration_s": 1105
+    },
+    {
+      "role": "vulcan",
+      "section": "standards_sbom_and_provenance",
+      "field": "vulcan_surface_review",
+      "verdict": "PASS_0_P0_0_P1_0_P2_3_P3_3_P4",
+      "scope_sha": "1a9f0aab72c63600f6fa5f13617a7e12259a374b",
+      "path": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-1a9f0aa.md",
+      "sha256": "1998772f0a150787698cdab81d0313a3ad4c3534f5d59c9a242e518bbc139f34",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5",
+      "duration_s": 1085
+    }
+  ]
+}
