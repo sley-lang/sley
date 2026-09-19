@@ -4,7 +4,7 @@ Status: PRESERVED SEED ARTIFACTS (re-minted 2026-09-18 with the arbitrary
 RW-090 codec, again after the 178873d7 Council repairs, a third time after
 the 92fa6646 round, a fourth after the c04539b9 round, and a fifth after the
 db53894e round). The exact release-built native seed executable from
-commit `4e128def` (seed sources unchanged since `9d1ba8f1`; the canonical `S` and C1 candidate were first
+commit `02756fb1` (seed sources unchanged since `9d1ba8f1`; the canonical `S` and C1 candidate were first
 constructed at `25d6d0ba`; built in a detached clean worktree of that
 commit's tree with a fresh target directory and reproduced byte for byte
 from a second fresh detached worktree of the same commit) is preserved read-only outside the repository at the machine
