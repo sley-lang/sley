@@ -34,7 +34,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from build_finding_register import closed_severities, cited_closure_lines  # noqa: E402
+from build_finding_register import closed_severities, cited_closure_lines, line_speaks_about  # noqa: E402
 
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 RETIREMENTS = ROOT / "evidence/review/claim-retirements.json"
@@ -90,6 +90,42 @@ def transcript_for(section_name: str, lane: str, scope: str | None, fallback: st
     return fallback
 
 
+VERDICT_LINE = re.compile(r"^VERDICT:\s*([A-Z0-9_]+)\s*$", re.M)
+_resolved: dict[str, str | None] = {}
+
+
+def resolve_scope(short: str) -> str | None:
+    """The full commit id a transcript's scope stamp names (None when unknown)."""
+    if short not in _resolved:
+        done = subprocess.run(["git", "rev-parse", "--verify", "--quiet", f"{short}^{{commit}}"],
+                              cwd=ROOT, capture_output=True, text=True, check=False)
+        _resolved[short] = done.stdout.strip() if done.returncode == 0 and done.stdout.strip() else None
+    return _resolved[short]
+
+
+def transcript_closers(section_name: str) -> list[tuple[str, str, set[str], str | None, str | None]]:
+    """Every filed transcript of the section whose VERDICT carries a PRIOR
+    clause: (file stem, lane, closed severities, scope, path). Transcripts
+    are the durable record, so the closers do not depend on which round's
+    verdict currently occupies the live field (76ae15ab round: reading live
+    fields only made the regeneration non-monotone)."""
+    found = []
+    directory = ROOT / "evidence/review/verdicts" / section_name
+    if not directory.is_dir():
+        return found
+    for path in sorted(directory.glob("*.md")):
+        stamp = re.search(r"-([0-9a-f]{7,40})\.md$", path.name)
+        lane = role(path.name)
+        if not stamp or lane is None:
+            continue
+        verdicts = VERDICT_LINE.findall(path.read_text(encoding="utf-8", errors="replace"))
+        if not verdicts or not PRIOR.search(verdicts[-1]):
+            continue
+        severities = closed_severities(verdicts[-1])
+        found.append((path.stem, lane, severities, resolve_scope(stamp.group(1)), path.relative_to(ROOT).as_posix()))
+    return found
+
+
 def closers(section: dict, section_name: str = "") -> list[tuple[str, str, set[str], str | None, str | None]]:
     """(field, lane, closed severities, scope, transcript) per PRIOR verdict."""
     found = []
@@ -118,7 +154,17 @@ def closers(section: dict, section_name: str = "") -> list[tuple[str, str, set[s
             scope_sha,
             transcript_for(section_name, role(field), scope_sha, transcript.group(1) if transcript else None),
         ))
+    seen = {item[4] for item in found if item[4]}
+    found.extend(item for item in transcript_closers(section_name) if item[4] not in seen)
     return found
+
+
+def speaking_lines(path: Path, severity: str, claim: str) -> list[int]:
+    """Closure lines of `severity` that name the claim's category or path."""
+    if not path.is_file():
+        return []
+    text = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    return [n for n in cited_closure_lines(path, severity) if line_speaks_about(text[n - 1], claim)]
 
 
 def retire(summary: dict, retirements: list[dict]) -> int:
@@ -146,7 +192,7 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                         and transcript
                         and strictly_later(closer_scope, scope)
                     ):
-                        lines = cited_closure_lines(ROOT / transcript, f"P{severity}")
+                        lines = speaking_lines(ROOT / transcript, f"P{severity}", entry)
                         if not lines:
                             continue
                         verified = f"{transcript}#L{','.join(map(str, lines))} — {field} at {closer_scope[:8]} verified the carried P{severity} closed"
@@ -157,12 +203,12 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                         and severity in item["severities"]
                         and entry.startswith(tuple(item["prefixes"]))
                     ):
-                        recorded = cited_closure_lines(ROOT / item["verified_by"], f"P{severity}")
+                        recorded = speaking_lines(ROOT / item["verified_by"], f"P{severity}", entry)
                         lines = item.get("lines") or recorded
                         if not lines or not set(lines) <= set(recorded):
                             raise SystemExit(
                                 f"retirement for {name} P{severity} cites {item['verified_by']}#L{lines} "
-                                f"which records a closure of P{severity} only at {recorded}"
+                                f"which records a closure of P{severity} naming the claim only at {recorded} :: {entry[:90]}"
                             )
                         verified = f"{item['verified_by']}#L{','.join(map(str, lines))} — {item['reason']}"
                 if verified:

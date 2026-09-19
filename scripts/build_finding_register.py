@@ -607,7 +607,62 @@ def claim_relation_problem(section: str, claim: str, path: Path) -> str | None:
         stamp = re.search(r"-([0-9a-f]{7,40})\.(?:md|log)$", path.name)
         if stamp and (stamp.group(1).startswith(scope) or scope.startswith(stamp.group(1))):
             return f"transcript {path.name} is the claim's own round"
+        if stamp and not strictly_later_scope(stamp.group(1), scope):
+            return f"transcript {path.name} is not a strictly later round than the claim's scope {scope}"
+    # The cited closure line must speak about the claim: it shares the
+    # claim's bracketed category or a path-like token with it (76ae15ab
+    # round: the relation had been claim-agnostic).
     return None
+
+
+_scope_order: dict[tuple[str, str], bool] = {}
+
+
+def strictly_later_scope(later_short: str, earlier_short: str) -> bool:
+    """`later` is a strict descendant of `earlier` (by short id, via git)."""
+    key = (earlier_short, later_short)
+    if key not in _scope_order:
+        import subprocess
+
+        done = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", earlier_short, later_short],
+            cwd=ROOT, capture_output=True, text=True, check=False,
+        )
+        _scope_order[key] = done.returncode == 0
+    return _scope_order[key]
+
+
+CATEGORY = re.compile(r"\[([a-z0-9/_ +.-]+)\]")
+PATH_TOKEN = re.compile(r"[A-Za-z0-9_./-]+\.(?:py|rs|md|json|toml)(?::[0-9,-]+)?")
+
+
+STOP_WORDS = {"machineresearch", "evidence", "scripts", "review", "verdicts", "summary", "machine", "section",
+              "closure", "closed", "record", "records", "findings", "finding", "carried", "still", "because",
+              "should", "without", "through", "between", "against", "before", "after", "which", "their", "there"}
+
+
+def content_words(text: str) -> set[str]:
+    return {word for word in re.findall(r"[a-z][a-z0-9_]{5,}", text.lower()) if word not in STOP_WORDS}
+
+
+def line_speaks_about(line: str, claim: str) -> bool:
+    """The closure line speaks about the claim: it names the claim's category
+    tag, one of its paths, or shares at least two content words (six or more
+    characters, common ledger words excluded) with the finding text."""
+    body = claim.split(": ", 1)[1] if ": " in claim else claim
+    lowered = line.lower()
+    tag_words = {
+        word
+        for tag in CATEGORY.findall(body)
+        for word in re.findall(r"[a-z0-9]{6,}", tag.lower())
+        if word not in STOP_WORDS
+    }
+    if tag_words and any(word in lowered for word in tag_words):
+        return True
+    paths = {token.split(":")[0] for token in PATH_TOKEN.findall(body)}
+    if any(path in line for path in paths):
+        return True
+    return len(content_words(body) & content_words(line)) >= 2
 
 
 def transcript_path(reference: str) -> Path | None:
@@ -682,6 +737,12 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                 relation = claim_relation_problem(section, entry["claim"], resolved)
                 if relation:
                     raise RegisterError(RegisterErrorCode.SUMMARY_INVALID, f"{section}.{field}: {relation}")
+                text = resolved.read_text(encoding="utf-8", errors="replace").splitlines()
+                if not any(line_speaks_about(text[n - 1], entry["claim"]) for n in wanted if 0 < n <= len(text)):
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: no cited line of {resolved.name} names the claim's category or path",
+                    )
             claims[f"{section}.{field}"] = len(item)
     return dict(sorted(claims.items()))
 

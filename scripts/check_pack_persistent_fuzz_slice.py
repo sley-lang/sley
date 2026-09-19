@@ -61,6 +61,13 @@ for marker in [
     "MAX_PAYLOAD_LEN = 65_536",
     "SELECTOR_COUNT = 3",
     "output_tail(error.stdout)",
+    # V-02 (c67b0729/76ae15ab closures): tracked regression records are seeded
+    # permanently and retested on every run.
+    "fuzz/regressions/S20_700_PACK_001.json",
+    "fuzz/regressions/S20_700_PACK_002.json",
+    "def retest_regressions(",
+    '"retested_regressions"',
+    '"regression_records"',
 ]:
     if marker not in wrapper:
         problems.append(f"wrapper-missing:{marker}")
@@ -143,6 +150,23 @@ _sys.path.insert(0, str(ROOT / "scripts"))
 from fuzz_proof_record import slice_proof_problems as _slice_proof_problems  # noqa: E402
 problems.extend(_slice_proof_problems(ROOT, "s20_700_pack_persistent_fuzz_slice", "scripts/run_pack_persistent_fuzz.py", ['repository_pack_importer']))
 
+
+# Tracked regression records (V-02): present, well-formed, and bound to
+# this slice's target.
+import json as _json
+for _name in ['S20_700_PACK_001.json', 'S20_700_PACK_002.json']:
+    _path = ROOT / "fuzz/regressions" / _name
+    if not _path.is_file():
+        problems.append(f"regression-record-missing:{_name}")
+        continue
+    _record = _json.loads(_path.read_text(encoding="utf-8"))
+    for _key in ("finding_id", "input_hex", "target", "classification", "contract"):
+        if not _record.get(_key):
+            problems.append(f"regression-record-incomplete:{_name}:{_key}")
+    try:
+        bytes.fromhex(_record.get("input_hex", "zz"))
+    except ValueError:
+        problems.append(f"regression-record-bad-hex:{_name}")
 if problems:
     raise SystemExit("\n".join(problems))
 

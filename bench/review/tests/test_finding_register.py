@@ -320,6 +320,24 @@ class InvariantTests(unittest.TestCase):
         self.assertEqual(register.closed_severities("PASS_P2_P3_P4_CLOSED"), {"P2", "P3", "P4"})
         self.assertEqual(register.closed_severities("PASS_0_P0_0_P1_0_P2_2_P3_2_P4"), set())
 
+    def test_closure_line_and_speaking_predicates(self) -> None:
+        # 76ae15ab round: a closure line names the severity before a CLOSED
+        # status marker with no OPEN marker; prose is not a closure line.
+        self.assertTrue(register.is_closure_line("- **[P2] stale manifest — CLOSED.** rebuilt", "P2"))
+        self.assertTrue(register.is_closure_line("- P2 stale manifest: CLOSED", "P2"))
+        self.assertFalse(register.is_closure_line("- **[P2] stale manifest — CLOSED.** leg 2 — OPEN", "P2"))
+        self.assertFalse(register.is_closure_line("No P0, P1, or P2-class defect exists; the P3 is CLOSED in spirit", "P2"))
+        self.assertFalse(register.is_closure_line("- **[P3] wording — CLOSED.** (the P2 remains)", "P2"))
+        self.assertFalse(register.is_closure_line("VERDICT: PASS_PRIOR_P2_CLOSED", "P2"))
+        claim = "vulcan_review_revision_1@178873d: [record/ledger] scripts/retire_review_claims.py cites a transcript"
+        self.assertTrue(register.line_speaks_about("- **[P3] ledger citation — CLOSED.**", claim))
+        self.assertTrue(register.line_speaks_about("- **[P3] x — CLOSED.** scripts/retire_review_claims.py:12 now refuses", claim))
+        self.assertTrue(register.line_speaks_about("- **[P3] the transcript that retire_review_claims cites — CLOSED.**", claim))
+        self.assertFalse(register.line_speaks_about("- **[P3] the transcript — CLOSED.**", claim))
+        self.assertFalse(register.line_speaks_about("- **[P3] unrelated wording — CLOSED.**", claim))
+        self.assertTrue(register.strictly_later_scope("76ae15a", "178873d"))
+        self.assertFalse(register.strictly_later_scope("178873d", "76ae15a"))
+
     def test_cited_closure_lines_and_transcript_paths(self) -> None:
         # The claim-to-transcript relation (revision 6, 76227765 round): a
         # retirement cites lines carrying CLOSED that name the severity; a
@@ -352,7 +370,7 @@ class InvariantTests(unittest.TestCase):
                 "p3_open": [],
                 "p3_open_count": 0,
                 "p3_closed_claims": [
-                    {"claim": "vulcan_review_revision_1@178873d: [record] x", "verified_by": transcript + "#L23 — line 23"}
+                    {"claim": "vulcan_review_revision_1@178873d: [record] open_risks / dossier reproduced on two hosts", "verified_by": transcript + "#L23 — line 23"}
                 ],
             },
             "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
@@ -364,6 +382,10 @@ class InvariantTests(unittest.TestCase):
             {"claim": "x", "verified_by": "docs/spec/FINDING_REGISTER_V1.md"},
             {"claim": "x", "verified_by": "evidence/review/verdicts/../../../docs/spec/FINDING_REGISTER_V1.md"},
             {"claim": "x", "verified_by": transcript + "#L1 — a line that records no P3 closure"},
+            # 76ae15ab round: the cited closure line must speak about the claim.
+            {"claim": "vulcan_review_revision_1@178873d: [record] unrelated wording elsewhere", "verified_by": transcript + "#L23 — a closure line about another finding"},
+            # c67b0729 round: a later filename is not a later scope; ancestry decides.
+            {"claim": "vulcan_review_revision_1@fbb0257: [record] open_risks / dossier reproduced on two hosts", "verified_by": transcript + "#L23 — an earlier scope than the claim's"},
             {"claim": "nabu_review_revision_1@178873d: [record] x", "verified_by": transcript + "#L23 — another lane's transcript"},
             {"claim": "vulcan_review_revision_1@92fa664: [record] x", "verified_by": transcript + "#L23 — the claim's own round"},
             {"claim": "vulcan_review_revision_1@178873d: [record] x", "verified_by": transcript.replace("release_candidate_packaging", "standards_sbom_and_provenance") + "#L24 — another section's transcript"},

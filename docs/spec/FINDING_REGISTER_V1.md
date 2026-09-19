@@ -242,7 +242,21 @@ Rules:
   invalid; every per-package closed-claim entry must be `{claim,
   verified_by}` with an existing transcript path (revision 6), or the
   summary is invalid — a claim leaves the open ledger only through a
-  transcript;
+  transcript. `verified_by` is `<transcript path>#L<lines> — <note>`; the
+  path is repository-relative (no `..`, no absolute path) and must resolve
+  under the section's own verdict directory; the cited lines must each be
+  closure lines (a severity token before a `CLOSED` status marker, with no
+  `OPEN` marker on the line) and at least one must speak about the retired
+  claim (its category words, a path it names, or two of its content words);
+  the verifying transcript must belong to the same lane as the retired
+  claim's round, must not be that round's own transcript, and must record a
+  verdict at a strictly later scope commit (git ancestry, not filename
+  order). Closers are derived from the live verdict fields and from every
+  section transcript's `VERDICT` line (`scripts/retire_review_claims.py`),
+  so a closure a later transcript records is not lost when the live field
+  is later normalized. A citation that fails any of these is refused and
+  the claim stays open — prose that mentions the severity ("no P1 exists",
+  "leg 1 CLOSED; leg 2 OPEN") is not a closure line;
 - the result is `FINDING_REGISTER_CLEAR` exactly when no obligation is
   `PENDING`, no obligation is `OTHER`, `unclaimed_carried_findings` is
   empty, `complete_packages_with_open_reviews`
