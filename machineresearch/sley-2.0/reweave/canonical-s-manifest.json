@@ -57,7 +57,7 @@
     "crates/sley-vm/tests/rw080_lower_scaffold.rs",
     "crates/sley-vm/tests/rw080_lower_program/canonical.rs"
   ],
-  "seed_constructor_sha256": "97fbd2b181d53042708ed6ecb46fbeffbc2e93500cc2eef707656656f009a4be",
+  "seed_constructor_sha256": "97841aaf1b49deced3ab84edb76f14446b1feb8886276e1b3f0149a825c2cb61",
   "executable_verifier": "scripts/check_reweave_canonical_s.py",
   "construction_test": "cargo test -p sley-vm --test rw120_toolchain_integration integrated_driver_hands_lowered_bytes_to_the_package_builder -- --nocapture",
   "scope": {

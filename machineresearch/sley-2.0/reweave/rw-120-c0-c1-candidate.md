@@ -8,13 +8,16 @@ commit `25d6d0ba` (built in a detached clean worktree of that commit's tree
 with a fresh target directory and reproduced byte for byte from a second
 fresh detached worktree of the same commit) is preserved read-only outside the repository at the machine
 artifact store recorded in `c0-c1-seed-artifacts.json`, under
-`C0/a51c60ed/`. Its SHA-256 is
-`a51c60ed35eb245b98d22042f021073eb23a6607391334c04c86a57c3a5ac428`
-(11,546,744 bytes, build-id `763096a4…`).
+`C0/a94580d7/`. Its SHA-256 is
+`a94580d7e96eda2bd0b4c59e72391758e8470ed856f6bde6a1fb4f8521cf1378`
+(11,546,744 bytes, build-id `b9d63f63…`; the first build of this generation,
+`a51c60ed…` at 25d6d0ba, constructs the same `S` and the same C1 envelope and
+is retained — the seed test source changed only in comments after the
+76227765 round, which moves the executable's panic line numbers).
 
 That binary executed its create-once C1 qualification against canonical `S`
 (`3d2ed8f8bdbc38b4332c11a0cc51d3693e4ba3cdf6f2b15be623ad0a01be6148`) and
-`BOOTSTRAP_PROFILE_2`. In 257.23 seconds it emitted the exact 860,220-byte
+`BOOTSTRAP_PROFILE_2`. In 277.52 seconds it emitted the exact 860,220-byte
 `EXEC_PACKAGE_V2` envelope with SHA-256
 `2e434790836dee0615d68a3cd14ad7390ac49773680a4871dce0e01f2e716417`,
 preserved under `C1/2e434790/`.

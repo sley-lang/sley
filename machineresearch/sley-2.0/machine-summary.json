@@ -6239,7 +6239,7 @@
     ],
     "canonical_codec": "arbitrary four-leg codec: both program legs judge arbitrary canonical bodies of all 18 entity kinds with native nesting-depth charging at every node and every ConstData container arm and every listed sibling observed against the native codec at the 64-level bound (selector 1 validates and re-frames handed body bytes; typed-field construction remains native); residual deviations RW090-DEV-01..03 pinned in rw-090-codec-component-manifest.json known_deviations; bounded generation retained under bounded_* names",
     "canonical_s": "3d2ed8f8bdbc38b4332c11a0cc51d3693e4ba3cdf6f2b15be623ad0a01be6148",
-    "c0_sha256": "a51c60ed35eb245b98d22042f021073eb23a6607391334c04c86a57c3a5ac428",
+    "c0_sha256": "a94580d7e96eda2bd0b4c59e72391758e8470ed856f6bde6a1fb4f8521cf1378",
     "c1_candidate_sha256": "2e434790836dee0615d68a3cd14ad7390ac49773680a4871dce0e01f2e716417",
     "official_c1": null,
     "source_commit": "25d6d0ba (fifth re-mint after the db53894e round; C0 a51c60ed\u2026 rebuilt byte for byte from a fresh detached worktree of 25d6d0ba)",
