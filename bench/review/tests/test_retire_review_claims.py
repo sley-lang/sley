@@ -244,6 +244,26 @@ class RetireReviewClaimsTests(unittest.TestCase):
         retire.retire(summary, [])
         self.assertIn(f"-{self.second[:7]}.md#L1", summary["release_candidate_packaging"]["p3_closed_claims"][0]["verified_by"])
 
+    def test_one_generic_head_closes_no_finding_under_a_shared_kind(self) -> None:
+        # Nabu/Vulcan P2 at b58ac1e0: a head naming only the kind and the
+        # file must not retire the lane's several findings of that kind
+        # against that file; an identifier in the head retires exactly one.
+        (self.section / f"vulcan_surface_review-{self.second[:7]}.md").write_text(
+            "- **[P3] [robustness] scripts/build_finding_register.py — CLOSED.** generic\n"
+            "- **[P3] [robustness] `finding_key` in scripts/build_finding_register.py — CLOSED.** specific\n"
+            "VERDICT: PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED\n"
+        )
+        self.git("add", ".")
+        register._tracked = None
+        claims = [
+            f"vulcan_surface_review@{self.first[:7]}: [robustness] scripts/build_finding_register.py:10 - the `finding_key` anchor is coarse",
+            f"vulcan_surface_review@{self.first[:7]}: [robustness] scripts/build_finding_register.py:20 - the `closure_head` read is partial",
+        ]
+        summary = {"release_candidate_packaging": {"p3_open": list(claims), "p3_open_count": 2}}
+        self.assertEqual(retire.retire(summary, []), 1)
+        self.assertEqual(summary["release_candidate_packaging"]["p3_open"], claims[1:])
+        self.assertIn("#L2", summary["release_candidate_packaging"]["p3_closed_claims"][0]["verified_by"])
+
     def test_regeneration_must_reproduce_the_tracked_ledger(self) -> None:
         claim = f"vulcan_surface_review@{self.first[:7]}: [record-note] scripts/a.py:1 - stale note"
         summary = self.summary(claim)

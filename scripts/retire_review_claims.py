@@ -38,8 +38,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from build_finding_register import (  # noqa: E402
     claim_relation_problem, claim_scope, closed_severities, cited_closure_lines, finding_key, is_carry,
-    is_closure_line, is_tracked, line_speaks_about, open_lines_about, raising_scope, scope_generation,
-    shared_vocabulary, shares_its_kind, transcript_path,
+    is_closure_line, is_tracked, line_speaks_about, open_lines_about, raising_scope, same_finding,
+    scope_generation, shared_vocabulary, shares_its_kind, transcript_path,
 )
 
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
@@ -187,8 +187,17 @@ def closers(section: dict, section_name: str = "") -> list[tuple[str, str, set[s
             scope_sha,
             transcript_for(section_name, role(field), scope_sha, transcript.group(1) if transcript else None),
         ))
+    # A live PRIOR field's closer carries the union of its token's closed
+    # severities and the severities its transcript's status lines record
+    # (Nabu P3 at b58ac1e0: the line-derived entry had been dropped for a
+    # transcript the live field named, narrowing it to the token).
+    by_path = {item[4]: item for item in transcript_closers(section_name)}
+    found = [
+        (field, lane, severities | by_path[transcript][2], scope, transcript) if transcript in by_path else (field, lane, severities, scope, transcript)
+        for field, lane, severities, scope, transcript in found
+    ]
     seen = {item[4] for item in found if item[4]}
-    found.extend(item for item in transcript_closers(section_name) if item[4] not in seen)
+    found.extend(item for item in by_path.values() if item[4] not in seen)
     # Earliest closing transcript first, by git ancestry (Nabu P3 at
     # 79fdcc63: filename order had rebound closures to later rounds).
     found.sort(key=lambda item: (scope_generation(item[3][:7]) if item[3] else 10**9, item[4] or ""))
@@ -207,15 +216,15 @@ def relation_problem(section_name: str, claim: str, transcript: str, section: di
 from build_finding_register import closure_head  # noqa: E402
 
 
-def speaking_lines(path: Path, severity: str, claim: str, section: dict | None = None) -> list[int]:
+def speaking_lines(path: Path, severity: str, claim: str, section: dict | None = None, section_name: str | None = None) -> list[int]:
     """Closure lines of `severity` that name the claim's finding identity —
     a strong identity when the lane files several findings under the
     claim's kind — and none when the same transcript records the claim OPEN
     on another line."""
     if not path.is_file() or open_lines_about(path, claim, severity):
         return []
-    strong = shares_its_kind(section, severity, claim) if section is not None else False
-    shared = shared_vocabulary(section, severity, claim) if section is not None else set()
+    strong = shares_its_kind(section, severity, claim, section_name) if section is not None else False
+    shared = shared_vocabulary(section, severity, claim, section_name) if section is not None else set()
     text = path.read_text(encoding="utf-8", errors="replace").splitlines()
     speaking = [n for n in cited_closure_lines(path, severity) if line_speaks_about(text[n - 1], claim, strong=strong, shared=shared)]
     # A line whose own head (before the CLOSED marker) names the finding is
@@ -257,7 +266,7 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                         and transcript
                         and strictly_later(closer_scope, scope)
                     ):
-                        lines = speaking_lines(ROOT / transcript, f"P{severity}", entry, section)
+                        lines = speaking_lines(ROOT / transcript, f"P{severity}", entry, section, name)
                         if not lines or relation_problem(name, entry, transcript, section):
                             continue
                         verified = f"{transcript}#L{','.join(map(str, lines))} — {field} at {closer_scope[:8]} verified the carried P{severity} closed"
@@ -303,7 +312,7 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                             )
                             if not head or field_name in REVIEWERS or not known:
                                 raise SystemExit(f"retirement for {name}: prefix names no field of the section: {prefix!r}")
-                        recorded = speaking_lines(ROOT / item["verified_by"], f"P{severity}", entry, section)
+                        recorded = speaking_lines(ROOT / item["verified_by"], f"P{severity}", entry, section, name)
                         closure = cited_closure_lines(ROOT / item["verified_by"], f"P{severity}")
                         lines = item.get("lines") or recorded
                         # Every cited line records a closure of the severity, at
@@ -341,24 +350,23 @@ def fold_restatements(summary: dict) -> int:
     earliest claim (whose scope a later closure must strictly postdate)
     stays open, and the closure line must still speak about it."""
     folded = 0
-    for section in summary.values():
+    for name, section in summary.items():
         if not isinstance(section, dict):
             continue
         for severity in range(5):
             entries = section.get(f"p{severity}_open")
             if not isinstance(entries, list) or len(entries) < 2:
                 continue
-            groups: dict[tuple, list[str]] = {}
-            for entry in entries:
-                groups.setdefault(finding_key(entry), []).append(entry)
+            keys = {entry: finding_key(entry, name, section) for entry in entries}
             keep: list[str] = []
             restated = list(section.get(f"p{severity}_restated_claims", []))
             for entry in entries:
-                group = groups[finding_key(entry)]
-                if group[0] == entry or finding_key(entry)[0] is None or not is_carry(entry):
+                # The earliest listed claim of the same finding (keys equal, or
+                # identifiers absent on either side).
+                earliest = next((other for other in entries if same_finding(keys[other], keys[entry])), entry)
+                if earliest == entry or keys[entry][0] is None or not is_carry(entry):
                     keep.append(entry)
                     continue
-                earliest = group[0]
                 later = claim_scope(entry)
                 first = claim_scope(earliest)
                 # Only a strictly later round's re-statement folds; an
@@ -432,7 +440,7 @@ def replay_problems(summary: dict) -> list[str]:
                 if relation:
                     problems.append(f"{name}.p{severity}_closed_claims: {relation} :: {claim[:60]}")
                     continue
-                recorded = set(speaking_lines(ROOT / path, f"P{severity}", claim, section)) if path else set()
+                recorded = set(speaking_lines(ROOT / path, f"P{severity}", claim, section, name)) if path else set()
                 closure = set(cited_closure_lines(ROOT / path, f"P{severity}")) if path else set()
                 if item.get("binding") == "exact-claim":
                     from build_finding_register import exact_claim_binding

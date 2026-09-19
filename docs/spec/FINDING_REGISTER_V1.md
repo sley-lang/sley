@@ -102,7 +102,21 @@ id, anchor, quoted phrase, or a path with a tag word standing there; the
 OPEN-line refusal reads the head without the path rule. A table cell's
 parenthetical is at most 24 characters and never carries OPEN
 (`**CLOSED (leg 2 OPEN)**` is not a closure). The raising-severity
-binding applies to open, retired and re-stated claims alike. The change record
+binding applies to open, retired and re-stated claims alike.
+
+After the b58ac1e0 round (Ariadne/Nabu/Vulcan P3): a finding key is the
+lane, the kind and — for a finding against a source or document file —
+that file plus, for an original statement, its first identifier (a
+carried re-statement carries none of its own); for a finding against
+the ledger itself, the round it originates from (the `carried from
+<sha>` scope a re-statement names, else the claim's raising scope, else
+its description) plus the original's identifier. Two keys name one
+finding when lane, kind and file/origin agree and their identifiers are
+equal or absent on either side (`same_finding`); a carry marker anywhere
+in the description makes a claim a re-statement. A shared kind's own
+words are not tag words under the strong read. A live `PRIOR` field's
+closer carries the union of its token's closed severities and the
+severities its transcript's status lines record. The change record
 `evidence/review/rounds/revision-7-retirement-changes.json` is derived
 from the tracked ledgers by a stated keying (see its `keying`). Where the reviewer's per-finding closure line
 cannot be seen by that relation (a claim recorded truncated or phrased

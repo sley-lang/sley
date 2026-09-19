@@ -384,8 +384,8 @@ class InvariantTests(unittest.TestCase):
         # Shared vocabulary within a lane is not an identity; a ledger-file
         # anchor yields a description key; round folding follows scope ancestry.
         section = {"p4_open": [
-            "vulcan_review@c67b072: [evidence] machineresearch/sley-2.0/machine-summary.json (every note) - the `last_local_proof` note says clean",
-            "vulcan_review@c67b072: [evidence] machineresearch/sley-2.0/machine-summary.json:2273 - chronology: the `last_local_proof` records predate",
+            "vulcan_review@c67b072: [evidence] machineresearch/sley-2.0/machine-summary.json (every `note`) - the last_local_proof note says clean",
+            "vulcan_review@c67b072: [evidence] machineresearch/sley-2.0/machine-summary.json:2273 - chronology: the `records` of last_local_proof predate",
         ]}
         self.assertIn("last_local_proof", register.shared_vocabulary(section, "P4", section["p4_open"][0]))
         self.assertNotEqual(register.finding_key(section["p4_open"][0]), register.finding_key(section["p4_open"][1]))
@@ -397,8 +397,9 @@ class InvariantTests(unittest.TestCase):
         self.assertFalse(register.line_speaks_about("- **[P4] the ADR-0040 note — CLOSED.**", "v: [records] docs/adr/x.md:9 - ADR-0040 says"))
         self.assertTrue(register.line_speaks_about("- **[P3] spec 413-417,424-425 reader sentence — CLOSED.**", "v: [contract-text] docs/spec/X.md:413-417,424-425 - the sentence"))
         self.assertFalse(register.line_speaks_about("- **[P4] x — CLOSED.** builder :100-107", "v: [records] evidence/release/lane.json:100 - y"))
-        self.assertEqual(register.finding_key("v@c67b072: [ledger-duplication] (carried from 76227765, OPEN) machineresearch/sley-2.0/machine-summary.json:1 - `p4_open` twice"),
-                         register.finding_key("v@1a9f0aa: [ledger-duplication] machineresearch/sley-2.0/machine-summary.json:2 - `p4_open` twice"))
+        self.assertTrue(register.same_finding(
+            register.finding_key("v@c67b072: [ledger-duplication] (carried from 76227765, OPEN) machineresearch/sley-2.0/machine-summary.json:1 - `p4_open` twice"),
+            register.finding_key("v@1a9f0aa: [ledger-duplication] machineresearch/sley-2.0/machine-summary.json:2 - (carried from 76227765, OPEN, grown) `p4_open` twice")))
         # The PRIOR fallback never serves P0-P2.
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "t.md"
@@ -442,17 +443,17 @@ class InvariantTests(unittest.TestCase):
         # A fold is the same finding (lane, kind, anchor, identifier), marked
         # carried, at a strictly later round, and its chain ends at an open or
         # retired claim (1a9f0aab round: the builder had checked membership only).
-        restatement = "vulcan_review_revision_1@76ae15a: [record] open_risks / dossier reproduced on two hosts - carried OPEN"
+        restatement = "vulcan_review_revision_1@76ae15a: [record] open_risks / dossier reproduced on two hosts - carried from 178873d7, OPEN"
         good = json.loads(json.dumps(base))
         good["release_candidate_packaging"]["p3_restated_claims"] = [{"claim": restatement, "restates": claim}]
         self.assertEqual(self.build_from(good)["package_restated_claims"], {"release_candidate_packaging.p3_restated_claims": 1})
         for bad_fold in (
             [{"claim": "vulcan_review@c67b072: [record] carried", "restates": claim}],  # another finding
             [{"claim": "vulcan_review_revision_1@76ae15a: [record] open_risks / dossier reproduced on two hosts - fresh", "restates": claim}],  # no carry marker
-            [{"claim": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried", "restates": claim.replace("@178873d", "@76ae15a")}],  # earlier round
-            [{"claim": restatement, "restates": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried"},
-             {"claim": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried", "restates": restatement}],  # cycle
-            [{"claim": restatement, "restates": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried"}],  # dangling
+            [{"claim": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried from 178873d7", "restates": claim.replace("@178873d", "@76ae15a")}],  # earlier round
+            [{"claim": restatement, "restates": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried from 178873d7"},
+             {"claim": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried from 178873d7", "restates": restatement}],  # cycle
+            [{"claim": restatement, "restates": "vulcan_review_revision_1@c04539b: [record] open_risks / dossier reproduced on two hosts - carried from 178873d7"}],  # dangling
         ):
             bad = json.loads(json.dumps(base))
             bad["release_candidate_packaging"]["p3_restated_claims"] = bad_fold

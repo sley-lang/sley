@@ -1689,5 +1689,257 @@
    }
   ],
   "reason": "exact-claim binding (79fdcc63 round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-79fdcc6.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review_revision_7@6589c6e: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4550-4551, :4554 (`release_candidate_packaging.p3_open`) and :4507 (`p4_open`) with evidence/review/claim-retirements.json (no ariadne entry cites ariadne_contract_review-76ae15a.md or ariadne_contract_review-1a9f0aa.md) - four claims of this lane that its own tracked transcripts close per finding stay open: `@c67b072: [record-prec",
+    "lines": [
+     22
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **[P3] [record-consistency] four claims of this lane closed by its own tracked transcripts left open (machin\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@c67b072: [verification-depth] (carried from 76227765, OPEN \u2014 narrowed) scripts/build_finding_register.py:541-567 (`CLOSURE_LINE`, `cited_closure_lines`), :620-638 (`pack",
+    "lines": [
+     28
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **[P3] [verification-depth] scripts/build_finding_register.py:559-616 (_own_status, is_closure_line), :713-7\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review: [test-coverage] bench/release/tests/test_packaging.py - no test exercises the new lint branch (grep `lint` over bench/release/tests and bench/review/tests: no h",
+    "lines": [
+     38
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [test-coverage] bench/release/tests/test_packaging.py:279-313 with scripts/check_release_candidate_pa\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review: [cleanliness-standard] evidence/build/lint-report.json:12 with scripts/record_lint_report.py:65-76 - the report bound to the candidate was recorded with `workin",
+    "lines": [
+     39
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [cleanliness-standard] evidence/build/lint-report.json (dirty_paths, 18 entries) with scripts/record_\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@db53894: [contract-wording] docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:177-180 with evidence/build/lint-report.json:1-12 and `git log -- scripts/record_lint_report.py` ",
+    "lines": [
+     36
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [contract-wording] docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:177-190 with evidence/build/lint-repor\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@db53894: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - no test exercises the lint branch at scripts/check_release_candidate_packa",
+    "lines": [
+     38
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [test-coverage] bench/release/tests/test_packaging.py:279-313 with scripts/check_release_candidate_pa\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@db53894: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
+    "lines": [
+     39
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [cleanliness-standard] evidence/build/lint-report.json (dirty_paths, 18 entries) with scripts/record_\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@7622776: [untested-tool] scripts/retire_review_claims.py:45-49,87-91,155-167 with Makefile:86-90,220-270 - the retirement tool has no unit test (`grep -rl retire_review_",
+    "lines": [
+     34
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [untested-tool] scripts/retire_review_claims.py:50-56 (role), :12-14 (docstring) with bench/review/te\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@7622776: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - \u00a77 still lists ",
+    "lines": [
+     36
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [contract-wording] docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:177-190 with evidence/build/lint-repor\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@c67b072: [untested-tool] (carried from 76227765, OPEN) scripts/retire_review_claims.py:48-52,99-101,149-163 with Makefile (no target runs `--check`) - still no unit test",
+    "lines": [
+     34
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [untested-tool] scripts/retire_review_claims.py:50-56 (role), :12-14 (docstring) with bench/review/te\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@76ae15a: [test-coverage] scripts/check_reproducibility_and_independent_conformance.py:428-432 with bench/release/tests/ (0 hits for `attestation_chain:stale`/`:missing`)",
+    "lines": [
+     33
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [test-coverage] scripts/check_reproducibility_and_independent_conformance.py:110-122 (attestation_cha\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-6589c6e.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review@7622776: [evidence-integrity] scripts/build_finding_register.py:566-567; scripts/retire_review_claims.py:109-152,162-164; machineresearch/sley-2.0/machine-summary.json:4",
+    "lines": [
+     26
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **[P3] evidence-integrity, retirement binding (scripts/build_finding_register.py:615-616, :671, :713-742, :7\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-6589c6e.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review_revision_11@c67b072: [evidence-integrity] scripts/build_finding_register.py:541,559-566,631-638; scripts/retire_review_claims.py:149-152,160-163,183-185; docs/spec/FINDING_REGISTER_",
+    "lines": [
+     26
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **[P3] evidence-integrity, retirement binding (scripts/build_finding_register.py:615-616, :671, :713-742, :7\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-6589c6e.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review@76ae15a: [evidence-integrity] scripts/build_finding_register.py:546-557,573,590-610 (claim_relation_problem checks own-round only, docstring says \"strictly later\"); scri",
+    "lines": [
+     26
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **[P3] evidence-integrity, retirement binding (scripts/build_finding_register.py:615-616, :671, :713-742, :7\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c67b072.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@7622776: [duplicated-authority/fail-open] scripts/build_finding_register.py:235-238 (`closed_severities`) vs scripts/retire_review_claims.py:39 (`PRIOR`), docs/spec/FIND",
+    "lines": [
+     25
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **P3 [duplicated-authority/fail-open] two closure grammars\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-7622776.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review: [fail-closed-gap] scripts/build_reproducibility_report.py:403-468 - `carried_attestations` trusts the tracked report's content without running `verify_report` o",
+    "lines": [
+     26
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] fail-closed-gap, `carried_attestations` trusts the tracked report\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review@c67b072: [robustness] scripts/build_finding_register.py:631-634 - a `verified_by` of `<path>#L, \u2014 x` or `<path>#L25,,43 \u2014 x` raises an uncaught `ValueError` from `int(\"\"",
+    "lines": [
+     54
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] robustness: scripts/build_finding_register.py:674-677 `#L,` uncaught ValueError\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "repository_exchange",
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md",
+  "claims": [
+   {
+    "claim": "ariadne_implementation_review_final: [contract-text] crates/sley-txn/src/repository.rs:2853-2925 - `native_attempt_status`/`reconcile_promotion_claim` report the raw head pointer (`read_head`, line",
+    "lines": [
+     31
+    ],
+    "reason": "the lane's own P4 item status line for this finding (**Prior finding 6 \u2014 [P4] reader sentence vs `native_attempt_status`\u2026); its vocabulary is shared within the lane, so the binding is exact (b58ac1e0 round)"
+   }
+  ],
+  "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
  }
 ]

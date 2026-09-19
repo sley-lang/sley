@@ -796,7 +796,7 @@ def identity_tokens(claim: str) -> tuple[set[str], set[str]]:
     return phrases, identifiers | claim_finding_ids(body)
 
 
-def shared_vocabulary(section: dict, severity: str, claim: str) -> set[str]:
+def shared_vocabulary(section: dict, severity: str, claim: str, section_name: str | None = None) -> set[str]:
     """Kind phrases and identifiers this claim shares with another claim of
     the same lane and severity in the section (open, retired or re-stated):
     shared vocabulary is not an identity (Ariadne P2 / Vulcan P3 at
@@ -813,7 +813,7 @@ def shared_vocabulary(section: dict, severity: str, claim: str) -> set[str]:
     others += [item.get("claim", "") for item in section.get(f"p{number}_closed_claims") or [] if isinstance(item, dict)]
     others += [item.get("claim", "") for item in section.get(f"p{number}_restated_claims") or [] if isinstance(item, dict)]
     shared: set[str] = set()
-    own_key = finding_key(claim)
+    own_key = finding_key(claim, section_name, section) if section_name else finding_key(claim)
     for other in others:
         if other == claim:
             continue
@@ -821,18 +821,18 @@ def shared_vocabulary(section: dict, severity: str, claim: str) -> set[str]:
         other_lane = reviewer_of(tag.group(1) if tag else other.split(":", 1)[0])
         # A re-statement of the same finding (same finding key) is not
         # another finding; its vocabulary is this claim's own.
-        if other_lane != lane or finding_key(other) == own_key:
+        if other_lane != lane or same_finding(finding_key(other, section_name, section) if section_name else finding_key(other), own_key):
             continue
         other_phrases, other_identifiers = identity_tokens(other)
         shared |= mine & (other_phrases | other_identifiers)
     return shared
 
 
-def shares_its_kind(section: dict, severity: str, claim: str) -> bool:
+def shares_its_kind(section: dict, severity: str, claim: str, section_name: str | None = None) -> bool:
     """Whether any kind phrase of the claim is shared within its lane and
     severity (the kind alone is then not an identity)."""
     phrases, _ = identity_tokens(claim)
-    return bool(phrases & shared_vocabulary(section, severity, claim))
+    return bool(phrases & shared_vocabulary(section, severity, claim, section_name))
 
 
 def open_lines_about(path: Path, claim: str, severity: str) -> list[int]:
@@ -1032,9 +1032,9 @@ def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[s
       tag like `[record]` alone names nothing).
 
     With `strong` (a kind the lane shares, or the OPEN-line refusal) the
-    line is read as its own head only and the kind phrase and commit-id
-    rules do not apply: an identifier, finding id, anchor, quoted phrase,
-    or a path with a tag word must stand in the head.
+    line is read as its own head only and only an identifier, finding id,
+    anchor span or quoted phrase standing in the head relates — the kind
+    phrase, commit-id and path rules do not apply.
     """
     body = claim.split(": ", 1)[1] if ": " in claim else claim
     if strong:
@@ -1070,8 +1070,13 @@ def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[s
     # relate (Ariadne P3 at 1a9f0aab: a line naming machine-summary.json
     # spoke about seven claims of one lane).
     paths = {token.split(":")[0] for token in PATH_TOKEN.findall(body)} - LEDGER_PATHS
+    # A shared kind's own words are not tag words (Vulcan P3 at b58ac1e0:
+    # under a shared kind, path + kind word let any later head of the lane
+    # against one file close every finding of that kind).
+    shared_words = {word for phrase in shared for word in re.findall(r"[a-z0-9]{5,}", phrase)}
     tag_words = {
-        word for tag in tags for word in re.findall(r"[a-z0-9]{5,}", tag) if word not in STOP_WORDS
+        word for tag in tags for word in re.findall(r"[a-z0-9]{5,}", tag)
+        if word not in STOP_WORDS and word not in shared_words
     }
     # A commit id relates only together with a tag word or a path (Vulcan
     # P3 at 1a9f0aab: a shared commit id alone bound unrelated lines).
@@ -1105,11 +1110,12 @@ def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[s
     }
     if any(re.search(rf"(?<![0-9-]){re.escape(span)}(?![0-9-])", line) for span in ranges):
         return True
-    # A path together with a tag word: an identity when it stands in the
-    # item's own head (the strong read), never from trailing prose alone;
-    # the OPEN-line refusal does not use it (a lane files many findings
-    # against one file under one kind).
-    return paths_ok and any(path in line for path in paths) and any(word in lowered for word in tag_words)
+    # A path together with a tag word relates only under an unshared kind
+    # (Nabu/Vulcan P2 at b58ac1e0: under a shared kind one generic head
+    # `[<kind>] <path> — CLOSED` would close every finding of the lane
+    # against that file; the strong read and the OPEN refusal are
+    # symmetric — identifier, finding id, anchor or quoted phrase only).
+    return (not strong) and paths_ok and any(path in line for path in paths) and any(word in lowered for word in tag_words)
 
 
 def transcript_path(reference: str) -> Path | None:
@@ -1256,8 +1262,8 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                 elif not any(
                     line_speaks_about(
                         text[n - 1], entry["claim"],
-                        strong=shares_its_kind(value, severity, entry["claim"]),
-                        shared=shared_vocabulary(value, severity, entry["claim"]),
+                        strong=shares_its_kind(value, severity, entry["claim"], section),
+                        shared=shared_vocabulary(value, severity, entry["claim"], section),
                     )
                     for n in wanted if 0 < n <= len(text)
                 ):
@@ -1281,41 +1287,65 @@ IDENTIFIER = re.compile(r"`([A-Za-z_][A-Za-z0-9_.]*)")
 CARRY = re.compile(r"\b(?:carried|carry|prior|residual|unchanged|still open|again|byte-identical)\b", re.I)
 
 
-def finding_key(claim: str) -> tuple[str | None, str, str, str]:
-    """(lane, category tag, anchor, identifier) — the identity of a finding
-    across the rounds that re-state it: the lane that raised it, its
-    bracketed kind, the first path-like token (line numbers stripped) or,
-    without one, the first forty characters of its description, and the
-    first backticked identifier (index suffix stripped) so that distinct
-    findings citing one records file stay distinct."""
+CARRIED_FROM = re.compile(r"\bcarr(?:ied|y)\s+(?:over\s+)?from\s+([0-9a-f]{7,40})\b", re.I)
+
+
+def finding_key(claim: str, section: str | None = None, fields: dict | None = None) -> tuple[str | None, str, str, str]:
+    """(lane, kind, origin, anchor) — the identity of a finding across the
+    rounds that re-state it (Ariadne P3 at b58ac1e0: a carried
+    re-statement keys on the finding it carries): the lane, the bracketed
+    kind, the round the finding originates from — the `carried from <sha>`
+    scope the re-statement names, else the claim's raising scope — and the
+    first path-like token outside the ledger's own files (line numbers
+    stripped); a claim with no known origin keys on its description."""
     tag = CLAIM_TAG.match(claim)
     prefix = tag.group(1) if tag else claim.split(":", 1)[0]
     body = claim.split(": ", 1)[1] if ": " in claim else claim
     kind = re.match(r"\[([^\]]+)\]", body)
     rest = body[kind.end():].strip() if kind else body
-    # A leading carry marker `(carried from <sha>, OPEN — narrowed)` is
-    # round bookkeeping, not identity (Ariadne P3 at 79fdcc63).
     rest = re.sub(r"^\((?:carried|carry|prior|residual)[^)]*\)\s*", "", rest, flags=re.I)
-    ident = IDENTIFIER.search(rest)
-    identifier = ident.group(1) if ident else ""
+    carried = CARRY.search(body) is not None
     path = ANCHOR.search(rest)
     anchor = path.group(0).split(":")[0] if path else ""
-    # A ledger file is every record finding's anchor (Vulcan P3 at 6589c6ec:
-    # three distinct `[evidence] machine-summary.json` findings folded into
-    # one); the description then carries the identity.
-    if not anchor:
-        anchor = re.sub(r"\s+", " ", rest)[:40]
-    elif anchor in LEDGER_PATHS or anchor.rsplit("/", 1)[-1] in LEDGER_PATHS:
+    if anchor in LEDGER_PATHS or anchor.rsplit("/", 1)[-1] in LEDGER_PATHS:
+        anchor = ""
+    if anchor:
+        # A finding against a source or document file: its kind, file and
+        # (for the original statement) its first identifier; a carried
+        # re-statement keys on the file alone.
+        ident = IDENTIFIER.search(rest)
+        identifier = "" if carried else (ident.group(1) if ident else "")
+        return (reviewer_of(prefix), kind.group(1).strip().lower() if kind else "", anchor, identifier)
+    # A finding against the ledger itself: its kind and the round it
+    # originates from (the `carried from <sha>` scope a re-statement names,
+    # else the claim's raising scope), or its description when no round is
+    # known.
+    named = CARRIED_FROM.search(body)
+    origin = named.group(1)[:7] if named else (raising_scope(section, claim, fields) if section else (tag.group(2)[:7] if tag and tag.group(2) else None))
+    if origin is None:
         description = rest.split(" - ", 1)[1] if " - " in rest else rest
-        description = re.sub(r"^\((?:carried|carry|prior|residual)[^)]*\)\s*", "", description, flags=re.I)
-        anchor = re.sub(r"\s+", " ", description)[:40]
-    return (reviewer_of(prefix), kind.group(1) if kind else "", anchor, identifier)
+        description = re.sub(r"^(?:carried|carry|prior|residual)\b[^:]*:\s*", "", description, flags=re.I)
+        origin = "desc:" + re.sub(r"\s+", " ", description)[:40]
+    ident = IDENTIFIER.search(rest)
+    identifier = "" if carried else (ident.group(1) if ident else "")
+    return (reviewer_of(prefix), kind.group(1).strip().lower() if kind else "", origin, identifier)
+
+
+def same_finding(one: tuple, other: tuple) -> bool:
+    """Two finding keys name one finding: same lane, kind and anchor/origin,
+    and identifiers equal or absent on either side (a carried re-statement
+    carries no identifier of its own; an original may — Ariadne P3 at
+    b58ac1e0)."""
+    return one[:3] == other[:3] and (one[3] == other[3] or not one[3] or not other[3])
 
 
 def is_carry(claim: str) -> bool:
-    """The claim's description marks itself as a carried/re-stated finding."""
+    """The claim's description marks itself as a carried/re-stated finding
+    (a leading `(carried from …)` clause, a trailing `- carried, worse:` or
+    `prior … OPEN` form, anywhere in the description — Ariadne P3 at
+    b58ac1e0)."""
     body = claim.split(": ", 1)[1] if ": " in claim else claim
-    return CARRY.search(body[:160]) is not None
+    return CARRY.search(body) is not None
 
 
 def claim_scope(claim: str) -> str | None:
@@ -1371,7 +1401,10 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
                 # a strictly later scope than the claim it restates, and a
                 # chain that ends at an open or retired claim (no cycle, no
                 # dangling link).
-                if finding_key(entry["claim"]) != finding_key(entry["restates"]) or finding_key(entry["claim"])[0] is None:
+                if (
+                    not same_finding(finding_key(entry["claim"], section, value), finding_key(entry["restates"], section, value))
+                    or finding_key(entry["claim"], section, value)[0] is None
+                ):
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: re-statement is not the same finding: {entry['claim'][:60]!r}",
