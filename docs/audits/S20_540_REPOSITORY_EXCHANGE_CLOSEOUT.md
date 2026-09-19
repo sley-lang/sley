@@ -87,6 +87,13 @@ The dependency direction stays `sley-repo -> sley-txn -> sley-store`.
   `Bytes` record field. The frozen SCB1 encoder, the S20-170 codec, and the
   independent oracle frame it once, so the order is plain length-then-bytes
   for every legal name length; the contract was corrected (revision 7).
+- Revision 8 (2026-09-18): the contract's target-inspection sentence
+  states the realized per-operation symlink discipline (no pinned
+  directory handle) and the marked-root sentence names the frozen
+  accepted-head readers (`accepted_head`, `accepted_head_with_maintenance`,
+  `accepted_head_any_with_maintenance`) that fail closed; the closeout counts
+  eight layout entries and six rejection inputs. No preimage, code, or
+  rejection code changed; the fixtures and both checkers are unchanged.
 - Deterministic fixtures export identical bytes; tests that need a second,
   different exchange use a different commit nonce.
 

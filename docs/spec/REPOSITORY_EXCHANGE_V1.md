@@ -2,7 +2,12 @@
 
 Status: S20-540 contract frozen at revision 6 (2026-09-03); revision 7 corrects the
 branch-order framing sentence to the realized single framing (see ADR-0025
-decision 10) and changes no preimage. Nabu design
+decision 10) and changes no preimage; revision 8 (2026-09-18, after the
+92fa6646/c04539b9/db53894e Council rounds) states the realized
+per-operation symlink discipline of the importer and names the frozen
+accepted-head readers that fail closed on a marked root, changing no
+preimage, code, or rejection code (text amendments only, recorded here as
+the c04539b9 review asked). Nabu design
 consult applied; Ariadne contract review `PASS_CONTRACT_DRAFT` on revision 6
 (session `forge-ariadne-s20-540-pass5-20260903T023812-51133a3e`) after five
 passes; Vulcan import-surface review `PASS_CONTRACT_DRAFT` on revision 4
