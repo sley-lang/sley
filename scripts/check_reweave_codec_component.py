@@ -18,6 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "machineresearch/sley-2.0/reweave/rw-090-codec-component-manifest.json"
+CANONICAL_S = ROOT / "machineresearch/sley-2.0/reweave/canonical-s-manifest.json"
 TEST = ROOT / "crates/sley-vm/tests/rw080_codec_program/canonical_codec.rs"
 
 # manifest field -> (pinned expression, kind)
@@ -77,8 +78,16 @@ def main() -> None:
     # db53894e: the checker had hard-coded three names and left the newest
     # block unbound).
     blocks = sorted(key for key in manifest if key.startswith("superseded_") and key.endswith("_component"))
-    required = {"superseded_bounded_component", "superseded_pre_review_arbitrary_component",
-                "superseded_first_repair_component", "superseded_third_repair_component"}
+    # The required set is the lineage itself: one component block per
+    # superseded `S` generation the canonical-S manifest records
+    # (`superseded_<name>_s` -> `superseded_<name>_component`), so a re-mint
+    # that drops a displaced generation fails here (Ariadne/Vulcan P4 at
+    # 76227765: the set had been four hard-coded names).
+    canonical = json.loads(CANONICAL_S.read_text(encoding="utf-8"))
+    lineage = sorted(key for key in canonical if key.startswith("superseded_") and key.endswith("_s"))
+    required = {key[: -len("_s")] + "_component" for key in lineage}
+    if not required:
+        fail("canonical-s-manifest.json records no superseded generation")
     if not required <= set(blocks):
         fail(f"missing superseded component blocks: {sorted(required - set(blocks))}")
     roots = set()

@@ -456,9 +456,10 @@ under a fresh candidate nonce; the dry-run then reproduces both. The
 (superseded root, replacement root, source commit) pairs are carried by the
 canonical `S`, seed and bootstrap manifests; the component manifest carries
 every superseded component root as a `superseded_*_component` block with
-its source commit (bounded, pre-review arbitrary, first repair, third
-repair, and every later displaced generation), which
-`scripts/check_reweave_codec_component.py` requires.
+its source commit — one block per `superseded_*_s` generation the
+canonical `S` manifest records — which
+`scripts/check_reweave_codec_component.py` derives from the canonical `S`
+manifest and requires.
 
 This record grants no construction permission and records no review PASS;
 architecture review binds the exact delta and either adopts the
