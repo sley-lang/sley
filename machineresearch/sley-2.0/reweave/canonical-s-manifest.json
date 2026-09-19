@@ -106,7 +106,7 @@
     "note": "arbitrary-codec generation before the 178873d7 Council repairs (strict kind-18 route, native depth charging); replaced 2026-09-18 under RW080-ID-02 replacement semantics; its C0/C1 artifacts stay read-only in the artifact store under C0/e3a50ca7 and C1/e3a50ca7"
   },
   "seed_constructor_digest_method": "SHA-256 over (relative path || NUL || bytes || NUL) for every source the seed binary crates/sley-vm/tests/rw120_toolchain_integration.rs reaches through #[path], in include order (revision of 2026-09-18; previously component.rs and handoff.rs only)",
-  "source_commit": "25d6d0ba",
+  "source_commit": "9d1ba8f1 (S first constructed at 25d6d0ba; the seed test source changed only in comments since)",
   "superseded_first_repair_s": {
     "state_root": "1d64fcd1298bbab91e8c42a1b673fba683e1a0e2075f560ecfc6aaf849e16c58",
     "object_count": 20382,
