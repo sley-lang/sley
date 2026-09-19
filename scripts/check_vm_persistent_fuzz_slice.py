@@ -215,56 +215,13 @@ for path, marker in [
     if marker not in path.read_text(encoding="utf-8"):
         problems.append(f"doc-missing:{path.relative_to(ROOT)}:{marker}")
 
-# The durable proof record is validated, not just pinned: a recorded PASS
-# must have covered the corpus, crashed nothing new, and instrumented the
-# owner library. A stale or failing proof record fails the contract.
-proof = slice_status.get("last_local_proof", {})
-if proof.get("result") != "PASS":
-    problems.append("proof-record-not-pass")
-for key in ("executed_runs", "runs_floor"):
-    if not isinstance(proof.get(key), int):
-        problems.append(f"proof-record-not-int:{key}")
-if (
-    isinstance(proof.get("executed_runs"), int)
-    and isinstance(proof.get("runs_floor"), int)
-    and proof["executed_runs"] < proof["runs_floor"]
-):
-    problems.append("proof-record-below-floor")
-if proof.get("new_crash_artifacts"):
-    problems.append("proof-record-new-crashes")
-if not isinstance(proof.get("owner_lib_sancov"), int) or proof["owner_lib_sancov"] <= 0:
-    problems.append("proof-record-no-owner-sancov")
-if not isinstance(proof.get("source_commit"), str) or len(proof.get("source_commit", "")) != 40:
-    problems.append("proof-record-bad-source-commit")
-else:
-    # Ancestry, not just shape: the proof commit must contain the current
-    # proof inputs, so a proof predating the last target/runner/engine
-    # change fails instead of passing on stale evidence. The checker
-    # script itself is contract, not proof input, and is excluded.
-    ancestor = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", proof["source_commit"], "HEAD"],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-    )
-    if ancestor.returncode != 0:
-        problems.append("proof-record-not-ancestor")
-    else:
-        fresh = subprocess.run(
-            [
-                "git", "diff", "--quiet", proof["source_commit"], "HEAD", "--",
-                "fuzz/targets/vm_canonical_inputs.rs",
-                "scripts/run_vm_persistent_fuzz.py",
-                "fuzz/Cargo.toml",
-                "fuzz/Cargo.lock",
-                "crates/sley-vm",
-            ],
-            cwd=ROOT,
-            capture_output=True,
-            text=True,
-        )
-        if fresh.returncode != 0:
-            problems.append("proof-record-predates-lane-change")
+# The durable proof record is validated against HEAD (ancestry, lane-input
+# freshness over the targets' transitive workspace crates, run floor, crash
+# disposition, owner instrumentation): scripts/fuzz_proof_record.py.
+import sys as _sys
+_sys.path.insert(0, str(ROOT / "scripts"))
+from fuzz_proof_record import slice_proof_problems as _slice_proof_problems  # noqa: E402
+problems.extend(_slice_proof_problems(ROOT, "s20_700_vm_persistent_fuzz_slice", "scripts/run_vm_persistent_fuzz.py", ['vm_canonical_inputs']))
 
 if problems:
     raise SystemExit("\n".join(problems))

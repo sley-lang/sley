@@ -1,6 +1,6 @@
 # ADR-0042: the finding register is derived from recorded dispositions
 
-Status: proposed; the S20-740 contract is a draft at revision 5 with Council
+Status: proposed; the S20-740 contract is a draft at revision 6 with Council
 review pending; register mechanics implemented (2026-09-05, revised
 2026-09-11 with enforced round ordering, lane-core compatibility, and
 lane-leaf collection) with the
@@ -62,3 +62,5 @@ unavailable (ADR-0026), so most obligations are legitimately open.
   the drift check forces the change to be deliberate.
 
 Note (revision 5, 2026-09-18): round folding additionally requires that a closing `PASS` is not dated before the round it closes (dates read from the `_note` fields); token order alone no longer suffices when both notes are dated.
+
+Note (revision 6, 2026-09-18): per-package open claims are retired only into `pN_closed_claims` entries that name an existing verifying transcript (`scripts/retire_review_claims.py`, `evidence/review/claim-retirements.json`); the builder validates every retirement.

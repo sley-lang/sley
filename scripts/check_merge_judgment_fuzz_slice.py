@@ -103,6 +103,12 @@ for marker in ["merge_judgment", "Judgment lane"]:
     if marker not in audit:
         problems.append(f"doc-missing:{AUDIT.relative_to(ROOT)}:{marker}")
 
+# The durable proof record is validated against HEAD (scripts/fuzz_proof_record.py).
+import sys as _sys
+_sys.path.insert(0, str(ROOT / "scripts"))
+from fuzz_proof_record import slice_proof_problems as _slice_proof_problems  # noqa: E402
+problems.extend(_slice_proof_problems(ROOT, "s20_700_merge_judgment_fuzz_slice", "scripts/run_merge_judgment_fuzz.py", ["merge_judgment"]))
+
 if problems:
     raise SystemExit("\n".join(problems))
 

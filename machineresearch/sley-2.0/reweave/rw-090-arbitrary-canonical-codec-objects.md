@@ -23,26 +23,26 @@ re-mint would produce.)
 
 ## Evidence
 
-- 14,740 canonical objects (132 functions, 7,791 parameters, 2,131 blocks,
+- 14,746 canonical objects (132 functions, 7,797 parameters, 2,131 blocks,
   4,531 operations, 138 constants, four inherited adapter imports, one
   entry point, the contract, the test, and the workspace/package/namespace
-  spine), 14,728 codec objects in 3,732,076 stored bytes with ordered-bundle
+  spine), 14,734 codec objects in 3,733,462 stored bytes with ordered-bundle
   SHA-256
-  `018dcd88fb5e3caa204a3537ec3066cb74e3da5a8424af9fec94f0d3aa3da51a`
+  `c100ef39b2afb8343517989a7d681075cfdc95912f94b30af96ef087a3b07785`
   (asserted by `canonical_codec_objects_round_trip_and_bind_the_complete_graph`
   and bound to `rw-090-codec-component-manifest.json` by
   `scripts/check_reweave_codec_component.py`), every one reimporting
   byte-for-byte through `sley_mutate::import_entity_object` under the
-  registered source epoch (figures of the fourth generation, after the
-  178873d7, 92fa6646 and c04539b9 Council rounds; the superseded
+  registered source epoch (figures of the fifth generation, after the
+  178873d7, 92fa6646, c04539b9 and db53894e Council rounds; the superseded
   generations are `superseded_*_component` in the manifest: pre-review
   arbitrary 13,214 objects / root `8c933cca…`, first repair 14,739 / root
   `2958619a…` (7426bc0b), third repair 14,740 / root `3398fa0d…`
-  (0b7a1482));
+  (0b7a1482), fourth repair 14,740 / root `d35a5d6d…` (867009de));
 - an accepted state root
-  `d35a5d6d7b3e2c423c01d92b73043bfcb69ab1c08dee4f1c2cef8211300c6dc8`
-  (973,137 stored bytes, SHA-256
-  `3fb01d5633bbc24d07b72d51bb49e0fc0b5086ef944525c96eaffaf95bd149c9`)
+  `8833b4e7491d86ce39856e91baba4e2f53428e88d90aa8431c66a67c81788189`
+  (973,533 stored bytes, SHA-256
+  `80d0e1876c80eb6ad028ffc1d9b2c03e38cc73b5ef512f2432491a37754a1787`)
   binding every object, reimporting through the frozen state-root
   registry;
 - the retained schema-decode contract and test validate against the

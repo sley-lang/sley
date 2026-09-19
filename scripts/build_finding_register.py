@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 CONTRACT = "sley2.finding-register.v1"
-CONTRACT_REVISION = 5
+CONTRACT_REVISION = 6
 # Field names that name a role, actor, session, instant, or free note rather
 # than a disposition (contract section 1). All suffix-anchored: a bare
 # substring match would silently drop a future field that merely contains
@@ -61,6 +61,11 @@ SEVERITY = re.compile(r"P[0-4]")
 # Per-package open claims a section may carry beside the top-level counters.
 PACKAGE_OPEN_COUNT = re.compile(r"p[0-4]_open_count$")
 PACKAGE_OPEN_LIST = re.compile(r"p[0-4]_open$")
+PACKAGE_CLOSED_LIST = re.compile(r"p[0-4]_closed_claims$")
+# A retired claim names the transcript that verified its closure; the path
+# must exist under one of the transcript roots (contract section 3,
+# revision 6).
+TRANSCRIPT_ROOTS = ("evidence/review/verdicts/", "machineresearch/sley-2.0/reviews/")
 TOP_COUNTERS = ("p0", "p1", "p2", "p3", "p4")
 
 
@@ -526,6 +531,48 @@ def package_open_claims(summary: dict) -> dict[str, int]:
     return dict(sorted(claims.items()))
 
 
+def package_closed_claims(summary: dict) -> dict[str, int]:
+    """Every retired per-package claim, dotted field to count, shape-checked.
+
+    A retired entry is `{claim, verified_by}`: `verified_by` starts with the
+    repository path of the transcript that verified the closure (a lane
+    verdict carrying `PRIOR_..._CLOSED` at a later scope, or a closure review
+    the retirement file cites), optionally followed by ` — ` and a note. A
+    path that does not exist, or a malformed entry, is SUMMARY_INVALID: a
+    claim leaves the open ledger only through a transcript.
+    """
+    claims: dict[str, int] = {}
+    for section, value in summary.items():
+        if not isinstance(value, dict):
+            continue
+        for field, item in value.items():
+            if not PACKAGE_CLOSED_LIST.match(field):
+                continue
+            if not isinstance(item, list):
+                raise RegisterError(
+                    RegisterErrorCode.SUMMARY_INVALID, f"{section}.{field} must be a list"
+                )
+            for entry in item:
+                if (
+                    not isinstance(entry, dict)
+                    or set(entry) != {"claim", "verified_by"}
+                    or not isinstance(entry["claim"], str)
+                    or not isinstance(entry["verified_by"], str)
+                ):
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field} entries are {{claim, verified_by}} strings",
+                    )
+                path = entry["verified_by"].split(" \u2014 ")[0].split(" — ")[0].strip()
+                if not path.startswith(TRANSCRIPT_ROOTS) or not (ROOT / path).is_file():
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: verified_by must name an existing transcript, got {path!r}",
+                    )
+            claims[f"{section}.{field}"] = len(item)
+    return dict(sorted(claims.items()))
+
+
 def build_register() -> dict:
     summary = load_summary()
     obligations = collect(summary)
@@ -636,6 +683,7 @@ def build_register() -> dict:
         "complete_packages_with_open_reviews": violations,
         "declared_open_findings": declared,
         "package_open_claims": claims,
+        "package_closed_claims": package_closed_claims(summary),
         "result": "FINDING_REGISTER_CLEAR" if clear else "FINDING_REGISTER_OPEN",
     }
     register["register_digest"] = digest_of(register)

@@ -5,14 +5,14 @@
   "functions": 202,
   "transitive_callees": 201,
   "driver_inputs": 74,
-  "image_bytes": 817280,
-  "image_sha256": "2e53152bda7f85cfce32f2a9b8cf0f63b65b70ef0c4c8f90258f4fbaaf66c270",
-  "envelope_bytes": 860112,
-  "envelope_sha256": "a329e0bca641e90c6477b06f85204eca17bf5ffb90683a518275dec587559192",
-  "execution_package_digest": "3bb7f46a9b61b57c2bf358fb5924ce17df5b3453601d591129683a5d16a13989",
-  "instruction_count": 25881896,
-  "fuel_used": 123242409,
-  "peak_value_units": 15797684686117,
+  "image_bytes": 817388,
+  "image_sha256": "f3da10f7427b0eb19851d0f83ef9b75750cd2276437e4507b66ff82ca8af3387",
+  "envelope_bytes": 860220,
+  "envelope_sha256": "2e434790836dee0615d68a3cd14ad7390ac49773680a4871dce0e01f2e716417",
+  "execution_package_digest": "74a56ef552bea91b94da98e73abec32b610c0bc9dbfcd39dce9656df5111a5dc",
+  "instruction_count": 25885482,
+  "fuel_used": 123259403,
+  "peak_value_units": 15801710950059,
   "checker_image_bytes": 35032,
   "checker_image_sha256": "cea90d9e204e1f5f3f6fc0e7a6d7edd3a639e924d02e8c2c794c9500a9f09bd2",
   "checker_envelope_bytes": 40280,
@@ -48,7 +48,7 @@
     "fuel_used": 74670072,
     "peak_value_units": 6027165516738
   },
-  "codec_generation": "arbitrary four-leg codec after the 178873d7, 92fa6646 and c04539b9 Council rounds (re-mint 2026-09-18): both program legs judge arbitrary canonical bodies of all 18 kinds with native nesting-depth charging at every node and every ConstData container arm observed at the bound (RW090-DEV-01 residual disclosed); selector 1 re-frames handed body bytes, typed-field construction remains native",
+  "codec_generation": "arbitrary four-leg codec after the 178873d7, 92fa6646, c04539b9 and db53894e Council rounds (re-mint 2026-09-18): both program legs judge arbitrary canonical bodies of all 18 kinds with native nesting-depth charging at every node, every ConstData container arm and every listed sibling observed against the native codec at the bound (RW090-DEV-01 residual disclosed); selector 1 re-frames handed body bytes, typed-field construction remains native",
   "pinned_by": "integrated_driver_reconstructs_its_complete_executable_package (ignored qualification test; the checker-only figures below are unchanged)",
   "superseded_first_repair_reconstruction": {
     "profile": "one admitted handoff-driver invocation reconstructs and packages its complete 203-function executable image from canonical facts",
@@ -79,5 +79,20 @@
     "fuel_used": 123242409,
     "peak_value_units": 15797684686117,
     "note": "third-repair generation (0b7a1482) superseded 2026-09-18 by the re-mint after the c04539b9 round"
+  },
+  "superseded_fourth_repair_reconstruction": {
+    "profile": "one admitted handoff-driver invocation reconstructs and packages its complete 202-function executable image from canonical facts",
+    "functions": 202,
+    "transitive_callees": 201,
+    "driver_inputs": 74,
+    "image_bytes": 817280,
+    "image_sha256": "2e53152bda7f85cfce32f2a9b8cf0f63b65b70ef0c4c8f90258f4fbaaf66c270",
+    "envelope_bytes": 860112,
+    "envelope_sha256": "a329e0bca641e90c6477b06f85204eca17bf5ffb90683a518275dec587559192",
+    "execution_package_digest": "3bb7f46a9b61b57c2bf358fb5924ce17df5b3453601d591129683a5d16a13989",
+    "instruction_count": 25881896,
+    "fuel_used": 123242409,
+    "peak_value_units": 15797684686117,
+    "note": "fourth-repair generation (867009de) superseded 2026-09-18 by the fifth re-mint after the db53894e round"
   }
 }

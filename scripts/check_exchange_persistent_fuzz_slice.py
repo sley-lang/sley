@@ -117,6 +117,14 @@ for marker in ["make exchange-persistent-fuzz-smoke", "rehashed bytes replace on
     if marker not in audit:
         problems.append(f"doc-missing:{AUDIT.relative_to(ROOT)}:{marker}")
 
+# The durable proof record is validated against HEAD (ancestry, lane-input
+# freshness over the targets' transitive workspace crates, run floor, crash
+# disposition, owner instrumentation): scripts/fuzz_proof_record.py.
+import sys as _sys
+_sys.path.insert(0, str(ROOT / "scripts"))
+from fuzz_proof_record import slice_proof_problems as _slice_proof_problems  # noqa: E402
+problems.extend(_slice_proof_problems(ROOT, "s20_700_exchange_persistent_fuzz_slice", "scripts/run_exchange_persistent_fuzz.py", ['repository_exchange_importer']))
+
 if problems:
     raise SystemExit("\n".join(problems))
 

@@ -1,9 +1,24 @@
 # Finding Register v1
 
-Status: S20-740 contract draft, revision 5 (2026-09-18); Council review
+Status: S20-740 contract draft, revision 6 (2026-09-18); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). The mechanics are `scripts/build_finding_register.py`;
 implementation state is tracked in the machine summary.
+
+Revision 6 (2026-09-18) names the per-package claim ledger's retirement
+path (Nabu/Vulcan/Ariadne P3s at db53894e: the retirement had been done by
+an untracked script and recorded in fields no contract named): an entry of
+`pN_open` is `"<field>[@<scope7>]: <finding>"` and leaves the open list only
+into `pN_closed_claims` as `{claim, verified_by}` where `verified_by`
+starts with the repository path of an existing transcript that verified
+the closure — either the same lane's later verdict carrying
+`PRIOR_…_PN_…_CLOSED` at a strictly later scope (automatic rule) or a
+closure review named in the tracked `evidence/review/claim-retirements.json`
+(explicit rule, with a reason). `scripts/retire_review_claims.py` applies
+both rules; the register builder refuses a `verified_by` whose transcript
+does not exist and reports `package_closed_claims`. Retired claims are not
+open claims: the CLEAR predicate and the GA open-findings row read only
+`pN_open`.
 
 Revision 5 (2026-09-18) adds chronology to round folding: a `PASS` whose
 `_note` is dated before the `FAIL`/`REVISE` round's `_note` never folds
@@ -188,6 +203,10 @@ register = {
   "declared_open_findings": the summary's open_findings counters,
   "package_open_claims": { "section.field": open count } ascending, every
     per-package p0..p4 open list length and open count the summary carries,
+  "package_closed_claims": { "section.pN_closed_claims": count } ascending,
+    every retired per-package claim list (revision 6); each entry is
+    {claim, verified_by} with verified_by naming an existing transcript
+    under evidence/review/verdicts/ or machineresearch/sley-2.0/reviews/,
   "result": "FINDING_REGISTER_CLEAR" | "FINDING_REGISTER_OPEN",
   "register_digest": SHA-256 of the canonical register without this field
 }
@@ -200,7 +219,10 @@ Rules:
   because a missing or non-numeric counter would let the register read
   clear vacuously. Every per-package open list must be a list and every
   per-package open count a non-negative int, or the summary is likewise
-  invalid;
+  invalid; every per-package closed-claim entry must be `{claim,
+  verified_by}` with an existing transcript path (revision 6), or the
+  summary is invalid — a claim leaves the open ledger only through a
+  transcript;
 - the result is `FINDING_REGISTER_CLEAR` exactly when no obligation is
   `PENDING`, no obligation is `OTHER`, `unclaimed_carried_findings` is
   empty, `complete_packages_with_open_reviews`

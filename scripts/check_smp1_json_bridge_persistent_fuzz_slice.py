@@ -118,6 +118,14 @@ for marker in ["make smp1-json-bridge-persistent-fuzz-smoke", "parse back to the
     if marker not in audit:
         problems.append(f"doc-missing:{AUDIT.relative_to(ROOT)}:{marker}")
 
+# The durable proof record is validated against HEAD (ancestry, lane-input
+# freshness over the targets' transitive workspace crates, run floor, crash
+# disposition, owner instrumentation): scripts/fuzz_proof_record.py.
+import sys as _sys
+_sys.path.insert(0, str(ROOT / "scripts"))
+from fuzz_proof_record import slice_proof_problems as _slice_proof_problems  # noqa: E402
+problems.extend(_slice_proof_problems(ROOT, "s20_700_smp1_json_bridge_persistent_fuzz_slice", "scripts/run_smp1_json_bridge_persistent_fuzz.py", ['smp1_json_bridge']))
+
 if problems:
     raise SystemExit("\n".join(problems))
 

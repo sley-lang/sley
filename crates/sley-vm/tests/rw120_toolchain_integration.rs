@@ -572,24 +572,24 @@ fn merged_component_root_executes_all_four_canonical_programs() {
     );
     let (object_bytes, object_digest, root_digest) = component_digests(&evidence);
     assert_eq!(merged.functions.len(), 201);
-    assert_eq!(merged.parameters.len(), 9_687);
+    assert_eq!(merged.parameters.len(), 9_693);
     assert_eq!(merged.blocks.len(), 3_233);
     assert_eq!(merged.operations.len(), 6_483);
     assert_eq!(merged.constants.len(), 669);
-    assert_eq!(evidence.objects.len(), 20_293);
-    assert_eq!(object_bytes, 5_109_711);
+    assert_eq!(evidence.objects.len(), 20_299);
+    assert_eq!(object_bytes, 5_111_097);
     assert_eq!(
         object_digest,
-        "f9071b0b408994b8d809fea3ef34ed9a997217ab2c9115d05c5b1e96659bdf1d"
+        "e283b7aba75f49a3a1890536564a0b996da463d9de626957eb291921d3f2e565"
     );
     assert_eq!(
         hex(evidence.root.root.as_bytes()),
-        "f05f2c2380b108ef9948eb77efe411b0c0a54f4c39865abec6ba0569207dd200"
+        "3fdbc1a84e9fe4797c066180b02de369fc58cac8cf8b0de989f79aefb6fa3e0c"
     );
-    assert_eq!(evidence.root.stored_bytes.len(), 1_339_736);
+    assert_eq!(evidence.root.stored_bytes.len(), 1_340_132);
     assert_eq!(
         root_digest,
-        "e0960def2d81df5546fa4d25ec7aadfbfe0b9e2b4c9689ff93c59a3eb69c7998"
+        "86bb6d925a12c56ad7c614fb818b63c5dc2ff7990e166399fe6bdf83fba553fa"
     );
     eprintln!(
         "RW120_COMPONENT functions={} parameters={} blocks={} operations={} constants={} objects={} object_bytes={} object_sha256={} root={} root_bytes={} root_sha256={}",
@@ -623,28 +623,28 @@ fn integrated_driver_calls_all_four_real_programs_in_one_execution() {
     assert_eq!(execution.value, fixture.expected);
     let (object_bytes, object_digest, root_digest) = component_digests(&evidence);
     assert_eq!(fixture.program.functions.len(), 202);
-    assert_eq!(fixture.program.parameters.len(), 9_762);
+    assert_eq!(fixture.program.parameters.len(), 9_768);
     assert_eq!(fixture.program.blocks.len(), 3_234);
     assert_eq!(fixture.program.operations.len(), 6_488);
-    assert_eq!(evidence.objects.len(), 20_376);
-    assert_eq!(object_bytes, 5_129_407);
+    assert_eq!(evidence.objects.len(), 20_382);
+    assert_eq!(object_bytes, 5_130_793);
     assert_eq!(
         object_digest,
-        "6dd42f899fb3ea41966922e183542708bc43e2598ee3afca15d87d6d3faee163"
+        "edc3318b6838364ceb83d42a4c2bea09c305e2bd29f009b3fffca8be1930dec4"
     );
     assert_eq!(
         hex(evidence.root.root.as_bytes()),
-        "2d8448d874bdfc3b0b53c9c4a17eea65215d70bff80b39c7393867aced88099d"
+        "759be51f1dfab8cc18f38702e89af9172769271b1597b5c23f16e6469947f14a"
     );
-    assert_eq!(evidence.root.stored_bytes.len(), 1_345_247);
+    assert_eq!(evidence.root.stored_bytes.len(), 1_345_643);
     assert_eq!(
         root_digest,
-        "bb46b6dca5a6fa1a0864795c6e9ef4a3c8505eb50090b77a34175980c7ca49bf"
+        "f0cfbdad243eb95de736f6a0063760b98dec2293517aba37ed0c06520b9abef4"
     );
-    assert_eq!(execution.image_bytes, 816_822);
+    assert_eq!(execution.image_bytes, 816_930);
     assert_eq!(
         hex(&execution.package_digest),
-        "e9a70ff44f77c2af10af47e6dcfd8cc6d2bcb091171ef7960b59da260ca7d459"
+        "a7d09207f722e5fc47c08b2ebd6e0e501df43639d39950ea757a828e377183cc"
     );
     assert_eq!(execution.gate_operation_count, 6_488);
     assert_eq!(execution.gate_bridge_uses, 217);
@@ -679,7 +679,7 @@ fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
     let fixture = handoff::fixture();
     assert_eq!(fixture.program.entry_points.len(), 5);
     assert_eq!(fixture.program.functions.len(), 202);
-    assert_eq!(fixture.program.parameters.len(), 9_763);
+    assert_eq!(fixture.program.parameters.len(), 9_769);
     assert_eq!(fixture.program.blocks.len(), 3_236);
     assert_eq!(fixture.program.operations.len(), 6_492);
     assert_eq!(fixture.program.constants.len(), 669);
@@ -693,25 +693,25 @@ fn integrated_driver_hands_lowered_bytes_to_the_package_builder() {
     );
     assert_eq!(execution.value, fixture.expected);
     let (object_bytes, object_digest, root_digest) = component_digests(&evidence);
-    assert_eq!(evidence.objects.len(), 20_383);
-    assert_eq!(object_bytes, 5_131_404);
+    assert_eq!(evidence.objects.len(), 20_389);
+    assert_eq!(object_bytes, 5_132_790);
     assert_eq!(
         object_digest,
-        "bee7da94a659c31366ca81fe634cd84d5aa9e5b2108bd56d5d1112cda55e3a5e"
+        "588543210a97caef7bac00679a24a0bfd2f1c4bede04ce84d2a4c47f5e2bf979"
     );
     assert_eq!(
         hex(evidence.root.root.as_bytes()),
-        "5332d4d758c17c928039cd321ba593aedc5e87f8a57e43ab8e43bc5d877308b3"
+        "3d2ed8f8bdbc38b4332c11a0cc51d3693e4ba3cdf6f2b15be623ad0a01be6148"
     );
-    assert_eq!(evidence.root.stored_bytes.len(), 1_345_709);
+    assert_eq!(evidence.root.stored_bytes.len(), 1_346_105);
     assert_eq!(
         root_digest,
-        "35256f888669cb2ce6cc446b3bc955b75e58ea6376202b3b5a20d3a1152af098"
+        "1a31c41e1d2b846a054cac00e96716de3197de82cd148614868f9759487e9ec3"
     );
-    assert_eq!(execution.image_bytes, 817_280);
+    assert_eq!(execution.image_bytes, 817_388);
     assert_eq!(
         hex(&execution.package_digest),
-        "50f454bde0d6efcab8bfff4c17ea5b716330a438f030dfef95f5094a4f126579"
+        "37613e65045a5e5d731ee760d2e7b734363552df86a906e9ea48bcbfc5903465"
     );
     assert_eq!(execution.gate_operation_count, 6_492);
     assert_eq!(execution.gate_bridge_uses, 217);
@@ -785,23 +785,23 @@ fn integrated_driver_reconstructs_its_complete_executable_package() {
     assert_eq!(loaded.callees.len(), 201);
     let envelope_digest: [u8; 32] = Sha256::digest(envelope).into();
     let image_digest: [u8; 32] = Sha256::digest(&decoded.image_bytes).into();
-    assert_eq!(decoded.image_bytes.len(), 817_280);
+    assert_eq!(decoded.image_bytes.len(), 817_388);
     assert_eq!(
         hex(&image_digest),
-        "2e53152bda7f85cfce32f2a9b8cf0f63b65b70ef0c4c8f90258f4fbaaf66c270"
+        "f3da10f7427b0eb19851d0f83ef9b75750cd2276437e4507b66ff82ca8af3387"
     );
-    assert_eq!(envelope.len(), 860_112);
+    assert_eq!(envelope.len(), 860_220);
     assert_eq!(
         hex(&envelope_digest),
-        "a329e0bca641e90c6477b06f85204eca17bf5ffb90683a518275dec587559192"
+        "2e434790836dee0615d68a3cd14ad7390ac49773680a4871dce0e01f2e716417"
     );
     assert_eq!(
         hex(&decoded.digests.package_digest),
-        "3bb7f46a9b61b57c2bf358fb5924ce17df5b3453601d591129683a5d16a13989"
+        "74a56ef552bea91b94da98e73abec32b610c0bc9dbfcd39dce9656df5111a5dc"
     );
-    assert_eq!(execution.instruction_count, 25_881_896);
-    assert_eq!(execution.fuel_used, 123_242_409);
-    assert_eq!(execution.peak_value_units, 15_797_684_686_117);
+    assert_eq!(execution.instruction_count, 25_885_482);
+    assert_eq!(execution.fuel_used, 123_259_403);
+    assert_eq!(execution.peak_value_units, 15_801_710_950_059);
     eprintln!(
         "RW120_C1 root={} callees={} image_bytes={} image_sha256={} envelope_bytes={} envelope_sha256={} package_digest={} instructions={} fuel={} peak={} seconds={seconds:.2}",
         hex(evidence.root.root.as_bytes()),
@@ -834,7 +834,7 @@ fn canonical_programs_merge_without_semantic_identity_collisions() {
     let merged = component::merged_program();
     assert_eq!(merged.entry_points.len(), 4);
     assert_eq!(merged.functions.len(), 201);
-    assert_eq!(merged.parameters.len(), 9_687);
+    assert_eq!(merged.parameters.len(), 9_693);
     assert_eq!(merged.blocks.len(), 3_233);
     assert_eq!(merged.operations.len(), 6_483);
     assert_eq!(merged.constants.len(), 669);

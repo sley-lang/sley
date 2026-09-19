@@ -8898,7 +8898,16 @@ fn build_type_expr_append_child(
     let depth_ready = assembler.id(ns.b);
     let append = assembler.id(ns.b);
 
-    let append_parameters = block_parameters(assembler, ns.p, append, &input_types);
+    // The append block receives the child's own depth as an extra trailing
+    // argument; the slot's effective depth (parameter 5) is carried onward
+    // unchanged, so every listed sibling is charged the same depth (the
+    // native `Vec<T>` / `decode_map_entries` rule). Forwarding the child
+    // depth as the carried depth charged listed child i one level per
+    // sibling (Ariadne/Nabu/Vulcan P1 at db53894e).
+    let mut append_types = input_types.clone();
+    append_types.push(u64_type());
+    let append_parameters = block_parameters(assembler, ns.p, append, &append_types);
+    let child_depth_slot = append_parameters.len() - 1;
     let inserted_work = assembler.op(
         ns.o,
         append,
@@ -8918,7 +8927,7 @@ fn build_type_expr_append_child(
         vec![
             pav(append_parameters[2]),
             pav(append_parameters[4]),
-            pav(append_parameters[5]),
+            pav(append_parameters[child_depth_slot]),
         ],
         vec![depths_map_type],
         Immediate::None,
@@ -8940,7 +8949,12 @@ fn build_type_expr_append_child(
         SwitchArgument::CasePayload,
         sav(append_parameters[5]),
     ];
-    destination_arguments.extend(append_parameters[6..].iter().copied().map(sav));
+    destination_arguments.extend(
+        append_parameters[6..child_depth_slot]
+            .iter()
+            .copied()
+            .map(sav),
+    );
     append_block(
         assembler,
         append,
@@ -8972,7 +8986,7 @@ fn build_type_expr_append_child(
         .copied()
         .map(sav)
         .collect::<Vec<_>>();
-    append_arguments[5] = SwitchArgument::CasePayload;
+    append_arguments.push(SwitchArgument::CasePayload);
     append_block(
         assembler,
         depth_ready,
@@ -15314,17 +15328,17 @@ fn function_schema_decoder_projects_all_runtime_fields() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 16);
-    assert_eq!(image.parameters.len(), 1_521);
+    assert_eq!(image.parameters.len(), 1_524);
     assert_eq!(image.blocks.len(), 343);
     assert_eq!(image.operations.len(), 641);
     assert_eq!(image.constants.len(), 218);
-    assert_eq!(package.image_bytes.len(), 87_390);
+    assert_eq!(package.image_bytes.len(), 87_444);
     assert_eq!(
         approved.package_digest,
         [
-            0x71, 0xf7, 0x25, 0xf2, 0xc6, 0x0c, 0x0a, 0x1d, 0xeb, 0x31, 0x26, 0x56, 0x0c, 0x7a,
-            0xef, 0xc2, 0x1f, 0x85, 0x56, 0xcf, 0x2f, 0xab, 0x3d, 0xbd, 0xd1, 0xa2, 0x3f, 0x75,
-            0x5e, 0xe8, 0x2e, 0xef,
+            0x85, 0x00, 0x28, 0x52, 0x8d, 0x1b, 0x5d, 0xce, 0xcc, 0xbf, 0x3c, 0xf6, 0xa3, 0xe1,
+            0x66, 0xa2, 0x8f, 0x85, 0xa1, 0x22, 0x97, 0x17, 0xe9, 0xd4, 0xb3, 0x52, 0x27, 0x55,
+            0x54, 0x33, 0xe9, 0x8b,
         ]
     );
     let outcome = execute_with_limits(
@@ -16263,17 +16277,17 @@ fn type_expr_recursive_decoder_accepts_nested_composites() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 14);
-    assert_eq!(image.parameters.len(), 1_361);
+    assert_eq!(image.parameters.len(), 1_364);
     assert_eq!(image.blocks.len(), 302);
     assert_eq!(image.operations.len(), 566);
     assert_eq!(image.constants.len(), 193);
-    assert_eq!(package.image_bytes.len(), 76_756);
+    assert_eq!(package.image_bytes.len(), 76_810);
     assert_eq!(
         approved.package_digest,
         [
-            0x55, 0xbb, 0xc9, 0x7f, 0x46, 0xea, 0x3b, 0x91, 0x8b, 0x49, 0x69, 0x51, 0xcf, 0x4b,
-            0xc2, 0x8f, 0x8e, 0x3a, 0x0c, 0x89, 0x11, 0x1a, 0x54, 0xf2, 0x26, 0xfb, 0x16, 0x6f,
-            0x7b, 0xdd, 0xfd, 0x2b,
+            0x61, 0x15, 0x16, 0xd8, 0x86, 0x16, 0x3b, 0xb7, 0x07, 0x76, 0xfa, 0x56, 0x74, 0x3b,
+            0x92, 0x76, 0x88, 0xc3, 0x14, 0x73, 0x11, 0x16, 0x05, 0x93, 0x0a, 0xe8, 0x96, 0x91,
+            0xd4, 0x72, 0x0b, 0x43,
         ]
     );
     let nested = TypeExpr::FunctionRef(FunctionType {
@@ -16701,17 +16715,17 @@ fn parameter_schema_decoder_accepts_arbitrary_structural_values() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 16);
-    assert_eq!(image.parameters.len(), 1_412);
+    assert_eq!(image.parameters.len(), 1_415);
     assert_eq!(image.blocks.len(), 328);
     assert_eq!(image.operations.len(), 622);
     assert_eq!(image.constants.len(), 212);
-    assert_eq!(package.image_bytes.len(), 83_052);
+    assert_eq!(package.image_bytes.len(), 83_106);
     assert_eq!(
         approved.package_digest,
         [
-            0xfb, 0x63, 0x36, 0xe5, 0x2f, 0x5f, 0x9e, 0x87, 0xae, 0xdf, 0x68, 0x0e, 0xe5, 0x0b,
-            0x38, 0x96, 0x11, 0x34, 0x96, 0x3c, 0x77, 0x46, 0x76, 0x86, 0x30, 0x45, 0xd0, 0xf5,
-            0xd4, 0x82, 0xfe, 0x17,
+            0xbc, 0x33, 0xfa, 0x9f, 0xac, 0xa2, 0xe8, 0x03, 0x0f, 0x61, 0x1c, 0xbe, 0x93, 0xc8,
+            0x47, 0xbb, 0x74, 0xf6, 0xc8, 0x55, 0x17, 0x20, 0x40, 0x4f, 0xef, 0xa4, 0xfc, 0x19,
+            0x86, 0x4a, 0x19, 0x14,
         ]
     );
     let outcome = execute_with_limits(
@@ -16848,17 +16862,17 @@ fn global_value_schema_decoder_accepts_arbitrary_structural_values() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 15);
-    assert_eq!(image.parameters.len(), 1_379);
+    assert_eq!(image.parameters.len(), 1_382);
     assert_eq!(image.blocks.len(), 312);
     assert_eq!(image.operations.len(), 585);
     assert_eq!(image.constants.len(), 197);
-    assert_eq!(package.image_bytes.len(), 79_022);
+    assert_eq!(package.image_bytes.len(), 79_076);
     assert_eq!(
         approved.package_digest,
         [
-            0x1f, 0xb7, 0xc8, 0xac, 0x77, 0x5d, 0xa3, 0x82, 0x53, 0x02, 0x9e, 0x9f, 0x3e, 0x9e,
-            0xc7, 0x90, 0x44, 0x27, 0xe8, 0x90, 0x4a, 0x46, 0x86, 0x00, 0xdb, 0x97, 0xd8, 0x8a,
-            0x84, 0x6f, 0xb8, 0x9d,
+            0x8b, 0xc2, 0xce, 0x1e, 0x90, 0xd0, 0x92, 0xab, 0xe0, 0x90, 0x33, 0x99, 0xe5, 0x3c,
+            0x39, 0x17, 0xc4, 0x52, 0xee, 0xc3, 0x95, 0xfc, 0x4f, 0x4f, 0x15, 0x9c, 0xb8, 0xbb,
+            0x8a, 0xf4, 0xa7, 0x87,
         ]
     );
     let outcome = execute_with_limits(
@@ -16985,17 +16999,17 @@ fn adapter_import_schema_decoder_accepts_arbitrary_structural_values() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 16);
-    assert_eq!(image.parameters.len(), 1_447);
+    assert_eq!(image.parameters.len(), 1_450);
     assert_eq!(image.blocks.len(), 332);
     assert_eq!(image.operations.len(), 633);
     assert_eq!(image.constants.len(), 215);
-    assert_eq!(package.image_bytes.len(), 84_718);
+    assert_eq!(package.image_bytes.len(), 84_772);
     assert_eq!(
         approved.package_digest,
         [
-            0x3c, 0xe7, 0x68, 0x08, 0xd5, 0xaa, 0x1d, 0xdc, 0xe1, 0x08, 0x39, 0x52, 0x1d, 0x92,
-            0xf6, 0x4f, 0xfc, 0xe7, 0x3e, 0xb7, 0x79, 0x60, 0x92, 0x30, 0x0a, 0x9e, 0x48, 0x67,
-            0x1d, 0x0b, 0xa3, 0x15,
+            0xe4, 0x70, 0x72, 0x15, 0x15, 0xff, 0x6f, 0x47, 0x25, 0x7d, 0xe4, 0x5d, 0x9c, 0x0f,
+            0xd0, 0xc4, 0xe0, 0xc4, 0xef, 0x02, 0x74, 0x10, 0x62, 0x82, 0x68, 0xaa, 0x98, 0x0c,
+            0x41, 0x0e, 0xa7, 0xc2,
         ]
     );
     let outcome = execute_with_limits(
@@ -17132,17 +17146,17 @@ fn effect_def_schema_decoder_accepts_arbitrary_structural_values() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 16);
-    assert_eq!(image.parameters.len(), 1_447);
+    assert_eq!(image.parameters.len(), 1_450);
     assert_eq!(image.blocks.len(), 332);
     assert_eq!(image.operations.len(), 635);
     assert_eq!(image.constants.len(), 217);
-    assert_eq!(package.image_bytes.len(), 84_870);
+    assert_eq!(package.image_bytes.len(), 84_924);
     assert_eq!(
         approved.package_digest,
         [
-            0x79, 0x18, 0xd8, 0xed, 0x74, 0xe9, 0x1a, 0xf6, 0x46, 0xfc, 0x86, 0x94, 0xca, 0x38,
-            0xd6, 0x76, 0x61, 0xa3, 0x41, 0x4f, 0x91, 0x41, 0x89, 0x2b, 0xc1, 0x02, 0xe4, 0xbe,
-            0x0d, 0xe3, 0x43, 0x37,
+            0x9b, 0x5f, 0xd6, 0xe2, 0x5e, 0x7a, 0x31, 0xc4, 0xda, 0xc4, 0x70, 0x6f, 0x23, 0xfd,
+            0x4c, 0xd3, 0x1f, 0x5e, 0xf1, 0x21, 0x59, 0x11, 0x4f, 0x03, 0xff, 0xb4, 0xb4, 0x9d,
+            0xf7, 0x84, 0x34, 0x7c,
         ]
     );
     let outcome = execute_with_limits(
@@ -17535,17 +17549,17 @@ fn type_def_schema_decoder_accepts_both_forms() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 23);
-    assert_eq!(image.parameters.len(), 1_502);
+    assert_eq!(image.parameters.len(), 1_505);
     assert_eq!(image.blocks.len(), 388);
     assert_eq!(image.operations.len(), 704);
     assert_eq!(image.constants.len(), 232);
-    assert_eq!(package.image_bytes.len(), 93_676);
+    assert_eq!(package.image_bytes.len(), 93_730);
     assert_eq!(
         approved.package_digest,
         [
-            0x22, 0x2a, 0xfe, 0xee, 0x9d, 0xdc, 0xa7, 0x0e, 0x27, 0x19, 0xa2, 0x91, 0x11, 0x31,
-            0x82, 0xe8, 0xcb, 0x04, 0x34, 0xf8, 0x01, 0x3b, 0x64, 0x77, 0x9a, 0x10, 0x55, 0xf3,
-            0x3a, 0x11, 0xd9, 0xde,
+            0x6d, 0xeb, 0x10, 0xec, 0xa5, 0x57, 0x49, 0x21, 0x6b, 0x10, 0xa2, 0x5e, 0xc4, 0x2e,
+            0x5f, 0xdb, 0xe7, 0x69, 0xf6, 0x0c, 0x70, 0x1d, 0x50, 0x5c, 0x6f, 0x59, 0xa7, 0xa3,
+            0x7c, 0xc2, 0x5b, 0xff,
         ]
     );
 
@@ -21155,14 +21169,18 @@ fn build_const_value_children_decode(
                 listed: 0,
                 container: 3,
             },
+            // Map: entries at d+2, entry record at d+3, key and value at d+4
+            // (both listed children of the entry list; at 867009de this was
+            // set to 2 to compensate for the driver's per-sibling depth
+            // creep, which under-charged the key — repaired at the driver).
+            12 => DepthOffsets {
+                first: 0,
+                second: 0,
+                listed: 3,
+                container: 2,
+            },
             // Sequence: Vec at d+2, elements at d+3.
-            // Map: entries at d+2, entry record at d+3, key and value at d+4.
-            // The entry-list projector charges the entry record itself, so
-            // the slot offset is one less than the record family's; the
-            // per-arm boundary loop observes the native boundary (16 nested
-            // maps) — with 3 this arm refused natively valid bodies from 13
-            // (found at c04539b9 by the per-arm sites).
-            9 | 12 => DepthOffsets {
+            9 => DepthOffsets {
                 first: 0,
                 second: 0,
                 listed: 2,
@@ -22325,17 +22343,17 @@ fn const_value_decoder_accepts_every_family_recursively() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 33);
-    assert_eq!(image.parameters.len(), 2_014);
+    assert_eq!(image.parameters.len(), 2_020);
     assert_eq!(image.blocks.len(), 555);
     assert_eq!(image.operations.len(), 1_174);
     assert_eq!(image.constants.len(), 442);
-    assert_eq!(package.image_bytes.len(), 141_478);
+    assert_eq!(package.image_bytes.len(), 141_586);
     assert_eq!(
         approved.package_digest,
         [
-            0x18, 0x37, 0x10, 0xfd, 0x61, 0x11, 0x2b, 0xf0, 0x06, 0xd1, 0xb6, 0xa7, 0x65, 0x95,
-            0xd9, 0x54, 0xff, 0x9c, 0x02, 0xdc, 0xd1, 0xc7, 0x8d, 0x32, 0x68, 0x54, 0xa9, 0x71,
-            0xd9, 0xe4, 0x0c, 0xcd,
+            0x20, 0x2e, 0x0a, 0xfd, 0x8b, 0x6d, 0x4c, 0xb1, 0x91, 0x0c, 0x5e, 0x41, 0x8d, 0xd0,
+            0x05, 0x09, 0x0a, 0x7f, 0x3c, 0x56, 0x4f, 0x3f, 0x70, 0xec, 0xcb, 0x8c, 0x88, 0x7c,
+            0x8e, 0x56, 0xda, 0x00,
         ]
     );
 
@@ -22865,17 +22883,17 @@ fn constant_schema_decoder_accepts_recursive_values() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 35);
-    assert_eq!(image.parameters.len(), 2_035);
+    assert_eq!(image.parameters.len(), 2_041);
     assert_eq!(image.blocks.len(), 575);
     assert_eq!(image.operations.len(), 1_209);
     assert_eq!(image.constants.len(), 452);
-    assert_eq!(package.image_bytes.len(), 145_292);
+    assert_eq!(package.image_bytes.len(), 145_400);
     assert_eq!(
         approved.package_digest,
         [
-            0x98, 0x5a, 0x5a, 0x20, 0x2c, 0xc3, 0x74, 0x22, 0x7d, 0x82, 0xcb, 0x2c, 0x8f, 0xde,
-            0x34, 0xe4, 0x53, 0x7d, 0x80, 0x99, 0x49, 0xbd, 0x2d, 0xc0, 0xca, 0x7f, 0x19, 0x62,
-            0x9d, 0x9b, 0xb0, 0x16,
+            0x7a, 0x49, 0xe6, 0xc9, 0x25, 0xbe, 0x41, 0x15, 0xbf, 0x43, 0xfa, 0x7d, 0x67, 0x5b,
+            0xef, 0x9c, 0x96, 0x24, 0x40, 0xde, 0x30, 0xba, 0x6a, 0x43, 0xbf, 0x1b, 0x13, 0x7a,
+            0x0d, 0x1c, 0xa8, 0xcf,
         ]
     );
 
@@ -22987,17 +23005,17 @@ fn capability_requirement_schema_decoder_accepts_scope_lists() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 36);
-    assert_eq!(image.parameters.len(), 2_063);
+    assert_eq!(image.parameters.len(), 2_069);
     assert_eq!(image.blocks.len(), 587);
     assert_eq!(image.operations.len(), 1_230);
     assert_eq!(image.constants.len(), 459);
-    assert_eq!(package.image_bytes.len(), 148_072);
+    assert_eq!(package.image_bytes.len(), 148_180);
     assert_eq!(
         approved.package_digest,
         [
-            0xd2, 0x5b, 0x7b, 0x55, 0x82, 0xce, 0xe5, 0x63, 0x75, 0xbe, 0x3b, 0x36, 0xe8, 0xdd,
-            0xff, 0xa7, 0xa1, 0x81, 0x2f, 0xde, 0xb7, 0xef, 0xd1, 0x44, 0xa6, 0x97, 0xab, 0x5f,
-            0xef, 0x7a, 0x46, 0x25,
+            0xad, 0x42, 0xb7, 0x3b, 0xb2, 0x2a, 0x88, 0x7c, 0x02, 0x3b, 0x08, 0xc5, 0x03, 0xa2,
+            0xf3, 0xd8, 0x46, 0x89, 0x1d, 0xcc, 0xfc, 0xbb, 0xeb, 0xf0, 0x3f, 0xb0, 0x12, 0x6d,
+            0x15, 0x8e, 0xcf, 0xe6,
         ]
     );
 
@@ -24131,17 +24149,17 @@ fn operation_schema_decoder_accepts_every_immediate() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 27);
-    assert_eq!(image.parameters.len(), 1_546);
+    assert_eq!(image.parameters.len(), 1_549);
     assert_eq!(image.blocks.len(), 409);
     assert_eq!(image.operations.len(), 731);
     assert_eq!(image.constants.len(), 232);
-    assert_eq!(package.image_bytes.len(), 97_696);
+    assert_eq!(package.image_bytes.len(), 97_750);
     assert_eq!(
         approved.package_digest,
         [
-            0x3e, 0x5e, 0x99, 0x4e, 0xf6, 0x43, 0x4b, 0x73, 0xbf, 0xea, 0xdc, 0x3c, 0x6a, 0x15,
-            0xe6, 0x57, 0xca, 0xcd, 0x2b, 0x8e, 0xaf, 0x69, 0x0f, 0x9d, 0xed, 0x5c, 0x17, 0x93,
-            0xf8, 0xa5, 0xd6, 0xa7,
+            0x26, 0x13, 0x39, 0x67, 0x7b, 0x71, 0xb4, 0xc1, 0x21, 0x2f, 0xfa, 0x8b, 0x80, 0x17,
+            0xb1, 0x00, 0x65, 0x81, 0x22, 0xec, 0xd5, 0x12, 0x37, 0xe0, 0xd8, 0x30, 0x39, 0xf9,
+            0x36, 0xe6, 0x0a, 0xf5,
         ]
     );
     for immediate in every_operation_immediate() {
@@ -24571,17 +24589,17 @@ fn test_case_schema_decoder_accepts_both_environments_and_outcomes() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 48);
-    assert_eq!(image.parameters.len(), 2_284);
+    assert_eq!(image.parameters.len(), 2_290);
     assert_eq!(image.blocks.len(), 693);
     assert_eq!(image.operations.len(), 1_400);
     assert_eq!(image.constants.len(), 504);
-    assert_eq!(package.image_bytes.len(), 169_912);
+    assert_eq!(package.image_bytes.len(), 170_020);
     assert_eq!(
         approved.package_digest,
         [
-            0x61, 0xd2, 0xd0, 0xb5, 0x7b, 0xce, 0xdf, 0x5a, 0xa4, 0x24, 0x99, 0x7e, 0xe0, 0x3a,
-            0x8b, 0x19, 0x0f, 0x42, 0x61, 0x08, 0xbf, 0xbc, 0xf2, 0x71, 0x8a, 0x42, 0xa2, 0x4e,
-            0xc6, 0xa2, 0x50, 0x09,
+            0xa1, 0x50, 0x70, 0x62, 0x3c, 0x99, 0x19, 0x8c, 0xd0, 0x9e, 0xe4, 0xa5, 0x95, 0xc2,
+            0xf5, 0x39, 0xf7, 0xd5, 0xad, 0x71, 0x9c, 0xb9, 0x6e, 0x72, 0x6e, 0xe3, 0x57, 0xba,
+            0x78, 0x81, 0x51, 0x36,
         ]
     );
 
@@ -26498,17 +26516,17 @@ fn arbitrary_dispatch_accepts_representative_and_rich_bodies_for_all_kinds() {
         approved.package_digest,
     );
     assert_eq!(image.functions.len(), 121);
-    assert_eq!(image.parameters.len(), 6_805);
+    assert_eq!(image.parameters.len(), 6_811);
     assert_eq!(image.blocks.len(), 1_860);
     assert_eq!(image.operations.len(), 3_380);
     assert_eq!(image.constants.len(), 129);
-    assert_eq!(package.image_bytes.len(), 447_588);
+    assert_eq!(package.image_bytes.len(), 447_696);
     assert_eq!(
         approved.package_digest,
         [
-            0xf1, 0xfe, 0x26, 0x4a, 0x67, 0xa3, 0xb6, 0xd6, 0x3a, 0xe3, 0x7e, 0xa9, 0x80, 0xda,
-            0x3c, 0xd6, 0xe9, 0xe0, 0x5b, 0x7c, 0x93, 0x1c, 0xcf, 0xe8, 0xe9, 0x86, 0x1e, 0x97,
-            0x57, 0x7a, 0x13, 0x53,
+            0x78, 0xe0, 0x4e, 0xd1, 0xc2, 0x23, 0x0f, 0x5e, 0xd7, 0xef, 0x90, 0x8e, 0x38, 0x48,
+            0x08, 0x24, 0x69, 0xfe, 0x58, 0xd6, 0x90, 0x71, 0x67, 0x5f, 0x26, 0x73, 0xc3, 0xf3,
+            0xf4, 0x3e, 0x4b, 0x91,
         ]
     );
 
@@ -26560,7 +26578,7 @@ fn arbitrary_dispatch_accepts_representative_and_rich_bodies_for_all_kinds() {
         "ARBITRARY_ALL_KIND peak fuel={} instructions={} value_units={}",
         peak.0, peak.1, peak.2
     );
-    assert_eq!(peak, (660_344, 73_591, 35_705_378));
+    assert_eq!(peak, (660_360, 73_591, 35_705_486));
 }
 
 #[test]
@@ -27210,6 +27228,145 @@ fn arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site() {
             "RW090-DEV-01: this codec's first refusal"
         );
     }
+}
+
+/// Listed siblings are charged one depth (RW-090 db53894e round, P1 in all
+/// three lanes): the driver had forwarded each appended child's depth as the
+/// carried effective depth, so listed child i was charged one level per
+/// preceding sibling — natively valid wide sequences, maps, tuples and
+/// parameter lists were refused, and a map key (the first listed child of
+/// its entry) ended one level shallower than native. Every case here is
+/// judged against the native codec; the wide bodies use the ten-times
+/// budget because they are large, not deep.
+#[test]
+#[allow(clippy::too_many_lines)]
+fn arbitrary_dispatch_charges_listed_siblings_at_one_depth() {
+    use sley_ssmc::{FunctionType, MapEntryConst};
+
+    let image = super::all_kind_digest_dispatch::arbitrary_all_kind_decode_image();
+    let (package, approved) = admit_with_limits(&image, wide_limits());
+    let entity = [0xcf; 32];
+    let stored = |body: &[u8]| super::all_kind_digest_dispatch::stored_from_body(entity, body);
+    let unit_const = || const_of(TypeExpr::Unit, ConstData::Unit);
+    let uint_const = |value: u128| {
+        const_of(
+            TypeExpr::UInt(sley_ssmc::IntegerWidth::from_bits(64)),
+            ConstData::UInt(value),
+        )
+    };
+    // Natively valid wide bodies: a Sequence of 60 Unit constants, a Map of
+    // 30 entries, a Tuple of 61 Unit elements, a Function type of 60
+    // parameters. Each element sits at the same native depth, so all four
+    // are accepted by both codecs.
+    let wide: Vec<(&str, u64, Vec<u8>)> = vec![
+        (
+            "constant Sequence of 60 Unit values",
+            9,
+            constant_schema_body(const_of(
+                TypeExpr::Tuple(vec![TypeExpr::Unit; 60]),
+                ConstData::Sequence((0..60).map(|_| unit_const()).collect()),
+            )),
+        ),
+        (
+            "constant Map of 30 entries",
+            9,
+            constant_schema_body(const_of(
+                TypeExpr::OrderedMap {
+                    key: Box::new(TypeExpr::UInt(sley_ssmc::IntegerWidth::from_bits(64))),
+                    value: Box::new(TypeExpr::Unit),
+                },
+                ConstData::Map(
+                    (0..30)
+                        .map(|index| MapEntryConst {
+                            key: uint_const(index),
+                            value: unit_const(),
+                        })
+                        .collect(),
+                ),
+            )),
+        ),
+        (
+            "parameter value_type Tuple of 61 Unit elements",
+            6,
+            parameter_schema_body(
+                ParameterRole::Function,
+                7,
+                TypeExpr::Tuple(vec![TypeExpr::Unit; 61]),
+            ),
+        ),
+        (
+            "parameter value_type Function type of 60 parameters",
+            6,
+            parameter_schema_body(
+                ParameterRole::Function,
+                7,
+                TypeExpr::FunctionRef(FunctionType {
+                    parameters: vec![TypeExpr::Unit; 60],
+                    result: Box::new(TypeExpr::Unit),
+                    effects: Vec::new(),
+                }),
+            ),
+        ),
+    ];
+    for (name, kind, body) in &wide {
+        let stored_bytes = stored(body);
+        assert_eq!(
+            native_stored_verdict(&stored_bytes),
+            "OK",
+            "{name}: native accepts"
+        );
+        assert_eq!(
+            arbitrary_stored_verdict_with_limits(
+                &package,
+                &approved,
+                *kind,
+                &stored_bytes,
+                wide_limits()
+            ),
+            "OK",
+            "{name}: this codec accepts"
+        );
+    }
+    // A single-entry Map whose KEY is an Option constant chain: the key is
+    // the first listed child of the entry (native depth d+4, like the
+    // value); three native levels per Option node from the key node at 6
+    // put the native boundary at 19 levels, and this codec agrees (before
+    // the driver repair the key sat one level shallower).
+    let constant_fields = exact_entity_body_fields(
+        &constant_schema_body(const_of(TypeExpr::Unit, ConstData::Unit)),
+        9,
+        1,
+    );
+    let unit_type = sley_scb1::encode_union(1, &[]).expect("Unit TypeExpr encodes");
+    let unit_data = sley_scb1::encode_union(1, &[]).expect("Unit ConstData encodes");
+    let unit_node = sley_scb1::encode_record(&[(1, unit_type.clone()), (2, unit_data)])
+        .expect("ConstValue record encodes");
+    let mut observed = None;
+    for k in 17..=22 {
+        let key = option_const_chain(k, &unit_type);
+        let entry =
+            sley_scb1::encode_record(&[(1, key), (2, unit_node.clone())]).expect("entry encodes");
+        let entries = sley_scb1::encode_list(&[entry]).expect("entry list encodes");
+        let data = sley_scb1::encode_union(12, &entries).expect("Map ConstData encodes");
+        let mut fields = constant_fields.clone();
+        fields[0] = sley_scb1::encode_record(&[(1, unit_type.clone()), (2, data)])
+            .expect("ConstValue record encodes");
+        let stored_bytes = stored(&parameter_schema_with_fields(9, &fields));
+        let native = native_stored_verdict(&stored_bytes);
+        let sley = arbitrary_stored_verdict_with_limits(
+            &package,
+            &approved,
+            9,
+            &stored_bytes,
+            wide_limits(),
+        );
+        eprintln!("MAP_KEY_CHAIN levels={k} native={native} sley={sley}");
+        assert_eq!(sley, native, "map key chain parity at {k} levels");
+        if native != "OK" && observed.is_none() {
+            observed = Some(k);
+        }
+    }
+    assert_eq!(observed, Some(19), "map key chain: native boundary");
 }
 
 /// Resource bound of the canonical entry under `codec_profile_limits`

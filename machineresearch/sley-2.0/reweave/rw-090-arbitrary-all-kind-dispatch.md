@@ -90,6 +90,12 @@ cargo clippy -p sley-vm --test rw120_toolchain_integration -- -D warnings
   code equals `sley_mutate::import_entity_object` on the same stored bytes
   (`assert_native_body_parity`,
   `arbitrary_dispatch_refuses_identity_kind_boundaries_with_native_codes`);
+  nesting depth is charged as the native codec charges it at every site,
+  every ConstData container arm and every listed sibling
+  (`arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site`,
+  `arbitrary_dispatch_charges_listed_siblings_at_one_depth`; the db53894e
+  round found and the fifth re-mint repaired a per-sibling depth creep in
+  the recursive driver);
   the one case without a native counterpart is the declared-kind mismatch,
   a dispatch precondition the native codec cannot express.
 - Independent review: 178873d7 round REVISE in all three lanes; repairs

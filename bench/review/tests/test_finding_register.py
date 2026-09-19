@@ -312,6 +312,37 @@ class InvariantTests(unittest.TestCase):
         self.assertEqual(register.round_date("x 2026-09-01 y 2026-09-18 z"), "2026-09-18")
         self.assertIsNone(register.round_date(None))
 
+    def test_retired_claims_must_name_an_existing_transcript(self) -> None:
+        # Revision 6: a pN_closed_claims entry is {claim, verified_by} with an
+        # existing transcript path; anything else is SUMMARY_INVALID.
+        transcript = "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md"
+        self.assertTrue((register.ROOT / transcript).is_file())
+        good = {
+            "example_package": {
+                "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED",
+                "p3_open": [],
+                "p3_open_count": 0,
+                "p3_closed_claims": [
+                    {"claim": "vulcan_review_revision_1@92fa664: [record] x", "verified_by": transcript + " — line 22"}
+                ],
+            },
+            "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+        }
+        derived = self.build_from(good)
+        self.assertEqual(derived["package_closed_claims"], {"example_package.p3_closed_claims": 1})
+        for bad_entry in (
+            {"claim": "x", "verified_by": "evidence/review/verdicts/nowhere/none-0000000.md"},
+            {"claim": "x", "verified_by": "docs/spec/FINDING_REGISTER_V1.md"},
+            {"claim": "x"},
+            "x",
+        ):
+            bad = json.loads(json.dumps(good))
+            bad["example_package"]["p3_closed_claims"] = [bad_entry]
+            with self.assertRaises(register.RegisterError) as error:
+                self.build_from(bad)
+            self.assertEqual(error.exception.code, register.RegisterErrorCode.SUMMARY_INVALID)
+
     def test_an_unsuperseded_failure_blocks_clearance(self) -> None:
         derived = self.build_from(
             {

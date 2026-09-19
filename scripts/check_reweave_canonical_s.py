@@ -21,14 +21,14 @@ SEED_BINARY = ROOT / "crates/sley-vm/tests/rw120_toolchain_integration.rs"
 PATH_ATTRIBUTE = re.compile(r'^#\[path\s*=\s*"([^"]+)"\]\s*$', re.MULTILINE)
 
 EXPECTED = {
-    "state_root": "5332d4d758c17c928039cd321ba593aedc5e87f8a57e43ab8e43bc5d877308b3",
-    "object_count": 20383,
-    "object_bytes": 5131404,
-    "object_bundle_sha256": "bee7da94a659c31366ca81fe634cd84d5aa9e5b2108bd56d5d1112cda55e3a5e",
-    "stored_root_bytes": 1345709,
-    "stored_root_sha256": "35256f888669cb2ce6cc446b3bc955b75e58ea6376202b3b5a20d3a1152af098",
+    "state_root": "3d2ed8f8bdbc38b4332c11a0cc51d3693e4ba3cdf6f2b15be623ad0a01be6148",
+    "object_count": 20389,
+    "object_bytes": 5132790,
+    "object_bundle_sha256": "588543210a97caef7bac00679a24a0bfd2f1c4bede04ce84d2a4c47f5e2bf979",
+    "stored_root_bytes": 1346105,
+    "stored_root_sha256": "1a31c41e1d2b846a054cac00e96716de3197de82cd148614868f9759487e9ec3",
     "function_count": 202,
-    "parameter_count": 9763,
+    "parameter_count": 9769,
     "block_count": 3236,
     "operation_count": 6492,
     "constant_count": 669,

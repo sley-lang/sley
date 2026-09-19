@@ -228,6 +228,14 @@ for path, marker in [
     if marker not in path.read_text(encoding="utf-8"):
         problems.append(f"doc-missing:{path.relative_to(ROOT)}:{marker}")
 
+# The durable proof record is validated against HEAD (ancestry, lane-input
+# freshness over the targets' transitive workspace crates, run floor, crash
+# disposition, owner instrumentation): scripts/fuzz_proof_record.py.
+import sys as _sys
+_sys.path.insert(0, str(ROOT / "scripts"))
+from fuzz_proof_record import slice_proof_problems as _slice_proof_problems  # noqa: E402
+problems.extend(_slice_proof_problems(ROOT, "s20_700_semantic_checkers_persistent_fuzz_slice", "scripts/run_semantic_checkers_persistent_fuzz.py", ['type_checker', 'ssmc_graph_cfg_checker']))
+
 if problems:
     raise SystemExit("\n".join(problems))
 

@@ -1121,16 +1121,16 @@ fn canonical_codec_objects_round_trip_and_bind_the_complete_graph() {
     // scripts/check_reweave_codec_component.py (Ariadne P1 / Nabu P2 /
     // Vulcan P2 at c04539b9: the manifest had kept the 7426bc0b figures).
     assert_eq!(image.functions.len(), 132);
-    assert_eq!(image.parameters.len(), 7_791);
+    assert_eq!(image.parameters.len(), 7_797);
     assert_eq!(image.blocks.len(), 2_131);
     assert_eq!(image.operations.len(), 4_531);
     assert_eq!(image.constants.len(), 138);
     assert_eq!(image.adapters.len(), 4);
-    assert_eq!(objects.len(), 14_728);
-    assert_eq!(stored_bytes, 3_732_076);
+    assert_eq!(objects.len(), 14_734);
+    assert_eq!(stored_bytes, 3_733_462);
     assert_eq!(
         hex(&digest),
-        "018dcd88fb5e3caa204a3537ec3066cb74e3da5a8424af9fec94f0d3aa3da51a"
+        "c100ef39b2afb8343517989a7d681075cfdc95912f94b30af96ef087a3b07785"
     );
 }
 
@@ -1220,15 +1220,15 @@ fn canonical_codec_component_retains_validated_contract_test_and_executes_from_i
     let objects = canonical_codec_component_objects(&image, &witnesses);
     let root = canonical_codec_component_root(&objects);
     let stored_digest = assert_component_reimports(&objects, &root);
-    assert_eq!(objects.len(), 14_740);
+    assert_eq!(objects.len(), 14_746);
     assert_eq!(
         hex(root.root.as_bytes()),
-        "d35a5d6d7b3e2c423c01d92b73043bfcb69ab1c08dee4f1c2cef8211300c6dc8"
+        "8833b4e7491d86ce39856e91baba4e2f53428e88d90aa8431c66a67c81788189"
     );
-    assert_eq!(root.stored_bytes.len(), 973_137);
+    assert_eq!(root.stored_bytes.len(), 973_533);
     assert_eq!(
         hex(&stored_digest),
-        "3fb01d5633bbc24d07b72d51bb49e0fc0b5086ef944525c96eaffaf95bd149c9"
+        "80d0e1876c80eb6ad028ffc1d9b2c03e38cc73b5ef512f2432491a37754a1787"
     );
     validate_retained_schema_test(&schema_image, &witnesses, schema_decode);
 

@@ -1,0 +1,310 @@
+[
+ {
+  "section": "release_candidate_packaging",
+  "severities": [
+   2,
+   3,
+   4
+  ],
+  "prefixes": [
+   "vulcan_surface_review_revision_5:"
+  ],
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md",
+  "reason": "lines 22-26: the revision-5 P2 (mint_method), both P3s and both P4s recorded CLOSED item by item at 92fa6646; the verdict token omitted the PRIOR suffix"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "severities": [
+   3,
+   4
+  ],
+  "prefixes": [
+   "ariadne_contract_review_revision_5:"
+  ],
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md",
+  "reason": "PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P3_P4_CLOSED at 92fa6646: the lane's revision-5 P3/P4 verified closed (the base field was overwritten later, so the automatic rule cannot see the round)"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "nabu_architecture_review_revision_5:"
+  ],
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-92fa664.md",
+  "reason": "PASS_..._PRIOR_P3_CLOSED at 92fa6646: the lane's revision-5 P3s verified closed"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "severities": [
+   3,
+   4
+  ],
+  "prefixes": [
+   "nabu_architecture_review: [runbook-identity]",
+   "nabu_architecture_review: [record-wording]",
+   "nabu_architecture_review: [comment]"
+  ],
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-c04539b.md",
+  "reason": "lines 28-32 (PRIOR_P3_P4_CLOSED at c04539b9): the lane's 92fa6646 P3 and both P4s verified closed"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "severities": [
+   3,
+   4
+  ],
+  "prefixes": [
+   "vulcan_surface_review: [runbook-staleness]",
+   "vulcan_surface_review: [record-wording] machineresearch/sley-2.0/machine-summary.json:4115",
+   "vulcan_surface_review: [checker-binding]"
+  ],
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-c04539b.md",
+  "reason": "lines 23-25: the lane's 92fa6646 P3 and both P4s recorded CLOSED; token omitted the PRIOR suffix"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "severities": [
+   4
+  ],
+  "prefixes": [
+   "ariadne_contract_review: [record] machineresearch/sley-2.0/machine-summary.json:4115"
+  ],
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-c04539b.md",
+  "reason": "PRIOR_P3_P4_CLOSED at c04539b9: the lane's 92fa6646 P4 verified closed"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "vulcan_surface_review: [evidence-integrity] scripts/build_ga_acceptance_report.py"
+  ],
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md",
+  "reason": "line 25: the c04539b9 GA-row P3 recorded CLOSED"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "nabu_architecture_review: [contract-binding]"
+  ],
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-db53894.md",
+  "reason": "PASS_..._PRIOR_P3_CLOSED at db53894e: the lane's c04539b9 P3 (contract names the lint binding) verified closed"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "severities": [
+   4
+  ],
+  "prefixes": [
+   "ariadne_contract_review: [record] machineresearch/sley-2.0/machine-summary.json:4200"
+  ],
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-db53894.md",
+  "reason": "line 23: the c04539b9 P4 (removal commit pointer) recorded CLOSED"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "severities": [
+   4
+  ],
+  "prefixes": [
+   "vulcan_surface_review: [register-supersession]"
+  ],
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md",
+  "reason": "line 29: the register-supersession P4 recorded CLOSED for the cited instance and mechanism (contract revision 5 chronology rule)"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
+   2,
+   3,
+   4
+  ],
+  "prefixes": [
+   "vulcan_surface_review_revision_10:"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md",
+  "reason": "lines 22-27: the revision-10 P2, P3s and P4s recorded CLOSED at 92fa6646 (token omitted the PRIOR suffix); the optional oracle-embeds note is re-raised as a fresh carried P4 by the lane itself"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
+   3,
+   4
+  ],
+  "prefixes": [
+   "nabu_architecture_review: [fail-closed/idempotence]",
+   "nabu_architecture_review: [records] evidence/release/second-host-lane-records.json:100 (45b2cd98 note)",
+   "nabu_architecture_review: [checker/binding]"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c04539b.md",
+  "reason": "PRIOR_P3_P4_CLOSED at c04539b9: the lane's 92fa6646 P3 and P4s verified closed"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
+   3,
+   4
+  ],
+  "prefixes": [
+   "vulcan_surface_review: [fail-closed-gap] scripts/build_reproducibility_report.py:330-354",
+   "vulcan_surface_review: [record-note] docs/adr/ADR-0040",
+   "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; docs/spec",
+   "vulcan_surface_review: [note] scripts/build_reproducibility_report.py:432-436"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md",
+  "reason": "lines 23-26: the lane's 92fa6646 P3 and P4s recorded CLOSED; token omitted the PRIOR suffix"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "ariadne_contract_review: [record-accuracy]"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-db53894.md",
+  "reason": "PRIOR_P3_CLOSED at db53894e: the lane's c04539b9 P3 (removal commit) verified closed"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "nabu_architecture_review: [evidence-binding/records]"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-db53894.md",
+  "reason": "line 24: the c04539b9 P3 (removal commit) recorded CLOSED"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
+   4
+  ],
+  "prefixes": [
+   "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; machineresearch"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-db53894.md",
+  "reason": "line 25: the c04539b9 P4 (removal commit) recorded CLOSED"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "severities": [
+   1,
+   2,
+   3
+  ],
+  "prefixes": [
+   "ariadne_contract_review_revision_8:",
+   "vulcan_surface_review_revision_9:",
+   "nabu_architecture_review_revision_7:"
+  ],
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md",
+  "reason": "the 178873d7-round P1/P2/P3 were recorded CLOSED item by item by all three 92fa6646 lane transcripts (tokens omitted the PRIOR suffix) and re-verified at c04539b9 by ariadne_contract_review-c04539b.md and this transcript"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "ariadne_contract_review: [record] machineresearch/sley-2.0/machine-summary.json:4704",
+   "vulcan_surface_review: [record] machineresearch/sley-2.0/machine-summary.json:4704"
+  ],
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-db53894.md",
+  "reason": "line 24: the c04539b9 ledger P3 recorded CLOSED (the 178873d7 P1/P2/P3 claims are out of the open lists); ariadne_contract_review-db53894.md PRIOR_P3_P4_CLOSED"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "severities": [
+   4
+  ],
+  "prefixes": [
+   "ariadne_contract_review: [test-coverage]"
+  ],
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-c04539b.md",
+  "reason": "line 27 (PRIOR_P3_P4_CLOSED at c04539b9): the lane's 92fa6646 P4 verified closed"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "severities": [
+   4
+  ],
+  "prefixes": [
+   "nabu_architecture_review: [test-layout]",
+   "nabu_architecture_review: [record] docs/audits/S20_710_PRE_RELEASE_AUDIT.md:16-18"
+  ],
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-c04539b.md",
+  "reason": "lines 21-22 (PRIOR_P3_P4_CLOSED at c04539b9): the lane's 92fa6646 P4s verified closed"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "severities": [
+   4
+  ],
+  "prefixes": [
+   "vulcan_surface_review: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:549-560",
+   "vulcan_surface_review: [record] evidence/build/lint-report.json:4",
+   "vulcan_surface_review: [record] machineresearch/sley-2.0/machine-summary.json `s20_710_pre_release_audit.final"
+  ],
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md",
+  "reason": "lines 24/26/28 (PRIOR_P3_P4_CLOSED at c04539b9): the lane's 92fa6646 P4s verified closed"
+ },
+ {
+  "section": "repository_exchange",
+  "severities": [
+   1
+  ],
+  "prefixes": [
+   "ariadne_implementation_review_closure_note:"
+  ],
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md",
+  "reason": "fresh independent final review at c04539b9: no P0/P1/P2-class defect exists in the exchange implementation, records or tests; the 178873d7 closure P1 (record binding of a29668e1) verified there"
+ },
+ {
+  "section": "repository_exchange",
+  "severities": [
+   3,
+   4
+  ],
+  "prefixes": [
+   "ariadne_implementation_review_final: [test-coverage]",
+   "ariadne_implementation_review_final: [record] machineresearch",
+   "ariadne_implementation_review_final: [contract-text] crates/sley-repo",
+   "ariadne_implementation_review_final: [record] docs/audits/S20_540",
+   "ariadne_implementation_review_final: [contract-text] crates/sley-txn"
+  ],
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md",
+  "reason": "PRIOR_P3_P4_CLOSED at c04539b9: the 92fa6646 P3s and P4s verified closed at 5bba01b3"
+ },
+ {
+  "section": "repository_exchange",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "ariadne_implementation_review_final: [contract-text] docs/spec/REPOSITORY_EXCHANGE_V1.md:413-417"
+  ],
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-db53894.md",
+  "reason": "PRIOR_P3_CLOSED at db53894e: the c04539b9 reader-list P3 verified closed"
+ },
+ {
+  "section": "mutation_value_profile",
+  "severities": [
+   2,
+   3,
+   4
+  ],
+  "prefixes": [
+   "epoch1_reanchor_review_closure_note:"
+  ],
+  "verified_by": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md",
+  "reason": "PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P2_P3_P4_CLOSED: the lane-less row's carried P2/P3/P4 verified closed (its own P4 is the records step this retirement performs)"
+ }
+]

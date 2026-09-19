@@ -1,15 +1,15 @@
 {
   "schema": "sley2-rw090-codec-component-manifest-v1",
   "status": "PROVISIONAL",
-  "object_count": 14740,
-  "codec_object_count": 14728,
-  "codec_object_stored_bytes": 3732076,
-  "codec_bundle_sha256": "018dcd88fb5e3caa204a3537ec3066cb74e3da5a8424af9fec94f0d3aa3da51a",
-  "state_root": "d35a5d6d7b3e2c423c01d92b73043bfcb69ab1c08dee4f1c2cef8211300c6dc8",
-  "state_root_stored_bytes": 973137,
-  "state_root_stored_sha256": "3fb01d5633bbc24d07b72d51bb49e0fc0b5086ef944525c96eaffaf95bd149c9",
+  "object_count": 14746,
+  "codec_object_count": 14734,
+  "codec_object_stored_bytes": 3733462,
+  "codec_bundle_sha256": "c100ef39b2afb8343517989a7d681075cfdc95912f94b30af96ef087a3b07785",
+  "state_root": "8833b4e7491d86ce39856e91baba4e2f53428e88d90aa8431c66a67c81788189",
+  "state_root_stored_bytes": 973533,
+  "state_root_stored_sha256": "80d0e1876c80eb6ad028ffc1d9b2c03e38cc73b5ef512f2432491a37754a1787",
   "image_functions": 132,
-  "image_parameters": 7791,
+  "image_parameters": 7797,
   "image_blocks": 2131,
   "image_operations": 4531,
   "image_constants": 138,
@@ -41,7 +41,8 @@
     "encode_leg_unknown_kind": "selector 1 refuses kinds 0 and 19 with SSMC_ENTITY_KIND_UNKNOWN (arbitrary_codec_main_executes_all_four_legs_over_arbitrary_bodies)",
     "identity_reuse": "RW080-ID-02 candidate clarification filed in rw-080-contract.md section 6 (component re-mint replacement semantics); architecture acceptance pending",
     "round_2": "92fa6646 (Ariadne REVISE_0_P0_0_P1_1_P2_3_P3_1_P4, Nabu REVISE_0_P0_0_P1_1_P2_0_P3_4_P4_PRIOR_P3_P4_CLOSED, Vulcan REVISE_0_P0_0_P1_1_P2_0_P3_4_P4_PRIOR_P3_P4_CLOSED; transcripts evidence/review/verdicts/rw090_arbitrary_codec/*-92fa664.md): shared P2 closed by threading the node depth into the constant projector (value_type charged at depth + 1; RW090-DEV-01 narrowed to FunctionRef type arguments), kind-5 parity added, RW090-DEV-02 pinned, RW090-DEV-03 restated with the kind-18 code and a canonical-entry case, the resource-limit profile decision filed as the rw-080-contract.md section 1.1 clarification, contract_mapping_open recorded; re-review of this generation pending",
-    "round_3": "c04539b9 (Ariadne REVISE_0_P0_1_P1_1_P2_1_P3_2_P4, Nabu REVISE_0_P0_0_P1_1_P2_1_P3_3_P4_PRIOR_P3_P4_CLOSED, Vulcan REVISE_0_P0_0_P1_2_P2_0_P3_1_P4; transcripts evidence/review/verdicts/rw090_arbitrary_codec/*-c04539b.md): this manifest and the codec-objects record had kept the 7426bc0b component figures (P1/P2) \u2014 re-minted and bound by scripts/check_reweave_codec_component.py; the over-budget test deleted at 0b7a1482 is restored and re-measured (P2); RW090-DEV-01 edges bracketed (native first refusal 55, this codec 58; P3); DEV-01 offset corrected to +4 and DEV-03's tag-19 clause pinned (P4s); a kind-12 deeper-root value_type site and one boundary site per ConstData container arm added (P4s) \u2014 the map arm charged one level too many (refused natively valid bodies from 13 nested maps; native bound 16), repaired in this generation"
+    "round_3": "c04539b9 (Ariadne REVISE_0_P0_1_P1_1_P2_1_P3_2_P4, Nabu REVISE_0_P0_0_P1_1_P2_1_P3_3_P4_PRIOR_P3_P4_CLOSED, Vulcan REVISE_0_P0_0_P1_2_P2_0_P3_1_P4; transcripts evidence/review/verdicts/rw090_arbitrary_codec/*-c04539b.md): this manifest and the codec-objects record had kept the 7426bc0b component figures (P1/P2) \u2014 re-minted and bound by scripts/check_reweave_codec_component.py; the over-budget test deleted at 0b7a1482 is restored and re-measured (P2); RW090-DEV-01 edges bracketed (native first refusal 55, this codec 58; P3); DEV-01 offset corrected to +4 and DEV-03's tag-19 clause pinned (P4s); a kind-12 deeper-root value_type site and one boundary site per ConstData container arm added (P4s) \u2014 the map arm charged one level too many (refused natively valid bodies from 13 nested maps; native bound 16), repaired in this generation",
+    "round_4": "db53894e (Ariadne REVISE_0_P0_1_P1_0_P2_0_P3_1_P4_PRIOR_P3_P4_CLOSED, Nabu REVISE_0_P0_1_P1_0_P2_1_P3_2_P4_PRIOR_P3_P4_CLOSED, Vulcan REVISE_0_P0_1_P1_0_P2_1_P3_1_P4_PRIOR_P3_P4_CLOSED; transcripts evidence/review/verdicts/rw090_arbitrary_codec/*-db53894.md): the shared P1 \u2014 the recursive driver forwarded each appended child's depth as the carried effective depth, so listed child i was charged one level per preceding sibling (natively valid wide sequences/maps/tuples/parameter lists refused; the 867009de map offset was a compensation that left the key one level shallower) \u2014 is repaired at the driver (build_type_expr_append_child carries the slot depth, the child depth only enters the depths map), the Map offset restored to its native value, and every listed-sibling prediction observed against the native codec (arbitrary_dispatch_charges_listed_siblings_at_one_depth); the component checker binds every superseded_*_component block (Nabu P3)"
   },
   "known_deviations": [
     {
@@ -110,6 +111,18 @@
     "source_commit": "0b7a1482",
     "note": "third-repair component (node-depth value_type charging), superseded 2026-09-18 by the fourth re-mint (Map constant-arm over-charge repaired) under RW080-ID-02 replacement semantics"
   },
-  "source_commit": "867009de (fourth re-mint of 2026-09-18 after the c04539b9 round)",
-  "arm_boundaries_observed": "every ConstData container arm is observed against the native codec at the 64-level bound (arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site, per-arm sites under a ten-times-wider budget): Sequence 21 nested nodes, Record 13, Variant 16, Map 16, Option 21, Result 21 (first refused chain length; native and this codec agree across the window)"
+  "superseded_fourth_repair_component": {
+    "object_count": 14740,
+    "codec_object_count": 14728,
+    "codec_object_stored_bytes": 3732076,
+    "codec_bundle_sha256": "018dcd88fb5e3caa204a3537ec3066cb74e3da5a8424af9fec94f0d3aa3da51a",
+    "state_root": "d35a5d6d7b3e2c423c01d92b73043bfcb69ab1c08dee4f1c2cef8211300c6dc8",
+    "state_root_stored_bytes": 973137,
+    "state_root_stored_sha256": "3fb01d5633bbc24d07b72d51bb49e0fc0b5086ef944525c96eaffaf95bd149c9",
+    "source_commit": "867009de",
+    "note": "fourth-repair generation (867009de) superseded 2026-09-18 by the fifth re-mint after the db53894e round (driver charged listed child i one level per preceding sibling; repaired at the driver, the Map compensation removed)"
+  },
+  "source_commit": "the commit carrying this manifest (fifth re-mint of 2026-09-18 after the db53894e round; named in the records-only descendant)",
+  "arm_boundaries_observed": "every ConstData container arm is observed against the native codec at the 64-level bound with one element per level (arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site: Sequence 21 nested nodes, Record 13, Variant 16, Map 16, Option 21, Result 21 \u2014 first refused chain length; native and this codec agree across the window), and listed siblings at one depth (arbitrary_dispatch_charges_listed_siblings_at_one_depth: a Sequence of 60 Unit values, a Map of 30 entries, a Tuple of 61 elements and a Function type of 60 parameters accepted by both; a map key Option chain refused by both from 19 levels)",
+  "native_depth_charging": ""
 }

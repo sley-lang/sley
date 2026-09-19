@@ -72,12 +72,23 @@ def main() -> None:
     if manifest["object_count"] <= manifest["codec_object_count"]:
         fail("object_count must exceed codec_object_count (spine, contract, test, entry point)")
     # RW080-ID-02: every superseded component root is carried with its
-    # source commit, and none of them equals the current root.
-    for block in ("superseded_bounded_component", "superseded_pre_review_arbitrary_component",
-                  "superseded_first_repair_component"):
+    # source commit, none of them equals the current root, and the blocks
+    # each repair round names in review_repairs are present (Nabu P3 at
+    # db53894e: the checker had hard-coded three names and left the newest
+    # block unbound).
+    blocks = sorted(key for key in manifest if key.startswith("superseded_") and key.endswith("_component"))
+    required = {"superseded_bounded_component", "superseded_pre_review_arbitrary_component",
+                "superseded_first_repair_component", "superseded_third_repair_component"}
+    if not required <= set(blocks):
+        fail(f"missing superseded component blocks: {sorted(required - set(blocks))}")
+    roots = set()
+    for block in blocks:
         entry = manifest.get(block)
         if not isinstance(entry, dict):
             fail(f"missing {block}")
+        if entry["state_root"] in roots:
+            fail(f"{block} repeats another superseded root")
+        roots.add(entry["state_root"])
         for key in ("state_root", "codec_bundle_sha256", "source_commit"):
             if not isinstance(entry.get(key), str) or not entry[key]:
                 fail(f"{block}.{key} missing")
