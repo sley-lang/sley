@@ -343,30 +343,35 @@ class InvariantTests(unittest.TestCase):
         # existing transcript path; anything else is SUMMARY_INVALID.
         transcript = "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md"
         self.assertTrue((register.ROOT / transcript).is_file())
+        # The section must own the transcript directory and the claim's lane
+        # must be the transcript's (revision 6, c67b0729 round).
         good = {
-            "example_package": {
+            "release_candidate_packaging": {
                 "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
                 "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED",
                 "p3_open": [],
                 "p3_open_count": 0,
                 "p3_closed_claims": [
-                    {"claim": "vulcan_review_revision_1@92fa664: [record] x", "verified_by": transcript + "#L23 — line 23"}
+                    {"claim": "vulcan_review_revision_1@178873d: [record] x", "verified_by": transcript + "#L23 — line 23"}
                 ],
             },
             "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
         }
         derived = self.build_from(good)
-        self.assertEqual(derived["package_closed_claims"], {"example_package.p3_closed_claims": 1})
+        self.assertEqual(derived["package_closed_claims"], {"release_candidate_packaging.p3_closed_claims": 1})
         for bad_entry in (
             {"claim": "x", "verified_by": "evidence/review/verdicts/nowhere/none-0000000.md"},
             {"claim": "x", "verified_by": "docs/spec/FINDING_REGISTER_V1.md"},
             {"claim": "x", "verified_by": "evidence/review/verdicts/../../../docs/spec/FINDING_REGISTER_V1.md"},
             {"claim": "x", "verified_by": transcript + "#L1 — a line that records no P3 closure"},
+            {"claim": "nabu_review_revision_1@178873d: [record] x", "verified_by": transcript + "#L23 — another lane's transcript"},
+            {"claim": "vulcan_review_revision_1@92fa664: [record] x", "verified_by": transcript + "#L23 — the claim's own round"},
+            {"claim": "vulcan_review_revision_1@178873d: [record] x", "verified_by": transcript.replace("release_candidate_packaging", "standards_sbom_and_provenance") + "#L24 — another section's transcript"},
             {"claim": "x"},
             "x",
         ):
             bad = json.loads(json.dumps(good))
-            bad["example_package"]["p3_closed_claims"] = [bad_entry]
+            bad["release_candidate_packaging"]["p3_closed_claims"] = [bad_entry]
             with self.assertRaises(register.RegisterError) as error:
                 self.build_from(bad)
             self.assertEqual(error.exception.code, register.RegisterErrorCode.SUMMARY_INVALID)

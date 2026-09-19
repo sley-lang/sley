@@ -122,6 +122,14 @@ def proof_record_problems(root: Path, proof: object, runner: str, binaries: list
         problems.append("proof-record-new-crashes")
     if not isinstance(proof.get("owner_lib_sancov"), int) or proof["owner_lib_sancov"] <= 0:
         problems.append("proof-record-no-owner-sancov")
+    # A proof taken on a dirty tree binds no commit: the runner records the
+    # porcelain entries and the record must carry an empty list (c67b0729
+    # round: the validator never read the field).
+    dirty = proof.get("worktree_dirty_files")
+    if not isinstance(dirty, list):
+        problems.append("proof-record-missing:worktree_dirty_files")
+    elif dirty:
+        problems.append("proof-record-dirty-worktree")
     commit = proof.get("source_commit")
     if not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit):
         problems.append("proof-record-bad-source-commit")

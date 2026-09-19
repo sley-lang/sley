@@ -242,7 +242,7 @@
     },
     {
       "criterion": "no P0/P1/P2 finding remains open",
-      "evidence": "finding register declares 8 open P0/P1/P2 findings across 469 obligations (8 of them per-package open claims)",
+      "evidence": "finding register declares 11 open P0/P1/P2 findings across 470 obligations (11 of them per-package open claims)",
       "group": "26.6 policy and security",
       "state": "GATED"
     },
@@ -320,7 +320,7 @@
     },
     {
       "criterion": "all reviewer findings are resolved or dispositioned below P3",
-      "evidence": "finding register result FINDING_REGISTER_OPEN with 2 open, 0 unclassified, and 0 unclaimed-carried obligations",
+      "evidence": "finding register result FINDING_REGISTER_OPEN with 4 open, 0 unclassified, and 0 unclaimed-carried obligations",
       "group": "26.9 review",
       "state": "AWAITS_REVIEW"
     },
@@ -340,9 +340,9 @@
     "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "725301ea3efc2160ce831f50aea338b1ff384b97a49a31a9fba5139a6909b4bd",
-  "register_digest": "97e07652c7d82edb7edae3eb04167fa54e9a4c60907d0f6c637a699ed162d070",
-  "report_digest": "953ed4add401aca6ed9d14e17533c41f1b15b0f9e95e482fd92a5b46e4f91e4a",
+  "obligations_digest": "fc774ee87c6fb80d0d34266f655161099aab42c8e4dd6bd77fa3d03d77417fad",
+  "register_digest": "2e8ee54b97bdb61eb9b39836be6ca3b0653ba1ec5e4e0a6a7bcf0b82f0dde207",
+  "report_digest": "05543093b242f33fd71b875b27cc8000404ed93106eb7d295fb561b2f68bae5d",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 15,

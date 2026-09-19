@@ -538,33 +538,76 @@ def package_open_claims(summary: dict) -> dict[str, int]:
     return dict(sorted(claims.items()))
 
 
-CLOSURE_LINE = re.compile(r"\bCLOSED\b")
+# A closure line records a per-finding status: the severity is named
+# before a status marker (`— CLOSED`, `: CLOSED`, `**CLOSED`, `- CLOSED`)
+# and no `OPEN` status marker follows on the same line. Prose that merely
+# contains the word CLOSED (an open finding quoting it, a summary
+# sentence) is not a closure line (Nabu/Vulcan P3 at c67b0729).
+STATUS_CLOSED = re.compile(r"(?:—|-|:|\*\*)\s*\**\s*CLOSED\b")
+STATUS_OPEN = re.compile(r"(?:—|-|:|\*\*)\s*\**\s*OPEN\b")
+
+
+def is_closure_line(line: str, severity: str) -> bool:
+    if line.startswith(("VERDICT:", "SUMMARY:", "FINDINGS:")):
+        return False
+    closed = STATUS_CLOSED.search(line)
+    if not closed or STATUS_OPEN.search(line):
+        return False
+    head = line[: closed.start()]
+    return re.search(rf"(?<![A-Z0-9]){severity}(?![0-9])", head) is not None
 
 
 def cited_closure_lines(path: Path, severity: str) -> list[int]:
     """Lines of a transcript that record a closure of `severity` (1-based).
 
-    A closure line carries the word `CLOSED` and names the severity; when
-    no line names the severity, every closure line of a `PRIOR_...` verdict
-    that closes that severity counts, because the lane closed its carried
-    findings item by item and the token names the severity. Empty when the
-    transcript records no such closure (the retirement is refused).
+    A closure line names the severity before a `CLOSED` status marker and
+    carries no `OPEN` status; when no line names the severity, every
+    closure line of a `PRIOR_...` verdict that closes that severity counts,
+    because the lane closed its carried findings item by item and the token
+    names the severity. Empty when the transcript records no such closure
+    (the retirement is refused).
     """
     if not path.is_file():
         return []
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    named = [
-        index + 1
-        for index, line in enumerate(lines)
-        if CLOSURE_LINE.search(line) and re.search(rf"(?<![A-Z0-9]){severity}(?![0-9])", line)
-        and not line.startswith("VERDICT:")
-    ]
+    named = [index + 1 for index, line in enumerate(lines) if is_closure_line(line, severity)]
     if named:
         return named
     verdict = next((line for line in reversed(lines) if line.startswith("VERDICT:")), "")
     if severity in closed_severities(verdict.split(":", 1)[1].strip() if ":" in verdict else ""):
-        return [index + 1 for index, line in enumerate(lines) if CLOSURE_LINE.search(line) and not line.startswith("VERDICT:")]
+        return [
+            index + 1
+            for index, line in enumerate(lines)
+            if STATUS_CLOSED.search(line) and not STATUS_OPEN.search(line)
+            and not line.startswith(("VERDICT:", "SUMMARY:", "FINDINGS:"))
+        ]
     return []
+
+
+CLAIM_TAG = re.compile(r"^([A-Za-z0-9_.]+?)(?:@([0-9a-f]{7,40}))?: ")
+
+
+def claim_relation_problem(section: str, claim: str, path: Path) -> str | None:
+    """The transcript must belong to the claim's section and lane, and to a
+    scope strictly later than a scope-tagged claim (c67b0729 round: the
+    relation had been lexical only)."""
+    relative = path.resolve().relative_to(ROOT.resolve()).as_posix()
+    in_section = relative.startswith(f"evidence/review/verdicts/{section.split('.')[0]}/") or (
+        relative.startswith("machineresearch/sley-2.0/reviews/") and section.startswith("rw0")
+    )
+    if not in_section:
+        return f"transcript {relative} is not in section {section}"
+    match = CLAIM_TAG.match(claim)
+    prefix = match.group(1) if match else claim.split(":", 1)[0]
+    scope = match.group(2) if match else None
+    lane = reviewer_of(prefix)
+    if lane is not None and not path.name.startswith(lane):
+        return f"transcript {path.name} is not the {lane} lane's"
+    if scope:
+        stamp = re.search(r"-([0-9a-f]{7,40})\.(?:md|log)$", path.name)
+        if stamp and (stamp.group(1).startswith(scope) or scope.startswith(stamp.group(1))):
+            return f"transcript {path.name} is the claim's own round"
+    return None
 
 
 def transcript_path(reference: str) -> Path | None:
@@ -631,11 +674,14 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                 cited = re.search(r"#L([0-9,]+)", entry["verified_by"])
                 lines = cited_closure_lines(resolved, severity)
                 wanted = [int(n) for n in cited.group(1).split(",")] if cited else []
-                if not lines or (wanted and not set(wanted) <= set(lines)):
+                if not lines or not wanted or not set(wanted) <= set(lines):
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: {resolved.relative_to(ROOT.resolve())} records no closure of {severity} at the cited lines",
                     )
+                relation = claim_relation_problem(section, entry["claim"], resolved)
+                if relation:
+                    raise RegisterError(RegisterErrorCode.SUMMARY_INVALID, f"{section}.{field}: {relation}")
             claims[f"{section}.{field}"] = len(item)
     return dict(sorted(claims.items()))
 

@@ -13,9 +13,15 @@ into `pN_closed_claims` as `{claim, verified_by}` where `verified_by` is
 `<path>#L<n>[,<m>...] — <note>`: the repository path of an existing
 transcript (literal, under `evidence/review/verdicts/` or
 `machineresearch/sley-2.0/reviews/`, no `..`, no absolute path) and the
-lines of it that record the closure — lines carrying `CLOSED` that name the
-severity, or, when the transcript names none, every closure line of a
-verdict whose `PRIOR` clause closes that severity. The verifying transcript
+lines of it that record the closure — closure lines: the severity named
+before a `CLOSED` status marker (`— CLOSED`, `: CLOSED`, `**CLOSED`) with
+no `OPEN` status marker on the same line, so prose that merely contains the
+word or a line recording a partial (`leg 1 CLOSED; leg 2 OPEN`) or open
+status never counts; when the transcript names no such line for the
+severity, every closure line of a verdict whose `PRIOR` clause closes that
+severity. The transcript must belong to the claim's section directory and
+the claim's lane, and a scope-tagged claim can never cite its own round
+(c67b0729 round: the relation had been lexical only). The verifying transcript
 is either the same lane's later verdict carrying `PRIOR_…_PN_…_CLOSED` at a
 strictly later scope, resolved as `<section>/<lane>*-<scope7>.md`
 (automatic rule), or a closure review named in the tracked
@@ -27,9 +33,10 @@ transcript path, or records no closure of the severity at the cited lines,
 and reports `package_closed_claims`. Retired claims are not open claims:
 the CLEAR predicate and the GA open-findings row read only `pN_open`. The
 same round's Vulcan/Nabu P3 corrected the closure grammar: a
-count-prefixed severity (`2_P4`) is a fresh count and never binds across a
-following `_PRIOR_…_CLOSED` clause; only the severities inside the `PRIOR`
-clause, or in a run of severities ending at the anchor, are closed.
+count-prefixed severity (`2_P4`) is a fresh count and never a closure
+claim, with or without a following `_PRIOR_…_CLOSED` clause; only the
+severities inside the `PRIOR` clause, or in a run of severities ending at
+the anchor, are closed.
 
 Revision 5 (2026-09-18) adds chronology to round folding: a `PASS` whose
 `_note` is dated before the `FAIL`/`REVISE` round's `_note` never folds

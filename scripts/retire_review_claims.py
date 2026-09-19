@@ -157,9 +157,13 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                         and severity in item["severities"]
                         and entry.startswith(tuple(item["prefixes"]))
                     ):
-                        lines = item.get("lines") or cited_closure_lines(ROOT / item["verified_by"], f"P{severity}")
-                        if not lines:
-                            raise SystemExit(f"retirement for {name} P{severity} cites {item['verified_by']} which records no closure of P{severity}")
+                        recorded = cited_closure_lines(ROOT / item["verified_by"], f"P{severity}")
+                        lines = item.get("lines") or recorded
+                        if not lines or not set(lines) <= set(recorded):
+                            raise SystemExit(
+                                f"retirement for {name} P{severity} cites {item['verified_by']}#L{lines} "
+                                f"which records a closure of P{severity} only at {recorded}"
+                            )
                         verified = f"{item['verified_by']}#L{','.join(map(str, lines))} — {item['reason']}"
                 if verified:
                     closed.append({"claim": entry, "verified_by": verified})

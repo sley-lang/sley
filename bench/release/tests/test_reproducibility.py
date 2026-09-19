@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -436,6 +437,18 @@ class ReproducibilityTests(unittest.TestCase):
             ],
         )
 
+    def test_report_history_ends_with_the_working_tree_report(self) -> None:
+        # c67b0729 round: the sync runs before the records commit, so the
+        # on-disk report is the chain's last link.
+        sync = load("sync_evidence_counters")
+        local = repro.local_attestation("primary", self.write_evidence())
+        path = self.root / "reproducibility-report.json"
+        path.write_text(repro.canonical(repro.build_report([local])), encoding="utf-8")
+        with unittest.mock.patch.object(sync, "ROOT", self.root):
+            history = sync.report_history(path)
+        self.assertEqual(history[-1]["commits"], {local["commit"]: {"artifact_sha256": local["artifact_sha256"], "hosts": ["primary"]}})
+        self.assertEqual(sync.attestation_chain(history)[-1]["commit"], local["commit"])
+
     def test_summary_mirrors_follow_single_and_two_host_reports(self) -> None:
         sync = load("sync_evidence_counters")
         sync.SUMMARY = self.root / "summary.json"
@@ -448,6 +461,8 @@ class ReproducibilityTests(unittest.TestCase):
             sync.REPRO.write_text(repro.canonical(report))
             self.assertEqual(sync.main(), 0)
             actual = json.loads(sync.SUMMARY.read_text())["reproducibility_and_independent_conformance"]
+            # The derived chain ends with the working-tree report's commit.
+            self.assertEqual(actual.pop("attestation_chain")[-1]["commit"], primary["commit"])
             self.assertEqual(actual, {
                 "reproducibility_result": report["result"],
                 "second_host_status": report["second_host"]["status"],

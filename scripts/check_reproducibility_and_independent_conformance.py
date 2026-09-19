@@ -423,6 +423,13 @@ def main() -> int:
             # candidate selection, never attestations[0].
             problems.extend(lane_record_problems(report))
             selected = repro.select_attestation(report)
+            # The derived attestation chain ends at the tracked report's own
+            # commit (c67b0729 round: the chain had lagged one mint behind).
+            chain = section.get("attestation_chain")
+            if not isinstance(chain, list) or not chain or not isinstance(chain[-1], dict):
+                problems.append("machine-summary:attestation_chain:missing")
+            elif selected and chain[-1].get("commit") != selected.get("commit"):
+                problems.append("machine-summary:attestation_chain:stale")
             for summary_key, report_value in (
                 ("reproducibility_result", report.get("result")),
                 ("second_host_status", (report.get("second_host") or {}).get("status")),

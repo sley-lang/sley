@@ -18,6 +18,14 @@ RUNTIME = ROOT / "evidence/runtime/s20-700-semantic-checkers-libfuzzer"
 TARGET_DIR = RUNTIME / "target"
 EVIDENCE = RUNTIME / "evidence.json"
 HARNESS_REGRESSION = ROOT / "fuzz/regressions/S20_700_HARNESS_001.json"
+# Tracked crash-to-regression records the run seeds permanently and retests
+# on every run (V-02 at 178873d7..c67b0729: the retained artifacts lived only
+# in one host's gitignored runtime evidence, so "permanent retest seed" had
+# no HEAD-lineage evidence).
+REGRESSIONS = {
+    "graph-cfg": [ROOT / "fuzz/regressions/S20_700_GRAPH_CFG_001.json"],
+    "type-checker": [HARNESS_REGRESSION],
+}
 CLANG_VERSION = "18.1.8"
 RUST_TOOLCHAIN = "nightly-2026-02-27"
 # Canonical LLVM-18 layouts (pin-layout repair): the official Debian-style
@@ -162,6 +170,7 @@ def main() -> int:
         "selected_targets": selected,
         "synthetic_seed_grammar": "bounded fuzz-only typed constructors v1",
         "development_regression_fixture": str(HARNESS_REGRESSION.relative_to(ROOT)),
+        "regression_records": {name: [str(path.relative_to(ROOT)) for path in paths] for name, paths in REGRESSIONS.items()},
         "source_commit": git_output(["git", "rev-parse", "HEAD"]),
         "worktree_dirty": bool(git_output(["git", "status", "--porcelain"])),
         "worktree_dirty_files": git_output(["git", "status", "--porcelain"]).splitlines()[:50],
@@ -329,6 +338,12 @@ def main() -> int:
             prior=prior_crashes[name],
             timeout_seconds=args.timeout,
         )
+        evidence["targets"][name]["retested_regressions"] = retest_regressions(
+            name, str(TARGET_DIR / "release" / str(target["binary"])), args.timeout
+        )
+        if any(record.get("still_crashes") for record in evidence["targets"][name]["retested_regressions"]):
+            evidence["targets"][name]["fuzz_result"] = "FAIL"
+            evidence.setdefault("problems", []).append(f"{name}: a tracked regression input crashes again")
         evidence["targets"][name]["unexpected_warnings"] = [
             line
             for line in fuzz["warnings"]
@@ -477,7 +492,33 @@ def generate_graph_cfg_corpus() -> tuple[int, int]:
                     ]
                 )
             )
+    for record_path in REGRESSIONS["graph-cfg"]:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        if record.get("target") != "ssmc_graph_cfg_checker":
+            raise SystemExit(f"graph-cfg regression fixture drifted: {record_path.name}")
+        seeds.append(bytes.fromhex(record["input_hex"]))
+        if record.get("minimized_input_hex"):
+            seeds.append(bytes.fromhex(record["minimized_input_hex"]))
     return write_corpus(TARGETS["graph-cfg"]["corpus"], seeds)
+
+
+def retest_regressions(name: str, fuzzer_bin: str, timeout_seconds: int) -> list[dict[str, object]]:
+    """Re-execute every tracked regression input of a target (`-runs=1` each)."""
+    retest_dir = RUNTIME / f"regression-retest-{name}"
+    if retest_dir.exists():
+        shutil.rmtree(retest_dir)
+    retest_dir.mkdir(parents=True)
+    names: list[str] = []
+    for record_path in REGRESSIONS[name]:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        for key in ("input_hex", "minimized_input_hex"):
+            if record.get(key):
+                file_name = f"{record['finding_id']}-{key}"
+                (retest_dir / file_name).write_bytes(bytes.fromhex(record[key]))
+                names.append(file_name)
+    return retest_prior_crashes(
+        fuzzer_bin=fuzzer_bin, artifacts_dir=retest_dir, prior=names, timeout_seconds=timeout_seconds
+    )
 
 
 def write_corpus(path: Path, seeds: list[bytes]) -> tuple[int, int]:

@@ -17,6 +17,12 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "evidence/runtime/s20-700-pack-import-libfuzzer"
 CORPUS = RUNTIME / "corpus"
 ARTIFACTS = RUNTIME / "artifacts"
+# Tracked crash-to-regression records seeded permanently and retested on
+# every run (V-02 at 178873d7..c67b0729).
+REGRESSIONS = [
+    ROOT / "fuzz/regressions/S20_700_PACK_001.json",
+    ROOT / "fuzz/regressions/S20_700_PACK_002.json",
+]
 EVIDENCE = RUNTIME / "evidence.json"
 TARGET_DIR = RUNTIME / "target"
 FUZZER = TARGET_DIR / "release/repository_pack_importer"
@@ -137,6 +143,7 @@ def main() -> int:
         "runtime_path": str(RUNTIME.relative_to(ROOT)),
         "commands": [],
         "source_commit": git_output(["git", "rev-parse", "HEAD"]),
+        "regression_records": [str(path.relative_to(ROOT)) for path in REGRESSIONS],
         "worktree_dirty": bool(git_output(["git", "status", "--porcelain"])),
         "worktree_dirty_files": git_output(["git", "status", "--porcelain"]).splitlines()[:50],
         "toolchain_versions": toolchain_versions(),
@@ -282,6 +289,7 @@ def main() -> int:
         prior=prior_crashes,
         timeout_seconds=args.timeout,
     )
+    evidence["retested_regressions"] = retest_regressions(str(FUZZER), args.timeout)
     evidence["minimized_crashes"] = (
         minimize_crashes(
             fuzzer_bin=str(FUZZER),
@@ -310,6 +318,10 @@ def main() -> int:
         and not any(
             record.get("still_crashes", False)
             for record in evidence["retested_prior_crashes"]
+        )
+        and not any(
+            record.get("still_crashes", False)
+            for record in evidence["retested_regressions"]
         )
         and not evidence["unexpected_warnings"]
     ):
@@ -352,6 +364,23 @@ def crash_artifact_names(artifacts_dir: Path) -> list[str]:
         entry.name
         for entry in artifacts_dir.iterdir()
         if entry.is_file() and entry.name.startswith(("crash-", "oom-", "timeout-", "leak-"))
+    )
+
+
+def retest_regressions(fuzzer_bin: str, timeout_seconds: int) -> list[dict[str, object]]:
+    """Re-execute every tracked regression input (`-runs=1` each)."""
+    retest_dir = RUNTIME / "regression-retest"
+    if retest_dir.exists():
+        shutil.rmtree(retest_dir)
+    retest_dir.mkdir(parents=True)
+    names: list[str] = []
+    for record_path in REGRESSIONS:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        file_name = f"{record['finding_id']}-input_hex"
+        (retest_dir / file_name).write_bytes(bytes.fromhex(record["input_hex"]))
+        names.append(file_name)
+    return retest_prior_crashes(
+        fuzzer_bin=fuzzer_bin, artifacts_dir=retest_dir, prior=names, timeout_seconds=timeout_seconds
     )
 
 
@@ -754,6 +783,11 @@ def generate_seed_corpus() -> tuple[int, int]:
         for bit in (0, 7)
     ]
     seeds.extend(reseal_controls)
+    for record_path in REGRESSIONS:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        if record.get("target") != "repository_pack_importer":
+            raise SystemExit(f"pack regression fixture drifted: {record_path.name}")
+        seeds.append(bytes.fromhex(record["input_hex"]))
     unique_seeds = list(dict.fromkeys(seeds))
     for index, seed in enumerate(unique_seeds):
         digest = hashlib.sha256(seed).hexdigest()[:16]

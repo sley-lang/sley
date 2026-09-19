@@ -52,16 +52,20 @@ def attestation_chain(reports: list[dict]) -> list[dict]:
 
 
 def report_history(path: Path) -> list[dict]:
-    """Every tracked version of the report, oldest first (empty without git)."""
+    """Every tracked version of the report, oldest first, then the working-tree
+    version (the sync runs before the records commit that tracks the report
+    being minted, so the on-disk file is the chain's last link — Nabu/Vulcan/
+    Ariadne P3 at c67b0729: the chain had been one entry short at every mint).
+    Empty without git."""
     import subprocess
 
     try:
         revisions = subprocess.check_output(
             ["git", "log", "--format=%H", "--reverse", "--", str(path.relative_to(ROOT))],
-            cwd=ROOT, text=True,
+            cwd=ROOT, text=True, stderr=subprocess.DEVNULL,
         ).split()
     except (subprocess.CalledProcessError, OSError, ValueError):
-        return []
+        revisions = []
     versions: list[dict] = []
     for revision in revisions:
         try:
@@ -71,6 +75,11 @@ def report_history(path: Path) -> list[dict]:
             versions.append(json.loads(text))
         except (subprocess.CalledProcessError, json.JSONDecodeError):
             continue
+    if path.exists():
+        try:
+            versions.append(json.loads(path.read_text(encoding="utf-8")))
+        except json.JSONDecodeError:
+            pass
     return versions
 
 
