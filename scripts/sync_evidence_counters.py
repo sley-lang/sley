@@ -30,6 +30,50 @@ PROVENANCE = ROOT / "evidence/release/provenance.json"
 THREAT_REPORT = ROOT / "evidence/security/threat-coverage-report.json"
 
 
+def attestation_chain(reports: list[dict]) -> list[dict]:
+    """The candidate chain the tracked report's history attests, oldest first.
+
+    Consecutive versions of the same commit collapse into one entry carrying
+    the widest host set that version reached; a commit that returns later
+    (a re-merge after a report replacement) is a new entry. Derived, not
+    prose (Nabu P4 at c04539b9/db53894e on `attestation_supersedes`).
+    """
+    chain: list[dict] = []
+    for report in reports:
+        for commit, entry in (report.get("commits") or {}).items():
+            hosts = sorted(entry.get("hosts", [])) if isinstance(entry, dict) else []
+            item = {"commit": commit, "hosts": hosts}
+            if chain and chain[-1]["commit"] == commit:
+                if len(hosts) > len(chain[-1]["hosts"]):
+                    chain[-1] = item
+            else:
+                chain.append(item)
+    return chain
+
+
+def report_history(path: Path) -> list[dict]:
+    """Every tracked version of the report, oldest first (empty without git)."""
+    import subprocess
+
+    try:
+        revisions = subprocess.check_output(
+            ["git", "log", "--format=%H", "--reverse", "--", str(path.relative_to(ROOT))],
+            cwd=ROOT, text=True,
+        ).split()
+    except (subprocess.CalledProcessError, OSError, ValueError):
+        return []
+    versions: list[dict] = []
+    for revision in revisions:
+        try:
+            text = subprocess.check_output(
+                ["git", "show", f"{revision}:{path.relative_to(ROOT).as_posix()}"], cwd=ROOT, text=True
+            )
+            versions.append(json.loads(text))
+        except (subprocess.CalledProcessError, json.JSONDecodeError):
+            continue
+    return versions
+
+
 def realized_codes_recorded(report: object) -> int:
     """Rows of the threat-coverage report that record a realized code."""
     count = 0
@@ -68,6 +112,12 @@ def main() -> int:
             if section.get(key) != value:
                 section[key] = value
                 changed.append(f"reproducibility_and_independent_conformance.{key}")
+        history = report_history(REPRO)
+        if history:
+            chain = attestation_chain(history)
+            if section.get("attestation_chain") != chain:
+                section["attestation_chain"] = chain
+                changed.append("reproducibility_and_independent_conformance.attestation_chain")
 
     section = summary.get("standards_sbom_and_provenance")
     if isinstance(section, dict):

@@ -419,6 +419,23 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertEqual(sync.main(), 0)
         self.assertEqual(json.loads(sync.SUMMARY.read_text())["threat_coverage"]["realized_codes_recorded"], 2)
 
+    def test_the_attestation_chain_is_derived_from_report_history(self) -> None:
+        sync = load("sync_evidence_counters")
+        versions = [
+            {"commits": {"a" * 40: {"hosts": ["primary"]}}},
+            {"commits": {"a" * 40: {"hosts": ["primary", "secondary"]}}},
+            {"commits": {"b" * 40: {"hosts": ["primary"]}}},
+            {"commits": {"a" * 40: {"hosts": ["secondary"]}}},
+        ]
+        self.assertEqual(
+            sync.attestation_chain(versions),
+            [
+                {"commit": "a" * 40, "hosts": ["primary", "secondary"]},
+                {"commit": "b" * 40, "hosts": ["primary"]},
+                {"commit": "a" * 40, "hosts": ["secondary"]},
+            ],
+        )
+
     def test_summary_mirrors_follow_single_and_two_host_reports(self) -> None:
         sync = load("sync_evidence_counters")
         sync.SUMMARY = self.root / "summary.json"

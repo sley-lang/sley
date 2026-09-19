@@ -4673,7 +4673,7 @@
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
-    "attestation_supersedes": "chain of attested candidates: 1023a31 -> 43f2f5b -> 5313437 (two hosts) -> 45b2cd98 (two hosts, receipt at b0f56b1e) -> c75277b6 (single host, superseded the same day) -> a7852028 (single host) -> 7426bc0b (single host) -> 5bba01b3 (single host) -> 867009de (single host) -> 25d6d0ba (single host; the current candidate, see release_candidate_packaging.candidate_commit). Since contract revision 10 a re-mint lists attestations of a superseded commit under the report's superseded_attestations (persisting until the host re-attests, revision 11) and never carries them; the 45b2cd98 secondary predates the rule (removed at 75ad17aa (the c75277b6 mint; 9316df19 inherited the primary-only state) by a manual report replacement, so the list is empty today) and its supersession is recorded here and in the lane ledger.",
+    "attestation_supersedes": "derived: attestation_chain (sync_evidence_counters.py, every tracked version of evidence/release/reproducibility-report.json, oldest first, consecutive same-commit versions collapsed to the widest host set) \u2014 the last entry is the current candidate (see release_candidate_packaging.candidate_commit) and the two-host entries end at 45b2cd98; the earlier prose chain (1023a31 -> 43f2f5b -> 5313437 -> 45b2cd98 -> c75277b6 -> a7852028 -> 7426bc0b -> 5bba01b3 -> 867009de -> 25d6d0ba) used pre-rewrite ids for the first two and is superseded by the derived list. Since contract revision 10 a re-mint lists attestations of a superseded commit under the report's superseded_attestations (persisting until the host re-attests, revision 11) and never carries them; the 45b2cd98 secondary predates the rule (removed at 75ad17aa, the c75277b6 mint; 9316df19 inherited the primary-only state) and its supersession is recorded in the lane ledger.",
     "candidate_consumers_note": "The dossier and GA report import the shared S20-730 selector; candidate-content evidence uses the explicit current-build binding during host handoff.",
     "current_delta_review": {
       "ariadne": "PASS_0_P0_0_P1_0_P2_1_P3_2_P4_PRIOR_P3_CLOSED",
@@ -4848,6 +4848,337 @@
       {
         "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; machineresearch/sley-2.0/machine-summary.json:4534 (attestation_supersedes), :4200 (release_ca",
         "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-db53894.md \u2014 line 25: the c04539b9 P4 (removal commit) recorded CLOSED"
+      }
+    ],
+    "attestation_chain": [
+      {
+        "commit": "bdd73f426933a10f26dc91e91dd0341983aae7a8",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "7579d342d7238fd56e2d4d628dc7be2c17f1c2e2",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "abb1daed25a09976268e6652fd5b330d8cf47726",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "59d3acd88793f1a3e2764878d78a64b247db4067",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "cfec87b2ae4154a1105c3595493e02df30803b50",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "ebd40dcb605a5f9e9f1114970860961ab6c28daa",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "e20b9adcfc97eb5b0eec4686d61686930c11acc6",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "ad53ee8dde612234da314d31d1d65db83d41e7a7",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "b03f65dfc88b7632e62b394a9e2a520b84abb8b1",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "c14c669c10b1634393958f617e9759ae75e2e906",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "d2753ddbcc2389ac523a05c1216e2c8a8189faee",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "20ea5065c00f569e934b67605bed6a8e44aa502d",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "bfcda44e5e7e70e78be682ab052a11c139fef095",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "4cc745f1e2eeb00d252c9513a0c538cdc40621ae",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "17c6bf8ef56cc3567c9b554040d7806f709410a1",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "2798f1bcde8e46c670b3248fc4e91535db25b3ed",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "9670053c00405d3ebbf88d62e6eaeb229b1c93a0",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "d02f2ee991bf9f5140d924ac274d7a2463c340fd",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "d1d653063eec0487bee881b491521d8f860fee36",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "43d89f60bfefcf0f72b8844c7fe74ae66fe462c6",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "b92357e8151258f9799ce7be5c1a4aa53e7d9e14",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "1f5f5ee6b39e9e1044b72797c54b9641a2302597",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "3d911f412eafebcb0fba374e63155848272b14d1",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "84bfa9c9c5d9fc3d8589b1972774430347877e68",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "56bac4b877e55c91f96e311021b8bf4c9c4bce54",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "9115bd0d74407df1223a5beda03f65f98ef8ba97",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "6a33523c22af049cde8573e6b216bcfcf97f8455",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "cd3864a7e29eeb68271c168b00cfc73437390e45",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "9df9f9ee323040778963c46039a05e92175ec367",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "1ba36f434f07e9977c738bb975fa0fdd248e8463",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "2f93364e554379a00b9926b467dcf32a118328da",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "6bb27eeff3c2a09df46a53a351301d395597b4f7",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "36f0e1f99bb7b09c407e870141ca18f109dfaf8a",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "b10c9bf6a74ee304af9e18011aec840172b718b2",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "ae16df87f7b1990e8804f87001d5a63f87b41611",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "74bb0ba43203790399d05ff2fe167d6e46a9c6f1",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "ae16df87f7b1990e8804f87001d5a63f87b41611",
+        "hosts": [
+          "secondary"
+        ]
+      },
+      {
+        "commit": "74bb0ba43203790399d05ff2fe167d6e46a9c6f1",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "baf9a4d3dff71cc1a0fb9d9c8f64b427a6ccee3f",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "7a94a4a31272a6dc7588aff902dcde81f7d10a4e",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "9b4f0648c9e226b0852d7a83b10ac6f550ecf45b",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "27ad8d7e4717a72a74ff1c63c27d9f24c92b012a",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "cd22b0ea30c58bdfdc710e634dd65325f7047bbc",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "6cee454bac2422f8b6af0a03967b18d02b143ae0",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "4ded93d4dda0ae97d968d40c96cec71f62a6278f",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "5313437afb5df66b5fa48b82c374746467d0a1ca",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "45b2cd980bd0ec419bd8c2287b3497b25e1ef0f6",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "c75277b61af7b8438f4265b05baeef19ee63f2de",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "a7852028b9748a7de2d05b13516a4623b2c912a2",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "7426bc0b5afb49d5d45081c00909b8d61f9b4b38",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "5bba01b326efa1f510e0cfd8c141874a98c09795",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "867009de751fbe0057ad1f8ea7e10cf0d5efa1d6",
+        "hosts": [
+          "primary"
+        ]
+      },
+      {
+        "commit": "25d6d0bab3b5cbe6e68c30c6d822efe8fcafb789",
+        "hosts": [
+          "primary"
+        ]
       }
     ]
   },
