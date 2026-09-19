@@ -122,7 +122,7 @@
     "source_commit": "867009de",
     "note": "fourth-repair generation (867009de) superseded 2026-09-18 by the fifth re-mint after the db53894e round (driver charged listed child i one level per preceding sibling; repaired at the driver, the Map compensation removed)"
   },
-  "source_commit": "the commit carrying this manifest (fifth re-mint of 2026-09-18 after the db53894e round; named in the records-only descendant)",
+  "source_commit": "25d6d0ba (fifth re-mint of 2026-09-18 after the db53894e round)",
   "arm_boundaries_observed": "every ConstData container arm is observed against the native codec at the 64-level bound with one element per level (arbitrary_dispatch_matches_native_nesting_boundaries_at_every_site: Sequence 21 nested nodes, Record 13, Variant 16, Map 16, Option 21, Result 21 \u2014 first refused chain length; native and this codec agree across the window), and listed siblings at one depth (arbitrary_dispatch_charges_listed_siblings_at_one_depth: a Sequence of 60 Unit values, a Map of 30 entries, a Tuple of 61 elements and a Function type of 60 parameters accepted by both; a map key Option chain refused by both from 19 levels)",
   "native_depth_charging": ""
 }
