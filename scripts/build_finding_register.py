@@ -812,6 +812,10 @@ def shared_vocabulary(section: dict, severity: str, claim: str, section_name: st
     others = list(section.get(f"p{number}_open") or [])
     others += [item.get("claim", "") for item in section.get(f"p{number}_closed_claims") or [] if isinstance(item, dict)]
     others += [item.get("claim", "") for item in section.get(f"p{number}_restated_claims") or [] if isinstance(item, dict)]
+    restates = {
+        item.get("claim"): item.get("restates")
+        for item in section.get(f"p{number}_restated_claims") or [] if isinstance(item, dict)
+    }
     shared: set[str] = set()
     own_key = finding_key(claim, section_name, section) if section_name else finding_key(claim)
     for other in others:
@@ -821,7 +825,12 @@ def shared_vocabulary(section: dict, severity: str, claim: str, section_name: st
         other_lane = reviewer_of(tag.group(1) if tag else other.split(":", 1)[0])
         # A re-statement of the same finding (same finding key) is not
         # another finding; its vocabulary is this claim's own.
-        if other_lane != lane or same_finding(finding_key(other, section_name, section) if section_name else finding_key(other), own_key):
+        # Only an equal key, or the re-statement the ledger links to this
+        # claim (either way), is this finding; every other claim of the lane
+        # counts (8f774d0c round: an identifier-less neighbour had been
+        # read as the same finding).
+        other_key = finding_key(other, section_name, section) if section_name else finding_key(other)
+        if other_lane != lane or other_key == own_key or restates.get(other) == claim or restates.get(claim) == other:
             continue
         other_phrases, other_identifiers = identity_tokens(other)
         shared |= mine & (other_phrases | other_identifiers)
@@ -1288,6 +1297,7 @@ CARRY = re.compile(r"\b(?:carried|carry|prior|residual|unchanged|still open|agai
 
 
 CARRIED_FROM = re.compile(r"\bcarr(?:ied|y)\s+(?:over\s+)?from\s+([0-9a-f]{7,40})\b", re.I)
+LEADING_CARRY = re.compile(r"^\((?:carried|carry|prior|residual)[^)]*\)\s*", re.I)
 
 
 def finding_key(claim: str, section: str | None = None, fields: dict | None = None) -> tuple[str | None, str, str, str]:
@@ -1303,49 +1313,53 @@ def finding_key(claim: str, section: str | None = None, fields: dict | None = No
     body = claim.split(": ", 1)[1] if ": " in claim else claim
     kind = re.match(r"\[([^\]]+)\]", body)
     rest = body[kind.end():].strip() if kind else body
-    rest = re.sub(r"^\((?:carried|carry|prior|residual)[^)]*\)\s*", "", rest, flags=re.I)
-    carried = CARRY.search(body) is not None
+    # A re-statement is a claim that names its carried root: a leading
+    # `(carried from <sha>, …)` clause or a `carried from <sha>` phrase — a
+    # prose word (`prior`, `unchanged`, `again`) never makes one (Ariadne/
+    # Nabu/Vulcan P2 at 8f774d0c). Only such a claim keys without an
+    # identifier of its own (None = matches its root's); an original that
+    # simply has no backticked identifier keys on "" and matches "" only.
+    named = CARRIED_FROM.search(body) or LEADING_CARRY.match(rest)
+    rest = LEADING_CARRY.sub("", rest)
     path = ANCHOR.search(rest)
     anchor = path.group(0).split(":")[0] if path else ""
     if anchor in LEDGER_PATHS or anchor.rsplit("/", 1)[-1] in LEDGER_PATHS:
         anchor = ""
     if anchor:
-        # A finding against a source or document file: its kind, file and
-        # (for the original statement) its first identifier; a carried
-        # re-statement keys on the file alone.
         ident = IDENTIFIER.search(rest)
-        identifier = "" if carried else (ident.group(1) if ident else "")
+        identifier = None if named else (ident.group(1) if ident else "")
         return (reviewer_of(prefix), kind.group(1).strip().lower() if kind else "", anchor, identifier)
     # A finding against the ledger itself: its kind and the round it
     # originates from (the `carried from <sha>` scope a re-statement names,
     # else the claim's raising scope), or its description when no round is
     # known.
-    named = CARRIED_FROM.search(body)
-    origin = named.group(1)[:7] if named else (raising_scope(section, claim, fields) if section else (tag.group(2)[:7] if tag and tag.group(2) else None))
+    sha = CARRIED_FROM.search(body)
+    origin = sha.group(1)[:7] if sha else (raising_scope(section, claim, fields) if section else (tag.group(2)[:7] if tag and tag.group(2) else None))
     if origin is None:
         description = rest.split(" - ", 1)[1] if " - " in rest else rest
-        description = re.sub(r"^(?:carried|carry|prior|residual)\b[^:]*:\s*", "", description, flags=re.I)
         origin = "desc:" + re.sub(r"\s+", " ", description)[:40]
     ident = IDENTIFIER.search(rest)
-    identifier = "" if carried else (ident.group(1) if ident else "")
+    identifier = None if named else (ident.group(1) if ident else "")
     return (reviewer_of(prefix), kind.group(1).strip().lower() if kind else "", origin, identifier)
 
 
 def same_finding(one: tuple, other: tuple) -> bool:
     """Two finding keys name one finding: same lane, kind and anchor/origin,
-    and identifiers equal or absent on either side (a carried re-statement
-    carries no identifier of its own; an original may — Ariadne P3 at
-    b58ac1e0)."""
-    return one[:3] == other[:3] and (one[3] == other[3] or not one[3] or not other[3])
+    and identifiers equal — or absent (None) on the side of a re-statement
+    that names its carried root; an original without a backticked
+    identifier ("") matches only another "" (8f774d0c round: an absent
+    identifier had matched any)."""
+    return one[:3] == other[:3] and (one[3] == other[3] or one[3] is None or other[3] is None)
 
 
 def is_carry(claim: str) -> bool:
-    """The claim's description marks itself as a carried/re-stated finding
-    (a leading `(carried from …)` clause, a trailing `- carried, worse:` or
-    `prior … OPEN` form, anywhere in the description — Ariadne P3 at
-    b58ac1e0)."""
+    """The claim names its carried root: a leading `(carried from <sha>, …)`
+    clause or a `carried from <sha>` phrase (8f774d0c round: a prose word
+    such as `prior` or `unchanged` had made an original a re-statement)."""
     body = claim.split(": ", 1)[1] if ": " in claim else claim
-    return CARRY.search(body) is not None
+    kind = re.match(r"\[([^\]]+)\]", body)
+    rest = body[kind.end():].strip() if kind else body
+    return CARRIED_FROM.search(body) is not None or LEADING_CARRY.match(rest) is not None
 
 
 def claim_scope(claim: str) -> str | None:

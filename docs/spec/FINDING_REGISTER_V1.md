@@ -116,7 +116,20 @@ equal or absent on either side (`same_finding`); a carry marker anywhere
 in the description makes a claim a re-statement. A shared kind's own
 words are not tag words under the strong read. A live `PRIOR` field's
 closer carries the union of its token's closed severities and the
-severities its transcript's status lines record. The change record
+severities its transcript's status lines record.
+
+After the 8f774d0c round (Ariadne/Nabu/Vulcan P2): a re-statement is
+only a claim that names its carried root — a leading
+`(carried from <sha>, …)` clause or a `carried from <sha>` phrase — never
+a claim whose prose merely says `prior`, `unchanged` or `again`; only
+such a claim keys without an identifier of its own and matches its
+root's; an original without a backticked identifier matches only another
+identifier-less original. Shared vocabulary counts every other claim of
+the lane and severity except one of equal key or one the ledger links to
+this claim as its re-statement. Regeneration runs reopen (closures and
+folds alike) → retire → fold: a re-statement folds into a retired root
+only when the root's closing line names the re-statement too, else it
+stays open. The change record
 `evidence/review/rounds/revision-7-retirement-changes.json` is derived
 from the tracked ledgers by a stated keying (see its `keying`). Where the reviewer's per-finding closure line
 cannot be seen by that relation (a claim recorded truncated or phrased

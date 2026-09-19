@@ -357,16 +357,37 @@ def fold_restatements(summary: dict) -> int:
             entries = section.get(f"p{severity}_open")
             if not isinstance(entries, list) or len(entries) < 2:
                 continue
-            keys = {entry: finding_key(entry, name, section) for entry in entries}
+            closed_items = [item for item in section.get(f"p{severity}_closed_claims", []) if isinstance(item, dict)]
+            roots = entries + [item["claim"] for item in closed_items]
+            keys = {entry: finding_key(entry, name, section) for entry in roots}
             keep: list[str] = []
             restated = list(section.get(f"p{severity}_restated_claims", []))
             for entry in entries:
-                # The earliest listed claim of the same finding (keys equal, or
-                # identifiers absent on either side).
-                earliest = next((other for other in entries if same_finding(keys[other], keys[entry])), entry)
+                # The earliest listed claim of the same finding, open or
+                # retired; a re-statement folds into a retired root only when
+                # the root's closing line names the re-statement too (Vulcan
+                # P2 at 8f774d0c: a chain ending at a closed claim had
+                # inherited the closure unchecked).
+                # The root is the earliest by raising scope (git ancestry), not
+                # by list position (Vulcan P2 at 8f774d0c).
+                candidates = [other for other in roots if other != entry and same_finding(keys[other], keys[entry])]
+                earliest = min(
+                    candidates,
+                    key=lambda other: (scope_generation(raising_scope(name, other, section)) if raising_scope(name, other, section) else -1, roots.index(other)),
+                    default=entry,
+                )
                 if earliest == entry or keys[entry][0] is None or not is_carry(entry):
                     keep.append(entry)
                     continue
+                closer = next((item for item in closed_items if item["claim"] == earliest), None)
+                if closer is not None:
+                    path = closer["verified_by"].split("#")[0]
+                    cited = re.search(r"#L([0-9,]+)", closer["verified_by"])
+                    lines = [int(n) for n in cited.group(1).split(",")] if cited else []
+                    text = (ROOT / path).read_text(encoding="utf-8", errors="replace").splitlines() if (ROOT / path).is_file() else []
+                    if not any(0 < n <= len(text) and line_speaks_about(text[n - 1], entry) for n in lines):
+                        keep.append(entry)
+                        continue
                 later = claim_scope(entry)
                 first = claim_scope(earliest)
                 # Only a strictly later round's re-statement folds; an
@@ -390,11 +411,14 @@ def reopen_all(summary: dict) -> None:
         if not isinstance(section, dict):
             continue
         for severity in range(5):
-            closed = section.pop(f"p{severity}_closed_claims", None)
-            if not closed:
+            closed = section.pop(f"p{severity}_closed_claims", None) or []
+            restated = section.pop(f"p{severity}_restated_claims", None) or []
+            if not closed and not restated:
                 continue
             entries = list(section.get(f"p{severity}_open") or [])
-            for item in closed:
+            # Re-statements return too (Vulcan P2 at 8f774d0c: a regeneration
+            # had kept recorded folds verbatim), so the fold is re-derived.
+            for item in closed + restated:
                 if item["claim"] not in entries:
                     entries.append(item["claim"])
             section[f"p{severity}_open"] = entries
@@ -407,8 +431,8 @@ def regeneration_divergence(tracked: dict, retirements: list[dict]) -> list[str]
     fold → retire), or whose closures cite different transcripts."""
     fresh = json.loads(json.dumps(tracked))
     reopen_all(fresh)
-    fold_restatements(fresh)
     retire(fresh, retirements)
+    fold_restatements(fresh)
     problems: list[str] = []
     for name, section in tracked.items():
         if not isinstance(section, dict):
@@ -462,14 +486,15 @@ def main() -> int:
                         help="fold later re-statements of a carried open finding into its earliest claim")
     args = parser.parse_args()
     summary = json.loads(SUMMARY.read_text(encoding="utf-8"))
-    # Canonical order (Ariadne P3 at 6589c6ec: the recorded ledger must be
-    # what a from-scratch run produces): reopen every closure, fold the
-    # re-statements, then retire. `--regenerate` therefore always folds.
+    # Canonical order (Ariadne P3 at 6589c6ec; Nabu P2 at 8f774d0c: a fold
+    # run first had hidden a closure): reopen every closure, retire, then
+    # fold the re-statements that no closer closed. `--regenerate`
+    # therefore always folds.
     if args.regenerate:
         reopen_all(summary)
-    folded = fold_restatements(summary) if (args.fold_restatements or args.regenerate) else 0
     retirements = json.loads(RETIREMENTS.read_text(encoding="utf-8")) if RETIREMENTS.exists() else []
     retired = retire(summary, retirements)
+    folded = fold_restatements(summary) if (args.fold_restatements or args.regenerate) else 0
     if args.check:
         # Replay (Vulcan/Nabu P4 at 76ae15ab): every recorded closed claim
         # must still verify against its transcript at the cited lines, and

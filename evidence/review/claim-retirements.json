@@ -1941,5 +1941,75 @@
    }
   ],
   "reason": "exact-claim binding (b58ac1e0 round): verified line by line 2026-09-19 against the ledger the Council reviewed at b58ac1e0"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review: [runbook-tracking] machineresearch/sley-2.0/machine-summary.json:4200 \u2192 /home/gfarch/Work/checkpoints/sley2-finish-20260915/resume-20260918/second_host_attest.s",
+    "lines": [
+     40
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [runbook-tracking] scripts/second_host_attest.sh with machine-summary.json candidate_second_host_note\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (8f774d0c round)"
+   }
+  ],
+  "reason": "exact-claim binding (8f774d0c round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@7622776: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
+    "lines": [
+     39
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [cleanliness-standard] evidence/build/lint-report.json (dirty_paths, 18 entries) with scripts/record_\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (8f774d0c round)"
+   }
+  ],
+  "reason": "exact-claim binding (8f774d0c round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@c67b072: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - \u00a77 still lists ",
+    "lines": [
+     36
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [contract-wording] docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:177-190 with evidence/build/lint-repor\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (8f774d0c round)"
+   }
+  ],
+  "reason": "exact-claim binding (8f774d0c round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@76ae15a: [untested-tool] (carried from 76227765, OPEN) scripts/retire_review_claims.py:12-13,48-52,99-101 with Makefile - no unit test (0 hits in bench/), `--check` in n",
+    "lines": [
+     34
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] [untested-tool] scripts/retire_review_claims.py:50-56 (role), :12-14 (docstring) with bench/review/te\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (8f774d0c round)"
+   }
+  ],
+  "reason": "exact-claim binding (8f774d0c round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@c67b072: [checker-binding] scripts/retire_review_claims.py:9-14,48-52,99-103 and Makefile:277-283 - carried OPEN: (a) `role()` still splits on `_` only, so the `current_",
+    "lines": [
+     22
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] checker-binding, role() / --check / docstring\u2026) names it by kind and file in its head; the kind is shared within the lane, so the binding is exact (8f774d0c round)"
+   }
+  ],
+  "reason": "exact-claim binding (8f774d0c round): verified line by line 2026-09-19"
  }
 ]

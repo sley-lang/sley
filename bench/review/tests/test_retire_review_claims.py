@@ -263,6 +263,15 @@ class RetireReviewClaimsTests(unittest.TestCase):
         self.assertEqual(retire.retire(summary, []), 1)
         self.assertEqual(summary["release_candidate_packaging"]["p3_open"], claims[1:])
         self.assertIn("#L2", summary["release_candidate_packaging"]["p3_closed_claims"][0]["verified_by"])
+        # 8f774d0c round: an identifier-less original or a prose carry word
+        # does not make the kind unshared — the generic head still closes nothing.
+        for shapes in (
+            [claims[0].replace("`finding_key`", "the key"), claims[1]],
+            [claims[0] + " again", claims[1] + ", unchanged"],
+        ):
+            summary = {"release_candidate_packaging": {"p3_open": list(shapes), "p3_open_count": 2}}
+            retired = retire.retire(summary, [])
+            self.assertEqual(retired, 1 if "`finding_key`" in shapes[0] else 0, shapes)
 
     def test_regeneration_must_reproduce_the_tracked_ledger(self) -> None:
         claim = f"vulcan_surface_review@{self.first[:7]}: [record-note] scripts/a.py:1 - stale note"
@@ -304,9 +313,9 @@ class RetireReviewClaimsTests(unittest.TestCase):
 
     def test_restatements_fold_into_the_earliest_claim(self) -> None:
         earliest = "vulcan_surface_review: [record] scripts/a.py:1 - `note` stale"
-        carried = f"vulcan_surface_review@{self.second[:7]}: [record] scripts/a.py:3 - carried OPEN: `note` still stale"
+        carried = f"vulcan_surface_review@{self.second[:7]}: [record] (carried from {self.first[:7]}, OPEN) scripts/a.py:3 - `note` still stale"
         fresh = f"vulcan_surface_review@{self.second[:7]}: [record] scripts/a.py:3 - a new `note` finding"
-        other = f"vulcan_surface_review@{self.second[:7]}: [record] scripts/b.py:3 - carried OPEN: another `note`"
+        other = f"vulcan_surface_review@{self.second[:7]}: [record] (carried from {self.first[:7]}, OPEN) scripts/b.py:3 - another `note`"
         summary = {"s": {"p4_open": [earliest, carried, fresh, other], "p4_open_count": 4}}
         self.assertEqual(retire.fold_restatements(summary), 1)
         self.assertEqual(summary["s"]["p4_open"], [earliest, fresh, other])
