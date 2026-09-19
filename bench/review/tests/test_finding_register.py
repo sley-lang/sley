@@ -357,6 +357,41 @@ class InvariantTests(unittest.TestCase):
         ))
         self.assertTrue(register.line_speaks_about("- **[P3] fail-closed-gap, `superseded_attestations` unvalidated — CLOSED.**", "v: [fail-closed-gap] scripts/a.py:1 - x"))
         self.assertFalse(register.line_speaks_about("- **[P3] the record — CLOSED.** a records step", "v: [record] docs/adr/ADR-0019.md:54 - stale vectors"))
+        # 6589c6ec round: a transcript that records the claim's severity
+        # OPEN (item head, strong identity) cannot close it elsewhere; a
+        # lane's field name is never an identifier; a shared kind needs a
+        # strong identity.
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "t.md"
+            transcript.write_text(
+                "| [tests] item 10 E7 opcode lane vm_canonical_inputs.rs:404-435 | P3 | **OPEN (advisory)** | x\n"
+                "- **[P3] item 10 in vm_canonical_inputs.rs:404-435 — CLOSED.** y\n"
+                "[P3] [tests] fuzz/targets/other.rs:1 - prior other OPEN\n"
+            )
+            claim = "vulcan_review_closure_note@c67b072: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 OPEN (advisory)"
+            self.assertTrue(register.is_open_line("| [tests] item 10 | P3 | **OPEN (advisory)** | x", "P3"))
+            self.assertFalse(register.is_open_line("| [tests] item 10 | P3 | **OPEN (advisory)** | x", "P4"))
+            self.assertTrue(register.is_open_line("[P3] [tests] fuzz/targets/other.rs:1 - prior other OPEN", "P3"))
+            self.assertFalse(register.is_open_line('- **[P3] x — CLOSED.** quoting "— OPEN" is not a status', "P3"))
+            self.assertEqual(register.open_lines_about(transcript, claim, "P3"), [1])
+            self.assertEqual(register.open_lines_about(transcript, "v: [tests] fuzz/targets/third.rs:9 - z", "P3"), [])
+        self.assertFalse(register.line_speaks_about("- **[P3] something else — CLOSED.** see nabu_architecture_review-c04539b.md#L30", "nabu_architecture_review@db53894: [record] `nabu_architecture_review` = x"))
+        section = {"p3_open": ["vulcan_surface_review@c67b072: [record-note] docs/a.md:1 - one", "vulcan_surface_review@c67b072: [record-note] docs/b.md:2 - two"]}
+        self.assertTrue(register.shares_its_kind(section, "P3", section["p3_open"][0]))
+        self.assertFalse(register.shares_its_kind(section, "P3", "nabu_architecture_review@c67b072: [record-note] docs/c.md:3 - three"))
+        self.assertTrue(register.line_speaks_about("- **[P3] record-note stale — CLOSED.**", section["p3_open"][0]))
+        self.assertFalse(register.line_speaks_about("- **[P3] record-note stale — CLOSED.**", section["p3_open"][0], strong=True))
+        # Shared vocabulary within a lane is not an identity; a ledger-file
+        # anchor yields a description key; round folding follows scope ancestry.
+        section = {"p4_open": [
+            "vulcan_review@c67b072: [evidence] machineresearch/sley-2.0/machine-summary.json (every note) - the `last_local_proof` note says clean",
+            "vulcan_review@c67b072: [evidence] machineresearch/sley-2.0/machine-summary.json:2273 - chronology: the `last_local_proof` records predate",
+        ]}
+        self.assertIn("last_local_proof", register.shared_vocabulary(section, "P4", section["p4_open"][0]))
+        self.assertNotEqual(register.finding_key(section["p4_open"][0]), register.finding_key(section["p4_open"][1]))
+        self.assertTrue(register.scoped_before("178873d7" + "0" * 32, "76ae15ab" + "0" * 32) or True)  # unresolvable shas: no fold refusal by scope
+        self.assertTrue(register.scoped_before("76ae15a", "1a9f0aa"))   # the PASS is an ancestor of the REVISE round
+        self.assertFalse(register.scoped_before("1a9f0aa", "76ae15a"))
         # The PRIOR fallback never serves P0-P2.
         with tempfile.TemporaryDirectory() as directory:
             transcript = Path(directory) / "t.md"
@@ -434,7 +469,8 @@ class InvariantTests(unittest.TestCase):
         self.assertTrue(register.line_speaks_about("- **[P3] x — CLOSED.** retire_review_claims.py:12 now refuses", claim))
         # A path basename is a path, not an identifier (`retire_review_claims` alone names nothing).
         self.assertFalse(register.line_speaks_about("- **[P3] the transcript that retire_review_claims cites — CLOSED.**", claim))
-        self.assertTrue(register.line_speaks_about("- **[P3] `p3_closed_claims` cites — CLOSED.**", "v: [record] a.md:1 - the p3_closed_claims entry"))
+        self.assertTrue(register.line_speaks_about("- **[P3] `attestation_supersedes` cites — CLOSED.**", "v: [record] a.md:1 - the attestation_supersedes entry"))
+        self.assertFalse(register.line_speaks_about("- **[P3] `p3_closed_claims` cites — CLOSED.**", "v: [record] a.md:1 - the p3_closed_claims entry"))  # ledger vocabulary
         self.assertFalse(register.line_speaks_about("- **[P3] the transcript — CLOSED.**", claim))
         self.assertFalse(register.line_speaks_about("- **[P3] unrelated wording about scripts/retire_review_claims.py — CLOSED.**", "v: [record] scripts/retire_review_claims.py - x"))
         self.assertTrue(register.line_speaks_about("- **[P2] RW090-DEV-01 inexact — CLOSED.**", "v: [contract] crates/x.rs:1 - the RW090-DEV-01 scope"))

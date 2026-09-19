@@ -13,9 +13,13 @@ cell (`| … | P3 | **CLOSED (P3)** |`), or a standalone bold status span
 (`… — **CLOSED.** evidence`, `**Both CLOSED.**`); a marker inside quotes,
 backticks or parentheses, a finding-raising `[Pn] [kind]` line, a
 `VERDICT:`/`SUMMARY:`/`FINDINGS:` line, or any line carrying an unquoted
-`OPEN` status is never a closure line. The cited line must speak about the
-claim (its category words, a path or identifier it names, a commit id or
-quoted phrase it repeats, or two content words), the transcript must be
+`OPEN` status is never a closure line. The cited line must name the
+claim's finding identity (the relation stated for the 1a9f0aab and
+6589c6ec rounds below supersedes the revision's first wording: a
+specific kind phrase not shared within the lane, an identifier not shared
+within the lane and not the ledger's own vocabulary, a finding id, a
+file:line anchor, a quoted phrase, or a path with a tag word), the
+transcript must be
 the claim's lane at a strictly later scope by git ancestry (not filename
 order), a claim tag must be `<field>@<7..40 lowercase hex>`, `verified_by`
 must be `<path>#L<n>[,<n>...] — note` (one group, no empty items), a claim
@@ -46,7 +50,39 @@ or the ledger's own files (`machine-summary.json`, `finding-register.json`,
 transcript must be in the git index (tracked or staged): an untracked
 file is not a filed transcript. The section/lane/scope relation is
 applied on every path — automatic, explicit, exact-claim and `--check`
-replay. Where the reviewer's per-finding closure line
+replay.
+
+After the 6589c6ec round (Ariadne P2/P3): a kind phrase is not an
+identity when the lane files several findings under that kind — when any
+other claim of the same lane and severity in the section (open, retired
+or re-stated) carries the claim's kind, only a strong identity relates
+(identifier, finding id, file:line anchor, quoted phrase) or an
+exact-claim binding is required; a lane's field name, a transcript stem,
+a per-package section name and the ledger's own field names
+(`p3_open`, `p4_closed_claims`, …) are never identifiers on either side.
+**OPEN-line rule:** a transcript that records the claim's severity OPEN
+— an item status line or a finding-raising `[Pn]` line whose own head
+names the claim by a strong identity — cannot close that claim on
+another line; this binds every closure, exact-claim bindings included.
+Shared vocabulary is computed per claim: any kind phrase or identifier
+another claim of the same lane and severity in the section carries is
+excluded from that claim's identity. Every filed transcript of a lane
+that records per-finding closure lines is a closer for the severities
+those lines record, whether or not its verdict token carries a `PRIOR`
+group (a lane may close carried findings and raise new ones in one
+verdict); each claim is still bound to its own speaking line. A
+re-statement's finding key uses the description when its anchor is a
+ledger file. A claim's severity is bound to the `[Pn]` finding line its
+raising transcript records for it (`raising_severity`; a mismatch is
+`REGISTER_SUMMARY_INVALID`). Round folding consults the notes' `on <sha>`
+scopes: a PASS whose scope is not strictly later than a FAIL/REVISE
+round's scope by git ancestry never folds it, whatever the calendar day.
+`retire_review_claims.py --regenerate` runs reopen → fold → retire in
+that order and `--check` also regenerates in memory and refuses a
+tracked ledger the regeneration does not reproduce
+(`regeneration_divergence`). The change record
+`evidence/review/rounds/revision-7-retirement-changes.json` is derived
+from the tracked ledgers by a stated keying (see its `keying`). Where the reviewer's per-finding closure line
 cannot be seen by that relation (a claim recorded truncated or phrased
 differently), the tracked retirement file may bind the whole claim string
 to its lines (`claims: [{claim, lines, reason}]`, recorded as
@@ -309,8 +345,9 @@ Rules:
   closure lines (the severity named before the item's own `CLOSED` status
   in a bold head, a table cell or a standalone bold status span, with no
   unquoted `OPEN` status on the line — revision 7) and at least one must
-  speak about the retired claim (its category words, a path, identifier,
-  commit id or quoted phrase it names, or two of its content words);
+  name the retired claim's finding identity (a kind phrase or identifier
+  not shared within the lane, a finding id, a file:line anchor, a quoted
+  phrase, or a path with a tag word — never the ledger's own vocabulary);
   the verifying transcript must belong to the same lane as the retired
   claim's round, must not be that round's own transcript, and must record a
   verdict at a strictly later scope commit (git ancestry, not filename
@@ -325,6 +362,11 @@ Rules:
   quoted "— CLOSED") is not a closure line. A lane's later re-statement of
   a carried open finding folds into the earliest claim
   (`pN_restated_claims`, revision 7) and is neither open nor closed;
+- a retired claim's cited closure line must not be contradicted by the
+  same transcript: if the transcript records the claim's severity OPEN
+  in an item head or finding line that names the claim by a strong
+  identity, the closure is `REGISTER_SUMMARY_INVALID` (exact-claim
+  bindings included);
 - the result is `FINDING_REGISTER_CLEAR` exactly when no obligation is
   `PENDING`, no obligation is `OTHER`, `unclaimed_carried_findings` is
   empty, `complete_packages_with_open_reviews`

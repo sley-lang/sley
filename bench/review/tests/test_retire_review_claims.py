@@ -172,6 +172,47 @@ class RetireReviewClaimsTests(unittest.TestCase):
             self.assertTrue(register.exact_claim_binding("release_candidate_packaging", claim, self.root / path, [1]))
             self.assertFalse(register.exact_claim_binding("release_candidate_packaging", claim, self.root / path, [2]))
 
+    def test_a_shared_kind_needs_a_strong_identity(self) -> None:
+        # Ariadne P2 at 6589c6ec: one closure line's kind matched three open
+        # claims of its lane; only the claim it identifies strongly retires.
+        (self.section / f"vulcan_surface_review-{self.second[:7]}.md").write_text(
+            "- **[P3] [record-note] the `attestation_supersedes` note — CLOSED.** fixed\n"
+            "VERDICT: PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED\n"
+        )
+        self.git("add", ".")
+        register._tracked = None
+        claims = [
+            f"vulcan_surface_review@{self.first[:7]}: [record-note] docs/a.md:1 - the `attestation_supersedes` note is stale",
+            f"vulcan_surface_review@{self.first[:7]}: [record-note] docs/b.md:2 - another note is stale",
+        ]
+        summary = {"release_candidate_packaging": {"p3_open": list(claims), "p3_open_count": 2}}
+        self.assertEqual(retire.retire(summary, []), 1)
+        self.assertEqual(summary["release_candidate_packaging"]["p3_open"], claims[1:])
+
+    def test_a_filed_transcript_closes_by_its_status_lines_without_a_prior_token(self) -> None:
+        # Ariadne P3 at 6589c6ec: five closures had no closer because the
+        # verdict tokens omitted the PRIOR suffix.
+        (self.section / f"vulcan_surface_review-{self.second[:7]}.md").write_text(
+            "- **[P3] record-note stale in scripts/a.py — CLOSED.** repaired\n"
+            "[P4] [wording] docs/new.md:1 - a new finding\n"
+            "VERDICT: PASS_0_P0_0_P1_0_P2_0_P3_1_P4\n"
+        )
+        self.git("add", ".")
+        register._tracked = None
+        closers = retire.transcript_closers("release_candidate_packaging")
+        self.assertEqual([(c[1], c[2]) for c in closers], [("vulcan", {"P3"})])
+        summary = self.summary(f"vulcan_surface_review@{self.first[:7]}: [record-note] scripts/a.py:1 - stale note")
+        self.assertEqual(retire.retire(summary, []), 1)
+
+    def test_regeneration_must_reproduce_the_tracked_ledger(self) -> None:
+        claim = f"vulcan_surface_review@{self.first[:7]}: [record-note] scripts/a.py:1 - stale note"
+        summary = self.summary(claim)
+        retire.retire(summary, [])
+        self.assertEqual(retire.regeneration_divergence(summary, []), [])
+        tampered = json.loads(json.dumps(summary))
+        tampered["release_candidate_packaging"]["p3_closed_claims"].append({"claim": "vulcan_surface_review@0000000: [x] y", "verified_by": "z#L1 — w"})
+        self.assertEqual(len(retire.regeneration_divergence(tampered, [])), 1)
+
     def test_replay_refuses_a_stale_or_duplicated_closure(self) -> None:
         claim = f"vulcan_surface_review@{self.first[:7]}: [record-note] scripts/a.py:1 - stale note"
         summary = self.summary(claim)

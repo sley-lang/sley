@@ -149,6 +149,25 @@ def round_date(note: object) -> str | None:
     return max(found) if found else None
 
 
+def round_scope(note: object) -> str | None:
+    """The `on <sha40>` scope a round's `_note` records, if any."""
+    if not isinstance(note, str):
+        return None
+    found = re.search(r"\bon ([0-9a-f]{40})\b", note)
+    return found.group(1) if found else None
+
+
+def scoped_before(pass_scope: str | None, fail_scope: str | None) -> bool:
+    """Whether the notes' scopes show the PASS was filed at an ancestor of
+    the FAIL round's commit: git ancestry orders same-day rounds exactly
+    (Nabu P3 at 6589c6ec: a REVISE filed later the same day had folded
+    under the ancestor PASS by the day-granular date rule). A PASS whose
+    scope is not strictly later than the FAIL's never folds it."""
+    if not pass_scope or not fail_scope:
+        return False
+    return not strictly_later_scope(pass_scope, fail_scope)
+
+
 def dated_before(pass_date: str | None, fail_date: str | None) -> bool:
     """Whether the notes show the PASS was filed before the FAIL round.
 
@@ -355,6 +374,7 @@ def collect(summary: dict) -> list[dict]:
                             "package_status": own_status,
                             "superseded_by": None,
                             "round_date": round_date(node.get(f"{field}_note")),
+                            "round_scope": round_scope(node.get(f"{field}_note")),
                         }
                     )
                 walk(value, child, own_status, field)
@@ -370,8 +390,10 @@ def collect(summary: dict) -> list[dict]:
     # by (section, field), so the first closing candidate wins deterministically.
     passes: dict[tuple[str, str], list[str]] = {}
     dates: dict[tuple[str, str], str | None] = {}
+    scopes: dict[tuple[str, str], str | None] = {}
     for item in obligations:
         dates[(item["section"], item["field"])] = item["round_date"]
+        scopes[(item["section"], item["field"])] = item["round_scope"]
         if item["state"] == "PASS" and item["reviewer"] is not None:
             passes.setdefault((item["section"], item["reviewer"]), []).append(item["field"])
     for item in obligations:
@@ -381,7 +403,7 @@ def collect(summary: dict) -> list[dict]:
                 for candidate in passes.get((item["section"], item["reviewer"]), []):
                     if supersedes(candidate, item["field"]) and not dated_before(
                         dates.get((item["section"], candidate)), item["round_date"]
-                    ):
+                    ) and not scoped_before(scopes.get((item["section"], candidate)), item["round_scope"]):
                         superseder = candidate
                         break
             if superseder is not None:
@@ -515,13 +537,47 @@ def declared_counters(summary: dict) -> dict:
     return declared
 
 
+def raising_severity(section: str, claim: str) -> str | None:
+    """The severity the claim's raising transcript records for it: the
+    `[Pn]` finding line of `<section>/<lane>*-<scope7>.md` whose text begins
+    with the claim's description, or None when the claim is untagged, the
+    transcript is not filed, or no finding line matches (older rounds
+    recorded truncated descriptions)."""
+    match = CLAIM_TAG.match(claim)
+    if not match or not match.group(2):
+        return None
+    lane = reviewer_of(match.group(1))
+    description = claim.split(": ", 1)[1] if ": " in claim else ""
+    if not lane or not description:
+        return None
+    directory = ROOT / "evidence/review/verdicts" / section.split(".")[0]
+    for path in sorted(directory.glob(f"{lane}*-{match.group(2)[:7]}.md")) if directory.is_dir() else []:
+        if not is_tracked(path.relative_to(ROOT).as_posix()):
+            continue
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            found = re.match(r"^\[(P[0-4])\]\s*(.*)$", line)
+            if found and found.group(2).strip().startswith(description[:80].strip()):
+                return found.group(1)
+    return None
+
+
 def package_open_claims(summary: dict) -> dict[str, int]:
-    """Every per-package open claim, dotted field to open count."""
+    """Every per-package open claim, dotted field to open count. A claim's
+    severity is bound to the `[Pn]` line its raising transcript records for
+    it (Vulcan P3 at 6589c6ec: severity had been list membership only)."""
     claims: dict[str, int] = {}
     for section, value in summary.items():
         if not isinstance(value, dict):
             continue
         for field, item in value.items():
+            if PACKAGE_OPEN_LIST.match(field) and isinstance(item, list):
+                for claim in item:
+                    raised = raising_severity(section, claim) if isinstance(claim, str) else None
+                    if raised and raised != "P" + field[1]:
+                        raise RegisterError(
+                            RegisterErrorCode.SUMMARY_INVALID,
+                            f"{section}.{field}: the raising transcript records {raised}: {claim[:60]!r}",
+                        )
             if PACKAGE_OPEN_COUNT.match(field):
                 if not isinstance(item, int) or item < 0:
                     raise RegisterError(
@@ -591,7 +647,7 @@ def _own_status(line: str, match: re.Match) -> bool:
         cell_end = line.find("|", match.end())
         cell = line[cell_start:cell_end if cell_end > 0 else None]
         cell = re.sub(r"[*\s]", "", cell)
-        if re.fullmatch(r"(?:Both|All\w*|Each)?(?:CLOSED|OPEN|Open)(?:\(P[0-4]\))?\.?", cell):
+        if re.fullmatch(r"(?:Both|All\w*|Each)?(?:CLOSED|OPEN|Open)(?:\([^)]*\))?\.?", cell):
             return True
     # (iii) a standalone bold status span: `… — **CLOSED.** evidence`,
     # `… **Both CLOSED.**` (the status is the whole span, so a bold
@@ -633,13 +689,75 @@ def is_open_line(line: str, severity: str) -> bool:
     an unquoted OPEN status, whose own leading severity is `severity`."""
     if line.startswith(("VERDICT:", "SUMMARY:", "FINDINGS:")):
         return False
+    if FINDING_LINE.match(line):
+        # A finding-raising line states its status as a bare word
+        # (`… - prior item 10 OPEN (advisory): …`).
+        bare = [m for m in re.finditer(r"\bOPEN\b", line) if not _quoted(line, m.start(), m.end())]
+        return bool(bare) and line.startswith(f"[{severity}]")
     opens = [m for m in STATUS_OPEN.finditer(line) if not _quoted(line, m.start(), m.end())]
     if not opens:
         return False
-    if FINDING_LINE.match(line):
-        return line.startswith(f"[{severity}]")
     own = [m for m in opens if _own_status(line, m)]
     return bool(own) and severity in item_severities(line[: own[0].start()])
+
+
+def kind_phrase_of(claim: str) -> str:
+    """The claim's bracketed kind, lowered (`[record-note]` → `record-note`)."""
+    body = claim.split(": ", 1)[1] if ": " in claim else claim
+    kind = re.match(r"\[([^\]]+)\]", body)
+    return kind.group(1).strip().lower() if kind else ""
+
+
+def identity_tokens(claim: str) -> tuple[set[str], set[str]]:
+    """(kind phrases, identifiers) of a claim, as the relation reads them."""
+    body = claim.split(": ", 1)[1] if ": " in claim else claim
+    tags = [tag.lower() for tag in CATEGORY.findall(body[:120])]
+    phrases = {phrase.strip() for tag in tags for phrase in re.split(r"[/—,;:]", tag) if phrase.strip() and phrase.strip() not in STOP_WORDS}
+    path_text = " ".join(PATH_TOKEN.findall(body)).lower()
+    identifiers = {
+        word for word in content_words(body)
+        if "_" in word and len(word) >= 8 and word not in path_text and not is_lane_field_name(word)
+    }
+    return phrases, identifiers
+
+
+def shared_vocabulary(section: dict, severity: str, claim: str) -> set[str]:
+    """Kind phrases and identifiers this claim shares with another claim of
+    the same lane and severity in the section (open, retired or re-stated):
+    shared vocabulary is not an identity (Ariadne P2 / Vulcan P3 at
+    6589c6ec: one closure line's kind matched three open claims of its lane;
+    a proof-record field name named five)."""
+    prefix = CLAIM_TAG.match(claim)
+    lane = reviewer_of(prefix.group(1) if prefix else claim.split(":", 1)[0])
+    phrases, identifiers = identity_tokens(claim)
+    mine = phrases | identifiers
+    if not mine:
+        return set()
+    number = severity[1]
+    others = list(section.get(f"p{number}_open") or [])
+    others += [item.get("claim", "") for item in section.get(f"p{number}_closed_claims") or [] if isinstance(item, dict)]
+    others += [item.get("claim", "") for item in section.get(f"p{number}_restated_claims") or [] if isinstance(item, dict)]
+    shared: set[str] = set()
+    own_key = finding_key(claim)
+    for other in others:
+        if other == claim:
+            continue
+        tag = CLAIM_TAG.match(other)
+        other_lane = reviewer_of(tag.group(1) if tag else other.split(":", 1)[0])
+        # A re-statement of the same finding (same finding key) is not
+        # another finding; its vocabulary is this claim's own.
+        if other_lane != lane or finding_key(other) == own_key:
+            continue
+        other_phrases, other_identifiers = identity_tokens(other)
+        shared |= mine & (other_phrases | other_identifiers)
+    return shared
+
+
+def shares_its_kind(section: dict, severity: str, claim: str) -> bool:
+    """Whether any kind phrase of the claim is shared within its lane and
+    severity (the kind alone is then not an identity)."""
+    phrases, _ = identity_tokens(claim)
+    return bool(phrases & shared_vocabulary(section, severity, claim))
 
 
 def open_lines_about(path: Path, claim: str, severity: str) -> list[int]:
@@ -774,6 +892,39 @@ def content_words(text: str) -> set[str]:
     return {word for word in re.findall(r"[a-z][a-z0-9_]{5,}", text.lower()) if word not in STOP_WORDS}
 
 
+_ledger_words: set[str] | None = None
+
+
+def ledger_words() -> set[str]:
+    """The ledger's own vocabulary: section names of the tracked summary and
+    the per-package ledger fields (`p3_open`, `p4_closed_claims`, …)."""
+    global _ledger_words
+    if _ledger_words is None:
+        words = {f"p{n}_{suffix}" for n in range(5) for suffix in ("open", "open_count", "closed_claims", "restated_claims")}
+        words |= {"closed_claims", "restated_claims", "open_claims", "open_count", "machine_summary", "finding_register",
+                  "claim_retirements", "verified_by", "original_note", "closure_note"}
+        try:
+            summary = json.loads(SUMMARY.read_text(encoding="utf-8"))
+            # Per-package section names (a section carries a status or a
+            # per-package ledger), never ordinary summary fields.
+            words |= {
+                key for key, value in summary.items()
+                if isinstance(value, dict) and ("status" in value or any(PACKAGE_OPEN_LIST.match(k) for k in value))
+            }
+        except (OSError, json.JSONDecodeError):
+            pass
+        _ledger_words = {word.lower() for word in words}
+    return _ledger_words
+
+
+def is_lane_field_name(word: str) -> bool:
+    """A Council lane's field name or transcript stem (`nabu_architecture_review`,
+    `vulcan_surface_review_revision_5`, `ariadne_implementation_review_closure`),
+    a section name or a ledger field is the ledger's own vocabulary, never a
+    finding identity (Ariadne P3 at 6589c6ec)."""
+    return any(word.startswith(lane + "_") and "review" in word for lane in REVIEWERS) or word in ledger_words()
+
+
 LEDGER_PATHS = {
     "machineresearch/sley-2.0/machine-summary.json",
     "machine-summary.json",
@@ -786,7 +937,7 @@ LEDGER_PATHS = {
 }
 
 
-def line_speaks_about(line: str, claim: str, strong: bool = False) -> bool:
+def line_speaks_about(line: str, claim: str, strong: bool = False, shared: set[str] | None = None) -> bool:
     """The closure line names the claim's finding identity (Nabu P2 at
     1a9f0aab: vocabulary overlap had let one line retire unrelated claims):
 
@@ -815,14 +966,21 @@ def line_speaks_about(line: str, claim: str, strong: bool = False) -> bool:
         for phrase in re.split(r"[/—,;:]", tag)
         if phrase.strip() and phrase.strip() not in STOP_WORDS
     }
-    specific = {phrase.replace("-", " ") for phrase in phrases if len(phrase) >= 8 and re.search(r"[- ]", phrase)}
+    shared = shared or set()
+    specific = {
+        phrase.replace("-", " ") for phrase in phrases
+        if len(phrase) >= 8 and re.search(r"[- ]", phrase) and phrase not in shared
+    }
     if not strong and any(phrase in lowered.replace("-", " ") for phrase in specific):
         return True
     path_text = " ".join(PATH_TOKEN.findall(body)).lower()
     # Identifiers are names the finding text carries, never the words of a
     # path it cites (a basename with underscores is a path, not a name).
-    identifiers = {word for word in content_words(body) if "_" in word and len(word) >= 8 and word not in path_text}
-    if identifiers & content_words(line):
+    identifiers = {
+        word for word in content_words(body)
+        if "_" in word and len(word) >= 8 and word not in path_text and not is_lane_field_name(word) and word not in shared
+    }
+    if identifiers & {word for word in content_words(line) if not is_lane_field_name(word)}:
         return True
     # The ledger's own files are cited by most findings, so they never
     # relate (Ariadne P3 at 1a9f0aab: a line naming machine-summary.json
@@ -842,7 +1000,10 @@ def line_speaks_about(line: str, claim: str, strong: bool = False) -> bool:
     quoted = {phrase for phrase in re.findall(r'"([^"]{12,})"', body)}
     if any(phrase in line for phrase in quoted):
         return True
-    finding_ids = set(re.findall(r"\b(?:[A-Z][A-Z0-9]{1,}-)+[0-9]{2,}\b|\b[A-Z]{1,3}-[0-9]{2}\b", body))
+    # Finding ids from the claim's heading and first sentence only (an id
+    # mentioned in passing later in the description is not its identity).
+    leading = body[:200].split(";")[0]
+    finding_ids = set(re.findall(r"\b(?:[A-Z][A-Z0-9]{1,}-)+[0-9]{2,}\b|\b[A-Z]{1,3}-[0-9]{2}\b", leading))
     if any(re.search(rf"(?<![A-Z0-9-]){re.escape(fid)}(?![0-9])", line) for fid in finding_ids):
         return True
     anchors = {
@@ -990,12 +1151,21 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                             RegisterErrorCode.SUMMARY_INVALID,
                             f"{section}.{field}: exact-claim binding not in {RETIREMENTS.relative_to(ROOT)}: {entry['claim'][:60]!r}",
                         )
-                elif not any(line_speaks_about(text[n - 1], entry["claim"]) for n in wanted if 0 < n <= len(text)):
+                elif not any(
+                    line_speaks_about(
+                        text[n - 1], entry["claim"],
+                        strong=shares_its_kind(value, severity, entry["claim"]),
+                        shared=shared_vocabulary(value, severity, entry["claim"]),
+                    )
+                    for n in wanted if 0 < n <= len(text)
+                ):
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
-                        f"{section}.{field}: no cited line of {resolved.name} names the claim's category or path",
+                        f"{section}.{field}: no cited line of {resolved.name} names the claim's finding identity",
                     )
-                if entry.get("binding") != "exact-claim" and open_lines_about(resolved, entry["claim"], severity):
+                # A transcript that records the claim's severity OPEN cannot
+                # close it on another line — exact-claim bindings included.
+                if open_lines_about(resolved, entry["claim"], severity):
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: {resolved.name} also records the claim OPEN at {open_lines_about(resolved, entry['claim'], severity)}",
@@ -1022,9 +1192,18 @@ def finding_key(claim: str) -> tuple[str | None, str, str, str]:
     kind = re.match(r"\[([^\]]+)\]", body)
     rest = body[kind.end():].strip() if kind else body
     path = ANCHOR.search(rest)
-    anchor = path.group(0).split(":")[0] if path else re.sub(r"\s+", " ", rest)[:40]
+    anchor = path.group(0).split(":")[0] if path else ""
     ident = IDENTIFIER.search(rest)
-    return (reviewer_of(prefix), kind.group(1) if kind else "", anchor, ident.group(1) if ident else "")
+    identifier = ident.group(1) if ident else ""
+    # A ledger file is every record finding's anchor (Vulcan P3 at 6589c6ec:
+    # three distinct `[evidence] machine-summary.json` findings folded into
+    # one); the description then carries the identity.
+    if not anchor:
+        anchor = re.sub(r"\s+", " ", rest)[:40]
+    elif anchor in LEDGER_PATHS or anchor.rsplit("/", 1)[-1] in LEDGER_PATHS:
+        description = rest.split(" - ", 1)[1] if " - " in rest else rest
+        anchor = re.sub(r"\s+", " ", description)[:40]
+    return (reviewer_of(prefix), kind.group(1) if kind else "", anchor, identifier)
 
 
 def is_carry(claim: str) -> bool:

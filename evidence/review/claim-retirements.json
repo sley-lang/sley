@@ -2,8 +2,7 @@
  {
   "section": "release_candidate_packaging",
   "severities": [
-   2,
-   3
+   2
   ],
   "prefixes": [
    "vulcan_surface_review_revision_5:"
@@ -363,36 +362,6 @@
  {
   "section": "repository_exchange",
   "severities": [
-   1
-  ],
-  "prefixes": [
-   "ariadne_implementation_review_closure_note: [record] evidence/review/finding-register.json"
-  ],
-  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md",
-  "lines": [
-   36,
-   37,
-   38
-  ],
-  "reason": "targeted closure review at 76ae15ab (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P1_CLOSED): both S20-540 P1 remediations verified in source, tests and blame (P1-A accepted_head fails closed on a marked root; P1-B rejection matrix asserts the ten codes) and the record item closed; reconstruction basis = docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md:142-152 and the a29668e1 commit message (the 05769ff7/dca29d66 transcripts are unrecoverable)"
- },
- {
-  "section": "repository_exchange",
-  "severities": [
-   3
-  ],
-  "prefixes": [
-   "ariadne_implementation_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (repository_exchange.accepted_fixture_sha256"
-  ],
-  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md",
-  "lines": [
-   39
-  ],
-  "reason": "the 178873d7 stale fixture identities verified re-pinned at 76ae15ab (line 39; the verdict's PRIOR clause names P1 only, the closure line names this P3 explicitly)"
- },
- {
-  "section": "repository_exchange",
-  "severities": [
    4
   ],
   "prefixes": [
@@ -543,20 +512,6 @@
   ],
   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-db53894.md",
   "reason": "line 25: the c04539b9 P4 (removal commit) recorded CLOSED"
- },
- {
-  "section": "mutation_value_profile",
-  "severities": [
-   3
-  ],
-  "prefixes": [
-   "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (mutation_value_profile.epoch1_reanchor_review)"
-  ],
-  "verified_by": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md",
-  "lines": [
-   15
-  ],
-  "reason": "the 178873d7 P3 (summary pointer to the reconstruction record) verified closed by the c04539b9 closure review (line 15, `**Both CLOSED.**`; the line names the field's disposition)"
  },
  {
   "section": "rw090_arbitrary_codec",
@@ -847,8 +802,7 @@
    4
   ],
   "prefixes": [
-   "vulcan_surface_review_revision_5: [record]",
-   "vulcan_surface_review_revision_5: [record-consistency]"
+   "vulcan_surface_review_revision_5: [record]"
   ],
   "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md",
   "reason": "the revision-5 record P4s recorded CLOSED item by item at 92fa6646 (line 25)"
@@ -1020,5 +974,538 @@
    25
   ],
   "reason": "targeted closure review at 1a9f0aab (PASS_0_P0_0_P1_0_P2_1_P3_1_P4_PRIOR_P2_P3_CLOSED): the ADR-0019 :54-56 P2 (stale machine-summary query/capsule vectors) verified CLOSED by independent re-derivation of every epoch-1 identity (line 25 names the claim's path and quoted phrase; an untagged closure-note claim never retires automatically)"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-7622776.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@db53894: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4292-4300 (`p3_open`) and :4262-4283 (`p4_open`) - the retirement rule 867009de states (\"open",
+    "lines": [
+     23
+    ],
+    "reason": "the lane's own P3 item status line for this finding (2. **P3 [record-consistency] eleven verified-closed entries left open; retirement script u\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review: [evidence-integrity] scripts/build_ga_acceptance_report.py:311-312,582-583 with evidence/release/ga-acceptance-report.json:247-250 and machineresearch/sley-2.0/",
+    "lines": [
+     25
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **[P3] evidence-integrity: GA \"no P0/P1/P2 finding remains open\" row \u2014 CLOSED.** build_g\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-c67b072.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review@7622776: [evidence-integrity] machineresearch/sley-2.0/machine-summary.json:4754,4758 (reproducibility `p2_closed_claims[2-3]`), :4776 (`p3_closed_claims[1]`), :4810 (`p",
+    "lines": [
+     21
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **[P3] evidence-integrity (seven cross-section retirements cited the c04539b transcript\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@76ae15a: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4434-4435,4437 (`p3_open[10-11]`, count 12) with scripts/retire_review_claims.py:93-121 (`clo",
+    "lines": [
+     29
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **[P3] [record-consistency] machineresearch/sley-2.0/machine-summary.json:4567,4571 (my\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review: [register-supersession] evidence/review/finding-register.json obligations[182] (and superseded_rounds[50]) with scripts/build_finding_register.py:106-107,159 - ",
+    "lines": [
+     29
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] register-supersession: revision rounds folded under an earlier-dated final PASS \u2014\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review: [register-supersession] evidence/review/finding-register.json obligations[182] (and superseded_rounds) with scripts/build_finding_register.py:100-107,155-159 - ",
+    "lines": [
+     29
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] register-supersession: revision rounds folded under an earlier-dated final PASS \u2014\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-76ae15a.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@db53894: [ownership/evidence-binding] machineresearch/sley-2.0/machine-summary.json:4627-4628,4664-4700 (`p2_open`/`p2_open_count`, `p2/p3/p4_closed_claims`), evidence/r",
+    "lines": [
+     24
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **P3 [ownership/evidence-binding] mis-cited GA-row retirement \u2014 CLOSED.** Ledger entry 4\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-76ae15a.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@7622776: [ownership/evidence-binding] machineresearch/sley-2.0/machine-summary.json:4745-4763,4771-4777,4805-4815 (`p2/p3/p4_closed_claims`, 10 untagged rev-7/rev-8 entr",
+    "lines": [
+     24
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **P3 [ownership/evidence-binding] mis-cited GA-row retirement \u2014 CLOSED.** Ledger entry 4\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-7622776.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@db53894: [record-provenance] machineresearch/sley-2.0/machine-summary.json:4664-4700 (`reproducibility_and_independent_conformance.p2/p3/p4_closed_claims`, 11 entries) a",
+    "lines": [
+     26
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- Finding 1 [P3] record-provenance, retirement by an untracked `retire_claims.py`, not che\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-7622776.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@db53894: [contract-vs-mechanics] scripts/build_reproducibility_report.py:464-465 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142 - carried OPEN fr",
+    "lines": [
+     28
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- Finding 3 [P4] contract-vs-mechanics, builder :464-465 silently dropped a listing entry\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-7622776.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review_revision_4@db53894: [records/binding-gap] scripts/check_reweave_codec_component.py:76-78; machineresearch/sley-2.0/reweave/rw-080-contract.md:457-459 - The component checker requir",
+    "lines": [
+     16
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **P4 records/binding-gap \u2014 CLOSED as asked.** The checker now iterates every `superseded\u2026); the kind is shared by other claims of the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding: the kind phrase is shared within the lane (Ariadne P2 at 6589c6ec), so the reviewer's own item line is bound to the whole claim string; verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-76ae15a.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@c67b072: [record-precision] machineresearch/sley-2.0/machine-summary.json:4389,4467,4471,4475 (and every `#L` in `release_candidate_packaging.p3/p4_closed_claims` :4374-",
+    "lines": [
+     21
+    ],
+    "reason": "P3 [record-precision] #L citations were regex supersets \u2014 CLOSED (the lane's own item line; verdict token omitted the PRIOR suffix)"
+   }
+  ],
+  "reason": "exact-claim binding of the lane's own per-finding closure line (the verdict token omitted the PRIOR suffix; Ariadne P3 at 6589c6ec); verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-76ae15a.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@c67b072: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4730 (`reproducibility_and_independent_conformance.attestation_supersedes`) and :4816-5144 (`",
+    "lines": [
+     22
+    ],
+    "reason": "P3 [record-consistency] attestation chain one mint behind \u2014 CLOSED"
+   }
+  ],
+  "reason": "exact-claim binding of the lane's own per-finding closure line (the verdict token omitted the PRIOR suffix; Ariadne P3 at 6589c6ec); verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@76ae15a: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4432-4435 (`release_candidate_packaging.p3_open[8-11]`) with :4269-4270 and scripts/retire_re",
+    "lines": [
+     19
+    ],
+    "reason": "[P3] [record-consistency] four db53894e claims un-retired \u2014 CLOSED"
+   }
+  ],
+  "reason": "exact-claim binding of the lane's own per-finding closure line (the verdict token omitted the PRIOR suffix; Ariadne P3 at 6589c6ec); verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@76ae15a: [predicate-precision] scripts/build_finding_register.py:550-558 (`is_closure_line`) with docs/spec/FINDING_REGISTER_V1.md:16-20 and evidence/review/verdicts/rel",
+    "lines": [
+     20
+    ],
+    "reason": "[P4] [predicate-precision] is_closure_line admitting a quoted marker \u2014 CLOSED"
+   }
+  ],
+  "reason": "exact-claim binding of the lane's own per-finding closure line (the verdict token omitted the PRIOR suffix; Ariadne P3 at 6589c6ec); verified line by line 2026-09-19"
+ },
+ {
+  "section": "mutation_value_profile",
+  "verified_by": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (mutation_value_profile.epoch1_reanchor_review) - the field carries a PASS-with-P2 disposition that has n",
+    "lines": [
+     26
+    ],
+    "reason": "[P3] machine-summary.json (mutation_value_profile.epoch1_reanchor_review) \u2014 PASS-with-P2 disposition that never had a transcript behind it \u2014 CLOSED (the closure review's own item line; the identifier it names is the ledger's own vocabulary, so the binding is exact)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round); verified line by line 2026-09-19"
+ },
+ {
+  "section": "repository_exchange",
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md",
+  "claims": [
+   {
+    "claim": "ariadne_implementation_review_closure_note: [record] evidence/review/finding-register.json (row section=repository_exchange, field=ariadne_implementation_review) / docs/audits/S20_540_REPOSITORY_EXCHANGE_",
+    "lines": [
+     38
+    ],
+    "reason": "[P1] [record] row closing binding for the unrecoverable transcripts 05769ff7/dca29d66 \u2014 CLOSED (the closure review's own item line for this record claim; lines 36-37 close the two remediations it depends on)"
+   }
+  ],
+  "reason": "targeted closure review at 76ae15ab (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P1_CLOSED): both S20-540 P1 remediations verified in source, tests and blame (P1-A accepted_head fails closed on a marked root; P1-B rejection matrix asserts the ten codes) and the record item closed; reconstruction basis = docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md:142-152 and the a29668e1 commit message (the 05769ff7/dca29d66 transcripts are unrecoverable) (exact-claim binding since the 6589c6ec round: the claim names only the ledger's own vocabulary)"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review_revision_5: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4064 and evidence/release/decision-dossier.json:390 - `open_risks` sentence \"the candidate is",
+    "lines": [
+     23
+    ],
+    "reason": "[P3] open_risks / dossier \"reproduced on two hosts\" \u2014 CLOSED (the lane's own item line; the kind is shared within the lane and the identifiers are ledger vocabulary)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round); verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review_revision_5: [record-consistency] machineresearch/sley-2.0/machine-summary.json:3874 - `candidate_second_host_note` ends \"Next: bundle main, clone detached at c75277b6 on th",
+    "lines": [
+     24
+    ],
+    "reason": "[P3] candidate_second_host_note runbook step named c75277b6 \u2014 CLOSED (the lane's own item line; the kind is shared within the lane and the identifiers are ledger vocabulary)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round); verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review_revision_5: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4411 - `remaining_gates.second_host_attestation` reads \"RESOLVED for source 5313437 \u2026 New pro",
+    "lines": [
+     25
+    ],
+    "reason": "[P4] remaining_gates.second_host_attestation read RESOLVED for 5313437 \u2014 CLOSED (the lane's own item line; the kind is shared within the lane and the identifiers are ledger vocabulary)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round); verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-92fa664.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review_revision_5: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4064 (open_risks) and evidence/release/decision-dossier.json \"residual risks\" entry (state EV",
+    "lines": [
+     33,
+     35
+    ],
+    "reason": "the lane's own P3 item status line for this finding (2. `[P3] [record-consistency] candidate_second_host_note's \"clone detached at c75277b6 on\u2026); its kind is shared within the lane or its identifiers are ledger vocabulary, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 1a9f0aab/6589c6ec"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-76ae15a.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@c67b072: [ownership/evidence-binding] machineresearch/sley-2.0/machine-summary.json:5168-5171 (`p2_closed_claims[5]`), evidence/review/claim-retirements.json:498-513, sc",
+    "lines": [
+     24
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **P3 [ownership/evidence-binding] mis-cited GA-row retirement \u2014 CLOSED.** Ledger entry 4\u2026); its kind is shared within the lane or its identifiers are ledger vocabulary, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 1a9f0aab/6589c6ec"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-c67b072.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@7622776: [record-provenance] machineresearch/sley-2.0/machine-summary.json:4754,4758,4776,4810 (`p2_closed_claims[2..3]`, `p3_closed_claims[1]`, `p4_closed_claims[1]`, a",
+    "lines": [
+     20
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- Finding 1 [P3] record-provenance, four `nabu_architecture_review_revision_8` closed entr\u2026); its kind is shared within the lane or its identifiers are ledger vocabulary, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 1a9f0aab/6589c6ec"
+ },
+ {
+  "section": "repository_exchange",
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-7622776.md",
+  "claims": [
+   {
+    "claim": "ariadne_implementation_review_final@db53894: [record] machineresearch/sley-2.0/machine-summary.json (repository_exchange.p3_open[0..3], p4_open[0..1], p3_open_count=5, p4_open_count=3; mirrored in evidence",
+    "lines": [
+     25
+    ],
+    "reason": "the lane's own P3 item status line for this ledger-record finding (**Prior finding 1 \u2014 [P3] [record] six 92fa664 P3/P4 claims left open; `retire_claims.py` untracked:\u2026); the claim names only the ledger's own vocabulary, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review_revision_5: [record] evidence/release/decision-dossier.json:390,419 (mirrored from machine-summary `open_risks` :4064 and `evidence_gaps` :4040, outside this section's owne",
+    "lines": [
+     27
+    ],
+    "reason": "the lane's own P4 item status line for this ledger-record finding (4. **P4 dossier/`open_risks`/`evidence_gaps` \"reproduced on two hosts\" \u2014 CLOSED.** `decision-dossier\u2026); the claim names only the ledger's own vocabulary, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-7622776.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@db53894: [record] machineresearch/sley-2.0/machine-summary.json:4819-4829 - `p4_open`/`p4_open_count 8` still carry the six 92fa6646-round P4s (entries 1-6: Ariadne test",
+    "lines": [
+     28
+    ],
+    "reason": "the lane's own P3 item status line for this ledger-record finding (- **P3 (`p4_open`/`p4_open_count 8` still carried the six lane-verified-closed 92fa6646-round P4s) \u2014\u2026); the claim names only the ledger's own vocabulary, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-db53894.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review: [record] machineresearch/sley-2.0/machine-summary.json:4704-4733 (`standards_sbom_and_provenance.p1_open`/`p1_open_count`/`p2_open`/`p2_open_count`/`p3_open`) -",
+    "lines": [
+     24
+    ],
+    "reason": "the lane's own P3 item status line for this ledger-record finding (**Prior P3 (section still claimed the 178873d7 P1/P2/P3 findings as open) \u2014 CLOSED.** At HEAD `p1_op\u2026); the claim names only the ledger's own vocabulary, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review: [record] machineresearch/sley-2.0/machine-summary.json `s20_710_pre_release_audit.final_argus_disposition` / `final_vulcan_disposition` (pinned at scripts/check",
+    "lines": [
+     28
+    ],
+    "reason": "the lane's own P4 item status line for this ledger-record finding (**Prior P4-3 (pinned final Argus/Vulcan dispositions read closed while the blocker reads held) \u2014 CLO\u2026); the claim names only the ledger's own vocabulary, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19"
+ },
+ {
+  "section": "repository_exchange",
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md",
+  "claims": [
+   {
+    "claim": "ariadne_implementation_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (repository_exchange.accepted_fixture_sha256, accepted_repository_exchange_id, digest_tree_root) - Stale ",
+    "lines": [
+     39
+    ],
+    "reason": "[P3] 178873d7 stale fixture identities in the machine summary \u2014 CLOSED (the closure review's own item line; its identifiers are shared with the lane's other record claims, so the binding is exact)"
+   }
+  ],
+  "reason": "the 178873d7 stale fixture identities verified re-pinned at 76ae15ab (line 39; the verdict's PRIOR clause names P1 only, the closure line names this P3 explicitly)"
+ },
+ {
+  "section": "repository_exchange",
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md",
+  "claims": [
+   {
+    "claim": "ariadne_implementation_review_final: [record] machineresearch/sley-2.0/machine-summary.json (repository_exchange.accepted_fixture_sha256, accepted_repository_exchange_id, digest_tree_root, rejectio",
+    "lines": [
+     25
+    ],
+    "reason": "the lane's own P3 item status line for this finding (**Prior finding 3 \u2014 [P3] stale machine-summary fixture identities: CLOSED at 5bba01b3.** `repository\u2026); its vocabulary is shared within the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 6589c6ec"
+ },
+ {
+  "section": "repository_exchange",
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md",
+  "claims": [
+   {
+    "claim": "ariadne_implementation_review_closure_note: [contract-text] crates/sley-txn/src/repository.rs:2880,2884,2889,2910,2921 - `native_attempt_status` / `reconcile_promotion_claim` read and return the head poin",
+    "lines": [
+     40
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] 178873d7 unguarded `native_attempt_status`/`reconcile_promotion_claim` readers \u2014 CLOSED.**\u2026); its vocabulary is shared within the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 6589c6ec"
+ },
+ {
+  "section": "s20_700_remaining_surface_audit",
+  "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md",
+  "claims": [
+   {
+    "claim": "vulcan_review_closure_note@7622776: [evidence] scripts/fuzz_proof_record.py:92-139 - residual of the closed prior P4: the validator never reads `worktree_dirty_files`; a record whose own dirty lis",
+    "lines": [
+     28
+    ],
+    "reason": "the lane's own P4 item status line for this finding (| [evidence] validator never reads `worktree_dirty_files` | P4 | **CLOSED (P4)** | `scripts/fuzz_pro\u2026); its vocabulary is shared within the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 6589c6ec"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-c04539b.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review: [record] machineresearch/sley-2.0/machine-summary.json:4115 (also :4441 `attestation_supersedes`) - the parenthetical \"contract revision 10 lists attestations o",
+    "lines": [
+     23
+    ],
+    "reason": "the lane's own P4 item status line for this finding (1. **P4 `candidate_second_host_note` / `attestation_supersedes` parenthetical implied the 45b2cd98 e\u2026); its vocabulary is shared within the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 6589c6ec"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-db53894.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review: [evidence-binding/records] evidence/release/second-host-lane-records.json:100, machineresearch/sley-2.0/machine-summary.json:4200,4534 - All three rewritten 45b",
+    "lines": [
+     24
+    ],
+    "reason": "the lane's own P3 item status line for this finding (- **P3 [evidence-binding/records] 45b2cd98 notes name 9316df19 as the removal commit \u2014 CLOSED.** Led\u2026); its vocabulary is shared within the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 6589c6ec"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review_revision_10: [record-note] machineresearch/sley-2.0/machine-summary.json:4152; evidence/release/decision-dossier.json:419 - `attestation_supersedes` still narrates only 1023",
+    "lines": [
+     27
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] stale `attestation_supersedes` / dossier \"two-host\" wording \u2014 CLOSED.** Summary `:4441` nar\u2026); its vocabulary is shared within the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 6589c6ec"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-db53894.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; machineresearch/sley-2.0/machine-summary.json:4534 (attestation_supersedes), :4200 (release_ca",
+    "lines": [
+     25
+    ],
+    "reason": "the lane's own P4 item status line for this finding (- **[P4] record-note, three 45b2cd98 notes name 9316df19 as the removal commit \u2014 CLOSED.** Ledger `:\u2026); its vocabulary is shared within the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 6589c6ec"
+ },
+ {
+  "section": "rw090_arbitrary_codec",
+  "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-92fa664.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review_revision_1: [contract/refusal-parity] crates/sley-vm/tests/rw080_codec_program/all_kind_digest_dispatch.rs:1279-1302,1021-1022 + crates/sley-vm/tests/rw080_codec_program/de",
+    "lines": [
+     25
+    ],
+    "reason": "the lane's own P2 item status line for this finding (**Prior finding 1 \u2014 [P2] kind-18 refusal parity on the canonical decode leg: CLOSED.** The Schema ar\u2026); its vocabulary is shared within the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 6589c6ec"
+ },
+ {
+  "section": "s20_700_remaining_surface_audit",
+  "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md",
+  "claims": [
+   {
+    "claim": "vulcan_review_closure_note@c67b072: [evidence] scripts/fuzz_proof_record.py:92-141 - prior residual OPEN: the validator never reads `worktree_dirty_files`; probe with `worktree_dirty_files=['crate",
+    "lines": [
+     28
+    ],
+    "reason": "the lane's own P4 item status line for this finding (| [evidence] validator never reads `worktree_dirty_files` | P4 | **CLOSED (P4)** | `scripts/fuzz_pro\u2026); its vocabulary is shared within the lane, so the binding is exact (6589c6ec round)"
+   }
+  ],
+  "reason": "exact-claim binding (6589c6ec round): verified line by line 2026-09-19 against the ledger the Council reviewed at 6589c6ec"
  }
 ]

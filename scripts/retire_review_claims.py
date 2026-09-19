@@ -38,7 +38,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from build_finding_register import (  # noqa: E402
     claim_relation_problem, claim_scope, closed_severities, cited_closure_lines, finding_key, is_carry,
-    is_tracked, line_speaks_about, open_lines_about, transcript_path,
+    is_closure_line, is_tracked, line_speaks_about, open_lines_about, shared_vocabulary, shares_its_kind,
+    transcript_path,
 )
 
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
@@ -119,8 +120,9 @@ def resolve_scope(short: str) -> str | None:
 
 
 def transcript_closers(section_name: str) -> list[tuple[str, str, set[str], str | None, str | None]]:
-    """Every filed transcript of the section whose VERDICT carries a PRIOR
-    clause: (file stem, lane, closed severities, scope, path). Transcripts
+    """Every filed transcript of the section that records a per-finding
+    closure line or a PRIOR verdict: (file stem, lane, closed severities,
+    scope, path). Transcripts
     are the durable record, so the closers do not depend on which round's
     verdict currently occupies the live field (76ae15ab round: reading live
     fields only made the regeneration non-monotone)."""
@@ -137,10 +139,22 @@ def transcript_closers(section_name: str) -> list[tuple[str, str, set[str], str 
         # for its own field, matched by stem in `retire()`.
         if not stamp or not is_tracked(path.relative_to(ROOT).as_posix()):
             continue
-        verdicts = VERDICT_LINE.findall(path.read_text(encoding="utf-8", errors="replace"))
-        if not verdicts or not PRIOR.search(verdicts[-1]):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        verdicts = VERDICT_LINE.findall(text)
+        if not verdicts:
             continue
-        severities = closed_severities(verdicts[-1])
+        # A filed transcript closes every severity it records a per-finding
+        # closure line for (named lines, never the PRIOR fallback), whether or
+        # not its verdict token carries a PRIOR group — a lane may close some
+        # carried findings and raise new ones in one verdict (Ariadne P3 at
+        # 6589c6ec: five 1a9f0aab closures had no closer because the tokens
+        # omitted the suffix). Each claim is still bound to its own speaking
+        # line under the identity relation.
+        lines = text.splitlines()
+        severities = {f"P{n}" for n in range(5) if any(is_closure_line(line, f"P{n}") for line in lines)}
+        severities |= closed_severities(verdicts[-1]) if PRIOR.search(verdicts[-1]) else set()
+        if not severities:
+            continue
         found.append((path.stem, lane, severities, resolve_scope(stamp.group(1)), path.relative_to(ROOT).as_posix()))
     return found
 
@@ -187,13 +201,17 @@ def relation_problem(section_name: str, claim: str, transcript: str, section: di
     return claim_relation_problem(section_name, claim, resolved, section)
 
 
-def speaking_lines(path: Path, severity: str, claim: str) -> list[int]:
+def speaking_lines(path: Path, severity: str, claim: str, section: dict | None = None) -> list[int]:
     """Closure lines of `severity` that name the claim's finding identity —
-    none when the same transcript records the claim OPEN on another line."""
+    a strong identity when the lane files several findings under the
+    claim's kind — and none when the same transcript records the claim OPEN
+    on another line."""
     if not path.is_file() or open_lines_about(path, claim, severity):
         return []
+    strong = shares_its_kind(section, severity, claim) if section is not None else False
+    shared = shared_vocabulary(section, severity, claim) if section is not None else set()
     text = path.read_text(encoding="utf-8", errors="replace").splitlines()
-    return [n for n in cited_closure_lines(path, severity) if line_speaks_about(text[n - 1], claim)]
+    return [n for n in cited_closure_lines(path, severity) if line_speaks_about(text[n - 1], claim, strong=strong, shared=shared)]
 
 
 def retire(summary: dict, retirements: list[dict]) -> int:
@@ -215,6 +233,11 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                 tag = TAG.match(entry)
                 prefix = tag.group(1) if tag else entry.split(":", 1)[0]
                 scope = tag.group(2) if tag else None
+                if scope is None and re.search(r"_revision_[0-9]+$", prefix):
+                    # A frozen revision field's untagged claims take the
+                    # scope their field's note records (the builder's rule).
+                    noted = re.search(r"\bon ([0-9a-f]{40})\b", section.get(prefix + "_note") or "")
+                    scope = noted.group(1)[:7] if noted else None
                 for field, lane, severities, closer_scope, transcript in lane_closers:
                     lane_match = lane == role(prefix) if role(prefix) else (
                         lane is None and Path(transcript or "").name.startswith(prefix.removesuffix("_note"))
@@ -225,7 +248,7 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                         and transcript
                         and strictly_later(closer_scope, scope)
                     ):
-                        lines = speaking_lines(ROOT / transcript, f"P{severity}", entry)
+                        lines = speaking_lines(ROOT / transcript, f"P{severity}", entry, section)
                         if not lines or relation_problem(name, entry, transcript, section):
                             continue
                         verified = f"{transcript}#L{','.join(map(str, lines))} — {field} at {closer_scope[:8]} verified the carried P{severity} closed"
@@ -239,6 +262,8 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                             closure = cited_closure_lines(ROOT / item["verified_by"], f"P{severity}")
                             lines = exact.get("lines") or []
                             relation = relation_problem(name, entry, item["verified_by"], section)
+                            if open_lines_about(ROOT / item["verified_by"], entry, f"P{severity}"):
+                                relation = relation or "the transcript records the claim OPEN"
                             if relation or not lines or not set(lines) <= set(closure):
                                 raise SystemExit(
                                     f"exact-claim retirement for {name} P{severity} cites {item['verified_by']}#L{lines} "
@@ -269,7 +294,7 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                             )
                             if not head or field_name in REVIEWERS or not known:
                                 raise SystemExit(f"retirement for {name}: prefix names no field of the section: {prefix!r}")
-                        recorded = speaking_lines(ROOT / item["verified_by"], f"P{severity}", entry)
+                        recorded = speaking_lines(ROOT / item["verified_by"], f"P{severity}", entry, section)
                         closure = cited_closure_lines(ROOT / item["verified_by"], f"P{severity}")
                         lines = item.get("lines") or recorded
                         # Every cited line records a closure of the severity, at
@@ -359,6 +384,27 @@ def reopen_all(summary: dict) -> None:
             section[f"p{severity}_open_count"] = len(entries)
 
 
+def regeneration_divergence(tracked: dict, retirements: list[dict]) -> list[str]:
+    """Sections and severities whose closed or re-stated claim set differs
+    between the tracked ledger and a from-scratch regeneration (reopen →
+    fold → retire), or whose closures cite different transcripts."""
+    fresh = json.loads(json.dumps(tracked))
+    reopen_all(fresh)
+    fold_restatements(fresh)
+    retire(fresh, retirements)
+    problems: list[str] = []
+    for name, section in tracked.items():
+        if not isinstance(section, dict):
+            continue
+        for severity in range(5):
+            for key in (f"p{severity}_closed_claims", f"p{severity}_restated_claims"):
+                recorded = {(item["claim"], item.get("verified_by", item.get("restates", "")).split("#")[0]) for item in section.get(key) or []}
+                regenerated = {(item["claim"], item.get("verified_by", item.get("restates", "")).split("#")[0]) for item in fresh.get(name, {}).get(key) or []}
+                if recorded != regenerated:
+                    problems.append(f"{name}.{key}: tracked {len(recorded)} vs regenerated {len(regenerated)} ({len(recorded ^ regenerated)} differ)")
+    return problems
+
+
 def replay_problems(summary: dict) -> list[str]:
     """Closed claims whose cited lines no longer record a closure that speaks
     about them, or that are also listed open."""
@@ -377,7 +423,7 @@ def replay_problems(summary: dict) -> list[str]:
                 if relation:
                     problems.append(f"{name}.p{severity}_closed_claims: {relation} :: {claim[:60]}")
                     continue
-                recorded = set(speaking_lines(ROOT / path, f"P{severity}", claim)) if path else set()
+                recorded = set(speaking_lines(ROOT / path, f"P{severity}", claim, section)) if path else set()
                 closure = set(cited_closure_lines(ROOT / path, f"P{severity}")) if path else set()
                 if item.get("binding") == "exact-claim":
                     from build_finding_register import exact_claim_binding
@@ -399,18 +445,25 @@ def main() -> int:
                         help="fold later re-statements of a carried open finding into its earliest claim")
     args = parser.parse_args()
     summary = json.loads(SUMMARY.read_text(encoding="utf-8"))
+    # Canonical order (Ariadne P3 at 6589c6ec: the recorded ledger must be
+    # what a from-scratch run produces): reopen every closure, fold the
+    # re-statements, then retire. `--regenerate` therefore always folds.
     if args.regenerate:
         reopen_all(summary)
-    folded = fold_restatements(summary) if args.fold_restatements else 0
+    folded = fold_restatements(summary) if (args.fold_restatements or args.regenerate) else 0
     retirements = json.loads(RETIREMENTS.read_text(encoding="utf-8")) if RETIREMENTS.exists() else []
     retired = retire(summary, retirements)
     if args.check:
         # Replay (Vulcan/Nabu P4 at 76ae15ab): every recorded closed claim
         # must still verify against its transcript at the cited lines, and
-        # no claim may be listed open and closed at once.
+        # no claim may be listed open and closed at once. Regeneration
+        # (Ariadne P3 at 6589c6ec): reopening every closure, folding and
+        # retiring from scratch must reproduce the tracked ledger — the same
+        # closed and re-stated claim sets per section and severity.
         stale = replay_problems(summary)
-        result = "PASS" if retired == 0 and not stale else "FAIL"
-        print(json.dumps({"retirable": retired, "stale_closures": stale, "result": result}, indent=2))
+        divergence = regeneration_divergence(json.loads(SUMMARY.read_text(encoding="utf-8")), retirements)
+        result = "PASS" if retired == 0 and not stale and not divergence else "FAIL"
+        print(json.dumps({"retirable": retired, "stale_closures": stale, "regeneration_divergence": divergence, "result": result}, indent=2))
         return 0 if result == "PASS" else 1
     SUMMARY.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     print(json.dumps({"retired": retired, "folded": folded, "result": "PASS"}))
