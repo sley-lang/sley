@@ -1,7 +1,7 @@
 {
  "schema": "sley2-reweave-c0-c1-seed-artifacts-v1",
  "status": "PRESERVED",
- "source_commit": "9d1ba8f1",
+ "source_commit": "fbb02573",
  "canonical_s": "3d2ed8f8bdbc38b4332c11a0cc51d3693e4ba3cdf6f2b15be623ad0a01be6148",
  "profile": "BOOTSTRAP_PROFILE_2",
  "profile_digest": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
@@ -232,7 +232,7 @@
   "seed_constructor_sources": "canonical-s-manifest.json seed_constructor_sources (the #[path] closure of crates/sley-vm/tests/rw120_toolchain_integration.rs)",
   "checker": "scripts/check_reweave_canonical_s.py",
   "store_layout": "C0/<first 8 hex of the C0 SHA-256>/ and C1/<first 8 hex of the C1 SHA-256>/ (self-describing; earlier generations used the source commit id)",
-  "rebuild_verification": "C0 built 2026-09-18 from a fresh detached worktree of 9d1ba8f1 at /home/gfarch/Work/checkpoints/sley2-c0-mint with a fresh CARGO_TARGET_DIR (SHA-256 a94580d7e96eda2bd0b4c59e72391758e8470ed856f6bde6a1fb4f8521cf1378) and rebuilt byte for byte from a second fresh detached worktree of the same commit"
+  "rebuild_verification": "C0 built 2026-09-18 from a fresh detached worktree of 9d1ba8f1 (SHA-256 a94580d7e96eda2bd0b4c59e72391758e8470ed856f6bde6a1fb4f8521cf1378), rebuilt byte for byte from a second worktree of 9d1ba8f1 and from a fresh detached worktree of fbb02573 (seed sources unchanged)"
  },
  "same_generation_c0_rebuilds": [
   {

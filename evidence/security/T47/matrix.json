@@ -5,7 +5,7 @@
     "a foreign workspace refuses renewal and transaction reads alike",
     "an exhausted budget answers the workspace failure, not the budget failure"
   ],
-  "commit": "9d1ba8f1b38378f983ed1face5a546b1b11063a3",
+  "commit": "fbb0257364b6fa557e4b3db0f391232df8df2c81",
   "contract": "s20-330-session-handle-profile-v1",
   "expected_failure": "SESSION_WORKSPACE_MISMATCH",
   "result": "PASS",
