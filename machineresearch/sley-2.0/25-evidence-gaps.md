@@ -4,7 +4,9 @@
   S20-700 slices now cover schema bootstrap, adapter binding, object-store
   symlink confinement, and the currently supported private mutation-value
   boundary. SCB1 decoder, direct schema-bootstrap, and S20-170 repository-pack
-  importer persistent libFuzzer slices now exist. A bounded public typed
+  importer persistent libFuzzer slices now exist (closed harness findings
+  `S20-700-PACK-001`/`S20-700-PACK-002` and `S20-700-GRAPH-CFG-001` are tracked
+  regression records retested on every run). A bounded public typed
   S20-210 type-checker target and typed graph/CFG persistent target now exercise
   the current S20-220 boundary. A restricted typed S20-310 target now exercises
   all four implemented modeled-snapshot query kinds. A restricted typed S20-270

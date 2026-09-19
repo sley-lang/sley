@@ -130,6 +130,15 @@ class CommitBoundViewTests(unittest.TestCase):
         )
         self.assertTrue(supply.record_drifted(dirty_mint, working))
         self.assertTrue(supply.record_drifted(b"not json", b"not json"))
+        # A counter is clear only as the integer zero: absent, false and 0.0
+        # are not counted zeros (Vulcan P4 carried c04539b9..76ae15ab).
+        for counters in (
+            {"untracked_bytes_scanned": 0},
+            {"untracked_bytes_scanned": False, "untracked_files_scanned": 0},
+            {"untracked_bytes_scanned": 0.0, "untracked_files_scanned": 0},
+        ):
+            tolerant = supply.canonical_json({"a": 1, **counters})
+            self.assertTrue(supply.record_drifted(tolerant, working), counters)
 
 
 if __name__ == "__main__":

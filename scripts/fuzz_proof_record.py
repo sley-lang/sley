@@ -10,9 +10,10 @@ every slice checker calls:
 
 - the record is a PASS with a 40-hex `source_commit` that is an ancestor of
   HEAD;
-- `executed_runs` meets `runs_floor` (per target for multi-target slices),
-  `new_crash_artifacts` is empty, and the owner library was instrumented
-  (`owner_lib_sancov` > 0) when the record carries that figure;
+- `executed_runs` meets `runs_floor` (per target for multi-target slices;
+  counted integers, never booleans), `new_crash_artifacts` is present and an
+  empty list (or per-target dict of empty lists), `owner_lib_sancov` is
+  present and > 0, and `worktree_dirty_files` is present and empty;
 - the lane inputs did not change since the proof commit: the fuzz target
   sources, the runner, `fuzz/Cargo.toml`, `fuzz/Cargo.lock`, and every
   workspace crate the targets reach transitively through `Cargo.lock`
@@ -83,10 +84,18 @@ def lane_paths(root: Path, runner: str, binaries: list[str]) -> list[str]:
     return paths
 
 
+def _is_int(value: object) -> bool:
+    """A counted integer: bool is not one (Vulcan P4 at 76ae15ab)."""
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def _all_empty(value: object) -> bool:
+    """An empty crash list: a list, or a per-target dict of lists, with no
+    entry. `None`, `""`, `0` and `false` are not crash lists (Vulcan P4 at
+    76ae15ab: the runners always emit a list)."""
     if isinstance(value, dict):
         return all(_all_empty(item) for item in value.values())
-    return not value
+    return isinstance(value, list) and not value
 
 
 def proof_record_problems(root: Path, proof: object, runner: str, binaries: list[str]) -> list[str]:
@@ -102,17 +111,17 @@ def proof_record_problems(root: Path, proof: object, runner: str, binaries: list
         targets = proof.get("targets") if isinstance(proof.get("targets"), dict) else {}
         for name, count in runs.items():
             target_floor = (targets.get(name) or {}).get("runs_floor", floor)
-            if not isinstance(count, int):
+            if not _is_int(count):
                 problems.append(f"proof-record-not-int:executed_runs:{name}")
-            elif isinstance(target_floor, int) and count < target_floor:
+            elif _is_int(target_floor) and count < target_floor:
                 problems.append(f"proof-record-below-floor:{name}")
-            elif not isinstance(target_floor, int):
+            elif not _is_int(target_floor):
                 problems.append(f"proof-record-not-int:runs_floor:{name}")
     else:
         for key, value in (("executed_runs", runs), ("runs_floor", floor)):
-            if not isinstance(value, int):
+            if not _is_int(value):
                 problems.append(f"proof-record-not-int:{key}")
-        if isinstance(runs, int) and isinstance(floor, int) and runs < floor:
+        if _is_int(runs) and _is_int(floor) and runs < floor:
             problems.append("proof-record-below-floor")
     # Every runner emits both keys; a record without them is not a proof
     # (Vulcan P3 at 76227765: the shared validator had accepted absent keys).
@@ -120,7 +129,7 @@ def proof_record_problems(root: Path, proof: object, runner: str, binaries: list
         problems.append("proof-record-missing:new_crash_artifacts")
     elif not _all_empty(proof.get("new_crash_artifacts")):
         problems.append("proof-record-new-crashes")
-    if not isinstance(proof.get("owner_lib_sancov"), int) or proof["owner_lib_sancov"] <= 0:
+    if not _is_int(proof.get("owner_lib_sancov")) or proof["owner_lib_sancov"] <= 0:
         problems.append("proof-record-no-owner-sancov")
     # A proof taken on a dirty tree binds no commit: the runner records the
     # porcelain entries and the record must carry an empty list (c67b0729

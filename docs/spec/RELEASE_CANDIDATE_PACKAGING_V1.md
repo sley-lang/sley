@@ -175,13 +175,19 @@ reproducibility, and toolchain, with the attestation clean and
 `REPRODUCIBLE`; the checker enforces the binding as
 `candidate-attestation-mismatch`, so the register cannot name
 a candidate no attestation describes. The lint report
-`evidence/build/lint-report.json` (`sley2.lint-report.v1`: `commit`,
-`fmt_clean`, `clippy_clean`, `clippy_warnings`, `result`, and since
-revision 6 `working_tree_clean`, `lint_inputs_clean`, `dirty_lint_inputs`)
-is bound to the candidate as well: its `commit` must equal
-`candidate_commit`, `lint_inputs_clean` must be true and `result` `PASS`;
-the checker enforces this as `lint-report:commit-differs-from-candidate`
-and `lint-report:not-a-clean-pass` (revision 6, section 16).
+`evidence/build/lint-report.json` (`sley2.lint-report.v1`) carries eleven
+fields: `contract`, `commit`, `fmt_clean`, `fmt_detail`, `clippy_clean`,
+`clippy_warnings`, `result` (recorded since the `make lint` gate landed at
+`bedd4220`, 2026-09-13), `working_tree_clean`, `lint_inputs_clean` and
+`dirty_lint_inputs` (revision 6, 2026-09-18, the candidate binding), and
+`dirty_paths` (2026-09-19,
+the literal `git status --porcelain -z` paths behind
+`working_tree_clean`, so a `false` names what was dirty — the records-only
+files of the mint, never a lint input). It is bound to the candidate: its
+`commit` must equal `candidate_commit`, `lint_inputs_clean` must be true
+and `result` `PASS`; the checker enforces this as
+`lint-report:commit-differs-from-candidate` and
+`lint-report:not-a-clean-pass` (revision 6, section 16).
 `machine-summary.json` `artifact` stays null until an operator-approved
 release candidate exists.
 

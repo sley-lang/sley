@@ -76,6 +76,14 @@ for marker in [
     "Opcode::BoolOr",
     "Opcode::AdapterInvoke",
     "bridge_sublane(&mut cursor)",
+    # Round-9 lanes: the unlanded-E7 negative lane (item 10) and the exact
+    # single-graph code for the E6/E7a restricted refusal (V-06).
+    "unlanded_opcode_lane(family_selector % 3, &mut cursor)",
+    "Opcode::TestObserve",
+    "Opcode::EffectRequest",
+    "Opcode::CapabilityNarrow",
+    "CfgErrorCode::GraphInventoryMismatch",
+    "the multi-function restricted refusal was not the single-graph rule",
     "frozen_bridge_rows()",
     "bridge lane execution was not deterministic",
     "bridge lane lowering refusal drifted",

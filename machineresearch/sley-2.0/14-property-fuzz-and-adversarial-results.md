@@ -92,6 +92,18 @@ budget fixes the harness-only issue; the committed regression fixture is part
 of corpus generation, and the repeated smoke passes. No production checker
 defect was found by that event.
 
+Closed harness findings `S20-700-GRAPH-CFG-001` (graph/CFG arm 1 omitted the
+correct `GRAPH_OWNER_MISMATCH` class for a block parameter pushed onto
+`function.parameters`), `S20-700-PACK-001` (a single expected class for a claim
+flip the importer refuses under another class) and `S20-700-PACK-002` (an
+exact-symbol expectation on an order-breaking claim flip) are over-narrow
+harness oracles, not production-checker defects (`HARNESS_ONLY_FIXED`). Their
+inputs are tracked as `fuzz/regressions/S20_700_GRAPH_CFG_001.json`,
+`S20_700_PACK_001.json` and `S20_700_PACK_002.json`, seeded permanently into
+the graph-cfg and pack corpora, and re-executed on every run
+(`retested_regressions` in the proof records; a still-crashing input fails
+the run).
+
 The mutation-value slice is selected by:
 
 ```bash

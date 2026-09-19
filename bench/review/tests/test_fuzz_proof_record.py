@@ -63,7 +63,18 @@ class ProofRecordTests(unittest.TestCase):
             "proof-record-dirty-worktree": dict(self.good(), worktree_dirty_files=[" M crates/sley-vm/lib.rs"]),
             "proof-record-bad-source-commit": dict(self.good(), source_commit="abc"),
             "proof-record-not-ancestor": dict(self.good(), source_commit="f" * 40),
+            # 76ae15ab round: the crash list is a list (or dict of lists) and
+            # counted integers are never booleans.
+            "proof-record-new-crashes": dict(self.good(), new_crash_artifacts=None),
+            "proof-record-no-owner-sancov": dict(self.good(), owner_lib_sancov=True),
         }
+        for value in (None, "", 0, False):
+            self.assertIn("proof-record-new-crashes", self.problems(dict(self.good(), new_crash_artifacts=value)), repr(value))
+        self.assertIn("proof-record-not-int:executed_runs", self.problems(dict(self.good(), executed_runs=True)))
+        self.assertIn("proof-record-not-int:runs_floor", self.problems(dict(self.good(), runs_floor=True)))
+        self.assertFalse(_all_empty(None))
+        self.assertFalse(_all_empty({"a": ""}))
+        self.assertTrue(_all_empty({"a": [], "b": []}))
         for expected, proof in cases.items():
             self.assertIn(expected, self.problems(proof), expected)
         self.assertEqual(proof_record_problems(self.root, None, "x", []), ["proof-record-missing"])

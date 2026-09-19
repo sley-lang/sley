@@ -212,23 +212,28 @@ expected = {
     "max_input_bytes": 4096,
     "max_generated_type_nodes": 512,
     "type_checker_seed_count": 385,
-    "graph_cfg_seed_count": 406,
+    # 406 generated + the two S20-700-GRAPH-CFG-001 regression seeds (V-02).
+    "graph_cfg_seed_count": 408,
     "graph_template_count": 4,
     "graph_mutation_class_count": 33,
     "max_graph_mutations_per_input": 8,
-    "closed_harness_findings": 1,
+    "closed_harness_findings": 2,
 }
+if slice_status.get("closed_harness_finding_ids") != ["S20-700-HARNESS-001", "S20-700-GRAPH-CFG-001"]:
+    problems.append("machine-summary-drift:closed_harness_finding_ids")
 for key, value in expected.items():
     if slice_status.get(key) != value:
         problems.append(f"machine-summary-drift:{key}")
 
 for path, marker in [
     (RESULTS, "S20-700-HARNESS-001"),
+    (RESULTS, "S20-700-GRAPH-CFG-001"),
     (RESULTS, "public typed S20-210 type checker"),
     (RESULTS, "public typed S20-220"),
     (RESULTS, "graph/CFG validator runs twice"),
     (GAPS, "typed graph/CFG persistent target"),
     (NEGATIVE_RESULTS, "S20-700-HARNESS-001"),
+    (NEGATIVE_RESULTS, "S20-700-GRAPH-CFG-001"),
     (AUDIT, "make semantic-checkers-persistent-fuzz-smoke"),
 ]:
     if marker not in path.read_text(encoding="utf-8"):

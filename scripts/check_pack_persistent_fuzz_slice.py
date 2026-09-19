@@ -128,6 +128,8 @@ if slice_status.get("generated_seed_count") != 500:
     problems.append("machine-summary-generated-seed-count-drift")
 if slice_status.get("seed_source") != "conformance/repository-pack/v1/accepted.json":
     problems.append("machine-summary-seed-source-drift")
+if slice_status.get("closed_harness_findings") != 2 or slice_status.get("closed_harness_finding_ids") != ["S20-700-PACK-001", "S20-700-PACK-002"]:
+    problems.append("machine-summary-closed-harness-findings-drift")
 # The review lane is restored: the field must carry a filed disposition
 # (PASS/REVISE/FAIL with severity counts), never a lane-state token.
 if str(slice_status.get("vulcan_review", "")).split("_")[0] not in ("PASS", "REVISE", "FAIL"):
@@ -136,6 +138,8 @@ if str(slice_status.get("vulcan_review", "")).split("_")[0] not in ("PASS", "REV
 for path, marker in [
     (RESULTS, "Repository-pack importer persistent libFuzzer slice"),
     (RESULTS, "do not complete S20-700"),
+    (RESULTS, "S20-700-PACK-001"),
+    (GAPS, "S20-700-PACK-002"),
     (GAPS, "importer persistent libFuzzer slices now exist"),
     (AUDIT, "make pack-persistent-fuzz-smoke"),
 ]:

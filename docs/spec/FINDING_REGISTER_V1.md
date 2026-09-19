@@ -1,9 +1,40 @@
 # Finding Register v1
 
-Status: S20-740 contract draft, revision 6 (2026-09-18); Council review
+Status: S20-740 contract draft, revision 7 (2026-09-19); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). The mechanics are `scripts/build_finding_register.py`;
 implementation state is tracked in the machine summary.
+
+Revision 7 (2026-09-19) tightens the claim-to-transcript relation the
+76ae15ab round found lexical (Ariadne/Nabu/Vulcan P3/P4): a closure line
+is a per-finding status line in one of three shapes — the item's leading
+bold head (`- **[P1] … — CLOSED.** evidence`), a status alone in a table
+cell (`| … | P3 | **CLOSED (P3)** |`), or a standalone bold status span
+(`… — **CLOSED.** evidence`, `**Both CLOSED.**`); a marker inside quotes,
+backticks or parentheses, a finding-raising `[Pn] [kind]` line, a
+`VERDICT:`/`SUMMARY:`/`FINDINGS:` line, or any line carrying an unquoted
+`OPEN` status is never a closure line. The cited line must speak about the
+claim (its category words, a path or identifier it names, a commit id or
+quoted phrase it repeats, or two content words), the transcript must be
+the claim's lane at a strictly later scope by git ancestry (not filename
+order), a claim tag must be `<field>@<7..40 lowercase hex>`, `verified_by`
+must be `<path>#L<n>[,<n>...] — note` (one group, no empty items), a claim
+may not be open and closed at once, and the `PRIOR` fallback never serves
+P0–P2. Closers are read from the live verdict fields and from every filed
+transcript's `VERDICT` line, so a later non-`PRIOR` verdict does not void
+an earlier automatic closure on regeneration
+(`retire_review_claims.py --regenerate` re-derives every closure; `--check`
+replays every recorded closure and refuses a stale one). A lane's later
+re-statement of a carried open finding (same lane, kind, path and
+identifier, marked carried/prior/residual/unchanged) folds into the
+earliest claim as `pN_restated_claims` `{claim, restates}`
+(`--fold-restatements`); the earliest claim stays open, a closure must
+still postdate its scope and speak about it, and the register reports
+`package_restated_claims`. Retirements changed by this revision are listed
+in the round's records commit; two explicit citations the relation cannot
+see (the epoch-1 `**Both CLOSED.**` paragraph does not name the ADR-0019
+claim; the revision-7/8 ADR-note and envelope-note P4s) stay open until a
+closure line names them.
 
 Revision 6 (2026-09-18) names the per-package claim ledger's retirement
 path (Nabu/Vulcan/Ariadne P3s at db53894e: the retirement had been done by
@@ -222,6 +253,11 @@ register = {
   "declared_open_findings": the summary's open_findings counters,
   "package_open_claims": { "section.field": open count } ascending, every
     per-package p0..p4 open list length and open count the summary carries,
+  "package_restated_claims": { "section.pN_restated_claims": count } ascending,
+    every folded re-statement list (revision 7); each entry is {claim,
+    restates} with restates naming a claim of the same section and
+    severity that is open, retired or itself re-stated, and the re-stated
+    claim listed nowhere else,
   "package_closed_claims": { "section.pN_closed_claims": count } ascending,
     every retired per-package claim list (revision 6); each entry is
     {claim, verified_by} with verified_by naming an existing transcript
@@ -245,18 +281,25 @@ Rules:
   transcript. `verified_by` is `<transcript path>#L<lines> — <note>`; the
   path is repository-relative (no `..`, no absolute path) and must resolve
   under the section's own verdict directory; the cited lines must each be
-  closure lines (a severity token before a `CLOSED` status marker, with no
-  `OPEN` marker on the line) and at least one must speak about the retired
-  claim (its category words, a path it names, or two of its content words);
+  closure lines (the severity named before the item's own `CLOSED` status
+  in a bold head, a table cell or a standalone bold status span, with no
+  unquoted `OPEN` status on the line — revision 7) and at least one must
+  speak about the retired claim (its category words, a path, identifier,
+  commit id or quoted phrase it names, or two of its content words);
   the verifying transcript must belong to the same lane as the retired
   claim's round, must not be that round's own transcript, and must record a
   verdict at a strictly later scope commit (git ancestry, not filename
   order). Closers are derived from the live verdict fields and from every
   section transcript's `VERDICT` line (`scripts/retire_review_claims.py`),
   so a closure a later transcript records is not lost when the live field
-  is later normalized. A citation that fails any of these is refused and
-  the claim stays open — prose that mentions the severity ("no P1 exists",
-  "leg 1 CLOSED; leg 2 OPEN") is not a closure line;
+  is later normalized; `--check` replays every recorded closure against its
+  transcript and refuses a stale one or a claim listed open and closed at
+  once, and `make quick` / `release-candidate-verify` run it. A citation
+  that fails any of these is refused and the claim stays open — prose that
+  mentions the severity ("no P1 exists", "leg 1 CLOSED; leg 2 OPEN", a
+  quoted "— CLOSED") is not a closure line. A lane's later re-statement of
+  a carried open finding folds into the earliest claim
+  (`pN_restated_claims`, revision 7) and is neither open nor closed;
 - the result is `FINDING_REGISTER_CLEAR` exactly when no obligation is
   `PENDING`, no obligation is `OTHER`, `unclaimed_carried_findings` is
   empty, `complete_packages_with_open_reviews`

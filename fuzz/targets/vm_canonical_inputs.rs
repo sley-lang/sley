@@ -4,6 +4,7 @@
 use core::slice;
 
 use sley_check::TypeEnvironment;
+use sley_check::cfg::{CfgErrorCode, CfgValidationError};
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_ssmc::{
     AdapterImport, Block, BuiltinFailureKind, ConstData, ConstValue, ConstantDefinition, Immediate,
@@ -108,6 +109,14 @@ fn fuzz_one(input: &[u8]) {
         if family_selector == 8 {
             bridge_sublane(&mut cursor);
         }
+    } else if family_gate % 3 == 1 {
+        // The unlanded-E7 negative lane (Vulcan item 10): the opcodes slice
+        // E7a did not land — `TestObserve` (145), `EffectRequest` (160),
+        // `CapabilityNarrow` (162) — are refused by the extended profile
+        // with the opcode judgment, never accepted and never an input or
+        // signature error. Both selectors derive from header bytes already
+        // read, so existing seeds keep the lanes they name.
+        unlanded_opcode_lane(family_selector % 3, &mut cursor);
     }
 
     // The map-order lane (E4): a supplied ordered map must arrive in the
@@ -344,6 +353,35 @@ fn canonical_map(map_type: &TypeExpr, cursor: &mut Cursor<'_>) -> Option<ConstVa
     })
 }
 
+fn unlanded_opcode_lane(selector: u8, cursor: &mut Cursor<'_>) {
+    let (opcode, immediate) = match selector {
+        0 => (Opcode::TestObserve, Immediate::Observation([cursor.byte(); 32])),
+        1 => (Opcode::EffectRequest, Immediate::None),
+        _ => (Opcode::CapabilityNarrow, Immediate::Index(u32::from(cursor.byte()))),
+    };
+    // Base 400 keeps the lane's entity ids clear of every family fixture
+    // (300 + 10 * selector, selector < 9).
+    let fixture = operation_fixture(400, opcode, immediate, vec![TypeExpr::Bool], TypeExpr::Unit);
+    let types = TypeEnvironment::new(Vec::new()).expect("empty type environment is valid");
+    let request = ExecutionRequest {
+        inputs: vec![canonical_value(&TypeExpr::Bool, cursor)],
+        limits: generous_limits(),
+    };
+    for profile in [CacheProfile::EXTENDED_V1, CacheProfile::RESTRICTED_V1] {
+        let outcome = execute_function(fixture.lowering_input(&types, profile), request.clone());
+        match outcome {
+            Err(ExecutionError::Lowering(LoweringError::Lower(code))) => assert_eq!(
+                code.code(),
+                LowerErrorCode::OpcodeUnsupported,
+                "an unlanded E7 opcode {opcode:?} was refused with a judgment other than the opcode's under {profile:?}"
+            ),
+            other => panic!(
+                "an unlanded E7 opcode {opcode:?} was not refused by the opcode judgment under {profile:?}: {other:?}"
+            ),
+        }
+    }
+}
+
 fn extended_family_lane(selector: u8, cursor: &mut Cursor<'_>) {
     let fixture = extended_fixture(selector, cursor.byte());
     let types = TypeEnvironment::new(fixture.definitions.clone())
@@ -421,13 +459,22 @@ fn extended_family_lane(selector: u8, cursor: &mut Cursor<'_>) {
         // The multi-function programs (E6 nested callees, E7a predicate) never
         // reach the opcode check: narrowing to owned inventory is an
         // extended-profile step, so under restricted the shared flat inventory
-        // fails the single-graph rule first. The refusal is still the lowering
-        // profile, never an input error, and the `is_ok` assertion above keeps
-        // a malformed fixture from hiding behind it.
-        Err(ExecutionError::Lowering(_)) => assert!(
-            matches!(selector, 6 | 7),
-            "unexpected non-opcode lowering refusal for family {selector}"
-        ),
+        // fails the single-graph rule first — exactly `GRAPH_INVENTORY_MISMATCH`
+        // (the function's block list does not cover the inventory; V-06 pins
+        // the code rather than any `Cfg` refusal). The refusal is still the
+        // lowering profile, never an input error, and the `is_ok` assertion
+        // above keeps a malformed fixture from hiding behind it.
+        Err(ExecutionError::Lowering(LoweringError::Cfg(CfgValidationError::Cfg(error)))) => {
+            assert!(
+                matches!(selector, 6 | 7),
+                "unexpected non-opcode lowering refusal for family {selector}"
+            );
+            assert_eq!(
+                error.code(),
+                CfgErrorCode::GraphInventoryMismatch,
+                "the multi-function restricted refusal was not the single-graph rule"
+            );
+        }
         ok_or_input => panic!(
             "the restricted profile did not refuse the family program with a lowering error: {ok_or_input:?}"
         ),

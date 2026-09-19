@@ -583,7 +583,13 @@ def working_tree_counters_clear(payload: bytes) -> bool:
         return False
     if not isinstance(document, dict):
         return False
-    return all(document.get(field, 0) == 0 for field in WORKING_TREE_FIELDS)
+    # A counter is clear only when it is present and the integer zero: an
+    # absent field, `false` or `0.0` is not a counted zero (Vulcan P4 at
+    # c04539b9..76ae15ab).
+    return all(
+        type(document.get(field)) is int and document.get(field) == 0
+        for field in WORKING_TREE_FIELDS
+    )
 
 
 def record_drifted(tracked: bytes, expected: bytes) -> bool:

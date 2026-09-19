@@ -320,11 +320,79 @@ class InvariantTests(unittest.TestCase):
         self.assertEqual(register.closed_severities("PASS_P2_P3_P4_CLOSED"), {"P2", "P3", "P4"})
         self.assertEqual(register.closed_severities("PASS_0_P0_0_P1_0_P2_2_P3_2_P4"), set())
 
+    def test_revision_7_closure_line_shapes(self) -> None:
+        # Revision 7: a status is the item's own — bold head, table cell or
+        # standalone bold status — never a quoted marker, a finding-raising
+        # line or a mixed-status line.
+        yes = [
+            ("- **[P1] P1-A accepted_head fails closed — CLOSED.** Guard at", "P1"),
+            ("| [tests] V-02 regression records | P3 | **CLOSED (P3)** | fuzz/x", "P3"),
+            ("**178873d P2/P3 (the items).** re-verified. **Both CLOSED.**", "P2"),
+            ("1. `[P3] [unowned-authority] claim retirement` — **CLOSED.** All four", "P3"),
+            ("- Finding 1 [P2] listing survives one build — **CLOSED.** carried_attestations", "P2"),
+            ("  - [P3] audit record lacked the dated entry → **CLOSED.** S20_710:143", "P3"),
+        ]
+        no = [
+            ('vulcan 92fa664 :22-26 (P2, two P3, two P4 all "— CLOSED"), ariadne', "P3"),
+            ("[P4] [contract] docs/x.md - closure markers (`— CLOSED`, `→ CLOSED`) exclude", "P3"),
+            ('citing this transcript\'s "Prior P3 (register-parsing) — CLOSED" line.', "P3"),
+            ("- P2 stale manifest: CLOSED", "P2"),
+            ("- **[P2] stale — CLOSED.** leg 2 — OPEN", "P2"),
+            ("| [tests] item 10 | P3 | **OPEN (advisory)** | x", "P3"),
+            ("**Carried P4 (92fa664) — capsule checker pinned only the summary side.** Repair", "P4"),
+            ("the row **reads CLOSED but is not** really P3", "P3"),
+            ("VERDICT: PASS_PRIOR_P2_CLOSED", "P2"),
+        ]
+        for line, severity in yes:
+            self.assertTrue(register.is_closure_line(line, severity), line)
+        for line, severity in no:
+            self.assertFalse(register.is_closure_line(line, severity), line)
+        # The PRIOR fallback never serves P0-P2.
+        with tempfile.TemporaryDirectory() as directory:
+            transcript = Path(directory) / "t.md"
+            transcript.write_text("- **[P3] x — CLOSED.**\nVERDICT: PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P2_P3_CLOSED\n")
+            self.assertEqual(register.cited_closure_lines(transcript, "P3"), [1])
+            self.assertEqual(register.cited_closure_lines(transcript, "P2"), [])
+
+    def test_revision_7_ledger_shape_rules(self) -> None:
+        # Strict `#L` grammar, no open-and-closed claim, list/count agreement,
+        # tag grammar, and restated-claim validation.
+        transcript = "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md"
+        claim = "vulcan_review_revision_1@178873d: [record] open_risks / dossier reproduced on two hosts"
+        base = {
+            "release_candidate_packaging": {
+                "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
+                "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED",
+                "p3_open": [],
+                "p3_open_count": 0,
+                "p3_closed_claims": [{"claim": claim, "verified_by": transcript + "#L23 — line 23"}],
+            },
+            "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+        }
+        self.assertEqual(self.build_from(base)["package_restated_claims"], {})
+        for mutate in (
+            lambda s: s["release_candidate_packaging"]["p3_closed_claims"].__setitem__(0, {"claim": claim, "verified_by": transcript + "#L, — x"}),
+            lambda s: s["release_candidate_packaging"]["p3_closed_claims"].__setitem__(0, {"claim": claim, "verified_by": transcript + "#L23,,24 — x"}),
+            lambda s: s["release_candidate_packaging"]["p3_closed_claims"].__setitem__(0, {"claim": claim, "verified_by": transcript + "#L23#L9999 — x"}),
+            lambda s: s["release_candidate_packaging"].__setitem__("p3_open", [claim]) or s["release_candidate_packaging"].__setitem__("p3_open_count", 1),
+            lambda s: s["release_candidate_packaging"].__setitem__("p3_open_count", 4),
+            lambda s: s["release_candidate_packaging"]["p3_closed_claims"].__setitem__(0, {"claim": claim.replace("@178873d", "@ABCDEF1"), "verified_by": transcript + "#L23 — x"}),
+            lambda s: s["release_candidate_packaging"].__setitem__("p3_restated_claims", [{"claim": "vulcan_review@c67b072: [record] x", "restates": "nobody"}]),
+            lambda s: s["release_candidate_packaging"].__setitem__("p3_restated_claims", [{"claim": claim, "restates": claim}]),
+            lambda s: s["release_candidate_packaging"].__setitem__("p3_restated_claims", [{"claim": "x"}]),
+        ):
+            summary = json.loads(json.dumps(base))
+            mutate(summary)
+            self.assertEqual(self.build_fails(summary).code, register.RegisterErrorCode.SUMMARY_INVALID)
+        good = json.loads(json.dumps(base))
+        good["release_candidate_packaging"]["p3_restated_claims"] = [{"claim": "vulcan_review@c67b072: [record] carried", "restates": claim}]
+        self.assertEqual(self.build_from(good)["package_restated_claims"], {"release_candidate_packaging.p3_restated_claims": 1})
+
     def test_closure_line_and_speaking_predicates(self) -> None:
         # 76ae15ab round: a closure line names the severity before a CLOSED
         # status marker with no OPEN marker; prose is not a closure line.
         self.assertTrue(register.is_closure_line("- **[P2] stale manifest — CLOSED.** rebuilt", "P2"))
-        self.assertTrue(register.is_closure_line("- P2 stale manifest: CLOSED", "P2"))
+        self.assertFalse(register.is_closure_line("- P2 stale manifest: CLOSED", "P2"))  # revision 7: no item status shape
         self.assertFalse(register.is_closure_line("- **[P2] stale manifest — CLOSED.** leg 2 — OPEN", "P2"))
         self.assertFalse(register.is_closure_line("No P0, P1, or P2-class defect exists; the P3 is CLOSED in spirit", "P2"))
         self.assertFalse(register.is_closure_line("- **[P3] wording — CLOSED.** (the P2 remains)", "P2"))
@@ -462,7 +530,7 @@ class InvariantTests(unittest.TestCase):
                 "example_package": {
                     "status": "S20_999_IMPLEMENTED_REVIEW_PENDING",
                     "vulcan_review": "PASS",
-                    "p0_open": [],
+                    "p0_open": ["vulcan_review: [x] one open claim"],
                     "p0_open_count": 1,
                 },
                 "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},

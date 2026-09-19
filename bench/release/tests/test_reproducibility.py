@@ -449,6 +449,18 @@ class ReproducibilityTests(unittest.TestCase):
         self.assertEqual(history[-1]["commits"], {local["commit"]: {"artifact_sha256": local["artifact_sha256"], "hosts": ["primary"]}})
         self.assertEqual(sync.attestation_chain(history)[-1]["commit"], local["commit"])
 
+    def test_the_checker_binds_the_whole_chain_to_its_derivation(self) -> None:
+        # 76ae15ab round: the checker had compared only the last entry's commit.
+        checker = load("check_reproducibility_and_independent_conformance")
+        derived = [{"commit": "a" * 40, "hosts": ["primary"]}, {"commit": "b" * 40, "hosts": ["primary"]}]
+        selected = {"commit": "b" * 40}
+        self.assertEqual(checker.attestation_chain_problems(derived, selected, derived), [])
+        self.assertEqual(checker.attestation_chain_problems(None, selected, derived), ["machine-summary:attestation_chain:missing"])
+        self.assertEqual(checker.attestation_chain_problems([], selected, derived), ["machine-summary:attestation_chain:missing"])
+        self.assertEqual(checker.attestation_chain_problems(derived[:1], {"commit": "b" * 40}, derived), ["machine-summary:attestation_chain:stale"])
+        forged = [{"commit": "c" * 40, "hosts": ["primary", "lab"]}, derived[1]]
+        self.assertEqual(checker.attestation_chain_problems(forged, selected, derived), ["machine-summary:attestation_chain:not-derived"])
+
     def test_summary_mirrors_follow_single_and_two_host_reports(self) -> None:
         sync = load("sync_evidence_counters")
         sync.SUMMARY = self.root / "summary.json"

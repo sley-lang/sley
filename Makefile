@@ -88,6 +88,7 @@ quick:
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py
 	python3 scripts/check_finding_register.py
+	python3 scripts/retire_review_claims.py --check
 	python3 scripts/check_decision_dossier.py
 	python3 scripts/check_epoch_migration_policy.py
 	python3 scripts/check_required_contract_index.py
@@ -280,6 +281,7 @@ release-candidate-verify:
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py
 	python3 scripts/check_finding_register.py
+	python3 scripts/retire_review_claims.py --check
 	python3 scripts/check_decision_dossier.py
 
 legacy-runner-smoke:

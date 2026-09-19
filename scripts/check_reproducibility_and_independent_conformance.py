@@ -106,6 +106,32 @@ CONFORMANCE_MARKERS = (
 FORBIDDEN_REPORT_MARKERS = ("/home/", "greyforge", "timestamp", "generated_at")
 
 
+
+def attestation_chain_problems(chain: object, selected: object, derived: list[dict]) -> list[str]:
+    """The recorded chain ends at the tracked report's own commit (c67b0729
+    round: it had lagged one mint behind) and equals the derivation over
+    the report's tracked history plus the working-tree report entry for
+    entry — a hand-edited chain whose last entry happens to match is
+    refused (Nabu/Vulcan/Ariadne P4 at 76ae15ab)."""
+    if not isinstance(chain, list) or not chain or not isinstance(chain[-1], dict):
+        return ["machine-summary:attestation_chain:missing"]
+    if isinstance(selected, dict) and chain[-1].get("commit") != selected.get("commit"):
+        return ["machine-summary:attestation_chain:stale"]
+    if chain != derived:
+        return ["machine-summary:attestation_chain:not-derived"]
+    return []
+
+
+def derived_attestation_chain() -> list[dict]:
+    """The attestation chain recomputed from the tracked report's history
+    (`sync_evidence_counters.attestation_chain` over `report_history`)."""
+    import sys as _sys
+
+    _sys.path.insert(0, str(ROOT / "scripts"))
+    import sync_evidence_counters as sync  # noqa: E402
+
+    return sync.attestation_chain(sync.report_history(ROOT / "evidence/release/reproducibility-report.json"))
+
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
@@ -425,11 +451,9 @@ def main() -> int:
             selected = repro.select_attestation(report)
             # The derived attestation chain ends at the tracked report's own
             # commit (c67b0729 round: the chain had lagged one mint behind).
-            chain = section.get("attestation_chain")
-            if not isinstance(chain, list) or not chain or not isinstance(chain[-1], dict):
-                problems.append("machine-summary:attestation_chain:missing")
-            elif selected and chain[-1].get("commit") != selected.get("commit"):
-                problems.append("machine-summary:attestation_chain:stale")
+            problems.extend(
+                attestation_chain_problems(section.get("attestation_chain"), selected, derived_attestation_chain())
+            )
             for summary_key, report_value in (
                 ("reproducibility_result", report.get("result")),
                 ("second_host_status", (report.get("second_host") or {}).get("status")),

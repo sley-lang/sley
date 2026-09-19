@@ -20,8 +20,10 @@ and do not define serialized graph, type, CFG, or mutation authority. The graph
 target covers the current public S20-220 graph-inventory and CFG boundary; it
 does not claim a future complete SSMC object decoder.
 
-The deterministic runtime corpora contain 385 type-checker seeds and 406
-graph/CFG seeds. Corpus, binaries, artifacts, and command evidence remain under
+The deterministic runtime corpora contain 385 type-checker seeds and 408
+graph/CFG seeds (406 generated plus the two `S20-700-GRAPH-CFG-001` regression
+inputs, tracked as `fuzz/regressions/S20_700_GRAPH_CFG_001.json` and retested
+on every run). Corpus, binaries, artifacts, and command evidence remain under
 ignored `evidence/runtime/s20-700-semantic-checkers-libfuzzer/` paths.
 
 ## Closed harness finding

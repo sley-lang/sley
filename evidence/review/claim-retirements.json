@@ -362,6 +362,207 @@
  {
   "section": "reproducibility_and_independent_conformance",
   "severities": [
+   4
+  ],
+  "prefixes": [
+   "ariadne_contract_review_revision_8:"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-c04539b.md",
+  "lines": [
+   23
+  ],
+  "reason": "the lane's revision-8 P4 recorded CLOSED at c04539b9 (line 23)"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "nabu_architecture_review_revision_8:"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-92fa664.md",
+  "lines": [
+   24
+  ],
+  "reason": "Nabu's revision-8 P3 (contract drift) and P4 (provisional envelope corpus note) recorded CLOSED at 92fa6646 (lines 24-25)"
+ },
+ {
+  "section": "s20_700_vm_persistent_fuzz_slice",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "vulcan_review_closure_note:"
+  ],
+  "verified_by": "evidence/review/verdicts/s20_700_vm_persistent_fuzz_slice/vulcan_review_closure-db53894.md",
+  "reason": "the carried P2 (proof bound to non-ancestor 209c661) recorded CLOSED at db53894e (line 11)"
+ },
+ {
+  "section": "repository_exchange",
+  "severities": [
+   1
+  ],
+  "prefixes": [
+   "ariadne_implementation_review_closure_note: [record] evidence/review/finding-register.json"
+  ],
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md",
+  "lines": [
+   36,
+   37,
+   38
+  ],
+  "reason": "targeted closure review at 76ae15ab (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P1_CLOSED): both S20-540 P1 remediations verified in source, tests and blame (P1-A accepted_head fails closed on a marked root; P1-B rejection matrix asserts the ten codes) and the record item closed; reconstruction basis = docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md:142-152 and the a29668e1 commit message (the 05769ff7/dca29d66 transcripts are unrecoverable)"
+ },
+ {
+  "section": "repository_exchange",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "ariadne_implementation_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (repository_exchange.accepted_fixture_sha256"
+  ],
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md",
+  "lines": [
+   39
+  ],
+  "reason": "the 178873d7 stale fixture identities verified re-pinned at 76ae15ab (line 39; the verdict's PRIOR clause names P1 only, the closure line names this P3 explicitly)"
+ },
+ {
+  "section": "repository_exchange",
+  "severities": [
+   4
+  ],
+  "prefixes": [
+   "ariadne_implementation_review_closure_note: [contract-text] crates/sley-txn/src/repository.rs:2880"
+  ],
+  "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md",
+  "lines": [
+   40
+  ],
+  "reason": "the 178873d7 unguarded native readers item verified closed by the 867009de contract amendment (REPOSITORY_EXCHANGE_V1.md:422-424), line 40"
+ },
+ {
+  "section": "s20_700_remaining_surface_audit",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "vulcan_review_closure_note: [evidence] machineresearch/sley-2.0/machine-summary.json:3026 - the VM slice's durable proof"
+  ],
+  "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md",
+  "lines": [
+   37
+  ],
+  "reason": "178873d7 P2 (VM proof bound to non-ancestor 209c661, no gate ran the VM checker) verified closed at 76ae15ab: proof binds ancestor fbb02573, 1576/1576 runs, VM checker in quick"
+ },
+ {
+  "section": "s20_700_remaining_surface_audit",
+  "severities": [
+   2
+  ],
+  "prefixes": [
+   "vulcan_review_closure_note@db53894: [evidence] machineresearch/sley-2.0/machine-summary.json (s20_700_merge_judgment_fuzz_slice.last_local_proof"
+  ],
+  "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md",
+  "lines": [
+   38
+  ],
+  "reason": "db53894e P2 (merge_judgment proof non-ancestor d3dee56 / binary not re-run; quick never ran the VM checker) verified closed at 76ae15ab: 512/512 re-run on clang-18 at the candidate with a matching runtime record"
+ },
+ {
+  "section": "s20_700_remaining_surface_audit",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "vulcan_review_closure_note: [tests] fuzz/regressions/ - prior V-02",
+   "vulcan_review_closure_note@db53894: [tests] fuzz/regressions/ - prior V-02",
+   "vulcan_review_closure_note@7622776: [tests] fuzz/regressions/ - prior V-02",
+   "vulcan_review_closure_note@c67b072: [tests] fuzz/regressions/ - prior V-02"
+  ],
+  "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md",
+  "lines": [
+   26
+  ],
+  "reason": "V-02 regression records verified at 76ae15ab: S20_700_GRAPH_CFG_001 / PACK_001 / PACK_002 match the retained artifacts byte for byte, are seeded permanently and retested fail-closed by both runners (table row, line 26)"
+ },
+ {
+  "section": "s20_700_remaining_surface_audit",
+  "severities": [
+   4
+  ],
+  "prefixes": [
+   "vulcan_review_closure_note@7622776: [evidence] scripts/fuzz_proof_record.py:92-139 - residual of the closed prior P4: the validator never reads `worktree_dirty_files`",
+   "vulcan_review_closure_note@c67b072: [evidence] scripts/fuzz_proof_record.py:92-141 - prior residual OPEN: the validator never reads `worktree_dirty_files`"
+  ],
+  "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md",
+  "lines": [
+   28
+  ],
+  "reason": "the validator now refuses any non-empty or non-list worktree_dirty_files (probed by the lane; test test_fuzz_proof_record.py:62-63), line 28"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "ariadne_contract_review_revision_7:"
+  ],
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md",
+  "lines": [
+   25
+  ],
+  "reason": "the lane's revision-7 P3 (section-3 wording) and P4 (inverted ADR note) recorded CLOSED item by item at 92fa6646 (lines 25-26); untagged entries never retire automatically (Ariadne P3 at 76ae15ab)"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "ariadne_contract_review_revision_8: [implementation]",
+   "ariadne_contract_review_revision_8: [record]"
+  ],
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-92fa664.md",
+  "lines": [
+   28,
+   29
+  ],
+  "reason": "the lane's revision-8 P3s (untracked counters; candidate_second_host_note c75277b6 step) recorded CLOSED at 92fa6646 (lines 28-29)"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "severities": [
+   3
+  ],
+  "prefixes": [
+   "vulcan_surface_review@7622776: [register-parsing]"
+  ],
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c67b072.md",
+  "lines": [
+   16
+  ],
+  "reason": "the register-parsing P3 verified closed at c67b0729 (line 16: probed grammar, pinned test, one grammar in the tool); the lane deliberately filed no PRIOR clause"
+ },
+ {
+  "section": "standards_sbom_and_provenance",
+  "severities": [
+   4
+  ],
+  "prefixes": [
+   "vulcan_surface_review@db53894: [record] machineresearch/sley-2.0/machine-summary.json:4819-4829"
+  ],
+  "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-7622776.md",
+  "lines": [
+   27
+  ],
+  "reason": "the db53894e ledger P4 recorded CLOSED at 76227765 (line 27)"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "severities": [
    2
   ],
   "prefixes": [
@@ -380,16 +581,5 @@
   ],
   "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-92fa664.md",
   "reason": "the 178873d7 P2s (ownership/fail-closed, evidence binding) recorded CLOSED at 92fa6646 (lines 22-23)"
- },
- {
-  "section": "s20_700_vm_persistent_fuzz_slice",
-  "severities": [
-   2
-  ],
-  "prefixes": [
-   "vulcan_review_closure_note:"
-  ],
-  "verified_by": "evidence/review/verdicts/s20_700_vm_persistent_fuzz_slice/vulcan_review_closure-db53894.md",
-  "reason": "the carried P2 (proof bound to non-ancestor 209c661) recorded CLOSED at db53894e (line 11)"
  }
 ]

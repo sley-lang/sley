@@ -276,6 +276,43 @@ class InvocationTests(unittest.TestCase):
             self.assertIn("probe.txt", scan.stdout)
 
 
+class LintReportBindingTests(unittest.TestCase):
+    """The lint report is bound to the candidate (contract section 16)."""
+
+    def setUp(self) -> None:
+        spec = importlib.util.spec_from_file_location("check_packaging", ROOT / "scripts/check_release_candidate_packaging.py")
+        self.checker = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.checker)
+        spec = importlib.util.spec_from_file_location("record_lint_report", ROOT / "scripts/record_lint_report.py")
+        self.recorder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.recorder)
+
+    def test_every_binding_failure_names_its_code(self) -> None:
+        good = {"commit": "a" * 40, "lint_inputs_clean": True, "result": "PASS"}
+        problems = self.checker.lint_report_problems
+        self.assertEqual(problems(good, "a" * 40), [])
+        self.assertEqual(problems(dict(good, commit="b" * 40), "a" * 40), ["lint-report:commit-differs-from-candidate"])
+        self.assertEqual(problems(dict(good, lint_inputs_clean=False), "a" * 40), ["lint-report:not-a-clean-pass"])
+        self.assertEqual(problems(dict(good, result="FAIL"), "a" * 40), ["lint-report:not-a-clean-pass"])
+        self.assertEqual(
+            problems({}, "a" * 40),
+            ["lint-report:commit-differs-from-candidate", "lint-report:not-a-clean-pass"],
+        )
+        self.assertEqual(len(problems("not a report", None)), 2)
+
+    def test_dirty_paths_are_read_literally_from_porcelain_z(self) -> None:
+        # Paths with spaces, quotes or non-ASCII bytes are literal under -z;
+        # a rename contributes its destination and skips the source field.
+        listing = " M crates/x/src/a b.rs\0?? docs/\u00fc \"q\".md\0R  crates/new.rs\0crates/old.rs\0"
+        self.assertEqual(
+            self.recorder.dirty_worktree_paths(listing),
+            ["crates/new.rs", "crates/x/src/a b.rs", "docs/\u00fc \"q\".md"],
+        )
+        self.assertEqual(self.recorder.dirty_worktree_paths(""), [])
+        dirty = self.recorder.dirty_worktree_paths(listing)
+        self.assertEqual([p for p in dirty if p.startswith(self.recorder.LINT_INPUTS)], ["crates/new.rs", "crates/x/src/a b.rs"])
+
+
 class FailureEvidenceTests(unittest.TestCase):
     """PackageError failures keep the partial record with failure attached."""
 

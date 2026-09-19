@@ -126,6 +126,20 @@ def gate_stays_closed(gate: str) -> bool:
         return False
 
 
+
+def lint_report_problems(lint: object, candidate_commit: object) -> list[str]:
+    """The lint-report binding (section 16): the report names the candidate
+    commit, its lint inputs were clean and it is a PASS. A missing or
+    malformed report fails both codes."""
+    problems: list[str] = []
+    if not isinstance(lint, dict):
+        lint = {}
+    if not isinstance(candidate_commit, str) or lint.get("commit") != candidate_commit:
+        problems.append("lint-report:commit-differs-from-candidate")
+    if lint.get("lint_inputs_clean") is not True or lint.get("result") != "PASS":
+        problems.append("lint-report:not-a-clean-pass")
+    return problems
+
 def main() -> int:
     problems: list[str] = []
     for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES):
@@ -240,10 +254,7 @@ def main() -> int:
                 lint = json.loads(lint_path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
                 lint = {}
-            if lint.get("commit") != section.get("candidate_commit"):
-                problems.append("lint-report:commit-differs-from-candidate")
-            if lint.get("lint_inputs_clean") is not True or lint.get("result") != "PASS":
-                problems.append("lint-report:not-a-clean-pass")
+            problems.extend(lint_report_problems(lint, section.get("candidate_commit")))
 
     present = []
     if SCRIPT.exists():

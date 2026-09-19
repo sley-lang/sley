@@ -14,6 +14,11 @@ constructors, so a depth-only guard still allowed exponential allocation.
 `S20-700-HARNESS-001` retains the input and root-cause disposition. A global
 512-node construction budget now bounds the generator, corpus generation
 consumes the regression fixture, and both semantic-checker smoke targets pass.
+Three later harness-oracle findings are closed the same way: `S20-700-GRAPH-CFG-001`
+(graph/CFG arm 1 omitted `GRAPH_OWNER_MISMATCH`), `S20-700-PACK-001` and
+`S20-700-PACK-002` (over-strict claim-flip expectations in the pack importer
+harness). None was a production defect; each is a tracked `fuzz/regressions/`
+record retested on every persistent run.
 
 ## 2026-08-27 — S20-270 handoff permission mismatch and rejected green candidate
 

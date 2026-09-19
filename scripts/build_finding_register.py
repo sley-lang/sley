@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 CONTRACT = "sley2.finding-register.v1"
-CONTRACT_REVISION = 6
+CONTRACT_REVISION = 7
 # Field names that name a role, actor, session, instant, or free note rather
 # than a disposition (contract section 1). All suffix-anchored: a bare
 # substring match would silently drop a future field that merely contains
@@ -62,6 +62,7 @@ SEVERITY = re.compile(r"P[0-4]")
 PACKAGE_OPEN_COUNT = re.compile(r"p[0-4]_open_count$")
 PACKAGE_OPEN_LIST = re.compile(r"p[0-4]_open$")
 PACKAGE_CLOSED_LIST = re.compile(r"p[0-4]_closed_claims$")
+PACKAGE_RESTATED_LIST = re.compile(r"p[0-4]_restated_claims$")
 # A retired claim names the transcript that verified its closure; the path
 # must exist under one of the transcript roots (contract section 3,
 # revision 6).
@@ -535,51 +536,113 @@ def package_open_claims(summary: dict) -> dict[str, int]:
                         f"{section}.{field} must be a list",
                     )
                 claims[f"{section}.{field}"] = len(item)
+                # The count mirrors the list (Nabu/Vulcan P4 at db53894e..
+                # 76ae15ab: the GA row sums the counts, so they must agree).
+                count = value.get(field + "_count")
+                if count is not None and count != len(item):
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}_count is {count} but the list holds {len(item)}",
+                    )
     return dict(sorted(claims.items()))
 
 
 # A closure line records a per-finding status: the severity is named
-# before a status marker (`— CLOSED`, `: CLOSED`, `**CLOSED`, `- CLOSED`)
-# and no `OPEN` status marker follows on the same line. Prose that merely
-# contains the word CLOSED (an open finding quoting it, a summary
-# sentence) is not a closure line (Nabu/Vulcan P3 at c67b0729).
-STATUS_CLOSED = re.compile(r"(?:—|-|:|\*\*)\s*\**\s*CLOSED\b")
-STATUS_OPEN = re.compile(r"(?:—|-|:|\*\*)\s*\**\s*OPEN\b")
+# before a status marker (`— CLOSED`, `: CLOSED`, `**CLOSED`, `- CLOSED`,
+# optionally quantified `**Both CLOSED.**`) that is the item's own terminal
+# status — inside the item's leading bold head, alone in a table cell, or
+# a standalone bold status span — and no unquoted `OPEN` status marker
+# stands on the line. Prose that quotes a marker ("— CLOSED"), a finding-raising
+# `[Pn]` line, a summary sentence or a `VERDICT:` token line is not a
+# closure line (Nabu/Vulcan P3 at c67b0729; Ariadne/Vulcan/Nabu P3/P4 at
+# 76ae15ab).
+STATUS_MARK = r"(?:—|-|:|→|\*\*)\s*\**\s*(?:(?:Both|All(?:\s+\w+)?|Each|Three|Four)\s+)?"
+STATUS_CLOSED = re.compile(STATUS_MARK + r"CLOSED\b")
+STATUS_OPEN = re.compile(STATUS_MARK + r"(?:OPEN|Open)\b")
+FINDING_LINE = re.compile(r"^\[P[0-4]\]\s+\[")
+STANDALONE_STATUS = re.compile(r"(?:[-—:→]\s*)?(?:(?:Both|All(?:\s+\w+)?|Each|Three|Four)\s+)?(?:CLOSED|OPEN|Open)(?:\s*\(P[0-4]\))?\.?")
+BOLD = re.compile(r"\*\*(.+?)\*\*")
+
+
+def _quoted(line: str, start: int, end: int) -> bool:
+    """The marker sits inside quotes, backticks or parentheses (a quotation of
+    a status, not a status)."""
+    before = line[:start]
+    if before.count('"') % 2 or before.count("`") % 2:
+        return True
+    tail = line[end:end + 1]
+    return tail in ('"', "`", "'")
+
+
+def _own_status(line: str, match: re.Match) -> bool:
+    """The marker is the item's own terminal status (see the module note)."""
+    if _quoted(line, match.start(), match.end()):
+        return False
+    stripped = line.lstrip()
+    body = re.sub(r"^(?:[-*]\s+|\d+[.)]\s+|\|\s*)", "", stripped)
+    offset = len(line) - len(body)
+    spans = [(m.start() + offset, m.end() + offset, m.group(1)) for m in BOLD.finditer(body)]
+    # (i) inside the item's leading bold head: `- **[P1] … — CLOSED.** …`
+    if spans and spans[0][0] == offset and spans[0][0] <= match.start() < spans[0][1]:
+        return True
+    # (ii) alone in a table cell: `| … | P3 | **CLOSED (P3)** |`
+    if stripped.startswith("|"):
+        cell_start = line.rfind("|", 0, match.start()) + 1
+        cell_end = line.find("|", match.end())
+        cell = line[cell_start:cell_end if cell_end > 0 else None]
+        cell = re.sub(r"[*\s]", "", cell)
+        if re.fullmatch(r"(?:Both|All\w*|Each)?(?:CLOSED|OPEN|Open)(?:\(P[0-4]\))?\.?", cell):
+            return True
+    # (iii) a standalone bold status span: `… — **CLOSED.** evidence`,
+    # `… **Both CLOSED.**` (the status is the whole span, so a bold
+    # sentence that merely contains the word does not count).
+    for start, end, content in spans:
+        if start <= match.end() <= end and STANDALONE_STATUS.fullmatch(content.strip()):
+            return True
+    return False
 
 
 def is_closure_line(line: str, severity: str) -> bool:
-    if line.startswith(("VERDICT:", "SUMMARY:", "FINDINGS:")):
+    if line.startswith(("VERDICT:", "SUMMARY:", "FINDINGS:")) or FINDING_LINE.match(line):
         return False
-    closed = STATUS_CLOSED.search(line)
-    if not closed or STATUS_OPEN.search(line):
+    # Any unquoted OPEN status on the line makes it a mixed-status line
+    # ("leg 1 CLOSED; leg 2 OPEN"), never a closure.
+    if any(not _quoted(line, m.start(), m.end()) for m in STATUS_OPEN.finditer(line)):
         return False
-    head = line[: closed.start()]
+    closed = [m for m in STATUS_CLOSED.finditer(line) if _own_status(line, m)]
+    if not closed:
+        return False
+    head = line[: closed[0].start()]
     return re.search(rf"(?<![A-Z0-9]){severity}(?![0-9])", head) is not None
 
 
 def cited_closure_lines(path: Path, severity: str) -> list[int]:
     """Lines of a transcript that record a closure of `severity` (1-based).
 
-    A closure line names the severity before a `CLOSED` status marker and
-    carries no `OPEN` status; when no line names the severity, every
-    closure line of a `PRIOR_...` verdict that closes that severity counts,
-    because the lane closed its carried findings item by item and the token
-    names the severity. Empty when the transcript records no such closure
-    (the retirement is refused).
+    A closure line names the severity before its own `CLOSED` status marker
+    and carries no `OPEN` status; when no line names the severity and the
+    severity is P3 or P4, every closure line of a `PRIOR_...` verdict that
+    closes that severity counts (the lane closed its carried findings item
+    by item and the token names the severity; the cited line must still
+    speak about the claim). Empty when the transcript records no such
+    closure (the retirement is refused). The fallback never serves P0-P2
+    (Vulcan P3 at 76ae15ab).
     """
     if not path.is_file():
         return []
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     named = [index + 1 for index, line in enumerate(lines) if is_closure_line(line, severity)]
-    if named:
+    if named or severity not in ("P3", "P4"):
         return named
     verdict = next((line for line in reversed(lines) if line.startswith("VERDICT:")), "")
     if severity in closed_severities(verdict.split(":", 1)[1].strip() if ":" in verdict else ""):
         return [
             index + 1
             for index, line in enumerate(lines)
-            if STATUS_CLOSED.search(line) and not STATUS_OPEN.search(line)
+            if any(_own_status(line, m) for m in STATUS_CLOSED.finditer(line))
+            and not any(not _quoted(line, m.start(), m.end()) for m in STATUS_OPEN.finditer(line))
             and not line.startswith(("VERDICT:", "SUMMARY:", "FINDINGS:"))
+            and not FINDING_LINE.match(line)
         ]
     return []
 
@@ -600,6 +663,8 @@ def claim_relation_problem(section: str, claim: str, path: Path) -> str | None:
     match = CLAIM_TAG.match(claim)
     prefix = match.group(1) if match else claim.split(":", 1)[0]
     scope = match.group(2) if match else None
+    if "@" in prefix or (not match and "@" in claim.split(": ", 1)[0]):
+        return f"claim tag is not `<field>@<7..40 lowercase hex>: `: {claim[:60]!r}"
     lane = reviewer_of(prefix)
     if lane is not None and not path.name.startswith(lane):
         return f"transcript {path.name} is not the {lane} lane's"
@@ -661,6 +726,18 @@ def line_speaks_about(line: str, claim: str) -> bool:
         return True
     paths = {token.split(":")[0] for token in PATH_TOKEN.findall(body)}
     if any(path in line for path in paths):
+        return True
+    # A shared identifier (a field, function or variable name with an
+    # underscore, eight characters or more), a shared commit id, or a
+    # quoted phrase of the finding repeated verbatim names it on its own.
+    identifiers = {word for word in content_words(body) if "_" in word and len(word) >= 8}
+    if identifiers & content_words(line):
+        return True
+    commits = set(re.findall(r"(?<![0-9a-zA-Z])[0-9a-f]{7,40}(?![0-9a-zA-Z])", body)) - {"1" * 7}
+    if any(commit in line for commit in commits if re.search(r"[a-f]", commit) and re.search(r"[0-9]", commit)):
+        return True
+    phrases = {phrase for phrase in re.findall(r'"([^"]{12,})"', body)}
+    if any(phrase in line for phrase in phrases):
         return True
     return len(content_words(body) & content_words(line)) >= 2
 
@@ -726,9 +803,21 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                 # carry CLOSED and name the severity, or a PRIOR verdict
                 # closing it — Nabu/Vulcan/Ariadne P3 at 76227765).
                 severity = "P" + field[1]
-                cited = re.search(r"#L([0-9,]+)", entry["verified_by"])
+                # One `#L<n>(,<n>)*` group, nothing else (Vulcan P4 at 76ae15ab:
+                # `#L,` and `#L1,,2` had raised an uncaught ValueError).
+                cited = re.fullmatch(r"[^#]+#L([1-9][0-9]*(?:,[1-9][0-9]*)*)(?: \u2014 .*)?", entry["verified_by"], re.S)
+                if not cited:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: verified_by must be `<path>#L<n>[,<n>...] — note`, got {entry['verified_by'][:80]!r}",
+                    )
                 lines = cited_closure_lines(resolved, severity)
-                wanted = [int(n) for n in cited.group(1).split(",")] if cited else []
+                wanted = [int(n) for n in cited.group(1).split(",")]
+                if entry["claim"] in value.get(f"p{field[1]}_open", []):
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: claim is both open and closed: {entry['claim'][:60]!r}",
+                    )
                 if not lines or not wanted or not set(wanted) <= set(lines):
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
@@ -742,6 +831,50 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: no cited line of {resolved.name} names the claim's category or path",
+                    )
+            claims[f"{section}.{field}"] = len(item)
+    return dict(sorted(claims.items()))
+
+
+def package_restated_claims(summary: dict) -> dict[str, int]:
+    """Every folded re-statement, dotted field to count, shape-checked
+    (revision 7): an entry is `{claim, restates}` where `restates` is a
+    claim of the same section and severity that is still open, retired
+    (`pN_closed_claims`) or itself a re-statement, and the re-stated claim
+    is listed nowhere else — nothing vanishes, nothing is listed twice.
+    """
+    claims: dict[str, int] = {}
+    for section, value in summary.items():
+        if not isinstance(value, dict):
+            continue
+        for field, item in value.items():
+            if not PACKAGE_RESTATED_LIST.match(field):
+                continue
+            severity = field[1]
+            if not isinstance(item, list):
+                raise RegisterError(RegisterErrorCode.SUMMARY_INVALID, f"{section}.{field} must be a list")
+            open_list = value.get(f"p{severity}_open") or []
+            closed = [entry.get("claim") for entry in value.get(f"p{severity}_closed_claims") or [] if isinstance(entry, dict)]
+            restated = [entry.get("claim") for entry in item if isinstance(entry, dict)]
+            for entry in item:
+                if (
+                    not isinstance(entry, dict)
+                    or set(entry) != {"claim", "restates"}
+                    or not isinstance(entry["claim"], str)
+                    or not isinstance(entry["restates"], str)
+                ):
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID, f"{section}.{field} entries are {{claim, restates}} strings"
+                    )
+                if entry["restates"] not in open_list and entry["restates"] not in closed and entry["restates"] not in restated:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: restates a claim the section does not carry: {entry['restates'][:60]!r}",
+                    )
+                if entry["claim"] in open_list or entry["claim"] in closed or entry["restates"] == entry["claim"]:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: re-stated claim is also listed elsewhere: {entry['claim'][:60]!r}",
                     )
             claims[f"{section}.{field}"] = len(item)
     return dict(sorted(claims.items()))
@@ -858,6 +991,7 @@ def build_register() -> dict:
         "declared_open_findings": declared,
         "package_open_claims": claims,
         "package_closed_claims": package_closed_claims(summary),
+        "package_restated_claims": package_restated_claims(summary),
         "result": "FINDING_REGISTER_CLEAR" if clear else "FINDING_REGISTER_OPEN",
     }
     register["register_digest"] = digest_of(register)

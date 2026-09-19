@@ -1673,21 +1673,17 @@
     "nabu_implementation_review_session": "forge-nabu-s20-540-implementation-20260903T032106-699aad57",
     "ariadne_implementation_review_session": "forge-ariadne-s20-540-impl-rereview-20260903T033958-dca29d66",
     "vulcan_implementation_review_session": "forge-vulcan-s20-540-implementation-20260903T032106-9c15e773",
-    "ariadne_implementation_review_closure_note": "original disposition preserved verbatim in ariadne_implementation_review_original_note; carried P1 verified closed item by item; PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P1_CLOSED via claude-code/claude-opus-5 2026-09-19 on 76ae15ab4b513c83076575d550b07ca508e332c6: transcript evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md (sha256 d766087e047def110f85b763ccbdbd423d445560b00ef54aa6dbb2e3f30cfe46) (transcript FIELD line reads ariadne_implementation_review_closure). At 76ae15ab both S20-540 P1 remediations are verified in source, tests and blame: the three accepted-head readers fail closed with TXN_INCOMPLETE_CLONE behind the marker guard (repository.rs:901/1006, three passing marked-root tests) and the rejection matrix asserts the ten named exchange codes with a no-write assertion per row (exchange.rs:2799-2952), every line bound to a29668e1. The record item is closed: the P1 text is fixed by three contemporaneous author records in the closing commit, the 92fa6646 full-scope review and four later finals independently find no P1-class defect, and the revi",
-    "p1_open": [
-      "ariadne_implementation_review_closure_note: [record] evidence/review/finding-register.json (row section=repository_exchange, field=ariadne_implementation_review) / docs/audits/S20_540_REPOSITORY_EXCHANGE_"
-    ],
-    "p1_open_count": 1,
+    "ariadne_implementation_review_closure_note": "original disposition preserved verbatim in ariadne_implementation_review_original_note; carried P1 verified closed item by item; PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P1_CLOSED via claude-code/claude-opus-5 2026-09-19 on 76ae15ab4b513c83076575d550b07ca508e332c6: transcript evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md (sha256 d766087e047def110f85b763ccbdbd423d445560b00ef54aa6dbb2e3f30cfe46) (transcript FIELD line reads ariadne_implementation_review_closure). At 76ae15ab both S20-540 P1 remediations are verified in source, tests and blame: the three accepted-head readers fail closed with TXN_INCOMPLETE_CLONE behind the marker guard (repository.rs:901/1006, three passing marked-root tests) and the rejection matrix asserts the ten named exchange codes with a no-write assertion per row (exchange.rs:2799-2952), every line bound to a29668e1. The record item is closed: the P1 text is fixed by three contemporaneous author records in the closing commit, the 92fa6646 full-scope review and four later finals independently find no P1-class defect, and the revi Reconstruction basis for the P1 text (the 05769ff7/dca29d66 transcripts are unrecoverable from every ref): docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md:142-152 and the a29668e1 commit message; the claim is retired by the explicit rule against the 76ae15ab closure transcript's two P1 status lines (evidence/review/claim-retirements.json).",
+    "p1_open": [],
+    "p1_open_count": 0,
     "p3_open": [
-      "ariadne_implementation_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (repository_exchange.accepted_fixture_sha256, accepted_repository_exchange_id, digest_tree_root) - Stale ",
       "ariadne_implementation_review_final@c67b072: [record] machineresearch/sley-2.0/machine-summary.json (repository_exchange.p3_open[0], p3_open_count=1, p4_open[3]); evidence/review/claim-retirements.json:258"
     ],
-    "p3_open_count": 2,
+    "p3_open_count": 1,
     "p4_open": [
       "ariadne_implementation_review_final: [record] docs/spec/REPOSITORY_EXCHANGE_V1.md:3-11; docs/adr/ADR-0025-repository-exchange-boundary.md:130-137; machineresearch/sley-2.0/machine-summary.json (rep",
       "ariadne_implementation_review_final@db53894: [record] docs/spec/REPOSITORY_EXCHANGE_V1.md:3-11; docs/adr/ADR-0025-repository-exchange-boundary.md:130-141; machineresearch/sley-2.0/machine-summary.json (rep",
       "ariadne_implementation_review_final@db53894: [test-coverage] crates/sley-txn/src/repository.rs:999-1011 - `accepted_head_any_with_maintenance` is now normatively named (spec 414-416) as failing closed with",
-      "ariadne_implementation_review_closure_note: [contract-text] crates/sley-txn/src/repository.rs:2880,2884,2889,2910,2921 - `native_attempt_status` / `reconcile_promotion_claim` read and return the head poin",
       "ariadne_implementation_review_final@7622776: [record] docs/spec/REPOSITORY_EXCHANGE_V1.md:3-5; docs/adr/ADR-0025-repository-exchange-boundary.md:130-141; machineresearch/sley-2.0/machine-summary.json:1652,",
       "ariadne_implementation_review_final@7622776: [test-coverage] crates/sley-txn/src/repository.rs:999-1011 - OPEN from db53894e: `accepted_head_any_with_maintenance` is normatively named (spec 414-416) as fai",
       "ariadne_implementation_review_final@7622776: [record] machineresearch/sley-2.0/machine-summary.json:1711-1712,1737-1738 (repository_exchange.p3_closed_claims[0], p4_closed_claims[0]); evidence/review/claim",
@@ -1698,12 +1694,22 @@
       "ariadne_implementation_review_final@c67b072: [contract-text] docs/spec/FINDING_REGISTER_V1.md:16-18; scripts/build_finding_register.py:544-568 (cited_closure_lines), 629-638; bench/review/tests/test_findin",
       "ariadne_implementation_review_closure_note@76ae15a: [record] machineresearch/sley-2.0/machine-summary.json:1694 (repository_exchange.p1_open[0], ariadne_implementation_review, ariadne_implementation_review_closur"
     ],
-    "p4_open_count": 13,
+    "p4_open_count": 12,
     "ariadne_implementation_review_final": "PASS_0_P0_0_P1_0_P2_1_P3_4_P4",
     "ariadne_implementation_review_final_note": "PASS_0_P0_0_P1_0_P2_1_P3_4_P4 via claude-code/claude-opus-5 2026-09-19 on c67b07293bc2bb00555d6c6d68b436eb0e190faf: transcript evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c67b072.md (sha256 792474d4382e6c7aadddb6aaf11547797452c0d6b80686751ac4d3a1d2655784). Re-review of the repository_exchange final implementation review at the c67b0729 release candidate: no exchange code, fixture, checker or ADR changed since 76227765, all four checkers exit 0, the 39 register tests and the 52 sley-repo exchange plus sley-txn marked-root tests pass, and the tracked retire() reproduces every closed entry and citation of the section byte-identically, closing my 76227765 provenance finding. The revision-8 record (P4), the marked-root test for accepted_head_any_with_maintenance (P4) and the missing supersession rule (P4, p4_open_count now 8) remain OPEN as verified ",
     "fixture_identity_note": "accepted_fixture_sha256 / accepted_repository_exchange_id / digest_tree_root / rejection_vectors re-pinned 2026-09-18 to the frozen conformance/repository-exchange/v1 fixtures at HEAD (scripts/check_repository_exchange_spec.py FIXTURE_EXPECTED); the earlier values (df142fa0\u2026, 8b3b0e60\u2026, 42e27dd7\u2026, 5) described the pre-index-cache fixture generation (Ariadne P3 at 92fa6646)",
     "ariadne_implementation_review_original_note": "PASS_IMPLEMENTATION_AFTER_P1_REMEDIATION",
+    "p1_closed_claims": [
+      {
+        "claim": "ariadne_implementation_review_closure_note: [record] evidence/review/finding-register.json (row section=repository_exchange, field=ariadne_implementation_review) / docs/audits/S20_540_REPOSITORY_EXCHANGE_",
+        "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md#L36,37,38 \u2014 targeted closure review at 76ae15ab (PASS_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P1_CLOSED): both S20-540 P1 remediations verified in source, tests and blame (P1-A accepted_head fails closed on a marked root; P1-B rejection matrix asserts the ten codes) and the record item closed; reconstruction basis = docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md:142-152 and the a29668e1 commit message (the 05769ff7/dca29d66 transcripts are unrecoverable)"
+      }
+    ],
     "p3_closed_claims": [
+      {
+        "claim": "ariadne_implementation_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (repository_exchange.accepted_fixture_sha256, accepted_repository_exchange_id, digest_tree_root) - Stale ",
+        "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md#L39 \u2014 the 178873d7 stale fixture identities verified re-pinned at 76ae15ab (line 39; the verdict's PRIOR clause names P1 only, the closure line names this P3 explicitly)"
+      },
       {
         "claim": "ariadne_implementation_review_final@db53894: [record] machineresearch/sley-2.0/machine-summary.json (repository_exchange.p3_open[0..3], p4_open[0..1], p3_open_count=5, p4_open_count=3; mirrored in evidence",
         "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-7622776.md#L25 \u2014 ariadne_implementation_review_final-7622776 at 76227765 verified the carried P3 closed"
@@ -1730,6 +1736,10 @@
       }
     ],
     "p4_closed_claims": [
+      {
+        "claim": "ariadne_implementation_review_closure_note: [contract-text] crates/sley-txn/src/repository.rs:2880,2884,2889,2910,2921 - `native_attempt_status` / `reconcile_promotion_claim` read and return the head poin",
+        "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_closure-76ae15a.md#L40 \u2014 the 178873d7 unguarded native readers item verified closed by the 867009de contract amendment (REPOSITORY_EXCHANGE_V1.md:422-424), line 40"
+      },
       {
         "claim": "ariadne_implementation_review_final: [record] docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md:59-62,178-180 - The closeout paraphrase is stale against HEAD: it lists seven allowlisted incomplet",
         "verified_by": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L29 \u2014 PRIOR_P3_P4_CLOSED at c04539b9: the 92fa6646 P3s and P4s verified closed at 5bba01b3"
@@ -2367,6 +2377,15 @@
     "reseal_lane": "test-only decode_conformance_pack_entries_for_testing + seal_mutated_conformance_pack_for_testing reuse decode_envelope/decode_payload/build_pack verbatim; lane-2 control bytes decoded FIRST (controls-first, c7fec98), undecodeable lane-2 inputs fall through to the direct lane; class 0 unmutated reseal asserts clean import + byte-identity + pack-id/root-claim binds + idempotence; class 1 object-bytes -> PACK_OBJECT_CORRUPT; class 2 root-bytes -> PACK_ROOT_INVALID; class 3 object-id claim -> {PACK_OBJECT_MISSING, PACK_CANONICAL_ORDER} (order-before-closure precedence); class 4 state-root claim -> {PACK_ROOT_INVALID, PACK_CANONICAL_ORDER}",
     "seed_source": "conformance/repository-pack/v1/accepted.json",
     "seed_corpus": "deterministically generated under evidence/runtime/s20-700-pack-import-libfuzzer/corpus",
+    "closed_harness_findings": 2,
+    "closed_harness_finding_ids": [
+      "S20-700-PACK-001",
+      "S20-700-PACK-002"
+    ],
+    "regression_records": [
+      "fuzz/regressions/S20_700_PACK_001.json",
+      "fuzz/regressions/S20_700_PACK_002.json"
+    ],
     "runtime_evidence": "evidence/runtime/s20-700-pack-import-libfuzzer/evidence.json",
     "manual_command": "python3 scripts/run_pack_persistent_fuzz.py --manual",
     "outer_trailer_rehash_lane": true,
@@ -3059,16 +3078,17 @@
     "max_input_bytes": 4096,
     "max_generated_type_nodes": 512,
     "type_checker_seed_count": 385,
-    "graph_cfg_seed_count": 406,
+    "graph_cfg_seed_count": 408,
     "graph_template_count": 4,
     "graph_mutation_class_count": 33,
     "max_graph_mutations_per_input": 8,
     "runtime_evidence": "evidence/runtime/s20-700-semantic-checkers-libfuzzer/evidence.json",
     "type_checker_manual_command": "python3 scripts/run_semantic_checkers_persistent_fuzz.py --manual --target type-checker",
     "graph_cfg_manual_command": "python3 scripts/run_semantic_checkers_persistent_fuzz.py --manual --target graph-cfg",
-    "closed_harness_findings": 1,
+    "closed_harness_findings": 2,
     "closed_harness_finding_ids": [
-      "S20-700-HARNESS-001"
+      "S20-700-HARNESS-001",
+      "S20-700-GRAPH-CFG-001"
     ],
     "vulcan_review": "PASS_0_P0_0_P1_0_P2_2_P3_3_P4",
     "deferred_surfaces": [
@@ -3391,19 +3411,16 @@
     "p2_open_count": 0,
     "p4_open": [
       "vulcan_review_closure_note: [record-consistency] docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md:83 - states \"default 1576 over 788 seeds\" while `:24` and the checker/runner/proof carry 7",
-      "vulcan_review_closure_note@db53894: [record-consistency] docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md:83 - carried from 178873d7, still open: \"default 1576 over 788 seeds\" while `:24`, checker",
       "vulcan_review_closure_note@db53894: [fail-closed-gap] scripts/run_vm_persistent_fuzz.py:150-151,292-303 + scripts/check_vm_persistent_fuzz_slice.py:221-267 - `worktree_dirty_files` is recorded (tr",
       "vulcan_review_closure_note@db53894: [record-consistency] machineresearch/sley-2.0/machine-summary.json:3334 - proof `note` says \"clean detached worktree\" while `worktree_dirty_files` at `:3303-331",
-      "vulcan_review_closure_note@7622776: [record-consistency] docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md:83 - carried from 178873d7 and db53894e, still open: \"default 1576 over 788\" while `:24`, ",
       "vulcan_review_closure_note@7622776: [fail-closed-gap] scripts/fuzz_proof_record.py:92-139 + scripts/run_vm_persistent_fuzz.py:150-151,292-303 - carried from db53894e, still open: `worktree_dirty_f",
       "vulcan_review_closure_note@7622776: [record-consistency] machineresearch/sley-2.0/machine-summary.json:3361-3364 - `p2_open` for this section still lists the 178873d7 P2 (`source_commit` non-ances",
-      "vulcan_review_closure_note@c67b072: [record-consistency] docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md:83 - carried from 178873d7, db53894e and 76227765, still open: \"default 1576 over 788 seed",
       "vulcan_review_closure_note@c67b072: [fail-closed-gap] scripts/fuzz_proof_record.py:92-141 + scripts/run_vm_persistent_fuzz.py:150-151,292-303 - carried from db53894e and 76227765, still open: `wor",
       "vulcan_review_closure_note@c67b072: [fail-closed-gap] scripts/fuzz_proof_record.py:86-89,112-124 - `isinstance(x, int)` admits `bool` and `_all_empty` admits any falsy scalar, so a hand-transcribe",
       "vulcan_review_closure_note@c67b072: [test-coverage] scripts/fuzz_proof_record.py:14-15,117-124 - no unit test in `bench/`, `scripts/` or `tests/` exercises `proof_record_problems`, so the missing-",
       "vulcan_review_closure_note@c67b072: [record-consistency] machineresearch/sley-2.0/machine-summary.json:3364-3378 - `p3_open` still carries the db53894 P3 (freshness diff over `crates/sley-vm` only"
     ],
-    "p4_open_count": 12,
+    "p4_open_count": 9,
     "p3_open": [
       "vulcan_review_closure_note@db53894: [fail-closed-gap] scripts/check_vm_persistent_fuzz_slice.py:253-261 - the `proof-record-predates-lane-change` diff covers `crates/sley-vm` only, but the VM fuzz",
       "vulcan_review_closure_note@7622776: [fail-closed-gap] scripts/fuzz_proof_record.py:119-122 - `owner_lib_sancov` is validated only `if \"owner_lib_sancov\" in proof`, so a VM proof record that omits "
@@ -3413,6 +3430,20 @@
       {
         "claim": "vulcan_review_closure_note: [evidence-integrity] machineresearch/sley-2.0/machine-summary.json:~3026 (`s20_700_vm_persistent_fuzz_slice.last_local_proof.source_commit`) + scripts/check_vm_",
         "verified_by": "evidence/review/verdicts/s20_700_vm_persistent_fuzz_slice/vulcan_review_closure-db53894.md#L11 \u2014 the carried P2 (proof bound to non-ancestor 209c661) recorded CLOSED at db53894e (line 11)"
+      }
+    ],
+    "p4_restated_claims": [
+      {
+        "claim": "vulcan_review_closure_note@db53894: [record-consistency] docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md:83 - carried from 178873d7, still open: \"default 1576 over 788 seeds\" while `:24`, checker",
+        "restates": "vulcan_review_closure_note: [record-consistency] docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md:83 - states \"default 1576 over 788 seeds\" while `:24` and the checker/runner/proof carry 7"
+      },
+      {
+        "claim": "vulcan_review_closure_note@7622776: [record-consistency] docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md:83 - carried from 178873d7 and db53894e, still open: \"default 1576 over 788\" while `:24`, ",
+        "restates": "vulcan_review_closure_note: [record-consistency] docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md:83 - states \"default 1576 over 788 seeds\" while `:24` and the checker/runner/proof carry 7"
+      },
+      {
+        "claim": "vulcan_review_closure_note@c67b072: [record-consistency] docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md:83 - carried from 178873d7, db53894e and 76227765, still open: \"default 1576 over 788 seed",
+        "restates": "vulcan_review_closure_note: [record-consistency] docs/audits/S20_700_VM_INPUT_PERSISTENT_SLICE.md:83 - states \"default 1576 over 788 seeds\" while `:24` and the checker/runner/proof carry 7"
       }
     ]
   },
@@ -3943,49 +3974,115 @@
     "nabu_architecture_review_initial": "FAIL_2_P0_4_P1_5_P2_4_P3",
     "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
     "vulcan_review_closure_note": "PASS_0_P0_0_P1_0_P2_2_P3_5_P4 via claude-code/claude-opus-5 2026-09-19 on 76ae15ab4b513c83076575d550b07ca508e332c6: transcript evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md (sha256 c58cd0e1968b7f1979b5b690d68a3a48eb20487cd1cbfba709b3e2b5db69d814) (transcript FIELD line reads vulcan_review_closure). HEAD 76ae15ab verified. V-02, the validator-tests P3 and the dirty-files P4 are CLOSED on independent evidence: the three regression records match the retained artifacts byte for byte, both runners seed and retest them fail-closed, the fbb02573 proofs carry `retested_regressions` all `still_crashes false` matching their c0-mint runtime records, the validator refuses any dirty worktree, and its unit suite is discovered by two `quick` checkers. Both open P2 claims are CLOSED at HEAD (all 18 proofs bind ancestor fbb02573; merge-judgment 512/512 re-run on clang-18 with a matching runtime record; t",
-    "p2_open": [
-      "vulcan_review_closure_note: [evidence] machineresearch/sley-2.0/machine-summary.json:3026 - the VM slice's durable proof (`source_commit 209c661\u2026`, `executed_runs 1576`) is bound to a comm",
-      "vulcan_review_closure_note@db53894: [evidence] machineresearch/sley-2.0/machine-summary.json (s20_700_merge_judgment_fuzz_slice.last_local_proof, s20_700_vm_persistent_fuzz_slice.last_local_proof)"
-    ],
-    "p2_open_count": 2,
+    "p2_open": [],
+    "p2_open_count": 0,
     "p3_open": [
       "vulcan_review_closure_note: [evidence] scripts/check_merge_persistent_fuzz_slice.py:105 - prior V-01 still open: only `check_vm_persistent_fuzz_slice.py:218-267` validates `last_local_proo",
-      "vulcan_review_closure_note: [tests] fuzz/regressions/ - prior V-02 still open: `fuzz/regressions/` holds only HARNESS_001, SMP1_001, VM_001, VM_002; no `S20_700_PACK_001/002` or `S20_700_G",
       "vulcan_review_closure_note: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 still open (advisory): no lane refuses an unlanded E7 opcode (145, 160, 162) under either pr",
-      "vulcan_review_closure_note@db53894: [evidence] scripts/check_merge_persistent_fuzz_slice.py:105 - prior V-01 open: only `check_vm_persistent_fuzz_slice.py:218-267` validates `last_local_proof` (PA",
-      "vulcan_review_closure_note@db53894: [tests] fuzz/regressions/ - prior V-02 open: still only HARNESS_001, SMP1_001, VM_001, VM_002; no `S20_700_PACK_001/002` or `S20_700_GRAPH_CFG_001` record or fi",
       "vulcan_review_closure_note@db53894: [evidence] machineresearch/sley-2.0/machine-summary.json (s20_700_semantic_checkers_persistent_fuzz_slice.last_local_proof) - the refresh made the tracked recor",
-      "vulcan_review_closure_note@db53894: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 open (advisory): no lane refuses an unlanded E7 opcode (145/160/162) under either profile; `",
       "vulcan_review_closure_note@7622776: [gate] Makefile:3-124 - residual of the prior P2's second leg: `Makefile` and `check_s20_700_frontier.py` are byte-identical to db53894e, so `quick` still runs ",
       "vulcan_review_closure_note@7622776: [evidence] scripts/fuzz_proof_record.py:117-122 - the shared validator is fail-open on absent keys: a record with no `new_crash_artifacts` and no `owner_lib_san",
-      "vulcan_review_closure_note@7622776: [tests] fuzz/regressions/ - prior V-02 open: still only HARNESS_001 (type_checker `c2`), SMP1_001, VM_001, VM_002; no `S20_700_PACK_001/002` or `S20_700_GRAPH_C",
-      "vulcan_review_closure_note@7622776: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 open (advisory): no lane refuses unlanded E7 opcodes 145/160/162; `:1133-1140` is the adapte",
-      "vulcan_review_closure_note@c67b072: [tests] fuzz/regressions/ - prior V-02 OPEN: still only HARNESS_001, SMP1_001, VM_001, VM_002; no `S20_700_PACK_001/002` or `S20_700_GRAPH_CFG_001`; no tracked ",
       "vulcan_review_closure_note@c67b072: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 OPEN (advisory): no lane refuses unlanded E7 opcodes 145/160/162; target and `VM_EXTENDED_OP",
       "vulcan_review_closure_note@c67b072: [tests] scripts/fuzz_proof_record.py:92-141 - the shared validator that gates all 18 slice proofs has no unit test anywhere in the repo (grep `fuzz_proof_record",
-      "vulcan_review_closure_note@76ae15a: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 OPEN (advisory): no lane refuses unlanded E7 opcodes 145/160/162; target and `VM_EXTENDED_OP",
       "vulcan_review_closure_note@76ae15a: [gate] scripts/check_semantic_checkers_persistent_fuzz_slice.py:14,161-169 and scripts/check_pack_persistent_fuzz_slice.py:55-70 - the V-02 repair has no pin: n"
     ],
-    "p3_open_count": 16,
+    "p3_open_count": 8,
     "p4_open": [
       "vulcan_review_closure_note: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 still open: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6",
-      "vulcan_review_closure_note@db53894: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 open: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6/7 rat",
       "vulcan_review_closure_note@db53894: [evidence] machineresearch/sley-2.0/machine-summary.json (every 867009de last_local_proof.note) - the note says \"clean detached worktree\" but each record's own ",
-      "vulcan_review_closure_note@7622776: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 open: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6/7; ta",
-      "vulcan_review_closure_note@7622776: [evidence] scripts/fuzz_proof_record.py:92-139 - residual of the closed prior P4: the validator never reads `worktree_dirty_files`; a record whose own dirty lis",
       "vulcan_review_closure_note@7622776: [evidence] machineresearch/sley-2.0/machine-summary.json (every last_local_proof.note) - chronology: the 25d6d0ba-bound proofs exist only at the records-only de",
-      "vulcan_review_closure_note@c67b072: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 OPEN: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6/7; ta",
-      "vulcan_review_closure_note@c67b072: [evidence] scripts/fuzz_proof_record.py:92-141 - prior residual OPEN: the validator never reads `worktree_dirty_files`; probe with `worktree_dirty_files=['crate",
-      "vulcan_review_closure_note@c67b072: [evidence] machineresearch/sley-2.0/machine-summary.json:2273 (every last_local_proof.note) - prior chronology OPEN: the 9d1ba8f1-bound proofs exist only at the",
       "vulcan_review_closure_note@c67b072: [evidence] scripts/fuzz_proof_record.py:86-89,123 - type laxity left after the absent-key fix: `new_crash_artifacts: null`, `\"\"` or `0` pass `_all_empty` (key p",
       "vulcan_review_closure_note@c67b072: [evidence] machineresearch/sley-2.0/machine-summary.json:3915-3937 - the section's `p3_open` (11) / `p4_open` (6) still list four claims my 7622776 transcript r",
-      "vulcan_review_closure_note@76ae15a: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 OPEN: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6/7; ta",
-      "vulcan_review_closure_note@76ae15a: [evidence] machineresearch/sley-2.0/machine-summary.json (every last_local_proof.note) - prior chronology OPEN: the candidate tree fbb02573 binds all 18 proofs ",
-      "vulcan_review_closure_note@76ae15a: [evidence] scripts/fuzz_proof_record.py:86-89,123 - prior type laxity OPEN: `new_crash_artifacts` None/`\"\"`/0 and `owner_lib_sancov: true` / `executed_runs: tru",
       "vulcan_review_closure_note@76ae15a: [evidence] machineresearch/sley-2.0/machine-summary.json (s20_700_remaining_surface_audit p2_open/p3_open/p4_open) - prior over-open ledger OPEN and wider: `p2_",
       "vulcan_review_closure_note@76ae15a: [record] machineresearch/sley-2.0/14-property-fuzz-and-adversarial-results.md:88, 24-negative-results.md:14, machine-summary.json (s20_700_semantic_checkers_per"
     ],
-    "p4_open_count": 16
+    "p4_open_count": 7,
+    "p2_closed_claims": [
+      {
+        "claim": "vulcan_review_closure_note: [evidence] machineresearch/sley-2.0/machine-summary.json:3026 - the VM slice's durable proof (`source_commit 209c661\u2026`, `executed_runs 1576`) is bound to a comm",
+        "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md#L37 \u2014 178873d7 P2 (VM proof bound to non-ancestor 209c661, no gate ran the VM checker) verified closed at 76ae15ab: proof binds ancestor fbb02573, 1576/1576 runs, VM checker in quick"
+      },
+      {
+        "claim": "vulcan_review_closure_note@db53894: [evidence] machineresearch/sley-2.0/machine-summary.json (s20_700_merge_judgment_fuzz_slice.last_local_proof, s20_700_vm_persistent_fuzz_slice.last_local_proof)",
+        "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md#L38 \u2014 db53894e P2 (merge_judgment proof non-ancestor d3dee56 / binary not re-run; quick never ran the VM checker) verified closed at 76ae15ab: 512/512 re-run on clang-18 at the candidate with a matching runtime record"
+      }
+    ],
+    "p3_closed_claims": [
+      {
+        "claim": "vulcan_review_closure_note: [tests] fuzz/regressions/ - prior V-02 still open: `fuzz/regressions/` holds only HARNESS_001, SMP1_001, VM_001, VM_002; no `S20_700_PACK_001/002` or `S20_700_G",
+        "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md#L26 \u2014 V-02 regression records verified at 76ae15ab: S20_700_GRAPH_CFG_001 / PACK_001 / PACK_002 match the retained artifacts byte for byte, are seeded permanently and retested fail-closed by both runners (table row, line 26)"
+      },
+      {
+        "claim": "vulcan_review_closure_note@db53894: [tests] fuzz/regressions/ - prior V-02 open: still only HARNESS_001, SMP1_001, VM_001, VM_002; no `S20_700_PACK_001/002` or `S20_700_GRAPH_CFG_001` record or fi",
+        "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md#L26 \u2014 V-02 regression records verified at 76ae15ab: S20_700_GRAPH_CFG_001 / PACK_001 / PACK_002 match the retained artifacts byte for byte, are seeded permanently and retested fail-closed by both runners (table row, line 26)"
+      },
+      {
+        "claim": "vulcan_review_closure_note@7622776: [tests] fuzz/regressions/ - prior V-02 open: still only HARNESS_001 (type_checker `c2`), SMP1_001, VM_001, VM_002; no `S20_700_PACK_001/002` or `S20_700_GRAPH_C",
+        "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md#L26 \u2014 V-02 regression records verified at 76ae15ab: S20_700_GRAPH_CFG_001 / PACK_001 / PACK_002 match the retained artifacts byte for byte, are seeded permanently and retested fail-closed by both runners (table row, line 26)"
+      },
+      {
+        "claim": "vulcan_review_closure_note@c67b072: [tests] fuzz/regressions/ - prior V-02 OPEN: still only HARNESS_001, SMP1_001, VM_001, VM_002; no `S20_700_PACK_001/002` or `S20_700_GRAPH_CFG_001`; no tracked ",
+        "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md#L26 \u2014 V-02 regression records verified at 76ae15ab: S20_700_GRAPH_CFG_001 / PACK_001 / PACK_002 match the retained artifacts byte for byte, are seeded permanently and retested fail-closed by both runners (table row, line 26)"
+      }
+    ],
+    "p4_closed_claims": [
+      {
+        "claim": "vulcan_review_closure_note@7622776: [evidence] scripts/fuzz_proof_record.py:92-139 - residual of the closed prior P4: the validator never reads `worktree_dirty_files`; a record whose own dirty lis",
+        "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md#L28 \u2014 the validator now refuses any non-empty or non-list worktree_dirty_files (probed by the lane; test test_fuzz_proof_record.py:62-63), line 28"
+      },
+      {
+        "claim": "vulcan_review_closure_note@c67b072: [evidence] scripts/fuzz_proof_record.py:92-141 - prior residual OPEN: the validator never reads `worktree_dirty_files`; probe with `worktree_dirty_files=['crate",
+        "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-76ae15a.md#L28 \u2014 the validator now refuses any non-empty or non-list worktree_dirty_files (probed by the lane; test test_fuzz_proof_record.py:62-63), line 28"
+      }
+    ],
+    "p3_restated_claims": [
+      {
+        "claim": "vulcan_review_closure_note@db53894: [evidence] scripts/check_merge_persistent_fuzz_slice.py:105 - prior V-01 open: only `check_vm_persistent_fuzz_slice.py:218-267` validates `last_local_proof` (PA",
+        "restates": "vulcan_review_closure_note: [evidence] scripts/check_merge_persistent_fuzz_slice.py:105 - prior V-01 still open: only `check_vm_persistent_fuzz_slice.py:218-267` validates `last_local_proo"
+      },
+      {
+        "claim": "vulcan_review_closure_note@db53894: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 open (advisory): no lane refuses an unlanded E7 opcode (145/160/162) under either profile; `",
+        "restates": "vulcan_review_closure_note: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 still open (advisory): no lane refuses an unlanded E7 opcode (145, 160, 162) under either pr"
+      },
+      {
+        "claim": "vulcan_review_closure_note@7622776: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 open (advisory): no lane refuses unlanded E7 opcodes 145/160/162; `:1133-1140` is the adapte",
+        "restates": "vulcan_review_closure_note: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 still open (advisory): no lane refuses an unlanded E7 opcode (145, 160, 162) under either pr"
+      },
+      {
+        "claim": "vulcan_review_closure_note@76ae15a: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 OPEN (advisory): no lane refuses unlanded E7 opcodes 145/160/162; target and `VM_EXTENDED_OP",
+        "restates": "vulcan_review_closure_note@c67b072: [tests] fuzz/targets/vm_canonical_inputs.rs:404-435 - prior item 10 OPEN (advisory): no lane refuses unlanded E7 opcodes 145/160/162; target and `VM_EXTENDED_OP"
+      }
+    ],
+    "p4_restated_claims": [
+      {
+        "claim": "vulcan_review_closure_note@db53894: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 open: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6/7 rat",
+        "restates": "vulcan_review_closure_note: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 still open: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6"
+      },
+      {
+        "claim": "vulcan_review_closure_note@7622776: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 open: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6/7; ta",
+        "restates": "vulcan_review_closure_note: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 still open: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6"
+      },
+      {
+        "claim": "vulcan_review_closure_note@c67b072: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 OPEN: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6/7; ta",
+        "restates": "vulcan_review_closure_note: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 still open: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6"
+      },
+      {
+        "claim": "vulcan_review_closure_note@c67b072: [evidence] machineresearch/sley-2.0/machine-summary.json:2273 (every last_local_proof.note) - prior chronology OPEN: the 9d1ba8f1-bound proofs exist only at the",
+        "restates": "vulcan_review_closure_note@db53894: [evidence] machineresearch/sley-2.0/machine-summary.json (every 867009de last_local_proof.note) - the note says \"clean detached worktree\" but each record's own "
+      },
+      {
+        "claim": "vulcan_review_closure_note@76ae15a: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 OPEN: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6/7; ta",
+        "restates": "vulcan_review_closure_note: [tests] fuzz/targets/vm_canonical_inputs.rs:427-430 - prior V-06 still open: E6/E7a restricted refusal accepts any `ExecutionError::Lowering(_)` for selectors 6"
+      },
+      {
+        "claim": "vulcan_review_closure_note@76ae15a: [evidence] machineresearch/sley-2.0/machine-summary.json (every last_local_proof.note) - prior chronology OPEN: the candidate tree fbb02573 binds all 18 proofs ",
+        "restates": "vulcan_review_closure_note@db53894: [evidence] machineresearch/sley-2.0/machine-summary.json (every 867009de last_local_proof.note) - the note says \"clean detached worktree\" but each record's own "
+      },
+      {
+        "claim": "vulcan_review_closure_note@76ae15a: [evidence] scripts/fuzz_proof_record.py:86-89,123 - prior type laxity OPEN: `new_crash_artifacts` None/`\"\"`/0 and `owner_lib_sancov: true` / `executed_runs: tru",
+        "restates": "vulcan_review_closure_note@c67b072: [evidence] scripts/fuzz_proof_record.py:86-89,123 - type laxity left after the absent-key fix: `new_crash_artifacts: null`, `\"\"` or `0` pass `_all_empty` (key p"
+      }
+    ]
   },
   "candidate_contract_freeze": {
     "status": "S20_345_CONTRACT_AND_IDENTITY_FREEZE_COMPLETE",
@@ -4279,7 +4376,7 @@
     "candidate_member_count": 15,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
-    "offline_tests": 14,
+    "offline_tests": 16,
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
@@ -4291,7 +4388,7 @@
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
     "candidate_evidence_commit": "fbb0257364b6fa557e4b3db0f391232df8df2c81",
-    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) was minted in a detached linked worktree of that commit (two clean musl builds, REPRODUCIBLE) after the RW-090 codec repairs; the secondary attestation is pending because greyforgelab is under an exclusive ZJX qualification lease until 2026-09-21T03:24Z. The superseded 45b2cd98 secondary attestation is not carried and is not in the tracked report (it had already been removed at 75ad17aa (the c75277b6 mint; 9316df19 inherited the primary-only state), before contract revision 10 existed, so the report's superseded_attestations list is empty); its supersession is recorded in git history, the second-host lane ledger and the reproducibility section's attestation_supersedes chain. Next, after the lease is released and the host acquired under the coordination rules: bundle main, clone detached at the candidate commit named by candidate_commit on the lab, make release-candidate-build, build_reproducibility_report.py --host-label secondary --emit-attestation, merge with --attest, file the lane receipt, re-pin attested_hosts/reproducibility_result/second_host_status/blockers (runbook script: Work/checkpoints/sley2-finish-20260915/resume-20260918/second_host_attest.sh, which reads the candidate identity from the tracked report and refuses while the lease is held).",
+    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) was minted in a detached linked worktree of that commit (two clean musl builds, REPRODUCIBLE) after the RW-090 codec repairs; the secondary attestation is pending because greyforgelab is under an exclusive ZJX qualification lease until 2026-09-21T03:24Z. The superseded 45b2cd98 secondary attestation is not carried and is not in the tracked report (it had already been removed at 75ad17aa (the c75277b6 mint; 9316df19 inherited the primary-only state), before contract revision 10 existed, so the report's superseded_attestations list is empty); its supersession is recorded in git history, the second-host lane ledger and the reproducibility section's attestation_supersedes chain. Next, after the lease is released and the host acquired under the coordination rules: bundle main, clone detached at the candidate commit named by candidate_commit on the lab, make release-candidate-build, build_reproducibility_report.py --host-label secondary --emit-attestation, merge with --attest, file the lane receipt, re-pin attested_hosts/reproducibility_result/second_host_status/blockers (runbook script: scripts/second_host_attest.sh, tracked since the 76ae15ab round, which reads the candidate identity from the tracked report and refuses while the lease is held; phases check | build | merge).",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
@@ -4359,10 +4456,7 @@
       "nabu_architecture_review@db53894: [duplicated-predicate] scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:505-526 and docs/spec/FINDING_REGISTER_V1.md:207-208",
       "nabu_architecture_review@db53894: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - no test exercises the lint branch at scripts/check_release_candidate_packa",
       "nabu_architecture_review@db53894: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
-      "nabu_architecture_review@db53894: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4212 \u2192 /home/gfarch/Work/checkpoints/sley2-finish-20260915/resume",
-      "nabu_architecture_review@db53894: [local-state] (carried from c04539b9, OPEN) dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - this worktree's archive still hashes to b9e2382f\u2026 (the 7426bc0b a",
       "vulcan_surface_review@db53894: [record-staleness] machineresearch/sley-2.0/machine-summary.json:4293-4296 (`p3_open[0-3]`), :4264-4271 (`p4_open[1-8]`), :4281 (`p4_open[18]`) - carried from c",
-      "vulcan_surface_review@db53894: [test-coverage] scripts/check_release_candidate_packaging.py:238-246 and scripts/record_lint_report.py:64-70 - carried from c04539b9, unchanged: no unit test ex",
       "vulcan_surface_review@db53894: [robustness] scripts/record_lint_report.py:66-69 - carried from c04539b9, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASCII, so su",
       "vulcan_surface_review@db53894: [register-chronology] scripts/build_finding_register.py:138-155,359-372 with evidence/review/finding-register.json obligations[181] - residual of the closed reg",
       "vulcan_surface_review@db53894: [evidence-integrity] commit 867009de message (\"retire_claims.py\") vs the tree - the message names `retire_claims.py` as the tool that moved claims into `pN_clos",
@@ -4373,37 +4467,17 @@
       "nabu_architecture_review@7622776: [untested-tool] scripts/retire_review_claims.py:45-49,87-91,155-167 with Makefile:86-90,220-270 - the retirement tool has no unit test (`grep -rl retire_review_",
       "nabu_architecture_review@7622776: [ledger-duplication] machineresearch/sley-2.0/machine-summary.json:4283-4289 vs :4296-4302 (`p4_open`), :4412 vs :4420 (`p4_closed_claims`) - seven carried-open",
       "nabu_architecture_review@7622776: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - \u00a77 still lists ",
-      "nabu_architecture_review@7622776: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:505-531 and docs/spec/",
-      "nabu_architecture_review@7622776: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - no test exercises the lint branch at scripts/check_release_candidate_packa",
-      "nabu_architecture_review@7622776: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
-      "nabu_architecture_review@7622776: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4230 \u2192 /home/gfarch/Work/checkpoints/sley2-finish-20260915/resume",
-      "nabu_architecture_review@7622776: [local-state] (carried from c04539b9, OPEN) dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - this worktree's archive still hashes to b9e2382f\u2026 (2507941 bytes,",
       "vulcan_surface_review@7622776: [robustness] scripts/retire_review_claims.py:109-152,155-167 with scripts/build_finding_register.py:566-570 - the tool cannot detect an illegitimate retirement:",
       "vulcan_surface_review@7622776: [ledger-shape] machineresearch/sley-2.0/machine-summary.json:4282-4289 vs :4296-4302 (`p4_open[1-8]` vs `[15-21]`) - each carried-open P4 is listed twice, once ",
-      "vulcan_surface_review@7622776: [test-coverage] scripts/check_release_candidate_packaging.py:238-246 and scripts/record_lint_report.py:64-70 - carried from c04539b9/db53894e, unchanged: no uni",
-      "vulcan_surface_review@7622776: [robustness] scripts/record_lint_report.py:65-69 - carried from c04539b9/db53894e, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASC",
-      "vulcan_surface_review@7622776: [register-chronology] scripts/build_finding_register.py:140-160 with evidence/review/finding-register.json obligations[181] - carried from db53894e, unchanged: ",
       "vulcan_surface_review@7622776: [robustness] scripts/build_ga_acceptance_report.py:316-320 with scripts/build_finding_register.py:519-531,644 - carried from db53894e, unchanged: the GA row sum",
       "ariadne_contract_review@c67b072: [doc-drift] scripts/retire_review_claims.py:9-19,21-23 - the module docstring still describes the 76227765 binding (`verified_by` \"is that verdict's transcript ",
       "nabu_architecture_review@c67b072: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4224 (`nabu_architecture_review` = `\u2026_1_P3_9_P4_PRIOR_P3_CLOSED`) vs :4332-4339 (eight `nabu_",
       "nabu_architecture_review@c67b072: [revision-identity] docs/spec/FINDING_REGISTER_V1.md:3,8-32 with scripts/build_finding_register.py:35 (`CONTRACT_REVISION = 6`), scripts/check_finding_register.",
       "nabu_architecture_review@c67b072: [untested-tool] (carried from 76227765, OPEN) scripts/retire_review_claims.py:48-52,99-101,149-163 with Makefile (no target runs `--check`) - still no unit test",
-      "nabu_architecture_review@c67b072: [ledger-duplication] (carried from 76227765, OPEN, grown) machineresearch/sley-2.0/machine-summary.json:4303-4347 (`p4_open`, 42 listed, \u226425 distinct; e.g. :430",
-      "nabu_architecture_review@c67b072: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - \u00a77 still lists ",
-      "nabu_architecture_review@c67b072: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:517-538 - the row stil",
-      "nabu_architecture_review@c67b072: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - the lint branch at scripts/check_release_candidate_packaging.py:238-246 st",
-      "nabu_architecture_review@c67b072: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
-      "nabu_architecture_review@c67b072: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4253 \u2192 second_host_attest.sh - the runbook is still untracked (0 ",
-      "nabu_architecture_review@c67b072: [local-state] (carried from c04539b9, OPEN) dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - this worktree's archive still hashes to b9e2382f\u2026 (2507941 bytes,",
       "vulcan_surface_review@c67b072: [record-staleness] machineresearch/sley-2.0/machine-summary.json packaging `p4_open[6]`, `[19]`, `[23]`; reproducibility `p3_open[2-3]`, standards/rw090/exchang",
       "vulcan_surface_review@c67b072: [records] machineresearch/sley-2.0/machine-summary.json standards `p1_closed_claims[0-1]`, `p2_closed_claims[0]`, `p3_closed_claims[0,1,4]` with evidence/review",
       "vulcan_surface_review@c67b072: [robustness] scripts/build_finding_register.py:631-633 - a `verified_by` of the form `\u2026#L, \u2014 note` or `\u2026#L22,,23 \u2014 note` raises an uncaught `ValueError` in `int",
       "vulcan_surface_review@c67b072: [records] docs/spec/FINDING_REGISTER_V1.md:8-32 with scripts/check_finding_register.py:163,178 and evidence/review/finding-register.json `contract_revision` 6 -",
-      "vulcan_surface_review@c67b072: [robustness] scripts/retire_review_claims.py:124-173,158 with scripts/build_finding_register.py:626-638 - carried from 76227765, partially mitigated: `--check` ",
-      "vulcan_surface_review@c67b072: [ledger-shape] machineresearch/sley-2.0/machine-summary.json packaging `p4_open` (42 entries) - carried from 76227765, worse: each carried-open P4 is now listed",
-      "vulcan_surface_review@c67b072: [test-coverage] scripts/check_release_candidate_packaging.py:235-246 and scripts/record_lint_report.py:64-70 - carried, unchanged: no unit test exercises the li",
-      "vulcan_surface_review@c67b072: [robustness] scripts/record_lint_report.py:65-69 - carried, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASCII so such entries neve",
-      "vulcan_surface_review@c67b072: [register-chronology] scripts/build_finding_register.py fold loop with evidence/review/finding-register.json obligations[181] - carried, unchanged: undated roun",
       "vulcan_surface_review@c67b072: [robustness] scripts/build_ga_acceptance_report.py:316-320 with scripts/build_finding_register.py `package_open_claims` - carried, unchanged: the GA row sums on",
       "ariadne_contract_review_revision_5: [record] machineresearch/sley-2.0/machine-summary.json:3882 - `offline_tests_note` still says \"the checker does not enforce this field\", but `scripts/check_rele",
       "ariadne_contract_review_revision_5: [record] evidence/release/decision-dossier.json:390,419 (mirrored from machine-summary `open_risks` :4064 and `evidence_gaps` :4040, outside this section's owne",
@@ -4415,28 +4489,17 @@
       "nabu_architecture_review@76ae15a: [revision-identity] (carried from c67b0729, OPEN, grown) docs/spec/FINDING_REGISTER_V1.md:3,16-24,35-39 with scripts/build_finding_register.py:35, scripts/check",
       "nabu_architecture_review@76ae15a: [chronology] scripts/build_finding_register.py:591-593 (docstring \"strictly later\") vs :606-609 (own-round only) with scripts/retire_review_claims.py:68-81,147 ",
       "nabu_architecture_review@76ae15a: [test-coverage] scripts/check_reproducibility_and_independent_conformance.py:428-432 with bench/release/tests/ (0 hits for `attestation_chain:stale`/`:missing`)",
-      "nabu_architecture_review@76ae15a: [untested-tool] (carried from 76227765, OPEN) scripts/retire_review_claims.py:12-13,48-52,99-101 with Makefile - no unit test (0 hits in bench/), `--check` in n",
       "nabu_architecture_review@76ae15a: [ledger-duplication] (carried from 76227765, OPEN, grown) machineresearch/sley-2.0/machine-summary.json:4414 (`p4_open_count` 63, \u226425 distinct), :4423-4437 (`p3",
-      "nabu_architecture_review@76ae15a: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - \u00a77 still lists ",
-      "nabu_architecture_review@76ae15a: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:517-538 - the row stil",
-      "nabu_architecture_review@76ae15a: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - the lint branch at scripts/check_release_candidate_packaging.py:238-246 st",
-      "nabu_architecture_review@76ae15a: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
       "nabu_architecture_review@76ae15a: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json `candidate_second_host_note` \u2192 second_host_attest.sh - still untr",
-      "nabu_architecture_review@76ae15a: [local-state] (carried from c04539b9, OPEN) dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - this worktree's archive hashes to b9e2382f\u2026 (2507941 bytes) while",
       "vulcan_surface_review@76ae15a: [record-staleness] machineresearch/sley-2.0/machine-summary.json:4356,4373 (packaging `p4_open[6]`, `[23]`) and the reopened P3/P4 claims of repository_exchange",
       "vulcan_surface_review@76ae15a: [test-coverage] scripts/check_reproducibility_and_independent_conformance.py:426-432 with bench/release/tests/test_reproducibility.py:440-466 - residual of the ",
       "vulcan_surface_review@76ae15a: [grammar-precision] scripts/build_finding_register.py:546-557 with evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-7622776.md:49, ",
       "vulcan_surface_review@76ae15a: [binding] scripts/check_pack_persistent_fuzz_slice.py and scripts/check_semantic_checkers_persistent_fuzz_slice.py with scripts/run_pack_persistent_fuzz.py:20-2",
       "vulcan_surface_review@76ae15a: [robustness] scripts/build_finding_register.py:674-676 - carried, unchanged: `#L, \u2014 note` and `#L21,,23 \u2014 note` raise an uncaught `ValueError` (probed) reported",
       "vulcan_surface_review@76ae15a: [records] docs/spec/FINDING_REGISTER_V1.md:3,16-24 with scripts/build_finding_register.py:35 and scripts/check_finding_register.py:163,178 - carried, worse: a s",
-      "vulcan_surface_review@76ae15a: [robustness] scripts/retire_review_claims.py:48-52,124-177,158,187-189 - carried, partially mitigated: no replay of existing closed claims, unvalidated explicit",
-      "vulcan_surface_review@76ae15a: [ledger-shape] machineresearch/sley-2.0/machine-summary.json:4349-4414 (packaging `p4_open`, 63 entries) - carried, worse: each carried-open P4 is listed four t",
-      "vulcan_surface_review@76ae15a: [test-coverage] scripts/check_release_candidate_packaging.py:235-246 and scripts/record_lint_report.py:64-70 - carried, unchanged: no unit test exercises the li",
-      "vulcan_surface_review@76ae15a: [robustness] scripts/record_lint_report.py:65-69 - carried, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASCII so such entries neve",
-      "vulcan_surface_review@76ae15a: [register-chronology] scripts/build_finding_register.py fold loop with evidence/review/finding-register.json obligations[181] - carried, unchanged: `vulcan_surf",
-      "vulcan_surface_review@76ae15a: [robustness] scripts/build_ga_acceptance_report.py:316-320 with scripts/build_finding_register.py `package_open_claims` - carried, unchanged: the GA row sums on"
+      "vulcan_surface_review@76ae15a: [register-chronology] scripts/build_finding_register.py fold loop with evidence/review/finding-register.json obligations[181] - carried, unchanged: `vulcan_surf"
     ],
-    "p4_open_count": 93,
+    "p4_open_count": 59,
     "nabu_architecture_review_revision_3_closure_note": "original disposition preserved verbatim in nabu_architecture_review_revision_3_original_note; carried P3 verified closed item by item; PASS_0_P0_0_P1_0_P2_0_P3_0_P4_PRIOR_P3_CLOSED via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review_revision_3_closure-178873d.md (sha256 8ad35b1ebf86117b768912d0ffde7b8ccbbc398eb4ae27f51a237a69356f1271) (transcript FIELD line reads nabu_architecture_review_revision_3_closure). The revision-3 row maps to `nabu_architecture_review-3320ca9.md` (three P3, four P4), confirmed by the `43ea736b` filing commit and the R11 closures entry. P3[1] (stale closeout \"current attestation\" parenthetical) closed at `43ea736b`/`e0ec341e` by delegating to the checker-bound `candidate_*` fields; P3[2] (missing `_revision_2` register field) closed at `43ea736b`; P3[3] (no per-output owner map for the smoke's S20-710/730/750 writes) closed at `a8672ba1` by spec \u00a710's owner table, which I verified against the current `release-candidate-build` outputs. Checker PASS (0 problems, revision 5) ",
     "nabu_architecture_review_revision_3_original_note": "PASS_0_P0_0_P1_0_P2_3_P3",
     "vulcan_surface_review_revision_2_closure_note": "original disposition preserved verbatim in vulcan_surface_review_revision_2_original_note; carried P3/P4 verified closed item by item; REVISE_0_P0_0_P1_0_P2_0_P3_1_P4_PRIOR_P3_P4_CLOSED via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review_revision_2_closure-178873d.md (sha256 ddab86025822f9ac07f42fca6d069b945f96ba5a4ab99d66d72e3be6ccabe41c) (transcript FIELD line reads vulcan_surface_review_revision_2_closure). The revision-2 row maps to `vulcan_surface_review-abf4ff0.md` (confirmed by the `43ea736b` filing commit and the R12 closures entry). Both named P3s are verified closed at 178873d7: the `--no-keep` replayability defect at `d01237f3` (store_false flag, flags-only invocation, parser round-trip tests) and the missing whole-tree/invocation tests at `d01237f3`/`7ecde3d9` (`test_porcelain_sees_untracked_files`, `FailureEvidenceTests`); the transcript's three P4s and two P2s are closed as well. Checker PASS with 0 problems and 139/139 tests OK. One new P4 record note: the row's count string omits the",
@@ -4494,7 +4557,7 @@
       },
       {
         "claim": "ariadne_contract_review@db53894: [record-integrity] machineresearch/sley-2.0/machine-summary.json:4343-4345 (`p4_closed_claims[3]`) - the nabu_architecture_review_revision_2_closure P4 is retir",
-        "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-7622776.md#L22 \u2014 ariadne_contract_review-7622776 at 76227765 verified the carried P3 closed"
+        "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-7622776.md#L22,23 \u2014 ariadne_contract_review-7622776 at 76227765 verified the carried P3 closed"
       },
       {
         "claim": "ariadne_contract_review@db53894: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4292-4300 (`p3_open`) and :4262-4283 (`p4_open`) - the retirement rule 867009de states (\"open",
@@ -4502,7 +4565,7 @@
       },
       {
         "claim": "nabu_architecture_review@db53894: [unowned-authority] machineresearch/sley-2.0/machine-summary.json:4307-4352 (`p2/p3/p4_closed_claims`, `verified_by`) with docs/spec/FINDING_REGISTER_V1.md:142-",
-        "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-7622776.md#L29 \u2014 nabu_architecture_review-7622776 at 76227765 verified the carried P3 closed"
+        "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-7622776.md#L29,31 \u2014 nabu_architecture_review-7622776 at 76227765 verified the carried P3 closed"
       },
       {
         "claim": "nabu_architecture_review@db53894: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4183 (`nabu_architecture_review` = `\u2026_PRIOR_P3_P4_CLOSED`) vs :4295,:4267,:4268; :4182 (`aria",
@@ -4526,7 +4589,7 @@
       },
       {
         "claim": "nabu_architecture_review_revision_5: [identity-discipline] machineresearch/sley-2.0/machine-summary.json:3878,3881 - `mint_method` (\"primary clean-tree mint \u2026 at 45b2cd9; independently repeated \u2026 o",
-        "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-92fa664.md#L31 \u2014 PASS_..._PRIOR_P3_CLOSED at 92fa6646: the lane's revision-5 P3s verified closed"
+        "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-92fa664.md#L31,35 \u2014 PASS_..._PRIOR_P3_CLOSED at 92fa6646: the lane's revision-5 P3s verified closed"
       },
       {
         "claim": "nabu_architecture_review_revision_5: [record-consistency] machineresearch/sley-2.0/machine-summary.json:3874 - the `candidate_second_host_note` runbook step \"Next: bundle main, clone detached at c7",
@@ -4581,6 +4644,144 @@
       {
         "claim": "vulcan_surface_review: [register-supersession] evidence/review/finding-register.json obligations[182] (and superseded_rounds) with scripts/build_finding_register.py:100-107,155-159 - ",
         "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md#L29 \u2014 line 29: the register-supersession P4 recorded CLOSED for the cited instance and mechanism (contract revision 5 chronology rule)"
+      }
+    ],
+    "p4_restated_claims": [
+      {
+        "claim": "nabu_architecture_review@db53894: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4212 \u2192 /home/gfarch/Work/checkpoints/sley2-finish-20260915/resume",
+        "restates": "nabu_architecture_review: [runbook-tracking] machineresearch/sley-2.0/machine-summary.json:4200 \u2192 /home/gfarch/Work/checkpoints/sley2-finish-20260915/resume-20260918/second_host_attest.s"
+      },
+      {
+        "claim": "nabu_architecture_review@db53894: [local-state] (carried from c04539b9, OPEN) dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - this worktree's archive still hashes to b9e2382f\u2026 (the 7426bc0b a",
+        "restates": "nabu_architecture_review: [local-state] dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - in this worktree the archive hashes to the superseded 7426bc0b artifact (b9e2382f\u2026, 2507941 byt"
+      },
+      {
+        "claim": "vulcan_surface_review@db53894: [test-coverage] scripts/check_release_candidate_packaging.py:238-246 and scripts/record_lint_report.py:64-70 - carried from c04539b9, unchanged: no unit test ex",
+        "restates": "vulcan_surface_review: [test-coverage] scripts/check_release_candidate_packaging.py:238-246 and scripts/record_lint_report.py:64-70 - the new lint-report binding and dirty-input class"
+      },
+      {
+        "claim": "nabu_architecture_review@7622776: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:505-531 and docs/spec/",
+        "restates": "nabu_architecture_review@db53894: [duplicated-predicate] scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:505-526 and docs/spec/FINDING_REGISTER_V1.md:207-208"
+      },
+      {
+        "claim": "nabu_architecture_review@7622776: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - no test exercises the lint branch at scripts/check_release_candidate_packa",
+        "restates": "nabu_architecture_review@db53894: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - no test exercises the lint branch at scripts/check_release_candidate_packa"
+      },
+      {
+        "claim": "nabu_architecture_review@7622776: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
+        "restates": "nabu_architecture_review@db53894: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate"
+      },
+      {
+        "claim": "nabu_architecture_review@7622776: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4230 \u2192 /home/gfarch/Work/checkpoints/sley2-finish-20260915/resume",
+        "restates": "nabu_architecture_review: [runbook-tracking] machineresearch/sley-2.0/machine-summary.json:4200 \u2192 /home/gfarch/Work/checkpoints/sley2-finish-20260915/resume-20260918/second_host_attest.s"
+      },
+      {
+        "claim": "nabu_architecture_review@7622776: [local-state] (carried from c04539b9, OPEN) dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - this worktree's archive still hashes to b9e2382f\u2026 (2507941 bytes,",
+        "restates": "nabu_architecture_review: [local-state] dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - in this worktree the archive hashes to the superseded 7426bc0b artifact (b9e2382f\u2026, 2507941 byt"
+      },
+      {
+        "claim": "vulcan_surface_review@7622776: [test-coverage] scripts/check_release_candidate_packaging.py:238-246 and scripts/record_lint_report.py:64-70 - carried from c04539b9/db53894e, unchanged: no uni",
+        "restates": "vulcan_surface_review: [test-coverage] scripts/check_release_candidate_packaging.py:238-246 and scripts/record_lint_report.py:64-70 - the new lint-report binding and dirty-input class"
+      },
+      {
+        "claim": "vulcan_surface_review@7622776: [robustness] scripts/record_lint_report.py:65-69 - carried from c04539b9/db53894e, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASC",
+        "restates": "vulcan_surface_review@db53894: [robustness] scripts/record_lint_report.py:66-69 - carried from c04539b9, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASCII, so su"
+      },
+      {
+        "claim": "vulcan_surface_review@7622776: [register-chronology] scripts/build_finding_register.py:140-160 with evidence/review/finding-register.json obligations[181] - carried from db53894e, unchanged: ",
+        "restates": "vulcan_surface_review@db53894: [register-chronology] scripts/build_finding_register.py:138-155,359-372 with evidence/review/finding-register.json obligations[181] - residual of the closed reg"
+      },
+      {
+        "claim": "nabu_architecture_review@c67b072: [ledger-duplication] (carried from 76227765, OPEN, grown) machineresearch/sley-2.0/machine-summary.json:4303-4347 (`p4_open`, 42 listed, \u226425 distinct; e.g. :430",
+        "restates": "nabu_architecture_review@7622776: [ledger-duplication] machineresearch/sley-2.0/machine-summary.json:4283-4289 vs :4296-4302 (`p4_open`), :4412 vs :4420 (`p4_closed_claims`) - seven carried-open"
+      },
+      {
+        "claim": "nabu_architecture_review@c67b072: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - \u00a77 still lists ",
+        "restates": "nabu_architecture_review@7622776: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - \u00a77 still lists "
+      },
+      {
+        "claim": "nabu_architecture_review@c67b072: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:517-538 - the row stil",
+        "restates": "nabu_architecture_review@db53894: [duplicated-predicate] scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:505-526 and docs/spec/FINDING_REGISTER_V1.md:207-208"
+      },
+      {
+        "claim": "nabu_architecture_review@c67b072: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - the lint branch at scripts/check_release_candidate_packaging.py:238-246 st",
+        "restates": "nabu_architecture_review@db53894: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - no test exercises the lint branch at scripts/check_release_candidate_packa"
+      },
+      {
+        "claim": "nabu_architecture_review@c67b072: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
+        "restates": "nabu_architecture_review@db53894: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate"
+      },
+      {
+        "claim": "nabu_architecture_review@c67b072: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4253 \u2192 second_host_attest.sh - the runbook is still untracked (0 ",
+        "restates": "nabu_architecture_review: [runbook-tracking] machineresearch/sley-2.0/machine-summary.json:4200 \u2192 /home/gfarch/Work/checkpoints/sley2-finish-20260915/resume-20260918/second_host_attest.s"
+      },
+      {
+        "claim": "nabu_architecture_review@c67b072: [local-state] (carried from c04539b9, OPEN) dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - this worktree's archive still hashes to b9e2382f\u2026 (2507941 bytes,",
+        "restates": "nabu_architecture_review: [local-state] dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - in this worktree the archive hashes to the superseded 7426bc0b artifact (b9e2382f\u2026, 2507941 byt"
+      },
+      {
+        "claim": "vulcan_surface_review@c67b072: [robustness] scripts/retire_review_claims.py:124-173,158 with scripts/build_finding_register.py:626-638 - carried from 76227765, partially mitigated: `--check` ",
+        "restates": "vulcan_surface_review@7622776: [robustness] scripts/retire_review_claims.py:109-152,155-167 with scripts/build_finding_register.py:566-570 - the tool cannot detect an illegitimate retirement:"
+      },
+      {
+        "claim": "vulcan_surface_review@c67b072: [ledger-shape] machineresearch/sley-2.0/machine-summary.json packaging `p4_open` (42 entries) - carried from 76227765, worse: each carried-open P4 is now listed",
+        "restates": "vulcan_surface_review@7622776: [ledger-shape] machineresearch/sley-2.0/machine-summary.json:4282-4289 vs :4296-4302 (`p4_open[1-8]` vs `[15-21]`) - each carried-open P4 is listed twice, once "
+      },
+      {
+        "claim": "vulcan_surface_review@c67b072: [test-coverage] scripts/check_release_candidate_packaging.py:235-246 and scripts/record_lint_report.py:64-70 - carried, unchanged: no unit test exercises the li",
+        "restates": "vulcan_surface_review: [test-coverage] scripts/check_release_candidate_packaging.py:238-246 and scripts/record_lint_report.py:64-70 - the new lint-report binding and dirty-input class"
+      },
+      {
+        "claim": "vulcan_surface_review@c67b072: [robustness] scripts/record_lint_report.py:65-69 - carried, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASCII so such entries neve",
+        "restates": "vulcan_surface_review@db53894: [robustness] scripts/record_lint_report.py:66-69 - carried from c04539b9, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASCII, so su"
+      },
+      {
+        "claim": "vulcan_surface_review@c67b072: [register-chronology] scripts/build_finding_register.py fold loop with evidence/review/finding-register.json obligations[181] - carried, unchanged: undated roun",
+        "restates": "vulcan_surface_review@db53894: [register-chronology] scripts/build_finding_register.py:138-155,359-372 with evidence/review/finding-register.json obligations[181] - residual of the closed reg"
+      },
+      {
+        "claim": "nabu_architecture_review@76ae15a: [untested-tool] (carried from 76227765, OPEN) scripts/retire_review_claims.py:12-13,48-52,99-101 with Makefile - no unit test (0 hits in bench/), `--check` in n",
+        "restates": "nabu_architecture_review@c67b072: [untested-tool] (carried from 76227765, OPEN) scripts/retire_review_claims.py:48-52,99-101,149-163 with Makefile (no target runs `--check`) - still no unit test"
+      },
+      {
+        "claim": "nabu_architecture_review@76ae15a: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - \u00a77 still lists ",
+        "restates": "nabu_architecture_review@7622776: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - \u00a77 still lists "
+      },
+      {
+        "claim": "nabu_architecture_review@76ae15a: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:517-538 - the row stil",
+        "restates": "nabu_architecture_review@db53894: [duplicated-predicate] scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:505-526 and docs/spec/FINDING_REGISTER_V1.md:207-208"
+      },
+      {
+        "claim": "nabu_architecture_review@76ae15a: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - the lint branch at scripts/check_release_candidate_packaging.py:238-246 st",
+        "restates": "nabu_architecture_review@db53894: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - no test exercises the lint branch at scripts/check_release_candidate_packa"
+      },
+      {
+        "claim": "nabu_architecture_review@76ae15a: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
+        "restates": "nabu_architecture_review@db53894: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate"
+      },
+      {
+        "claim": "nabu_architecture_review@76ae15a: [local-state] (carried from c04539b9, OPEN) dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - this worktree's archive hashes to b9e2382f\u2026 (2507941 bytes) while",
+        "restates": "nabu_architecture_review: [local-state] dist/sley-2.0.0-linux-x86_64.tar.gz (gitignored) - in this worktree the archive hashes to the superseded 7426bc0b artifact (b9e2382f\u2026, 2507941 byt"
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [robustness] scripts/retire_review_claims.py:48-52,124-177,158,187-189 - carried, partially mitigated: no replay of existing closed claims, unvalidated explicit",
+        "restates": "vulcan_surface_review@7622776: [robustness] scripts/retire_review_claims.py:109-152,155-167 with scripts/build_finding_register.py:566-570 - the tool cannot detect an illegitimate retirement:"
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [ledger-shape] machineresearch/sley-2.0/machine-summary.json:4349-4414 (packaging `p4_open`, 63 entries) - carried, worse: each carried-open P4 is listed four t",
+        "restates": "vulcan_surface_review@7622776: [ledger-shape] machineresearch/sley-2.0/machine-summary.json:4282-4289 vs :4296-4302 (`p4_open[1-8]` vs `[15-21]`) - each carried-open P4 is listed twice, once "
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [test-coverage] scripts/check_release_candidate_packaging.py:235-246 and scripts/record_lint_report.py:64-70 - carried, unchanged: no unit test exercises the li",
+        "restates": "vulcan_surface_review: [test-coverage] scripts/check_release_candidate_packaging.py:238-246 and scripts/record_lint_report.py:64-70 - the new lint-report binding and dirty-input class"
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [robustness] scripts/record_lint_report.py:65-69 - carried, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASCII so such entries neve",
+        "restates": "vulcan_surface_review@db53894: [robustness] scripts/record_lint_report.py:66-69 - carried from c04539b9, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASCII, so su"
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [robustness] scripts/build_ga_acceptance_report.py:316-320 with scripts/build_finding_register.py `package_open_claims` - carried, unchanged: the GA row sums on",
+        "restates": "vulcan_surface_review@c67b072: [robustness] scripts/build_ga_acceptance_report.py:316-320 with scripts/build_finding_register.py `package_open_claims` - carried, unchanged: the GA row sums on"
       }
     ]
   },
@@ -4863,8 +5064,6 @@
     "p2_open_count": 2,
     "p3_open": [
       "vulcan_surface_review@db53894: [evidence-integrity] machineresearch/sley-2.0/machine-summary.json:4664-4713 (p2/p3/p4_closed_claims, verified_by) with docs/spec/FINDING_REGISTER_V1.md:142-210",
-      "ariadne_contract_review_revision_7: [contract] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:230-233 - Section 3 states \"today every family pins `v1` except `entity-read`, whose S20-",
-      "nabu_architecture_review_revision_8: [contract-drift] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:230-232 vs scripts/build_independent_conformance_report.py:87-95 - The contract enu",
       "nabu_architecture_review@7622776: [duplicated-authority/fail-open] scripts/build_finding_register.py:235-238 (`closed_severities`) vs scripts/retire_review_claims.py:39 (`PRIOR`), docs/spec/FIND",
       "vulcan_surface_review@7622776: [evidence-integrity] scripts/build_finding_register.py:566-567; scripts/retire_review_claims.py:109-152,162-164; machineresearch/sley-2.0/machine-summary.json:4",
       "ariadne_contract_review@c67b072: [record-provenance] machineresearch/sley-2.0/machine-summary.json:5168-5171 (`p2_closed_claims[5]`) vs evidence/review/claim-retirements.json:498-514 (retiremen",
@@ -4877,7 +5076,7 @@
       "vulcan_surface_review@76ae15a: [evidence-integrity] scripts/build_finding_register.py:546-557,573,590-610 (claim_relation_problem checks own-round only, docstring says \"strictly later\"); scri",
       "vulcan_surface_review: [fail-closed-gap] scripts/build_reproducibility_report.py:330-354; scripts/check_reproducibility_and_independent_conformance.py:397-407; docs/spec/REPRODUCIBILI"
     ],
-    "p3_open_count": 14,
+    "p3_open_count": 12,
     "p4_open": [
       "vulcan_surface_review: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7 (optional): the oracle embeds the single vector's inputs by hand rather than deri",
       "ariadne_contract_review: [contract-vs-mechanics] scripts/build_reproducibility_report.py:464-465 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142 - Section 2 says ",
@@ -4888,19 +5087,14 @@
       "vulcan_surface_review: [record-note] machineresearch/sley-2.0/machine-summary.json:4575-4584 (p2_open/p3_open/p4_open and *_count) - The section's `p2_open` (6), `p3_open` (6), `p4_op",
       "vulcan_surface_review: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7/92fa6646 (optional): the oracle embeds the single vector's inputs by hand; unchan",
       "nabu_architecture_review@db53894: [contract-drift] scripts/build_reproducibility_report.py:464-465, docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142, docs/adr/ADR-0040-reprodu",
-      "nabu_architecture_review@db53894: [binding] machineresearch/sley-2.0/machine-summary.json:4594 (`attestation_supersedes`), :4212 (`candidate_second_host_note`) - Carried OPEN from c04539b9: the ",
       "nabu_architecture_review@db53894: [identity-discipline/records] machineresearch/sley-2.0/machine-summary.json:4629-4657 (`p3_open[0-3]`, `p4_open[1,3-8,16]`) - The retirement rule was not applie",
       "vulcan_surface_review@db53894: [record-note] machineresearch/sley-2.0/machine-summary.json:4629-4657 (p3_open, p4_open) - Residual of my c04539b9 P4: the P2 list was pruned, but the stated re",
-      "vulcan_surface_review@db53894: [fail-closed-gap] scripts/build_reproducibility_report.py:403-468 - Carried OPEN, unchanged since c04539b9: `carried_attestations` never runs `verify_report` on",
       "vulcan_surface_review@db53894: [contract-vs-checker] scripts/check_reproducibility_and_independent_conformance.py:189-196; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:150-151 ",
-      "vulcan_surface_review@db53894: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7/92fa6646/c04539b9 (optional): the oracle embeds the single vector's inputs by han",
       "ariadne_contract_review_revision_7: [records] docs/adr/ADR-0040-reproducibility-and-independent-conformance-boundary.md:9 - The revision-7 note says \"the single-host wording in this ADR is histori",
       "nabu_architecture_review_revision_8: [note] conformance/exec-package-envelope/v2 - The family's primary vector `accepted.hex` is the only non-JSON fixture in the tree and, per \u00a73 lines 251-252, is ",
-      "ariadne_contract_review_revision_8: [contract-vs-mechanics] scripts/build_reproducibility_report.py:330-354 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:111-112 - `verify_report`",
       "ariadne_contract_review@7622776: [record-accuracy] machineresearch/sley-2.0/machine-summary.json:4821-4822 (`p4_closed_claims[4]`) vs evidence/review/claim-retirements.json:122-133 - the blanke",
       "ariadne_contract_review@7622776: [contract-versioning] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:146-151,562-565 vs :3, scripts/check_reproducibility_and_independent_conforman",
       "ariadne_contract_review@7622776: [checker-binding] scripts/retire_review_claims.py:45-49,87-91 and Makefile:90,270 - (a) `closers()` extends the candidates with `current_delta_review.<lane>` (:",
-      "nabu_architecture_review@7622776: [binding] machineresearch/sley-2.0/machine-summary.json:4676 (`attestation_supersedes`) - Carried OPEN from c04539b9/db53894e: the chain is hand-extended again ",
       "nabu_architecture_review@7622776: [identity-discipline/records] machineresearch/sley-2.0/machine-summary.json:4718-4736 (`p4_open`, 17 entries for 9 distinct findings: 4719/4727, 4720/4728, 4721",
       "nabu_architecture_review@7622776: [contract-precision] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:149-151 vs scripts/build_reproducibility_report.py:472-480, bench/release/tests",
       "nabu_architecture_review@7622776: [identity-discipline/contract-revision] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:146-151,562-566, scripts/check_reproducibility_and_independe",
@@ -4909,7 +5103,6 @@
       "vulcan_surface_review@7622776: [fail-closed-gap] scripts/build_reproducibility_report.py:472-480 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:149-151 - The re-attested-host ",
       "vulcan_surface_review@7622776: [contract-vs-checker] scripts/check_reproducibility_and_independent_conformance.py:189-196; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:130-156 ",
       "vulcan_surface_review@7622776: [contract-discipline] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:146-151,562-565; scripts/check_reproducibility_and_independent_conformance.py:",
-      "vulcan_surface_review@7622776: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7/92fa6646/c04539b9/db53894e (optional): the oracle embeds the single vector's inpu",
       "ariadne_contract_review@c67b072: [record-accuracy] machineresearch/sley-2.0/machine-summary.json:5208-5211 (`p4_closed_claims[1]`) vs evidence/review/claim-retirements.json:121-133 (retirement ",
       "ariadne_contract_review@c67b072: [contract-versioning] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:146-151,562-565 vs :3, scripts/check_reproducibility_and_independent_conforman",
       "ariadne_contract_review@c67b072: [checker-binding] scripts/retire_review_claims.py:9-14,48-52,99-103 and Makefile:277-283 - carried OPEN: (a) `role()` still splits on `_` only, so the `current_",
@@ -4920,17 +5113,14 @@
       "nabu_architecture_review@c67b072: [identity-discipline/contract-revision] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:146-151,562-566, scripts/check_reproducibility_and_independe",
       "nabu_architecture_review@c67b072: [test-coverage/binding] scripts/retire_review_claims.py:48-52,99-103,176-188, Makefile:107-121,243-252,273-279 - Carried OPEN unchanged: `grep retire_review_cla",
       "vulcan_surface_review_revision_11@c67b072: [record-note] machineresearch/sley-2.0/machine-summary.json:4765-4809 (p3_open 8, p4_open 31); evidence/review/claim-retirements.json (entries 38-39, severities",
-      "vulcan_surface_review_revision_11@c67b072: [fail-closed-gap] scripts/build_reproducibility_report.py:472-480 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:149-151 - Carried OPEN, byte-id",
       "vulcan_surface_review_revision_11@c67b072: [contract-vs-checker] scripts/check_reproducibility_and_independent_conformance.py:189-196; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:130-156 ",
       "vulcan_surface_review_revision_11@c67b072: [contract-discipline] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:146-151,562-565; scripts/check_reproducibility_and_independent_conformance.py:",
       "vulcan_surface_review_revision_11@c67b072: [fail-open] scripts/retire_review_claims.py:84-90 (transcript_for) - When the `<section>/<lane>*-<scope7>.md` glob matches zero or more than one file the resolv",
-      "vulcan_surface_review_revision_11@c67b072: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7/92fa6646/c04539b9/db53894e/76227765 (optional): the oracle embeds the single vect",
       "vulcan_surface_review: [record-note] docs/adr/ADR-0040-reproducibility-and-independent-conformance-boundary.md:9 - The note \"reworded at revision 10\" (2026-09-18) still says \"the re-m",
       "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The 45b2cd98 row says \"u",
       "vulcan_surface_review: [note] scripts/build_reproducibility_report.py:432-436; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:126-129 - The supersession rule applies only",
       "ariadne_contract_review@76ae15a: [record-accuracy] machineresearch/sley-2.0/machine-summary.json:5314-5317 (`p4_closed_claims[1]`) vs evidence/review/claim-retirements.json:121-133 (retirement ",
       "ariadne_contract_review@76ae15a: [contract-versioning] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:146-151,562-565 vs :3, scripts/check_reproducibility_and_independent_conforman",
-      "ariadne_contract_review@76ae15a: [checker-binding] scripts/retire_review_claims.py:9-14,48-52,99-103 and Makefile:90,282 - carried OPEN, unchanged: (a) `role()` splits on `_` only so the dotted",
       "ariadne_contract_review@76ae15a: [test-coverage/contract] scripts/check_reproducibility_and_independent_conformance.py:426-432 vs bench/release/tests/test_reproducibility.py:423-450,465 and doc",
       "ariadne_contract_review@76ae15a: [record-accuracy] machineresearch/sley-2.0/machine-summary.json:5293-5294 (`p3_closed_claims[4]`, `verified_by \u2026ariadne_contract_review-db53894.md#L23,28`) vs e",
       "nabu_architecture_review@76ae15a: [contract-vs-mechanics/fail-open] scripts/build_finding_register.py:587-609 (`CLAIM_TAG`, `claim_relation_problem`), :682-684; bench/review/tests/test_finding_r",
@@ -4940,13 +5130,9 @@
       "nabu_architecture_review@76ae15a: [contract-vs-mechanics/test-coverage] scripts/build_finding_register.py:546-557 (`STATUS_CLOSED`, `is_closure_line`), :560-583; docs/spec/FINDING_REGISTER_V1.md",
       "nabu_architecture_review@76ae15a: [contract-precision] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:149-151 vs scripts/build_reproducibility_report.py:472-480, bench/release/tests",
       "nabu_architecture_review@76ae15a: [identity-discipline/contract-revision] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:146-151,562-566, scripts/check_reproducibility_and_independe",
-      "nabu_architecture_review@76ae15a: [test-coverage/binding] scripts/retire_review_claims.py:48-52,84-110,157-167, Makefile (byte-unchanged since c67b0729) - Carried OPEN unchanged: `grep retire_re",
       "vulcan_surface_review@76ae15a: [record-note] machineresearch/sley-2.0/machine-summary.json:4830-4846 (p3_open 14), :4847-4897 (p4_open 48 for 34 distinct); evidence/review/claim-retirements.j",
-      "vulcan_surface_review@76ae15a: [fail-closed-gap] scripts/build_reproducibility_report.py:472-480 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:149-151 - Carried OPEN, byte-id",
       "vulcan_surface_review@76ae15a: [contract-vs-checker] scripts/check_reproducibility_and_independent_conformance.py:189-196; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:130-156 ",
       "vulcan_surface_review@76ae15a: [contract-discipline] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:3,146-151,562-565 (no `attestation_chain` rule stated); scripts/check_reproduc",
-      "vulcan_surface_review@76ae15a: [fail-open] scripts/retire_review_claims.py:84-90 (transcript_for) - Carried OPEN, byte-identical: zero or ambiguous `<section>/<lane>*-<scope7>.md` matches fal",
-      "vulcan_surface_review@76ae15a: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried optional note, byte-identical: the oracle embeds the single vector's inputs by hand; scope not ",
       "vulcan_surface_review@76ae15a: [fail-open/derivation-degradation] scripts/sync_evidence_counters.py:59,62-68,78-82,124-129; scripts/check_reproducibility_and_independent_conformance.py:428-43",
       "vulcan_surface_review_revision_10: [note] conformance/exec-package-envelope/v2/envelope.json:10; scripts/build_independent_conformance_report.py:298-337 - The corpus declares `status: PROVISIONAL",
       "vulcan_surface_review_revision_10: [note] scripts/check_exec_package_envelope_v2.py:26-74 - The oracle embeds the vector's inputs (profile digest `fb2d8cc8\u2026`, dependency-section constants) rather",
@@ -4955,7 +5141,7 @@
       "nabu_architecture_review: [checker/binding] scripts/check_reproducibility_and_independent_conformance.py (no `superseded` rule; grep zero hits), machineresearch/sley-2.0/machine-summary.",
       "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; machineresearch/sley-2.0/machine-summary.json:4534 (attestation_supersedes), :4200 (release_ca"
     ],
-    "p4_open_count": 75,
+    "p4_open_count": 62,
     "nabu_architecture_review_revision_8": "REVISE_0_P0_0_P1_2_P2_1_P3_1_P4",
     "nabu_architecture_review_revision_8_note": "REVISE_0_P0_0_P1_2_P2_1_P3_1_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review_revision_8-178873d.md (sha256 84f1de78572d7b138ce9778c0c0fbd980c1ca3c03c45beab327c91de00cc0357). The re-minted candidate a7852028 is honestly recorded as SINGLE_HOST_REPRODUCIBLE (1 of 2 hosts), the superseded 45b2cd98 lab attestation is retained as history and bound to nothing in the new candidate records, the new exec-package-envelope family is checked by an independent byte-reconstruction oracle at declared codec_and_identity depth, and the section checker, conformance `--check`, both new oracles, and 139 unit tests pass at exit 0. REVISE on two P2s: the builder's carry-forward plus the checker's staleness rule cannot produce the primary-only report that was committed at the c75277b6 r",
     "vulcan_surface_review_revision_10": "REVISE_0_P0_0_P1_1_P2_2_P3_3_P4",
@@ -5327,6 +5513,14 @@
     ],
     "p3_closed_claims": [
       {
+        "claim": "ariadne_contract_review_revision_7: [contract] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:230-233 - Section 3 states \"today every family pins `v1` except `entity-read`, whose S20-",
+        "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md#L25 \u2014 the lane's revision-7 P3 (section-3 wording) and P4 (inverted ADR note) recorded CLOSED item by item at 92fa6646 (lines 25-26); untagged entries never retire automatically (Ariadne P3 at 76ae15ab)"
+      },
+      {
+        "claim": "nabu_architecture_review_revision_8: [contract-drift] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:230-232 vs scripts/build_independent_conformance_report.py:87-95 - The contract enu",
+        "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-92fa664.md#L24 \u2014 Nabu's revision-8 P3 (contract drift) and P4 (provisional envelope corpus note) recorded CLOSED at 92fa6646 (lines 24-25)"
+      },
+      {
         "claim": "nabu_architecture_review@db53894: [ownership/evidence-binding] machineresearch/sley-2.0/machine-summary.json:4627-4628,4664-4700 (`p2_open`/`p2_open_count`, `p2/p3/p4_closed_claims`), evidence/r",
         "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-76ae15a.md#L24,25 \u2014 nabu_architecture_review at 76ae15ab verified the carried P3 closed"
       },
@@ -5373,12 +5567,66 @@
     ],
     "p4_closed_claims": [
       {
+        "claim": "ariadne_contract_review_revision_8: [contract-vs-mechanics] scripts/build_reproducibility_report.py:330-354 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:111-112 - `verify_report`",
+        "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-c04539b.md#L23 \u2014 the lane's revision-8 P4 recorded CLOSED at c04539b9 (line 23)"
+      },
+      {
         "claim": "ariadne_contract_review@db53894: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4633 (`p3_open[3]`), :4644-4646 (`p4_open[5..7]`) vs evidence/review/verdicts/reproducibility",
         "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-7622776.md#L27 \u2014 ariadne_contract_review-7622776 at 76227765 verified the carried P4 closed"
       },
       {
         "claim": "ariadne_contract_review@db53894: [contract-vs-mechanics] scripts/build_reproducibility_report.py:464-465 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142 - carried OPEN fr",
         "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-7622776.md#L28 \u2014 ariadne_contract_review-7622776 at 76227765 verified the carried P4 closed"
+      }
+    ],
+    "p4_restated_claims": [
+      {
+        "claim": "nabu_architecture_review@db53894: [binding] machineresearch/sley-2.0/machine-summary.json:4594 (`attestation_supersedes`), :4212 (`candidate_second_host_note`) - Carried OPEN from c04539b9: the ",
+        "restates": "nabu_architecture_review: [binding] machineresearch/sley-2.0/machine-summary.json:4534 (`attestation_supersedes`), :4417, :4441, :4874 - The candidate chain and the two-host/single-host "
+      },
+      {
+        "claim": "vulcan_surface_review@db53894: [fail-closed-gap] scripts/build_reproducibility_report.py:403-468 - Carried OPEN, unchanged since c04539b9: `carried_attestations` never runs `verify_report` on",
+        "restates": "vulcan_surface_review: [fail-closed-gap] scripts/build_reproducibility_report.py:403-468 - `carried_attestations` trusts the tracked report's content without running `verify_report` o"
+      },
+      {
+        "claim": "vulcan_surface_review@db53894: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7/92fa6646/c04539b9 (optional): the oracle embeds the single vector's inputs by han",
+        "restates": "vulcan_surface_review: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7 (optional): the oracle embeds the single vector's inputs by hand rather than deri"
+      },
+      {
+        "claim": "nabu_architecture_review@7622776: [binding] machineresearch/sley-2.0/machine-summary.json:4676 (`attestation_supersedes`) - Carried OPEN from c04539b9/db53894e: the chain is hand-extended again ",
+        "restates": "nabu_architecture_review: [binding] machineresearch/sley-2.0/machine-summary.json:4534 (`attestation_supersedes`), :4417, :4441, :4874 - The candidate chain and the two-host/single-host "
+      },
+      {
+        "claim": "vulcan_surface_review@7622776: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7/92fa6646/c04539b9/db53894e (optional): the oracle embeds the single vector's inpu",
+        "restates": "vulcan_surface_review: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7 (optional): the oracle embeds the single vector's inputs by hand rather than deri"
+      },
+      {
+        "claim": "vulcan_surface_review_revision_11@c67b072: [fail-closed-gap] scripts/build_reproducibility_report.py:472-480 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:149-151 - Carried OPEN, byte-id",
+        "restates": "vulcan_surface_review@7622776: [fail-closed-gap] scripts/build_reproducibility_report.py:472-480 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:149-151 - The re-attested-host "
+      },
+      {
+        "claim": "vulcan_surface_review_revision_11@c67b072: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7/92fa6646/c04539b9/db53894e/76227765 (optional): the oracle embeds the single vect",
+        "restates": "vulcan_surface_review: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7 (optional): the oracle embeds the single vector's inputs by hand rather than deri"
+      },
+      {
+        "claim": "ariadne_contract_review@76ae15a: [checker-binding] scripts/retire_review_claims.py:9-14,48-52,99-103 and Makefile:90,282 - carried OPEN, unchanged: (a) `role()` splits on `_` only so the dotted",
+        "restates": "ariadne_contract_review@c67b072: [checker-binding] scripts/retire_review_claims.py:9-14,48-52,99-103 and Makefile:277-283 - carried OPEN: (a) `role()` still splits on `_` only, so the `current_"
+      },
+      {
+        "claim": "nabu_architecture_review@76ae15a: [test-coverage/binding] scripts/retire_review_claims.py:48-52,84-110,157-167, Makefile (byte-unchanged since c67b0729) - Carried OPEN unchanged: `grep retire_re",
+        "restates": "nabu_architecture_review@c67b072: [test-coverage/binding] scripts/retire_review_claims.py:48-52,99-103,176-188, Makefile:107-121,243-252,273-279 - Carried OPEN unchanged: `grep retire_review_cla"
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [fail-closed-gap] scripts/build_reproducibility_report.py:472-480 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:149-151 - Carried OPEN, byte-id",
+        "restates": "vulcan_surface_review@7622776: [fail-closed-gap] scripts/build_reproducibility_report.py:472-480 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:149-151 - The re-attested-host "
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [fail-open] scripts/retire_review_claims.py:84-90 (transcript_for) - Carried OPEN, byte-identical: zero or ambiguous `<section>/<lane>*-<scope7>.md` matches fal",
+        "restates": "vulcan_surface_review_revision_11@c67b072: [fail-open] scripts/retire_review_claims.py:84-90 (transcript_for) - When the `<section>/<lane>*-<scope7>.md` glob matches zero or more than one file the resolv"
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried optional note, byte-identical: the oracle embeds the single vector's inputs by hand; scope not ",
+        "restates": "vulcan_surface_review: [note] scripts/check_exec_package_envelope_v2.py:26-74 - Carried from 178873d7 (optional): the oracle embeds the single vector's inputs by hand rather than deri"
       }
     ]
   },
@@ -5483,20 +5731,15 @@
     "p1_open_count": 0,
     "p3_open": [
       "vulcan_surface_review@7622776: [fail-closed-gap] scripts/build_finding_register.py:566-567 (`package_closed_claims`, :534-573), scripts/retire_review_claims.py:136-142,157-164, evidence/revie",
-      "vulcan_surface_review@7622776: [register-parsing] scripts/build_finding_register.py:235-238 (`closed_severities`) - the pattern `P4(?:_(?:PRIOR|P[0-4]))*_CLOSED` lets a count-suffix severity ",
-      "ariadne_contract_review_revision_8: [implementation] scripts/generate_supply_chain_evidence.py:532-533 - `untracked_files_scanned`/`untracked_bytes_scanned` are written into the tracked T54 docume",
-      "ariadne_contract_review_revision_8: [record] machineresearch/sley-2.0/machine-summary.json:3874 - `release_candidate_packaging.candidate_second_host_note` (cross-section, cited for internal consis",
       "vulcan_surface_review@c67b072: [fail-closed-gap] scripts/build_finding_register.py:544-568,631-634 (`cited_closure_lines`, `package_closed_claims`), scripts/retire_review_claims.py:154-163,18",
       "vulcan_surface_review@db53894: [evidence-integrity] machineresearch/sley-2.0/machine-summary.json:4836-4886 (`standards_sbom_and_provenance.p1_closed_claims`/`p2_closed_claims`/`p3_closed_cla",
       "vulcan_surface_review@76ae15a: [fail-closed-gap] scripts/build_finding_register.py:546-557,573-583,674-684 (`STATUS_CLOSED`/`STATUS_OPEN`, `is_closure_line`, `cited_closure_lines`, `package_c",
       "vulcan_surface_review@76ae15a: [record] machineresearch/sley-2.0/machine-summary.json:5447-5481 (`standards_sbom_and_provenance.p3_open`/`p4_open`, counts 7/22), evidence/review/claim-retirem"
     ],
-    "p3_open_count": 8,
+    "p3_open_count": 5,
     "p4_open": [
       "nabu_architecture_review: [record] docs/audits/S20_710_PRE_RELEASE_AUDIT.md:143-149 - the T52 inventory boundary is root `Cargo.lock` + `oracle/scb1/uv.lock` only; the tracked `fuzz/Carg",
       "vulcan_surface_review: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:586 - `working_tree_counters_clear` tests `document.get(field, 0) == 0`, so a tracked T54 hand",
-      "vulcan_surface_review@db53894: [record] machineresearch/sley-2.0/machine-summary.json:4819-4829 (`standards_sbom_and_provenance.p4_open`/`p4_open_count` 8) - six of the eight entries (`:4820-",
-      "vulcan_surface_review@db53894: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:586 - carried OPEN from c04539b9 (file byte-unchanged): `working_tree_counters_clear` tests `d",
       "ariadne_contract_review_revision_8: [record] scripts/generate_supply_chain_evidence.py:52-57 - The permissive disposition of the ten new registry crates rests on the author-curated set added in th",
       "nabu_architecture_review_revision_7: [layering] scripts/generate_supply_chain_evidence.py:532-533 - `untracked_files_scanned` / `untracked_bytes_scanned` are working-tree facts written into the com",
       "nabu_architecture_review_revision_7: [fail-closed] scripts/check_supply_chain_audit.py:100-108 - dropping `EXPECTED_COUNTS` and the pinned lock digests leaves no deliberate acknowledgement of a loc",
@@ -5511,15 +5754,11 @@
       "ariadne_contract_review@c67b072: [record] machineresearch/sley-2.0/machine-summary.json:5359-5362 and evidence/review/claim-retirements.json (entries 16, 20) - four legacy P4s that tracked tran",
       "ariadne_contract_review@c67b072: [contract] docs/spec/FINDING_REGISTER_V1.md:16-18 and scripts/build_finding_register.py:541-566 - the claim-to-transcript relation is lexical (a closure line is",
       "vulcan_surface_review@c67b072: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:586 - carried open from c04539b9, db53894e and 76227765 (file byte-unchanged in this delta): `",
-      "vulcan_surface_review@c67b072: [record] machineresearch/sley-2.0/machine-summary.json:5354-5369 (`standards_sbom_and_provenance.p4_open`/`p4_open_count` 13) - carried from 76227765 and worsen",
       "vulcan_surface_review@c67b072: [record] evidence/review/claim-retirements.json:197-258 and machineresearch/sley-2.0/machine-summary.json:5376-5440 (`p1_closed_claims`\u2026`p4_closed_claims`) - th",
       "vulcan_surface_review@c67b072: [robustness] scripts/build_finding_register.py:631-634 - a `verified_by` of `<path>#L, \u2014 x` or `<path>#L25,,43 \u2014 x` raises an uncaught `ValueError` from `int(\"\"",
-      "vulcan_surface_review@76ae15a: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:586 - carried open from c04539b9, db53894e, 76227765 and c67b0729 (file byte-unchanged in this",
-      "vulcan_surface_review@76ae15a: [record] machineresearch/sley-2.0/machine-summary.json:5457-5481 (`standards_sbom_and_provenance.p4_open`/`p4_open_count` 22) - carried from 76227765/c67b0729 a",
-      "vulcan_surface_review@76ae15a: [record] evidence/review/claim-retirements.json:197-296 (this section's nine entries) and machineresearch/sley-2.0/machine-summary.json:5488-5530 (`p1_closed_cl",
-      "vulcan_surface_review@76ae15a: [robustness] scripts/build_finding_register.py:674-677 - carried from c67b0729 (logic byte-identical): a `verified_by` of `<path>#L, \u2014 x` or `<path>#L25,,43 \u2014 x"
+      "vulcan_surface_review@76ae15a: [record] evidence/review/claim-retirements.json:197-296 (this section's nine entries) and machineresearch/sley-2.0/machine-summary.json:5488-5530 (`p1_closed_cl"
     ],
-    "p4_open_count": 25,
+    "p4_open_count": 19,
     "nabu_architecture_review_revision_7": "REVISE_0_P0_0_P1_1_P2_1_P3_2_P4",
     "nabu_architecture_review_revision_7_note": "REVISE_0_P0_0_P1_1_P2_1_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review_revision_7-178873d.md (sha256 99eeda2da0f12543521d70aa46c622d6e0cedaa5f899e26f7fdc08faf89fe075). The a7852028 candidate records are byte-derived, mutually consistent (63 components, 177 edges, Cargo.lock `d98a3235\u2026`, subject `85324ebb\u2026`), honestly single-host, and the superseded 45b2cd98 lab attestation is not carried; the three curated expressions are permissive and match the seven crates named above. The section's own supply-chain gate, however, is red at the reviewed checkpoint because 178873d7 changed a manifested file without regenerating T54, so `check_supply_chain_audit.py` fails on a clean checkout (P2). One record gap for the new curated dispositions (P3) and two structural notes",
     "p2_open": [
@@ -5540,12 +5779,24 @@
     ],
     "p3_closed_claims": [
       {
+        "claim": "vulcan_surface_review@7622776: [register-parsing] scripts/build_finding_register.py:235-238 (`closed_severities`) - the pattern `P4(?:_(?:PRIOR|P[0-4]))*_CLOSED` lets a count-suffix severity ",
+        "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c67b072.md#L16 \u2014 the register-parsing P3 verified closed at c67b0729 (line 16: probed grammar, pinned test, one grammar in the tool); the lane deliberately filed no PRIOR clause"
+      },
+      {
+        "claim": "ariadne_contract_review_revision_8: [implementation] scripts/generate_supply_chain_evidence.py:532-533 - `untracked_files_scanned`/`untracked_bytes_scanned` are written into the tracked T54 docume",
+        "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-92fa664.md#L28,29 \u2014 the lane's revision-8 P3s (untracked counters; candidate_second_host_note c75277b6 step) recorded CLOSED at 92fa6646 (lines 28-29)"
+      },
+      {
+        "claim": "ariadne_contract_review_revision_8: [record] machineresearch/sley-2.0/machine-summary.json:3874 - `release_candidate_packaging.candidate_second_host_note` (cross-section, cited for internal consis",
+        "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-92fa664.md#L28,29 \u2014 the lane's revision-8 P3s (untracked counters; candidate_second_host_note c75277b6 step) recorded CLOSED at 92fa6646 (lines 28-29)"
+      },
+      {
         "claim": "ariadne_contract_review@db53894: [record] machineresearch/sley-2.0/machine-summary.json:4819-4829 - `p4_open`/`p4_open_count 8` still carry the six 92fa6646-round P4s (entries 1-6: Ariadne test",
         "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-7622776.md#L28 \u2014 ariadne_contract_review-7622776 at 76227765 verified the carried P3 closed"
       },
       {
         "claim": "ariadne_contract_review: [record] machineresearch/sley-2.0/machine-summary.json:4704-4727 - The section's `p1_open` (2), `p2_open` (1), `p3_open` (3) and the first four `p4_open` entrie",
-        "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-db53894.md#L29,43 \u2014 line 24: the c04539b9 ledger P3 recorded CLOSED (the 178873d7 P1/P2/P3 claims are out of the open lists); ariadne_contract_review-db53894.md PRIOR_P3_P4_CLOSED (lane-consistent transcript: ariadne_contract_review-db53894.md)"
+        "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-db53894.md#L29 \u2014 line 24: the c04539b9 ledger P3 recorded CLOSED (the 178873d7 P1/P2/P3 claims are out of the open lists); ariadne_contract_review-db53894.md PRIOR_P3_P4_CLOSED (lane-consistent transcript: ariadne_contract_review-db53894.md)"
       },
       {
         "claim": "vulcan_surface_review: [record] machineresearch/sley-2.0/machine-summary.json:4704-4733 (`standards_sbom_and_provenance.p1_open`/`p1_open_count`/`p2_open`/`p2_open_count`/`p3_open`) -",
@@ -5558,6 +5809,10 @@
     ],
     "p4_closed_claims": [
       {
+        "claim": "vulcan_surface_review@db53894: [record] machineresearch/sley-2.0/machine-summary.json:4819-4829 (`standards_sbom_and_provenance.p4_open`/`p4_open_count` 8) - six of the eight entries (`:4820-",
+        "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-7622776.md#L27 \u2014 the db53894e ledger P4 recorded CLOSED at 76227765 (line 27)"
+      },
+      {
         "claim": "nabu_architecture_review: [test-layout] bench/release/tests/test_secret_patterns.py:82-83,86 - `CommitBoundViewTests` is defined after the `if __name__ == \"__main__\": unittest.main()` gu",
         "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-c04539b.md#L21 \u2014 lines 21-22 (PRIOR_P3_P4_CLOSED at c04539b9): the lane's 92fa6646 P4s verified closed"
       },
@@ -5567,7 +5822,7 @@
       },
       {
         "claim": "vulcan_surface_review: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:549-560,571-573 and scripts/check_supply_chain_audit.py:172-174 - `commit_bound_view` re-parse",
-        "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md#L24 \u2014 lines 24/26/28 (PRIOR_P3_P4_CLOSED at c04539b9): the lane's 92fa6646 P4s verified closed"
+        "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md#L24,28 \u2014 lines 24/26/28 (PRIOR_P3_P4_CLOSED at c04539b9): the lane's 92fa6646 P4s verified closed"
       },
       {
         "claim": "vulcan_surface_review: [record] evidence/build/lint-report.json:4 and scripts/record_lint_report.py:59-63 - the lint report at HEAD names `commit 178873d7` while the candidate source ",
@@ -5585,12 +5840,34 @@
         "claim": "ariadne_contract_review: [test-coverage] bench/release/tests/test_secret_patterns.py:87-106 - `CommitBoundViewTests` exercise `commit_bound_view()` on synthetic two-key dicts only; the ",
         "verified_by": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-c04539b.md#L27 \u2014 line 27 (PRIOR_P3_P4_CLOSED at c04539b9): the lane's 92fa6646 P4 verified closed"
       }
+    ],
+    "p4_restated_claims": [
+      {
+        "claim": "vulcan_surface_review@db53894: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:586 - carried OPEN from c04539b9 (file byte-unchanged): `working_tree_counters_clear` tests `d",
+        "restates": "vulcan_surface_review: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:586 - `working_tree_counters_clear` tests `document.get(field, 0) == 0`, so a tracked T54 hand"
+      },
+      {
+        "claim": "vulcan_surface_review@c67b072: [record] machineresearch/sley-2.0/machine-summary.json:5354-5369 (`standards_sbom_and_provenance.p4_open`/`p4_open_count` 13) - carried from 76227765 and worsen",
+        "restates": "vulcan_surface_review@7622776: [record] machineresearch/sley-2.0/machine-summary.json:4960,4963 (`standards_sbom_and_provenance.p4_open`/`p4_open_count` 5) - the `:586` defect is listed twice"
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:586 - carried open from c04539b9, db53894e, 76227765 and c67b0729 (file byte-unchanged in this",
+        "restates": "vulcan_surface_review@c67b072: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:586 - carried open from c04539b9, db53894e and 76227765 (file byte-unchanged in this delta): `"
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [record] machineresearch/sley-2.0/machine-summary.json:5457-5481 (`standards_sbom_and_provenance.p4_open`/`p4_open_count` 22) - carried from 76227765/c67b0729 a",
+        "restates": "vulcan_surface_review@7622776: [record] machineresearch/sley-2.0/machine-summary.json:4960,4963 (`standards_sbom_and_provenance.p4_open`/`p4_open_count` 5) - the `:586` defect is listed twice"
+      },
+      {
+        "claim": "vulcan_surface_review@76ae15a: [robustness] scripts/build_finding_register.py:674-677 - carried from c67b0729 (logic byte-identical): a `verified_by` of `<path>#L, \u2014 x` or `<path>#L25,,43 \u2014 x",
+        "restates": "vulcan_surface_review@c67b072: [robustness] scripts/build_finding_register.py:631-634 - a `verified_by` of `<path>#L, \u2014 x` or `<path>#L25,,43 \u2014 x` raises an uncaught `ValueError` from `int(\"\""
+      }
     ]
   },
   "finding_register": {
     "status": "S20_740_REGISTER_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/FINDING_REGISTER_V1.md",
-    "contract_revision": 6,
+    "contract_revision": 7,
     "adr": "docs/adr/ADR-0042-finding-register-derived-from-recorded-dispositions.md",
     "checker": "scripts/check_finding_register.py",
     "register": "evidence/review/finding-register.json",
@@ -5635,7 +5912,7 @@
     "finding_review_note": "2026-09-13 db1bc62 finals rev4: nabu PASS-0 (full-scope); ariadne REVISE-1P3 (coarse CLOSED exemption, scb1 live) + vulcan REVISE-2P3 (CLOSED-substring + stacked-negation evasions, no live instances); all repaired post-scope per-severity (closed-scope/negation-void) with 3 pinning tests; transcripts evidence/review/verdicts/finding_register/*-db1bc62.md | CONFIRMATION 2026-09-13 c703bd5 (scope: post-scope repairs incl. suffix + vacuous amendments): ariadne confirmation PASS-0 (per-severity rule re-verified incl. named scb1 row, PGP disposition retained; transcript evidence/review/verdicts/finding_register/ariadne_contract_confirmation-c703bd5.md); vulcan confirmation PASS-0 (3 recorded P3 bypasses re-verified repaired + 1 new vacuous-continuation P3 repaired+pinned in-scope c703bd5; transcript evidence/review/verdicts/finding_register/vulcan_surface_confirmation-c703bd5.md); nabu PASS preserved in reviewed scope",
     "ariadne_contract_review_note": "[verdict form PASS_0_P0_0_P1_0_P2_0_P3_0_P4 normalized 2026-09-15 to the bare PASS token the acceptance checker binds; zero findings at every level]",
     "nabu_architecture_review_note": "[verdict form PASS_0_P0_0_P1_0_P2_0_P3_0_P4 normalized 2026-09-15 to the bare PASS token the acceptance checker binds; zero findings at every level]",
-    "contract_revision_note": "Revision 6 (2026-09-18): per-package claim retirement named \u2014 pN_closed_claims {claim, verified_by transcript path}, scripts/retire_review_claims.py with the automatic PRIOR rule and the tracked evidence/review/claim-retirements.json, builder validation and package_closed_claims. Revision 5 (2026-09-18): chronology rule on round folding (a PASS dated before the FAIL/REVISE round's note never folds it); round_date recorded per obligation. Revision 4 (2026-09-13): unclaimed_carried_findings and mid_string_complete_packages."
+    "contract_revision_note": "Revision 7 (2026-09-19): structural closure-line predicate (bold head / table cell / standalone bold status; quoted markers, finding-raising and mixed-status lines refused), claim-to-line relation (category, path, identifier, commit id, quoted phrase or two content words), strictly-later scope by ancestry, transcript-derived closers, --check replay, --regenerate, and pN_restated_claims folding of a lane's re-statements (package_restated_claims). Revision 6 (2026-09-18): per-package claim retirement named \u2014 pN_closed_claims {claim, verified_by transcript path}, scripts/retire_review_claims.py with the automatic PRIOR rule and the tracked evidence/review/claim-retirements.json, builder validation and package_closed_claims. Revision 5 (2026-09-18): chronology rule on round folding (a PASS dated before the FAIL/REVISE round's note never folds it); round_date recorded per obligation. Revision 4 (2026-09-13): unclaimed_carried_findings and mid_string_complete_packages."
   },
   "decision_dossier": {
     "status": "S20_750_DOSSIER_IMPLEMENTED_REVIEW_PENDING",
@@ -6450,12 +6727,11 @@
       "ariadne_contract_review@7622776: [records/binding-gap] scripts/check_reweave_codec_component.py:76-83; machineresearch/sley-2.0/reweave/rw-080-contract.md:458-461 - The required set is still fo",
       "ariadne_contract_review@7622776: [records/register-stale] machineresearch/sley-2.0/machine-summary.json rw090_arbitrary_codec p1_open/p2_open/p3_open/p4_open (ariadne_contract_review_revision_1",
       "nabu_architecture_review@7622776: [evidence-binding/checker] scripts/check_reweave_codec_component.py:60-71; crates/sley-vm/tests/rw080_codec_program/canonical_codec.rs:954-964,1223-1232 - Uncha",
-      "nabu_architecture_review@7622776: [comment-accuracy] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:7682-7685,21142-21147,27084-27086 - Unchanged from db53894e: \"container",
       "nabu_architecture_review@7622776: [records-hygiene] machineresearch/sley-2.0/reweave/rw-090-codec-component-manifest.json:127,39 - 25d6d0ba added a stray empty top-level key `\"native_depth_charg",
       "vulcan_surface_review@7622776: [checker-coverage/records-exactness] scripts/check_reweave_codec_component.py:80-81 + machineresearch/sley-2.0/reweave/rw-080-contract.md:457-461 - the `require",
       "vulcan_surface_review@7622776: [records-exactness] machineresearch/sley-2.0/reweave/rw-090-codec-component-manifest.json:127 - a stray top-level `\"native_depth_charging\": \"\"` was added at 25d"
     ],
-    "p4_open_count": 34,
+    "p4_open_count": 33,
     "nabu_architecture_review_revision_1": "REVISE_0_P0_1_P1_2_P2_3_P3_4_P4",
     "nabu_architecture_review_revision_1_note": "REVISE_0_P0_1_P1_2_P2_3_P3_4_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-178873d.md (sha256 c697fc4d570188f88968fa09388188f13e01e2d3aa93d483a2ee472acb59485b) (transcript FIELD line reads nabu_architecture_review). RW-090's structure is sound and consistent: both program legs of the canonical codec route every one of the 18 kinds through arbitrary schema decoders (kind 18 through its full fixed-body decoder), the bounded generation is segregated and every current/superseded figure agrees across the four manifests, the S verifier, the records and the pinned tests, all four checkers pass at HEAD, and official C1 is correctly null. Acceptance is blocked by oracle discipline: the arbitrary decoders are fail-open against the native reference at the nesting bound (embedding depth not threaded, const-value dept",
     "p1_open": [
@@ -6544,7 +6820,7 @@
       },
       {
         "claim": "vulcan_surface_review_revision_3: [evidence-integrity/resource-bounds] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:27003-27010 (deleted test; commit 0b7a1482) + machine",
-        "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-db53894.md#L27 \u2014 the c04539b9 P2s (deleted over-budget test, stale component manifest) recorded CLOSED at db53894e (lines 27, 29)"
+        "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-db53894.md#L27,29 \u2014 the c04539b9 P2s (deleted over-budget test, stale component manifest) recorded CLOSED at db53894e (lines 27, 29)"
       },
       {
         "claim": "vulcan_surface_review_revision_3: [records-exactness/identity] machineresearch/sley-2.0/reweave/rw-090-codec-component-manifest.json:4-10,83 + rw-090-arbitrary-canonical-codec-objects.md:5,29-40",
@@ -6559,6 +6835,12 @@
       {
         "claim": "ariadne_contract_review_revision_4@db53894: [records/binding-gap] scripts/check_reweave_codec_component.py:76-78; machineresearch/sley-2.0/reweave/rw-080-contract.md:457-459 - The component checker requir",
         "verified_by": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-7622776.md#L16 \u2014 ariadne_contract_review at 76227765 verified the carried P4 closed"
+      }
+    ],
+    "p4_restated_claims": [
+      {
+        "claim": "nabu_architecture_review@7622776: [comment-accuracy] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:7682-7685,21142-21147,27084-27086 - Unchanged from db53894e: \"container",
+        "restates": "nabu_architecture_review_revision_4@db53894: [comment-accuracy] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:7682-7685,21128-21133,27065-27068 - The DepthOffsets doc says a slot of"
       }
     ]
   },

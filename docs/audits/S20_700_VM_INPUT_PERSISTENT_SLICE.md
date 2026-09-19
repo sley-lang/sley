@@ -131,9 +131,10 @@ covers E1–E8; the loaded-image path is re-scoped to this slice (RW-070
 owner obligation, checker-forbidden symbols); the checker validates the
 durable proof record (PASS, floor coverage, no new crashes, owner
 sancov, source-commit shape). Adequacy notes for the next target round:
-E6/E7a accept any `LoweringError::Cfg` (not the specific single-graph
-failure); the map-order lane covers one top-level map shape; limit
-profiles 1–3 assert determinism only.
+E6/E7a accepted any `LoweringError::Cfg` (not the specific single-graph
+failure) until the round below pinned `GRAPH_INVENTORY_MISMATCH`; the
+map-order lane covers one top-level map shape; limit profiles 1–3 assert
+determinism only.
 
 ## Rounds 7c-7m (REQ-06 re-review wave)
 
@@ -168,3 +169,21 @@ gained engine-invariant asserts, must-reject refusals, narrowed Err
 arms, constructed-valid lanes, and a server-fixture validity gate with
 a unit-level negotiation self-check; filed regressions replay as corpus
 seeds. See the wave's decision packets for elevated owner items.
+
+## Round 9 (2026-09-19) — unlanded-E7 negative lane and V-06
+
+- Item 10 (advisory, carried since 76227765): `unlanded_opcode_lane` runs
+  when `family_gate % 3 == 1` and builds a one-operation program over the
+  opcodes slice E7a did not land — `TestObserve` (145, observation
+  immediate), `EffectRequest` (160, no immediate), `CapabilityNarrow` (162,
+  index immediate) — selected by `family_selector % 3`. Under both
+  `EXTENDED_V1` and `RESTRICTED_V1` the program must be refused by exactly
+  `VM_LOWER_OPCODE_UNSUPPORTED`; acceptance, an input error or a signature
+  judgment panics. Both selectors derive from header bytes already read, so
+  every existing seed keeps the lane it names.
+- V-06: the E6/E7a restricted refusal now pins
+  `CfgValidationError::Cfg(GRAPH_INVENTORY_MISMATCH)` (the function's block
+  list does not cover the shared flat inventory — the single-graph rule)
+  instead of any `Cfg` refusal.
+- The slice checker pins both lanes' markers.
+
