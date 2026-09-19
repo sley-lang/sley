@@ -1,11 +1,10 @@
 {
   "clippy_clean": true,
   "clippy_warnings": 0,
-  "commit": "6d7527792680f6a6bb39529358debeb4d43c6b84",
+  "commit": "f3d4f450dfdcb56aa0388c0c18bf6ad22bb55367",
   "contract": "sley2.lint-report.v1",
   "dirty_lint_inputs": [],
   "dirty_paths": [
-    "evidence/build/lint-report.json",
     "evidence/release/candidate-content-checks.json",
     "evidence/release/decision-dossier.json",
     "evidence/release/ga-acceptance-report.json",
@@ -13,10 +12,7 @@
     "evidence/release/reproducibility-report.json",
     "evidence/release/sbom/cyclonedx-1.6.json",
     "evidence/release/sbom/spdx-2.3.json",
-    "evidence/security/T15/matrix.json",
-    "evidence/security/T47/matrix.json",
     "evidence/security/T54/secret-scan.json",
-    "evidence/security/T56/matrix.json",
     "machineresearch/sley-2.0/machine-summary.json",
     "machineresearch/sley-2.0/reweave/bootstrap-manifest.json",
     "machineresearch/sley-2.0/reweave/c0-c1-seed-artifacts.json",

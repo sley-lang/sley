@@ -7,12 +7,12 @@
    "status": "preserved",
    "value": "sha256:a94580d7e96eda2bd0b4c59e72391758e8470ed856f6bde6a1fb4f8521cf1378",
    "artifact": "c0-c1-seed-artifacts.json",
-   "source_commit": "6d752779 (seed sources unchanged since 9d1ba8f1)",
+   "source_commit": "f3d4f450 (seed sources unchanged since 9d1ba8f1)",
    "digest": "a94580d7e96eda2bd0b4c59e72391758e8470ed856f6bde6a1fb4f8521cf1378",
    "provenance": {
     "artifact": "c0-c1-seed-artifacts.json",
     "checker": "scripts/check_reweave_seed_artifacts.py --require-local",
-    "source_commit": "6d752779",
+    "source_commit": "f3d4f450",
     "build_command": "cargo test --release -p sley-vm --test rw120_toolchain_integration --no-run --message-format=json (offline, -j 4, fresh CARGO_TARGET_DIR, detached clean worktree at /home/gfarch/Work/checkpoints/sley2-c0-mint)",
     "digest_method": "raw-byte SHA-256 of the preserved executable",
     "preserved_by": "RW-120 C0/C1 candidate re-mint after the 178873d7, 92fa6646, c04539b9 and db53894e Council repairs (2026-09-18)"
@@ -74,7 +74,7 @@
     "artifact": "canonical-s-manifest.json",
     "checker": "scripts/check_reweave_canonical_s.py",
     "construction_test": "cargo test -p sley-vm --test rw120_toolchain_integration integrated_driver_hands_lowered_bytes_to_the_package_builder -- --nocapture",
-    "source_commit": "6d752779 (S unchanged since 25d6d0ba)",
+    "source_commit": "f3d4f450 (S unchanged since 25d6d0ba)",
     "digest_method": "accepted state root of the canonical closure (value and digest are the same root)",
     "frozen_by": "RW-080 construction (2026-09-18), re-minted with the arbitrary RW-090 codec (2026-09-18) and again after the 178873d7 Council repairs (2026-09-18), and after the 92fa6646 re-review repair (2026-09-18), and after the c04539b9 round (2026-09-18), and after the db53894e round (2026-09-18)"
    }

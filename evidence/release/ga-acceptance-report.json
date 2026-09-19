@@ -268,7 +268,7 @@
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit 6d7527792680f6a6bb39529358debeb4d43c6b84; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
+      "evidence": "attested commit f3d4f450dfdcb56aa0388c0c18bf6ad22bb55367; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
       "group": "26.8 packaging",
       "state": "GATED"
     },
@@ -286,7 +286,7 @@
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "attested manifest digest e4e6c1ab8b2f, artifact digest 1399c7e101ae, 2507940 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
+      "evidence": "attested manifest digest 254166a6991e, artifact digest 107a6294872b, 2507943 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
@@ -342,9 +342,9 @@
     "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "ceca2f736f0b0177de5b7ea5b182601ed686fa71ac150d3a53f9f81f160387d3",
-  "register_digest": "0a341420d2a03967fd47657bd497e4e80f59b45a795fbc09bd7ac59c298937ec",
-  "report_digest": "1c719b13cbae22c6f6636013227a1e2d5a8755e89d3eaae4a5ae8deebedb4958",
+  "obligations_digest": "2bcee6d818463b22d352c6c81b514d062444f3ccd5e34506c573bedba993083c",
+  "register_digest": "db5e14317ad03a9b228d2cec9b237dbc7b08fa96d5ccf17eff960327e499068f",
+  "report_digest": "a8bfa878fef247ddcc4ede80bd44c23f995b4703971c46b63fad87c90083000a",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

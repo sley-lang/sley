@@ -2215,7 +2215,7 @@
     {
       "declares_closed_findings": true,
       "declares_no_open_p0_p1_p2": false,
-      "disposition": "PASS_P2_P3_CLOSED",
+      "disposition": "PASS_P2_P3_P4_CLOSED",
       "field": "epoch1_reanchor_review",
       "package_status": "S20_350_COMPLETE_PROPOSAL_ONLY",
       "reviewer": null,
@@ -2223,7 +2223,8 @@
       "section": "mutation_value_profile",
       "severities": [
         "P2",
-        "P3"
+        "P3",
+        "P4"
       ],
       "state": "PASS",
       "superseded_by": null
@@ -7439,7 +7440,7 @@
       "superseded_by": "vulcan_surface_review"
     }
   ],
-  "obligations_digest": "ceca2f736f0b0177de5b7ea5b182601ed686fa71ac150d3a53f9f81f160387d3",
+  "obligations_digest": "2bcee6d818463b22d352c6c81b514d062444f3ccd5e34506c573bedba993083c",
   "open_reviews": [
     {
       "disposition": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
@@ -7686,14 +7687,14 @@
     "s20_700_vm_persistent_fuzz_slice.p4_restated_claims": 3,
     "standards_sbom_and_provenance.p4_restated_claims": 5
   },
-  "register_digest": "0a341420d2a03967fd47657bd497e4e80f59b45a795fbc09bd7ac59c298937ec",
+  "register_digest": "db5e14317ad03a9b228d2cec9b237dbc7b08fa96d5ccf17eff960327e499068f",
   "result": "FINDING_REGISTER_OPEN",
   "severity_mentions": {
     "P0": 126,
     "P1": 178,
     "P2": 206,
     "P3": 263,
-    "P4": 114
+    "P4": 115
   },
   "source": "machineresearch/sley-2.0/machine-summary.json",
   "states": {
