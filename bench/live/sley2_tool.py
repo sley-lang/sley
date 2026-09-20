@@ -867,6 +867,21 @@ def _pack_digest(workspace: Path) -> str:
     return "none"
 
 
+def _binary_digest() -> str:
+    """Bound sley binary identity: sha256 of the executable bytes.
+
+    Every transcript entry binds the exact binary that served the trial,
+    so evidence from any other build is unverifiable. Fails closed when
+    the binary is unbound.
+    """
+
+    path = resolve_binary()
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as error:
+        raise Sley2ToolError(f"LIVE_SLEY2_TOOL_INVALID: binary digest: {error}") from error
+
+
 def _command_evidence(argv: list[str], result: dict[str, Any] | None) -> tuple[dict[str, Any], dict[str, str | None]]:
     """Agent-visible shape of one command for the chained evidence: what
     was inspected or authored, and which candidate records moved."""
@@ -882,13 +897,35 @@ def _command_evidence(argv: list[str], result: dict[str, Any] | None) -> tuple[d
         args = {"entities": ["all"]}
     elif command == "raw" and len(rest) == 2:
         args = {"method": rest[0], "body_bytes": len(rest[1]) // 2}
-    elif command in ("propose", "compose") and len(rest) == 1 and result is not None:
+    elif command == "propose" and len(rest) == 1 and result is not None:
         try:
             ops = json.loads(rest[0])
             args = {"targets": [op.get("target") if isinstance(op, dict) else None
-                                for op in ops] if isinstance(ops, list) else []}
+                                for op in ops] if isinstance(ops, list) else [],
+                    "classes": [op.get("class") if isinstance(op, dict) else None
+                                for op in ops] if isinstance(ops, list) else [],
+                    "op_count": len(ops) if isinstance(ops, list) else 0}
         except json.JSONDecodeError:
-            args = {"targets": []}
+            args = {"targets": [], "classes": [], "op_count": 0}
+        record = result.get("record")
+        records["out"] = hashlib.sha256(record.encode()).hexdigest() if isinstance(record, str) else None
+    elif command == "compose" and len(rest) == 2 and result is not None:
+        # Compose takes (base_record_hex, ops_json): the input candidate,
+        # the resupplied full op list, and the output candidate are all
+        # bound here. Nonce reuse alone is NOT preservation evidence: the
+        # supplied op list must resupply earlier creates verbatim, and
+        # preservation is established only by target-identity equality
+        # across the transition (tested), never by nonce equality.
+        try:
+            ops = json.loads(rest[1])
+            args = {"targets": [op.get("target") if isinstance(op, dict) else None
+                                for op in ops] if isinstance(ops, list) else [],
+                    "classes": [op.get("class") if isinstance(op, dict) else None
+                                for op in ops] if isinstance(ops, list) else [],
+                    "op_count": len(ops) if isinstance(ops, list) else 0}
+        except json.JSONDecodeError:
+            args = {"targets": [], "classes": [], "op_count": 0}
+        records["in"] = hashlib.sha256(rest[0].encode()).hexdigest()
         record = result.get("record")
         records["out"] = hashlib.sha256(record.encode()).hexdigest() if isinstance(record, str) else None
     elif command == "append" and len(rest) == 2 and result is not None:
@@ -953,7 +990,16 @@ def append_transcript(workspace: Path, argv: list[str], ok: bool,
     """Append one invocation to the hash-chained agent transcript beside
     (never inside) the served repository. The chain is the complete,
     ordered, tamper-evident record of everything the agent saw and did;
-    the judge verifies it before deriving any access evidence."""
+    the judge verifies it before deriving any access evidence.
+
+    Three claims stay separated: the hash chain proves ordering and
+    tamper-evidence only. Completeness (every agent-visible operation
+    and response is recorded) comes from durable-before-release in main
+    plus transition/final linkage checks in the judge. Absence of an
+    unrecorded route to protected state comes from provider confinement
+    and tool-allowlist enforcement, not from the chain. The chain alone
+    establishes none of the other two.
+    """
 
     chain = workspace / CHAIN_NAME
     previous = "0" * 64
@@ -973,6 +1019,7 @@ def append_transcript(workspace: Path, argv: list[str], ok: bool,
     entry = {
         "seq": seq,
         "tool_version": TOOL_VERSION,
+        "sley_binary_sha256": _binary_digest(),
         "pack_sha256": _pack_digest(workspace),
         "command": argv[0] if argv else "",
         "args": args,
@@ -1043,12 +1090,17 @@ def main(argv: list[str] | None = None) -> int:
                               "report": result, "transcript_sha256": digest,
                               "stderr_text": "", "stdout_bytes": "", "stderr_bytes": "",
                               "truncated": False}, sort_keys=True)
-        print(printed)
+        # Durable before release: the agent-visible response is retained
+        # in the chained transcript (and usage ledger) BEFORE it is
+        # printed. Evidence loss is therefore a terminal retained
+        # failure (exit 2, no successful output released), never a
+        # printed success with a silently lost record.
         wall_ms = int((time.monotonic() - started) * 1000)
         _record_usage(workspace, arguments[0] if arguments else "",
                       True, wall_ms, len(printed))
         append_transcript(workspace, arguments, True, wall_ms, len(printed),
                           transcript, result)
+        print(printed)
         return 0
     except (Sley2ToolError, sley2_codecs.CodecError, OSError, ValueError) as error:
         print(json.dumps({"code": "LIVE_SLEY2_TOOL_INVALID", "detail": str(error)[:500]}, sort_keys=True))

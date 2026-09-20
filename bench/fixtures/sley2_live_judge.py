@@ -220,13 +220,58 @@ def _commit_candidate(session: Session, principal: str, record_hex: str) -> str:
     return fields[1].hex()
 
 
-def _encode_commit_body(head_tx: str, principal: str, record_hex: str) -> str:
+def _encode_commit_body(head_tx: str, principal: str, stored_hex: str) -> str:
+    """Commit request: (parent tx, principal, now, STORED bytes).
+
+    Field 4 carries STORED bytes (magic, version, sized record, digest
+    trailer), never the bare record. The parameter is named stored_hex
+    to keep that binding explicit.
+    """
+
     return _encode_record([
         (1, bytes.fromhex(head_tx)),
         (2, bytes.fromhex(principal)),
         (3, _encode_uvar(JUDGE_NOW_MILLIS)),
-        (4, bytes.fromhex(record_hex)),
+        (4, bytes.fromhex(stored_hex)),
     ]).hex()
+
+
+def _encode_validate_body(head_tx: str, principal: str, stored_hex: str) -> str:
+    """Validation request: (base tx, principal, now, STORED bytes).
+
+    Byte layout coincides with the commit encoder by protocol design,
+    but the method semantics differ (validate never advances the head).
+    Callers must use this encoder for candidate.validate; the commit
+    encoder is not interchangeable, even where bytes coincide.
+    """
+
+    return _encode_record([
+        (1, bytes.fromhex(head_tx)),
+        (2, bytes.fromhex(principal)),
+        (3, _encode_uvar(JUDGE_NOW_MILLIS)),
+        (4, bytes.fromhex(stored_hex)),
+    ]).hex()
+
+
+def _require_valid_decision(result_body_hex: str, code: str = "ORACLE_REBASE_INVALID") -> dict:
+    """Decode the owner validation result and require the Valid decision.
+
+    A successful candidate.validate response envelope (failed=false) is
+    not sufficient: negative decisions arrive with failed=false at the
+    protocol level. Only decision tag 1 (Valid) counts; anything else
+    rejects with the given code. A successful envelope carrying Invalid
+    therefore cannot produce task acceptance.
+    """
+
+    try:
+        [decoded] = sley2_codecs.run_batch(
+            [{"op": "decode_result", "body": result_body_hex}])
+    except sley2_codecs.CodecError as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: result: {error}") from error
+    if decoded.get("decision_tag") != 1:
+        _reject(code, f"decision={decoded.get('decision_tag')} "
+                      f"phase={decoded.get('failed_phase')}")
+    return decoded
 
 
 def _check_cases(cases: list, results: list, expected: list) -> None:
@@ -1108,27 +1153,24 @@ def _judge_corrupt_value(session: Session, manifest: dict) -> None:
 
 def _judge_test_entity(session: Session, manifest: dict, corpus: dict, scratch_ws: Path,
                        task_dir: Path, current: set[str]) -> None:
-    """TEST task: three deterministic TestCase entities bound to the
-    unmodified implementation, each executing to its exact outcome."""
+    """TEST task: judge the actual submitted TestCase entities.
+
+    The implementation stays byte-identical (frozen S3
+    implementation_changes == 0); only the test set may change. Each
+    submitted TestCase bound to the target is decoded structurally; the
+    set must cover success (7/2 -> Ok 3), divide-by-zero (7/0 -> Err
+    code 2), and signed overflow (i64::MIN/-1 -> Err code 1) with exact
+    expected outcomes. Coverage is verified from the submitted inputs
+    and expected outcomes, and each submitted boundary is executed
+    through the native driver against the unmodified implementation.
+    Count alone never suffices: three or more tests with a missing,
+    duplicated, or wrong-expected boundary are rejected.
+    """
 
     entities = manifest.get("entities", {}) if isinstance(manifest.get("entities"), dict) else {}
     func = entities.get("func", "")
     if not func:
         _harness_fail("test target")
-    cases = [
-        {"name": "success", "inputs": [{"type": "SInt", "bits": 64, "value": 7},
-                                       {"type": "SInt", "bits": 64, "value": 2}],
-         "want": {"Result": {"Ok": {"SInt": "3"}}}},
-        {"name": "divide_by_zero", "inputs": [{"type": "SInt", "bits": 64, "value": 7},
-                                              {"type": "SInt", "bits": 64, "value": 0}],
-         "want": {"Result": {"Err": {"BuiltinFailure": {"kind": "Arithmetic", "code": 2}}}}},
-        # The live base divides SInt64 (S3's 8-bit case cannot overflow
-        # here): the boundary is i64::MIN / -1.
-        {"name": "signed_overflow", "inputs": [{"type": "SInt", "bits": 64,
-                                                "value": -9223372036854775808},
-                                               {"type": "SInt", "bits": 64, "value": -1}],
-         "want": {"Result": {"Err": {"BuiltinFailure": {"kind": "Arithmetic", "code": 1}}}}},
-    ]
     try:
         tests = _test_entities(session, scratch_ws, func, current)
     except JudgeHarnessError as error:
@@ -1137,16 +1179,140 @@ def _judge_test_entity(session: Session, manifest: dict, corpus: dict, scratch_w
                           session.head.get("epoch", ""))
     if len(tests) < 3:
         _reject("ORACLE_CASE_MISSING", f"found {len(tests)} test entities")
-    for case in cases:
-        results = _run_driver(scratch_ws / REPO_DIR, func, [case]).get("cases")
+    required = _require_test_boundaries(tests)
+    # Execute each submitted boundary through the native driver and
+    # require the actual outcome to match the submitted expectation.
+    for (first, second), (kind, detail) in required.items():
+        driver_case = {"inputs": [{"type": "SInt", "bits": 64, "value": first},
+                                  {"type": "SInt", "bits": 64, "value": second}]}
+        results = _run_driver(scratch_ws / REPO_DIR, func, [driver_case]).get("cases")
         if not isinstance(results, list) or len(results) != 1:
             _harness_fail("case shape")
         result = results[0]
         if not result.get("ok"):
             _reject("ORACLE_TEST_MISMATCH", json.dumps(result)[:160])
-        if result.get("value") != case["want"]:
+        want = _driver_want(kind, detail)
+        if result.get("value") != want:
             _reject("ORACLE_TEST_MISMATCH",
-                    f"{case['name']}: got {json.dumps(result.get('value'))[:120]}")
+                    f"boundary {(first, second)}: got "
+                    f"{json.dumps(result.get('value'))[:120]}")
+
+
+def _test_input_pair(test: dict) -> tuple[int, int] | None:
+    """Submitted (a, b) inputs from a decoded TestCaseBody, or None."""
+
+    try:
+        inputs = test.get("inputs")
+        if not isinstance(inputs, list) or len(inputs) != 2:
+            return None
+        values = []
+        for item in inputs:
+            if not isinstance(item, dict):
+                return None
+            data = item.get("data")
+            if not isinstance(data, dict) or data.get("variant") != "SInt":
+                return None
+            value = data.get("value")
+            if not isinstance(value, int):
+                return None
+            values.append(value)
+        return (values[0], values[1])
+    except Exception:
+        return None
+
+
+def _test_expected_norm(test: dict) -> tuple[str, int] | None:
+    """Submitted expectation as ("Ok", value) or ("Err", code), or None."""
+
+    try:
+        expected = test.get("expected")
+        if not isinstance(expected, dict):
+            return None
+        variant = expected.get("variant")
+        value = expected.get("value")
+        if variant == "FailureCode":
+            if isinstance(value, int) and value in (1, 2):
+                return ("Err", value)
+            return None
+        if variant != "Value" or not isinstance(value, dict):
+            return None
+        data = value.get("data")
+        if not isinstance(data, dict) or data.get("variant") != "Result":
+            return None
+        inner = data.get("value")
+        if not isinstance(inner, dict):
+            return None
+        if inner.get("variant") == "Ok":
+            result = inner.get("value")
+            if not isinstance(result, dict):
+                return None
+            result_data = result.get("data")
+            if not isinstance(result_data, dict) or result_data.get("variant") != "SInt":
+                return None
+            result_value = result_data.get("value")
+            if not isinstance(result_value, int):
+                return None
+            return ("Ok", result_value)
+        if inner.get("variant") == "Err":
+            result = inner.get("value")
+            if not isinstance(result, dict):
+                return None
+            result_data = result.get("data")
+            if not isinstance(result_data, dict) or result_data.get("variant") != "BuiltinFailure":
+                return None
+            failure = result_data.get("value")
+            if not isinstance(failure, dict):
+                return None
+            if failure.get("kind") != "ArithmeticError":
+                return None
+            code = failure.get("code")
+            if not isinstance(code, int):
+                return None
+            return ("Err", code)
+        return None
+    except Exception:
+        return None
+
+
+def _driver_want(kind: str, detail: int) -> dict:
+    if kind == "Ok":
+        return {"Result": {"Ok": {"SInt": str(detail)}}}
+    return {"Result": {"Err": {"BuiltinFailure": {"kind": "Arithmetic", "code": detail}}}}
+
+
+def _require_test_boundaries(tests: list) -> dict[tuple[int, int], tuple[str, int]]:
+    """Require the three frozen TEST boundaries from submitted entities.
+
+    Returns the required map on success; rejects otherwise. Three or
+    more tests with a missing boundary, a duplicated input pair standing
+    in for another boundary, or a wrong expected failure are all
+    rejected: count alone never suffices.
+    """
+
+    required = {
+        (7, 2): ("Ok", 3),
+        (7, 0): ("Err", 2),
+        (-9223372036854775808, -1): ("Err", 1),
+    }
+    seen: dict[tuple[int, int], tuple[str, int]] = {}
+    for test in tests:
+        pair = _test_input_pair(test) if isinstance(test, dict) else None
+        norm = _test_expected_norm(test) if isinstance(test, dict) else None
+        if pair is None or norm is None:
+            _reject("ORACLE_TEST_MISMATCH",
+                    f"undecodable test inputs/expected {str(test)[:120]}")
+        assert pair is not None and norm is not None
+        if pair in seen:
+            continue
+        seen[pair] = norm
+    for pair, want_norm in required.items():
+        got = seen.get(pair)
+        if got is None:
+            _reject("ORACLE_CASE_MISSING", f"missing boundary {pair}")
+        if got != want_norm:
+            _reject("ORACLE_TEST_MISMATCH",
+                    f"boundary {pair}: submitted {got} != want {want_norm}")
+    return required
 
 
 def _judge_impl_unchanged(scratch_ws: Path, task_dir: Path, func: str,
@@ -1219,15 +1385,30 @@ def _test_entities(session: Session, scratch_ws: Path, func: str,
 
 def _judge_stale_sequence(session: Session, manifest: dict, corpus: dict, scratch_ws: Path,
                           candidate: bytes, pre_tx: str) -> None:
-    """STALE task: the agent candidate committed (H1); a competing write
-    against the old head must come back stale (no last-write-wins); the
-    agent bytes revalidated against H1 prove re-basing works."""
+    """STALE task frozen sequence: competing candidates against the same
+    base, first acceptance (already committed to H1 on entry), exact
+    permitted stale rejection with no partial second write, re-query,
+    and construction of a NEW candidate that genuinely validates against
+    the new base.
+
+    Resubmitting the original candidate while changing only the outer
+    request binding is NOT rebase evidence: the candidate's embedded
+    base binding still names the old head, so outer-tx substitution
+    alone proves nothing. The judge therefore requires a freshly
+    assembled candidate against H1 with a Valid decision.
+    """
 
     _ = corpus
     entities = manifest.get("entities", {}) if isinstance(manifest.get("entities"), dict) else {}
     if "constant" not in entities or "guard" not in entities:
         _harness_fail("stale entities")
-    competing = _encode_commit_body(pre_tx, manifest.get("principal", ""), candidate.hex())
+    principal = manifest.get("principal", "")
+    head_h1 = session.head.get("tx", "")
+    if not head_h1 or head_h1 == pre_tx:
+        _reject("ORACLE_STALE_UNCHANGED", "head did not advance past H1")
+    # Competing write against the old base must fail stale: same stored
+    # bytes, old parent. No last-write-wins.
+    competing = _encode_commit_body(pre_tx, principal, candidate.hex())
     stale = session._raw_request("commit", competing)
     if not stale["flags"].get("failed"):
         _reject("ORACLE_LAST_WRITE_WINS", "competing commit applied")
@@ -1238,13 +1419,81 @@ def _judge_stale_sequence(session: Session, manifest: dict, corpus: dict, scratc
     code = decoded["decoded"].get("symbol", "")
     if "STALE" not in code:
         _reject("ORACLE_STALE_UNREFUSED", code[:64])
-    if session.head.get("tx", "") == pre_tx:
-        _reject("ORACLE_STALE_UNCHANGED", "head did not advance past H1")
+    # No partial second write: a fresh session must still read H1.
+    fresh = Session(_resolve_binary(), scratch_ws, [], seed_pack=False)
+    try:
+        if fresh.head.get("tx", "") != head_h1:
+            _reject("ORACLE_STALE_PARTIAL_WRITE",
+                    f"{fresh.head.get('tx', '')[:16]} != H1")
+    finally:
+        fresh.close()
+    # Outer-binding-only resubmission is not rebase evidence. Record its
+    # outcome for diagnosis, but never accept on it: even a successful
+    # envelope must still decode to Valid, and even then a fresh
+    # candidate is required below.
+    probe = session._raw_request(
+        "candidate.validate",
+        _encode_validate_body(head_h1, principal, candidate.hex()))
+    if not probe["flags"].get("failed"):
+        try:
+            [probe_decoded] = sley2_codecs.run_batch(
+                [{"op": "decode_result", "body": probe["body"]}])
+        except sley2_codecs.CodecError:
+            pass
+        else:
+            # Deliberately ignored as acceptance evidence: resubmission
+            # with only the outer tx changed does not rebase the
+            # candidate's embedded base binding.
+            _ = probe_decoded.get("decision_tag")
+    # Genuine rebase: assemble a NEW candidate against H1 (identity
+    # Replace of the guard's current body) and require Valid through the
+    # correct validation shape.
+    _require_rebased_candidate_valid(session, scratch_ws, manifest, head_h1)
+
+
+def _require_rebased_candidate_valid(session: Session, scratch_ws: Path,
+                                     manifest: dict, head_h1: str) -> None:
+    """Build a fresh identity candidate against the new base and require
+    a Valid decision. Proves the new base is writable, independent of
+    the original bytes."""
+
+    from bench.live import sley2_tool as _tool
+
+    entities = manifest.get("entities", {}) if isinstance(manifest.get("entities"), dict) else {}
+    principal = manifest.get("principal", "")
+    guard = entities.get("guard", "")
+    if not guard:
+        _harness_fail("stale entities")
+    reply = session._raw_request("entity.version", _tool_entity_body(session, guard))
+    if reply["flags"].get("failed"):
+        _reject("ORACLE_REBASE_INVALID", "guard unreadable at H1")
+    try:
+        [decoded] = sley2_codecs.run_batch([{
+            "op": "decode_response", "method": "entity.version", "body": reply["body"],
+        }])
+    except (sley2_codecs.CodecError, KeyError) as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: rebase read: {error}") from error
+    entries = decoded["decoded"].get("entries") or []
+    if len(entries) != 1:
+        _reject("ORACLE_REBASE_INVALID", "guard entries at H1")
+    entry = entries[0]
+    ops = [{"class": "ReplaceEntityVersion", "kind": entry["kind"],
+            "target": guard, "field_tag": None, "payload": entry["body"]}]
+    try:
+        record_hex = _tool._assemble(session, ops)
+    except Exception as error:
+        raise JudgeRejection("ORACLE_REBASE_INVALID", f"assemble: {error}"[:120]) from error
+    try:
+        [stored] = sley2_codecs.run_batch(
+            [{"op": "stored_from_record", "record": record_hex}])
+    except sley2_codecs.CodecError as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: rebase stored: {error}") from error
     rebased = session._raw_request(
         "candidate.validate",
-        _encode_commit_body(session.head["tx"], manifest.get("principal", ""), candidate.hex()))
+        _encode_validate_body(head_h1, principal, stored["stored"]))
     if rebased["flags"].get("failed"):
         _reject("ORACLE_REBASE_INVALID", (rebased.get("body") or "")[:120])
+    _require_valid_decision(rebased.get("body") or "", code="ORACLE_REBASE_INVALID")
 
 
 def _judge_merge(session: Session, manifest: dict, corpus: dict, scratch_ws: Path,
@@ -1447,20 +1696,30 @@ def _judge_perf(session: Session, manifest: dict, corpus: dict, scratch_ws: Path
 def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
     """CONTEXT agent-read evidence from the trusted tool boundary.
 
-    The chained per-invocation transcript in the trial workspace is the
-    complete, ordered record of everything the agent saw and did; the
-    judge's own inspection log is not agent evidence and is never used
-    here. Verified (order, hashes, tool version, fixture binding), then
-    derived: whole-store reads (inventory calls — the only enumeration
-    surface), targeted reads, operations, continuation use with
+    Three claims stay separated: the hash chain proves ordering and
+    tamper-evidence only. Completeness (the record contains every
+    agent-visible operation and response) is established by
+    durable-before-release, per-entry response accounting, transition
+    linkage, and final linkage below. Absence of an unrecorded route to
+    protected state is established by provider confinement and the
+    tool-allowlist/repo-untouched checks, not by the chain. The chain
+    alone establishes neither of the other two.
+
+    Verified (order, hashes, tool/binary/fixture binding), then derived
+    across every session and phase: whole-store reads under the frozen
+    definition applied to every exposed read route (inventory, side,
+    and any query/refs enumeration, never only commands named
+    inventory), targeted reads, operations, continuation use with
     omitted/truncated accounting, refusals, per-response byte caps, and
     the absence of any commit path.
 
-    Missing, incomplete, or unverifiable evidence prevents full CONTEXT
-    acceptance under the frozen unbounded-read code; semantic-only
-    success is noted in the rejection detail, never mislabeled as a
-    pass. whole_store_reads is derived, never defaulted: an empty but
-    valid chain derives zero only because every call is enumerated.
+    Missing, truncated, mismatched, or unverifiable evidence prevents
+    full CONTEXT acceptance under the frozen unbounded-read code;
+    semantic-only success is noted in the rejection detail, never
+    mislabeled as a pass. whole_store_reads is derived, never
+    defaulted: an empty but valid chain derives zero only because every
+    call is enumerated. Unknowns are never reported as zero: incomplete
+    evidence rejects instead of returning counts.
     """
 
     chain = trial_ws / CHAIN_NAME
@@ -1487,17 +1746,27 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
     refusals = 0
     max_response = 0
     calls = 0
+    binary_ids: set[str] = set()
+    try:
+        judge_binary = hashlib.sha256(_resolve_binary().read_bytes()).hexdigest()
+    except Exception:
+        judge_binary = ""
     for entry in entries:
         if not isinstance(entry, dict):
             _reject("QUERY_REQUIRED_FACT_OMITTED", "agent entry shape; semantics held")
         if entry.get("tool_version") != TOOL_VERSION:
             _reject("QUERY_REQUIRED_FACT_OMITTED",
                     f"tool version {entry.get('tool_version')}; semantics held")
+        binary_id = entry.get("sley_binary_sha256", "")
+        if not _is_hash64(binary_id):
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    "tool/binary identity missing; semantics held")
+        binary_ids.add(str(binary_id))
         if entry.get("pack_sha256") != pack_digest:
             _reject("QUERY_REQUIRED_FACT_OMITTED",
                     "fixture binding mismatch; semantics held")
         command = entry.get("command", "")
-        if command == "inventory":
+        if command in ("inventory", "side"):
             whole_store += 1
         args = entry.get("args") if isinstance(entry.get("args"), dict) else {}
         for entity in args.get("entities", []) if isinstance(args.get("entities"), list) else []:
@@ -1528,16 +1797,143 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
                 if item.get("method") == "commit":
                     _reject("QUERY_REQUIRED_FACT_OMITTED",
                             "agent commit path; semantics held")
+                # Frozen whole-store-read definition applied to every
+                # exposed read route, not only commands named inventory:
+                # any query/refs enumeration reads served state beyond a
+                # targeted entity version/signature.
+                if item.get("method") in ("query.root", "query.restricted",
+                                          "query.continue", "refs.list"):
+                    whole_store += 1
         if summary.get("truncated"):
             truncated += 1
+    if len(binary_ids) != 1 or (judge_binary and next(iter(binary_ids)) != judge_binary):
+        _reject("QUERY_REQUIRED_FACT_OMITTED",
+                "tool/binary identity mismatch; semantics held")
+    if omitted > 0 or truncated > 0:
+        _reject("QUERY_REQUIRED_FACT_OMITTED",
+                f"omitted={omitted} truncated={truncated}; semantics held")
     if whole_store > 0:
         _reject("QUERY_REQUIRED_FACT_OMITTED",
                 f"whole_store_reads={whole_store}; semantics held")
+    _verify_candidate_transitions(entries)
+    _verify_final_linkage(trial_ws, entries)
     return {"whole_store_reads": whole_store, "targeted_reads": len(targeted),
             "operations": operations, "continuations": continuations,
             "omitted": omitted, "truncated": truncated, "refusals": refusals,
             "max_response_bytes": max_response, "agent_requests": calls,
             "invocations": len(entries)}
+
+
+def _is_hash64(value: object) -> bool:
+    return (isinstance(value, str) and len(value) == 64
+            and all(ch in "0123456789abcdef" for ch in value))
+
+
+def _verify_candidate_transitions(entries: list) -> None:
+    """Compose/append/finish linkage for access-evidence claims.
+
+    Each successful propose/compose/append must carry a non-null output
+    transition binding; each successful compose/append must carry a
+    non-null input binding equal to the most recent prior output; each
+    successful finish must carry a non-null input binding equal to the
+    most recent prior output. A missing or inconsistent transition cannot
+    support an accepted access-evidence claim: it rejects under the
+    frozen unbounded-read code with semantics-held detail, never as a
+    silent zero.
+    """
+
+    last_out: str | None = None
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        command = entry.get("command", "")
+        records = entry.get("records") if isinstance(entry.get("records"), dict) else {}
+        args = entry.get("args") if isinstance(entry.get("args"), dict) else {}
+        if command not in ("propose", "compose", "append", "finish"):
+            continue
+        if not entry.get("ok"):
+            continue
+        if command == "propose":
+            out = records.get("out")
+            if not _is_hash64(out):
+                _reject("QUERY_REQUIRED_FACT_OMITTED",
+                        "propose transition missing out; semantics held")
+            if not isinstance(args.get("op_count"), int) or args["op_count"] <= 0:
+                _reject("QUERY_REQUIRED_FACT_OMITTED",
+                        "propose transition missing ops; semantics held")
+            last_out = str(out)
+        elif command in ("compose", "append"):
+            inp = records.get("in")
+            out = records.get("out")
+            if not _is_hash64(inp) or not _is_hash64(out):
+                _reject("QUERY_REQUIRED_FACT_OMITTED",
+                        f"{command} transition missing in/out; semantics held")
+            if not isinstance(args.get("op_count"), int) or args["op_count"] <= 0:
+                _reject("QUERY_REQUIRED_FACT_OMITTED",
+                        f"{command} transition missing ops; semantics held")
+            if last_out is None or inp != last_out:
+                _reject("QUERY_REQUIRED_FACT_OMITTED",
+                        f"{command} transition mismatch; semantics held")
+            last_out = str(out)
+        elif command == "finish":
+            inp = records.get("in")
+            if not _is_hash64(inp):
+                _reject("QUERY_REQUIRED_FACT_OMITTED",
+                        "finish transition missing in; semantics held")
+            if last_out is None or inp != last_out:
+                _reject("QUERY_REQUIRED_FACT_OMITTED",
+                        "finish transition mismatch; semantics held")
+
+
+def _verify_final_linkage(trial_ws: Path, entries: list) -> None:
+    """The finished record hash must match the submitted artifact.
+
+    final_candidate.hex holds STORED bytes; the transcript binds RECORD
+    hashes. The judge digest-verifies stored -> record through the pinned
+    codecs and requires the resulting record hash to equal the finish
+    input and the last propose/compose/append output. When no final
+    artifact exists (read-only evidence probes) there is nothing to link.
+    """
+
+    final = trial_ws / "final_candidate.hex"
+    try:
+        if not final.is_file() or final.is_symlink():
+            return
+        stored_hex = final.read_text(encoding="utf-8").strip()
+    except OSError:
+        return
+    if not stored_hex or len(stored_hex) % 2:
+        return
+    try:
+        [unwrapped] = sley2_codecs.run_batch(
+            [{"op": "record_from_stored", "stored": stored_hex}])
+        record_hex = unwrapped["record"]
+    except Exception:
+        _reject("QUERY_REQUIRED_FACT_OMITTED",
+                "final linkage unverifiable; semantics held")
+        raise AssertionError("unreachable")
+    want = hashlib.sha256(record_hex.encode()).hexdigest()
+    last_out: str | None = None
+    finish_in: str | None = None
+    for entry in entries:
+        if not isinstance(entry, dict) or not entry.get("ok"):
+            continue
+        command = entry.get("command", "")
+        records = entry.get("records") if isinstance(entry.get("records"), dict) else {}
+        if command in ("propose", "compose", "append"):
+            out = records.get("out")
+            if _is_hash64(out):
+                last_out = str(out)
+        elif command == "finish":
+            inp = records.get("in")
+            if _is_hash64(inp):
+                finish_in = str(inp)
+    if last_out is None or finish_in is None:
+        _reject("QUERY_REQUIRED_FACT_OMITTED",
+                "final linkage missing transitions; semantics held")
+    if finish_in != last_out or finish_in != want:
+        _reject("QUERY_REQUIRED_FACT_OMITTED",
+                "final linkage mismatch; semantics held")
 
 
 def _judge_bounded(session: Session, manifest: dict, corpus: dict, scratch_ws: Path,

@@ -123,3 +123,109 @@ is consumed.
   that fails on any development branch adding lane-path files after
   the proof commit (pre-existing for this branch at 3badd822, not a
   code regression). No fuzz re-run (multi-hour) on this branch.
+
+## Acceptance-correctness repair pass (2026-09-20, supersedes judge outputs above)
+
+The 11 scripted acceptances in the table above are outputs of the
+pre-repair judge, not proof that frozen task contracts were satisfied.
+Historical logs in `bench/live/succ-trials-20260920/` are retained as
+superseded evidence and are not overwritten. New evidence goes to
+`bench/live/succ-trials-20260921/`. Three tiers stay separated:
+
+- (A) Scripted fixture acceptance: deterministic tool-surface script,
+  judged by the repaired judge.
+- (B) Full frozen-task satisfaction: every frozen predicate proved
+  (see per-task below). Only TEST is newly proved in this pass.
+- (C) Live-model campaign evidence: none claimed. `ga_claimed=false`.
+  No acceptance campaign started; readiness prerequisites unsatisfied.
+
+Per-task frozen predicates (proved vs still missing):
+
+- CREATE: no scripted positive. Blank-repo staging exists
+  (`stage_initial` blank, no pack); live judging path returns
+  harness_error on missing manifest by design. Missing: blank-program
+  setup as harness work (not a model limitation), judging path for a
+  blank start, deterministic positive/negative witnesses without
+  seeding a completed solution. Static S3 only.
+- REPAIR: (A) superseded (old judge). Frozen clamp-combine predicates
+  not re-proved under repaired judge in this pass. Pending re-run.
+- SIG: (A) superseded. Caller/CallDirect, arity, fixed-input execution
+  not re-proved here. Pending re-run.
+- MODULE: (A) superseded. Frozen predicates require namespace-binding
+  change and resolving references, not only an export-list change.
+  Current export-grant embodiment states the residual gap; no adopted
+  contract establishes export-list equivalence. Pending: binding-level
+  fix or adopted equivalence contract under review gate.
+- TYPE: (A) superseded. Frozen predicates require full tagged-state
+  migration, exhaustive handling, explicit Failed(error_code), and
+  deterministic values. Four Required blocks reachable through the old
+  Boolean dispatch is not sufficient by itself. Open question whether
+  restrictive fixture targets are an erroneous task encoding; they are
+  not treated as superior to the frozen task. Pending re-proof.
+- EFFECT/CAP: no scripted positive (deterministic E7 refusal
+  VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16
+  handle-model schema-epoch decision). This is an unimplemented
+  adapter/lowering gap, not an intentional production-profile
+  exclusion and not merely "awaiting an unscripted trial". Pending:
+  authorized independent adapter work; any semantic/profile change
+  requires the existing design/review gate (exact change prepared
+  separately, gate retained).
+- DEAD: BLOCKED (preserved diagnosis below). No benchmark exception,
+  no orphan workaround, no unreviewed semantic landing. Tombstone
+  proposal + regression spec in `bench/live/DEAD-TOMBSTONE-PROPOSAL.md`
+  (proposal only, review gate retained).
+- TEST: (A) proved under repaired judge + (B) proved 2026-09-20:
+  `succ-trials-20260921/trial_test_repaired.log` — three submitted
+  TestCase entities covering success/div0/overflow with exact expected
+  outcomes, impl byte-identical, driver-verified through native
+  machinery. Count-alone acceptances superseded.
+- STALE: (A) superseded. Repaired judge requires Valid decision
+  decoding, correct validate shape, stale rejection with no partial
+  write, and a freshly assembled rebase candidate (outer-binding-only
+  resubmission never counts). Pending re-run under repaired judge.
+- MERGE: (A) superseded. Frozen predicates require branch changes and
+  reverse-order semantic equivalence through the production merge
+  path. "Holds by construction" and same-result reread do not
+  substitute for an observed commutativity check. Pending re-proof.
+- PERF: (A) superseded. Frozen predicates require judging the
+  submitted transformation on the fixed large input (outputs, effects,
+  instruction reduction, memory ceiling). The 2x2 scan->ordered-map
+  result is retained as a development smoke test only; static evidence
+  does not validate the submitted candidate. Pending large-input proof.
+- CONTEXT: (A) superseded (compose evidence + audit repaired).
+  Trusted access evidence now requires hash chain + transition linkage
+  + final linkage + binary/fixture binding + whole-store on every read
+  route + omitted/truncated/bounds enforcement. Old transcripts lack
+  compose in/out and binary binding and are unverifiable under the new
+  judge. Pending re-run.
+- ADVERSARY: (A) superseded. Pending re-run.
+- CORRUPT: (A) superseded (e2e). Frozen predicates require rejection
+  of the corrupted exchange pack with digest failure and unchanged
+  destination ref. Restoring a constant's value is a different
+  operation and cannot substitute. Pending re-proof through the
+  exchange path.
+
+Trusted access-evidence status: hash chain proves order/tamper only.
+Completeness via durable-before-release (tool records before printing;
+evidence loss is terminal exit 2 with no success released) plus
+transition/final linkage, response bounds, omitted/continuation
+accounting. No-unrecorded-route via provider confinement
+(`CodexExecAdapter`: ephemeral, workspace-write sandbox, no user
+config/rules, no env inherit) plus CLI allowlist (no commit/merge/
+execute/export/import/report/session paths), repo-untouched
+enforcement, and side-scope marking. Totals derived from complete
+trusted evidence across every session/phase; unknowns reject rather
+than report zero. Deterministic regressions:
+`bench/live/tests/test_acceptance_repairs.py` (24 tests: compose
+evidence, transitions, Valid decoding, TEST boundaries, provider/
+whole-store/omitted/binary).
+
+Production/review/provider/operator dependencies: DEAD tombstone
+semantic change needs independent review (provider unavailable, gate
+retained); EFFECT/CAP rev16 handle-model decision needs design/review;
+PERF large-input harness, MERGE production merge-path check, MODULE
+binding vs export equivalence contract, TYPE target-encoding question,
+and all live-model campaign prerequisites (seeds/budgets preregistered,
+90 attempts minimum, two-host reproducible package/dossier, current
+source-bound Council transcripts) remain unsatisfied. No campaign
+started.
