@@ -5,8 +5,11 @@ Stages the unflipped base, restores the constant to its expected value
 as a ReplaceEntityVersion through sley2_tool propose/finish, then runs
 the frozen live judge — which checks the restored-value smoke beside
 the acceptance evidence: the exchange-pack corruption and rejection
-path (exact PACK_DIGEST_MISMATCH on two bit-flips, destination ref
-unchanged). Variants:
+path (exact EXCHANGE_DIGEST_MISMATCH on two bit-flips, destination ref
+unchanged). Owner-layer note: the trial surface drives the EXCHANGE
+owner only (`exchange.import`); the README-normative
+PACK_DIGEST_MISMATCH belongs to the repository-bundle import owner
+and is pinned by the frozen S3 G2 suite, never equated here. Variants:
   pos  restore expected value (must accept)
   neg  flip to the wrong value (must reject ORACLE_CORRUPT_UNRESTORED)
 

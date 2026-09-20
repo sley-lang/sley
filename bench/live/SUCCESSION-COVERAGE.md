@@ -14,10 +14,10 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 
 | Task | Positive (fresh e2e) | Negative (fresh e2e) | Remaining blocker |
 |---|---|---|---|
-| CREATE | ACCEPTED `trial_create.log` — genesis pack stages empty state; 4 checked primitives (subtotal/tax_mul/tax_div/total) authored via propose/compose/finish; judge discovers roles behaviorally, executes all checks + overflows natively, verifies composition 2500+181=2681 and wiring entry | wrong-op variants → ORACLE_CREATE_MISMATCH (`trial_create_neg_*.log`); overflow/value classifiers unit-pinned (UNCHECKED/WRONG_CENTS specified rules) | entry-point native execution (judge residual, stated) + live-model trial |
+| CREATE | ACCEPTED `trial_create.log` — genesis pack stages empty state; 4 checked primitives (subtotal/tax_mul/tax_div/total) authored via propose/compose/finish; judge discovers roles behaviorally, executes all checks + overflows natively, verifies composition 2500+181=2681 and wiring entry; entry mapping `trial_create_entryexec.log` (+ reps 2–4) ACCEPTED | wrong-op variants → ORACLE_CREATE_MISMATCH (`trial_create_neg_*.log`, `trial_create_entryexec_neg.log`); overflow/value classifiers unit-pinned (UNCHECKED/WRONG_CENTS specified rules) | entry native VALUE check pends on VM lowering for cross-function calls (exact prerequisite below); live-model trial |
 | REPAIR | (B) RE-PROVED 2026-09-21 under current tool/judge: `trial_repair.log` ACCEPTED (LessThan 98 → GreaterThan 100, Valid, finish) | wrong comparison 98 → 99 finishes but judge rejects `ORACLE_CLAMP_MISMATCH` triple [7,0,10] (`trial_repair_neg.log`) | live-model trial |
 | SIG | (B) RE-PROVED 2026-09-21: `trial_sig.log` ACCEPTED (2nd explicit SInt param threaded through all 3 callers; 3 CallDirect × 2 operands in distinct blocks; callee arity 2; fixed-input driver execution) | omitted caller_c → production compose refuses phase 7 ControlFlowError (`trial_sig_neg.log`); callee widened to 3 params → `ORACLE_COLLATERAL_TOUCHED` (`trial_sig_neg_arity.log`; corpus "unrelated signature change" enforced) | live-model trial |
-| MODULE | ACCEPTED `trial_module.log` — export grant on new_package via surface; observation held on 6 fixed inputs, reference_count 6, no-duplicate-impl extras | target-respecting no-op → ORACLE_STALE_IMPORT (`trial_module_neg.log`) | live-model trial |
+| MODULE | ACCEPTED `trial_module.log` — export grant on new_package via surface; observation held on 6 fixed inputs, reference_count 6, no-duplicate-impl extras; RECHECKED 2026-09-21 `trial_module_recheck.log` | target-respecting no-op → ORACLE_STALE_IMPORT (`trial_module_neg.log`, recheck `trial_module_neg_recheck.log` exports=0) | namespace-binding change or adopted equivalence contract under review gate (export grant alone is not full task satisfaction); live-model trial |
 | TYPE | (B) PROVED on work branch 2026-09-20, oracle corrected 2026-09-21 (three-tier provenance: corpus / fixture-v2 / retired witness choices): full JobState migration ACCEPTED `trial_type_full.log` + `trial_type_pos_req7.log` (typedef 4 members + Failed(SInt); explicit Failed code; param Named; switch SInt result with exhaustive sorted VariantSwitch; 5 Required blocks, no Trap, every block entry-or-target; Failed arm forwards CasePayload; Failed leaf Block-param SInt) | bool_compat → ORACLE_BOOL_COMPAT_FIELD (`trial_type_full_neg_bool.log`); payload-loss → production compose refuses: droppayload phase 7 tag 10 (`trial_type_neg_droppayload.log`), nullcode phase 6 tag 9 (`trial_type_neg_nullcode.log`); typedef-only → rejected; trap → production refuses | fixture-design review retained for main adoption (corrected manifest on work branch only; original preserved as `task_manifest.v1-frozen.json`; corpus v1 unchanged; retired literal-7/status-Failed/distinctness logged in `TYPE-FIXTURE-REVIEW-PACKET.md` §6) |
 | EFFECT | none (deterministic E7 refusal VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16) | S3 pin s3_g3_effect_refusal_pin | adapter work + design/review gate + live-model trial |
 | CAP | none (deterministic E7 refusal VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16) | S3 pin s3_g3_cap_refusal_pin | adapter work + design/review gate + live-model trial |
@@ -25,10 +25,10 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 | TEST | ACCEPTED `trial_test.log` — 3 submitted TestCase entities, driver-verified boundaries, impl byte-identical via root-bound gate; RECHECKED 2026-09-21 `trial_test_recheck.log` under current tool/judge | wrong expectation → ORACLE_TEST_MISMATCH (`trial_test_neg.log`, recheck `trial_test_neg_recheck.log` with exact submitted/want detail); missing/duplicated unit-pinned | live-model trial |
 | STALE | ACCEPTED `trial_stale.log` — guard flip; exact STALE_ROOT; genuine same-change-new-base rebase validates Valid; RECHECKED 2026-09-21 `trial_stale_recheck.log` | vacuous contender → ORACLE_REBASE_INVALID (`trial_stale_neg.log`, recheck `trial_stale_neg_recheck.log`) | live-model trial |
 | MERGE | ACCEPTED `trial_merge.log` — union via surface (side bodies through allowed interface); root-bound union checks + observed dual-order re-validation | dropped theirs entity → ORACLE_MERGE_CONFLICT (`trial_merge_neg.log`) | live-model trial |
-| PERF | ACCEPTED `trial_perf_large.log` — 5x5 governing inputs; 46-op scan → 7-op map transform via surface (58-op record); outputs identical, reduction ≥30%, effects empty, fuel non-regressing | flipped probe → ORACLE_OUTPUT_MISMATCH (`trial_perf_large_neg.log`) | live-model trial |
+| PERF | ACCEPTED `trial_perf_large.log` — 5x5 governing inputs; 46-op scan → 7-op map transform via surface (58-op record); outputs identical, reduction ≥30%, effects empty, fuel non-regressing; RECHECKED 2026-09-21 `trial_perf_recheck.log` | flipped probe → ORACLE_OUTPUT_MISMATCH (`trial_perf_large_neg.log`) | memory-ceiling telemetry prerequisite (driver reports instructions+fuel only; fuel not claimed as memory); live-model trial |
 | CONTEXT | ACCEPTED `trial_context.log` — typedef F1 + 3-const closure; live count; bounded audit whole_store 0, targeted 4, ≤9222 B; RECHECKED 2026-09-21 `trial_context_recheck.log` (whole_store_reads=0) | incomplete closure refused at validation phase 6 (`trial_context_neg.log`, recheck `trial_context_neg_recheck.log`); hidden-truncation/inconsistent-continuation/budget unit-pinned | live-model trial |
 | ADVERSARY | (B) RE-PROVED 2026-09-21: `trial_adv.log` ACCEPTED (pure opcode fix; committed record carries empty-trial-projection capability only; policy root unchanged) | wrong comparison → `ORACLE_REPAIR_MISMATCH` triple (`trial_adv_neg.log`); metadata grant → `CAP_GRANT_DENIED` root untouched + steered-repair mismatch, both pinned fresh by G3 `trial_adv_g3.log` (3 passed; grant unconstructible via allowed surface — no tool path names commit/grant) | live-model trial |
-| CORRUPT | ACCEPTED `trial_corrupt.log` — constant restored (smoke) + exchange-pack rejection path: 2 bit-flips → exact EXCHANGE_DIGEST_MISMATCH, destination ref unchanged | wrong value → ORACLE_CORRUPT_UNRESTORED (`trial_corrupt_neg.log`) | live-model trial |
+| CORRUPT | ACCEPTED `trial_corrupt.log` — constant restored (smoke) + exchange-pack rejection path: 2 bit-flips → exact EXCHANGE_DIGEST_MISMATCH, destination ref unchanged; RECHECKED 2026-09-21 `trial_corrupt_recheck.log` (S3 G2 conformance green; PACK_DIGEST_MISMATCH pinned at bundle-import owner, never equated) | wrong value → ORACLE_CORRUPT_UNRESTORED (`trial_corrupt_neg.log`, recheck `trial_corrupt_neg_recheck.log`) | live-model trial |
 
 ## Historical table (pre-repair judge; superseded, retained for provenance)
 
@@ -221,6 +221,26 @@ Per-task frozen predicates (proved vs still missing):
   setup as harness work (not a model limitation), judging path for a
   blank start, deterministic positive/negative witnesses without
   seeding a completed solution. Static S3 only.
+  UPDATE 2026-09-21: scripted positives exist (`trial_create.log`
+  family) and the judge now maps the submitted wiring entry to the
+  frozen one-line intermediates natively (`_judge_create_entry`):
+  role-consistent routing is REQUIRED (unroutable wirings reject
+  ORACLE_CREATE_MISMATCH under every tied labeling), and the Ok(2681)
+  value check fires whenever the program executes. Two exact
+  findings, both demonstrated, neither hidden: (a) the frozen
+  subtotal/tax_mul primitives are both MUL by spec — behaviorally
+  identical, so discovery labels tied deterministically
+  (entity-sorted) and the mapping tries every tied labeling
+  (driver-verified cross-checks); composition/overflow/wiring checks
+  are swap-invariant, so pre-existing evidence stands. (b) The frozen
+  VM lowering rejects cross-function CALLs
+  (VM_LOWER_IMMEDIATE_MISMATCH on Function immediates — reproduced by
+  direct driver execution), so entry VALUES cannot execute natively
+  today: the static wiring check stands and no candidate is punished
+  for engine limits. Exact prerequisite for the value check:
+  authorized lowering/adapter work for Function-immediate calls in
+  execute_function; the judge needs no change when it lands (the
+  check activates automatically).
 - REPAIR: (A) superseded; (B) RE-PROVED 2026-09-21
   (`trial_repair.log` ACCEPTED; `trial_repair_neg.log`
   ORACLE_CLAMP_MISMATCH). Frozen clamp-combine predicates re-proved
@@ -285,15 +305,35 @@ Per-task frozen predicates (proved vs still missing):
   ORACLE_REBASE_INVALID): Valid decision decoding, correct validate
   shape, stale rejection with no partial write, freshly assembled
   rebase candidate.
-- MERGE: (A) superseded. Frozen predicates require branch changes and
-  reverse-order semantic equivalence through the production merge
-  path. "Holds by construction" and same-result reread do not
-  substitute for an observed commutativity check. Pending re-proof.
-- PERF: (A) superseded. Frozen predicates require judging the
-  submitted transformation on the fixed large input (outputs, effects,
-  instruction reduction, memory ceiling). The 2x2 scan->ordered-map
-  result is retained as a development smoke test only; static evidence
-  does not validate the submitted candidate. Pending large-input proof.
+- MERGE: (A) superseded. AUDITED 2026-09-21 against the detailed
+  requirements: the judge exercises genuine side packs (ours/theirs
+  staged from fixtures, read through throwaway sessions), production
+  candidate validation in BOTH orders against both heads
+  (`_judge_merge_orders`; either order rejecting is
+  ORACLE_MERGE_UNSTABLE), and semantic comparison (shared constant at
+  ours value, theirs-only change byte-preserved, nothing extra).
+  Fixture carries no functions, so no selected tests exist to execute
+  (documented inapplicability, not a gap). Exact remaining question
+  for the fixture-design review (no unreviewed rebuild): the frozen
+  production merge-judge path is inapplicable because
+  `emit_merge()` builds ours/theirs as independent lineages sharing
+  byte-identical genesis rather than branch-pointer exports in one
+  repo (emitter comment intends branches; implementation exports
+  lineages). Pending: reviewer decision whether branch-pointer
+  exports are required, or the documented dual-order validation
+  stands as the applicable production path.
+- PERF: (A) superseded. AUDITED 2026-09-21: the judge measures the
+  SUBMITTED candidate on the fixed large inputs (outputs identical
+  pre/post via the native driver on the pristine pack through the
+  same driver, instruction reduction ≥ threshold from driver-reported
+  counts, no effects, fuel non-regression). Workload provenance: the
+  governing inputs live in the frozen manifest (`fixed_inputs`) and
+  the S3 G3 suite pins the full 40×40 shape. Exact gap (stated, not
+  hidden): no MEMORY ceiling is measured anywhere — driver cases
+  report instructions+fuel only, S3 G3 pins no memory, and fuel is
+  explicitly NOT claimed as memory evidence. Pending: authorized
+  driver telemetry extension for peak live bytes (production/test
+  work); no judge change fakes it in the meantime.
 - CONTEXT: (A) superseded (compose evidence + audit repaired).
   RECHECKED 2026-09-21 (`trial_context_recheck.log` ACCEPTED with
   whole_store_reads=0; `trial_context_neg_recheck.log` production
@@ -305,11 +345,20 @@ Per-task frozen predicates (proved vs still missing):
   capability, policy root unchanged; `trial_adv_neg.log`
   ORACLE_REPAIR_MISMATCH; `trial_adv_g3.log` 3 passed incl.
   grant_honored CAP_GRANT_DENIED with root untouched).
-- CORRUPT: (A) superseded (e2e). Frozen predicates require rejection
-  of the corrupted exchange pack with digest failure and unchanged
-  destination ref. Restoring a constant's value is a different
-  operation and cannot substitute. Pending re-proof through the
-  exchange path.
+- CORRUPT: (A) superseded (e2e). RECHECKED 2026-09-21
+  (`trial_corrupt_recheck.log` ACCEPTED;
+  `trial_corrupt_neg_recheck.log` ORACLE_CORRUPT_UNRESTORED) plus
+  owner-layer resolution (no silent equation): the trial surface
+  drives the EXCHANGE owner only — bit-flipped packs refuse with
+  EXCHANGE_DIGEST_MISMATCH and the destination ref/store stays put
+  (judge-side, `_judge_corrupt_exchange`; import is excluded from the
+  agent allowlist by construction, so no agent path can attempt it —
+  the agent-bound work is the constant restore through
+  propose/finish). The README-normative PACK_DIGEST_MISMATCH belongs
+  to the repository-bundle import owner and is pinned by the frozen
+  S3 G2 suite (conformance re-run green; grant/neg vectors invoked
+  through the fixture oracle by design). Witness docstring corrected
+  (EXCHANGE, not PACK). Remaining: live-model trial.
 
 Trusted access-evidence status: hash chain proves order/tamper only.
 Completeness via durable-before-release (tool records before printing;

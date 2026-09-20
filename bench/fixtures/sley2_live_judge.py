@@ -1670,10 +1670,12 @@ def _judge_create(session: Session, manifest: dict, corpus: dict, scratch_ws: Pa
     ORACLE_WRONG_CENTS via near-miss classification; anything else that
     matches no role is ORACLE_CREATE_MISMATCH.
 
-    Residual (stated, not hidden): the entry's end-to-end invoice value
-    is verified statically (calls all primitives, Result return) rather
-    than executed, because the frozen driver only drives scalar SInt
-    inputs; every primitive it wires is executed natively.
+    The submitted wiring entry itself executes natively on the frozen
+    one-line intermediates whenever the engine permits (see below):
+    the program's own end-to-end result, not only its primitives',
+    decides the corpus total. Engine-limited entries (VM lowering
+    rejects cross-function calls today) keep the static wiring check;
+    genuine end-to-end miscomputation rejects.
     """
 
     _ = corpus
@@ -1695,13 +1697,17 @@ def _judge_create(session: Session, manifest: dict, corpus: dict, scratch_ws: Pa
     roles: dict[str, str] = {}
     seen: dict[str, dict[tuple, int]] = {}
     near: dict[str, list[tuple[str, list]]] = {}
+    # Deterministic candidate order (entity-sorted): readdir order must
+    # never decide role labels. Behaviorally tied roles (frozen
+    # subtotal/tax_mul are both MUL by spec) are disambiguated below
+    # by cross-checks, never by scan order.
     for role, cfg in spec.items():
         if not isinstance(cfg, dict):
             _harness_fail("create primitive spec")
         params = int(cfg.get("params", 2))
         checks = cfg.get("checks", [])
         match = None
-        for entity, body in functions:
+        for entity, body in sorted(functions):
             if entity in roles.values():
                 continue
             parameters = body.get("parameters")
@@ -1792,6 +1798,7 @@ def _judge_create(session: Session, manifest: dict, corpus: dict, scratch_ws: Pa
     callees = _create_callees(session, scratch_ws, current)
     primitives = set(roles.values())
     entry = None
+    entry_body: dict = {}
     for entity, body in functions:
         if entity in primitives:
             continue
@@ -1799,9 +1806,202 @@ def _judge_create(session: Session, manifest: dict, corpus: dict, scratch_ws: Pa
             result_type = body.get("result_type") or {}
             if isinstance(result_type, dict) and result_type.get("variant") == "Result":
                 entry = entity
+                entry_body = body
                 break
     if entry is None and need:
         _reject("ORACLE_CREATE_UNWIRED", "no entry calls all primitives")
+    # Native end-to-end entry execution (the program's own invoice
+    # result on the frozen one-line intermediates): each entry CALL
+    # operand position carries its role's frozen input value (shared
+    # params must agree — a conflict means the wiring cannot compute
+    # the corpus total); the full param vector then executes natively
+    # and must return Ok(result_cents). Param-routed wirings execute;
+    # anything unmappable keeps the static wiring check above (which
+    # already passed) rather than failing closed on shape.
+    if entry is not None and need:
+        ties = _create_role_ties(roles, spec, observations, want_ok)
+        _judge_create_entry(entry, entry_body, roles, ties, composition,
+                            want_total, want_ok(want_total), session,
+                            scratch_ws, current, observations)
+
+
+def _create_role_ties(roles: dict, spec: dict, observations: object,
+                      want_ok: object) -> list[tuple[str, str]]:
+    """Behaviorally interchangeable role pairs (frozen subtotal/tax_mul
+    are both MUL by spec: each matched function satisfies the other's
+    checks too). Entry-mapping tries each labeling; the program's own
+    end-to-end result decides, never scan order. Driver-verified."""
+
+    ties: list[tuple[str, str]] = []
+    names = sorted(roles)
+    for index, first in enumerate(names):
+        for second in names[index + 1:]:
+            cfg_first = spec.get(first, {})
+            cfg_second = spec.get(second, {})
+            if (not isinstance(cfg_first, dict)
+                    or not isinstance(cfg_second, dict)
+                    or cfg_first.get("opcode") != cfg_second.get("opcode")):
+                continue
+            try:
+                cross_second = observations(
+                    roles[first],
+                    [tuple(c[:2]) for c in cfg_second.get("checks", [])])
+                cross_first = observations(
+                    roles[second],
+                    [tuple(c[:2]) for c in cfg_first.get("checks", [])])
+            except (JudgeRejection, JudgeHarnessError):
+                raise
+            except Exception:
+                continue
+            wants_second = [c[2] for c in cfg_second.get("checks", [])]
+            wants_first = [c[2] for c in cfg_first.get("checks", [])]
+            if (len(cross_second) == len(wants_second)
+                    and len(cross_first) == len(wants_first)
+                    and all(isinstance(r, dict) and r.get("ok")
+                            and r.get("value") == want_ok(w)
+                            for r, w in zip(cross_second, wants_second))
+                    and all(isinstance(r, dict) and r.get("ok")
+                            and r.get("value") == want_ok(w)
+                            for r, w in zip(cross_first, wants_first))):
+                ties.append((first, second))
+    return ties
+
+
+def _judge_create_entry(entry: str, entry_body: dict, roles: dict,
+                        ties: list[tuple[str, str]], composition: dict,
+                        want_total: int, want: dict,
+                        session: Session, scratch_ws: Path,
+                        current: set[str],
+                        observations: object) -> None:
+    """Execute the submitted wiring entry natively on the frozen
+    one-line intermediates (see `_judge_create`). Role-labeled
+    assignment only: every CALL operand must be a Parameter whose
+    positions match the role's frozen input pair.
+
+    Behaviorally tied roles (frozen subtotal/tax_mul are both MUL)
+    admit interchangeable labelings: every tied labeling whose
+    demands are consistent executes, and the program's own Ok(2681)
+    decides — never scan order, never a conventional label.
+    """
+
+    role_of = {entity: role for role, entity in roles.items()}
+    frozen_inputs: dict[str, list] = {}
+    for role in roles:
+        pair = composition.get(role, None) if isinstance(
+            composition, dict) else None
+        if (not isinstance(pair, list) or len(pair) != 2
+                or any(isinstance(v, bool) or not isinstance(v, int)
+                       for v in pair)):
+            return
+        frozen_inputs[role] = pair
+    entry_params = entry_body.get("parameters") or []
+    if not isinstance(entry_params, list) or not entry_params:
+        return
+    calls: list[tuple[str, list]] = []
+    for block_id in entry_body.get("blocks") or []:
+        try:
+            block = _decode_body(session, scratch_ws, str(block_id),
+                                 current)
+        except (JudgeRejection, JudgeHarnessError):
+            raise
+        except Exception:
+            return
+        for op_id in block.get("operations") or []:
+            try:
+                op = _decode_body(session, scratch_ws, str(op_id),
+                                  current)
+            except (JudgeRejection, JudgeHarnessError):
+                raise
+            except Exception:
+                return
+            if op.get("opcode") != 112:
+                continue
+            callee = _immediate_function(op.get("immediate"))
+            operands = op.get("operands") or []
+            if (not role_of.get(callee, "")
+                    or len(operands) != 2
+                    or any(not isinstance(o, dict)
+                           or o.get("variant") != "Parameter"
+                           or not isinstance(o.get("value"), str)
+                           for o in operands)):
+                return
+            calls.append((callee, [str(o["value"]) for o in operands]))
+    if not calls:
+        return
+    labelings = [dict(role_of)]
+    for first, second in ties:
+        swapped = dict(role_of)
+        first_entities = [entity for entity, role in role_of.items()
+                          if role == first]
+        second_entities = [entity for entity, role in role_of.items()
+                           if role == second]
+        for entity in first_entities:
+            swapped[entity] = second
+        for entity in second_entities:
+            swapped[entity] = first
+        labelings.append(swapped)
+    conflict_detail = ""
+    mismatch_detail = ""
+    for labeling in labelings:
+        assigned: dict[str, int] = {}
+        conflict = ""
+        for callee, operands in calls:
+            role = labeling.get(callee, "")
+            pair = frozen_inputs.get(role, None)
+            if pair is None:
+                conflict = ""
+                break
+            for pid, value in zip(operands, pair):
+                if pid in assigned and assigned[pid] != value:
+                    conflict = (f"entry param {pid[:8]} "
+                                f"{assigned[pid]} != {value} ({role})"[:120])
+                    break
+                assigned[pid] = value
+            if conflict:
+                break
+        if conflict:
+            conflict_detail = conflict_detail or conflict
+            continue
+        if not assigned:
+            return
+        vector = [assigned.get(str(param), 0) for param in entry_params]
+        results = observations(entry, [tuple(vector)])
+        first = results[0] if isinstance(results, list) and results else {}
+        if not isinstance(first, dict) or not first.get("ok"):
+            # Engine-level execution limitation, NOT candidate
+            # wrongness (see long note below): keep the static wiring
+            # check rather than punishing engine limits.
+            return
+        if first == want:
+            return
+        mismatch_detail = mismatch_detail or (
+            f"entry end-to-end {first.get('value')} != "
+            f"Ok({want_total})"[:120])
+    if mismatch_detail:
+        _reject("ORACLE_CREATE_MISMATCH", mismatch_detail)
+    if conflict_detail:
+        _reject("ORACLE_CREATE_MISMATCH", conflict_detail)
+    if not assigned:
+        return
+    vector = [assigned.get(str(param), 0) for param in entry_params]
+    results = observations(entry, [tuple(vector)])
+    first = results[0] if isinstance(results, list) and results else {}
+    if not isinstance(first, dict) or not first.get("ok"):
+        # Engine-level execution limitation, NOT candidate wrongness:
+        # the frozen VM lowering rejects cross-function calls
+        # (VM_LOWER_IMMEDIATE_MISMATCH on Function immediates), so the
+        # submitted entry cannot execute natively today. The static
+        # wiring check above stands; the candidate is never punished
+        # for engine limits. Lifting this needs authorized
+        # lowering/adapter work for Function-immediate calls in
+        # execute_function (recorded as the remaining entry-execution
+        # prerequisite); this check activates automatically once the
+        # engine permits, with no judge change.
+        return
+    if first != want:
+        _reject("ORACLE_CREATE_MISMATCH",
+                f"entry end-to-end {first.get('value')} != "
+                f"Ok({want_total})"[:120])
 
 
 def _test_input_pair(test: dict) -> tuple[int, int] | None:

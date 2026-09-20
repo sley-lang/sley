@@ -1,0 +1,5 @@
+CREATE witness/neg_wrongop: skeleton valid False
+CREATE witness/neg_wrongop: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/neg_wrongop: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': 'a73f7f6eb00d71779e2627507487300ce95ae7b9ffc1a5924dcb3a507c9814cf'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': '00b792a9671563ccedbf88057f40c00d8575c1a524339002612614ab8f8444c7', 'truncated': False}
+S2B-CREATE-001 witness/neg_wrongop judge exit: 1
+workspace kept at: /tmp/sley2-create-witness-rsaxy6zt/ws
