@@ -24,10 +24,14 @@ Commands (run from the trial workspace directory):
   revision                   current accepted-head summary
   caps | budgets             session capability / budget views (raw)
   raw <method> <body-hex>    one guarded frame of any allowlisted method
-  propose <ops-json>         assemble + create + validate a candidate
-  inspect <record-hex>       candidate.inspect with a decoded view
-  validate <record-hex>      candidate.validate with a decoded view
-  finish <record-hex>        re-validate and write final_candidate.hex
+   propose <ops-json>         assemble + create + validate a candidate
+   append <record-hex> <ops-json>
+                            extend a proposed record through candidate.append
+   compose <record-hex> <ops-json>
+                            reassemble a full op list under a base nonce
+   inspect <record-hex>       candidate.inspect with a decoded view
+   validate <record-hex>      candidate.validate with a decoded view
+   finish <record-hex>        re-validate and write final_candidate.hex
 
 Completion protocol: validate the candidate that carries the fix, then
 `finish` with its exact bytes. The oracle judges only final_candidate.hex.
@@ -59,6 +63,19 @@ PACK_NAME = "base.pack"
 FINAL_NAME = "final_candidate.hex"
 REPO_DIR = "repo"
 REPORT_NAME = "serve-report.json"
+USAGE_NAME = ".sley-live-usage"
+CHAIN_NAME = ".sley-live-transcript.jsonl"
+# Agent/tool boundary version, pinned by the judge: every chained entry
+# carries it, and access evidence from any other version is unverifiable.
+TOOL_VERSION = "1"
+# Stated per-call agent-visible response bound (frozen S3 CONTEXT ceiling):
+# no single response the agent sees may exceed it.
+MAX_RESPONSE_BYTES = 1048576
+# Whole-store enumeration methods: each call reads every served object.
+WHOLE_STORE_METHODS = frozenset({"inventory"})
+# Continuation machinery: bounded paging with explicit omitted/truncated
+# accounting, never silent drops.
+CONTINUATION_METHODS = frozenset({"query.continue", "query.root", "query.restricted"})
 PROTOCOL_VERSION = 2
 SESSION_TIMEOUT = 120
 HEX_64 = re.compile(r"[0-9a-f]{64}\Z")
@@ -339,6 +356,12 @@ class Session:
                 return _inventory_of(side, stage, REPO_DIR)
             finally:
                 side.close()
+                # Side sessions are agent-visible work: their transcript
+                # joins this invocation's evidence, marked by scope.
+                for entry in side_transcript:
+                    marked = dict(entry)
+                    marked["scope"] = f"side:{name}"
+                    self._transcript.append(marked)
 
     def close(self) -> None:
         try:
@@ -417,25 +440,38 @@ def _inventory_of(session: Session, workspace: Path, repo_name: str) -> dict[str
     return {"objects": entries, "count": len(entries)}
 
 
-def _assemble(session: Session, ops: list[dict[str, Any]]) -> str:
+def _assemble(session: Session, ops: list[dict[str, Any]], *,
+              nonce: str | None = None) -> str:
     """Assemble a candidate record from structured operations.
 
     The tool fills every envelope field mechanically from live session
     state (base ids from the accepted head, empty capability projection
-    over the fixed trial principal, the frozen validation profile, a
-    fresh nonce, the fixed expiry bound) and derives ExactEntityVersion
-    preconditions from live reads. It interprets nothing: op classes,
-    targets, and payloads are the agent's, encoded verbatim, and the
-    server judges the result."""
+    over the fixed trial principal, the frozen validation profile, the
+    candidate nonce, the fixed expiry bound) and derives
+    ExactEntityVersion preconditions from live reads. It interprets
+    nothing: op classes, targets, and payloads are the agent's, encoded
+    verbatim, and the server judges the result.
+
+    A fresh nonce starts a record (`propose`, `append` additions);
+    passing a base record's own nonce reassembles its full op list
+    (`compose`), so CreateEntity identities re-derive deterministically
+    and earlier identities are preserved byte-for-byte. Ordinals always
+    run contiguously from zero: the frozen record rules admit no other
+    shape, so there are no offset parameters.
+    """
 
     if not isinstance(ops, list) or not ops or len(ops) > 64:
         _fail("operations")
     head = session.head
-    nonce = _fresh_nonce()
+    if nonce is None:
+        nonce = _fresh_nonce()
+    else:
+        _hex(nonce, 64)
     assembled_ops: list[dict[str, Any]] = []
     preconditions: list[dict[str, Any]] = []
     create_ordinal = 0
     for index, op in enumerate(ops):
+        ordinal = index
         if not isinstance(op, dict):
             _fail("operation")
         class_name = op.get("class")
@@ -468,18 +504,18 @@ def _assemble(session: Session, ops: list[dict[str, Any]]) -> str:
             target = derived["entity"]
             create_ordinal += 1
         entry: dict[str, Any] = {
-            "ordinal": index,
+            "ordinal": ordinal,
             "class": class_name,
             "target_kind": kind,
             "field_tag": field_tag,
             "target_entity": target,
-            "precondition_ordinal": index,
+            "precondition_ordinal": ordinal,
             "payload": payload,
         }
         assembled_ops.append(entry)
         if class_name == "CreateEntity":
             preconditions.append({
-                "operation_ordinal": index,
+                "operation_ordinal": ordinal,
                 "requirement": "ExpectedIdentityAbsent",
                 "payload": {"entity_id": target},
             })
@@ -494,7 +530,7 @@ def _assemble(session: Session, ops: list[dict[str, Any]]) -> str:
         if len(entries) != 1:
             _fail("precondition read")
         precondition: dict[str, Any] = {
-            "operation_ordinal": index,
+            "operation_ordinal": ordinal,
             "payload": {"entity_id": target, "object_id": entries[0]["object_id"]},
         }
         if field_tag is None:
@@ -538,6 +574,33 @@ def _assemble(session: Session, ops: list[dict[str, Any]]) -> str:
     return record["record"]
 
 
+def _decide(result_body_hex: str) -> tuple[bool, dict[str, Any]]:
+    """Read the validation verdict: valid only when the decision tag is
+    1 (Valid). A delivered result object is not acceptance — negative
+    decisions arrive with failed=false at the protocol level."""
+
+    [decoded] = sley2_codecs.run_batch([{"op": "decode_result", "body": result_body_hex}])
+    decision = {"tag": decoded["decision_tag"], "failed_phase": decoded["failed_phase"]}
+    return decoded["decision_tag"] == 1, decision
+
+
+def _created_identities(record_hex: str) -> list[dict[str, Any]]:
+    """Created-entity identities in an assembled record, for later phases
+    to reference in new payloads: deterministic derivations from the
+    record's own nonce, reported on every created record whether or not
+    the record validates — derivation is not a validity claim (the
+    `valid`/`decision` fields carry that), and only Valid records can
+    finish. The server re-checks everything at each create and at
+    finish time."""
+
+    [described] = sley2_codecs.run_batch([{"op": "describe_record", "record": record_hex}])
+    return [{"ordinal": ordinal, "entity": entity}
+            for ordinal, class_name, entity in zip(described["ordinals"],
+                                                  described["classes"],
+                                                  described["targets"])
+            if class_name == "CreateEntity"]
+
+
 def _stored_from_record(record_hex: str) -> str:
     """Stored candidate bytes for a record: magic, version, sized record,
     and the pinned digest. The validate response carries a result object,
@@ -579,6 +642,78 @@ def dispatch(session: Session, workspace: Path, argv: list[str]) -> dict[str, An
         return {"failed": bool(reply["flags"].get("failed")), "body": reply.get("body") or ""}
     if command in ("inspect", "validate") and len(rest) == 1:
         return _view(session, "candidate." + command, _hex(rest[0]).hex())
+    if command == "append" and len(rest) == 2:
+        # Thin adapter over the server's candidate.append, following its
+        # actual contract: the base is server-stored bytes, the addition
+        # is a standalone record, and the server rebuilds the
+        # concatenation. Composition is proposal-only; the accepted head
+        # moves only through finish. (Finding, evidenced in tests: under
+        # frozen ordinal rules the concatenated record cannot validate —
+        # both sides must number from zero, so the join always collides.
+        # Admissible multi-phase composition goes through `compose`.)
+        base_record = _hex(rest[0]).hex()
+        try:
+            ops = json.loads(rest[1])
+        except json.JSONDecodeError as error:
+            raise Sley2ToolError(f"LIVE_SLEY2_TOOL_INVALID: ops JSON: {error}") from error
+        [described] = sley2_codecs.run_batch([{"op": "describe_record", "record": base_record}])
+        if described["ordinals"] != list(range(described["op_count"])):
+            _fail("base ordinals")
+        addition = _assemble(session, ops)
+        [stored_base] = sley2_codecs.run_batch([{"op": "stored_from_record", "record": base_record}])
+        append_body = _encode_record([
+            (1, bytes.fromhex(stored_base["stored"])),
+            (2, bytes.fromhex(addition)),
+        ]).hex()
+        head_before = session.head["tx"]
+        appended = session.call("candidate.append", append_body)
+        if appended["flags"].get("failed"):
+            if session.head["tx"] != head_before:
+                _fail("head moved on rejected append")
+            return {"appended": False, "body": appended.get("body") or ""}
+        stored = appended.get("body") or ""
+        [unwrapped] = sley2_codecs.run_batch([{"op": "record_from_stored", "stored": stored}])
+        record_hex = unwrapped["record"]
+        validated = session.call("candidate.validate", _validate_body(session, stored))
+        if validated["flags"].get("failed"):
+            return {"appended": True, "record": record_hex, "stored": stored,
+                    "valid": False, "body": validated.get("body") or ""}
+        valid, decision = _decide(validated.get("body") or "")
+        return {"appended": True, "record": record_hex, "stored": stored,
+                "valid": valid, "decision": decision,
+                "body": validated.get("body") or ""}
+    if command == "compose" and len(rest) == 2:
+        # Contract-valid multi-phase composition: reassemble the FULL op
+        # list (earlier phases resupplied verbatim, new ops appended)
+        # under the BASE record's own nonce, then create + validate
+        # through the real production admission path. Create identities
+        # re-derive deterministically under the same nonce and counter,
+        # so earlier identities are preserved byte-for-byte, never
+        # silently changed; the server re-checks everything, including
+        # that preservation, at create and validate time.
+        base_record = _hex(rest[0]).hex()
+        try:
+            ops = json.loads(rest[1])
+        except json.JSONDecodeError as error:
+            raise Sley2ToolError(f"LIVE_SLEY2_TOOL_INVALID: ops JSON: {error}") from error
+        [described] = sley2_codecs.run_batch([{"op": "describe_record", "record": base_record}])
+        if described["ordinals"] != list(range(described["op_count"])):
+            _fail("base ordinals")
+        record_hex = _assemble(session, ops, nonce=described["nonce"])
+        created = session.call("candidate.create", record_hex)
+        if created["flags"].get("failed"):
+            return {"created": False, "record": record_hex, "body": created.get("body") or ""}
+        stored = _stored_from_record(record_hex)
+        validated = session.call("candidate.validate", _validate_body(session, stored))
+        if validated["flags"].get("failed"):
+            return {"created": True, "record": record_hex,
+                    "valid": False, "body": validated.get("body") or ""}
+        valid, decision = _decide(validated.get("body") or "")
+        composed: dict[str, Any] = {"created": True, "record": record_hex, "stored": stored,
+                                    "valid": valid, "decision": decision,
+                                    "body": validated.get("body") or "",
+                                    "identities": _created_identities(record_hex)}
+        return composed
     if command == "propose" and len(rest) == 1:
         try:
             ops = json.loads(rest[0])
@@ -588,19 +723,27 @@ def dispatch(session: Session, workspace: Path, argv: list[str]) -> dict[str, An
         created = session.call("candidate.create", record_hex)
         if created["flags"].get("failed"):
             return {"created": False, "record": record_hex, "body": created.get("body") or ""}
-        validated = session.call("candidate.validate", _validate_body(session, record_hex))
+        stored = _stored_from_record(record_hex)
+        validated = session.call("candidate.validate", _validate_body(session, stored))
         if validated["flags"].get("failed"):
             return {"created": True, "record": record_hex,
                     "valid": False, "body": validated.get("body") or ""}
-        stored = _stored_from_record(record_hex)
-        return {"created": True, "record": record_hex, "stored": stored,
-                "valid": True, "body": validated.get("body") or ""}
+        valid, decision = _decide(validated.get("body") or "")
+        report: dict[str, Any] = {"created": True, "record": record_hex, "stored": stored,
+                                  "valid": valid, "decision": decision,
+                                  "body": validated.get("body") or "",
+                                  "identities": _created_identities(record_hex)}
+        return report
     if command == "finish" and len(rest) == 1:
         record_hex = _hex(rest[0]).hex()
-        validated = session.call("candidate.validate", _validate_body(session, record_hex))
+        stored = _stored_from_record(record_hex)
+        validated = session.call("candidate.validate", _validate_body(session, stored))
         if validated["flags"].get("failed"):
             return {"finished": False, "body": validated.get("body") or ""}
-        stored = _stored_from_record(record_hex)
+        valid, decision = _decide(validated.get("body") or "")
+        if not valid:
+            return {"finished": False, "decision": decision,
+                    "body": validated.get("body") or ""}
         target = workspace / FINAL_NAME
         if target.exists() or target.is_symlink():
             _fail("finish exists")
@@ -655,8 +798,11 @@ def _entity_body(session: Session, entity_hex: str) -> str:
     ]).hex()
 
 
-def _validate_body(session: Session, record_hex: str) -> str:
-    """The candidate.validate request body: base, principal, now, bytes.
+def _validate_body(session: Session, stored_hex: str) -> str:
+    """The candidate.validate request body: base, principal, now, stored
+    bytes. Field 4 carries STORED bytes (magic, version, sized record,
+    digest trailer) — the same bytes the commit path checks — never the
+    bare record: validating record bytes always decides InvalidEncoding.
 
     `now` is the wallclock at call time, recorded in the transcript; the
     fixed far-future expiry always exceeds it, so identical trials
@@ -671,14 +817,221 @@ def _validate_body(session: Session, record_hex: str) -> str:
         (1, bytes.fromhex(head["tx"])),
         (2, bytes.fromhex(TRIAL_PRINCIPAL)),
         (3, _encode_uvar(now)),
-        (4, bytes.fromhex(record_hex)),
+        (4, bytes.fromhex(stored_hex)),
     ]).hex()
+
+
+def _record_usage(workspace: Path, command: str, ok: bool,
+                  wall_ms: int, response_bytes: int) -> dict[str, int]:
+    """Cumulative trial-wide accounting beside (never inside) the served
+    repository: every invocation appends its cost, so later phases cannot
+    reset context/action/wall accounting. Supporting evidence only — the
+    campaign's own budgets still gate the trial, and the judge
+    re-derives usage from transcripts."""
+
+    ledger = workspace / USAGE_NAME
+    totals = {"invocations": 0, "wall_ms": 0, "response_bytes": 0}
+    try:
+        if ledger.is_file() and not ledger.is_symlink():
+            loaded = json.loads(ledger.read_text(encoding="utf-8"))
+            prior = loaded.get("totals") if isinstance(loaded, dict) else None
+            if isinstance(prior, dict):
+                for key in totals:
+                    value = prior.get(key)
+                    if isinstance(value, int) and value >= 0:
+                        totals[key] = value
+    except (OSError, ValueError):
+        totals = {"invocations": 0, "wall_ms": 0, "response_bytes": 0}
+    totals["invocations"] += 1
+    totals["wall_ms"] += wall_ms
+    totals["response_bytes"] += response_bytes
+    entry = {"command": command, "ok": ok, "wall_ms": wall_ms,
+             "response_bytes": response_bytes, "totals": dict(totals)}
+    try:
+        ledger.write_text(json.dumps(entry, sort_keys=True), encoding="utf-8")
+    except OSError as error:
+        raise Sley2ToolError(f"LIVE_SLEY2_TOOL_INVALID: usage: {error}") from error
+    return totals
+
+
+def _pack_digest(workspace: Path) -> str:
+    """Exact staged fixture binding: sha256 of the base pack bytes, or
+    "none" for pack-less trials (CREATE starts blank)."""
+
+    pack = workspace / PACK_NAME
+    try:
+        if pack.is_file() and not pack.is_symlink():
+            return hashlib.sha256(pack.read_bytes()).hexdigest()
+    except OSError as error:
+        raise Sley2ToolError(f"LIVE_SLEY2_TOOL_INVALID: pack digest: {error}") from error
+    return "none"
+
+
+def _command_evidence(argv: list[str], result: dict[str, Any] | None) -> tuple[dict[str, Any], dict[str, str | None]]:
+    """Agent-visible shape of one command for the chained evidence: what
+    was inspected or authored, and which candidate records moved."""
+
+    args: dict[str, Any] = {}
+    records: dict[str, str | None] = {"in": None, "out": None}
+    if not argv:
+        return args, records
+    command, rest = argv[0], argv[1:]
+    if command in ("read", "sig") and len(rest) == 1:
+        args = {"entities": [rest[0]]}
+    elif command == "inventory" and not rest:
+        args = {"entities": ["all"]}
+    elif command == "raw" and len(rest) == 2:
+        args = {"method": rest[0], "body_bytes": len(rest[1]) // 2}
+    elif command in ("propose", "compose") and len(rest) == 1 and result is not None:
+        try:
+            ops = json.loads(rest[0])
+            args = {"targets": [op.get("target") if isinstance(op, dict) else None
+                                for op in ops] if isinstance(ops, list) else []}
+        except json.JSONDecodeError:
+            args = {"targets": []}
+        record = result.get("record")
+        records["out"] = hashlib.sha256(record.encode()).hexdigest() if isinstance(record, str) else None
+    elif command == "append" and len(rest) == 2 and result is not None:
+        try:
+            ops = json.loads(rest[1])
+            args = {"targets": [op.get("target") if isinstance(op, dict) else None
+                                for op in ops] if isinstance(ops, list) else []}
+        except json.JSONDecodeError:
+            args = {"targets": []}
+        records["in"] = hashlib.sha256(rest[0].encode()).hexdigest()
+        record = result.get("record")
+        records["out"] = hashlib.sha256(record.encode()).hexdigest() if isinstance(record, str) else None
+    elif command == "finish" and len(rest) == 1:
+        records["in"] = hashlib.sha256(rest[0].encode()).hexdigest()
+    elif command == "side" and len(rest) == 1:
+        args = {"side": rest[0]}
+    return args, records
+
+
+def _session_summary(transcript: list[dict[str, Any]]) -> dict[str, int]:
+    """Aggregate one invocation's session transcript: requests, refusals,
+    returned bytes, continuation use with omitted/truncated accounting."""
+
+    summary = {"requests": 0, "failed": 0, "returned_bytes": 0,
+               "continuations": 0, "omitted": 0, "truncated": 0}
+    for entry in transcript:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("direction") == "request":
+            summary["requests"] += 1
+            if entry.get("method") in CONTINUATION_METHODS:
+                summary["continuations"] += 1
+        elif entry.get("direction") == "response":
+            if entry.get("failed"):
+                summary["failed"] += 1
+            for key in ("returned_bytes", "omitted"):
+                try:
+                    summary[key] += int(entry.get(key, 0) or 0)
+                except (TypeError, ValueError):
+                    pass
+            if entry.get("truncated"):
+                summary["truncated"] += 1
+    return summary
+
+
+def _chain_entry(entry: dict[str, Any], previous: str) -> dict[str, Any]:
+    """Seal one chained evidence entry: hash covers the canonical body
+    plus the previous hash, so reordering, deletion, or edits break
+    verification."""
+
+    body = json.dumps(entry, sort_keys=True)
+    digest = hashlib.sha256((previous + body).encode("utf-8")).hexdigest()
+    sealed = dict(entry)
+    sealed["hash"] = digest
+    return sealed
+
+
+def append_transcript(workspace: Path, argv: list[str], ok: bool,
+                      wall_ms: int, report_bytes: int,
+                      transcript: list[dict[str, Any]],
+                      result: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Append one invocation to the hash-chained agent transcript beside
+    (never inside) the served repository. The chain is the complete,
+    ordered, tamper-evident record of everything the agent saw and did;
+    the judge verifies it before deriving any access evidence."""
+
+    chain = workspace / CHAIN_NAME
+    previous = "0" * 64
+    seq = 0
+    try:
+        if chain.is_file() and not chain.is_symlink():
+            lines = chain.read_text(encoding="utf-8").splitlines()
+            if lines:
+                last = json.loads(lines[-1])
+                if not isinstance(last, dict) or not isinstance(last.get("hash"), str):
+                    _fail("transcript chain")
+                previous = last["hash"]
+                seq = len(lines)
+    except (OSError, ValueError) as error:
+        raise Sley2ToolError(f"LIVE_SLEY2_TOOL_INVALID: transcript chain: {error}") from error
+    args, records = _command_evidence(argv, result)
+    entry = {
+        "seq": seq,
+        "tool_version": TOOL_VERSION,
+        "pack_sha256": _pack_digest(workspace),
+        "command": argv[0] if argv else "",
+        "args": args,
+        "ok": ok,
+        "wall_ms": wall_ms,
+        "report_bytes": report_bytes,
+        "records": records,
+        "summary": _session_summary(transcript),
+        "session": transcript,
+        "prev": previous,
+    }
+    sealed = _chain_entry(entry, previous)
+    try:
+        with open(chain, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(sealed, sort_keys=True) + "\n")
+    except OSError as error:
+        raise Sley2ToolError(f"LIVE_SLEY2_TOOL_INVALID: transcript chain: {error}") from error
+    return sealed
+
+
+def verify_transcript_chain(path: Path) -> tuple[list[dict[str, Any]], str | None]:
+    """Verify a chained transcript file: contiguous sequence from zero,
+    intact prev links, intact entry hashes. Returns (entries, None) when
+    valid, ([], reason) otherwise. Used by the trial judge; never by the
+    agent surface."""
+
+    try:
+        lines = Path(path).read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        return [], f"unreadable: {error}"
+    entries: list[dict[str, Any]] = []
+    previous = "0" * 64
+    for number, line in enumerate(lines):
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            return [], f"line {number} not JSON"
+        if not isinstance(entry, dict):
+            return [], f"line {number} shape"
+        if entry.get("seq") != number:
+            return [], f"line {number} seq"
+        if entry.get("prev") != previous:
+            return [], f"line {number} prev link"
+        claimed = entry.get("hash")
+        body = {key: value for key, value in entry.items() if key != "hash"}
+        if not isinstance(claimed, str) or _chain_entry(body, previous)["hash"] != claimed:
+            return [], f"line {number} hash"
+        previous = claimed
+        entries.append(entry)
+    return entries, None
 
 
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     transcript: list[dict[str, Any]] = []
     workspace = Path.cwd()
+    import time
+
+    started = time.monotonic()
     try:
         session = Session(resolve_binary(), workspace, transcript)
         try:
@@ -686,13 +1039,26 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             session.close()
         digest = hashlib.sha256(json.dumps(transcript, sort_keys=True).encode("utf-8")).hexdigest()
-        print(json.dumps({"command": arguments[:1], "outcome": "completed", "return_code": 0,
-                          "report": result, "transcript_sha256": digest,
-                          "stderr_text": "", "stdout_bytes": "", "stderr_bytes": "",
-                          "truncated": False}, sort_keys=True))
+        printed = json.dumps({"command": arguments[:1], "outcome": "completed", "return_code": 0,
+                              "report": result, "transcript_sha256": digest,
+                              "stderr_text": "", "stdout_bytes": "", "stderr_bytes": "",
+                              "truncated": False}, sort_keys=True)
+        print(printed)
+        wall_ms = int((time.monotonic() - started) * 1000)
+        _record_usage(workspace, arguments[0] if arguments else "",
+                      True, wall_ms, len(printed))
+        append_transcript(workspace, arguments, True, wall_ms, len(printed),
+                          transcript, result)
         return 0
     except (Sley2ToolError, sley2_codecs.CodecError, OSError, ValueError) as error:
         print(json.dumps({"code": "LIVE_SLEY2_TOOL_INVALID", "detail": str(error)[:500]}, sort_keys=True))
+        try:
+            wall_ms = int((time.monotonic() - started) * 1000)
+            _record_usage(workspace, arguments[0] if arguments else "",
+                          False, wall_ms, 0)
+            append_transcript(workspace, arguments, False, wall_ms, 0, transcript, None)
+        except Sley2ToolError:
+            pass
         return 2
 
 

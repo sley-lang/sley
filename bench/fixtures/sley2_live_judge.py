@@ -26,6 +26,7 @@ acceptance.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -43,11 +44,14 @@ sys.path.insert(0, str(_repo_root()))
 from bench.live import sley2_codecs  # noqa: E402
 from bench.live.sley2_tool import (  # noqa: E402
     _entity_body as _tool_entity_body,
+    CHAIN_NAME,
+    MAX_RESPONSE_BYTES,
     PROTOCOL_VERSION,
     REPORT_NAME,
     REPO_DIR,
     SESSION_TIMEOUT,
     PROFILE_ARGS,
+    TOOL_VERSION,
     Session,
     Sley2ToolError,
     _hex,
@@ -55,6 +59,7 @@ from bench.live.sley2_tool import (  # noqa: E402
     _encode_record,
     _encode_uvar,
     _uvar,
+    verify_transcript_chain,
 )
 from bench.sley2.runner import Endpoint, endpoint_offer  # noqa: E402
 
@@ -590,16 +595,16 @@ def _seeded_repo(task_dir: Path) -> tuple[Path, object, object]:
     return ws / REPO_DIR, session, cleanup
 
 
-def _sint_cases(pairs: list) -> list:
-    """Driver cases for fixed SInt64 input pairs."""
+def _sint_cases(inputs: list) -> list:
+    """Driver cases for fixed SInt64 input lists (pairs or wider)."""
 
     cases = []
-    for pair in pairs:
-        if (not isinstance(pair, list) or len(pair) != 2
-                or not all(isinstance(v, int) for v in pair)):
+    for values in inputs:
+        if (not isinstance(values, list) or not values
+                or not all(isinstance(v, int) for v in values)):
             _harness_fail("fixed inputs")
         cases.append({"inputs": [{"type": "SInt", "bits": 64, "value": value}
-                                 for value in pair]})
+                                 for value in values]})
     return cases
 
 
@@ -860,11 +865,12 @@ def _main(task_id: str) -> int:
         session = connect()
         versions_post = _snapshot_versions(connect, scratch_ws) if needs_versions else {}
         _collateral_files(session, scratch_ws, workspace, manifest, flow)
-        _judge_flows(session, manifest, corpus, task_id, versions_pre, versions_post,
-                     scratch_ws, candidate, pre_tx, workspace, task_dir, transcript)
+        suffix = _judge_flows(session, manifest, corpus, task_id, versions_pre, versions_post,
+                              scratch_ws, candidate, pre_tx, workspace, task_dir, transcript)
     finally:
         session.close()
-    return _emit(task_id, "accepted", None, "all flows held", 0)
+    detail = "all flows held" + (f"; {suffix}" if suffix else "")
+    return _emit(task_id, "accepted", None, detail, 0)
 
 
 def _collateral_files(session: Session, scratch_ws: Path, trial_ws: Path, manifest: dict,
@@ -916,14 +922,18 @@ def _collateral_files(session: Session, scratch_ws: Path, trial_ws: Path, manife
 def _judge_flows(session: Session, manifest: dict, corpus: dict, task_id: str,
                  versions_pre: dict[str, str], versions_post: dict[str, str],
                  scratch_ws: Path, candidate: bytes, pre_tx: str,
-                 workspace: Path, task_dir: Path, transcript: list) -> None:
-    """Dispatch the frozen per-kind judging flow from the manifest."""
+                 workspace: Path, task_dir: Path, transcript: list) -> str | None:
+    """Dispatch the frozen per-kind judging flow from the manifest.
+
+    Returns an optional access-evidence suffix for the verdict detail
+    (bounded-maintenance only); every other flow returns None."""
 
     judge = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
     flow = judge.get("flow", "")
     entities = manifest.get("entities", {}) if isinstance(manifest.get("entities"), dict) else {}
     targets = manifest.get("targets", []) if isinstance(manifest.get("targets"), list) else []
     current = set(versions_post.values())
+    suffix: str | None = None
     if flow == "execute-cases":
         _judge_execute_cases(session, manifest, corpus, task_id, scratch_ws, candidate,
                              current)
@@ -944,7 +954,8 @@ def _judge_flows(session: Session, manifest: dict, corpus: dict, task_id: str,
     elif flow == "perf":
         _judge_perf(session, manifest, corpus, scratch_ws, task_dir)
     elif flow == "bounded-maintenance":
-        _judge_bounded(session, manifest, corpus, scratch_ws, transcript)
+        suffix = _judge_bounded(session, manifest, corpus, scratch_ws, transcript,
+                                task_dir, workspace)
     elif flow == "type-variant":
         _judge_type_variant(session, manifest, scratch_ws, current)
     elif flow == "excluded-e7":
@@ -952,6 +963,7 @@ def _judge_flows(session: Session, manifest: dict, corpus: dict, task_id: str,
     else:
         _harness_fail(f"judge flow {flow!r}")
     _ = targets
+    return suffix
 
 
 def _driver_cases(corpus: dict) -> list:
@@ -1432,8 +1444,104 @@ def _judge_perf(session: Session, manifest: dict, corpus: dict, scratch_ws: Path
         _reject("ORACLE_PERF_UNIMPROVED", f"{reduction:.1f}% < {threshold}%")
 
 
+def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
+    """CONTEXT agent-read evidence from the trusted tool boundary.
+
+    The chained per-invocation transcript in the trial workspace is the
+    complete, ordered record of everything the agent saw and did; the
+    judge's own inspection log is not agent evidence and is never used
+    here. Verified (order, hashes, tool version, fixture binding), then
+    derived: whole-store reads (inventory calls — the only enumeration
+    surface), targeted reads, operations, continuation use with
+    omitted/truncated accounting, refusals, per-response byte caps, and
+    the absence of any commit path.
+
+    Missing, incomplete, or unverifiable evidence prevents full CONTEXT
+    acceptance under the frozen unbounded-read code; semantic-only
+    success is noted in the rejection detail, never mislabeled as a
+    pass. whole_store_reads is derived, never defaulted: an empty but
+    valid chain derives zero only because every call is enumerated.
+    """
+
+    chain = trial_ws / CHAIN_NAME
+    if not chain.is_file() or chain.is_symlink():
+        _reject("QUERY_REQUIRED_FACT_OMITTED",
+                "agent access evidence missing; semantics held")
+    entries, reason = verify_transcript_chain(chain)
+    if reason is not None:
+        _reject("QUERY_REQUIRED_FACT_OMITTED",
+                f"agent access evidence {reason}; semantics held")
+    if not entries:
+        _reject("QUERY_REQUIRED_FACT_OMITTED",
+                "agent access evidence empty; semantics held")
+    try:
+        pack_digest = hashlib.sha256((task_dir / "base.pack").read_bytes()).hexdigest()
+    except OSError as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: fixture pack: {error}") from error
+    whole_store = 0
+    targeted: set[str] = set()
+    operations = 0
+    continuations = 0
+    omitted = 0
+    truncated = 0
+    refusals = 0
+    max_response = 0
+    calls = 0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            _reject("QUERY_REQUIRED_FACT_OMITTED", "agent entry shape; semantics held")
+        if entry.get("tool_version") != TOOL_VERSION:
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    f"tool version {entry.get('tool_version')}; semantics held")
+        if entry.get("pack_sha256") != pack_digest:
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    "fixture binding mismatch; semantics held")
+        command = entry.get("command", "")
+        if command == "inventory":
+            whole_store += 1
+        args = entry.get("args") if isinstance(entry.get("args"), dict) else {}
+        for entity in args.get("entities", []) if isinstance(args.get("entities"), list) else []:
+            if entity != "all":
+                targeted.add(str(entity))
+        if command in ("propose", "compose", "append", "finish"):
+            operations += 1
+        if not entry.get("ok"):
+            refusals += 1
+        summary = entry.get("summary") if isinstance(entry.get("summary"), dict) else {}
+        try:
+            continuations += int(summary.get("continuations", 0) or 0)
+            omitted += int(summary.get("omitted", 0) or 0)
+            refused_calls = int(summary.get("failed", 0) or 0)
+            returned = int(summary.get("returned_bytes", 0) or 0)
+            report_bytes = int(entry.get("report_bytes", 0) or 0)
+        except (TypeError, ValueError):
+            _reject("QUERY_REQUIRED_FACT_OMITTED", "agent summary shape; semantics held")
+        refusals += refused_calls
+        max_response = max(max_response, returned, report_bytes)
+        if returned > MAX_RESPONSE_BYTES or report_bytes > MAX_RESPONSE_BYTES:
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    f"response over bound {max(max_response, returned, report_bytes)}; semantics held")
+        session = entry.get("session") if isinstance(entry.get("session"), list) else []
+        for item in session:
+            if isinstance(item, dict) and item.get("direction") == "request":
+                calls += 1
+                if item.get("method") == "commit":
+                    _reject("QUERY_REQUIRED_FACT_OMITTED",
+                            "agent commit path; semantics held")
+        if summary.get("truncated"):
+            truncated += 1
+    if whole_store > 0:
+        _reject("QUERY_REQUIRED_FACT_OMITTED",
+                f"whole_store_reads={whole_store}; semantics held")
+    return {"whole_store_reads": whole_store, "targeted_reads": len(targeted),
+            "operations": operations, "continuations": continuations,
+            "omitted": omitted, "truncated": truncated, "refusals": refusals,
+            "max_response_bytes": max_response, "agent_requests": calls,
+            "invocations": len(entries)}
+
+
 def _judge_bounded(session: Session, manifest: dict, corpus: dict, scratch_ws: Path,
-                   transcript: list) -> None:
+                   transcript: list, task_dir: Path, trial_ws: Path) -> str:
     """CONTEXT task: minimum entity count, required field present, impact
     closure coherent, collateral clean (generic path already ran), and the
     judge's own transcript shows bounded usage only (no whole-store
@@ -1458,7 +1566,11 @@ def _judge_bounded(session: Session, manifest: dict, corpus: dict, scratch_ws: P
     if impact and add:
         _judge_impact_consts(session, scratch_ws, entities, impact, add)
     _audit_transcript_bounds(transcript)
+    access = _audit_agent_access(task_dir, trial_ws)
     _ = corpus
+    return ("whole_store_reads={whole_store_reads} targeted_reads={targeted_reads} "
+            "operations={operations} continuations={continuations} refusals={refusals} "
+            "max_response_bytes={max_response_bytes}").format(**access)
 
 
 def _judge_impact_consts(session: Session, scratch_ws: Path, entities: dict,

@@ -1,14 +1,12 @@
 //! TEMPORARY commit-debug helper (deleted after diagnosis).
-use sley_policy::{CandidateValidationContext, CandidateValidationLimits};
-use sley_store::ObjectStore;
+use sley_policy::CandidateValidationLimits;
 use sley_txn::{CommitInput, TransactionRepository};
 
 #[test]
 fn debug_commit_repro() {
     let repo_path = std::env::var("SUCC_DEBUG_REPO").unwrap();
     let candidate_hex = std::env::var("SUCC_DEBUG_CANDIDATE").unwrap();
-    let principal_hex =
-        std::env::var("SUCC_DEBUG_PRINCIPAL").unwrap_or_else(|_| "00".repeat(32));
+    let principal_hex = std::env::var("SUCC_DEBUG_PRINCIPAL").unwrap_or_else(|_| "00".repeat(32));
     let repo = TransactionRepository::new(&repo_path);
     let head = repo.accepted_head().unwrap();
     let bytes = hex_decode(&candidate_hex);

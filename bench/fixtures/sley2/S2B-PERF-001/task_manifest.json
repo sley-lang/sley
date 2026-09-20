@@ -1,37 +1,45 @@
 {
   "contract": "sley2.live-task-base.v1",
   "entities": {
+    "block": "babababababababababababababababababababababababababababababababa",
     "func": "b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9",
-    "namespace": "b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8",
-    "redundant_op": "bebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebe"
+    "namespace": "b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8b8"
   },
   "judge": {
     "entry": "func",
     "fixed_inputs": [
       [
-        9223372036854775800,
-        7
+        10,
+        20,
+        20,
+        99
       ],
       [
-        3,
-        7
+        1,
+        2,
+        4,
+        5
       ]
     ],
     "flow": "perf",
-    "minimum_instruction_reduction_percent": 30,
-    "redundant": [
-      "redundant_op"
-    ]
+    "minimum_instruction_reduction_percent": 30
   },
-  "pack_digest_blake3": "11e69e739c281cba62ad6089835f49d881e7c936c8cf97dafd8f0f8957964ce0",
+  "pack_digest_blake3": "382a16645c09ba65231ef7f586ebbb5912a3cc4fec1f379aca36dbde634d08ab",
   "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
   "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
   "strict": {
     "source": "corpus"
   },
   "targets": [
-    "bebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebebe",
-    "babababababababababababababababababababababababababababababababa"
+    "b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9b9",
+    "babababababababababababababababababababababababababababababababa",
+    "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
+    "c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+    "c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2",
+    "c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3",
+    "c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4",
+    "c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5",
+    "c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6"
   ],
   "task_id": "S2B-PERF-001",
   "variant": "faster_but_wrong",

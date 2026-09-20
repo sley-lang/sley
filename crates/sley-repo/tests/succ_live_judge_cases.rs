@@ -28,10 +28,9 @@ use sley_state_root::conformance_epoch_id as state_epoch_id;
 use sley_store::ObjectStore;
 use sley_txn::TransactionRepository;
 use sley_vm::{
-    CacheProfile, ExecutionLimits, ExecutionRequest, ExecutionTermination,
-    execute_function, LoweringInput,
+    CacheProfile, ExecutionLimits, ExecutionRequest, ExecutionTermination, LoweringInput,
+    execute_function,
 };
-
 
 fn unhex(text: &str) -> Vec<u8> {
     (0..text.len() / 2)
@@ -79,22 +78,30 @@ fn function_inputs(
         .find(|f| f.entity_id == func)
         .unwrap_or_else(|| panic!("function bound"))
         .clone();
-    let parameters: Vec<Parameter> = {
-        let mut parameters: Vec<Parameter> = complete
-            .parameters
-            .iter()
-            .filter(|p| p.owner == func)
-            .cloned()
-            .collect();
-        parameters.sort_by_key(|p| p.ordinal);
-        parameters
-    };
     let blocks: Vec<Block> = complete
         .blocks
         .iter()
         .filter(|b| b.function == func)
         .cloned()
         .collect();
+    let parameters: Vec<Parameter> = {
+        let mut parameters: Vec<Parameter> = complete
+            .parameters
+            .iter()
+            .filter(|p| {
+                // Function params bind case inputs; block params of this
+                // function's blocks take values from incoming edges
+                // (switch payloads). Both must resolve at lowering, but
+                // only function params consume request inputs.
+                p.owner == func
+                    || (p.role == sley_ssmc::ParameterRole::Block
+                        && blocks.iter().any(|b| b.entity_id == p.owner))
+            })
+            .cloned()
+            .collect();
+        parameters.sort_by_key(|p| p.ordinal);
+        parameters
+    };
     let operations: Vec<Operation> = complete
         .operations
         .iter()
@@ -194,7 +201,6 @@ fn run_cases(
     out
 }
 
-
 #[test]
 fn live_case_driver() {
     // Env: SUCC_JUDGE_REPO (seeded scratch repo), SUCC_JUDGE_FUNCTION
@@ -223,7 +229,10 @@ fn live_case_driver() {
     let program = function_inputs(&complete, function);
     let results = run_cases(&complete, &program, head.state_root().root, &cases);
     let report = serde_json::json!({"ok": true, "cases": results});
-    println!("LIVE_JUDGE_RESULT {}", serde_json::to_string(&report).unwrap());
+    println!(
+        "LIVE_JUDGE_RESULT {}",
+        serde_json::to_string(&report).unwrap()
+    );
 }
 
 fn hex32(text: &str) -> [u8; 32] {

@@ -28,9 +28,10 @@ _SERVICE = r"""
 import json, struct, sys
 import blake3
 from sley2_scb1_oracle import candidate as C
+from sley2_scb1_oracle import candidate_result as R
 from sley2_scb1_oracle import entity_read as E
 from sley2_scb1_oracle import mutation_value as M
-from sley2_scb1_oracle.codec import Cursor, decode_uvar
+from sley2_scb1_oracle.codec import Cursor, decode_uvar, read_sized
 
 def h(b):
     return bytes.fromhex(b)
@@ -215,6 +216,42 @@ def handle(call):
         return out_ok(value=MV.encode_mutation_value(call["type"], call["value"]).hex())
     if op == "stored_from_record":
         return out_ok(stored=C.stored_from_record_bytes(h(call["record"])).hex())
+    if op == "describe_record":
+        # Composition support for candidate.append: the server extends a
+        # base record's operations verbatim, so an addition must continue
+        # the base nonce, operation ordinals, and per-create ordinals.
+        # Decoded through the pinned oracle (structure-validated); the
+        # server re-checks everything at append time.
+        record = h(call["record"])
+        C._decode_candidate_record(record)
+        fields = C._read_record(record, list(range(1, 14)))
+        nonce = C._read_fixed(fields[12])
+        ops = [C._decode_operation(item) for item in C._read_list(fields[9])]
+        return out_ok(nonce=nonce.hex(), op_count=len(ops),
+                      ordinals=[item["ordinal"] for item in ops],
+                      classes=[item["class"] for item in ops],
+                      kinds=[item["kind"] for item in ops],
+                      targets=[bytes(item["target"]).hex() for item in ops])
+    if op == "record_from_stored":
+        # Digest-verified stored -> record bytes (append answers stored
+        # bytes; validation needs the record). Framing parse only after
+        # the oracle verifies the digest trailer.
+        stored = h(call["stored"])
+        C.import_candidate(stored)
+        cursor = Cursor(stored)
+        if cursor.read(len(C.CANDIDATE_MAGIC)) != C.CANDIDATE_MAGIC:
+            raise ValueError("candidate magic")
+        decode_uvar(cursor, 64)
+        record = read_sized(cursor)
+        return out_ok(record=bytes(record).hex())
+    if op == "decode_result":
+        # Validation verdict, not just delivery: the server answers a
+        # result object for every decodable candidate, so acceptance
+        # must read the decision tag (1 == Valid), never the mere
+        # absence of a protocol failure.
+        decoded = R.decode_candidate_result(h(call["body"]))
+        return out_ok(decision_tag=decoded["decision_tag"],
+                      failed_phase=decoded["failed_phase"])
     return {"ok": False, "error": "unknown op"}
 
 def _parse_object_record(stored: bytes) -> bytes:

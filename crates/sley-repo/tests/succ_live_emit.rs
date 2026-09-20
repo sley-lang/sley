@@ -42,26 +42,20 @@
 //!   still emitted so trial slots stage, and the live oracle rejects
 //!   them exactly as the frozen expect files do.
 
-use sley_id::{
-    EntityId, ObjectId, PrincipalId, SchemaEpochId, TransactionId, WorkspaceId,
-};
+use sley_id::{EntityId, ObjectId, PrincipalId, SchemaEpochId, TransactionId, WorkspaceId};
 use sley_mutate::value::{
-    BlockBody, EntityBodyValue, EntityIdSet,
-    FunctionBody, NamespaceBody, OperationBody, ParameterBody,
-    WorkspaceBody,
+    BlockBody, EntityBodyValue, EntityIdSet, FunctionBody, NamespaceBody, OperationBody,
+    ParameterBody, WorkspaceBody,
 };
-use sley_mutate::{
-    build_entity_object, EntityObject, EntityObjectRecord, MutationClass,
-};
+use sley_mutate::{EntityObject, EntityObjectRecord, MutationClass, build_entity_object};
 use sley_policy::{
     PolicyResourceCeilings, PolicyRootBuilder, PrincipalGrantBuilder,
     conformance_registry as policy_registry,
 };
-use sley_repo::{export_repository_exchange, RepositoryObjectVerifier};
+use sley_repo::{RepositoryObjectVerifier, export_repository_exchange};
 use sley_ssmc::{
-    BuiltinFailureKind, Immediate, IntegerWidth, Opcode,
-    OperationResultRef, ParameterRole, Reachability,
-    ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
+    BuiltinFailureKind, Immediate, IntegerWidth, Opcode, OperationResultRef, ParameterRole,
+    Reachability, ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
 };
 use sley_state_root::{
     StateRootBuilder, conformance_epoch_id as state_epoch_id,
@@ -76,8 +70,7 @@ use std::path::PathBuf;
 // Must equal bench/live/sley2_tool.py::TRIAL_PRINCIPAL
 // (blake3("sley2.live-trial-principal.v1")); pinned by
 // bench/live/tests/test_sley2_principal.py.
-const LIVE_PRINCIPAL_HEX: &str =
-    "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3";
+const LIVE_PRINCIPAL_HEX: &str = "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3";
 const LIVE_WORKSPACE_BYTE: u8 = 7;
 
 fn hex(bytes: &[u8]) -> String {
@@ -355,10 +348,7 @@ fn cmp_entities(
                 block: id(block),
                 ordinal: 0,
                 opcode: opcode_tag(opcode),
-                operands: vec![
-                    ValueRef::Parameter(id(lhs)),
-                    ValueRef::Parameter(id(rhs)),
-                ],
+                operands: vec![ValueRef::Parameter(id(lhs)), ValueRef::Parameter(id(rhs))],
                 result_types: vec![TypeExpr::Bool],
                 immediate: Immediate::None,
             }),
@@ -401,7 +391,12 @@ fn bool_constant(byte: u8, value: bool) -> (EntityId, EntityBodyValue) {
 // documented in each builder. Every base is a coherent but failing
 // program: the fix is verified behaviorally, never embedded.
 
-fn base_repair() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_repair() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     let mut bodies = vec![namespace_entity(0x40, &[0x41, 0x46])];
     bodies.extend(cmp_entities(0x41, 0x42, 0x43, 0x44, 0x45, Opcode::LessThan));
     bodies.extend(cmp_entities(0x46, 0x47, 0x48, 0x49, 0x4A, Opcode::LessThan));
@@ -419,14 +414,23 @@ fn base_repair() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, St
 // Layouts are documented per builder. Every base is coherent (imports
 // accepted) but fails its task: the fix is verified behaviorally.
 
-fn base_sig() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_sig() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // Two-parameter callee plus THREE one-argument callers
     // (missing_caller): each caller names the callee through an entity
     // immediate but passes a single argument. The fix adds the missing
     // second argument to every caller.
     let mut bodies = vec![namespace_entity(0x50, &[0x51, 0x56, 0x5B, 0x60])];
     bodies.extend(cmp_entities(0x51, 0x52, 0x53, 0x54, 0x55, Opcode::LessThan));
-    for (func, block, param, op) in [(0x56u8, 0x57, 0x58, 0x59), (0x5Bu8, 0x5C, 0x5D, 0x5E), (0x60u8, 0x61, 0x62, 0x63)] {
+    for (func, block, param, op) in [
+        (0x56u8, 0x57, 0x58, 0x59),
+        (0x5Bu8, 0x5C, 0x5D, 0x5E),
+        (0x60u8, 0x61, 0x62, 0x63),
+    ] {
         bodies.push((
             id(func),
             EntityBodyValue::Function(FunctionBody {
@@ -472,7 +476,10 @@ fn base_sig() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, Strin
                 opcode: opcode_tag(Opcode::CallDirect),
                 operands: vec![ValueRef::Parameter(id(param))],
                 result_types: vec![TypeExpr::Bool],
-                immediate: Immediate::Function(sley_ssmc::FunctionRefValue { function: id(0x51), type_arguments: vec![] }),
+                immediate: Immediate::Function(sley_ssmc::FunctionRefValue {
+                    function: id(0x51),
+                    type_arguments: vec![],
+                }),
             }),
         ));
     }
@@ -486,10 +493,27 @@ fn base_sig() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, Strin
         "callee": "callee_func", "expect_arity": 2, "fixed_inputs": [[7, 10]]});
     // Targets cover the three call ops plus their caller functions
     // (the fix adds the missing second argument at both levels).
-    (bodies, entities, vec![eid(0x56), eid(0x59), eid(0x5B), eid(0x5E), eid(0x60), eid(0x63)], judge)
+    (
+        bodies,
+        entities,
+        vec![
+            eid(0x56),
+            eid(0x59),
+            eid(0x5B),
+            eid(0x5E),
+            eid(0x60),
+            eid(0x63),
+        ],
+        judge,
+    )
 }
 
-fn base_module() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_module() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // Deterministic checksum (LessThan predicate) called by SIX
     // callers, not yet exported by the integrity package
     // (stale_import). The fix moves the checksum into the integrity
@@ -498,7 +522,10 @@ fn base_module() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, St
     // neither export in packs nor conserve roots at validation, so
     // the stale import is expressed through package exports, not a
     // binding entity.)
-    let mut bodies = vec![namespace_entity(0x60, &[0x61, 0x66, 0x6B, 0x70, 0x75, 0x7A, 0x7F])];
+    let mut bodies = vec![namespace_entity(
+        0x60,
+        &[0x61, 0x66, 0x6B, 0x70, 0x75, 0x7A, 0x7F],
+    )];
     // Packages must hang off a real Workspace entity (kind 1): the
     // projection demands kind_bit(1) on Package.workspace, so pointing
     // at the namespace breaks every candidate on this base.
@@ -597,7 +624,10 @@ fn base_module() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, St
     entities.insert("namespace", eid(0x60));
     entities.insert("checksum", eid(0x61));
     for (name, hex) in callers.iter().zip(caller_ids.iter()) {
-        entities.insert(Box::leak(name.clone().into_boxed_str()) as &'static str, hex.clone());
+        entities.insert(
+            Box::leak(name.clone().into_boxed_str()) as &'static str,
+            hex.clone(),
+        );
     }
     entities.insert("old_package", eid(0x85));
     entities.insert("new_package", eid(0x86));
@@ -607,7 +637,12 @@ fn base_module() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, St
     (bodies, entities, vec![eid(0x86)], judge)
 }
 
-fn base_type() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_type() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // Boolean status program: a status constant, a reader, and a
     // switch function branching on the status (bool_compat_field). The
     // fix replaces the boolean with a four-case JobState variant and
@@ -645,8 +680,14 @@ fn base_type() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, Stri
             operations: vec![],
             terminator: Terminator::CondBranch(sley_ssmc::CondBranchTerminator {
                 condition: ValueRef::Parameter(id(0x6C)),
-                if_true: sley_ssmc::TargetEdge { target: id(0x6D), arguments: vec![] },
-                if_false: sley_ssmc::TargetEdge { target: id(0x6E), arguments: vec![] },
+                if_true: sley_ssmc::TargetEdge {
+                    target: id(0x6D),
+                    arguments: vec![],
+                },
+                if_false: sley_ssmc::TargetEdge {
+                    target: id(0x6E),
+                    arguments: vec![],
+                },
             }),
             reachability: Reachability::Required,
         }),
@@ -670,10 +711,20 @@ fn base_type() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, Stri
     let judge = serde_json::json!({"flow": "type-variant", "status": "status", "switch": "switch",
         "variant_cases": 4, "exhaustive": true});
     // Targets cover the status constant, the switch, and its parameter.
-    (bodies, entities, vec![eid(0x65), eid(0x6B), eid(0x6C)], judge)
+    (
+        bodies,
+        entities,
+        vec![eid(0x65), eid(0x6B), eid(0x6C)],
+        judge,
+    )
 }
 
-fn base_effect() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_effect() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // Worker comparison with an empty effect set beside an unlisted
     // FileRead definition (undeclared_effect), a correct public caller,
     // and a pure sibling that must stay pure. E7-excluded: the live
@@ -704,7 +755,12 @@ fn base_effect() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, St
     (bodies, entities, vec![eid(0x71)], judge)
 }
 
-fn base_cap() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_cap() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // Capability requirement with an empty scope list beside a guarded
     // function (wildcard_scope). E7-excluded like EFFECT-001.
     use sley_mutate::value::CapabilityRequirementBody;
@@ -726,7 +782,12 @@ fn base_cap() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, Strin
     (bodies, entities, vec![eid(0x82)], judge)
 }
 
-fn base_stale() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_stale() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // Shared constant plus a disabled guard (guard_disabled). The judge
     // replays the H1/H2/H3 commit sequence of s3_g2_stale.
     let mut bodies = vec![namespace_entity(0xA0, &[0xA1, 0xA2])];
@@ -736,47 +797,131 @@ fn base_stale() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, Str
     entities.insert("namespace", eid(0xA0));
     entities.insert("constant", eid(0xA1));
     entities.insert("guard", eid(0xA2));
-    let judge = serde_json::json!({"flow": "stale-sequence", "constant": "constant", "guard": "guard"});
+    let judge =
+        serde_json::json!({"flow": "stale-sequence", "constant": "constant", "guard": "guard"});
     (bodies, entities, vec![eid(0xA2)], judge)
 }
 
-fn base_perf() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
-    // Correct comparison carrying one redundant duplicate op
-    // (faster_but_wrong negative: speed without correctness). The fix
-    // removes the redundancy; the oracle compares fuel and semantics.
-    // The duplicate is block-listed (executed): an orphaned op would
-    // neither project nor supply a measurable executed baseline.
+fn base_perf() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
+    // Corpus S2B-PERF-001 at trial scale: a nested SInt membership scan
+    // replaced by an ordered-map strategy. Same outputs and effects,
+    // measurably fewer instructions; the frozen 30% bar is judged from
+    // driver counts. (faster_but_wrong negative: a flipped probe is
+    // faster but changes the output digest.)
+    let boolvec = || TypeExpr::Vector(Box::new(TypeExpr::Bool));
+    let op_result = |byte: u8| {
+        ValueRef::OperationResult(OperationResultRef {
+            operation: id(byte),
+            result_index: 0,
+        })
+    };
+    let p = |byte: u8| ValueRef::Parameter(id(byte));
     let mut bodies = vec![namespace_entity(0xB8, &[0xB9])];
-    bodies.extend(cmp_entities(0xB9, 0xBA, 0xBB, 0xBC, 0xBD, Opcode::LessThan));
-    for entry in bodies.iter_mut() {
-        if entry.0 == id(0xBA) {
-            if let EntityBodyValue::Block(block) = &mut entry.1 {
-                block.operations.push(id(0xBE));
-            }
-        }
+    bodies.push((
+        id(0xB9),
+        EntityBodyValue::Function(FunctionBody {
+            type_parameters: vec![],
+            parameters: vec![id(0xBB), id(0xBC), id(0xBD), id(0xBE)],
+            result_type: boolvec(),
+            effects: empty_set(),
+            entry_block: id(0xBA),
+            blocks: vec![id(0xBA)],
+            contracts: empty_set(),
+            visibility: Visibility::Private,
+        }),
+    ));
+    for (ordinal, param) in [0xBBu8, 0xBC, 0xBD, 0xBE].iter().enumerate() {
+        bodies.push((
+            id(*param),
+            EntityBodyValue::Parameter(ParameterBody {
+                owner: id(0xB9),
+                role: ParameterRole::Function,
+                ordinal: ordinal as u32,
+                value_type: si64(),
+            }),
+        ));
+    }
+    // Scan ops 0xC0..0xC6 (deleted by the fix): per query one Equal per
+    // haystack slot folded with BoolOr, then a VectorNew gather.
+    let scan: Vec<(u8, Opcode, Vec<ValueRef>, TypeExpr)> = vec![
+        (0xC0, Opcode::Equal, vec![p(0xBB), p(0xBD)], TypeExpr::Bool),
+        (0xC1, Opcode::Equal, vec![p(0xBC), p(0xBD)], TypeExpr::Bool),
+        (
+            0xC2,
+            Opcode::BoolOr,
+            vec![op_result(0xC0), op_result(0xC1)],
+            TypeExpr::Bool,
+        ),
+        (0xC3, Opcode::Equal, vec![p(0xBB), p(0xBE)], TypeExpr::Bool),
+        (0xC4, Opcode::Equal, vec![p(0xBC), p(0xBE)], TypeExpr::Bool),
+        (
+            0xC5,
+            Opcode::BoolOr,
+            vec![op_result(0xC3), op_result(0xC4)],
+            TypeExpr::Bool,
+        ),
+        (
+            0xC6,
+            Opcode::VectorNew,
+            vec![op_result(0xC2), op_result(0xC5)],
+            boolvec(),
+        ),
+    ];
+    let mut op_ids = vec![];
+    for (index, (byte, opcode, operands, result)) in scan.iter().enumerate() {
+        op_ids.push(id(*byte));
+        bodies.push((
+            id(*byte),
+            EntityBodyValue::Operation(OperationBody {
+                block: id(0xBA),
+                ordinal: index as u32,
+                opcode: opcode_tag(*opcode),
+                operands: operands.clone(),
+                result_types: vec![result.clone()],
+                immediate: Immediate::None,
+            }),
+        ));
     }
     bodies.push((
-        id(0xBE),
-        EntityBodyValue::Operation(OperationBody {
-            block: id(0xBA),
-            ordinal: 1,
-            opcode: opcode_tag(Opcode::LessThan),
-            operands: vec![ValueRef::Parameter(id(0xBB)), ValueRef::Parameter(id(0xBC))],
-            result_types: vec![TypeExpr::Bool],
-            immediate: Immediate::None,
+        id(0xBA),
+        EntityBodyValue::Block(BlockBody {
+            function: id(0xB9),
+            parameters: vec![],
+            operations: op_ids,
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::OperationResult(OperationResultRef {
+                    operation: id(0xC6),
+                    result_index: 0,
+                }),
+            }),
+            reachability: Reachability::Required,
         }),
     ));
     let mut entities = BTreeMap::new();
     entities.insert("namespace", eid(0xB8));
     entities.insert("func", eid(0xB9));
-    entities.insert("redundant_op", eid(0xBE));
-    let judge = serde_json::json!({"flow": "perf", "entry": "func", "redundant": ["redundant_op"],
-        "fixed_inputs": [[9223372036854775800i64, 7], [3, 7]], "minimum_instruction_reduction_percent": 30});
-    (bodies, entities, vec![eid(0xBE), eid(0xBA)], judge)
+    entities.insert("block", eid(0xBA));
+    let mut targets = vec![eid(0xB9), eid(0xBA)];
+    for byte in [0xC0u8, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6] {
+        targets.push(eid(byte));
+    }
+    let judge = serde_json::json!({"flow": "perf", "entry": "func",
+        "fixed_inputs": [[10, 20, 20, 99], [1, 2, 4, 5]],
+        "minimum_instruction_reduction_percent": 30});
+    (bodies, entities, targets, judge)
 }
 
-
-fn base_adversary() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_adversary() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // REPAIR-shaped clamp (below correct, above LessThan-where-GreaterThan
     // belongs) carrying distractor label metadata on the buggy operation
     // (wrong_repair): the fix changes the opcode and must not follow the
@@ -796,8 +941,12 @@ fn base_adversary() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str,
     (bodies, entities, vec![eid(0xDA)], judge)
 }
 
-
-fn base_corrupt() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_corrupt() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // A boolean constant holding the wrong value beside a reader
     // function (unflipped). Digest-gated formats cannot carry raw
     // bit-flips through import, so the corruption is a valid-encoding
@@ -852,7 +1001,6 @@ fn base_corrupt() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, S
         "corrupt": {"entity": eid(0xDD), "expected": false}});
     (bodies, entities, vec![eid(0xDD)], judge)
 }
-
 
 fn div_entities(func: u8, block: u8, lhs: u8, rhs: u8, op: u8) -> Vec<(EntityId, EntityBodyValue)> {
     vec![
@@ -916,7 +1064,12 @@ fn div_entities(func: u8, block: u8, lhs: u8, rhs: u8, op: u8) -> Vec<(EntityId,
     ]
 }
 
-fn base_test() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_test() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // Division program with no test entities (case_missing). The fix
     // adds three deterministic TestCase entities through AddTest.
     let mut bodies = vec![namespace_entity(0x94, &[0x95])];
@@ -928,7 +1081,12 @@ fn base_test() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, Stri
     (bodies, entities, vec![eid(0x95)], judge)
 }
 
-fn base_dead() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_dead() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // Live comparison whose function lists an explicitly unreachable
     // block, plus an unreferenced private helper (reachable_changed).
     // The fix drops the block from the function, then deletes the block
@@ -1016,7 +1174,12 @@ fn base_dead() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, Stri
     // Targets cover the fix (namespace, function) plus the live op so
     // behavior-change negatives reach the observation check instead of
     // stopping at collateral.
-    (bodies, entities, vec![eid(0x88), eid(0x89), eid(0x8D), eid(0x90), eid(0x8E)], judge)
+    (
+        bodies,
+        entities,
+        vec![eid(0x88), eid(0x89), eid(0x8D), eid(0x90), eid(0x8E)],
+        judge,
+    )
 }
 
 // ── merge / stale-sequence / context bases ─────────────────────────
@@ -1033,9 +1196,9 @@ fn commit_bytes(
     pres: Vec<sley_mutate::BoundPrecondition>,
     nonce_byte: u8,
 ) -> TransactionId {
-    use sley_mutate::{build_candidate, CandidateRecord};
     use sley_mutate::full_validation_profile_id;
-    use sley_policy::{build_capability_summary_projection, CandidateValidationLimits};
+    use sley_mutate::{CandidateRecord, build_candidate};
+    use sley_policy::{CandidateValidationLimits, build_capability_summary_projection};
     let head = repo.accepted_head().unwrap();
     let summary = build_capability_summary_projection(
         principal,
@@ -1073,7 +1236,12 @@ fn commit_bytes(
     .transaction_id()
 }
 
-fn base_merge() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_merge() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // Namespace with a shared boolean constant; main and theirs branches
     // each flip it (overlapping_change). The emitter commits both sides
     // and exports the branched repo; the agent produces the merged
@@ -1085,7 +1253,6 @@ fn base_merge() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, Str
     let judge = serde_json::json!({"flow": "merge", "branches": ["main", "theirs"], "conflict": "constant"});
     (bodies, entities, vec![eid(0xAD)], judge)
 }
-
 
 fn cx_id(task: u8, index: u32) -> EntityId {
     let mut bytes = [0u8; 32];
@@ -1099,7 +1266,12 @@ fn cx_hex(task: u8, index: u32) -> String {
     hex(&cx_id(task, index).as_bytes()[..])
 }
 
-fn base_context() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value) {
+fn base_context() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
     // Scaled store: workspace, package, two namespaces, one typedef
     // with member F0 only, three user globals holding F0-only record
     // initializers, and 10000 filler bool constants (10,011 entities
@@ -1109,15 +1281,20 @@ fn base_context() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, S
     // fix fits one record. Entity ids are task-tagged counters
     // (unique, deterministic).
     use sley_mutate::value::{GlobalValueBody, PackageBody, TypeDefBody, WorkspaceBody};
-    use sley_ssmc::{FieldConst, MemberId, NamedType, RecordConst, RecordField};
     use sley_ssmc::{ConstData, ConstValue};
+    use sley_ssmc::{FieldConst, MemberId, NamedType, RecordConst, RecordField};
     let t = 0xC4u8;
     let ws = cx_id(t, 0);
     let pkg = cx_id(t, 1);
     let ns_root = cx_id(t, 2);
     let ns_pkg = cx_id(t, 3);
     let td = cx_id(t, 4);
-    let named_td = || TypeExpr::Named(NamedType { definition: td, arguments: vec![] });
+    let named_td = || {
+        TypeExpr::Named(NamedType {
+            definition: td,
+            arguments: vec![],
+        })
+    };
     let record_const = |f0: bool| {
         EntityBodyValue::Constant(sley_mutate::value::ConstantBody {
             value: ConstValue {
@@ -1136,33 +1313,45 @@ fn base_context() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, S
         })
     };
     let mut bodies: Vec<(EntityId, EntityBodyValue)> = vec![
-        (ws, EntityBodyValue::Workspace(WorkspaceBody {
-            packages: EntityIdSet::from_unsorted(vec![pkg]).unwrap(),
-            root_namespace: ns_root,
-            capability_requirements: empty_set(),
-            contracts: empty_set(),
-            tests: empty_set(),
-        })),
-        (pkg, EntityBodyValue::Package(PackageBody {
-            workspace: ws,
-            root_namespace: ns_pkg,
-            dependencies: empty_set(),
-            exports: EntityIdSet::from_unsorted(vec![td]).unwrap(),
-        })),
-        (ns_root, EntityBodyValue::Namespace(NamespaceBody {
-            parent: None,
-            members: empty_set(),
-        })),
-        (td, EntityBodyValue::TypeDef(TypeDefBody {
-            type_parameters: vec![],
-            form: sley_ssmc::TypeDefForm::Record(vec![RecordField {
-                member_id: sley_ssmc::MemberId::from_bytes([0xF0; 32]),
-                value_type: TypeExpr::Bool,
+        (
+            ws,
+            EntityBodyValue::Workspace(WorkspaceBody {
+                packages: EntityIdSet::from_unsorted(vec![pkg]).unwrap(),
+                root_namespace: ns_root,
+                capability_requirements: empty_set(),
+                contracts: empty_set(),
+                tests: empty_set(),
+            }),
+        ),
+        (
+            pkg,
+            EntityBodyValue::Package(PackageBody {
+                workspace: ws,
+                root_namespace: ns_pkg,
+                dependencies: empty_set(),
+                exports: EntityIdSet::from_unsorted(vec![td]).unwrap(),
+            }),
+        ),
+        (
+            ns_root,
+            EntityBodyValue::Namespace(NamespaceBody {
+                parent: None,
+                members: empty_set(),
+            }),
+        ),
+        (
+            td,
+            EntityBodyValue::TypeDef(TypeDefBody {
+                type_parameters: vec![],
+                form: sley_ssmc::TypeDefForm::Record(vec![RecordField {
+                    member_id: sley_ssmc::MemberId::from_bytes([0xF0; 32]),
+                    value_type: TypeExpr::Bool,
+                    visibility: Visibility::Private,
+                }]),
+                invariants: empty_set(),
                 visibility: Visibility::Private,
-            }]),
-            invariants: empty_set(),
-            visibility: Visibility::Private,
-        })),
+            }),
+        ),
     ];
     let mut members = vec![td];
     let mut user_consts = vec![];
@@ -1170,11 +1359,14 @@ fn base_context() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, S
         let constant = cx_id(t, 5 + i);
         let global = cx_id(t, 8 + i);
         bodies.push((constant, record_const(i % 2 == 0)));
-        bodies.push((global, EntityBodyValue::GlobalValue(GlobalValueBody {
-            value_type: named_td(),
-            initializer: constant,
-            visibility: Visibility::Private,
-        })));
+        bodies.push((
+            global,
+            EntityBodyValue::GlobalValue(GlobalValueBody {
+                value_type: named_td(),
+                initializer: constant,
+                visibility: Visibility::Private,
+            }),
+        ));
         members.push(constant);
         members.push(global);
         user_consts.push(cx_hex(t, 5 + i));
@@ -1185,15 +1377,21 @@ fn base_context() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, S
         members.push(filler);
     }
     members.sort();
-    bodies.push((ns_pkg, EntityBodyValue::Namespace(NamespaceBody {
-        parent: None,
-        members: EntityIdSet::from_unsorted(members).unwrap(),
-    })));
+    bodies.push((
+        ns_pkg,
+        EntityBodyValue::Namespace(NamespaceBody {
+            parent: None,
+            members: EntityIdSet::from_unsorted(members).unwrap(),
+        }),
+    ));
     let mut entities = BTreeMap::new();
     entities.insert("typedef", cx_hex(t, 4));
     entities.insert("member_count", (5 + 6 + 10000).to_string());
     for (i, hex) in user_consts.iter().enumerate() {
-        entities.insert(Box::leak(format!("user_const_{i}").into_boxed_str()) as &'static str, hex.clone());
+        entities.insert(
+            Box::leak(format!("user_const_{i}").into_boxed_str()) as &'static str,
+            hex.clone(),
+        );
     }
     let judge = serde_json::json!({"flow": "bounded-maintenance", "minimum_entities": 10000,
         "typedef": "typedef", "add_member": {"member": hex(&[0xF1; 32]), "type": "Bool", "note": "cx ids are task-tagged counters"},
@@ -1207,11 +1405,19 @@ fn bool_constant_body(value: bool) -> EntityBodyValue {
     use sley_mutate::value::ConstantBody;
     use sley_ssmc::{ConstData, ConstValue};
     EntityBodyValue::Constant(ConstantBody {
-        value: ConstValue { value_type: TypeExpr::Bool, data: ConstData::Bool(value) },
+        value: ConstValue {
+            value_type: TypeExpr::Bool,
+            data: ConstData::Bool(value),
+        },
     })
 }
 
-type BaseBuilder = fn() -> (Vec<(EntityId, EntityBodyValue)>, BTreeMap<&'static str, String>, Vec<String>, serde_json::Value);
+type BaseBuilder = fn() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+);
 
 fn task_table() -> Vec<(&'static str, &'static str, BaseBuilder)> {
     vec![
@@ -1248,8 +1454,10 @@ fn build_manifest_string(
     judge: serde_json::Value,
 ) -> String {
     let policy_root = hex(base.policy.root().as_bytes());
-    let owned_entities: BTreeMap<String, String> =
-        entities.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+    let owned_entities: BTreeMap<String, String> = entities
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect();
     let manifest = serde_json::json!({
         "contract": "sley2.live-task-base.v1",
         "task_id": task_id,
@@ -1279,7 +1487,10 @@ fn emit_task(task_id: &str, variant: &str, builder: BaseBuilder) -> (Vec<u8>, St
         live_genesis(task_id, bodies)
     };
     let pack = export_pack(&base);
-    (pack.clone(), build_manifest_string(task_id, variant, &base, &pack, entities, targets, judge))
+    (
+        pack.clone(),
+        build_manifest_string(task_id, variant, &base, &pack, entities, targets, judge),
+    )
 }
 
 fn blake3_pack(pack: &[u8]) -> [u8; 32] {
@@ -1296,11 +1507,18 @@ fn object_of(repo: &TransactionRepository, entity: EntityId) -> ObjectId {
         .object_id()
 }
 
-fn replace_bool_op(entity: EntityId, current: ObjectId, value: bool) -> (sley_mutate::MutationOperation, sley_mutate::BoundPrecondition) {
+fn replace_bool_op(
+    entity: EntityId,
+    current: ObjectId,
+    value: bool,
+) -> (
+    sley_mutate::MutationOperation,
+    sley_mutate::BoundPrecondition,
+) {
     use sley_mutate::value::ConstantBody;
     use sley_mutate::{
-        BoundPrecondition, MutationClass, MutationOperation,
-        MutationPayload, PreconditionPayload, PreimageRequirement,
+        BoundPrecondition, MutationClass, MutationOperation, MutationPayload, PreconditionPayload,
+        PreimageRequirement,
     };
     use sley_ssmc::{ConstData, ConstValue, TypeExpr};
     (
@@ -1312,7 +1530,10 @@ fn replace_bool_op(entity: EntityId, current: ObjectId, value: bool) -> (sley_mu
             field_tag: None,
             payload: MutationPayload::ReplaceEntityVersion(EntityBodyValue::Constant(
                 ConstantBody {
-                    value: ConstValue { value_type: TypeExpr::Bool, data: ConstData::Bool(value) },
+                    value: ConstValue {
+                        value_type: TypeExpr::Bool,
+                        data: ConstData::Bool(value),
+                    },
                 },
             )),
             precondition_ordinal: 0,
@@ -1320,9 +1541,10 @@ fn replace_bool_op(entity: EntityId, current: ObjectId, value: bool) -> (sley_mu
         BoundPrecondition {
             operation_ordinal: 0,
             requirement: PreimageRequirement::ExactEntityVersion,
-            payload: PreconditionPayload::ExactEntityVersion(
-                sley_mutate::ExactEntityVersion { entity_id: entity, object_id: current },
-            ),
+            payload: PreconditionPayload::ExactEntityVersion(sley_mutate::ExactEntityVersion {
+                entity_id: entity,
+                object_id: current,
+            }),
         },
     )
 }
@@ -1338,8 +1560,8 @@ fn succ_live_packs_frozen() {
         }
         let (pack, manifest) = emit_task(task_id, variant, builder);
         let pack_path = fixture_dir(task_id).join("base.pack");
-        let committed_pack = fs::read(&pack_path)
-            .unwrap_or_else(|_| panic!("missing committed pack for {task_id}"));
+        let committed_pack =
+            fs::read(&pack_path).unwrap_or_else(|_| panic!("missing committed pack for {task_id}"));
         assert_eq!(pack, committed_pack, "pack drift for {task_id}");
         let manifest_path = fixture_dir(task_id).join("task_manifest.json");
         let committed_manifest = fs::read_to_string(&manifest_path)
@@ -1347,12 +1569,17 @@ fn succ_live_packs_frozen() {
         assert_eq!(manifest, committed_manifest, "manifest drift for {task_id}");
     }
     let (base_pack, ours_pack, theirs_pack, manifest) = emit_merge();
-    for (name, pack) in [("base.pack", base_pack), ("ours.pack", ours_pack), ("theirs.pack", theirs_pack)] {
+    for (name, pack) in [
+        ("base.pack", base_pack),
+        ("ours.pack", ours_pack),
+        ("theirs.pack", theirs_pack),
+    ] {
         let path = fixture_dir("S2B-MERGE-001").join(name);
         let committed = fs::read(&path).unwrap_or_else(|_| panic!("missing committed {name}"));
         assert_eq!(pack, committed, "pack drift for MERGE/{name}");
     }
-    let committed_manifest = fs::read_to_string(fixture_dir("S2B-MERGE-001").join("task_manifest.json")).unwrap();
+    let committed_manifest =
+        fs::read_to_string(fixture_dir("S2B-MERGE-001").join("task_manifest.json")).unwrap();
     assert_eq!(manifest, committed_manifest, "manifest drift for MERGE");
 }
 
@@ -1368,7 +1595,11 @@ fn emit_succ_live_packs() {
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("base.pack"), &pack).unwrap();
         fs::write(dir.join("task_manifest.json"), &manifest).unwrap();
-        println!("SUCC_EMIT {task_id} pack={} manifest={}", pack.len(), manifest.len());
+        println!(
+            "SUCC_EMIT {task_id} pack={} manifest={}",
+            pack.len(),
+            manifest.len()
+        );
     }
     let (base_pack, ours_pack, theirs_pack, manifest) = emit_merge();
     let dir = fixture_dir("S2B-MERGE-001");
@@ -1377,7 +1608,12 @@ fn emit_succ_live_packs() {
     fs::write(dir.join("ours.pack"), &ours_pack).unwrap();
     fs::write(dir.join("theirs.pack"), &theirs_pack).unwrap();
     fs::write(dir.join("task_manifest.json"), &manifest).unwrap();
-    println!("SUCC_EMIT MERGE base={} ours={} theirs={}", base_pack.len(), ours_pack.len(), theirs_pack.len());
+    println!(
+        "SUCC_EMIT MERGE base={} ours={} theirs={}",
+        base_pack.len(),
+        ours_pack.len(),
+        theirs_pack.len()
+    );
 }
 
 fn derive_const(workspace: sley_id::WorkspaceId, nonce_byte: u8) -> EntityId {
@@ -1389,7 +1625,14 @@ fn derive_const(workspace: sley_id::WorkspaceId, nonce_byte: u8) -> EntityId {
     )
 }
 
-fn create_bool_op(entity: EntityId, value: bool, ordinal: u32) -> (sley_mutate::MutationOperation, sley_mutate::BoundPrecondition) {
+fn create_bool_op(
+    entity: EntityId,
+    value: bool,
+    ordinal: u32,
+) -> (
+    sley_mutate::MutationOperation,
+    sley_mutate::BoundPrecondition,
+) {
     use sley_mutate::value::ConstantBody;
     use sley_mutate::{
         BoundPrecondition, ExpectedIdentityAbsent, MutationClass, MutationOperation,
@@ -1404,14 +1647,19 @@ fn create_bool_op(entity: EntityId, value: bool, ordinal: u32) -> (sley_mutate::
             target_entity: entity,
             field_tag: None,
             payload: MutationPayload::CreateEntity(EntityBodyValue::Constant(ConstantBody {
-                value: ConstValue { value_type: TypeExpr::Bool, data: ConstData::Bool(value) },
+                value: ConstValue {
+                    value_type: TypeExpr::Bool,
+                    data: ConstData::Bool(value),
+                },
             })),
             precondition_ordinal: ordinal,
         },
         BoundPrecondition {
             operation_ordinal: ordinal,
             requirement: PreimageRequirement::ExpectedIdentityAbsent,
-            payload: PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent { entity_id: entity }),
+            payload: PreconditionPayload::ExpectedIdentityAbsent(ExpectedIdentityAbsent {
+                entity_id: entity,
+            }),
         },
     )
 }
@@ -1434,7 +1682,15 @@ fn emit_merge() -> (Vec<u8>, Vec<u8>, Vec<u8>, String) {
     let key = id(0xAD);
     let genesis_obj = object_of(&repo, key);
     let (op_a, pre_a) = replace_bool_op(key, genesis_obj, false);
-    let _h1 = commit_bytes(&repo, principal, genesis_tx, genesis_root, vec![op_a], vec![pre_a], 50);
+    let _h1 = commit_bytes(
+        &repo,
+        principal,
+        genesis_tx,
+        genesis_root,
+        vec![op_a],
+        vec![pre_a],
+        50,
+    );
     let ours_pack = export_pack(&base);
     let base2 = live_genesis("merge-base2", base_merge().0);
     let base2_pack = export_pack(&base2);
@@ -1443,7 +1699,15 @@ fn emit_merge() -> (Vec<u8>, Vec<u8>, Vec<u8>, String) {
     let z = derive_const(live_workspace(), 51);
     let (op_c, pre_c) = create_bool_op(z, true, 1);
     let (op_b, pre_b) = replace_bool_op(key, genesis_obj, false);
-    let _h1p = commit_bytes(&repo2, principal, genesis_tx, genesis_root, vec![op_b, op_c], vec![pre_b, pre_c], 51);
+    let _h1p = commit_bytes(
+        &repo2,
+        principal,
+        genesis_tx,
+        genesis_root,
+        vec![op_b, op_c],
+        vec![pre_b, pre_c],
+        51,
+    );
     let theirs_pack = export_pack(&base2);
     let policy_root = hex(live_policy().root().as_bytes());
     let mut manifest = serde_json::json!({
@@ -1462,5 +1726,10 @@ fn emit_merge() -> (Vec<u8>, Vec<u8>, Vec<u8>, String) {
     manifest["sides"] = serde_json::json!({"ours": "ours.pack", "theirs": "theirs.pack"});
     manifest["conflict"] = serde_json::json!(eid(0xAD));
     manifest["theirs_nonce"] = serde_json::json!(51);
-    (base_pack, ours_pack, theirs_pack, serde_json::to_string_pretty(&manifest).unwrap() + "\n")
+    (
+        base_pack,
+        ours_pack,
+        theirs_pack,
+        serde_json::to_string_pretty(&manifest).unwrap() + "\n",
+    )
 }

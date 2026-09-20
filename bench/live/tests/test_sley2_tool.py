@@ -19,7 +19,10 @@ from bench.live import sley2_codecs, sley2_tool
 
 ROOT = Path(__file__).resolve().parents[3]
 SLEY = Path(os.environ.get("SLEY2_SLEY_BINARY", "/home/gfarch/Work/target-sley2-succ/debug/sley"))
-PACK_HEX = json.loads((ROOT / "conformance/repository-exchange/v1/accepted.json").read_text())["vectors"][0]["exchange_hex"]
+# Mechanics fixture: a real trial pack whose policy admits the trial
+# principal (the conformance exchange pack denies it at phase 9, so
+# no-op proposals there can never decide Valid).
+PACK_PATH = ROOT / "bench" / "fixtures" / "sley2" / "S2B-TEST-001" / "base.pack"
 
 
 class Sley2ToolTests(unittest.TestCase):
@@ -32,7 +35,7 @@ class Sley2ToolTests(unittest.TestCase):
         self.ws = self.root / "ws"
         self.ws.mkdir(mode=0o700)
         (self.ws / "repo").mkdir(mode=0o700)
-        (self.ws / "base.pack").write_bytes(bytes.fromhex(PACK_HEX))
+        (self.ws / "base.pack").write_bytes(PACK_PATH.read_bytes())
         self.env = dict(os.environ)
         self.env["SLEY2_SLEY_BINARY"] = str(SLEY)
         self._env = unittest.mock.patch.dict(os.environ, {"SLEY2_SLEY_BINARY": str(SLEY)})
@@ -64,7 +67,7 @@ class Sley2ToolTests(unittest.TestCase):
         (self.ws / "base.pack").unlink()
         code, _ = self.run_tool("revision")
         self.assertEqual(code, 2)
-        (self.ws / "base.pack").write_bytes(bytes.fromhex(PACK_HEX))
+        (self.ws / "base.pack").write_bytes(PACK_PATH.read_bytes())
         with mock.patch.dict(os.environ, {}, clear=True):
             code, _ = self.run_tool("revision")
             self.assertEqual(code, 2)
@@ -123,6 +126,297 @@ class Sley2ToolTests(unittest.TestCase):
                 "field_tag": None, "payload": None}]
         code, _ = self.run_tool("propose", json.dumps(ops))
         self.assertEqual(code, 2)
+
+    def test_propose_reports_negative_decision_honestly(self) -> None:
+        # A structurally encodable but semantically invalid candidate
+        # (block owned by a missing function) validates to a negative
+        # decision: valid False with the decision tag, never assumed
+        # True from delivery, and finish refuses it unwritten. Derived
+        # identities are still reported (derivation is not a claim).
+        ops = [{"class": "CreateEntity", "kind": 7, "target": None, "field_tag": None,
+                "payload": {"function": "ab" * 32, "operations": [], "parameters": [],
+                            "reachability": "Required",
+                            "terminator": {"variant": "Trap", "value": {
+                                "code": "Unreachable",
+                                "payload": {"variant": "None"}}}}}]
+        code, proposed = self.run_tool("propose", json.dumps(ops))
+        self.assertEqual(code, 0, json.dumps(proposed)[:300])
+        self.assertTrue(proposed["report"].get("created"))
+        self.assertFalse(proposed["report"].get("valid"))
+        self.assertNotEqual(proposed["report"].get("decision", {}).get("tag"), 1)
+        self.assertEqual(len(proposed["report"].get("identities", [])), 1)
+        code, done = self.run_tool("finish", proposed["report"]["record"])
+        self.assertEqual(code, 0)
+        self.assertFalse(done["report"].get("finished"))
+        self.assertFalse((self.ws / "final_candidate.hex").exists())
+
+    def _identity_op(self) -> tuple[str, dict]:
+        code, result = self.run_tool("inventory")
+        self.assertEqual(code, 0)
+        entity = result["report"]["inventory"]["objects"][0]["entity"]
+        code, read = self.run_tool("read", entity)
+        self.assertEqual(code, 0)
+        entry = read["report"]["decoded"]["entries"][0]
+        return entity, {"class": "ReplaceEntityVersion", "kind": entry["kind"],
+                        "target": entity, "field_tag": None,
+                        "payload": entry["body"]}
+
+    def _describe(self, record_hex: str) -> dict:
+        [described] = sley2_codecs.run_batch([{"op": "describe_record", "record": record_hex}])
+        return described
+
+    def test_append_concatenation_fails_closed_with_owner_code(self) -> None:
+        # The server rebuilds base-operations + addition-operations and
+        # re-checks contiguity: both sides must number from zero, so the
+        # join always collides. The refusal keeps its owner code (never
+        # a PROTOCOL_ symbol) and the accepted head does not move.
+        _, op = self._identity_op()
+        code, proposed = self.run_tool("propose", json.dumps([op]))
+        self.assertEqual(code, 0)
+        self.assertTrue(proposed["report"].get("valid"))
+        code, before = self.run_tool("revision")
+        self.assertEqual(code, 0)
+        code, appended = self.run_tool("append", proposed["report"]["record"],
+                                       json.dumps([op]))
+        self.assertEqual(code, 0, json.dumps(appended)[:400])
+        self.assertFalse(appended["report"].get("appended"))
+        body = bytes.fromhex(appended["report"]["body"])
+        self.assertIn(b"MUTATION_CANDIDATE_OPERATION_ORDINAL", body)
+        self.assertNotIn(b"PROTOCOL_", body)
+        code, after = self.run_tool("revision")
+        self.assertEqual(code, 0)
+        self.assertEqual(after["report"]["body"], before["report"]["body"])
+
+    def test_append_rejects_garbage_base(self) -> None:
+        _, op = self._identity_op()
+        for bad in ("zz", "00" * 32, "00" * 100):
+            code, _ = self.run_tool("append", bad, json.dumps([op]))
+            self.assertEqual(code, 2)
+
+    def test_append_and_compose_reject_oversize_lists(self) -> None:
+        _, op = self._identity_op()
+        code, proposed = self.run_tool("propose", json.dumps([op]))
+        self.assertEqual(code, 0)
+        base = proposed["report"]["record"]
+        code, _ = self.run_tool("append", base, json.dumps([op] * 65))
+        self.assertEqual(code, 2)
+        code, _ = self.run_tool("compose", base, json.dumps([op] * 65))
+        self.assertEqual(code, 2)
+
+    def test_compose_reassembles_full_list_under_base_nonce(self) -> None:
+        _, op = self._identity_op()
+        code, proposed = self.run_tool("propose", json.dumps([op]))
+        self.assertEqual(code, 0)
+        base = proposed["report"]["record"]
+        code, composed = self.run_tool("compose", base, json.dumps([op, op]))
+        self.assertEqual(code, 0, json.dumps(composed)[:400])
+        self.assertTrue(composed["report"].get("created"))
+        self.assertTrue(composed["report"].get("valid"), json.dumps(composed)[:400])
+        [origin] = sley2_codecs.run_batch([{"op": "describe_record", "record": base}])
+        [full] = sley2_codecs.run_batch(
+            [{"op": "describe_record", "record": composed["report"]["record"]}])
+        self.assertEqual(full["op_count"], 2)
+        self.assertEqual(full["ordinals"], [0, 1])
+        self.assertEqual(full["nonce"], origin["nonce"])
+
+    def test_compose_rejects_foreign_target(self) -> None:
+        # Session binding: preconditions come from live reads against
+        # this trial's head; an entity from another workspace cannot be
+        # bound, and the tool refuses before the server is reached.
+        _, op = self._identity_op()
+        code, proposed = self.run_tool("propose", json.dumps([op]))
+        base = proposed["report"]["record"]
+        foreign = dict(op)
+        foreign["target"] = "ab" * 32
+        code, _ = self.run_tool("compose", base, json.dumps([foreign]))
+        self.assertEqual(code, 2)
+
+    def test_usage_ledger_accumulates_across_invocations(self) -> None:
+        self.run_tool("inventory")
+        self.run_tool("revision")
+        ledger = self.ws / ".sley-live-usage"
+        self.assertTrue(ledger.is_file())
+        first = json.loads(ledger.read_text(encoding="utf-8"))
+        self.run_tool("budgets")
+        second = json.loads(ledger.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(second["totals"]["invocations"],
+                                first["totals"]["invocations"] + 1)
+        self.assertGreaterEqual(second["totals"]["wall_ms"], first["totals"]["wall_ms"])
+
+    def test_raw_refuses_outside_allowlist(self) -> None:
+        # No commit, merge, execute, export/import, report, session
+        # management, or workspace/open paths exist for the agent: every
+        # one is refused before any server contact, including commit.
+        for method in ("commit", "merge", "execute", "export", "import", "report",
+                       "session.open", "session.close", "workspace.open",
+                       "exchange.import"):
+            with self.subTest(method=method):
+                code, _ = self.run_tool("raw", method, "00")
+                self.assertEqual(code, 2)
+
+    def test_agent_transcript_chain_verifies_and_counts(self) -> None:
+        self.run_tool("inventory")
+        self.run_tool("revision")
+        _, op = self._identity_op()
+        code, proposed = self.run_tool("propose", json.dumps([op]))
+        self.assertEqual(code, 0)
+        chain = self.ws / ".sley-live-transcript.jsonl"
+        self.assertTrue(chain.is_file())
+        entries, reason = sley2_tool.verify_transcript_chain(chain)
+        self.assertIsNone(reason, reason)
+        self.assertEqual([entry["seq"] for entry in entries], list(range(len(entries))))
+        self.assertTrue(all(entry["tool_version"] == sley2_tool.TOOL_VERSION for entry in entries))
+        kinds = [entry["command"] for entry in entries]
+        # _identity_op runs inventory+read; plus our 3 calls.
+        self.assertEqual(kinds.count("inventory"), 2)
+        self.assertIn("propose", kinds)
+        usage = json.loads((self.ws / ".sley-live-usage").read_text(encoding="utf-8"))
+        self.assertEqual(usage["totals"]["invocations"], len(entries))
+
+    def test_transcript_tampering_breaks_verification(self) -> None:
+        self.run_tool("revision")
+        chain = self.ws / ".sley-live-transcript.jsonl"
+        entries, reason = sley2_tool.verify_transcript_chain(chain)
+        self.assertIsNone(reason)
+        lines = chain.read_text(encoding="utf-8").splitlines()
+        tampered = json.loads(lines[0])
+        tampered["ok"] = not tampered["ok"]
+        bad = self.root / "bad.jsonl"
+        bad.write_text(json.dumps(tampered) + "\n", encoding="utf-8")
+        _, reason = sley2_tool.verify_transcript_chain(bad)
+        self.assertIsNotNone(reason)
+        gap = self.root / "gap.jsonl"
+        gap.write_text("\n".join(lines[:1] + lines[2:]) + "\n" if len(lines) > 2
+                       else lines[0] + "\n", encoding="utf-8")
+        if len(lines) > 2:
+            _, reason = sley2_tool.verify_transcript_chain(gap)
+            self.assertIsNotNone(reason)
+        missing = self.root / "missing.jsonl"
+        missing.write_text("", encoding="utf-8")
+        found, _ = sley2_tool.verify_transcript_chain(missing)
+        self.assertEqual(found, [])
+        _, reason = sley2_tool.verify_transcript_chain(self.root / "nope.jsonl")
+        self.assertIsNotNone(reason)
+
+    def test_continuation_attempts_are_accounted_not_silent(self) -> None:
+        code, result = self.run_tool("raw", "query.root", "00")
+        self.assertEqual(code, 0)
+        chain = self.ws / ".sley-live-transcript.jsonl"
+        entries, reason = sley2_tool.verify_transcript_chain(chain)
+        self.assertIsNone(reason, reason)
+        total_cont = sum(entry["summary"]["continuations"] for entry in entries)
+        self.assertGreaterEqual(total_cont, 1)
+
+    def test_agent_commands_never_touch_repo_files(self) -> None:
+        import hashlib as _hashlib
+
+        def snapshot() -> dict[str, str]:
+            out = {}
+            for path in sorted((self.ws / "repo").rglob("*")):
+                if path.is_file() and not path.is_symlink():
+                    out[str(path.relative_to(self.ws))] = _hashlib.sha256(
+                        path.read_bytes()).hexdigest()
+            return out
+
+        before = snapshot()
+        self.run_tool("inventory")
+        # Seeding imports the base pack through the server (the only
+        # writer to repo/ by construction); snapshot after the seed, then
+        # prove agent commands never touch repo files again.
+        before = snapshot()
+        self.assertTrue(before)
+        _, op = self._identity_op()
+        code, proposed = self.run_tool("propose", json.dumps([op]))
+        self.assertEqual(code, 0)
+        code, _ = self.run_tool("finish", proposed["report"]["record"])
+        self.assertEqual(code, 0)
+        self.assertEqual(snapshot(), before)
+        managed = {"final_candidate.hex", ".sley-live-usage", ".sley-live-transcript.jsonl",
+                   ".sley-live-seed", "serve-report.json", "probe-report.json"}
+        for path in self.ws.iterdir():
+            if path.name in ("repo", "base.pack", ".sley-live"):
+                continue
+            self.assertIn(path.name, managed, path.name)
+
+
+class Sley2AppendCreateTests(unittest.TestCase):
+    """Create-identity continuation across appends on the TEST task pack.
+
+    The server verifies CreateEntity targets against
+    derive(workspace, nonce, kind, create-ordinal); only a correct
+    continuation validates, so acceptance proves the adapter contract.
+    """
+
+    def setUp(self) -> None:
+        if not (SLEY.is_file() and os.access(SLEY, os.X_OK)):
+            self.skipTest("sley binary unavailable")
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        from bench.live.taskpacks import stage_initial
+        from bench.live.tooling import stage_tooling
+
+        self.ws = Path(self.temp.name) / "ws"
+        stage_initial("sley_2_0", "S2B-TEST-001", self.ws)
+        stage_tooling("sley_2_0", self.ws)
+        manifest = json.loads((ROOT / "bench/fixtures/sley2/S2B-TEST-001/task_manifest.json").read_text())
+        self.func = manifest["entities"]["func"]
+        self._env = unittest.mock.patch.dict(os.environ, {"SLEY2_SLEY_BINARY": str(SLEY)})
+        self._env.start()
+        self.addCleanup(self._env.stop)
+
+    def run_tool(self, *argv: str) -> tuple[int, dict]:
+        import io
+        out = io.StringIO()
+        saved_cwd = os.getcwd()
+        os.chdir(self.ws)
+        try:
+            with mock.patch.object(sley2_tool.sys, "stdout", out):
+                code = sley2_tool.main(list(argv))
+        finally:
+            os.chdir(saved_cwd)
+        return code, json.loads(out.getvalue())
+
+    def _case(self, first: int, second: int) -> dict:
+        sint = {"value_type": {"variant": "SInt", "value": 64},
+                "data": {"variant": "SInt", "value": 0}}
+        typed = dict(sint)
+        typed["data"] = {"variant": "SInt", "value": second}
+        head = dict(sint)
+        head["data"] = {"variant": "SInt", "value": first}
+        err_t = {"variant": "BuiltinFailure", "value": "ArithmeticError"}
+        expected = {"value_type": {"variant": "Result", "value": {
+            "ok": {"variant": "SInt", "value": 64}, "error": err_t}},
+            "data": {"variant": "Result", "value": {"variant": "Ok", "value": head}}}
+        return {"class": "CreateEntity", "kind": 14, "target": None, "field_tag": None,
+                "payload": {"target": self.func, "inputs": [head, typed],
+                            "effect_environment": {"variant": "Replay", "value": []},
+                            "expected": {"variant": "Value", "value": expected},
+                            "observations": [],
+                            "resource_limits": {"fuel": 1000000, "memory_bytes": 1000000,
+                                                "output_bytes": 1000000, "effect_count": 1000,
+                                                "call_depth": 64, "wall_timeout_millis": 60000}}}
+
+    def test_compose_preserves_create_identities_byte_for_byte(self) -> None:
+        first = self._case(7, 2)
+        code, proposed = self.run_tool("propose", json.dumps([first]))
+        self.assertEqual(code, 0, json.dumps(proposed)[:400])
+        self.assertTrue(proposed["report"].get("valid"))
+        base = proposed["report"]["record"]
+        [origin] = sley2_codecs.run_batch([{"op": "describe_record", "record": base}])
+        code, composed = self.run_tool(
+            "compose", base, json.dumps([self._case(7, 2), self._case(7, 3)]))
+        self.assertEqual(code, 0, json.dumps(composed)[:400])
+        self.assertTrue(composed["report"].get("created"))
+        self.assertTrue(composed["report"].get("valid"), json.dumps(composed)[:400])
+        [full] = sley2_codecs.run_batch(
+            [{"op": "describe_record", "record": composed["report"]["record"]}])
+        self.assertEqual(full["op_count"], 2)
+        self.assertEqual(full["classes"], ["CreateEntity", "CreateEntity"])
+        self.assertEqual(full["nonce"], origin["nonce"])
+        # The resupplied first create re-derives the identical identity:
+        # preservation, not silent change.
+        self.assertEqual(full["targets"][0], origin["targets"][0])
+        self.assertNotEqual(full["targets"][1], origin["targets"][0])
 
 
 if __name__ == "__main__":

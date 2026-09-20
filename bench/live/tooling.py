@@ -89,6 +89,8 @@ Commands:
 .sley-live/sley-tool budgets
 .sley-live/sley-tool raw METHOD BODY_HEX
 .sley-live/sley-tool propose OPS_JSON
+.sley-live/sley-tool append RECORD_HEX OPS_JSON
+.sley-live/sley-tool compose RECORD_HEX OPS_JSON
 .sley-live/sley-tool inspect RECORD_HEX
 .sley-live/sley-tool validate RECORD_HEX
 .sley-live/sley-tool finish RECORD_HEX
@@ -108,9 +110,32 @@ ExactEntityVersion/ExactContainerVersion preconditions from live reads,
 the empty capability projection over the fixed trial principal, the
 frozen validation profile, a fresh nonce, and the fixed expiry bound,
 then creates and validates the candidate and reports its bytes.
-`finish` re-validates the given bytes and writes `final_candidate.hex`;
-only that file is judged. Commit, merge, execute, export, import,
+`valid` means the server's validation decision is Valid (the verdict
+is read from the result object, never assumed from delivery).
+Created reports also list `identities`: the deterministic derived
+entity of every CreateEntity, in order — derivation, not a validity
+claim; later phases reference them, and only Valid wholes finish.
+`append` extends a record from an earlier `propose`/`append` in the same
+trial (pass back its exact reported bytes) through the server's
+`candidate.append`: the base contributes server-stored bytes, the new
+operations assemble standalone, and the server rebuilds the
+concatenation. Composition never commits: intermediate records write
+nothing, and only `finish` writes `final_candidate.hex`.
+`compose` reassembles the FULL op list (earlier phases resupplied
+verbatim first, new operations after) under an earlier record's own
+nonce: created identities re-derive deterministically, so earlier
+identities survive byte-for-byte, and the whole validates through the
+normal create path. Later operations may reference earlier created
+identities in their payloads — that is how multi-phase programs name
+things that did not exist when the first phase was authored.
+`finish` re-validates the given bytes and writes `final_candidate.hex`
+only for a Valid decision; anything else is refused unwritten.
+Only that file is judged. Commit, merge, execute, export, import,
 report, session management, and tests are unavailable by construction.
+Every invocation appends a sealed entry to the tool-managed
+`.sley-live-transcript.jsonl` evidence chain (plus cumulative counters
+in `.sley-live-usage`); a `.sley-live-seed` marker tracks the staged
+pack. These tool-managed files are access evidence: do not modify them.
 Do not modify `.sley-live`.
 """
 
