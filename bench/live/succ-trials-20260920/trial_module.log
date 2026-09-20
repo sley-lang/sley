@@ -1,0 +1,5 @@
+MODULE propose valid: True
+{"body": "534c45594352533101b7030d01010102205ea66471cfbc5e3e6330b08dcbd8031f95f8aefec1dd57fdb18505de93a2dcfa0302000004207d8ffff97a3fdafc49b4329d47b0b12f04759c3124274024016483a263265d5405208a19f54ac794fd6ef80ed820bc62f5b47c3a6aa1f5a99c6ca14ac88ed488b4100601020782020e300401010102010203220120990713d19b
+S2B-MODULE-001 exit: 0
+{"arm": "sley2", "code": null, "detail": "all flows held", "status": "accepted", "task_id": "S2B-MODULE-001"}
+workspace kept at: /tmp/tmpwv0apc3p

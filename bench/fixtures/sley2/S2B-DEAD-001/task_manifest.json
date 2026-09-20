@@ -1,0 +1,39 @@
+{
+  "contract": "sley2.live-task-base.v1",
+  "entities": {
+    "dead_block": "9090909090909090909090909090909090909090909090909090909090909090",
+    "dead_helper": "8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e",
+    "live_func": "8989898989898989898989898989898989898989898989898989898989898989",
+    "namespace": "8888888888888888888888888888888888888888888888888888888888888888"
+  },
+  "judge": {
+    "absent": [
+      "dead_block",
+      "dead_helper"
+    ],
+    "fixed_inputs": [
+      [
+        7,
+        10
+      ]
+    ],
+    "flow": "graph",
+    "note": "helper parameter and block follow their function"
+  },
+  "pack_digest_blake3": "f46a861d50247210b03ab1fdcf8b10497e439153e42ccb3fd1502c36206e8685",
+  "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
+  "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
+  "strict": {
+    "source": "corpus"
+  },
+  "targets": [
+    "8888888888888888888888888888888888888888888888888888888888888888",
+    "8989898989898989898989898989898989898989898989898989898989898989",
+    "8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d8d",
+    "9090909090909090909090909090909090909090909090909090909090909090",
+    "8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e"
+  ],
+  "task_id": "S2B-DEAD-001",
+  "variant": "reachable_changed",
+  "workspace": "0707070707070707070707070707070707070707070707070707070707070707"
+}

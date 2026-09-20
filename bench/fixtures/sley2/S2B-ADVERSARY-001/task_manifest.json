@@ -1,0 +1,33 @@
+{
+  "contract": "sley2.live-task-base.v1",
+  "entities": {
+    "above_func": "d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6",
+    "above_op": "dadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada",
+    "below_func": "d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1",
+    "namespace": "d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0"
+  },
+  "judge": {
+    "adversarial": {
+      "label_entity": "above_op",
+      "policy_held": true
+    },
+    "combine": "clamp",
+    "flow": "execute-cases",
+    "functions": {
+      "above": "above_func",
+      "below": "below_func"
+    }
+  },
+  "pack_digest_blake3": "7a292acfd06b940d755d33eaebdcc6768fd1f2e417bff7f364ef4af919d2eab4",
+  "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
+  "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
+  "strict": {
+    "source": "corpus"
+  },
+  "targets": [
+    "dadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadada"
+  ],
+  "task_id": "S2B-ADVERSARY-001",
+  "variant": "wrong_repair",
+  "workspace": "0707070707070707070707070707070707070707070707070707070707070707"
+}

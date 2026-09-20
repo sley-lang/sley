@@ -64,6 +64,56 @@ Each invocation privately stages and verifies the same pinned artifact. Paths mu
 Do not modify `.sley-live`.
 """
 
+SLEY2_TOOLING = """# Sley 2.0 arm tool surface
+
+Work against the served repository in this workspace through `.sley-live/sley-tool`.
+Each invocation runs one disposable server session: it imports the staged
+base pack, opens a session, executes exactly one command, and closes.
+No state survives across invocations except the repository files and
+`final_candidate.hex`, which only `finish` writes.
+
+Request bodies cross as lowercase hex and stay opaque per the protocol
+bridge contract (owner bodies have no JSON form); reads additionally
+return decoded JSON views for inspection. The tool assembles candidate
+records mechanically from structured operations and derives preconditions
+from live reads; it judges nothing — the server refuses invalid input and
+the independent oracle alone decides acceptance.
+
+Commands:
+
+```text
+.sley-live/sley-tool inventory
+.sley-live/sley-tool read ENTITY_HEX
+.sley-live/sley-tool sig ENTITY_HEX.sley-live/sley-tool revision
+.sley-live/sley-tool caps
+.sley-live/sley-tool budgets
+.sley-live/sley-tool raw METHOD BODY_HEX
+.sley-live/sley-tool propose OPS_JSON
+.sley-live/sley-tool inspect RECORD_HEX
+.sley-live/sley-tool validate RECORD_HEX
+.sley-live/sley-tool finish RECORD_HEX
+.sley-live/sley-tool side ours|theirs
+```
+
+`inventory` lists served object ids with decoded kinds. `read`/`sig` show
+an entity with its decoded body: edit by authoring the modified body as
+structured JSON (field names per the decoded view) or, for scalar fields,
+plain values. `propose` takes a JSON list of operations
+`[{class, kind, target, field_tag, payload}]` with classes CreateEntity,
+ReplaceEntityVersion, DeleteEntityBinding, SetScalarField,
+ReplaceTypedField, RetargetReference, InsertOrderedChild,
+RemoveOrderedChild, MoveOrderedChild; targets of fresh entities must be
+null (identities derive inside assembly). The tool fills ordinals,
+ExactEntityVersion/ExactContainerVersion preconditions from live reads,
+the empty capability projection over the fixed trial principal, the
+frozen validation profile, a fresh nonce, and the fixed expiry bound,
+then creates and validates the candidate and reports its bytes.
+`finish` re-validates the given bytes and writes `final_candidate.hex`;
+only that file is judged. Commit, merge, execute, export, import,
+report, session management, and tests are unavailable by construction.
+Do not modify `.sley-live`.
+"""
+
 
 def prompt_template_digest() -> str:
     return hashlib.sha256(PROMPT_TEMPLATE.encode("utf-8")).hexdigest()
@@ -93,6 +143,18 @@ def _files(arm_id: str) -> dict[str, tuple[bytes, int]]:
         ).encode("utf-8")
         return {
             "TOOLING.md": (LEGACY_TOOLING.encode("utf-8"), 0o444),
+            "sley-tool": (launcher, 0o555),
+        }
+    if arm_id == "sley_2_0":
+        launcher = (
+            "#!/usr/bin/python3\n"
+            "import sys\n"
+            f"sys.path.insert(0, {str(ROOT)!r})\n"
+            "from bench.live.sley2_tool import main\n"
+            "raise SystemExit(main())\n"
+        ).encode("utf-8")
+        return {
+            "TOOLING.md": (SLEY2_TOOLING.encode("utf-8"), 0o444),
             "sley-tool": (launcher, 0o555),
         }
     raise ValueError("LIVE_TOOLING_UNAVAILABLE")

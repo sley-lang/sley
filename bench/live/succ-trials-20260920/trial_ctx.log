@@ -1,0 +1,9 @@
+fields before: 1
+user_const_0 inputs: 1
+user_const_1 inputs: 1
+user_const_2 inputs: 1
+valid: True {"body": "534c45594352533101b7030d010101022012464d2035fa5256955eaa2f012be0b11dd6052c9bc8614929d23139680912000302000004207d8ffff97a3fdafc49b4329d47b0b12f04759c3124274024016483a263265d5405202f2cdff23f94
+exit: 0
+{"arm": "sley2", "code": null, "detail": "all flows held", "status": "accepted", "task_id": "S2B-CONTEXT-001"}
+
+kept: /tmp/tmpw6j9jso1

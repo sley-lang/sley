@@ -1,0 +1,28 @@
+{
+  "contract": "sley2.live-task-base.v1",
+  "entities": {
+    "constant": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "namespace": "dcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdc",
+    "reader": "dededededededededededededededededededededededededededededededede"
+  },
+  "judge": {
+    "corrupt": {
+      "entity": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "expected": false
+    },
+    "entry": "reader",
+    "flow": "execute-cases"
+  },
+  "pack_digest_blake3": "be67364023c44572496e43a134080c61e00a69c5ab3f1751ee3cfc2bf0868f5f",
+  "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
+  "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
+  "strict": {
+    "source": "corpus"
+  },
+  "targets": [
+    "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+  ],
+  "task_id": "S2B-CORRUPT-001",
+  "variant": "unflipped",
+  "workspace": "0707070707070707070707070707070707070707070707070707070707070707"
+}

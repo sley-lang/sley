@@ -16,9 +16,9 @@ from bench.live.taskpacks import (
 
 class TaskPackTests(unittest.TestCase):
     def test_raw_and_legacy_catalogs_cover_the_frozen_corpus(self) -> None:
-        self.assertEqual(IMPLEMENTED_ARMS, frozenset({"raw_files", "sley_1_2_0"}))
+        self.assertEqual(IMPLEMENTED_ARMS, frozenset({"raw_files", "sley_1_2_0", "sley_2_0"}))
         self.assertEqual(len(TASK_IDS), 15)
-        self.assertTrue(IMPLEMENTED_ARMS < ARMS)
+        self.assertEqual(IMPLEMENTED_ARMS, ARMS - {"zerolang"})
         for arm in sorted(IMPLEMENTED_ARMS):
             with self.subTest(arm=arm):
                 self.assertEqual(len(arm_fixture_digest(arm)), 64)
@@ -46,10 +46,24 @@ class TaskPackTests(unittest.TestCase):
 
     def test_unknown_arm_and_task_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            for arm, task in (("sley_2_0", "S2B-REPAIR-001"), ("raw_files", "NOPE")):
+            for arm, task in (("sley_9_9", "S2B-REPAIR-001"), ("raw_files", "NOPE")):
                 with self.subTest(arm=arm, task=task):
                     with self.assertRaises(ValueError):
                         stage_initial(arm, task, Path(temporary) / f"{arm}-{task}")
+
+    def test_sley2_stages_pack_and_blank_repo_deterministically(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            first = Path(temporary) / "first"
+            second = Path(temporary) / "second"
+            stage_initial("sley_2_0", "S2B-REPAIR-001", first)
+            stage_initial("sley_2_0", "S2B-REPAIR-001", second)
+            self.assertEqual(snapshot_directory(first), snapshot_directory(second))
+            self.assertTrue((first / "base.pack").is_file())
+            self.assertTrue((first / "repo").is_dir())
+            blank = Path(temporary) / "blank"
+            stage_initial("sley_2_0", "S2B-CREATE-001", blank)
+            self.assertEqual(list((blank / "repo").iterdir()), [])
+            self.assertFalse((blank / "base.pack").exists())
 
 
 if __name__ == "__main__":

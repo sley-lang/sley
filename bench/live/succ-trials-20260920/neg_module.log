@@ -1,0 +1,2 @@
+stale propose valid: True
+S2B-MODULE-001 exit: 1 {"arm": "sley2", "code": "ORACLE_STALE_IMPORT", "detail": "exports=0", "status": "rejected", "task_id": "S2B-MODULE-001"}

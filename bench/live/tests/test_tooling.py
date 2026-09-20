@@ -27,7 +27,7 @@ class ToolingTests(unittest.TestCase):
     def test_raw_and_legacy_tooling_are_deterministic_and_legacy_launcher_is_executable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            for arm in ("raw_files", "sley_1_2_0"):
+            for arm in ("raw_files", "sley_1_2_0", "sley_2_0"):
                 first = root / f"{arm}-one"
                 second = root / f"{arm}-two"
                 first.mkdir()
@@ -41,6 +41,8 @@ class ToolingTests(unittest.TestCase):
                 )
             launcher = root / "sley_1_2_0-one/.sley-live/sley-tool"
             self.assertTrue(launcher.stat().st_mode & 0o111)
+            sley2_launcher = root / "sley_2_0-one/.sley-live/sley-tool"
+            self.assertTrue(sley2_launcher.stat().st_mode & 0o111)
 
     def test_unknown_task_arm_and_existing_control_directory_refuse(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -49,7 +51,7 @@ class ToolingTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 build_prompt("NOPE", 1, "raw_files")
             with self.assertRaises(ValueError):
-                stage_tooling("sley_2_0", root)
+                stage_tooling("sley_9_9", root)
             (root / ".sley-live").mkdir()
             with self.assertRaises(ValueError):
                 stage_tooling("raw_files", root)
