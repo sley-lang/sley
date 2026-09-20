@@ -1,0 +1,5 @@
+CREATE witness/alt_order: skeleton valid False
+CREATE witness/alt_order: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/alt_order: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': '16987c34eb7f66b51004ec6bd1a4c1d0ce362721359f99a85c370b8074817f94'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': '4605363abbb81913ec9cfdba5a87f60935dff2ae78652ea2cc4e9b23f19eb4ba', 'truncated': False}
+S2B-CREATE-001 witness/alt_order judge exit: 0
+workspace kept at: /tmp/sley2-create-witness-fest0pr6/ws

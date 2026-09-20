@@ -184,9 +184,35 @@ def execute_attempt(
     provider_runner: Callable[..., ProcessCapture] = run_provider_process,
     oracle_runner: Callable[..., tuple[dict[str, Any], bytes, bytes]] = run_fixture_oracle,
     utc_now: Callable[[], str] = _utc_now,
+    mediated_share_net: bool = False,
 ) -> dict[str, Any]:
     """Execute and append one slot; completed provider calls are never retried."""
 
+    if arm_id == "sley_2_0":
+        # The trial arm runs confined through the mediated gateway:
+        # trusted capture, protected state, and the capture acceptance
+        # gate replace the workspace-copy route (which remains only as
+        # non-acceptance archival machinery for other arms).
+        from bench.live.mediated_attempt import execute_mediated_attempt
+
+        run = Path(run_directory)
+        manifest = read_manifest(run / "run_manifest.json")
+        if adapter.model != manifest["model_exact_version"] or adapter.reasoning_effort != manifest["model_configuration"]["reasoning_effort"]:
+            raise CampaignError("LIVE_CAMPAIGN_PROVIDER_MISMATCH")
+        return execute_mediated_attempt(
+            run_directory=run,
+            manifest=manifest,
+            store=store,
+            adapter=adapter,
+            task_id=task_id,
+            arm_id=arm_id,
+            seed=seed,
+            workspace_parent=workspace_parent,
+            provider_runner=provider_runner,
+            oracle_runner=oracle_runner,
+            utc_now=utc_now,
+            mediated_share_net=mediated_share_net,
+        )
     run = Path(run_directory)
     manifest = read_manifest(run / "run_manifest.json")
     if adapter.model != manifest["model_exact_version"] or adapter.reasoning_effort != manifest["model_configuration"]["reasoning_effort"]:

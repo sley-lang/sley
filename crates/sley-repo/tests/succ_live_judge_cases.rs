@@ -22,7 +22,6 @@
 use sley_check::TypeEnvironment;
 use sley_id::{EntityId, SchemaEpochId};
 use sley_repo::RepositoryObjectVerifier;
-use sley_ssmc::{Block, Operation, Parameter};
 use sley_ssmc::{ConstData, ConstValue, IntegerWidth, TypeExpr};
 use sley_state_root::conformance_epoch_id as state_epoch_id;
 use sley_store::ObjectStore;
@@ -62,9 +61,6 @@ fn const_of(item: &serde_json::Value) -> ConstValue {
 
 struct ProgramSlice {
     function: sley_ssmc::FunctionGraph,
-    parameters: Vec<sley_ssmc::Parameter>,
-    blocks: Vec<sley_ssmc::Block>,
-    operations: Vec<sley_ssmc::Operation>,
     types: sley_check::TypeEnvironment,
 }
 
@@ -72,47 +68,18 @@ fn function_inputs(
     complete: &sley_policy::complete_entities::CompleteEntities,
     func: EntityId,
 ) -> ProgramSlice {
+    // Only the entry graph is target-selected. Parameters, blocks,
+    // and operations travel as the complete inventories production
+    // lowering requires (see the LoweringInput construction): the
+    // driver never slices the root.
     let function = complete
         .functions
         .iter()
         .find(|f| f.entity_id == func)
         .unwrap_or_else(|| panic!("function bound"))
         .clone();
-    let blocks: Vec<Block> = complete
-        .blocks
-        .iter()
-        .filter(|b| b.function == func)
-        .cloned()
-        .collect();
-    let parameters: Vec<Parameter> = {
-        let mut parameters: Vec<Parameter> = complete
-            .parameters
-            .iter()
-            .filter(|p| {
-                // Function params bind case inputs; block params of this
-                // function's blocks take values from incoming edges
-                // (switch payloads). Both must resolve at lowering, but
-                // only function params consume request inputs.
-                p.owner == func
-                    || (p.role == sley_ssmc::ParameterRole::Block
-                        && blocks.iter().any(|b| b.entity_id == p.owner))
-            })
-            .cloned()
-            .collect();
-        parameters.sort_by_key(|p| p.ordinal);
-        parameters
-    };
-    let operations: Vec<Operation> = complete
-        .operations
-        .iter()
-        .filter(|o| blocks.iter().any(|b| b.entity_id == o.block))
-        .cloned()
-        .collect();
     ProgramSlice {
         function,
-        parameters,
-        blocks,
-        operations,
         types: TypeEnvironment::new(complete.type_definitions.clone()).unwrap(),
     }
 }
@@ -131,7 +98,8 @@ fn outcome_json(
                 other => serde_json::json!({"non_success": format!("{other:?}")}),
             };
             serde_json::json!({"ok": true, "value": value,
-                "instructions": ok.instruction_count, "fuel": ok.fuel_used})
+                "instructions": ok.instruction_count, "fuel": ok.fuel_used,
+                "peak_value_units": ok.peak_value_units})
         }
         Err(error) => serde_json::json!({"ok": false, "code": error.to_string()}),
     }
@@ -184,9 +152,16 @@ fn run_cases(
         let input = LoweringInput {
             types: &program.types,
             function: &program.function,
-            parameters: &program.parameters,
-            blocks: &program.blocks,
-            operations: &program.operations,
+            // Complete root inventories: production lowering narrows
+            // per function itself (owned_inventory) and judges
+            // call_direct callees against the root context (contract
+            // E6). A root sliced to the target starves callee
+            // signature resolution (VM_LOWER_IMMEDIATE_MISMATCH) and
+            // callee narrowing. Only the entry graph itself is
+            // target-selected; everything else stays complete.
+            parameters: &complete.parameters,
+            blocks: &complete.blocks,
+            operations: &complete.operations,
             schema_epoch: epoch(),
             state_root,
             profile: CacheProfile::EXTENDED_V1,

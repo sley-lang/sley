@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import shutil
 import tempfile
 import unittest
@@ -123,148 +122,14 @@ class CampaignAttemptTests(unittest.TestCase):
         self.assertEqual(len(verify_attempts(self.run, self.store)), 1)
 
 
-def sley2_oracle_stdout() -> bytes:
-    return (json.dumps({"arm": "sley2", "code": None, "detail": "stub accept",
-                        "status": "accepted", "task_id": "S2B-TEST-001"},
-                       sort_keys=True).encode() + b"\n")
-
-
-class SleyEvidenceTests(unittest.TestCase):
-    """Runner-owned evidence boundary (task 1): independent copies of
-    the agent transcript, finished artifact, and usage ledger plus the
-    completion binding are stored before any verdict is released. An
-    unavailable sink stops the attempt without releasing success."""
-
-    def setUp(self) -> None:
-        self.temporary = tempfile.TemporaryDirectory()
-        self.root = Path(self.temporary.name)
-        self.run = self.root / "run"
-        self.run.mkdir()
-        write_manifest_once(self.run / "run_manifest.json", manifest())
-        self.store = ArtifactStore(self.run / "artifacts")
-        self.adapter = CodexExecAdapter("/opt/codex", "gpt-5.6-sol", "medium")
-        self.oracle_calls: list[str] = []
-
-    def tearDown(self) -> None:
-        self.temporary.cleanup()
-
-    def provider_with(self, files: dict[str, bytes]):
-        def provider(argv, prompt, **kwargs):
-            workspace = Path(argv[argv.index("--cd") + 1])
-            for name, data in files.items():
-                (workspace / name).write_bytes(data)
-            return ProcessCapture(provider_stream(), b"", 0, False, 25)
-
-        return provider
-
-    def oracle_accept(self, arm_id, task_id, candidate):
-        self.oracle_calls.append(task_id)
-        return ({"status": "accepted", "code": None}, sley2_oracle_stdout(), b"")
-
-    def usage(self) -> bytes:
-        return (json.dumps({"command": "finish", "ok": True, "wall_ms": 3,
-                            "response_bytes": 10,
-                            "totals": {"calls": 2, "wall_ms": 5}}) + "\n").encode()
-
-    def test_evidence_captured_bound_and_verified(self) -> None:
-        record = execute_attempt(
-            run_directory=self.run,
-            store=self.store,
-            adapter=self.adapter,
-            task_id="S2B-TEST-001",
-            arm_id="sley_2_0",
-            seed=17,
-            workspace_parent=self.root / "workspaces",
-            provider_runner=self.provider_with({
-                ".sley-live-transcript.jsonl": b'{"seq": 0}\n',
-                ".sley-live-usage": self.usage(),
-                "final_candidate.hex": b"deadbeef\n",
-            }),
-            oracle_runner=self.oracle_accept,
-            utc_now=lambda: "2026-09-17T12:01:00Z",
-        )
-        self.assertEqual(record["status"], "accepted")
-        self.assertIsNone(record["failure_code"])
-        for slot in ("agent_transcript_sha256", "agent_usage_sha256",
-                     "final_candidate_sha256", "evidence_completion_sha256"):
-            self.assertIsNotNone(record["artifacts"][slot], slot)
-        stored = {slot: self.store.read(record["artifacts"][slot])
-                  for slot in ("agent_transcript_sha256", "agent_usage_sha256",
-                               "final_candidate_sha256")}
-        self.assertEqual(stored["agent_transcript_sha256"], b'{"seq": 0}\n')
-        self.assertEqual(stored["agent_usage_sha256"], self.usage())
-        completion = json.loads(self.store.read(
-            record["artifacts"]["evidence_completion_sha256"]))
-        self.assertEqual(completion["attempt_id"], record["attempt_id"])
-        for slot in ("agent_transcript_sha256", "final_candidate_sha256",
-                     "agent_usage_sha256"):
-            self.assertEqual(completion[slot], record["artifacts"][slot])
-        verified = verify_attempts(self.run, self.store)
-        self.assertEqual(len(verified), 1)
-        self.assertEqual(verified[0]["evidence_status"], "VERIFIED_LIVE_EVIDENCE")
-
-    def test_missing_transcript_blocks_verdict_release(self) -> None:
-        record = execute_attempt(
-            run_directory=self.run,
-            store=self.store,
-            adapter=self.adapter,
-            task_id="S2B-TEST-001",
-            arm_id="sley_2_0",
-            seed=17,
-            workspace_parent=self.root / "workspaces",
-            provider_runner=self.provider_with({}),
-            oracle_runner=self.oracle_accept,
-            utc_now=lambda: "2026-09-17T12:01:00Z",
-        )
-        self.assertEqual(record["status"], "harness_failure")
-        self.assertTrue(record["failure_code"].startswith("LIVE_EVIDENCE_SINK_INVALID"),
-                        record["failure_code"])
-        self.assertEqual(self.oracle_calls, [])
-
-    def test_transcript_without_usage_blocks_verdict_release(self) -> None:
-        # Usage must be derived from complete evidence, never reset to
-        # zero: transcript present but ledger absent fails the attempt.
-        record = execute_attempt(
-            run_directory=self.run,
-            store=self.store,
-            adapter=self.adapter,
-            task_id="S2B-TEST-001",
-            arm_id="sley_2_0",
-            seed=17,
-            workspace_parent=self.root / "workspaces",
-            provider_runner=self.provider_with({
-                ".sley-live-transcript.jsonl": b'{"seq": 0}\n',
-                "final_candidate.hex": b"deadbeef\n",
-            }),
-            oracle_runner=self.oracle_accept,
-            utc_now=lambda: "2026-09-17T12:01:00Z",
-        )
-        self.assertEqual(record["status"], "harness_failure")
-        self.assertTrue(record["failure_code"].startswith("LIVE_EVIDENCE_SINK_INVALID"),
-                        record["failure_code"])
-        self.assertEqual(self.oracle_calls, [])
-
-    def test_malformed_usage_blocks_verdict_release(self) -> None:
-        record = execute_attempt(
-            run_directory=self.run,
-            store=self.store,
-            adapter=self.adapter,
-            task_id="S2B-TEST-001",
-            arm_id="sley_2_0",
-            seed=17,
-            workspace_parent=self.root / "workspaces",
-            provider_runner=self.provider_with({
-                ".sley-live-transcript.jsonl": b'{"seq": 0}\n',
-                ".sley-live-usage": b"not json\n",
-                "final_candidate.hex": b"deadbeef\n",
-            }),
-            oracle_runner=self.oracle_accept,
-            utc_now=lambda: "2026-09-17T12:01:00Z",
-        )
-        self.assertEqual(record["status"], "harness_failure")
-        self.assertTrue(record["failure_code"].startswith("LIVE_EVIDENCE_SINK_INVALID"),
-                        record["failure_code"])
-        self.assertEqual(self.oracle_calls, [])
+# NOTE: the sley_2_0 workspace-copy evidence route retired when the
+# arm moved to confined mediated attempts (bench/live/mediated_attempt.py):
+# candidate-side files can never be acceptance evidence. The sley_2_0
+# campaign-path proofs (legitimate acceptance, capture/oracle gate
+# ordering, forgery resistance, ingress invalidation, timeouts,
+# cumulative budgets, access restrictions) live in
+# bench/live/tests/test_mediated_attempt.py and enter through
+# execute_attempt like every other test here.
 
 
 if __name__ == "__main__":

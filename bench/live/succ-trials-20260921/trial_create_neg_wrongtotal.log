@@ -1,5 +1,5 @@
 CREATE witness/neg_wrongtotal: skeleton valid False
 CREATE witness/neg_wrongtotal: compose valid True decision {'failed_phase': None, 'tag': 1}
-CREATE witness/neg_wrongtotal: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': 'e95ae2cae512b45fb9c11a39581ce3f159b8b630265cf4016479a2a1af3ab623'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': '13d5507cf153545e8d426fe5a10fb9923414b37303da5d042c980089718c2ce4', 'truncated': False}
+CREATE witness/neg_wrongtotal: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': 'b77a26962d4f95565bea76d06dcc02d992dc0c88e6ef12c9ec545b14e2d5e348'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': 'b4f7765ab89ee63ea0c780b4b57989bf90b398a87288c7fb65da5057bd79a0e6', 'truncated': False}
 S2B-CREATE-001 witness/neg_wrongtotal judge exit: 1
-workspace kept at: /tmp/sley2-create-witness-aqbfs0nv/ws
+workspace kept at: /tmp/sley2-create-witness-_qace8aj/ws

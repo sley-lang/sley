@@ -161,7 +161,16 @@ def program_full(ids: list, variant: str) -> list:
     for ordinal in range(7):
         ops.append(op_create(6, param_body(efunc, ordinal)))
     ops.append(op_create(7, block_body(efunc, ecalls, ecalls[-1])))
-    q, u, rate, scale, sub_in, mid_in, tax_in = eparams
+    if variant == "alt_order":
+        # Valid alternative: identical operations and callees, but the
+        # entry parameters bind roles in a different order. Role
+        # discovery is behavioral and the judge maps by param identity,
+        # never by position convention — this must accept exactly like
+        # pos (regression: structure differing from the witness's own
+        # layout is not a defect).
+        sub_in, tax_in, mid_in, q, u, rate, scale = eparams
+    else:
+        q, u, rate, scale, sub_in, mid_in, tax_in = eparams
     ops.append(op_create(8, op_body(eblock, 0, CALL, [par(q), par(u)],
                                    funcref(sub["func"]))))
     ops.append(op_create(8, op_body(eblock, 1, CALL,

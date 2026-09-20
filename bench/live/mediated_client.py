@@ -45,28 +45,83 @@ import sys
 
 SINT = {"variant": "SInt", "value": 64}
 
+SOCK_ENV = "SLEY2_GATEWAY_SOCK"
+FRAME_LIMIT = 8 * 1024 * 1024
+
 
 def log(text: str) -> None:
     sys.stderr.write(text + "\n")
     sys.stderr.flush()
 
 
+def emit_provider_stream(commands: list[str]) -> None:
+    """Print the provider-observed event stream on stdout (socket
+    mode only; stdio mode reserves stdout for gateway frames). One
+    completed tool item per gateway frame keeps the observed tool
+    count reconciled with the captured exchange count."""
+
+    def emit(value: dict) -> None:
+        sys.stdout.write(json.dumps(value, sort_keys=True) + "\n")
+
+    emit({"type": "thread.started", "thread_id": "thread-1"})
+    emit({"type": "turn.started"})
+    for index, command in enumerate(commands):
+        emit({"type": "item.completed",
+              "item": {"id": f"tool-{index}",
+                       "type": "command_execution",
+                       "command": f"sley-tool {command}",
+                       "aggregated_output": "OK\n",
+                       "status": "completed",
+                       "exit_code": 0}})
+    emit({"type": "turn.completed",
+          "usage": {"input_tokens": 120, "cached_input_tokens": 20,
+                    "output_tokens": 30,
+                    "reasoning_output_tokens": 5}})
+    sys.stdout.flush()
+
+
 class Gateway:
     def __init__(self, session_id: str) -> None:
         self.session_id = session_id
         self.frames = 0
+        self.cmdlog: list[str] = []
+        sock_path = os.environ.get(SOCK_ENV, "")
+        self._sockfile = None
+        if sock_path:
+            import socket as _socket
+
+            try:
+                client = _socket.socket(_socket.AF_UNIX,
+                                        _socket.SOCK_STREAM)
+                client.connect(sock_path)
+            except OSError as error:
+                raise RuntimeError(f"gateway socket: {error}")
+            self._sockfile = client.makefile("rwb")
 
     def call(self, phase: str, command: str,
              args: list[str]) -> dict:
         frame = {"phase": phase, "session_id": self.session_id,
                  "command": command, "args": args}
-        sys.stdout.write(json.dumps(frame, sort_keys=True) + "\n")
-        sys.stdout.flush()
-        line = sys.stdin.readline()
-        if not line:
-            raise RuntimeError("gateway EOF")
-        reply = json.loads(line)
+        if self._sockfile is not None:
+            raw = (json.dumps(frame, sort_keys=True) + "\n").encode()
+            try:
+                self._sockfile.write(raw)
+                self._sockfile.flush()
+                line = self._sockfile.readline(FRAME_LIMIT + 2)
+            except OSError as error:
+                raise RuntimeError(f"gateway transport: {error}")
+            if not line:
+                raise RuntimeError("gateway EOF")
+            reply = json.loads(line.decode("utf-8"))
+        else:
+            sys.stdout.write(json.dumps(frame, sort_keys=True) + "\n")
+            sys.stdout.flush()
+            line = sys.stdin.readline()
+            if not line:
+                raise RuntimeError("gateway EOF")
+            reply = json.loads(line)
         self.frames += 1
+        self.cmdlog.append(command)
         if reply.get("uncaptured"):
             raise RuntimeError(
                 f"gateway capture failure: {reply.get('error')}")
@@ -114,6 +169,33 @@ def variant_value(typedef_id: str, member: str,
 def sint_const(value: int) -> dict:
     return {"value_type": SINT,
             "data": {"variant": "SInt", "value": value}}
+
+
+def _finish_skeleton(gw: Gateway, inputs: dict) -> int:
+    """Minimal legitimate flow: bounded read, skeleton propose, and
+    finish. The finished record lands in protected state only."""
+
+    revision = gw.call("read", "revision", [])
+    if not revision.get("ok"):
+        log("SUMMARY " + json.dumps({"ok": False,
+                                     "error": "revision refused"},
+                                    sort_keys=True))
+        return 0
+    proposal = gw.call(
+        "compose", "propose",
+        [json.dumps([op_create(4, typedef_payload(inputs["members"]))])])
+    report = proposal.get("report", {}) if proposal.get("ok") else {}
+    if not report.get("created"):
+        log("SUMMARY " + json.dumps({"ok": False,
+                                     "error": "propose refused"},
+                                    sort_keys=True))
+        return 0
+    finale = gw.call("finish", "finish", [report["record"]])
+    finished = bool(finale.get("ok")
+                    and (finale.get("report") or {}).get("finished"))
+    log("SUMMARY " + json.dumps({"ok": finished, "frames": gw.frames,
+                                 "finished": finished}, sort_keys=True))
+    return 0
 
 
 def seq_type(gw: Gateway, inputs: dict, code: int,
@@ -285,6 +367,41 @@ def main() -> int:
         log("usage: mediated_client.py SEQUENCE [args...]")
         return 2
     sequence = sys.argv[1]
+    socket_mode = bool(os.environ.get(SOCK_ENV, ""))
+    if sequence == "malformed_ingress":
+        # Raw-socket discipline violation: unparseable input must
+        # permanently invalidate the attempt (fail-closed ingress).
+        import socket as _socket
+
+        try:
+            client = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            client.connect(os.environ[SOCK_ENV])
+            client.sendall(b"this is not a frame\n")
+            client.close()
+        except OSError as error:
+            log(f"ingress setup failed: {error}")
+            return 2
+        if socket_mode:
+            emit_provider_stream([])
+        log("SUMMARY " + json.dumps({"ok": True, "frames": 0},
+                                    sort_keys=True))
+        return 0
+    if sequence == "oversized_ingress":
+        import socket as _socket
+
+        try:
+            client = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
+            client.connect(os.environ[SOCK_ENV])
+            client.sendall(b"x" * (FRAME_LIMIT + 1024) + b"\n")
+            client.close()
+        except OSError as error:
+            log(f"ingress setup failed: {error}")
+            return 2
+        if socket_mode:
+            emit_provider_stream([])
+        log("SUMMARY " + json.dumps({"ok": True, "frames": 0},
+                                    sort_keys=True))
+        return 0
     try:
         with open("/scratch/trial_inputs.json", encoding="utf-8") as handle:
             inputs = json.load(handle)
@@ -292,6 +409,13 @@ def main() -> int:
         log(f"no trial inputs: {error}")
         return 2
     gw = Gateway(session_id=f"agent-{os.getpid()}")
+    code = _run_sequence(gw, inputs, sequence)
+    if socket_mode:
+        emit_provider_stream(gw.cmdlog)
+    return code
+
+
+def _run_sequence(gw: Gateway, inputs: dict, sequence: str) -> int:
     if sequence == "access_probe":
         results: dict = {"reads": {}, "writes": {}}
         for path in sys.argv[2:]:
@@ -333,6 +457,54 @@ def main() -> int:
                    "frames": gw.frames}
         log("SUMMARY " + json.dumps(summary, sort_keys=True))
         return 0
+    if sequence == "two_phase":
+        # Two client sessions across read/compose phases: budgets and
+        # usage must accumulate trial-wide, never reset per session.
+        first = Gateway(session_id=f"agent-{os.getpid()}-a")
+        second = Gateway(session_id=f"agent-{os.getpid()}-b")
+        revision = first.call("read", "revision", [])
+        caps = second.call("read", "caps", [])
+        summary = {"ok": bool(revision.get("ok")) and bool(caps.get("ok")),
+                   "frames": gw.frames + first.frames + second.frames}
+        log("SUMMARY " + json.dumps(summary, sort_keys=True))
+        gw.cmdlog.extend(first.cmdlog + second.cmdlog)
+        return 0
+    if sequence == "denied_then_finish":
+        # A denied command is a recorded, counted refusal; the
+        # attempt continues and may still legitimately finish.
+        revision = gw.call("read", "revision", [])
+        denied = gw.call("read", "commit", ["00"])
+        if not revision.get("ok") or denied.get("ok", True):
+            log("SUMMARY " + json.dumps({"ok": False}, sort_keys=True))
+            return 0
+        code = _finish_skeleton(gw, inputs)
+        return code
+    if sequence in ("finish_skeleton", "forge_scratch", "no_finish"):
+        if sequence == "no_finish":
+            # A valid partial flow with no finish: no runner-held
+            # final exists, so no completion linkage is possible.
+            revision = gw.call("read", "revision", [])
+            proposal = gw.call(
+                "compose", "propose",
+                [json.dumps([op_create(
+                    4, typedef_payload(inputs["members"]))])])
+            summary = {"ok": bool(revision.get("ok"))
+                       and bool(proposal.get("ok")),
+                       "frames": gw.frames, "finished": False}
+            log("SUMMARY " + json.dumps(summary, sort_keys=True))
+            return 0
+        code = _finish_skeleton(gw, inputs)
+        if sequence == "forge_scratch" and code == 0:
+            # Forged candidate-side diagnostics: the attempt may
+            # still accept (protected flow is legitimate), but the
+            # forged bytes must never become the held evidence.
+            with open("/scratch/final_candidate.hex", "w",
+                       encoding="utf-8") as handle:
+                handle.write("forged-by-agent\n")
+            with open("/scratch/.sley-live-transcript.jsonl", "w",
+                       encoding="utf-8") as handle:
+                handle.write('{"forged": true}\n')
+        return code
     params: dict = {
         "type_pos": {"code": 7, "status_member": None,
                      "leaf_values": [0, 1, 2], "null_payload": False},

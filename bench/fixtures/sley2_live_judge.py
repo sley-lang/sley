@@ -1670,12 +1670,14 @@ def _judge_create(session: Session, manifest: dict, corpus: dict, scratch_ws: Pa
     ORACLE_WRONG_CENTS via near-miss classification; anything else that
     matches no role is ORACLE_CREATE_MISMATCH.
 
-    The submitted wiring entry itself executes natively on the frozen
-    one-line intermediates whenever the engine permits (see below):
-    the program's own end-to-end result, not only its primitives',
-    decides the corpus total. Engine-limited entries (VM lowering
-    rejects cross-function calls today) keep the static wiring check;
-    genuine end-to-end miscomputation rejects.
+    The submitted wiring entry itself must execute natively on the
+    frozen one-line intermediates (see below): the program's own
+    end-to-end decoded result, not only its primitives', decides the
+    corpus total. No acceptance exists without that execution
+    evidence: unmappable entries reject (ORACLE_CREATE_UNMAPPED),
+    unexecutable ones reject as an explicit readiness status
+    (ORACLE_CREATE_UNEXECUTABLE), and only the correctly decoded
+    expected value accepts.
     """
 
     _ = corpus
@@ -1815,9 +1817,12 @@ def _judge_create(session: Session, manifest: dict, corpus: dict, scratch_ws: Pa
     # operand position carries its role's frozen input value (shared
     # params must agree — a conflict means the wiring cannot compute
     # the corpus total); the full param vector then executes natively
-    # and must return Ok(result_cents). Param-routed wirings execute;
-    # anything unmappable keeps the static wiring check above (which
-    # already passed) rather than failing closed on shape.
+    # and its decoded value must equal Ok(result_cents).
+    # Fail-closed: unmappable shapes reject as ORACLE_CREATE_UNMAPPED,
+    # unexecutable mappings reject as ORACLE_CREATE_UNEXECUTABLE
+    # (readiness status, never success, never candidate blame), and
+    # only a correctly decoded expected value accepts. See
+    # `_judge_create_entry` for the classification.
     if entry is not None and need:
         ties = _create_role_ties(roles, spec, observations, want_ok)
         _judge_create_entry(entry, entry_body, roles, ties, composition,
@@ -1880,8 +1885,27 @@ def _judge_create_entry(entry: str, entry_body: dict, roles: dict,
 
     Behaviorally tied roles (frozen subtotal/tax_mul are both MUL)
     admit interchangeable labelings: every tied labeling whose
-    demands are consistent executes, and the program's own Ok(2681)
-    decides — never scan order, never a conventional label.
+    demands are consistent executes, and the program's own decoded
+    Ok(2681) decides — never scan order, never a conventional label.
+
+    Fail-closed classification (no silent pass):
+    - malformed frozen composition spec → harness failure (judge-side
+      config, never candidate blame);
+    - undecodable entry/block/op bodies → harness failure (required
+      evidence unverifiable, never candidate blame);
+    - entry shape the helper cannot map to input-consuming execution
+      (no params, non-112 calls, non-Parameter operands, no mapped
+      calls) → ORACLE_CREATE_UNMAPPED rejection (the program as
+      submitted does not expose the required input-consuming
+      wiring; a valid alternative that DOES map is never rejected
+      for structural differences);
+    - mapped but the engine cannot execute → ORACLE_CREATE_UNEXECUTABLE
+      rejection (explicit non-accepting readiness status: production
+      limitation, not candidate wrongness, never reported as success);
+    - executed with a wrong decoded value → ORACLE_CREATE_MISMATCH;
+    - executed with the correctly decoded expected value → accept.
+    The driver result envelope is validated and only its decoded
+    value is compared to the expected payload.
     """
 
     role_of = {entity: role for role, entity in roles.items()}
@@ -1892,11 +1916,11 @@ def _judge_create_entry(entry: str, entry_body: dict, roles: dict,
         if (not isinstance(pair, list) or len(pair) != 2
                 or any(isinstance(v, bool) or not isinstance(v, int)
                        for v in pair)):
-            return
+            _harness_fail("create composition spec")
         frozen_inputs[role] = pair
     entry_params = entry_body.get("parameters") or []
     if not isinstance(entry_params, list) or not entry_params:
-        return
+        _reject("ORACLE_CREATE_UNMAPPED", "entry has no parameters")
     calls: list[tuple[str, list]] = []
     for block_id in entry_body.get("blocks") or []:
         try:
@@ -1904,30 +1928,33 @@ def _judge_create_entry(entry: str, entry_body: dict, roles: dict,
                                  current)
         except (JudgeRejection, JudgeHarnessError):
             raise
-        except Exception:
-            return
+        except Exception as error:
+            _harness_fail(f"create entry decode: {error}"[:120])
         for op_id in block.get("operations") or []:
             try:
                 op = _decode_body(session, scratch_ws, str(op_id),
                                   current)
             except (JudgeRejection, JudgeHarnessError):
                 raise
-            except Exception:
-                return
+            except Exception as error:
+                _harness_fail(f"create entry decode: {error}"[:120])
             if op.get("opcode") != 112:
                 continue
             callee = _immediate_function(op.get("immediate"))
             operands = op.get("operands") or []
-            if (not role_of.get(callee, "")
-                    or len(operands) != 2
+            if not role_of.get(callee, ""):
+                _reject("ORACLE_CREATE_UNMAPPED",
+                        "entry calls outside role set"[:120])
+            if (len(operands) != 2
                     or any(not isinstance(o, dict)
                            or o.get("variant") != "Parameter"
                            or not isinstance(o.get("value"), str)
                            for o in operands)):
-                return
+                _reject("ORACLE_CREATE_UNMAPPED",
+                        "entry operands not parameters"[:120])
             calls.append((callee, [str(o["value"]) for o in operands]))
     if not calls:
-        return
+        _reject("ORACLE_CREATE_UNMAPPED", "no mapped entry calls")
     labelings = [dict(role_of)]
     for first, second in ties:
         swapped = dict(role_of)
@@ -1942,6 +1969,7 @@ def _judge_create_entry(entry: str, entry_body: dict, roles: dict,
         labelings.append(swapped)
     conflict_detail = ""
     mismatch_detail = ""
+    unexecutable_detail = ""
     for labeling in labelings:
         assigned: dict[str, int] = {}
         conflict = ""
@@ -1949,8 +1977,7 @@ def _judge_create_entry(entry: str, entry_body: dict, roles: dict,
             role = labeling.get(callee, "")
             pair = frozen_inputs.get(role, None)
             if pair is None:
-                conflict = ""
-                break
+                _harness_fail("create labeling invariant")
             for pid, value in zip(operands, pair):
                 if pid in assigned and assigned[pid] != value:
                     conflict = (f"entry param {pid[:8]} "
@@ -1963,45 +1990,39 @@ def _judge_create_entry(entry: str, entry_body: dict, roles: dict,
             conflict_detail = conflict_detail or conflict
             continue
         if not assigned:
-            return
+            _harness_fail("create assignment invariant")
         vector = [assigned.get(str(param), 0) for param in entry_params]
-        results = observations(entry, [tuple(vector)])
-        first = results[0] if isinstance(results, list) and results else {}
-        if not isinstance(first, dict) or not first.get("ok"):
-            # Engine-level execution limitation, NOT candidate
-            # wrongness (see long note below): keep the static wiring
-            # check rather than punishing engine limits.
-            return
-        if first == want:
+        try:
+            results = observations(entry, [tuple(vector)])
+        except (JudgeRejection, JudgeHarnessError):
+            raise
+        except Exception as error:
+            unexecutable_detail = unexecutable_detail or (
+                f"entry driver failed: {type(error).__name__}"[:120])
+            continue
+        first = results[0] if isinstance(results, list) and results else None
+        if not isinstance(first, dict) or first.get("ok") is not True:
+            # Mapped but not executed: no execution evidence exists,
+            # so no acceptance is possible (production limitation,
+            # never candidate blame, never success).
+            unexecutable_detail = unexecutable_detail or (
+                "entry did not execute natively"[:120])
+            continue
+        value = first.get("value")
+        if not isinstance(value, dict):
+            _harness_fail("create entry envelope")
+        if value == want:
             return
         mismatch_detail = mismatch_detail or (
-            f"entry end-to-end {first.get('value')} != "
+            f"entry end-to-end {value} != "
             f"Ok({want_total})"[:120])
     if mismatch_detail:
         _reject("ORACLE_CREATE_MISMATCH", mismatch_detail)
+    if unexecutable_detail:
+        _reject("ORACLE_CREATE_UNEXECUTABLE", unexecutable_detail)
     if conflict_detail:
         _reject("ORACLE_CREATE_MISMATCH", conflict_detail)
-    if not assigned:
-        return
-    vector = [assigned.get(str(param), 0) for param in entry_params]
-    results = observations(entry, [tuple(vector)])
-    first = results[0] if isinstance(results, list) and results else {}
-    if not isinstance(first, dict) or not first.get("ok"):
-        # Engine-level execution limitation, NOT candidate wrongness:
-        # the frozen VM lowering rejects cross-function calls
-        # (VM_LOWER_IMMEDIATE_MISMATCH on Function immediates), so the
-        # submitted entry cannot execute natively today. The static
-        # wiring check above stands; the candidate is never punished
-        # for engine limits. Lifting this needs authorized
-        # lowering/adapter work for Function-immediate calls in
-        # execute_function (recorded as the remaining entry-execution
-        # prerequisite); this check activates automatically once the
-        # engine permits, with no judge change.
-        return
-    if first != want:
-        _reject("ORACLE_CREATE_MISMATCH",
-                f"entry end-to-end {first.get('value')} != "
-                f"Ok({want_total})"[:120])
+    _harness_fail("create entry undecided")
 
 
 def _test_input_pair(test: dict) -> tuple[int, int] | None:
@@ -2737,13 +2758,30 @@ def _repo_stems(repo: Path) -> set[str]:
     return found
 
 
+# The enforced VM memory ceiling the strict-case driver passes with
+# every request (ExecutionLimits.max_value_units): peak monotonic
+# semantic value units above this refuse at the execution boundary.
+# The PERF judge reports the measured peak against this ceiling;
+# provider-process RSS, fuel, and constant zeros are never evidence.
+DRIVER_MAX_VALUE_UNITS = 100_000
+
+
 def _judge_perf(session: Session, manifest: dict, corpus: dict, scratch_ws: Path,
                 task_dir: Path) -> None:
     """PERF task: identical outputs pre (pristine base pack) vs post on
     the governing fixed large inputs; instruction reduction at/above
-    the frozen threshold; no effects; fuel never regresses. All
-    measured on the actual submitted candidate (pre numbers come from
-    the pristine pack through the same driver)."""
+    the frozen threshold; no effects; fuel never regresses; no memory
+    ceiling breach. All measured on the actual submitted candidate (pre
+    numbers come from the pristine pack through the same driver).
+
+    The contract's memory quantity is peak monotonic semantic value
+    units (ExecutionOutcome.peak_value_units), and its limit is the
+    enforced max_value_units ceiling (DRIVER_MAX_VALUE_UNITS, the
+    bound the driver passes with every request). Telemetry comes from
+    the driver per case: a missing peak is a harness failure (absent
+    telemetry is never a measured zero); a post peak above the
+    enforced ceiling rejects. Provider-process RSS, fuel, and
+    constant zeros are never substituted for VM value units."""
 
     _ = corpus
     judge = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
@@ -2782,6 +2820,16 @@ def _judge_perf(session: Session, manifest: dict, corpus: dict, scratch_ws: Path
     if fuel_post > fuel_pre:
         _reject("ORACLE_PERF_UNIMPROVED",
                 f"fuel regressed {fuel_post} > {fuel_pre}")
+    for side, cases in (("pre", pre), ("post", post)):
+        for case in cases:
+            peak = case.get("peak_value_units")
+            if (isinstance(peak, bool) or not isinstance(peak, int)
+                    or peak < 0):
+                _harness_fail(f"perf memory telemetry {side}")
+    peak_post = max(int(case["peak_value_units"]) for case in post)
+    if peak_post > DRIVER_MAX_VALUE_UNITS:
+        _reject("ORACLE_PERF_MEMORY_CEILING",
+                f"peak {peak_post} > ceiling {DRIVER_MAX_VALUE_UNITS}"[:120])
 
 
 # Cumulative agent-visible response budget across a trial (mirrors the

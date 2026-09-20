@@ -1,5 +1,5 @@
 CREATE witness/neg_wrongop: skeleton valid False
 CREATE witness/neg_wrongop: compose valid True decision {'failed_phase': None, 'tag': 1}
-CREATE witness/neg_wrongop: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': '6a70733ecdc5f68e7e55de662eaced87e072b32ab743ae6d7ab0bf18a92aef0e'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': '99b92e292409bcdc02072145a4283ff3964ccf1474bbc6b67545e40db1955a21', 'truncated': False}
+CREATE witness/neg_wrongop: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': 'b489503f30122165365bb70db3544bcc7972fb44f67295f6b5afa47edbe0cab8'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': 'a4b2779ff69f7830f60651c2d3b11f743125e36d3ed27890f8bd3525c95f7350', 'truncated': False}
 S2B-CREATE-001 witness/neg_wrongop judge exit: 1
-workspace kept at: /tmp/sley2-create-witness-83zio_kq/ws
+workspace kept at: /tmp/sley2-create-witness-anwdr5qx/ws
