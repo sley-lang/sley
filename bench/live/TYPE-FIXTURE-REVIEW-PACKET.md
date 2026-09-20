@@ -1,6 +1,7 @@
-# TYPE fixture correction — review packet (work branch only, 2026-09-20)
+# TYPE fixture correction — review packet (work branch only, 2026-09-20;
+amended 2026-09-21 with oracle provenance correction)
 
-Branch: `work/succession-sley20-arm` (base `e8aef7c0`).
+Branch: `work/succession-sley20-arm` (base `e8aef7c0`, now `0b26c39c`).
 Status: implemented + proved on the work branch; **not** adopted to
 `main`. Fixture-design review retained before any main adoption.
 `ga_claimed=false`.
@@ -58,7 +59,10 @@ Evidence (retained): `succ-trials-20260921/trial_type_migration.log`
   No predicate removed; no production check weakened.
 - New witness `bench/live/succ_witness_type_full.py` (original
   `succ_witness_type.py` untouched): full migration through the real
-  tool surface (propose/compose/finish) + live judge.
+  tool surface (propose/compose/finish) + live judge. Provenance
+  parameters (`TYPE_CODE`, `TYPE_STATUS`, `TYPE_LEAFS`,
+  `TYPE_NULLCODE`, `TYPE_DROPPAYLOAD`) drive the alternative proofs
+  in §6 without touching the default positive.
 
 ## 4. Fresh proof (real endpoint/tool/judge, distinguishing negatives)
 
@@ -68,22 +72,97 @@ plus `wt-succ/target/debug/deps/succ_live_judge_cases-42d77a02eb446c77`
 
 - Positive: `succ-trials-20260921/trial_type_full.log` → ACCEPTED
   (exit 0). Full JobState migration validates (compose Valid) and the
-  strengthened judge accepts.
+  strengthened judge accepts. Re-verified after the §6 correction as
+  `trial_type_pos_req7.log` (still ACCEPTED: the correction only
+  retires restrictions, never weakens corpus predicates).
 - Negatives (all reject, exit 1 unless noted):
   - `trial_type_full_neg_bool.log` → `ORACLE_BOOL_COMPAT_FIELD`
     (status still Bool).
-  - `trial_type_full_neg_code.log` → `ORACLE_FAILED_CODE`
-    (Failed(8) != 7; explicit-code predicate distinguished).
   - Typedef-only (status Failed, switch untouched) → rejected
     (`ORACLE_BOOL_COMPAT_FIELD` on param; old `trial_type_migration`
     design retained as historical evidence).
   - Trap arm → production `compose` refuses (`valid False`,
     phase 7); trap cannot satisfy the count.
-- Regressions: `succ_live_packs_frozen` PASS; `s3_g1_type` (3 passed,
-  1 ignored emitter); `bench.live` unit suites
-  (`test_acceptance_repairs`, `test_sley2_tool`, `test_taskpacks`: 59
-  tests OK). Old `succ_witness_type.py mig/neg` still reject (now with
-  more precise param-Bool code), never accept.
+  - RETIRED: `trial_type_full_neg_code.log` (Failed(8) →
+    `ORACLE_FAILED_CODE`) is preserved as historical evidence of the
+    §6 retired restriction (literal-7 pin). It no longer represents a
+    violation: Failed(8) accepts (see `trial_type_alt_code8.log`).
+- Regressions: `succ_live_packs_frozen` PASS; `sley2_tool`/`taskpacks`
+  suites green; old `succ_witness_type.py mig/neg` still reject, never
+  accept. `s3_g1_type` re-run with the re-proofs (§7 of the finish
+  goal; frozen S3 unchanged by this packet).
+
+## 6. Oracle provenance correction (amendment 2026-09-21)
+
+Requirement trace for the literal Failed(7):
+
+- The frozen corpus (`bench/corpus/v1/tasks.json` S2B-TYPE-001)
+  requires "Failed carries an explicit error code" and forbids "null
+  error". It pins NO literal value and NO status value.
+- The frozen S3 suite (`crates/sley-repo/tests/s3_g1_type.rs`) uses
+  Failed(7) as one TEST-VECTOR literal (payload 7 round-trip through
+  real VM execution). It proves the machinery carries explicit codes;
+  it does not state Failed(8) violates.
+- The `0b26c39c` judge pinned literal 7 (`inner_data value != 7`) and
+  status-is-Failed and distinct-leaf-constants. Those three pins came
+  from the positive witness's choices, not from any frozen tier.
+  They were unsupported restrictions and are corrected here through
+  this review packet (work-branch implementation, main adoption
+  still held).
+
+Corrected predicates (judge `_judge_type_variant`, same function):
+
+- CORPUS tier (unchanged, still enforced): no Bool bindings; 4-member
+  typedef with exactly one Some(SInt); exhaustive sorted Member
+  VariantSwitch with all-Required no-Trap arms; every block
+  entry-or-target; Failed arm forwards CasePayload; Failed leaf
+  returns its Block param (SInt); explicit fixed SInt values.
+- FIXTURE tier (manifest v2 closure, review-gated): 5-role closure;
+  switch result SInt with SInt-constant leaves.
+- RETIRED (alternatives now accept, proved below): literal code value
+  (any explicit SInt); status value (any typedef member; the
+  explicit-payload rule applies iff the value IS Failed); leaf
+  distinctness (deterministic each; shared constants accept).
+
+The corrected wrong-code negatives demonstrate loss/corruption of the
+required payload, not disagreement with the witness literal. Both
+refuse in production validation (behavioral enforcement by the
+execution machinery, before any judge code runs):
+
+- `trial_type_neg_droppayload.log` → production `compose` refuses
+  (`valid False`, failed_phase 7, tag 10): a Failed arm without
+  CasePayload (loss of the required error-code carriage) cannot
+  validate. The judge's `ORACLE_FAILED_CODE` "drops payload" path
+  remains as a fail-closed backstop.
+- `trial_type_neg_nullcode.log` → production `compose` refuses
+  (`valid False`, failed_phase 6, tag 9): a Failed member with null
+  payload (forbidden null error) cannot validate. The judge's
+  `ORACLE_FAILED_CODE` "null payload" path remains as backstop.
+
+Alternative positives (each full migration through the real surface,
+each ACCEPTED exit 0 under the corrected judge):
+
+- `trial_type_alt_code8.log` (Failed(8), distinct leaves).
+- `trial_type_alt_queued.log` (status Queued unit; Failed path still
+  live in the switch with payload forwarding).
+- `trial_type_alt_shared.log` (Queued/Running leaves share constant
+  0; deterministic, non-distinct).
+
+Structural vs behavioral separation:
+
+- Structural (parse-level, judge): typedef shape/counts, sorted
+  Member-key coverage, Required/no-Trap arms, closure membership.
+- Behavioral (execution machinery): server-side candidate.validate
+  exercises every arm at validation time (CasePayload forwarding is
+  checked against validation, and null payloads refuse at phase 6);
+  judged bodies are read LIVE from the served post-commit head
+  (entity.version), not parsed from record bytes; SInt round-trip
+  determinism is executed by the frozen S3 VM suite.
+
+Reviewer action requested (amended): approve (a) the 6d/6e closure,
+(b) the corrected three-tier predicate set, and (c) retirement of
+the literal-7 / status-is-Failed / distinct-leaves restrictions with
+the replacement negatives above, before any cherry-pick to `main`.
 
 ## 5. Preservation and holds
 

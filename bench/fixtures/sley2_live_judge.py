@@ -742,24 +742,63 @@ def _judge_type_variant(session: Session, manifest: dict, scratch_ws: Path,
                         current: set[str]) -> None:
     """TYPE task: complete JobState migration (frozen corpus S2B-TYPE-001).
 
-    Frozen predicates (corpus v1, preserved):
-    - no boolean status binding remains;
-    - all four cases exhaustively handled (VariantSwitch, sorted Member
-      keys covering the typedef, all targets Required, no Trap);
-    - Failed carries an explicit SInt error code (status Failed(7);
-      Failed arm forwards CasePayload);
-    - constructors, switches, and tests updated (status/param/switch/
-      entry/leaf in the corrected 6d/6e closure; base holds no Test
-      entities so test update is via judge verification, documented);
-    - serialized values deterministic (exact Failed(7), distinct leaf
-      SInt returns);
-    - valid reachable control flow (every function block is entry or a
-      switch target; production validation already gates).
+    Predicate provenance (three tiers — alternatives reject ONLY where
+    the governing tier requires it):
 
-    Typedef-only migration, trap blocks, unreachable arms, and Bool
-    compat paths reject with distinguishing codes. Collateral (non-
-    target mutation) is gated separately by _collateral_files plus
-    _judge_graph-style target checks at the caller.
+    CORPUS-FROZEN (bench/corpus/v1/tasks.json S2B-TYPE-001, immutable):
+    - no boolean status binding remains (status/param/switch-result
+      never Bool; no parallel bool compat field);
+    - all four cases exhaustively handled: VariantSwitch whose Member
+      keys cover exactly the typedef members, every member targeting a
+      Required arm (a Trap arm does not handle its case), no implicit
+      default;
+    - Failed carries an explicit SInt error code: the typedef holds
+      exactly one Some(SInt) member, and any live Failed value carries
+      a Some(SInt) payload (forbidden "null error" — a Failed member
+      with a null payload rejects);
+    - constructors, switches, and tests updated (closure roles below;
+      the base holds no Test entities so test update is established
+      through this verification, documented);
+    - serialized values deterministic (explicit fixed SInt values; live
+      served-state reads, never bare-record parse alone).
+
+    FIXTURE-SPECIFIED (task_manifest.json v2 closure on the work
+    branch, review-gated before main adoption):
+    - closure roles status/switch/param/switch_entry/switch_leaf (the
+      block count follows from the roles, not from a corpus number);
+    - switch result SInt with SInt-constant leaves (the fixture's
+      concrete observable; the corpus requires non-Bool + exhaustive,
+      the fixture pins SInt);
+    - Failed arm forwards CasePayload and the Failed leaf returns its
+      Block param (this is how the fixture requires the error code to
+      be handled rather than dropped).
+
+    RETIRED witness choices (0b26c39c proved them; this correction
+    retires them as restrictions — historical logs preserved):
+    - literal code 7: the corpus requires an EXPLICIT code, not 7.
+      Failed(7) was the positive witness's choice (matching the S3
+      test-vector literal). Failed(8) with an explicit SInt payload
+      satisfies the corpus and accepts. The wrong-code negative now
+      demonstrates loss/corruption of the required payload (Failed
+      member with null payload → ORACLE_FAILED_CODE), not
+      disagreement with the witness literal.
+    - status-is-Failed: the corpus pins no status value. Any typedef
+      member value accepts; the explicit-payload rule applies when the
+      value IS the Failed member.
+    - distinct leaf constants: the corpus requires deterministic, not
+      distinct. Leaves sharing an SInt constant accept.
+
+    Structural vs behavioral (kept distinct):
+    - structural (parse-level): typedef shape/member counts, sorted
+      Member-key coverage, Required/no-Trap arms, closure membership.
+    - behavioral (execution machinery): the submitted candidate passes
+      server-side candidate.validate (every arm typechecks at
+      validation time, including CasePayload forwarding); the judged
+      status/param/switch bodies are read LIVE from the served
+      post-commit head through entity.version (a live tagged state,
+      not record bytes); SInt round-trip determinism is executed by
+      the frozen S3 suite (real VM: u8 codes + Failed payload
+      round-trip, re-run with the re-proofs).
     """
 
     judge = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
@@ -812,23 +851,30 @@ def _judge_type_variant(session: Session, manifest: dict, scratch_ws: Path,
     if len(some_members) != 1 or len(none_members) != want_cases - 1:
         _reject("ORACLE_TYPE_NOT_MIGRATED", "need 3xNone + 1xSome(SInt)")
     failed_member = some_members[0]
-    # --- status value: Failed with explicit code 7 ---
+    member_ids = {str(m.get("member_id", "")) for m in form}
+    # --- status value: a live typedef member; explicit code required
+    # iff the value IS the Failed member (corpus: explicit code + no
+    # null error; the corpus pins no literal and no status value) ---
     data = value.get("data") or {}
     if data.get("variant") != "Variant":
         _reject("ORACLE_TYPE_NOT_MIGRATED", "status data not Variant")
     variant = data.get("value") or {}
     if variant.get("definition") != typedef_id:
         _reject("ORACLE_TYPE_NOT_MIGRATED", "status typedef mismatch")
-    if variant.get("member_id") != failed_member:
-        _reject("ORACLE_FAILED_CODE", "status not Failed member")
+    status_member = variant.get("member_id", "")
+    if status_member not in member_ids:
+        _reject("ORACLE_TYPE_NOT_MIGRATED", "status member outside typedef")
     payload = variant.get("payload") or {}
-    if payload.get("variant") != "Some":
-        _reject("ORACLE_FAILED_CODE", "Failed missing payload")
-    inner = payload.get("value") or {}
-    inner_data = inner.get("data") or {}
-    if inner_data.get("variant") != "SInt" or inner_data.get("value") != 7:
-        _reject("ORACLE_FAILED_CODE",
-                f"Failed code {json.dumps(inner_data)[:80]} != 7")
+    if status_member == failed_member:
+        if payload.get("variant") != "Some":
+            _reject("ORACLE_FAILED_CODE", "Failed null payload")
+        inner = payload.get("value") or {}
+        inner_data = inner.get("data") or {}
+        if inner_data.get("variant") != "SInt" or not isinstance(
+                inner_data.get("value"), int):
+            _reject("ORACLE_FAILED_CODE", "Failed code not explicit SInt")
+    elif payload.get("variant") != "None":
+        _reject("ORACLE_TYPE_NOT_MIGRATED", "unit member carries payload")
     # --- param migrates to Named typedef (no Bool compat) ---
     targets = manifest.get("targets", []) if isinstance(
         manifest.get("targets"), list) else []
@@ -931,8 +977,9 @@ def _judge_type_variant(session: Session, manifest: dict, scratch_ws: Path,
         if not targets_of_switch.issubset(set(blocks)):
             _reject("ORACLE_MISSING_CASE", "case target outside blocks")
     # Leaf returns: Failed leaf returns its Block param (SInt payload);
-    # other leaves return SInt constants via ConstantRef (distinct,
-    # deterministic). Trap already rejected above.
+    # other leaves return SInt constants via ConstantRef (explicit,
+    # deterministic; distinctness was a retired witness choice — shared
+    # constants accept). Trap already rejected above.
     seen_const_values: list[int] = []
     for case in cases:
         edge = case.get("edge") or {}
@@ -979,9 +1026,8 @@ def _judge_type_variant(session: Session, manifest: dict, scratch_ws: Path,
             if const_data.get("variant") != "SInt":
                 _reject("ORACLE_MISSING_CASE", "leaf const not SInt")
             seen_const_values.append(int(const_data.get("value")))
-    if len(set(seen_const_values)) != want_cases - 1:
-        _reject("ORACLE_MISSING_CASE", "leaf constants not distinct")
     _ = targets
+    _ = seen_const_values
 
 
 def _judge_graph_observation(session: Session, manifest: dict, task_id: str,

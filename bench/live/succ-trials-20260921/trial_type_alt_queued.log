@@ -1,0 +1,6 @@
+TYPE-FULL witness/pos: skeleton valid True
+TYPE-FULL typedef 0204137fd3259957 newA ad5f7b5b newB af9339f7 newC 78e2b954
+TYPE-FULL witness/pos: compose valid True decision {'failed_phase': None, 'tag': 1}
+TYPE-FULL witness/pos: finished True
+S2B-TYPE-001 witness/pos judge exit: 0
+workspace kept at: /tmp/sley2-type-full-wytq12l1/ws

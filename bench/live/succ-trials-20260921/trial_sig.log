@@ -1,0 +1,9 @@
+SIG caller_a: operands 1 params 1
+SIG caller_b: operands 1 params 1
+SIG caller_c: operands 1 params 1
+SIG witness/pos: skeleton created True valid False
+SIG new params ['d471c275', '9d41fe1a', 'a17b8d19']
+SIG witness/pos: compose valid True decision {'failed_phase': None, 'tag': 1}
+SIG witness/pos: finished True
+S2B-SIG-001 witness/pos judge exit: 0
+workspace kept at: /tmp/sley2-sig-witness-qvtxygdk/ws

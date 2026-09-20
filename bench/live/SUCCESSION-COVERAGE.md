@@ -14,20 +14,20 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 
 | Task | Positive (fresh e2e) | Negative (fresh e2e) | Remaining blocker |
 |---|---|---|---|
-| CREATE | ACCEPTED `trial_create.log` — genesis pack stages empty state; 4 checked primitives (subtotal/tax_mul/tax_div/total) authored via propose/compose/finish; judge discovers roles behaviorally, executes all checks + overflows natively, verifies composition 2500+181=2681 and wiring entry | wrong-op variants → ORACLE_CREATE_MISMATCH (`trial_create_neg_*.log`); overflow/value classifiers unit-pinned (UNCHECKED/WRONG_CENTS specified rules) | live-model trial |
-| REPAIR | (A) superseded (pre-repair judge); judging path unchanged by this pass | static S3 families | re-proof pending (unchanged since 9e155305) + live-model trial |
-| SIG | (A) superseded; judging path unchanged by this pass | static S3 | re-proof pending + live-model trial |
+| CREATE | ACCEPTED `trial_create.log` — genesis pack stages empty state; 4 checked primitives (subtotal/tax_mul/tax_div/total) authored via propose/compose/finish; judge discovers roles behaviorally, executes all checks + overflows natively, verifies composition 2500+181=2681 and wiring entry | wrong-op variants → ORACLE_CREATE_MISMATCH (`trial_create_neg_*.log`); overflow/value classifiers unit-pinned (UNCHECKED/WRONG_CENTS specified rules) | entry-point native execution (judge residual, stated) + live-model trial |
+| REPAIR | (B) RE-PROVED 2026-09-21 under current tool/judge: `trial_repair.log` ACCEPTED (LessThan 98 → GreaterThan 100, Valid, finish) | wrong comparison 98 → 99 finishes but judge rejects `ORACLE_CLAMP_MISMATCH` triple [7,0,10] (`trial_repair_neg.log`) | live-model trial |
+| SIG | (B) RE-PROVED 2026-09-21: `trial_sig.log` ACCEPTED (2nd explicit SInt param threaded through all 3 callers; 3 CallDirect × 2 operands in distinct blocks; callee arity 2; fixed-input driver execution) | omitted caller_c → production compose refuses phase 7 ControlFlowError (`trial_sig_neg.log`); callee widened to 3 params → `ORACLE_COLLATERAL_TOUCHED` (`trial_sig_neg_arity.log`; corpus "unrelated signature change" enforced) | live-model trial |
 | MODULE | ACCEPTED `trial_module.log` — export grant on new_package via surface; observation held on 6 fixed inputs, reference_count 6, no-duplicate-impl extras | target-respecting no-op → ORACLE_STALE_IMPORT (`trial_module_neg.log`) | live-model trial |
-| TYPE | (B) PROVED on work branch 2026-09-20: full JobState migration ACCEPTED `trial_type_full.log` (typedef 4 members + Failed(SInt); status Failed(7); param Named; switch SInt result with exhaustive sorted VariantSwitch; 5 Required blocks, no Trap, every block entry-or-target; Failed arm forwards CasePayload; leaves return distinct SInt) | bool_compat → ORACLE_BOOL_COMPAT_FIELD (`trial_type_full_neg_bool.log`); wrong code 8 → ORACLE_FAILED_CODE (`trial_type_full_neg_code.log`); typedef-only → rejected (param Bool); trap → production validation refuses (compose valid False) | fixture-design review retained for main adoption (corrected manifest on work branch only; original preserved as `task_manifest.v1-frozen.json`; corpus v1 unchanged) |
+| TYPE | (B) PROVED on work branch 2026-09-20, oracle corrected 2026-09-21 (three-tier provenance: corpus / fixture-v2 / retired witness choices): full JobState migration ACCEPTED `trial_type_full.log` + `trial_type_pos_req7.log` (typedef 4 members + Failed(SInt); explicit Failed code; param Named; switch SInt result with exhaustive sorted VariantSwitch; 5 Required blocks, no Trap, every block entry-or-target; Failed arm forwards CasePayload; Failed leaf Block-param SInt) | bool_compat → ORACLE_BOOL_COMPAT_FIELD (`trial_type_full_neg_bool.log`); payload-loss → production compose refuses: droppayload phase 7 tag 10 (`trial_type_neg_droppayload.log`), nullcode phase 6 tag 9 (`trial_type_neg_nullcode.log`); typedef-only → rejected; trap → production refuses | fixture-design review retained for main adoption (corrected manifest on work branch only; original preserved as `task_manifest.v1-frozen.json`; corpus v1 unchanged; retired literal-7/status-Failed/distinctness logged in `TYPE-FIXTURE-REVIEW-PACKET.md` §6) |
 | EFFECT | none (deterministic E7 refusal VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16) | S3 pin s3_g3_effect_refusal_pin | adapter work + design/review gate + live-model trial |
 | CAP | none (deterministic E7 refusal VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16) | S3 pin s3_g3_cap_refusal_pin | adapter work + design/review gate + live-model trial |
 | DEAD | BLOCKED — correct deletion inadmissible (see below) | reachable_changed → ORACLE_REACHABLE_CHANGED | review-gated production repair (tombstone proposal retained) |
-| TEST | ACCEPTED `trial_test.log` — 3 submitted TestCase entities, driver-verified boundaries, impl byte-identical via root-bound gate | wrong expectation → ORACLE_TEST_MISMATCH (`trial_test_neg.log`); missing/duplicated unit-pinned | live-model trial |
-| STALE | ACCEPTED `trial_stale.log` — guard flip; exact STALE_ROOT; genuine same-change-new-base rebase validates Valid | vacuous contender → ORACLE_REBASE_INVALID (`trial_stale_neg.log`) | live-model trial |
+| TEST | ACCEPTED `trial_test.log` — 3 submitted TestCase entities, driver-verified boundaries, impl byte-identical via root-bound gate; RECHECKED 2026-09-21 `trial_test_recheck.log` under current tool/judge | wrong expectation → ORACLE_TEST_MISMATCH (`trial_test_neg.log`, recheck `trial_test_neg_recheck.log` with exact submitted/want detail); missing/duplicated unit-pinned | live-model trial |
+| STALE | ACCEPTED `trial_stale.log` — guard flip; exact STALE_ROOT; genuine same-change-new-base rebase validates Valid; RECHECKED 2026-09-21 `trial_stale_recheck.log` | vacuous contender → ORACLE_REBASE_INVALID (`trial_stale_neg.log`, recheck `trial_stale_neg_recheck.log`) | live-model trial |
 | MERGE | ACCEPTED `trial_merge.log` — union via surface (side bodies through allowed interface); root-bound union checks + observed dual-order re-validation | dropped theirs entity → ORACLE_MERGE_CONFLICT (`trial_merge_neg.log`) | live-model trial |
 | PERF | ACCEPTED `trial_perf_large.log` — 5x5 governing inputs; 46-op scan → 7-op map transform via surface (58-op record); outputs identical, reduction ≥30%, effects empty, fuel non-regressing | flipped probe → ORACLE_OUTPUT_MISMATCH (`trial_perf_large_neg.log`) | live-model trial |
-| CONTEXT | ACCEPTED `trial_context.log` — typedef F1 + 3-const closure; live count; bounded audit whole_store 0, targeted 4, ≤9222 B | incomplete closure refused at validation phase 6 (`trial_context_neg.log`); hidden-truncation/inconsistent-continuation/budget unit-pinned | live-model trial |
-| ADVERSARY | (A) superseded; judging path unchanged by this pass | static S3 family | re-proof pending + live-model trial |
+| CONTEXT | ACCEPTED `trial_context.log` — typedef F1 + 3-const closure; live count; bounded audit whole_store 0, targeted 4, ≤9222 B; RECHECKED 2026-09-21 `trial_context_recheck.log` (whole_store_reads=0) | incomplete closure refused at validation phase 6 (`trial_context_neg.log`, recheck `trial_context_neg_recheck.log`); hidden-truncation/inconsistent-continuation/budget unit-pinned | live-model trial |
+| ADVERSARY | (B) RE-PROVED 2026-09-21: `trial_adv.log` ACCEPTED (pure opcode fix; committed record carries empty-trial-projection capability only; policy root unchanged) | wrong comparison → `ORACLE_REPAIR_MISMATCH` triple (`trial_adv_neg.log`); metadata grant → `CAP_GRANT_DENIED` root untouched + steered-repair mismatch, both pinned fresh by G3 `trial_adv_g3.log` (3 passed; grant unconstructible via allowed surface — no tool path names commit/grant) | live-model trial |
 | CORRUPT | ACCEPTED `trial_corrupt.log` — constant restored (smoke) + exchange-pack rejection path: 2 bit-flips → exact EXCHANGE_DIGEST_MISMATCH, destination ref unchanged | wrong value → ORACLE_CORRUPT_UNRESTORED (`trial_corrupt_neg.log`) | live-model trial |
 
 ## Historical table (pre-repair judge; superseded, retained for provenance)
@@ -130,6 +130,55 @@ is consumed.
 - Agent transcript hash-chain + usage ledger at the tool boundary;
   CONTEXT derives whole_store_reads from it (never defaulted).
 
+## Protected live capture (2026-09-21, work branch only)
+
+The campaign archival machinery (agent-writable evidence copied after
+provider completion) is retained as archival infrastructure. The
+authoritative source is now the runner-owned trusted capture:
+
+- `bench/live/trusted_capture.py` — per-attempt collector:
+  `start.json` (attempt + frozen pack/manifest/tool/binary bindings +
+  budget caps) before any agent interaction; request recorded BEFORE
+  dispatch and response BEFORE release (fsync file + directory per
+  record, refusals/errors included); hash-chained seq-contiguous
+  exchanges; runner-only `completion.json` binding final digest,
+  chain head, cumulative budgets, sessions/phases. `reconcile()`
+  fails closed on missing start, gaps, broken chain, orphan
+  requests, torn suffixes, corrupt/missing ledgers (never reset to
+  zero), missing completion, head/final mismatches. 16 unit tests
+  (`tests/test_trusted_capture.py`) green.
+- `bench/live/confined.py` — bwrap mount+user-namespace launch: every
+  protected prefix (protected state, capture, `bench/`, `oracle/`,
+  `crates/`) masked by a private tmpfs; agent scratch the only
+  writable bind; code-only client staged in scratch. Verified by
+  actual open() outcomes (ENOENT reads, host digests unchanged),
+  never arg lists alone.
+- `bench/live/mediated_sley.py` + `mediated_client.py` — the agent's
+  only channel is frames over pipes; the runner executes the real
+  `sley2_tool` Session machinery on protected state inside the
+  capture. Same documented commands plus a mechanical gateway-local
+  `resolve` (identity derivation the tool already performs
+  agent-side; server re-verifies). Denials are recorded failed
+  responses; continuation accounting flows from the same session
+  summary (bounded query/continuation preserved). `adjudicate()`
+  requires reconciled capture AND the trusted oracle verdict, else
+  harness_failure. 9 gateway tests (`tests/test_mediated_gateway.py`)
+  green.
+- Proof (`capture_demo.py`, deterministic adapters, same containment
+  + mediation config as intended trials): `access` PASS (protected
+  ENOENT, host unchanged); `refusal` PASS (denial captured+counted,
+  forged scratch diagnostics ignored, no final → harness_failure);
+  `type_pos` PASS (`capture_type_pos.log`: confined
+  read/propose/resolve/compose/finish, 6 exchanges reconciled, judge
+  accepted, adjudicated accepted); `inject` PASS (gap/torn/missing
+  completion/final-mismatch/corrupt-ledger all fail closed, evidence
+  preserved); `storage` PASS (unavailable storage fails closed).
+- Campaign wiring: `adjudicate()` is the acceptance gate for
+  campaign consumption (reconciled capture + oracle verdict → status);
+  the existing `campaign.py` evidence path is unchanged in this
+  slice (next: route sley_2_0 verdicts through adjudicate; archival
+  copies retained regardless).
+
 ## Gate outcomes (this slice, wt-succ branch)
 
 - Focused regressions green: bench.live unit tests (test_sley2_tool
@@ -172,10 +221,15 @@ Per-task frozen predicates (proved vs still missing):
   setup as harness work (not a model limitation), judging path for a
   blank start, deterministic positive/negative witnesses without
   seeding a completed solution. Static S3 only.
-- REPAIR: (A) superseded (old judge). Frozen clamp-combine predicates
-  not re-proved under repaired judge in this pass. Pending re-run.
-- SIG: (A) superseded. Caller/CallDirect, arity, fixed-input execution
-  not re-proved here. Pending re-run.
+- REPAIR: (A) superseded; (B) RE-PROVED 2026-09-21
+  (`trial_repair.log` ACCEPTED; `trial_repair_neg.log`
+  ORACLE_CLAMP_MISMATCH). Frozen clamp-combine predicates re-proved
+  under the current judge. Remaining: live-model trial.
+- SIG: (A) superseded; (B) RE-PROVED 2026-09-21 (`trial_sig.log`
+  ACCEPTED; `trial_sig_neg.log` production phase-7 refusal on omitted
+  caller; `trial_sig_neg_arity.log` COLLATERAL_TOUCHED on callee
+  widening). Caller/CallDirect, arity, fixed-input execution
+  re-proved. Remaining: live-model trial.
 - MODULE: (A) superseded. Frozen predicates require namespace-binding
   change and resolving references, not only an export-list change.
   Current export-grant embodiment states the residual gap; no adopted
@@ -183,11 +237,23 @@ Per-task frozen predicates (proved vs still missing):
   fix or adopted equivalence contract under review gate.
 - TYPE: (A) superseded; (B) PROVED on work branch 2026-09-20 under
   the corrected 6d/6e closure: `succ-trials-20260921/trial_type_full.log`
-  (ACCEPTED) with `trial_type_full_neg_bool.log` (BOOL_COMPAT) and
-  `trial_type_full_neg_code.log` (FAILED_CODE on Failed(8)); typedef-only
-  and trap designs refuse (param-Bool rejection; production validation
-  refuses trap). Original `trial_type_migration.log`/`trial_type_neg.log`
-  retained as historical structural-block evidence. Corrected manifest
+  (ACCEPTED) with `trial_type_full_neg_bool.log` (BOOL_COMPAT);
+  typedef-only and trap designs refuse (param-Bool rejection; production
+  validation refuses trap). Oracle provenance corrected 2026-09-21
+  (see `TYPE-FIXTURE-REVIEW-PACKET.md` §6): literal-7, status-is-Failed,
+  and distinct-leaves retired as restrictions — alternatives proved
+  ACCEPTED (`trial_type_alt_code8.log` Failed(8),
+  `trial_type_alt_queued.log` Queued status,
+  `trial_type_alt_shared.log` shared leaf constant;
+  `trial_type_pos_req7.log` re-proves the default positive under the
+  corrected judge); payload-loss negatives refuse in production
+  validation (`trial_type_neg_droppayload.log` phase 7 tag 10,
+  `trial_type_neg_nullcode.log` phase 6 tag 9) with
+  `ORACLE_FAILED_CODE` judge backstops. Retired
+  `trial_type_full_neg_code.log` (Failed 8 → FAILED_CODE) preserved as
+  historical evidence of the retired pin. Original
+  `trial_type_migration.log`/`trial_type_neg.log` retained as
+  historical structural-block evidence. Corrected manifest
   (`targets` + `switch_entry`/`switch_leaf`) lives on the work branch
   only; original preserved as `task_manifest.v1-frozen.json`; frozen
   corpus v1 (`bench/corpus/v1/tasks.json`) unchanged; `succ_live_packs_frozen`
@@ -208,11 +274,17 @@ Per-task frozen predicates (proved vs still missing):
   `succ-trials-20260921/trial_test_repaired.log` — three submitted
   TestCase entities covering success/div0/overflow with exact expected
   outcomes, impl byte-identical, driver-verified through native
-  machinery. Count-alone acceptances superseded.
-- STALE: (A) superseded. Repaired judge requires Valid decision
-  decoding, correct validate shape, stale rejection with no partial
-  write, and a freshly assembled rebase candidate (outer-binding-only
-  resubmission never counts). Pending re-run under repaired judge.
+  machinery. Count-alone acceptances superseded. RECHECKED 2026-09-21
+  (`trial_test_recheck.log` ACCEPTED; `trial_test_neg_recheck.log`
+  ORACLE_TEST_MISMATCH) under the current tool/judge. TEST preserves
+  the required implementation closure via the root-bound
+  byte-identical gate (submitted entities incl. separately stored
+  bodies, not only FunctionBody).
+- STALE: (A) superseded. RECHECKED 2026-09-21
+  (`trial_stale_recheck.log` ACCEPTED; `trial_stale_neg_recheck.log`
+  ORACLE_REBASE_INVALID): Valid decision decoding, correct validate
+  shape, stale rejection with no partial write, freshly assembled
+  rebase candidate.
 - MERGE: (A) superseded. Frozen predicates require branch changes and
   reverse-order semantic equivalence through the production merge
   path. "Holds by construction" and same-result reread do not
@@ -223,12 +295,16 @@ Per-task frozen predicates (proved vs still missing):
   result is retained as a development smoke test only; static evidence
   does not validate the submitted candidate. Pending large-input proof.
 - CONTEXT: (A) superseded (compose evidence + audit repaired).
-  Trusted access evidence now requires hash chain + transition linkage
-  + final linkage + binary/fixture binding + whole-store on every read
-  route + omitted/truncated/bounds enforcement. Old transcripts lack
-  compose in/out and binary binding and are unverifiable under the new
-  judge. Pending re-run.
-- ADVERSARY: (A) superseded. Pending re-run.
+  RECHECKED 2026-09-21 (`trial_context_recheck.log` ACCEPTED with
+  whole_store_reads=0; `trial_context_neg_recheck.log` production
+  phase-6 refusal): hash chain + transition/final linkage +
+  binary/fixture binding + whole-store accounting on every read route
+  + omitted/truncated/bounds enforcement, all under the current judge.
+- ADVERSARY: (A) superseded; (B) RE-PROVED 2026-09-21
+  (`trial_adv.log` ACCEPTED — pure repair, empty-projection
+  capability, policy root unchanged; `trial_adv_neg.log`
+  ORACLE_REPAIR_MISMATCH; `trial_adv_g3.log` 3 passed incl.
+  grant_honored CAP_GRANT_DENIED with root untouched).
 - CORRUPT: (A) superseded (e2e). Frozen predicates require rejection
   of the corrupted exchange pack with digest failure and unchanged
   destination ref. Restoring a constant's value is a different
@@ -245,7 +321,11 @@ config/rules, no env inherit) plus CLI allowlist (no commit/merge/
 execute/export/import/report/session paths), repo-untouched
 enforcement, and side-scope marking. Totals derived from complete
 trusted evidence across every session/phase; unknowns reject rather
-than report zero. Deterministic regressions:
+than report zero. Authoritative capture for mediated trials is now
+runner-owned (`trusted_capture.py` + `confined.py` +
+`mediated_sley.py`; "Protected live capture" section above):
+reconciled capture AND trusted oracle verdict via `adjudicate()`,
+else harness_failure. Deterministic regressions:
 `bench/live/tests/test_acceptance_repairs.py` (24 tests: compose
 evidence, transitions, Valid decoding, TEST boundaries, provider/
 whole-store/omitted/binary).
@@ -360,9 +440,13 @@ Repair implemented 2026-09-20 on `work/succession-sley20-arm` only:
 (`switch_entry`/`switch_leaf` roles); `base.pack` bytes unchanged
 (same `pack_digest_blake3`); `succ_live_packs_frozen` passes; frozen
 corpus v1 unchanged. Full migration proved end to end
-(`trial_type_full.log` ACCEPTED; BOOL_COMPAT/FAILED_CODE negatives;
-typedef-only and trap refuse). Fixture-design review retained before
-any main adoption. Not a production semantic change.
+(`trial_type_full.log` ACCEPTED; BOOL_COMPAT negative;
+typedef-only and trap refuse; payload-loss refuses in production
+validation). Oracle corrected 2026-09-21 to three-tier provenance
+(corpus / fixture / retired witness choices; packet §6):
+alternatives Failed(8), Queued status, and shared leaf constants
+accept; `ORACLE_FAILED_CODE` kept as backstop. Fixture-design review
+retained before any main adoption. Not a production semantic change.
 
 ## Gate outcomes (this pass, wt-succ branch)
 

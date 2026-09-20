@@ -15,6 +15,11 @@ Performs the complete JobState migration and runs the frozen live judge:
 
 Usage: succ_witness_type_full.py [pos|neg_bool|neg_trap|neg_typedef_only] [logfile]
 Env: SLEY2_SLEY_BINARY, SUCC_JUDGE_TEST_BINARY (both required).
+Provenance params: TYPE_CODE (default 7), TYPE_STATUS
+(FAILED|QUEUED|RUNNING|SUCCEEDED, default FAILED), TYPE_LEAFS
+("0,1,2" default), TYPE_NULLCODE=1 (Failed member, null payload:
+production validation refuses), TYPE_DROPPAYLOAD=1 (Failed arm drops
+CasePayload: judge ORACLE_FAILED_CODE).
 """
 
 from __future__ import annotations
@@ -40,8 +45,29 @@ QUEUED = "51" * 32
 RUNNING = "52" * 32
 SUCCEEDED = "53" * 32
 FAILED = "54" * 32
-FAILED_CODE = 7
+# Provenance parameters (env-overridable; defaults reproduce the
+# original positive: Failed(7), distinct leaves 0/1/2):
+# - TYPE_CODE: explicit Failed SInt code (any int; corpus pins none).
+# - TYPE_STATUS: status value member (FAILED/QUEUED/RUNNING/SUCCEEDED;
+#   corpus pins no status value).
+# - TYPE_LEAFS: comma-separated SInt leaf constants for the Queued /
+#   Running / Succeeded arms (deterministic; distinctness retired).
+# - TYPE_NULLCODE=1: status Failed member with null payload
+#   (wrong-code negative: forbidden null error).
+FAILED_CODE = int(os.environ.get("TYPE_CODE", "7"))
+STATUS_MEMBER = os.environ.get("TYPE_STATUS", "FAILED")
 LEAF_VALUES = {QUEUED: 0, RUNNING: 1, SUCCEEDED: 2}
+try:
+    _leaf_env = [int(v) for v in os.environ.get("TYPE_LEAFS", "0,1,2").split(",")]
+    if len(_leaf_env) == 3:
+        LEAF_VALUES = {QUEUED: _leaf_env[0], RUNNING: _leaf_env[1],
+                       SUCCEEDED: _leaf_env[2]}
+except ValueError:
+    pass
+NULL_CODE = os.environ.get("TYPE_NULLCODE", "") == "1"
+DROP_PAYLOAD = os.environ.get("TYPE_DROPPAYLOAD", "") == "1"
+STATUS_IDS = {"FAILED": FAILED, "QUEUED": QUEUED, "RUNNING": RUNNING,
+              "SUCCEEDED": SUCCEEDED}
 
 
 def op_create(kind: int, payload: dict) -> dict:
@@ -181,7 +207,8 @@ def main() -> int:
              "edge": {"target": new_b, "arguments": []}},
             {"case_key": {"variant": "Member", "value": FAILED},
              "edge": {"target": new_c,
-                      "arguments": [{"variant": "CasePayload"}]}},
+                      "arguments": ([] if DROP_PAYLOAD
+                                    else [{"variant": "CasePayload"}])}},
         ]
         entry_payload = {
             "function": switch, "parameters": [], "operations": [],
@@ -279,20 +306,31 @@ def main() -> int:
             code, rep3 = run("finish", report2["record"])
             emit(f"TYPE-FULL neg_typedef_only finished {rep3.get('report', {}).get('finished')}")
         else:
+            status_id = STATUS_IDS.get(STATUS_MEMBER, FAILED)
+            if NULL_CODE:
+                status_payload = {"value": variant_const(
+                    typedef_id, FAILED, None)}
+            elif status_id == FAILED:
+                status_payload = {"value": variant_const(
+                    typedef_id, FAILED, sint_const(FAILED_CODE))}
+            else:
+                status_payload = {"value": variant_const(
+                    typedef_id, status_id, None)}
+            leaf_consts = [LEAF_VALUES[QUEUED], LEAF_VALUES[RUNNING],
+                             LEAF_VALUES[SUCCEEDED]]
             full = [
                 op_create(4, typedef_payload()),
                 op_create(7, leaf_block(new_a, op_a)),
                 op_create(7, leaf_block(new_b, op_b)),
                 op_create(7, failed_leaf),
                 op_create(6, block_param_payload()),
-                op_create(9, const_payload(0)),
-                op_create(9, const_payload(1)),
-                op_create(9, const_payload(2)),
+                op_create(9, const_payload(leaf_consts[0])),
+                op_create(9, const_payload(leaf_consts[1])),
+                op_create(9, const_payload(leaf_consts[2])),
                 op_create(8, op_payload("6e" * 32, const0)),
                 op_create(8, op_payload(new_a, const1)),
                 op_create(8, op_payload(new_b, const2)),
-                op_replace(9, status, {"value": variant_const(
-                    typedef_id, FAILED, sint_const(FAILED_CODE))}),
+                op_replace(9, status, status_payload),
                 op_replace(6, param_id, param_payload),
                 op_replace(5, switch, func_payload),
                 op_replace(7, "6d" * 32, entry_payload),
