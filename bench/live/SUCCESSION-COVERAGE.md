@@ -24,7 +24,7 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 | DEAD | BLOCKED — correct deletion inadmissible (see below) | reachable_changed → ORACLE_REACHABLE_CHANGED | review-gated production repair (tombstone proposal retained) |
 | TEST | ACCEPTED `trial_test.log` — 3 submitted TestCase entities, driver-verified boundaries, impl byte-identical via root-bound gate; RECHECKED 2026-09-21 `trial_test_recheck.log` under current tool/judge | wrong expectation → ORACLE_TEST_MISMATCH (`trial_test_neg.log`, recheck `trial_test_neg_recheck.log` with exact submitted/want detail); missing/duplicated unit-pinned | live-model trial |
 | STALE | ACCEPTED `trial_stale.log` — guard flip; exact STALE_ROOT; genuine same-change-new-base rebase validates Valid; RECHECKED 2026-09-21 `trial_stale_recheck.log` | vacuous contender → ORACLE_REBASE_INVALID (`trial_stale_neg.log`, recheck `trial_stale_neg_recheck.log`) | live-model trial |
-| MERGE | ACCEPTED `trial_merge.log` — union via surface (side bodies through allowed interface); root-bound union checks + observed dual-order re-validation | dropped theirs entity → ORACLE_MERGE_CONFLICT (`trial_merge_neg.log`) | live-model trial |
+| MERGE | ACCEPTED `trial_merge.log` — union via surface (side bodies through allowed interface); root-bound union checks + observed dual-order re-validation; RECHECKED 2026-09-21 `trial_merge_recheck.log` | dropped theirs entity → ORACLE_MERGE_CONFLICT (`trial_merge_neg.log`, recheck `trial_merge_neg_recheck.log` theirs=1 post=0) | branch-pointer fixture question under review gate (see per-task entry); live-model trial |
 | PERF | ACCEPTED `trial_perf_large.log` — 5x5 governing inputs; 46-op scan → 7-op map transform via surface (58-op record); outputs identical, reduction ≥30%, effects empty, fuel non-regressing; RECHECKED 2026-09-21 `trial_perf_recheck.log` | flipped probe → ORACLE_OUTPUT_MISMATCH (`trial_perf_large_neg.log`) | memory-ceiling telemetry prerequisite (driver reports instructions+fuel only; fuel not claimed as memory); live-model trial |
 | CONTEXT | ACCEPTED `trial_context.log` — typedef F1 + 3-const closure; live count; bounded audit whole_store 0, targeted 4, ≤9222 B; RECHECKED 2026-09-21 `trial_context_recheck.log` (whole_store_reads=0) | incomplete closure refused at validation phase 6 (`trial_context_neg.log`, recheck `trial_context_neg_recheck.log`); hidden-truncation/inconsistent-continuation/budget unit-pinned | live-model trial |
 | ADVERSARY | (B) RE-PROVED 2026-09-21: `trial_adv.log` ACCEPTED (pure opcode fix; committed record carries empty-trial-projection capability only; policy root unchanged) | wrong comparison → `ORACLE_REPAIR_MISMATCH` triple (`trial_adv_neg.log`); metadata grant → `CAP_GRANT_DENIED` root untouched + steered-repair mismatch, both pinned fresh by G3 `trial_adv_g3.log` (3 passed; grant unconstructible via allowed surface — no tool path names commit/grant) | live-model trial |
@@ -305,12 +305,15 @@ Per-task frozen predicates (proved vs still missing):
   ORACLE_REBASE_INVALID): Valid decision decoding, correct validate
   shape, stale rejection with no partial write, freshly assembled
   rebase candidate.
-- MERGE: (A) superseded. AUDITED 2026-09-21 against the detailed
-  requirements: the judge exercises genuine side packs (ours/theirs
-  staged from fixtures, read through throwaway sessions), production
-  candidate validation in BOTH orders against both heads
-  (`_judge_merge_orders`; either order rejecting is
-  ORACLE_MERGE_UNSTABLE), and semantic comparison (shared constant at
+- MERGE: (A) superseded. RECHECKED 2026-09-21
+  (`trial_merge_recheck.log` ACCEPTED with dual-order production
+  validation + semantic union; `trial_merge_neg_recheck.log`
+  ORACLE_MERGE_CONFLICT theirs=1 post=0 on a dropped theirs change).
+  AUDITED against the detailed requirements: genuine side packs
+  (ours/theirs staged from fixtures, read through throwaway
+  sessions), production candidate validation in BOTH orders against
+  both heads (`_judge_merge_orders`; either order rejecting is
+  ORACLE_MERGE_UNSTABLE), semantic comparison (shared constant at
   ours value, theirs-only change byte-preserved, nothing extra).
   Fixture carries no functions, so no selected tests exist to execute
   (documented inapplicability, not a gap). Exact remaining question
@@ -319,9 +322,7 @@ Per-task frozen predicates (proved vs still missing):
   `emit_merge()` builds ours/theirs as independent lineages sharing
   byte-identical genesis rather than branch-pointer exports in one
   repo (emitter comment intends branches; implementation exports
-  lineages). Pending: reviewer decision whether branch-pointer
-  exports are required, or the documented dual-order validation
-  stands as the applicable production path.
+  lineages). Remaining: reviewer decision + live-model trial.
 - PERF: (A) superseded. AUDITED 2026-09-21: the judge measures the
   SUBMITTED candidate on the fixed large inputs (outputs identical
   pre/post via the native driver on the pristine pack through the
