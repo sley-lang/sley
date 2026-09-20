@@ -757,13 +757,22 @@ fn base_type() -> (
     entities.insert("namespace", eid(0x64));
     entities.insert("status", eid(0x65));
     entities.insert("switch", eid(0x6B));
+    entities.insert("switch_entry", eid(0x6D));
+    entities.insert("switch_leaf", eid(0x6E));
     let judge = serde_json::json!({"flow": "type-variant", "status": "status", "switch": "switch",
         "variant_cases": 4, "exhaustive": true});
-    // Targets cover the status constant, the switch, and its parameter.
+    // Targets cover the status constant, the switch, its parameter, and
+    // both switch blocks. Frozen corpus requires updating constructors,
+    // switches, and tests: the switch migration cannot validate without
+    // replacing the entry CondBranch (6d) and leaf Return (6e), whose
+    // frozen Bool edges otherwise lock the switch result to Bool. No
+    // other base entity is in the closure (0x66 family is an unrelated
+    // comparator; 0x64 namespace membership is unchanged by fresh
+    // typedef/block/test additions, which are always allowed).
     (
         bodies,
         entities,
-        vec![eid(0x65), eid(0x6B), eid(0x6C)],
+        vec![eid(0x65), eid(0x6B), eid(0x6C), eid(0x6D), eid(0x6E)],
         judge,
     )
 }

@@ -18,7 +18,7 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 | REPAIR | (A) superseded (pre-repair judge); judging path unchanged by this pass | static S3 families | re-proof pending (unchanged since 9e155305) + live-model trial |
 | SIG | (A) superseded; judging path unchanged by this pass | static S3 | re-proof pending + live-model trial |
 | MODULE | ACCEPTED `trial_module.log` — export grant on new_package via surface; observation held on 6 fixed inputs, reference_count 6, no-duplicate-impl extras | target-respecting no-op → ORACLE_STALE_IMPORT (`trial_module_neg.log`) | live-model trial |
-| TYPE | BLOCKED (structural; see TYPE section below) — typedef + Failed(7) status migration validates (`trial_type_migration.log` ends MISSING_CASE); neg → ORACLE_BOOL_COMPAT_FIELD (`trial_type_neg.log`) | missing_case demonstrated live; bool_compat live | task-encoding change: 6d/6e in targets (fixture-design owner) |
+| TYPE | (B) PROVED on work branch 2026-09-20: full JobState migration ACCEPTED `trial_type_full.log` (typedef 4 members + Failed(SInt); status Failed(7); param Named; switch SInt result with exhaustive sorted VariantSwitch; 5 Required blocks, no Trap, every block entry-or-target; Failed arm forwards CasePayload; leaves return distinct SInt) | bool_compat → ORACLE_BOOL_COMPAT_FIELD (`trial_type_full_neg_bool.log`); wrong code 8 → ORACLE_FAILED_CODE (`trial_type_full_neg_code.log`); typedef-only → rejected (param Bool); trap → production validation refuses (compose valid False) | fixture-design review retained for main adoption (corrected manifest on work branch only; original preserved as `task_manifest.v1-frozen.json`; corpus v1 unchanged) |
 | EFFECT | none (deterministic E7 refusal VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16) | S3 pin s3_g3_effect_refusal_pin | adapter work + design/review gate + live-model trial |
 | CAP | none (deterministic E7 refusal VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16) | S3 pin s3_g3_cap_refusal_pin | adapter work + design/review gate + live-model trial |
 | DEAD | BLOCKED — correct deletion inadmissible (see below) | reachable_changed → ORACLE_REACHABLE_CHANGED | review-gated production repair (tombstone proposal retained) |
@@ -181,12 +181,17 @@ Per-task frozen predicates (proved vs still missing):
   Current export-grant embodiment states the residual gap; no adopted
   contract establishes export-list equivalence. Pending: binding-level
   fix or adopted equivalence contract under review gate.
-- TYPE: (A) superseded. Frozen predicates require full tagged-state
-  migration, exhaustive handling, explicit Failed(error_code), and
-  deterministic values. Four Required blocks reachable through the old
-  Boolean dispatch is not sufficient by itself. Open question whether
-  restrictive fixture targets are an erroneous task encoding; they are
-  not treated as superior to the frozen task. Pending re-proof.
+- TYPE: (A) superseded; (B) PROVED on work branch 2026-09-20 under
+  the corrected 6d/6e closure: `succ-trials-20260921/trial_type_full.log`
+  (ACCEPTED) with `trial_type_full_neg_bool.log` (BOOL_COMPAT) and
+  `trial_type_full_neg_code.log` (FAILED_CODE on Failed(8)); typedef-only
+  and trap designs refuse (param-Bool rejection; production validation
+  refuses trap). Original `trial_type_migration.log`/`trial_type_neg.log`
+  retained as historical structural-block evidence. Corrected manifest
+  (`targets` + `switch_entry`/`switch_leaf`) lives on the work branch
+  only; original preserved as `task_manifest.v1-frozen.json`; frozen
+  corpus v1 (`bench/corpus/v1/tasks.json`) unchanged; `succ_live_packs_frozen`
+  passes. Fixture-design review retained before any main adoption.
 - EFFECT/CAP: no scripted positive (deterministic E7 refusal
   VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16
   handle-model schema-epoch decision). This is an unimplemented
@@ -330,24 +335,34 @@ unexported under one root namespace, so the frozen expectation is
 satisfiable exactly by the grant — no literal second namespace
 exists to re-home between, no production change needed.
 
-## TYPE: structural block (task 4 outcome, not a deferral)
+## TYPE: structural block — REPAIRED on work branch (historical diagnosis preserved)
 
-Proven through the surface (do not retry without a task-encoding change):
+Proven through the surface under the original encoding (retained
+`trial_type_migration.log`/`trial_type_neg.log`; original manifest
+preserved as `task_manifest.v1-frozen.json`):
 - Phase-7 judges operations, and operations in blocks unreachable
   from their function entry fail (ControlFlowError; demonstrated with
   reachable-only vs dead-block probes).
-- New case arms would be unreachable: 6d's edges are frozen
-  (true→6d self-loop, false→6e), so no new block can join switch 6b's
-  CFG without editing 6d — not a fixture target.
-- The frozen edges further lock 6c:Bool (CondBranch condition) and the
-  switch result:Bool (6e returns 6c); JobState-typed arms cannot
+- New case arms would be unreachable: 6d's edges were frozen
+  (true→6d self-loop, false→6e), so no new block could join switch 6b's
+  CFG without editing 6d — not a fixture target in v1.
+- The frozen edges further locked 6c:Bool (CondBranch condition) and the
+  switch result:Bool (6e returns 6c); JobState-typed arms could not
   validate. Empty trap blocks would satisfy the count vacuously and
-  are refused as gaming.
-- Delivered instead: JobState typedef (Queued/Running/Succeeded unit
+  were refused as gaming.
+- Delivered under v1: JobState typedef (Queued/Running/Succeeded unit
   + Failed(SInt)) validates; status genuinely migrates to Failed(7)
   (explicit code, deterministic); neg → ORACLE_BOOL_COMPAT_FIELD.
-- Owner: benchmark fixture design (emit table targets); gate: add
-  6d/6e to targets. Not a production semantic change.
+- Owner: benchmark fixture design (emit table targets).
+
+Repair implemented 2026-09-20 on `work/succession-sley20-arm` only:
+`succ_live_emit.rs::base_type` targets now include 6d/6e
+(`switch_entry`/`switch_leaf` roles); `base.pack` bytes unchanged
+(same `pack_digest_blake3`); `succ_live_packs_frozen` passes; frozen
+corpus v1 unchanged. Full migration proved end to end
+(`trial_type_full.log` ACCEPTED; BOOL_COMPAT/FAILED_CODE negatives;
+typedef-only and trap refuse). Fixture-design review retained before
+any main adoption. Not a production semantic change.
 
 ## Gate outcomes (this pass, wt-succ branch)
 
@@ -362,7 +377,8 @@ Proven through the surface (do not retry without a task-encoding change):
 Production/review/provider/operator dependencies: DEAD tombstone
 semantic change needs independent review (provider unavailable, gate
 retained); EFFECT/CAP rev16 handle-model decision needs design/review;
-TYPE 6d/6e target-encoding change needs fixture-design gate; and all
+TYPE corrected closure lives on the work branch with fixture-design
+review retained for main adoption; and all
 live-model campaign prerequisites (seeds/budgets preregistered,
 90 attempts minimum, two-host reproducible package/dossier, current
 source-bound Council transcripts) remain unsatisfied. No campaign
