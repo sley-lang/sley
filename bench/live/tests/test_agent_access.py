@@ -116,6 +116,98 @@ class AgentAccessTests(unittest.TestCase):
         self.assertEqual(access["whole_store_reads"], 0)
         self.assertGreaterEqual(access["refusals"], 1)
 
+    def seal(self, command: str, session: list) -> None:
+        sley2_tool.append_transcript(self.ws, [command], True, 5, 100, session, None)
+
+    def bounded_page(self, truncated: bool, omitted: int, returned: int = 100) -> list:
+        return [
+            {"direction": "request", "method": "query.root",
+             "body_sha256": "0" * 64},
+            {"direction": "response", "failed": False,
+             "body_sha256": "1" * 64, "omitted": omitted,
+             "truncated": truncated, "returned_bytes": returned},
+        ]
+
+    def continuation_follow(self, returned: int = 100) -> list:
+        return [
+            {"direction": "request", "method": "query.continue",
+             "body_sha256": "2" * 64},
+            {"direction": "response", "failed": False,
+             "body_sha256": "3" * 64, "omitted": 0,
+             "truncated": False, "returned_bytes": returned},
+        ]
+
+    def test_bounded_continuation_positive_accepted(self) -> None:
+        # A genuinely bounded page (truncated with explicit omitted
+        # accounting) followed by its query.continue is the documented
+        # continuation path: not a whole-store read, no hidden
+        # truncation.
+        session = self.bounded_page(True, 5) + self.continuation_follow()
+        self.seal("raw", session)
+        access = self.audit()
+        self.assertEqual(access["whole_store_reads"], 0)
+        self.assertEqual(access["continuations"], 1)
+        self.assertGreaterEqual(access["bounded_reads"], 2)
+
+    def test_hidden_truncation_rejects(self) -> None:
+        # Truncated page with no following continue: hidden truncation.
+        self.seal("raw", self.bounded_page(True, 5))
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            self.audit()
+        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+        self.assertIn("continuation", raised.exception.detail)
+
+    def test_omitted_without_continuation_rejects(self) -> None:
+        self.seal("raw", self.bounded_page(False, 3))
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            self.audit()
+        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+
+    def test_inconsistent_continuation_rejects(self) -> None:
+        # query.continue with no preceding truncated page.
+        self.seal("raw", self.continuation_follow())
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            self.audit()
+        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+        self.assertIn("inconsistent", raised.exception.detail)
+
+    def test_over_cap_response_rejects(self) -> None:
+        self.seal("raw", self.bounded_page(
+            False, 0, returned=sley2_tool.MAX_RESPONSE_BYTES + 1))
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            self.audit()
+        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+        self.assertIn("over bound", raised.exception.detail)
+
+    def test_cumulative_budget_rejects(self) -> None:
+        # Each page fits the per-response cap, but cumulative bytes
+        # exceed the trial budget: unbounded accumulation rejects.
+        pages = 5
+        per = judge.AGENT_CUMULATIVE_RESPONSE_BUDGET // pages + 1
+        for _ in range(pages):
+            self.seal("raw", self.bounded_page(False, 0, returned=per))
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            self.audit()
+        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+        self.assertIn("cumulative", raised.exception.detail)
+
+    def test_incomplete_impact_facts_reject(self) -> None:
+        # Required facts unresolved: the pristine pack lacks the F1
+        # member, so the impact closure is incomplete (not merely a
+        # read-boundary question).
+        from bench.live.sley2_tool import Session
+        session = Session(SLEY, self.ws, [], seed_pack=True)
+        try:
+            manifest = json.loads((TASK_DIR / "task_manifest.json").read_text())
+            impact = manifest["judge"]["impact"]
+            add = manifest["judge"]["add_member"]
+            with self.assertRaises(judge.JudgeRejection) as raised:
+                judge._judge_impact_consts(
+                    session, self.ws, manifest["entities"], impact, add)
+            self.assertEqual(raised.exception.code, "ORACLE_IMPACT_INCOMPLETE")
+        finally:
+            session.close()
+
 
 if __name__ == "__main__":
     unittest.main()

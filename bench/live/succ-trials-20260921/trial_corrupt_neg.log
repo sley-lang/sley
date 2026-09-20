@@ -1,0 +1,4 @@
+CORRUPT witness/neg: propose valid True
+CORRUPT witness/neg: finished True
+S2B-CORRUPT-001 witness/neg judge exit: 1
+workspace kept at: /tmp/sley2-corrupt-witness-a1nouu1b/ws

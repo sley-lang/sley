@@ -1,0 +1,3 @@
+CONTEXT witness/neg: propose valid False decision {'failed_phase': 6, 'tag': 9}
+CONTEXT witness/neg: incomplete closure refused at validation; no finishable candidate
+workspace kept at: /tmp/sley2-context-witness-w77sksvg/ws

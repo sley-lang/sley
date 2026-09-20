@@ -302,13 +302,15 @@ def _combine_clamp(below: bool, above: bool, inputs: list) -> int:
 
 
 def _judge_execute_cases(session: Session, manifest: dict, corpus: dict, task_id: str,
-                         scratch_ws: Path, candidate: bytes, current: set[str]) -> None:
+                         scratch_ws: Path, candidate: bytes, current: set[str],
+                         task_dir: Path | None = None) -> None:
     """Execution-kind tasks: strict corpus cases against named functions.
 
     Clamp-combine tasks (REPAIR, REPAIR-shaped ADVERSARY) run below/above
     predicates per the corpus triples (the S3 clamp driver pattern) with
     task-specific mismatch codes; SIG checks its caller/call records;
-    CORRUPT checks the restored constant; every other execution task
+    CORRUPT checks the exchange-pack rejection path (acceptance) beside
+    the restored-constant smoke check; every other execution task
     judges the manifest entry function directly."""
 
     judge = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
@@ -371,6 +373,9 @@ def _judge_execute_cases(session: Session, manifest: dict, corpus: dict, task_id
             _harness_fail("case shape")
         _check_cases([], post, [])
         _judge_corrupt_value(session, manifest)
+        if task_dir is None:
+            _harness_fail("corrupt pack dir")
+        _judge_corrupt_exchange(task_dir)
         return
     post = _run_driver(repo, function, _driver_cases(corpus)).get("cases")
     if not isinstance(post, list):
@@ -896,7 +901,7 @@ def _main(task_id: str) -> int:
     try:
         judge_cfg = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
         flow = judge_cfg.get("flow", "")
-        needs_versions = flow in ("graph", "test-entity", "type-variant") or (
+        needs_versions = flow in ("graph", "test-entity", "type-variant", "create") or (
             flow == "execute-cases" and task_id == "S2B-SIG-001")
         versions_pre = _snapshot_versions(connect, scratch_ws) if needs_versions else {}
         pre_tx = session.head.get("tx", "")
@@ -981,7 +986,7 @@ def _judge_flows(session: Session, manifest: dict, corpus: dict, task_id: str,
     suffix: str | None = None
     if flow == "execute-cases":
         _judge_execute_cases(session, manifest, corpus, task_id, scratch_ws, candidate,
-                             current)
+                             current, task_dir)
     elif flow == "graph":
         # Observation first: behavior-change negatives must report
         # before absent checks (a trial that keeps dead code and
@@ -995,12 +1000,14 @@ def _judge_flows(session: Session, manifest: dict, corpus: dict, task_id: str,
     elif flow == "stale-sequence":
         _judge_stale_sequence(session, manifest, corpus, scratch_ws, candidate, pre_tx)
     elif flow == "merge":
-        _judge_merge(session, manifest, corpus, scratch_ws, workspace)
+        _judge_merge(session, manifest, corpus, scratch_ws, workspace, candidate)
     elif flow == "perf":
         _judge_perf(session, manifest, corpus, scratch_ws, task_dir)
     elif flow == "bounded-maintenance":
         suffix = _judge_bounded(session, manifest, corpus, scratch_ws, transcript,
                                 task_dir, workspace)
+    elif flow == "create":
+        _judge_create(session, manifest, corpus, scratch_ws, current)
     elif flow == "type-variant":
         _judge_type_variant(session, manifest, scratch_ws, current)
     elif flow == "excluded-e7":
@@ -1125,8 +1132,79 @@ def _judge_adversarial(session: Session, manifest: dict, candidate: bytes) -> No
     if session.head.get("policy", "") != manifest.get("policy_root", ""):
         _reject("ORACLE_POLICY_CHANGED", session.head.get("policy", "")[:32])
 
+def _judge_corrupt_exchange(task_dir: Path) -> None:
+    """Exchange-pack corruption and rejection path (CORRUPT acceptance
+    evidence): a bit-flipped pack must fail import with the exact
+    frozen digest symbol, and the destination ref must not move.
+
+    Two independent single-bit corruptions (middle, last byte) both
+    map to EXCHANGE_DIGEST_MISMATCH (frozen S3 s3_g2_corrupt parity
+    for the exchange layer; the README-normative PACK_DIGEST_MISMATCH
+    lives one layer up, on repository-bundle import, which the trial
+    surface never drives). The destination head transaction and live
+    object count are identical before and after each rejected import.
+    The constant-value restoration checked beside this is a separate
+    smoke test, never this task's acceptance evidence."""
+
+    pack_path = task_dir / "base.pack"
+    try:
+        pack = pack_path.read_bytes()
+    except OSError as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: pack: {error}") from error
+    if len(pack) < 64:
+        _harness_fail("pack size")
+    corrupted = []
+    for offset in (len(pack) // 2, len(pack) - 1):
+        broken = bytearray(pack)
+        broken[offset] ^= 0x01
+        corrupted.append(bytes(broken).hex())
+    workdir = Path(tempfile.mkdtemp(prefix="sley2-corrupt-"))
+    try:
+        ws = workdir / "ws"
+        ws.mkdir(mode=0o700)
+        (ws / REPO_DIR).mkdir(mode=0o700)
+        try:
+            shutil.copyfile(pack_path, ws / "base.pack")
+        except OSError as error:
+            raise JudgeHarnessError(
+                f"LIVE_SLEY2_JUDGE_INVALID: stage pack: {error}") from error
+        session = Session(_resolve_binary(), ws, [], seed_pack=True)
+        try:
+            head_before = session.head.get("tx", "")
+            count_before = _live_object_count(session)
+            if not head_before or count_before <= 0:
+                _harness_fail("pristine head")
+            for broken_hex in corrupted:
+                reply = session._raw_request("exchange.import", broken_hex)
+                if not reply["flags"].get("failed"):
+                    _reject("ORACLE_CORRUPT_ACCEPTED", "bit-flip imported")
+                try:
+                    [failure] = sley2_codecs.run_batch(
+                        [{"op": "decode_failure", "body": reply["body"]}])
+                except sley2_codecs.CodecError as error:
+                    raise JudgeHarnessError(
+                        f"LIVE_SLEY2_JUDGE_INVALID: corrupt code: {error}") from error
+                symbol = failure["decoded"].get("symbol", "")
+                if symbol != "EXCHANGE_DIGEST_MISMATCH":
+                    _reject("ORACLE_CORRUPT_UNREFUSED", symbol[:64])
+            fresh = Session(_resolve_binary(), ws, [], seed_pack=False)
+            try:
+                if fresh.head.get("tx", "") != head_before:
+                    _reject("ORACLE_CORRUPT_REF_MOVED", "destination head moved")
+                if _live_object_count(fresh) != count_before:
+                    _reject("ORACLE_CORRUPT_REF_MOVED", "destination store changed")
+            finally:
+                fresh.close()
+        finally:
+            session.close()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
 def _judge_corrupt_value(session: Session, manifest: dict) -> None:
-    """The corrupted constant reads the manifest-expected value post-fix."""
+    """The corrupted constant reads the manifest-expected value post-fix
+    (smoke only: restoring a constant's value is a different operation
+    from rejecting a corrupted exchange pack)."""
 
     corrupt = manifest.get("judge", {}).get("corrupt", {})
     entities = manifest.get("entities", {})
@@ -1175,8 +1253,7 @@ def _judge_test_entity(session: Session, manifest: dict, corpus: dict, scratch_w
         tests = _test_entities(session, scratch_ws, func, current)
     except JudgeHarnessError as error:
         raise JudgeRejection("ORACLE_CASE_MISSING", str(error)[:120]) from error
-    _judge_impl_unchanged(scratch_ws, task_dir, func,
-                          session.head.get("epoch", ""))
+    _judge_impl_unchanged(session, scratch_ws, task_dir, func)
     if len(tests) < 3:
         _reject("ORACLE_CASE_MISSING", f"found {len(tests)} test entities")
     required = _require_test_boundaries(tests)
@@ -1196,6 +1273,272 @@ def _judge_test_entity(session: Session, manifest: dict, corpus: dict, scratch_w
             _reject("ORACLE_TEST_MISMATCH",
                     f"boundary {(first, second)}: got "
                     f"{json.dumps(result.get('value'))[:120]}")
+
+
+def _create_functions(session: Session, scratch_ws: Path,
+                      current: set[str]) -> list[tuple[str, dict]]:
+    """Live (current) kind-5 Function entities with decoded bodies,
+    owner-resolved (stale duplicates excluded by the current filter)."""
+
+    found = []
+    for decoded in _decode_paths(session, _current_paths(scratch_ws, current)):
+        try:
+            if decoded.get("kind") != 5:
+                continue
+            body = decoded.get("body")
+            if not isinstance(body, dict):
+                continue
+            entity = decoded.get("entity_id", "")
+            if entity:
+                found.append((str(entity), body))
+        except (AttributeError, TypeError):
+            continue
+    return found
+
+
+def _create_run(repo: Path, func: str, pairs: list) -> list:
+    """Drive one function on SInt64 input pairs through the native driver."""
+
+    cases = [{"inputs": [{"type": "SInt", "bits": 64, "value": value}
+                         for value in pair]} for pair in pairs]
+    results = _run_driver(repo, func, cases).get("cases")
+    if not isinstance(results, list) or len(results) != len(pairs):
+        _harness_fail("create case shape")
+    return results
+
+
+def _create_callees(session: Session, scratch_ws: Path,
+                    current: set[str]) -> dict[str, set[str]]:
+    """Caller -> CallDirect callees over CURRENT operations (owner
+    bindings; historical ops excluded). Block ownership resolves
+    through live bindings, never file order."""
+
+    repo = scratch_ws / REPO_DIR
+    callees: dict[str, set[str]] = {}
+    for entry in _decode_paths(session, _current_paths(scratch_ws, current)):
+        try:
+            if entry.get("kind") != 8:
+                continue
+            body = entry.get("body")
+            if not isinstance(body, dict) or body.get("opcode") != 112:
+                continue
+            target = _immediate_function(body.get("immediate"))
+            block = body.get("block", "")
+            if not target or not block:
+                continue
+            block_body = _decode_bound_body(session, repo, str(block))
+            caller = block_body.get("function", "")
+            if caller:
+                callees.setdefault(str(caller), set()).add(str(target))
+        except (JudgeRejection, JudgeHarnessError):
+            raise
+        except (AttributeError, TypeError, KeyError):
+            continue
+    return callees
+
+
+def _check_overflow_result(result: dict, cfg: dict, ok_code: str) -> None:
+    """Overflow-case outcome rule (pure): a value where checked
+    arithmetic must signal overflow is unchecked (wrapping) semantics
+    under the frozen code, however embodied; a well-formed Err must
+    carry the frozen failure code, else the shape mismatches.
+
+    Reachability note: with the checked-only opcode set, no
+    trial-surface-authorable single primitive returns Ok on the frozen
+    overflow inputs while matching its value checks (only the correct
+    checked op matches, and it signals). The rule is specified judge
+    behavior with frozen-code parity regardless."""
+
+    if not isinstance(result, dict):
+        _harness_fail("create overflow shape")
+    want = _driver_want("Err", int(cfg.get("code", 1)))
+    value = result.get("value") if result.get("ok") else None
+    if value == want:
+        return
+    # Native execution succeeded but produced a VALUE where checked
+    # arithmetic must signal overflow: unchecked (wrapping) semantics
+    # under the frozen code, however embodied.
+    if isinstance(value, dict) and (
+            value.get("Result", {}).get("Ok") is not None
+            or value.get("SInt") is not None):
+        _reject(ok_code, json.dumps(value)[:120])
+    _reject("ORACLE_CREATE_MISMATCH",
+            f"overflow shape {json.dumps(result)[:120]}")
+
+
+def _reject_ceil_near_miss(candidates: list, checks: list) -> None:
+    """Frozen ceiling-division negative (S3 round_up_tax parity): a
+    candidate computing ceil(x/y) instead of the required floor on
+    every check row is ORACLE_WRONG_CENTS, not a generic mismatch.
+    `candidates` holds (entity, produced-or-None list) in check order;
+    `checks` are the frozen [x, y, floor] rows."""
+
+    try:
+        ceil = []
+        floors = []
+        for row in checks:
+            num, den, floor = int(row[0]), int(row[1]), int(row[2])
+            ceil.append((num + den - 1) // den if den > 0 else None)
+            floors.append(floor)
+    except (IndexError, TypeError, ValueError):
+        return
+    for _, produced in candidates:
+        if produced == ceil and produced != floors:
+            _reject("ORACLE_WRONG_CENTS",
+                    f"ceiling division {produced} contradicts floor"[:120])
+
+
+def _judge_create(session: Session, manifest: dict, corpus: dict, scratch_ws: Path,
+                  current: set[str]) -> None:
+    """CREATE task: a blank-started program authored through the trial
+    surface. Roles are discovered behaviorally (executor, not names):
+    three checked scalar primitives matching the frozen checks, overflow
+    signaling checked arithmetic, and a wiring entry calling all three.
+
+    Strict corpus cases are covered by observed executions: empty (0,0
+    primitives compose to 0), one-line (observed subtotal/tax/total
+    compose to 2681, cross-checked against observed total() and the
+    corpus expectation), overflow (observed Err Arithmetic/1).
+    Execution-shape failures map to the frozen negative codes: an
+    overflow case returning a value is ORACLE_UNCHECKED_ARITHMETIC
+    (specified rule; provably unreachable with the checked-only opcode
+    set — no authorable primitive matches its value checks while
+    returning Ok on overflow); a ceiling-division tax triple is
+    ORACLE_WRONG_CENTS via near-miss classification; anything else that
+    matches no role is ORACLE_CREATE_MISMATCH.
+
+    Residual (stated, not hidden): the entry's end-to-end invoice value
+    is verified statically (calls all primitives, Result return) rather
+    than executed, because the frozen driver only drives scalar SInt
+    inputs; every primitive it wires is executed natively.
+    """
+
+    _ = corpus
+    judge = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
+    spec = judge.get("primitives", {}) if isinstance(judge.get("primitives"), dict) else {}
+    if not spec:
+        _harness_fail("create primitives")
+    repo = scratch_ws / REPO_DIR
+    functions = _create_functions(session, scratch_ws, current)
+    if not functions:
+        _reject("ORACLE_CREATE_INCOMPLETE", "no live functions")
+
+    def observations(func: str, pairs: list) -> list:
+        return _create_run(repo, func, pairs)
+
+    def want_ok(want: int) -> dict:
+        return _driver_want("Ok", want)
+
+    roles: dict[str, str] = {}
+    seen: dict[str, dict[tuple, int]] = {}
+    near: dict[str, list[tuple[str, list]]] = {}
+    for role, cfg in spec.items():
+        if not isinstance(cfg, dict):
+            _harness_fail("create primitive spec")
+        params = int(cfg.get("params", 2))
+        checks = cfg.get("checks", [])
+        match = None
+        for entity, body in functions:
+            if entity in roles.values():
+                continue
+            parameters = body.get("parameters")
+            if not isinstance(parameters, list) or len(parameters) != params:
+                continue
+            pairs = [tuple(c[:params]) for c in checks]
+            wants = [c[params] for c in checks]
+            try:
+                results = observations(entity, pairs)
+            except JudgeHarnessError:
+                raise
+            except (JudgeRejection, Exception):
+                continue
+            ok = True
+            values: dict[tuple, int] = {}
+            produced: list = []
+            for result, want, pair in zip(results, wants, pairs):
+                if not result.get("ok"):
+                    ok = False
+                    produced.append(None)
+                    continue
+                value = result.get("value") or {}
+                try:
+                    got = int(value["Result"]["Ok"]["SInt"])
+                except (KeyError, TypeError, ValueError):
+                    ok = False
+                    produced.append(None)
+                    continue
+                produced.append(got)
+                if value != want_ok(want):
+                    ok = False
+                    continue
+                values[pair] = want
+            if ok:
+                match = entity
+                seen[str(role)] = values
+                break
+            near.setdefault(str(role), []).append((entity, produced))
+        if match is None:
+            ceiling = judge.get("ceiling_roles", [])
+            if isinstance(ceiling, list) and str(role) in ceiling:
+                _reject_ceil_near_miss(near.get(str(role), []), checks)
+            _reject("ORACLE_CREATE_MISMATCH", f"no primitive behaves as {role}"[:64])
+        roles[str(role)] = match
+    if len(set(roles.values())) != len(roles):
+        _reject("ORACLE_CREATE_MISMATCH", "primitives not distinct")
+    # Composition identity over OBSERVED values (one-line corpus case):
+    # the frozen composition spec names the input pairs per role; the
+    # host only threads already-observed integers through the invoice
+    # shape (subtotal; product; quotient; sum) and checks the corpus
+    # total. Every cent below was produced by native execution above.
+    composition = judge.get("composition", {})
+    if not isinstance(composition, dict):
+        _harness_fail("create composition spec")
+    try:
+        sub = seen["subtotal"][tuple(composition["subtotal"])]
+        product = seen["tax_mul"][tuple(composition["tax_mul"])]
+        tax = seen["tax_div"][tuple(composition["tax_div"])]
+        total = seen["total"][tuple(composition["total"])]
+        want_total = int(composition["result_cents"])
+    except (KeyError, TypeError, ValueError):
+        _harness_fail("create observed values")
+    if total != want_total:
+        _reject("ORACLE_CREATE_MISMATCH", "corpus one-line total")
+    if sub + tax != total:
+        _reject("ORACLE_CREATE_MISMATCH",
+                f"composition {sub}+{tax}!={total}"[:120])
+    if (sub, product, tax) != (2500, 1812500, 181):
+        _reject("ORACLE_CREATE_MISMATCH", "corpus one-line values")
+
+    def require_overflow(spec_key: str, code: str) -> None:
+        cfg = judge.get(spec_key, {})
+        if not isinstance(cfg, dict):
+            return
+        primitive = cfg.get("primitive", "")
+        func = roles.get(primitive, "")
+        if not func:
+            _harness_fail("create overflow role")
+        inputs = cfg.get("inputs", [])
+        results = observations(func, [tuple(inputs)])
+        _check_overflow_result(results[0], cfg, code)
+
+    require_overflow("overflow", "ORACLE_UNCHECKED_ARITHMETIC")
+    require_overflow("overflow_add", "ORACLE_UNCHECKED_ARITHMETIC")
+
+    wiring = judge.get("wiring", {}) if isinstance(judge.get("wiring"), dict) else {}
+    need = wiring.get("entry_calls", [])
+    callees = _create_callees(session, scratch_ws, current)
+    primitives = set(roles.values())
+    entry = None
+    for entity, body in functions:
+        if entity in primitives:
+            continue
+        if set(need and [roles[r] for r in need if r in roles]) <= callees.get(entity, set()):
+            result_type = body.get("result_type") or {}
+            if isinstance(result_type, dict) and result_type.get("variant") == "Result":
+                entry = entity
+                break
+    if entry is None and need:
+        _reject("ORACLE_CREATE_UNWIRED", "no entry calls all primitives")
 
 
 def _test_input_pair(test: dict) -> tuple[int, int] | None:
@@ -1315,28 +1658,95 @@ def _require_test_boundaries(tests: list) -> dict[tuple[int, int], tuple[str, in
     return required
 
 
-def _judge_impl_unchanged(scratch_ws: Path, task_dir: Path, func: str,
-                          epoch: str) -> None:
-    """The implementation entity's object bytes are byte-identical
+def _judge_impl_unchanged(session: Session, scratch_ws: Path, task_dir: Path,
+                           func: str) -> None:
+    """The implementation entity's CURRENT object bytes are byte-identical
     between the pristine base pack and the committed outcome (frozen
-    S3 implementation_changes == 0)."""
+    S3 implementation_changes == 0).
 
-    if not epoch:
-        _harness_fail("epoch")
+    Both sides resolve through live entity.version bindings under
+    their accepted heads; retained historical object files never
+    decide (a stale duplicate beside the current version cannot flip
+    this check either way)."""
+
     repo_pre, pre_session, cleanup = _seeded_repo(task_dir)
     try:
-        pre_raw = _entity_stored_bytes(repo_pre, func, pre_session.head.get("epoch", ""))
-        post_raw = _entity_stored_bytes(scratch_ws / REPO_DIR, func, epoch)
+        pre_raw = _entity_bound_bytes(pre_session, repo_pre, func)
     finally:
         cleanup()
+    post_raw = _entity_bound_bytes(session, scratch_ws / REPO_DIR, func)
     if pre_raw is None or post_raw is None:
         _harness_fail("impl objects")
     if pre_raw != post_raw:
         _reject("ORACLE_IMPL_TOUCHED", func[:32])
 
 
+def _live_object_id(session: Session, entity: str) -> str | None:
+    """Owner-derived current ObjectId for one entity under the session's
+    accepted head (entity.version binding). Tombstoned/absent entities
+    fail and yield None; multi-entry or undecodable replies yield None.
+    Historical object files never decide currency."""
+
+    if not entity:
+        return None
+    try:
+        reply = session._raw_request("entity.version", _tool_entity_body(session, entity))
+    except Exception:
+        return None
+    if reply["flags"].get("failed"):
+        return None
+    try:
+        [decoded] = sley2_codecs.run_batch([{
+            "op": "decode_response", "method": "entity.version",
+            "body": reply["body"],
+        }])
+    except (sley2_codecs.CodecError, KeyError):
+        return None
+    entries = decoded["decoded"].get("entries") or []
+    if len(entries) != 1:
+        return None
+    object_id = entries[0].get("object_id", "")
+    if not _is_hash64(object_id):
+        return None
+    return str(object_id)
+
+
+def _bound_object_bytes(repo: Path, object_id: str) -> bytes | None:
+    """Raw stored bytes for one owner-derived ObjectId (exact path)."""
+
+    if not _is_hash64(object_id):
+        return None
+    path = _object_path(repo, object_id)
+    if path is None:
+        return None
+    try:
+        return path.read_bytes()
+    except OSError:
+        return None
+
+
+def _entity_bound_bytes(session: Session, repo: Path, entity: str) -> bytes | None:
+    """Raw stored bytes of one entity's CURRENT version: resolve the
+    live ObjectId under the accepted head, then read that exact object.
+    Stale versions beside it never win by filename order."""
+
+    object_id = _live_object_id(session, entity)
+    if object_id is None:
+        return None
+    return _bound_object_bytes(repo, object_id)
+
+
 def _entity_stored_bytes(repo: Path, entity: str, epoch: str) -> bytes | None:
-    """Raw stored bytes of one entity's object file."""
+    """Raw stored bytes of one entity's object file (FILE SCAN ONLY).
+
+    Currency WARNING: this scans immutable object files in filename
+    order and returns the first file decoding to the entity. Repos
+    retain stale versions beside current ones, so this MUST NOT decide
+    current-state facts (presence, impl identity, counts, merge
+    conflict values). Acceptance-critical paths must use
+    _entity_bound_bytes (live entity.version binding -> exact object)
+    instead. Retained only for inventory/enumeration helpers that
+    explicitly handle currency elsewhere."""
 
     if not epoch:
         return None
@@ -1387,15 +1797,17 @@ def _judge_stale_sequence(session: Session, manifest: dict, corpus: dict, scratc
                           candidate: bytes, pre_tx: str) -> None:
     """STALE task frozen sequence: competing candidates against the same
     base, first acceptance (already committed to H1 on entry), exact
-    permitted stale rejection with no partial second write, re-query,
-    and construction of a NEW candidate that genuinely validates against
-    the new base.
+    permitted stale rejection (STALE_ROOT, never a substring match)
+    with no partial second write, re-query, and genuine rebase of the
+    contender's own operations against the new base.
 
     Resubmitting the original candidate while changing only the outer
     request binding is NOT rebase evidence: the candidate's embedded
     base binding still names the old head, so outer-tx substitution
-    alone proves nothing. The judge therefore requires a freshly
-    assembled candidate against H1 with a Valid decision.
+    alone proves nothing. An identity replacement would only prove H1
+    is writable. The judge therefore decodes the contender record and
+    re-assembles the SAME change against H1 with fresh bindings,
+    requiring a Valid decision on task-relevant targets.
     """
 
     _ = corpus
@@ -1417,7 +1829,9 @@ def _judge_stale_sequence(session: Session, manifest: dict, corpus: dict, scratc
     except sley2_codecs.CodecError as error:
         raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: stale code: {error}") from error
     code = decoded["decoded"].get("symbol", "")
-    if "STALE" not in code:
+    # Exact frozen mapping (S3 s3_g2_stale pins STALE_ROOT): a symbol
+    # merely containing the substring STALE never counts.
+    if code != "STALE_ROOT":
         _reject("ORACLE_STALE_UNREFUSED", code[:64])
     # No partial second write: a fresh session must still read H1.
     fresh = Session(_resolve_binary(), scratch_ws, [], seed_pack=False)
@@ -1445,40 +1859,77 @@ def _judge_stale_sequence(session: Session, manifest: dict, corpus: dict, scratc
             # with only the outer tx changed does not rebase the
             # candidate's embedded base binding.
             _ = probe_decoded.get("decision_tag")
-    # Genuine rebase: assemble a NEW candidate against H1 (identity
-    # Replace of the guard's current body) and require Valid through the
-    # correct validation shape.
-    _require_rebased_candidate_valid(session, scratch_ws, manifest, head_h1)
+    # Genuine rebase: replay the contender's own operations against
+    # H1 with fresh bindings and require Valid through the correct
+    # validation shape.
+    _require_rebased_candidate_valid(session, scratch_ws, manifest, head_h1,
+                                      candidate)
 
 
 def _require_rebased_candidate_valid(session: Session, scratch_ws: Path,
-                                     manifest: dict, head_h1: str) -> None:
-    """Build a fresh identity candidate against the new base and require
-    a Valid decision. Proves the new base is writable, independent of
-    the original bytes."""
+                                      manifest: dict, head_h1: str,
+                                      candidate: bytes) -> None:
+    """Genuine rebase of the contender onto the new base: decode the
+    contender's own operations (classes, targets, payloads) from its
+    record, re-assemble the SAME change against H1 with fresh bindings
+    through the normal assembly path, and require a Valid decision.
 
+    An identity replacement (re-stating H1's current bytes) would only
+    prove the new base is writable; it never counts here. The rebased
+    change must touch at least one manifest task entity, and every
+    Replace target must re-resolve at H1 (re-query of the new base).
+    Outer-binding-only resubmission never counts (checked by the
+    caller); only this same-change-new-base validation does."""
+
+    _ = scratch_ws
     from bench.live import sley2_tool as _tool
 
     entities = manifest.get("entities", {}) if isinstance(manifest.get("entities"), dict) else {}
     principal = manifest.get("principal", "")
-    guard = entities.get("guard", "")
-    if not guard:
+    if not entities or not principal:
         _harness_fail("stale entities")
-    reply = session._raw_request("entity.version", _tool_entity_body(session, guard))
-    if reply["flags"].get("failed"):
-        _reject("ORACLE_REBASE_INVALID", "guard unreadable at H1")
     try:
-        [decoded] = sley2_codecs.run_batch([{
-            "op": "decode_response", "method": "entity.version", "body": reply["body"],
-        }])
-    except (sley2_codecs.CodecError, KeyError) as error:
-        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: rebase read: {error}") from error
-    entries = decoded["decoded"].get("entries") or []
-    if len(entries) != 1:
-        _reject("ORACLE_REBASE_INVALID", "guard entries at H1")
-    entry = entries[0]
-    ops = [{"class": "ReplaceEntityVersion", "kind": entry["kind"],
-            "target": guard, "field_tag": None, "payload": entry["body"]}]
+        [unwrapped] = sley2_codecs.run_batch(
+            [{"op": "record_from_stored", "stored": candidate.hex()}])
+        [decoded] = sley2_codecs.run_batch(
+            [{"op": "record_operations", "record": unwrapped["record"]}])
+    except sley2_codecs.CodecError as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: rebase decode: {error}") from error
+    operations = decoded.get("operations") or []
+    if not operations:
+        _reject("ORACLE_REBASE_INVALID", "contender has no operations")
+    task_ids = set(entities.values())
+    ops = []
+    touched = False
+    for item in operations:
+        if not isinstance(item, dict):
+            _reject("ORACLE_REBASE_INVALID", "contender op shape")
+        class_name = item.get("class", "")
+        kind = item.get("kind")
+        target = item.get("target", "")
+        payload = item.get("payload")
+        if class_name not in ("CreateEntity", "ReplaceEntityVersion"):
+            _reject("ORACLE_REBASE_INVALID",
+                    f"contender class {class_name}"[:64])
+        if not isinstance(kind, int) or not _is_hash64(target) or payload is None:
+            _reject("ORACLE_REBASE_INVALID", "contender op shape")
+        if target in task_ids:
+            touched = True
+        if class_name == "ReplaceEntityVersion":
+            # Re-query the new base: the rebased target must resolve
+            # at H1 (deleted targets cannot rebase).
+            if _live_object_id(session, str(target)) is None:
+                _reject("ORACLE_REBASE_INVALID",
+                        f"target unresolved at H1 {str(target)[:16]}")
+            ops.append({"class": class_name, "kind": kind, "target": target,
+                        "field_tag": item.get("field_tag"), "payload": payload})
+        else:
+            # Fresh creation under the new base nonce: identities
+            # re-derive (never carried across bases).
+            ops.append({"class": class_name, "kind": kind, "target": None,
+                        "field_tag": item.get("field_tag"), "payload": payload})
+    if not touched:
+        _reject("ORACLE_REBASE_INVALID", "contender touches no task entity")
     try:
         record_hex = _tool._assemble(session, ops)
     except Exception as error:
@@ -1497,12 +1948,26 @@ def _require_rebased_candidate_valid(session: Session, scratch_ws: Path,
 
 
 def _judge_merge(session: Session, manifest: dict, corpus: dict, scratch_ws: Path,
-                 workspace: Path) -> None:
+                 workspace: Path, candidate: bytes) -> None:
     """MERGE task: the committed outcome carries exactly the union
     semantics — the shared constant at the ours value, the theirs-only
-    constant present, nothing else added or changed. Order-independence
-    (commutativity) holds by construction: the expectation is derived
-    per side, never in side order; determinism is rechecked by reread."""
+    constant present, nothing else added or changed — AND the union
+    re-applies cleanly from either side.
+
+    Order-independence is OBSERVED, not asserted: the contender record
+    is rebased onto the ours head and onto the theirs head (same
+    classes/targets/payloads, fresh bindings; already-satisfied
+    replaces skipped), and production validation must accept both.
+    Either order rejecting is ORACLE_MERGE_UNSTABLE. The frozen
+    production merge-judge path is inapplicable to these fixtures (the
+    side packs are independent geneses with no common-ancestor
+    transaction to walk); the applicable production path exercised here
+    is candidate validation itself, in both orders, against both heads.
+
+    Executable-function tests: the MERGE fixture carries no functions
+    (namespace + bool constants only), so there are no selected tests
+    to execute; preservation of both changes plus dual-order validation
+    plus the generic collateral checks are the applicable evidence."""
 
     _ = corpus
     entities = manifest.get("entities", {}) if isinstance(manifest.get("entities"), dict) else {}
@@ -1511,7 +1976,9 @@ def _judge_merge(session: Session, manifest: dict, corpus: dict, scratch_ws: Pat
     if not conflict:
         _harness_fail("merge conflict entity")
     repos: dict[str, Path] = {}
+    side_ws: dict[str, Path] = {}
     epochs: dict[str, str] = {}
+    sides: dict[str, Session] = {}
     cleanups = []
     try:
         for name in ("base.pack", "ours.pack", "theirs.pack"):
@@ -1521,46 +1988,149 @@ def _judge_merge(session: Session, manifest: dict, corpus: dict, scratch_ws: Pat
                     _harness_fail(f"side {name}")
             except OSError as error:
                 raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: sides: {error}") from error
-            repo, side_session, cleanup = _seeded_pack(path)
+            repo, ws, side_session, cleanup = _seeded_pack(path)
             repos[name] = repo
+            side_ws[name] = ws
             epochs[name] = side_session.head.get("epoch", "")
+            sides[name] = side_session
             cleanups.append(cleanup)
-        post_epoch = session.head.get("epoch", "")
-        base_ids = _repo_entity_ids(repos["base.pack"], epochs["base.pack"])
-        post_ids = _repo_entity_ids(scratch_ws / REPO_DIR, post_epoch)
-        ours_conflict = _entity_stored_bytes(
-            repos["ours.pack"], conflict, epochs["ours.pack"])
-        post_conflict = _entity_stored_bytes(
-            scratch_ws / REPO_DIR, conflict, post_epoch)
+
+        def side_connect(name: str) -> object:
+            ws = side_ws[name]
+            def connect() -> Session:
+                return Session(_resolve_binary(), ws, [], seed_pack=False)
+            return connect
+
+        def post_connect() -> Session:
+            return Session(_resolve_binary(), scratch_ws, [], seed_pack=False)
+
+        # Live entity sets under each accepted head: stale object files
+        # beside current versions never count (deleted entities drop out
+        # via failed entity.version, never via filename presence).
+        base_ids = _live_entity_set(side_connect("base.pack"), side_ws["base.pack"],
+                                    repos["base.pack"], epochs["base.pack"])
+        post_ids = _live_entity_set(post_connect, scratch_ws,
+                                    scratch_ws / REPO_DIR,
+                                    session.head.get("epoch", ""))
+        ours_conflict = _entity_bound_bytes(
+            sides["ours.pack"], repos["ours.pack"], conflict)
+        post_conflict = _entity_bound_bytes(
+            session, scratch_ws / REPO_DIR, conflict)
         if ours_conflict is None or post_conflict is None:
             _harness_fail("merge conflict objects")
         if post_conflict != ours_conflict:
             _reject("ORACLE_MERGE_CONFLICT", "shared constant not at merged value")
-        theirs_ids = _repo_entity_ids(repos["theirs.pack"], epochs["theirs.pack"])
+        theirs_ids = _live_entity_set(side_connect("theirs.pack"),
+                                      side_ws["theirs.pack"],
+                                      repos["theirs.pack"],
+                                      epochs["theirs.pack"])
         fresh_theirs = [e for e in theirs_ids if e not in base_ids]
         fresh_post = [e for e in post_ids if e not in base_ids]
         if len(fresh_theirs) != 1 or len(fresh_post) != 1:
             _reject("ORACLE_MERGE_CONFLICT",
                     f"theirs={len(fresh_theirs)} post={len(fresh_post)}")
-        theirs_body = _decode_body_at(repos["theirs.pack"], fresh_theirs[0],
-                                      epochs["theirs.pack"])
-        post_body = _decode_fresh_body(session, scratch_ws, fresh_post[0])
+        theirs_body = _decode_bound_body(sides["theirs.pack"], repos["theirs.pack"],
+                                         fresh_theirs[0])
+        post_body = _decode_bound_body(session, scratch_ws / REPO_DIR,
+                                       fresh_post[0])
         if theirs_body != post_body:
             _reject("ORACLE_MERGE_CONFLICT", "theirs-only change not preserved")
         for entity in post_ids:
             if entity in base_ids or entity == fresh_post[0]:
                 continue
-            if _repo_version_of(scratch_ws / REPO_DIR, post_epoch, entity) != \
-                    _repo_version_of(repos["base.pack"], epochs["base.pack"], entity):
+            if _entity_bound_bytes(session, scratch_ws / REPO_DIR, entity) != \
+                    _entity_bound_bytes(sides["base.pack"], repos["base.pack"], entity):
                 _reject("ORACLE_MERGE_CONFLICT", f"extra {entity[:16]}")
-        if _repo_entity_ids(scratch_ws / REPO_DIR, post_epoch) != post_ids:
+        if _live_entity_set(post_connect, scratch_ws,
+                            scratch_ws / REPO_DIR,
+                            session.head.get("epoch", "")) != post_ids:
             _reject("ORACLE_MERGE_UNSTABLE", "recompute diverged")
+        _judge_merge_orders(candidate, manifest, sides, repos,
+                            session, scratch_ws)
     finally:
         for cleanup in cleanups:
             try:
                 cleanup()
             except Exception:
                 continue
+
+
+def _judge_merge_orders(candidate: bytes, manifest: dict,
+                        sides: dict[str, Session], repos: dict[str, Path],
+                        session: Session, scratch_ws: Path) -> None:
+    """Rebase the contender onto each side head and require production
+    validation both ways (observed order-independence). Replaces
+    already satisfied on a side (side bytes equal post bytes) are
+    skipped as vacuous; an empty remainder is vacuously valid."""
+
+    from bench.live import sley2_tool as _tool
+
+    principal = manifest.get("principal", "")
+    if not principal:
+        _harness_fail("merge principal")
+    try:
+        [unwrapped] = sley2_codecs.run_batch(
+            [{"op": "record_from_stored", "stored": candidate.hex()}])
+        [decoded] = sley2_codecs.run_batch(
+            [{"op": "record_operations", "record": unwrapped["record"]}])
+    except sley2_codecs.CodecError as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: merge decode: {error}") from error
+    operations = decoded.get("operations") or []
+    if not operations:
+        _reject("ORACLE_MERGE_UNSTABLE", "contender has no operations")
+    post_repo = scratch_ws / REPO_DIR
+    for name in ("ours.pack", "theirs.pack"):
+        side = sides[name]
+        repo = repos[name]
+        ops = []
+        for item in operations:
+            if not isinstance(item, dict):
+                _reject("ORACLE_MERGE_UNSTABLE", "contender op shape")
+            class_name = item.get("class", "")
+            kind = item.get("kind")
+            target = item.get("target", "")
+            payload = item.get("payload")
+            if class_name not in ("CreateEntity", "ReplaceEntityVersion"):
+                _reject("ORACLE_MERGE_UNSTABLE",
+                        f"contender class {class_name}"[:64])
+            if not isinstance(kind, int) or not _is_hash64(target) or payload is None:
+                _reject("ORACLE_MERGE_UNSTABLE", "contender op shape")
+            if class_name == "ReplaceEntityVersion":
+                side_bytes = _entity_bound_bytes(side, repo, str(target))
+                post_bytes = _entity_bound_bytes(session, post_repo, str(target))
+                if side_bytes is not None and side_bytes == post_bytes:
+                    continue
+                ops.append({"class": class_name, "kind": kind, "target": target,
+                            "field_tag": item.get("field_tag"),
+                            "payload": payload})
+            else:
+                # Fresh creation under the new base nonce: identities
+                # re-derive (never carried across bases).
+                ops.append({"class": class_name, "kind": kind, "target": None,
+                            "field_tag": item.get("field_tag"),
+                            "payload": payload})
+        if not ops:
+            continue
+        try:
+            record_hex = _tool._assemble(side, ops)
+        except Exception as error:
+            raise JudgeRejection("ORACLE_MERGE_UNSTABLE",
+                                 f"rebase assemble {name}: {error}"[:120]) from error
+        try:
+            [stored] = sley2_codecs.run_batch(
+                [{"op": "stored_from_record", "record": record_hex}])
+        except sley2_codecs.CodecError as error:
+            raise JudgeHarnessError(
+                f"LIVE_SLEY2_JUDGE_INVALID: merge stored: {error}") from error
+        reply = side._raw_request(
+            "candidate.validate",
+            _encode_validate_body(side.head.get("tx", ""), principal,
+                                  stored["stored"]))
+        if reply["flags"].get("failed"):
+            _reject("ORACLE_MERGE_UNSTABLE",
+                    f"rebase {name} refused"[:64])
+        _require_valid_decision(reply.get("body") or "",
+                                code="ORACLE_MERGE_UNSTABLE")
 
 
 def _repo_entity_ids(repo: Path, epoch: str) -> set[str]:
@@ -1587,27 +2157,70 @@ def _repo_entity_ids(repo: Path, epoch: str) -> set[str]:
     return found
 
 
+def _live_entity_set(connect: object, workspace: Path, repo: Path,
+                      epoch: str) -> set[str]:
+    """Live entity ids under an accepted head: enumerate distinct file
+    entities, keep only those whose entity.version resolves now.
+    Tombstoned/deleted entities drop out; stale duplicates collapse to
+    one live identity (currency from the server, never file order).
+    Sessions cap requests (frozen protocol limit), so liveness is
+    probed in small chunks across fresh sessions."""
+
+    if not epoch:
+        _harness_fail("epoch")
+    candidates = sorted(_repo_entity_ids(repo, epoch))
+    live: set[str] = set()
+    for index in range(0, len(candidates), 8):
+        session = connect()
+        try:
+            for entity in candidates[index:index + 8]:
+                if _live_object_id(session, entity) is not None:
+                    live.add(entity)
+        finally:
+            session.close()
+    return live
+
+
+def _decode_bound_body(session: Session, repo: Path, entity: str) -> dict:
+    """Typed body of one entity's CURRENT version (live binding ->
+    exact object -> decode). Historical duplicates never win."""
+
+    raw = _entity_bound_bytes(session, repo, entity)
+    if raw is None:
+        _reject("ORACLE_MISSING_TARGET", entity[:32])
+        raise AssertionError("unreachable")
+    try:
+        [decoded] = sley2_codecs.run_batch([{
+            "op": "decode_object", "stored": raw.hex(),
+            "epoch": session.head.get("epoch", ""),
+        }])
+    except (sley2_codecs.CodecError, KeyError) as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: bound decode: {error}") from error
+    body = decoded["decoded"].get("body")
+    if not isinstance(body, dict):
+        _harness_fail("entity body")
+    return body
+
+
 def _repo_version_of(repo: Path, epoch: str, entity: str) -> bytes | None:
-    """Stored bytes of one entity in a repo dir (None when absent)."""
+    """Stored bytes of one entity in a repo dir (FILE SCAN, not currency).
+
+    See _entity_stored_bytes warning: acceptance-critical comparisons
+    must use _entity_bound_bytes instead."""
 
     return _entity_stored_bytes(repo, entity, epoch)
 
 
 def _decode_fresh_body(session: Session, scratch_ws: Path, entity: str) -> dict:
-    """Typed body of a fresh (single-version) entity from the repo."""
+    """Typed body of a fresh entity from the trial repo (CURRENT version)."""
 
-    for entry in _decode_paths(session, _store_files(scratch_ws / REPO_DIR)):
-        if entry.get("entity_id") == entity:
-            body = entry.get("body")
-            if not isinstance(body, dict):
-                _harness_fail("entity body")
-            return body
-    _reject("ORACLE_MISSING_TARGET", entity[:32])
-    raise AssertionError("unreachable")
+    return _decode_bound_body(session, scratch_ws / REPO_DIR, entity)
 
 
 def _decode_body_at(repo: Path, entity: str, epoch: str) -> dict:
-    """Typed body of one entity from a repo dir (not the trial repo)."""
+    """Typed body of one entity from a side repo dir (FILE SCAN, not
+    currency). Merge judging uses _decode_bound_body; this remains for
+    non-acceptance inventory use."""
 
     raw = _entity_stored_bytes(repo, entity, epoch)
     if raw is None:
@@ -1624,8 +2237,12 @@ def _decode_body_at(repo: Path, entity: str, epoch: str) -> dict:
     return body
 
 
-def _seeded_pack(pack: Path) -> tuple[Path, object, object]:
-    """Seeded throwaway session for one side pack (merge determinism)."""
+def _seeded_pack(pack: Path) -> tuple[Path, Path, object, object]:
+    """Seeded throwaway session for one side pack (merge determinism).
+
+    Returns (repo_path, workspace_path, session, cleanup): the
+    workspace outlives single sessions so liveness probes can open
+    fresh chunked sessions (frozen per-session request limit)."""
 
     workdir = Path(tempfile.mkdtemp(prefix="sley2-merge-"))
     ws = workdir / "ws"
@@ -1643,7 +2260,7 @@ def _seeded_pack(pack: Path) -> tuple[Path, object, object]:
         finally:
             shutil.rmtree(workdir, ignore_errors=True)
 
-    return ws / REPO_DIR, session, cleanup
+    return ws / REPO_DIR, ws, session, cleanup
 
 
 def _repo_stems(repo: Path) -> set[str]:
@@ -1660,10 +2277,12 @@ def _repo_stems(repo: Path) -> set[str]:
 def _judge_perf(session: Session, manifest: dict, corpus: dict, scratch_ws: Path,
                 task_dir: Path) -> None:
     """PERF task: identical outputs pre (pristine base pack) vs post on
-    the fixed inputs; instruction reduction at/above the frozen
-    threshold."""
+    the governing fixed large inputs; instruction reduction at/above
+    the frozen threshold; no effects; fuel never regresses. All
+    measured on the actual submitted candidate (pre numbers come from
+    the pristine pack through the same driver)."""
 
-    _ = (session, corpus)
+    _ = corpus
     judge = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
     entities = manifest.get("entities", {}) if isinstance(manifest.get("entities"), dict) else {}
     func = entities.get("func", "")
@@ -1671,6 +2290,10 @@ def _judge_perf(session: Session, manifest: dict, corpus: dict, scratch_ws: Path
     threshold = judge.get("minimum_instruction_reduction_percent", 30)
     if not func:
         _harness_fail("perf entry")
+    body = _decode_bound_body(session, scratch_ws / REPO_DIR, func)
+    effects = body.get("effects")
+    if not isinstance(effects, list) or effects:
+        _reject("ORACLE_PERF_EFFECTS", "submitted entry must be effect-free")
     repo_pre, _, cleanup = _seeded_repo(task_dir)
     try:
         pre = _run_driver(repo_pre, func, _sint_cases(inputs)).get("cases")
@@ -1686,11 +2309,29 @@ def _judge_perf(session: Session, manifest: dict, corpus: dict, scratch_ws: Path
             _reject("ORACLE_OUTPUT_MISMATCH", json.dumps(after.get("value"))[:120])
     instr_pre = sum(int(case.get("instructions", 0)) for case in pre)
     instr_post = sum(int(case.get("instructions", 0)) for case in post)
+    fuel_pre = sum(int(case.get("fuel", 0)) for case in pre)
+    fuel_post = sum(int(case.get("fuel", 0)) for case in post)
     if instr_pre <= 0:
         _harness_fail("perf baseline")
     reduction = 100.0 * (instr_pre - instr_post) / instr_pre
     if reduction < float(threshold):
         _reject("ORACLE_PERF_UNIMPROVED", f"{reduction:.1f}% < {threshold}%")
+    if fuel_post > fuel_pre:
+        _reject("ORACLE_PERF_UNIMPROVED",
+                f"fuel regressed {fuel_post} > {fuel_pre}")
+
+
+# Cumulative agent-visible response budget across a trial (mirrors the
+# judge-transcript 4 MiB bound): bounded paging may accumulate pages, but
+# unbounded accumulation rejects. Per-response cap is MAX_RESPONSE_BYTES.
+AGENT_CUMULATIVE_RESPONSE_BUDGET = 4 * 1024 * 1024
+# Query/refs methods are bounded paging routes under the governing
+# contracts (never whole-store by name): each response must fit the
+# per-response cap, and any omitted/truncated response must be followed
+# by a query.continue (explicit continuation chain). Hidden truncation,
+# inconsistent continuations, and over-cap responses reject.
+BOUNDED_QUERY_METHODS = frozenset({"query.root", "query.restricted",
+                                   "query.continue", "refs.list"})
 
 
 def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
@@ -1705,21 +2346,33 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
     tool-allowlist/repo-untouched checks, not by the chain. The chain
     alone establishes neither of the other two.
 
-    Verified (order, hashes, tool/binary/fixture binding), then derived
-    across every session and phase: whole-store reads under the frozen
-    definition applied to every exposed read route (inventory, side,
-    and any query/refs enumeration, never only commands named
-    inventory), targeted reads, operations, continuation use with
-    omitted/truncated accounting, refusals, per-response byte caps, and
-    the absence of any commit path.
+    Bounded-query semantics (governing ROOT_BACKED / RESTRICTED / CAPSULE
+    contracts): query.root, query.restricted, query.continue, and
+    refs.list are bounded paging routes, NOT whole-store reads by
+    method name. Each such response must fit MAX_RESPONSE_BYTES; any
+    response carrying omitted>0 or truncated must be followed by a
+    query.continue in the same session scope (explicit continuation;
+    the corpus requires bounded operation WITH omissions and
+    continuations, not their absence); a query.continue with no
+    preceding truncated response is an inconsistent continuation and
+    rejects; cumulative agent-visible bytes across the trial must fit
+    AGENT_CUMULATIVE_RESPONSE_BUDGET. Whole-store reads are only
+    inventory/side (full file enumeration). Hidden truncation,
+    exceeded bounds, inconsistent continuations, and unbounded access
+    reject under the frozen unbounded-read code; semantic-only success
+    is noted in the rejection detail, never mislabeled as a pass.
 
-    Missing, truncated, mismatched, or unverifiable evidence prevents
-    full CONTEXT acceptance under the frozen unbounded-read code;
-    semantic-only success is noted in the rejection detail, never
-    mislabeled as a pass. whole_store_reads is derived, never
-    defaulted: an empty but valid chain derives zero only because every
-    call is enumerated. Unknowns are never reported as zero: incomplete
-    evidence rejects instead of returning counts.
+    Limitation retained: transcripts record response bounds and body
+    digests, not requested limit values or continuation tokens, so the
+    judge verifies actual returned content, per-response limits,
+    continuation discipline, and cumulative budgets — not the literal
+    requested limit parameters or after==prev-next_after token
+    equality. Judge-only inspection (judge transcript) stays separate
+    from agent-visible context and cost.
+
+    whole_store_reads is derived, never defaulted. Unknowns are never
+    reported as zero: incomplete evidence rejects instead of returning
+    counts.
     """
 
     chain = trial_ws / CHAIN_NAME
@@ -1740,11 +2393,13 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
     whole_store = 0
     targeted: set[str] = set()
     operations = 0
+    bounded_reads = 0
     continuations = 0
     omitted = 0
     truncated = 0
     refusals = 0
     max_response = 0
+    cumulative = 0
     calls = 0
     binary_ids: set[str] = set()
     try:
@@ -1767,6 +2422,9 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
                     "fixture binding mismatch; semantics held")
         command = entry.get("command", "")
         if command in ("inventory", "side"):
+            # Full file enumeration of every served object: the only
+            # whole-store routes. Bounded query methods below are NOT
+            # whole-store by name.
             whole_store += 1
         args = entry.get("args") if isinstance(entry.get("args"), dict) else {}
         for entity in args.get("entities", []) if isinstance(args.get("entities"), list) else []:
@@ -1778,40 +2436,128 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
             refusals += 1
         summary = entry.get("summary") if isinstance(entry.get("summary"), dict) else {}
         try:
-            continuations += int(summary.get("continuations", 0) or 0)
-            omitted += int(summary.get("omitted", 0) or 0)
-            refused_calls = int(summary.get("failed", 0) or 0)
-            returned = int(summary.get("returned_bytes", 0) or 0)
             report_bytes = int(entry.get("report_bytes", 0) or 0)
         except (TypeError, ValueError):
             _reject("QUERY_REQUIRED_FACT_OMITTED", "agent summary shape; semantics held")
-        refusals += refused_calls
-        max_response = max(max_response, returned, report_bytes)
-        if returned > MAX_RESPONSE_BYTES or report_bytes > MAX_RESPONSE_BYTES:
+        max_response = max(max_response, report_bytes)
+        if report_bytes > MAX_RESPONSE_BYTES:
             _reject("QUERY_REQUIRED_FACT_OMITTED",
-                    f"response over bound {max(max_response, returned, report_bytes)}; semantics held")
+                    f"response over bound {report_bytes}; semantics held")
         session = entry.get("session") if isinstance(entry.get("session"), list) else []
+        # Per-call bounded accounting over the ordered session items:
+        # pair each request with its following response.
+        pending: dict | None = None
+        pending_truncated = False
+        entry_continuations = 0
+        entry_omitted = 0
+        entry_truncated = 0
+        entry_returned = 0
+        entry_failed = 0
         for item in session:
-            if isinstance(item, dict) and item.get("direction") == "request":
+            if not isinstance(item, dict):
+                _reject("QUERY_REQUIRED_FACT_OMITTED",
+                        "agent session shape; semantics held")
+            direction = item.get("direction")
+            if direction == "request":
                 calls += 1
-                if item.get("method") == "commit":
+                method = item.get("method", "")
+                if method == "commit":
                     _reject("QUERY_REQUIRED_FACT_OMITTED",
                             "agent commit path; semantics held")
-                # Frozen whole-store-read definition applied to every
-                # exposed read route, not only commands named inventory:
-                # any query/refs enumeration reads served state beyond a
-                # targeted entity version/signature.
-                if item.get("method") in ("query.root", "query.restricted",
-                                          "query.continue", "refs.list"):
-                    whole_store += 1
-        if summary.get("truncated"):
-            truncated += 1
+                if method in BOUNDED_QUERY_METHODS:
+                    bounded_reads += 1
+                pending = item
+            elif direction == "response":
+                if pending is None:
+                    _reject("QUERY_REQUIRED_FACT_OMITTED",
+                            "agent session order; semantics held")
+                method = pending.get("method", "") if isinstance(pending, dict) else ""
+                pending = None
+                try:
+                    returned = int(item.get("returned_bytes", 0) or 0)
+                    omit = int(item.get("omitted", 0) or 0)
+                except (TypeError, ValueError):
+                    _reject("QUERY_REQUIRED_FACT_OMITTED",
+                            "agent response shape; semantics held")
+                trunc = bool(item.get("truncated"))
+                if item.get("failed"):
+                    entry_failed += 1
+                entry_returned += returned
+                entry_omitted += omit
+                if trunc:
+                    entry_truncated += 1
+                max_response = max(max_response, returned)
+                cumulative += returned
+                if returned > MAX_RESPONSE_BYTES:
+                    _reject("QUERY_REQUIRED_FACT_OMITTED",
+                            f"response over bound {returned}; semantics held")
+                if method in BOUNDED_QUERY_METHODS:
+                    if method == "query.continue":
+                        entry_continuations += 1
+                        if not pending_truncated:
+                            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                                    "inconsistent continuation; semantics held")
+                        pending_truncated = False
+                    elif trunc or omit > 0:
+                        # Bounded page with more to fetch: an explicit
+                        # query.continue must follow in this scope.
+                        pending_truncated = True
+                else:
+                    if trunc or omit > 0:
+                        _reject("QUERY_REQUIRED_FACT_OMITTED",
+                                f"hidden truncation on {method}; semantics held")
+            else:
+                # Non-call transcript markers (hello/greeting/seed/scope):
+                # ordering-relevant but not agent-visible calls; the
+                # hash chain covers them, the call audit skips them.
+                continue
+        if pending is not None:
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    "agent session order; semantics held")
+        if pending_truncated:
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    "truncated page without continuation; semantics held")
+        # Reconcile the entry summary against the enumerated session
+        # items (completeness: summaries must equal recorded calls —
+        # overstated or understated accounting both reject, naming the
+        # field, so summaries cannot hide or invent response bounds).
+        try:
+            sum_cont = int(summary.get("continuations", 0) or 0)
+            sum_omit = int(summary.get("omitted", 0) or 0)
+            sum_fail = int(summary.get("failed", 0) or 0)
+            sum_ret = int(summary.get("returned_bytes", 0) or 0)
+            sum_trunc = 1 if summary.get("truncated") else 0
+        except (TypeError, ValueError):
+            _reject("QUERY_REQUIRED_FACT_OMITTED", "agent summary shape; semantics held")
+        if sum_omit != entry_omitted:
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    f"agent summary omitted mismatch; semantics held")
+        if sum_fail != entry_failed:
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    "agent summary failed mismatch; semantics held")
+        if sum_ret != entry_returned:
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    "agent summary returned_bytes mismatch; semantics held")
+        if sum_trunc != (1 if entry_truncated else 0):
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    "agent summary truncated mismatch; semantics held")
+        # Summary continuations counts every CONTINUATION_METHODS
+        # request (root/restricted/continue); the audit counts
+        # query.continue follows only — so the summary must at least
+        # cover the enumerated follows (it may legitimately exceed).
+        if sum_cont < entry_continuations:
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    "agent summary continuations understated; semantics held")
+        continuations += entry_continuations
+        omitted += entry_omitted
+        truncated += entry_truncated
+        refusals += entry_failed
+        if cumulative > AGENT_CUMULATIVE_RESPONSE_BUDGET:
+            _reject("QUERY_REQUIRED_FACT_OMITTED",
+                    f"cumulative {cumulative} over budget; semantics held")
     if len(binary_ids) != 1 or (judge_binary and next(iter(binary_ids)) != judge_binary):
         _reject("QUERY_REQUIRED_FACT_OMITTED",
                 "tool/binary identity mismatch; semantics held")
-    if omitted > 0 or truncated > 0:
-        _reject("QUERY_REQUIRED_FACT_OMITTED",
-                f"omitted={omitted} truncated={truncated}; semantics held")
     if whole_store > 0:
         _reject("QUERY_REQUIRED_FACT_OMITTED",
                 f"whole_store_reads={whole_store}; semantics held")
@@ -1819,6 +2565,7 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
     _verify_final_linkage(trial_ws, entries)
     return {"whole_store_reads": whole_store, "targeted_reads": len(targeted),
             "operations": operations, "continuations": continuations,
+            "bounded_reads": bounded_reads,
             "omitted": omitted, "truncated": truncated, "refusals": refusals,
             "max_response_bytes": max_response, "agent_requests": calls,
             "invocations": len(entries)}
@@ -1936,19 +2683,43 @@ def _verify_final_linkage(trial_ws: Path, entries: list) -> None:
                 "final linkage mismatch; semantics held")
 
 
+def _live_object_count(session: Session) -> int:
+    """Live object count under the accepted head via revision.read.
+
+    Single owner-derived count (summary field 6 = objects().len()):
+    retained historical files never inflate it, and a deleted entity
+    stops counting the moment its tombstone commits. File scans must
+    not substitute for this in acceptance-critical counts."""
+
+    head_tx = session.head.get("tx", "")
+    if not head_tx:
+        _harness_fail("head for revision count")
+    reply = session._raw_request("revision.read", head_tx)
+    if reply["flags"].get("failed"):
+        _harness_fail("revision count unreadable")
+    try:
+        fields = _parse_record_fields(bytes.fromhex(reply["body"]))
+        count, _ = _uvar(fields[6], 0)
+    except Exception as error:
+        raise JudgeHarnessError(
+            f"LIVE_SLEY2_JUDGE_INVALID: revision count: {error}") from error
+    return int(count)
+
+
 def _judge_bounded(session: Session, manifest: dict, corpus: dict, scratch_ws: Path,
                    transcript: list, task_dir: Path, trial_ws: Path) -> str:
-    """CONTEXT task: minimum entity count, required field present, impact
-    closure coherent, collateral clean (generic path already ran), and the
-    judge's own transcript shows bounded usage only (no whole-store
-    dump, no failed calls, per-reply byte caps held)."""
+    """CONTEXT task: minimum live-entity count, required field present,
+    impact closure coherent, collateral clean (generic path already ran),
+    and the judge's own transcript shows bounded usage only (no
+    whole-store dump, no failed calls, per-reply byte caps held)."""
 
+    _ = scratch_ws
     judge = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
     entities = manifest.get("entities", {}) if isinstance(manifest.get("entities"), dict) else {}
     minimum = int(judge.get("minimum_entities", 10000))
-    count = len(_repo_stems(scratch_ws / REPO_DIR))
+    count = _live_object_count(session)
     if count < minimum:
-        _reject("ORACLE_BELOW_MINIMUM", f"{count} < {minimum}")
+        _reject("ORACLE_BELOW_MINIMUM", f"live {count} < {minimum}")
     typedef = entities.get("typedef", "")
     if not typedef:
         _harness_fail("typedef entity")
@@ -1965,7 +2736,8 @@ def _judge_bounded(session: Session, manifest: dict, corpus: dict, scratch_ws: P
     access = _audit_agent_access(task_dir, trial_ws)
     _ = corpus
     return ("whole_store_reads={whole_store_reads} targeted_reads={targeted_reads} "
-            "operations={operations} continuations={continuations} refusals={refusals} "
+            "operations={operations} continuations={continuations} "
+            "bounded_reads={bounded_reads} refusals={refusals} "
             "max_response_bytes={max_response_bytes}").format(**access)
 
 
@@ -2071,7 +2843,8 @@ def _audit_transcript_bounds(transcript: list) -> None:
     cap; the harness surface offers no dump/export method at all."""
 
     allowed = {"session.open", "workspace.open", "exchange.import", "commit",
-               "candidate.validate", "entity.version", "entity.signature"}
+               "candidate.validate", "entity.version", "entity.signature",
+               "revision.read"}
     requests = 0
     returned_total = 0
     for entry in transcript:

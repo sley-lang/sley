@@ -1,0 +1,136 @@
+{
+  "contract": "sley2.live-task-base.v1",
+  "entities": {},
+  "judge": {
+    "ceiling_roles": [
+      "tax_div"
+    ],
+    "composition": {
+      "result_cents": 2681,
+      "subtotal": [
+        2,
+        1250
+      ],
+      "tax_div": [
+        1812500,
+        10000
+      ],
+      "tax_mul": [
+        2500,
+        725
+      ],
+      "total": [
+        2500,
+        181
+      ]
+    },
+    "flow": "create",
+    "overflow": {
+      "code": 1,
+      "failure": "ARITHMETIC_OVERFLOW",
+      "inputs": [
+        9223372036854775807,
+        2
+      ],
+      "primitive": "subtotal"
+    },
+    "overflow_add": {
+      "code": 1,
+      "failure": "ARITHMETIC_OVERFLOW",
+      "inputs": [
+        9223372036854775807,
+        1
+      ],
+      "primitive": "total"
+    },
+    "primitives": {
+      "subtotal": {
+        "checks": [
+          [
+            2,
+            1250,
+            2500
+          ],
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        "opcode": 66,
+        "params": 2
+      },
+      "tax_div": {
+        "checks": [
+          [
+            1812500,
+            10000,
+            181
+          ],
+          [
+            0,
+            10000,
+            0
+          ],
+          [
+            1,
+            10000,
+            0
+          ]
+        ],
+        "opcode": 67,
+        "params": 2
+      },
+      "tax_mul": {
+        "checks": [
+          [
+            2500,
+            725,
+            1812500
+          ],
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        "opcode": 66,
+        "params": 2
+      },
+      "total": {
+        "checks": [
+          [
+            2500,
+            181,
+            2681
+          ],
+          [
+            0,
+            0,
+            0
+          ]
+        ],
+        "opcode": 64,
+        "params": 2
+      }
+    },
+    "wiring": {
+      "entry_calls": [
+        "subtotal",
+        "tax_mul",
+        "tax_div",
+        "total"
+      ]
+    }
+  },
+  "pack_digest_blake3": "1d8c69aed8e2e33ee6f07e4f7308283acf34e653039baa7e981b6e2eb19303a3",
+  "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
+  "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
+  "strict": {
+    "source": "corpus"
+  },
+  "targets": [],
+  "task_id": "S2B-CREATE-001",
+  "variant": "genesis",
+  "workspace": "0707070707070707070707070707070707070707070707070707070707070707"
+}

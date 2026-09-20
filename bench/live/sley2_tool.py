@@ -331,10 +331,15 @@ class Session:
         return self._request(method, body_hex)
 
     def side(self, name: str) -> dict[str, Any]:
-        """Inventory a frozen MERGE side state (ours/theirs pack) through
-        a throwaway session: import, enumerate, close, remove. The trial
-        repo is never touched; the side inventory is read-only evidence
-        for composing the merged outcome."""
+        """Read a frozen MERGE side state (ours/theirs pack) through a
+        throwaway session: import, resolve CURRENT versions with
+        decoded bodies, close, remove. The trial repo is never touched.
+
+        Currency comes from live entity.version bindings under the side
+        head, never file order: packs retain stale object versions
+        beside current ones, and a branch read must not resurrect them.
+        Tombstoned entities drop out. The side state is read-only
+        evidence for composing the merged outcome."""
 
         import shutil
         import tempfile
@@ -353,7 +358,7 @@ class Session:
             side_transcript: list[dict[str, Any]] = []
             side = Session(self._sley, stage, side_transcript)
             try:
-                return _inventory_of(side, stage, REPO_DIR)
+                return _side_current(side, stage)
             finally:
                 side.close()
                 # Side sessions are agent-visible work: their transcript
@@ -401,6 +406,55 @@ def _view(session: Session, method: str, body_hex: str) -> dict[str, Any]:
         return {"failed": False, "body": reply["body"], "decoded": None}
 
 
+def _side_current(session: Session, workspace: Path) -> dict[str, Any]:
+    """Current side-state entities with decoded bodies (see
+    Session.side). Distinct file entities resolve through live
+    entity.version bindings; stale duplicates collapse and tombstones
+    drop out. Small frozen packs: direct reads, failures skip."""
+
+    seen: set[str] = set()
+    for path in sorted((Path(workspace).resolve(strict=True) / REPO_DIR
+                        / "objects" / "scb1").rglob("*.scb1")):
+        try:
+            if path.is_symlink() or not path.is_file():
+                continue
+            [decoded] = sley2_codecs.run_batch([{
+                "op": "decode_object",
+                "stored": path.read_bytes().hex(),
+                "epoch": session.head["epoch"],
+            }])
+            entity = decoded["decoded"].get("entity_id", "")
+            if entity:
+                seen.add(str(entity))
+        except (OSError, sley2_codecs.CodecError, KeyError):
+            continue
+    entries: list[dict[str, Any]] = []
+    for entity in sorted(seen):
+        try:
+            reply = session.call("entity.version", _entity_body(session, entity))
+        except Sley2ToolError:
+            continue
+        if reply["flags"].get("failed"):
+            continue
+        try:
+            [decoded] = sley2_codecs.run_batch([{
+                "op": "decode_response", "method": "entity.version",
+                "body": reply["body"],
+            }])
+        except (sley2_codecs.CodecError, KeyError):
+            continue
+        items = decoded["decoded"].get("entries") or []
+        if len(items) != 1:
+            continue
+        object_id = items[0].get("object_id", "")
+        body = items[0].get("body")
+        if not object_id or not isinstance(body, dict):
+            continue
+        entries.append({"object": object_id, "entity": entity,
+                        "kind": items[0].get("kind"), "body": body})
+    return {"objects": entries, "count": len(entries)}
+
+
 def _inventory(session: Session, workspace: Path) -> dict[str, Any]:
     """Object ids served from the repository files, with entity identities
     and decoded kinds.
@@ -413,12 +467,18 @@ def _inventory(session: Session, workspace: Path) -> dict[str, Any]:
     return _inventory_of(session, workspace, REPO_DIR)
 
 
-def _inventory_of(session: Session, workspace: Path, repo_name: str) -> dict[str, Any]:
+def _inventory_of(session: Session, workspace: Path, repo_name: str,
+                    include_bodies: bool = False) -> dict[str, Any]:
     """Enumerate one served repository by its object files (see
     `_inventory`). Used for the trial repo and, for MERGE trials, for
-    frozen side states imported on demand into throwaway repos."""
+    frozen side states imported on demand into throwaway repos.
 
-    entries: list[dict[str, str]] = []
+    Side inventories include decoded bodies (display only, the same
+    views as `read`): the branch contents are legitimate trial inputs,
+    and the merge must be authored through the allowed interface, not
+    through raw pack reads. Trial-repo inventories stay id-only."""
+
+    entries: list[dict[str, Any]] = []
     epoch = session.head["epoch"]
     base = Path(workspace).resolve(strict=True) / repo_name / "objects" / "scb1"
     if base.is_dir():
@@ -433,8 +493,11 @@ def _inventory_of(session: Session, workspace: Path, repo_name: str) -> dict[str
                     "op": "decode_object", "stored": path.read_bytes().hex(), "epoch": epoch,
                 }])
                 entry = decoded["decoded"]
-                entries.append({"object": digest, "entity": entry["entity_id"],
-                                "kind": entry["kind"]})
+                item: dict[str, Any] = {"object": digest, "entity": entry["entity_id"],
+                                        "kind": entry["kind"]}
+                if include_bodies:
+                    item["body"] = entry.get("body")
+                entries.append(item)
             except (OSError, sley2_codecs.CodecError, KeyError):
                 continue
     return {"objects": entries, "count": len(entries)}
@@ -469,6 +532,7 @@ def _assemble(session: Session, ops: list[dict[str, Any]], *,
         _hex(nonce, 64)
     assembled_ops: list[dict[str, Any]] = []
     preconditions: list[dict[str, Any]] = []
+    read_targets: list[tuple[int, str, int, str, Any]] = []
     create_ordinal = 0
     for index, op in enumerate(ops):
         ordinal = index
@@ -520,18 +584,37 @@ def _assemble(session: Session, ops: list[dict[str, Any]], *,
                 "payload": {"entity_id": target},
             })
             continue
-        current = session.call("entity.version", _entity_body(session, target))
-        if current["flags"].get("failed"):
-            _fail("precondition read")
-        [decoded] = sley2_codecs.run_batch([{
-            "op": "decode_response", "method": "entity.version", "body": current["body"],
-        }])
-        entries = decoded["decoded"].get("entries") or []
-        if len(entries) != 1:
+        read_targets.append((ordinal, class_name, kind, target, field_tag))
+    # Precondition bindings resolve through live version reads in small
+    # chunks across fresh sessions (frozen per-session request limit):
+    # each chunk shares the invocation transcript, so every mechanical
+    # read stays in the chained evidence.
+    bindings: dict[int, str] = {}
+    for chunk_start in range(0, len(read_targets), 8):
+        probe = Session(session._sley, session._workspace,
+                        session._transcript, seed_pack=False)
+        try:
+            for ordinal, _class, _kind, target, _tag in read_targets[chunk_start:chunk_start + 8]:
+                current = probe.call("entity.version", _entity_body(probe, target))
+                if current["flags"].get("failed"):
+                    _fail("precondition read")
+                [decoded] = sley2_codecs.run_batch([{
+                    "op": "decode_response", "method": "entity.version",
+                    "body": current["body"],
+                }])
+                entries = decoded["decoded"].get("entries") or []
+                if len(entries) != 1:
+                    _fail("precondition read")
+                bindings[ordinal] = entries[0]["object_id"]
+        finally:
+            probe.close()
+    for ordinal, class_name, kind, target, field_tag in read_targets:
+        object_id = bindings.get(ordinal, "")
+        if not object_id:
             _fail("precondition read")
         precondition: dict[str, Any] = {
             "operation_ordinal": ordinal,
-            "payload": {"entity_id": target, "object_id": entries[0]["object_id"]},
+            "payload": {"entity_id": target, "object_id": object_id},
         }
         if field_tag is None:
             precondition["requirement"] = "ExactEntityVersion"
@@ -542,7 +625,7 @@ def _assemble(session: Session, ops: list[dict[str, Any]], *,
             precondition["requirement"] = "ExactContainerVersion"
             precondition["payload"] = {
                 "container_id": target,
-                "object_id": entries[0]["object_id"],
+                "object_id": object_id,
                 "field_tag": field_tag,
             }
         else:

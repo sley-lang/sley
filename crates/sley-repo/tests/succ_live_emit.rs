@@ -35,9 +35,11 @@
 //!   oracle (strict corpus cases through native execution plus
 //!   collateral/forbidden checks), never by matching an embedded answer:
 //!   no fixed program appears anywhere in the emitted fixtures.
-//! - CREATE-001 stages blank (no pack): program authoring from nothing is
-//!   a missing production capability (no model-authorable program
-//!   representation exists), recorded as blocked, not faked.
+//! - CREATE-001 stages a genesis pack (workspace/policy/anchors, no
+//!   program entities): runner-owned empty-state initialization, which
+//!   the contract permits. The invoice program itself is authored
+//!   through the trial surface (structured CreateEntity operations),
+//!   never pre-seeded; roles are discovered behaviorally by the judge.
 //! - EFFECT-001 and CAP-001 carry their frozen E7 exclusions; bases are
 //!   still emitted so trial slots stage, and the live oracle rejects
 //!   them exactly as the frozen expect files do.
@@ -390,6 +392,53 @@ fn bool_constant(byte: u8, value: bool) -> (EntityId, EntityBodyValue) {
 // Entity bytes are task-scoped (0x40 + 12 per task); layouts are
 // documented in each builder. Every base is a coherent but failing
 // program: the fix is verified behaviorally, never embedded.
+
+fn base_create() -> (
+    Vec<(EntityId, EntityBodyValue)>,
+    BTreeMap<&'static str, String>,
+    Vec<String>,
+    serde_json::Value,
+) {
+    // Genesis scaffolding only (workspace, policy, anchors): no program
+    // entities. The trial agent authors the invoice program (subtotal /
+    // tax / total checked primitives plus a wiring entry) through the
+    // trial surface from this empty state; nothing here is a solution.
+    // Roles are discovered behaviorally by the judge (execution of the
+    // frozen scalar checks), never by fixed identities: entity ids are
+    // nonce-derived at trial time, so the manifest pins no program ids.
+    // Checked integer arithmetic yields Result (never bare SInt), so no
+    // multi-op chaining is expressible: each primitive is one checked
+    // op (the frozen S3 shape), sequenced by the caller. The tax role
+    // spans tax_mul/tax_div; the composition identity below is the
+    // one-line corpus case over observed values.
+    let judge = serde_json::json!({
+        "flow": "create",
+        "primitives": {
+            "subtotal": {"params": 2, "opcode": 66,
+                "checks": [[2, 1250, 2500], [0, 0, 0]]},
+            "tax_mul": {"params": 2, "opcode": 66,
+                "checks": [[2500, 725, 1812500], [0, 0, 0]]},
+            "tax_div": {"params": 2, "opcode": 67,
+                "checks": [[1812500, 10000, 181], [0, 10000, 0],
+                           [1, 10000, 0]]},
+            "total": {"params": 2, "opcode": 64,
+                "checks": [[2500, 181, 2681], [0, 0, 0]]},
+        },
+        "overflow": {"primitive": "subtotal",
+            "inputs": [9223372036854775807i64, 2],
+            "failure": "ARITHMETIC_OVERFLOW", "code": 1},
+        "overflow_add": {"primitive": "total",
+            "inputs": [9223372036854775807i64, 1],
+            "failure": "ARITHMETIC_OVERFLOW", "code": 1},
+        "composition": {"subtotal": [2, 1250], "tax_mul": [2500, 725],
+            "tax_div": [1812500, 10000], "total": [2500, 181],
+            "result_cents": 2681},
+        "ceiling_roles": ["tax_div"],
+        "wiring": {"entry_calls": ["subtotal", "tax_mul", "tax_div",
+                                   "total"]},
+    });
+    (vec![], BTreeMap::new(), vec![], judge)
+}
 
 fn base_repair() -> (
     Vec<(EntityId, EntityBodyValue)>,
@@ -808,11 +857,16 @@ fn base_perf() -> (
     Vec<String>,
     serde_json::Value,
 ) {
-    // Corpus S2B-PERF-001 at trial scale: a nested SInt membership scan
-    // replaced by an ordered-map strategy. Same outputs and effects,
-    // measurably fewer instructions; the frozen 30% bar is judged from
-    // driver counts. (faster_but_wrong negative: a flipped probe is
-    // faster but changes the output digest.)
+    // Corpus S2B-PERF-001 at the governing 5x5 scale: a nested SInt
+    // membership scan (5 haystack + 5 query params, 46 ops) replaced by
+    // an ordered-map strategy (MapNew pairs + 5 MapContains probes +
+    // VectorNew gather = 7 ops). Same outputs and effects, measurably
+    // fewer instructions; the frozen 30% bar is judged from driver
+    // counts on the submitted candidate. The 46-op base and the fix
+    // record both fit the 64-op trial-surface record cap; the frozen
+    // 40x40 S3 G3 pins the same transformation class at full scale.
+    // (faster_but_wrong negative: a flipped probe is faster but
+    // changes the output digest.)
     let boolvec = || TypeExpr::Vector(Box::new(TypeExpr::Bool));
     let op_result = |byte: u8| {
         ValueRef::OperationResult(OperationResultRef {
@@ -826,7 +880,18 @@ fn base_perf() -> (
         id(0xB9),
         EntityBodyValue::Function(FunctionBody {
             type_parameters: vec![],
-            parameters: vec![id(0xBB), id(0xBC), id(0xBD), id(0xBE)],
+            parameters: vec![
+                id(0xBB),
+                id(0xBC),
+                id(0xBD),
+                id(0xBE),
+                id(0xBF),
+                id(0xC0),
+                id(0xC1),
+                id(0xC2),
+                id(0xC3),
+                id(0xC4),
+            ],
             result_type: boolvec(),
             effects: empty_set(),
             entry_block: id(0xBA),
@@ -835,7 +900,10 @@ fn base_perf() -> (
             visibility: Visibility::Private,
         }),
     ));
-    for (ordinal, param) in [0xBBu8, 0xBC, 0xBD, 0xBE].iter().enumerate() {
+    for (ordinal, param) in [0xBBu8, 0xBC, 0xBD, 0xBE, 0xBF, 0xC0, 0xC1, 0xC2, 0xC3, 0xC4]
+        .iter()
+        .enumerate()
+    {
         bodies.push((
             id(*param),
             EntityBodyValue::Parameter(ParameterBody {
@@ -846,32 +914,47 @@ fn base_perf() -> (
             }),
         ));
     }
-    // Scan ops 0xC0..0xC6 (deleted by the fix): per query one Equal per
-    // haystack slot folded with BoolOr, then a VectorNew gather.
-    let scan: Vec<(u8, Opcode, Vec<ValueRef>, TypeExpr)> = vec![
-        (0xC0, Opcode::Equal, vec![p(0xBB), p(0xBD)], TypeExpr::Bool),
-        (0xC1, Opcode::Equal, vec![p(0xBC), p(0xBD)], TypeExpr::Bool),
-        (
-            0xC2,
-            Opcode::BoolOr,
-            vec![op_result(0xC0), op_result(0xC1)],
-            TypeExpr::Bool,
-        ),
-        (0xC3, Opcode::Equal, vec![p(0xBB), p(0xBE)], TypeExpr::Bool),
-        (0xC4, Opcode::Equal, vec![p(0xBC), p(0xBE)], TypeExpr::Bool),
-        (
-            0xC5,
-            Opcode::BoolOr,
-            vec![op_result(0xC3), op_result(0xC4)],
-            TypeExpr::Bool,
-        ),
-        (
-            0xC6,
-            Opcode::VectorNew,
-            vec![op_result(0xC2), op_result(0xC5)],
-            boolvec(),
-        ),
-    ];
+    // Scan ops 0xC5..0xF2 (deleted by the fix): per query one Equal
+    // per haystack slot folded with BoolOr, then a VectorNew gather.
+    // 25 Equal + 20 BoolOr + 1 VectorNew = 46 ops.
+    let haystack: [u8; 5] = [0xBB, 0xBC, 0xBD, 0xBE, 0xBF];
+    let queries: [u8; 5] = [0xC0, 0xC1, 0xC2, 0xC3, 0xC4];
+    let mut scan: Vec<(u8, Opcode, Vec<ValueRef>, TypeExpr)> = vec![];
+    let mut next: u8 = 0xC5;
+    let mut query_roots: Vec<u8> = vec![];
+    for qi in 0..5 {
+        let query = queries[qi];
+        let mut acc: u8 = 0;
+        for hi in 0..5 {
+            let slot = haystack[hi];
+            let eq = next;
+            next += 1;
+            scan.push((eq, Opcode::Equal, vec![p(slot), p(query)], TypeExpr::Bool));
+            if hi == 0 {
+                acc = eq;
+            } else {
+                let folded = next;
+                next += 1;
+                scan.push((
+                    folded,
+                    Opcode::BoolOr,
+                    vec![op_result(acc), op_result(eq)],
+                    TypeExpr::Bool,
+                ));
+                acc = folded;
+            }
+        }
+        query_roots.push(acc);
+    }
+    let gather = next;
+    next += 1;
+    let mut gather_operands: Vec<ValueRef> = vec![];
+    for qi in 0..5 {
+        gather_operands.push(op_result(query_roots[qi]));
+    }
+    scan.push((gather, Opcode::VectorNew, gather_operands, boolvec()));
+    assert_eq!(scan.len(), 46, "5x5 scan op count");
+    assert_eq!(next, 0xF3, "5x5 op byte cursor");
     let mut op_ids = vec![];
     for (index, (byte, opcode, operands, result)) in scan.iter().enumerate() {
         op_ids.push(id(*byte));
@@ -895,7 +978,7 @@ fn base_perf() -> (
             operations: op_ids,
             terminator: Terminator::Return(ReturnTerminator {
                 value: ValueRef::OperationResult(OperationResultRef {
-                    operation: id(0xC6),
+                    operation: id(gather),
                     result_index: 0,
                 }),
             }),
@@ -907,11 +990,18 @@ fn base_perf() -> (
     entities.insert("func", eid(0xB9));
     entities.insert("block", eid(0xBA));
     let mut targets = vec![eid(0xB9), eid(0xBA)];
-    for byte in [0xC0u8, 0xC1, 0xC2, 0xC3, 0xC4, 0xC5, 0xC6] {
+    for qi in 0..46 {
+        let byte: u8 = 0xC5 + qi as u8;
         targets.push(eid(byte));
     }
+    // Governing fixed large inputs: 5 haystack + 5 query SInt values
+    // per row (hits and misses). Both rows keep all-distinct haystack
+    // values: the ordered-map fix bakes deduplicated haystack keys by
+    // parameter (the frozen S3 G3 pattern), so a duplicated haystack
+    // value in any fixed row would trap instead of comparing.
     let judge = serde_json::json!({"flow": "perf", "entry": "func",
-        "fixed_inputs": [[10, 20, 20, 99], [1, 2, 4, 5]],
+        "fixed_inputs": [[3, 7, 11, 19, 23, 7, 4, 11, 30, 23],
+                         [5, 6, 7, 8, 9, 5, 1, 2, 3, 4]],
         "minimum_instruction_reduction_percent": 30});
     (bodies, entities, targets, judge)
 }
@@ -1421,6 +1511,7 @@ type BaseBuilder = fn() -> (
 
 fn task_table() -> Vec<(&'static str, &'static str, BaseBuilder)> {
     vec![
+        ("S2B-CREATE-001", "genesis", base_create),
         ("S2B-REPAIR-001", "upper_returns_low", base_repair),
         ("S2B-SIG-001", "missing_caller", base_sig),
         ("S2B-MODULE-001", "stale_import", base_module),

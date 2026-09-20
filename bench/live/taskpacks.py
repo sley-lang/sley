@@ -63,12 +63,14 @@ START_VARIANTS: dict[str, dict[str, str | None]] = {
         "S2B-CORRUPT-001": "unflipped",
     },
     # sley_2_0 initial states are frozen base packs (one per task) holding
-    # the buggy native program; CREATE starts from a blank repository. The
+    # the buggy native program; CREATE starts from a genesis pack
+    # (workspace/policy/anchors, no program entities — runner-owned
+    # empty-state initialization, never a pre-seeded solution). The
     # variant names mirror raw_files: the same failing control, natively
     # embodied. Packs live at bench/fixtures/sley2/<TASK>/base.pack with a
     # task_manifest.json pinning principal, workspace, policy, and targets.
     "sley_2_0": {
-        "S2B-CREATE-001": None,
+        "S2B-CREATE-001": "genesis",
         "S2B-REPAIR-001": "upper_returns_low",
         "S2B-SIG-001": "missing_caller",
         "S2B-MODULE-001": "stale_import",
@@ -185,7 +187,8 @@ def stage_initial(arm_id: str, task_id: str, destination: Path) -> None:
         # A sley_2_0 workspace holds the staged base pack (imported by the
         # tool at session start, the privileged seeding pattern) plus an
         # empty repository directory the server initializes on import.
-        # CREATE starts from a blank repository with no pack.
+        # CREATE stages the genesis pack (empty program state); the
+        # invoice program is authored through the trial surface.
         if task_id not in TASK_IDS:
             raise ValueError("LIVE_TASKPACK_UNKNOWN")
         target = Path(destination)

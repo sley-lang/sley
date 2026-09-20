@@ -97,6 +97,11 @@ Commands:
 .sley-live/sley-tool side ours|theirs
 ```
 
+`side` reports the frozen branch contents with decoded bodies (read-only):
+the branch states are trial inputs, and the merged outcome is composed
+from them through `propose`/`compose`/`finish` like any other change.
+
+
 `inventory` lists served object ids with decoded kinds. `read`/`sig` show
 an entity with its decoded body: edit by authoring the modified body as
 structured JSON (field names per the decoded view) or, for scalar fields,

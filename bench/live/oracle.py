@@ -89,6 +89,8 @@ def run_fixture_oracle(
         # Live-trial judging lives beside (never inside) the frozen S3
         # conformance oracles: per-task entry, shared judge module.
         oracle = FIXTURES / ARM_NAMES[arm_id] / task_id / "live_oracle.py"
+    else:
+        oracle = FIXTURES / ARM_NAMES[arm_id] / task_id / "oracle.py"
     candidate = Path(candidate)
     try:
         oracle = oracle.resolve(strict=True)

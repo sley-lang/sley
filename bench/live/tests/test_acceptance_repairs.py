@@ -367,9 +367,10 @@ class ComposeThreePhaseIntegrationTests(unittest.TestCase):
 
 
 class TrustedEvidenceTests(unittest.TestCase):
-    """Task-2 boundaries: provider confinement, whole-store on every
-    read route, omitted/truncated rejection, binary-identity binding.
-    No model calls; chains are sealed synthetically.
+    """Task-2 boundaries: provider confinement, whole-store only for
+    inventory/side, bounded query paging with explicit continuations,
+    hidden-truncation and summary-mismatch rejection,
+    binary-identity binding. No model calls; chains sealed synthetically.
     """
 
     def _task_dir(self):
@@ -446,37 +447,68 @@ class TrustedEvidenceTests(unittest.TestCase):
         self.assertIn('shell_environment_policy.inherit="none"', command)
         self.assertIn("/tmp/trial-ws", command)
 
-    def test_query_route_counts_as_whole_store(self) -> None:
+    def test_bounded_query_route_is_not_whole_store(self) -> None:
+        # Bounded paging routes are not whole-store by method name: a
+        # complete single-page query.root derives whole_store_reads=0.
         import tempfile
         from pathlib import Path
 
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         trial_ws = Path(tmp.name)
-        session = [{"direction": "request", "method": "query.root"},
-                   {"direction": "response", "failed": False}]
+        session = [{"direction": "request", "method": "query.root",
+                    "body_sha256": "0" * 64},
+                   {"direction": "response", "failed": False,
+                    "body_sha256": "1" * 64, "omitted": 0,
+                    "truncated": False, "returned_bytes": 100}]
         entry = self._base_entry("raw", session=session,
                                  summary={"continuations": 1, "returned_bytes": 100})
         self._write_chain(trial_ws, [entry])
-        with self.assertRaises(judge.JudgeRejection) as raised:
-            judge._audit_agent_access(self._task_dir(), trial_ws)
-        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
-        self.assertIn("whole_store_reads", raised.exception.detail)
+        access = judge._audit_agent_access(self._task_dir(), trial_ws)
+        self.assertEqual(access["whole_store_reads"], 0)
+        self.assertGreaterEqual(access["bounded_reads"], 1)
 
-    def test_refs_list_counts_as_whole_store(self) -> None:
+    def test_refs_list_is_bounded_not_whole_store(self) -> None:
         import tempfile
         from pathlib import Path
 
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         trial_ws = Path(tmp.name)
-        session = [{"direction": "request", "method": "refs.list"},
-                   {"direction": "response", "failed": False}]
-        entry = self._base_entry("raw", session=session)
+        session = [{"direction": "request", "method": "refs.list",
+                    "body_sha256": "0" * 64},
+                   {"direction": "response", "failed": False,
+                    "body_sha256": "1" * 64, "omitted": 0,
+                    "truncated": False, "returned_bytes": 100}]
+        entry = self._base_entry("raw", session=session,
+                                 summary={"returned_bytes": 100})
+        self._write_chain(trial_ws, [entry])
+        access = judge._audit_agent_access(self._task_dir(), trial_ws)
+        self.assertEqual(access["whole_store_reads"], 0)
+
+    def test_hidden_truncation_prevents_acceptance(self) -> None:
+        # A truncated bounded page with no following query.continue is
+        # hidden truncation, not a complete bounded read.
+        import tempfile
+        from pathlib import Path
+
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        trial_ws = Path(tmp.name)
+        session = [{"direction": "request", "method": "query.root",
+                    "body_sha256": "0" * 64},
+                   {"direction": "response", "failed": False,
+                    "body_sha256": "1" * 64, "omitted": 4,
+                    "truncated": True, "returned_bytes": 100}]
+        entry = self._base_entry("raw", session=session,
+                                 summary={"continuations": 1, "omitted": 4,
+                                          "truncated": True,
+                                          "returned_bytes": 100})
         self._write_chain(trial_ws, [entry])
         with self.assertRaises(judge.JudgeRejection) as raised:
             judge._audit_agent_access(self._task_dir(), trial_ws)
         self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+        self.assertIn("continuation", raised.exception.detail)
 
     def test_omitted_response_prevents_acceptance(self) -> None:
         import tempfile
@@ -523,6 +555,151 @@ class TrustedEvidenceTests(unittest.TestCase):
         with self.assertRaises(judge.JudgeRejection) as raised:
             judge._audit_agent_access(self._task_dir(), trial_ws)
         self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+
+
+class RootBindingTests(unittest.TestCase):
+    """Owner-derived EntityId -> ObjectId resolution (task 3).
+
+    Acceptance-critical reads resolve currency through live
+    entity.version bindings under the accepted head, never through
+    first-matching object files. These run against the real binary and
+    frozen TEST pack (no model calls).
+    """
+
+    def setUp(self) -> None:
+        import os
+        import tempfile
+        from pathlib import Path
+
+        raw = os.environ.get("SLEY2_SLEY_BINARY",
+                             "/home/gfarch/Work/target-sley2-succ/debug/sley")
+        self.sley = Path(raw)
+        if not (self.sley.is_file() and os.access(self.sley, os.X_OK)):
+            self.skipTest("sley binary unavailable")
+        from bench.live.taskpacks import stage_initial
+        from bench.live.tooling import stage_tooling
+
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.ws = Path(self.temp.name) / "ws"
+        stage_initial("sley_2_0", "S2B-TEST-001", self.ws)
+        stage_tooling("sley_2_0", self.ws)
+        task_dir = (Path(__file__).resolve().parents[3] / "bench" / "fixtures"
+                    / "sley2" / "S2B-TEST-001")
+        manifest = json.loads((task_dir / "task_manifest.json").read_text())
+        self.func = manifest["entities"]["func"]
+        self._env = mock.patch.dict(os.environ, {"SLEY2_SLEY_BINARY": str(self.sley)})
+        self._env.start()
+        self.addCleanup(self._env.stop)
+        from bench.live.sley2_tool import Session
+
+        self.session = Session(self.sley, self.ws, [], seed_pack=True)
+        self.addCleanup(self.session.close)
+        self.repo = self.ws / sley2_tool.REPO_DIR
+
+    def test_bound_bytes_follow_live_binding(self) -> None:
+        live_id = judge._live_object_id(self.session, self.func)
+        self.assertTrue(judge._is_hash64(live_id))
+        bound = judge._entity_bound_bytes(self.session, self.repo, self.func)
+        self.assertIsNotNone(bound)
+        # Exact object at the live binding, decoding to the entity.
+        exact = judge._bound_object_bytes(self.repo, live_id)
+        self.assertEqual(bound, exact)
+        path = judge._object_path(self.repo, live_id)
+        self.assertIsNotNone(path)
+        [decoded] = sley2_tool.sley2_codecs.run_batch([{
+            "op": "decode_object", "stored": bound.hex(),
+            "epoch": self.session.head.get("epoch", ""),
+        }])
+        self.assertEqual(decoded["decoded"].get("entity_id"), self.func)
+
+    def live_set(self) -> set[str]:
+        from bench.live.sley2_tool import Session
+
+        def connect() -> Session:
+            return Session(self.sley, self.ws, [], seed_pack=False)
+
+        return judge._live_entity_set(
+            connect, self.ws, self.repo,
+            self.session.head.get("epoch", ""))
+
+    def test_filename_order_decoy_cannot_shadow_binding(self) -> None:
+        before = judge._entity_bound_bytes(self.session, self.repo, self.func)
+        live_before = self.live_set()
+        self.assertIn(self.func, live_before)
+        # Decoy file sorting before every real object: valid hex stem,
+        # content decoding to an already-live entity (copied object
+        # bytes). File scans see it; the live binding must not move.
+        live_id = judge._live_object_id(self.session, self.func)
+        live_path = judge._object_path(self.repo, live_id)
+        assert live_path is not None
+        decoy = self.repo / "objects" / "scb1" / ("00" * 32 + ".scb1")
+        decoy.write_bytes(live_path.read_bytes())
+        try:
+            self.assertEqual(
+                judge._entity_bound_bytes(self.session, self.repo, self.func),
+                before)
+            self.assertEqual(self.live_set(), live_before)
+        finally:
+            decoy.unlink()
+
+    def test_absent_entity_has_no_binding(self) -> None:
+        # Deleted/absent entities fail entity.version: no binding, not
+        # present — history files can never resurrect them here.
+        self.assertIsNone(judge._live_object_id(self.session, "ff" * 32))
+        self.assertFalse(judge._entity_present(self.session, "ff" * 32))
+        self.assertIsNone(
+            judge._entity_bound_bytes(self.session, self.repo, "ff" * 32))
+
+
+class CreateClassifierTests(unittest.TestCase):
+    """CREATE overflow/ceiling rules (pure classifier level): the frozen
+    negative codes are specified judge behavior. Live reachability
+    differs (checked-only ISA), so these pin the mapping directly."""
+
+    def err(self, code: int) -> dict:
+        return {"ok": True, "value": {"Result": {"Err": {"BuiltinFailure": {
+            "kind": "Arithmetic", "code": code}}}}}
+
+    def ok(self, value: int) -> dict:
+        return {"ok": True, "value": {"Result": {"Ok": {"SInt": str(value)}}}}
+
+    def test_overflow_err_passes(self) -> None:
+        judge._check_overflow_result(self.err(1), {"code": 1},
+                                     "ORACLE_UNCHECKED_ARITHMETIC")
+
+    def test_overflow_value_is_unchecked(self) -> None:
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            judge._check_overflow_result(self.ok(0), {"code": 1},
+                                         "ORACLE_UNCHECKED_ARITHMETIC")
+        self.assertEqual(raised.exception.code, "ORACLE_UNCHECKED_ARITHMETIC")
+
+    def test_overflow_wrong_code_mismatches(self) -> None:
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            judge._check_overflow_result(self.err(2), {"code": 1},
+                                         "ORACLE_UNCHECKED_ARITHMETIC")
+        self.assertEqual(raised.exception.code, "ORACLE_CREATE_MISMATCH")
+
+    def test_overflow_driver_failure_mismatches(self) -> None:
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            judge._check_overflow_result({"ok": False, "code": "X"},
+                                         {"code": 1},
+                                         "ORACLE_UNCHECKED_ARITHMETIC")
+        self.assertEqual(raised.exception.code, "ORACLE_CREATE_MISMATCH")
+
+    def checks(self) -> list:
+        return [[1812500, 10000, 181], [0, 10000, 0], [1, 10000, 0]]
+
+    def test_ceiling_triple_is_wrong_cents(self) -> None:
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            judge._reject_ceil_near_miss([("e", [182, 0, 1])], self.checks())
+        self.assertEqual(raised.exception.code, "ORACLE_WRONG_CENTS")
+
+    def test_floor_triple_passes_silently(self) -> None:
+        judge._reject_ceil_near_miss([("e", [181, 0, 0])], self.checks())
+
+    def test_unrelated_triple_passes_silently(self) -> None:
+        judge._reject_ceil_near_miss([("e", [5, 5, 5])], self.checks())
 
 
 if __name__ == "__main__":

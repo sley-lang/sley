@@ -232,6 +232,36 @@ def handle(call):
                       classes=[item["class"] for item in ops],
                       kinds=[item["kind"] for item in ops],
                       targets=[bytes(item["target"]).hex() for item in ops])
+    if op == "record_operations":
+        # Full operation decode for genuine rebase: the judge replays
+        # the contender's own classes/targets/payloads against the new
+        # base with fresh bindings (same change, new base), instead of
+        # proving an unrelated no-op validates. Structure-validated
+        # through the pinned oracle; the server re-checks everything at
+        # validate time. Only Create/Replace bodies decode to
+        # authorable form; anything else fails closed.
+        record = h(call["record"])
+        C._decode_candidate_record(record)
+        fields = C._read_record(record, list(range(1, 14)))
+        decoded = []
+        for item in C._read_list(fields[9]):
+            parsed = C._decode_operation(item)
+            op_fields = C._read_record(item, list(range(1, 8)))
+            entry = {"ordinal": parsed["ordinal"], "class": parsed["class"],
+                     "kind": parsed["kind"],
+                     "target": bytes(parsed["target"]).hex(),
+                     "field_tag": parsed["field_tag"]}
+            if parsed["class"] in ("CreateEntity", "ReplaceEntityVersion"):
+                _tag, payload = C._read_union(op_fields[6])
+                _body_tag, body = C._read_union(payload)
+                body_type = C.ENTITY_BODIES[parsed["kind"]]
+                entry["body_type"] = body_type
+                entry["payload"] = _to_json(body_type, Cursor(body))
+            else:
+                entry["body_type"] = None
+                entry["payload"] = None
+            decoded.append(entry)
+        return out_ok(operations=json.loads(json.dumps(decoded, default=_default)))
     if op == "record_from_stored":
         # Digest-verified stored -> record bytes (append answers stored
         # bytes; validation needs the record). Framing parse only after

@@ -1,0 +1,4 @@
+TEST witness/pos: propose valid True
+TEST witness/pos: finished True
+S2B-TEST-001 witness/pos judge exit: 0
+workspace kept at: /tmp/sley2-test-witness-23vvugu6/ws

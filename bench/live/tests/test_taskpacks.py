@@ -60,10 +60,19 @@ class TaskPackTests(unittest.TestCase):
             self.assertEqual(snapshot_directory(first), snapshot_directory(second))
             self.assertTrue((first / "base.pack").is_file())
             self.assertTrue((first / "repo").is_dir())
-            blank = Path(temporary) / "blank"
-            stage_initial("sley_2_0", "S2B-CREATE-001", blank)
-            self.assertEqual(list((blank / "repo").iterdir()), [])
-            self.assertFalse((blank / "base.pack").exists())
+            genesis = Path(temporary) / "genesis"
+            stage_initial("sley_2_0", "S2B-CREATE-001", genesis)
+            self.assertEqual(list((genesis / "repo").iterdir()), [])
+            # Genesis pack: scaffolding only, no program entities (the
+            # program is authored through the trial surface, never
+            # pre-seeded). Digest-pinned to the frozen fixture.
+            self.assertTrue((genesis / "base.pack").is_file())
+            import hashlib
+
+            pack = (genesis / "base.pack").read_bytes()
+            fixture = (Path(__file__).resolve().parents[3] / "bench" / "fixtures"
+                       / "sley2" / "S2B-CREATE-001" / "base.pack").read_bytes()
+            self.assertEqual(pack, fixture)
 
 
 if __name__ == "__main__":
