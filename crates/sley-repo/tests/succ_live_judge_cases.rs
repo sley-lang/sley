@@ -32,6 +32,7 @@
 //!     unsupported as driver inputs.
 //!   - `Result{ok, error}`: `{"ok": item}` or `{"err": item}` (exactly
 //!     one), decoded against the corresponding arm type.
+//!
 //!   Nesting beyond 8 levels is rejected. Every decoded value passes
 //!   production `check_constant` before execution. Missing or malformed
 //!   required fields are driver errors, never silent zeros.
@@ -66,7 +67,7 @@ use std::collections::BTreeMap;
 const MAX_CONST_DEPTH: u32 = 8;
 
 fn unhex(text: &str) -> Result<Vec<u8>, String> {
-    if text.len() % 2 != 0 {
+    if !text.len().is_multiple_of(2) {
         return Err("hex length".to_string());
     }
     (0..text.len() / 2)
@@ -855,7 +856,7 @@ mod typed_driver_tests {
         fields
     }
 
-    fn record_item(fields: serde_json::Map<String, serde_json::Value>) -> serde_json::Value {
+    fn record_item(fields: &serde_json::Map<String, serde_json::Value>) -> serde_json::Value {
         serde_json::json!({"values": [{"fields": fields}]})
     }
 
@@ -864,7 +865,7 @@ mod typed_driver_tests {
         let definitions = fixture_definitions();
         let types = TypeEnvironment::new(definitions.clone()).unwrap();
         let resolver = fixture_resolver(&types, &definitions);
-        let item = record_item(line_fields(2, 1250));
+        let item = record_item(&line_fields(2, 1250));
         let value = const_of(&resolver, &invoice_input_type(), &item, 0).unwrap();
         let refs: BTreeMap<EntityId, &TypeDefinition> = definitions
             .iter()

@@ -38,7 +38,7 @@
 //! - CREATE-001 stages a genesis pack (workspace/policy/anchors, no
 //!   program entities): runner-owned empty-state initialization, which
 //!   the contract permits. The invoice program itself is authored
-//!   through the trial surface (structured CreateEntity operations),
+//!   through the trial surface (structured `CreateEntity` operations),
 //!   never pre-seeded; types and the entry are discovered by shape
 //!   against the submitted accepted state, never by fixed identities:
 //!   entity ids are nonce-derived at trial time, so the manifest pins
