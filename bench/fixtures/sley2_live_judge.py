@@ -187,10 +187,25 @@ def _run_driver(repo: Path, function: str, cases: list) -> dict:
     for line in completed.stdout.decode("utf-8", "replace").splitlines():
         if line.startswith("LIVE_JUDGE_RESULT "):
             try:
-                return json.loads(line[len("LIVE_JUDGE_RESULT "):])
+                verdict = json.loads(line[len("LIVE_JUDGE_RESULT "):])
             except json.JSONDecodeError as error:
                 raise JudgeHarnessError(
                     f"LIVE_SLEY2_JUDGE_INVALID: verdict: {error}") from error
+            if isinstance(verdict, dict):
+                # Fail-closed driver boundary: harness-side failures
+                # (malformed inputs, unrenderable values, top-level
+                # driver errors) are never candidate evidence.
+                if verdict.get("harness_error"):
+                    raise JudgeHarnessError(
+                        f"LIVE_SLEY2_JUDGE_INVALID: driver harness: "
+                        f"{verdict['harness_error']}"[:200])
+                for case in verdict.get("cases") or []:
+                    if (isinstance(case, dict)
+                            and isinstance(case.get("code"), str)
+                            and case["code"].startswith("DRIVER_")):
+                        raise JudgeHarnessError(
+                            f"LIVE_SLEY2_JUDGE_INVALID: {case['code']}"[:200])
+            return verdict
     raise JudgeHarnessError("LIVE_SLEY2_JUDGE_INVALID: no verdict")
 
 

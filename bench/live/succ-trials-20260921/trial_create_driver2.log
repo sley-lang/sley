@@ -1,0 +1,5 @@
+CREATE witness/pos: skeleton valid False
+CREATE witness/pos: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/pos: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': 'fa30e559c1d984ace654834b6e9f14abd5bc83449142a96926a92039c91b5f0d'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': '61a4d48c1e4200087f8ded00737a98dba27eadadcd6d5680d3420c87f2a880c4', 'truncated': False}
+S2B-CREATE-001 witness/pos judge exit: 0
+workspace kept at: /tmp/sley2-create-witness-vrhi4xh2/ws
