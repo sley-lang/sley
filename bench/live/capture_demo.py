@@ -60,11 +60,11 @@ TASK_ID = "S2B-TYPE-001"
 TASK_DIR = ROOT / "bench" / "fixtures" / "sley2" / TASK_ID
 TOOL_VERSION = "1"
 
-# Adapter-conventional member labels (deterministic, consistent across
-# the attempt; NOT frozen task content — the judge checks typedef
-# shape and case coverage, never these literals).
-MEMBERS = {"queued": "51" * 32, "running": "52" * 32,
-           "succeeded": "53" * 32, "failed": "54" * 32}
+# No staged trial inputs: the confined client discovers starting
+# identities through the gateway (inventory/read) and authors new
+# member ids locally. The demo stages only the client script copy;
+# frozen bindings still pin the pack/manifest/tool/binary for the
+# runner-owned capture.
 
 lines: list[str] = []
 
@@ -85,28 +85,6 @@ def require_env(name: str) -> str:
     return value
 
 
-def trial_inputs(manifest: dict) -> dict:
-    entities = manifest["entities"]
-    param = ""
-    for candidate in manifest.get("targets", []):
-        if isinstance(candidate, str) and candidate.startswith("6c"):
-            param = candidate
-    if not param:
-        raise SystemExit("no 6c param in manifest targets")
-    return {
-        "task_id": TASK_ID,
-        "entities": {
-            "status": entities["status"],
-            "switch": entities["switch"],
-            "param": param,
-            "switch_entry": entities["switch_entry"],
-            "switch_leaf": entities["switch_leaf"],
-            "typedef_hint": entities["status"],
-        },
-        "members": MEMBERS,
-    }
-
-
 def frozen_bindings(protected_ws: Path, manifest: dict) -> dict:
     return {
         "pack_sha256": sha256_file(protected_ws / "base.pack"),
@@ -120,7 +98,8 @@ def frozen_bindings(protected_ws: Path, manifest: dict) -> dict:
 def setup_run(root: Path, with_binary: bool) -> dict:
     """Stage runner-owned protected state + agent scratch (no tooling in
     either: the gateway drives Sessions directly; the agent holds only
-    trial inputs and the client script copy)."""
+    the client script copy and discovers identities via the gateway).
+    No trial-inputs file is staged in either path."""
 
     protected_ws = root / "protected" / "ws"
     stage_initial("sley_2_0", TASK_ID, protected_ws)
@@ -132,8 +111,6 @@ def setup_run(root: Path, with_binary: bool) -> dict:
     manifest = json.loads((TASK_DIR / "task_manifest.json").read_text())
     scratch = root / "scratch"
     scratch.mkdir(mode=0o700, parents=True)
-    (scratch / "trial_inputs.json").write_text(
-        json.dumps(trial_inputs(manifest), sort_keys=True), encoding="utf-8")
     shutil.copyfile(ROOT / "bench" / "live" / "mediated_client.py",
                     scratch / "mediated_client.py")
     capture_dir = root / "capture"
@@ -215,9 +192,6 @@ def step_access() -> int:
     # it exits before any frame; run it unconsumed to show the client
     # itself cannot exfiltrate by path).
     env = {"capture_dir": capture, "scratch": scratch}
-    (scratch / "trial_inputs.json").write_text(
-        json.dumps({"task_id": TASK_ID, "entities": {}, "members": {}}),
-        encoding="utf-8")
     client_src = ROOT / "bench" / "live" / "mediated_client.py"
     shutil.copyfile(client_src, scratch / "mediated_client.py")
     spec = cf.SandboxSpec(scratch_dir=scratch,

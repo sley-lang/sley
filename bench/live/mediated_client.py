@@ -3,11 +3,14 @@
 
 Stdlib only. Runs inside the bwrap sandbox with no protected
 filesystem: the only channel is frames on stdin/stdout to the trusted
-gateway (request frame out, response frame in). Trial inputs
-(entity ids, task id) arrive as `/scratch/trial_inputs.json` staged by
-the runner; everything else the adapter needs comes back through
-allowed responses. No codec, pack, repository, oracle, or capture path
-is available inside the sandbox.
+gateway (request frame out, response frame in). Starting identities
+are discovered exclusively through the allowed gateway surface
+(inventory/read/resolve — every call captured and counted); no
+trial-inputs file, manifest role map, or staged member literals are
+consulted. Agent-authored identities (new typedef member ids) are
+generated client-side deterministically; the judge checks typedef
+shape and case coverage, never those literals. No codec, pack,
+repository, oracle, or capture path is available inside the sandbox.
 
 Multi-phase composition needs no client-side derivation: round 1
 proposes the skeleton record to establish the nonce (mirrors the
@@ -31,6 +34,8 @@ Sequences (argv[1]):
   type_shared   same shape with two leaves sharing a constant
   type_nullcode Failed member with null payload (wrong-code negative:
                 forbidden null error, loss of the explicit code)
+  stale_pos     STALE guard flip via inventory/read discovery + finish
+                (non-TYPE mediated proof; no staged guard id)
   refusal_probe allowed read + denied command (expects ok then refusal;
                 also drops forged candidate-side diagnostics)
   access_probe  attempt direct opens of protected paths given in
@@ -45,8 +50,149 @@ import sys
 
 SINT = {"variant": "SInt", "value": 64}
 
+# Agent-authored member ids for the new JobState typedef (generated
+# client-side, never staged by the runner; the judge checks shape and
+# coverage, never these literals).
+CLIENT_MEMBERS = {"queued": "51" * 32, "running": "52" * 32,
+                  "succeeded": "53" * 32, "failed": "54" * 32}
+
 SOCK_ENV = "SLEY2_GATEWAY_SOCK"
 FRAME_LIMIT = 8 * 1024 * 1024
+
+
+def _report(reply: dict) -> dict:
+    """Gateway envelope report (raises on refusal)."""
+
+    if not isinstance(reply, dict) or not reply.get("ok"):
+        raise RuntimeError(f"gateway refused: {str(reply)[:200]}")
+    report = reply.get("report")
+    if not isinstance(report, dict):
+        raise RuntimeError("gateway report shape")
+    return report
+
+
+def _decoded_body(report: dict) -> dict:
+    """Decoded entity body from a read report (raises on failure)."""
+
+    if report.get("failed"):
+        raise RuntimeError(f"read failed: {str(report)[:200]}")
+    decoded = report.get("decoded") or {}
+    entries = decoded.get("entries") or []
+    if len(entries) != 1 or not isinstance(entries[0].get("body"), dict):
+        raise RuntimeError("read body shape")
+    return entries[0]["body"]
+
+
+def discover_type_roles(gw: Gateway) -> dict:
+    """Discover TYPE starting identities through the allowed surface.
+
+    inventory lists every served (entity, kind); read returns each
+    decoded body. Roles are identified structurally, never by a
+    staged manifest map or 6c-prefix convention:
+    - status: kind-9 constant whose Bool payload is the pre-migration
+      job flag (read to confirm);
+    - switch: kind-5 function with exactly one parameter, two blocks,
+      Bool result, whose entry block is a CondBranch on its parameter
+      (the Bool dispatch under migration);
+    - param: the switch's sole Function-role parameter;
+    - entry/leaf: the switch's entry block and its sibling block.
+    Every step is a captured gateway exchange like any agent action.
+    """
+
+    revision = gw.call("read", "revision", [])
+    if not revision.get("ok"):
+        raise RuntimeError("revision refused")
+    inv_reply = gw.call("read", "inventory", [])
+    report = _report(inv_reply)
+    objects = ((report.get("inventory") or {}).get("objects")) or []
+    if not isinstance(objects, list) or not objects:
+        raise RuntimeError("empty inventory")
+    by_kind: dict[int, list[str]] = {}
+    for item in objects:
+        if not isinstance(item, dict):
+            continue
+        entity = item.get("entity")
+        kind = item.get("kind")
+        if (isinstance(entity, str) and len(entity) == 64
+                and isinstance(kind, int)):
+            by_kind.setdefault(kind, []).append(entity)
+    # Status: kind-9 constant holding the pre-migration Bool flag.
+    status = ""
+    for entity in by_kind.get(9, []):
+        body = _decoded_body(_report(gw.call("read", "read", [entity])))
+        value = (body.get("value") or {}) if isinstance(body, dict) else {}
+        data = (value.get("data") or {}) if isinstance(value, dict) else {}
+        vtype = (value.get("value_type") or {}) if isinstance(value, dict) else {}
+        if (isinstance(data, dict) and data.get("variant") == "Bool"
+                and isinstance(vtype, dict)
+                and vtype.get("variant") == "Bool"):
+            status = entity
+            break
+    if not status:
+        raise RuntimeError("status role not discoverable")
+    # Switch: kind-5 function, one param, two blocks, Bool result,
+    # entry block CondBranch on its own parameter.
+    switch = ""
+    entry = ""
+    leaf = ""
+    param = ""
+    for entity in by_kind.get(5, []):
+        body = _decoded_body(_report(gw.call("read", "read", [entity])))
+        if not isinstance(body, dict):
+            continue
+        params = body.get("parameters")
+        blocks = body.get("blocks")
+        result = body.get("result_type") or {}
+        if (not isinstance(params, list) or len(params) != 1
+                or not isinstance(blocks, list) or len(blocks) != 2
+                or not isinstance(result, dict)
+                or result.get("variant") != "Bool"):
+            continue
+        entry_cand = body.get("entry_block")
+        if not isinstance(entry_cand, str):
+            continue
+        try:
+            entry_body = _decoded_body(
+                _report(gw.call("read", "read", [entry_cand])))
+        except RuntimeError:
+            continue
+        if not isinstance(entry_body, dict):
+            continue
+        term = (entry_body.get("terminator") or {}) if isinstance(
+            entry_body, dict) else {}
+        if not isinstance(term, dict) or term.get("variant") != "CondBranch":
+            continue
+        value = (term.get("value") or {}) if isinstance(term, dict) else {}
+        cond = (value.get("condition") or {}) if isinstance(value, dict) else {}
+        if (not isinstance(cond, dict) or cond.get("variant") != "Parameter"
+                or cond.get("value") not in params):
+            continue
+        if entry_body.get("function") != entity:
+            continue
+        # Param must be a Function-role Bool parameter owned by this fn.
+        try:
+            param_body = _decoded_body(
+                _report(gw.call("read", "read", [params[0]])))
+        except RuntimeError:
+            continue
+        if (not isinstance(param_body, dict)
+                or param_body.get("owner") != entity
+                or param_body.get("role") != "Function"
+                or not isinstance(param_body.get("value_type"), dict)
+                or param_body["value_type"].get("variant") != "Bool"):
+            continue
+        switch = entity
+        entry = entry_cand
+        param = params[0]
+        others = [b for b in blocks if b != entry]
+        if len(others) != 1 or not isinstance(others[0], str):
+            continue
+        leaf = others[0]
+        break
+    if not (switch and param and entry and leaf):
+        raise RuntimeError("switch role not discoverable")
+    return {"status": status, "switch": switch, "param": param,
+            "switch_entry": entry, "switch_leaf": leaf}
 
 
 def log(text: str) -> None:
@@ -171,9 +317,10 @@ def sint_const(value: int) -> dict:
             "data": {"variant": "SInt", "value": value}}
 
 
-def _finish_skeleton(gw: Gateway, inputs: dict) -> int:
+def _finish_skeleton(gw: Gateway) -> int:
     """Minimal legitimate flow: bounded read, skeleton propose, and
-    finish. The finished record lands in protected state only."""
+    finish. The finished record lands in protected state only.
+    Member ids are agent-authored locally (never staged inputs)."""
 
     revision = gw.call("read", "revision", [])
     if not revision.get("ok"):
@@ -183,7 +330,7 @@ def _finish_skeleton(gw: Gateway, inputs: dict) -> int:
         return 0
     proposal = gw.call(
         "compose", "propose",
-        [json.dumps([op_create(4, typedef_payload(inputs["members"]))])])
+        [json.dumps([op_create(4, typedef_payload(dict(CLIENT_MEMBERS)))])])
     report = proposal.get("report", {}) if proposal.get("ok") else {}
     if not report.get("created"):
         log("SUMMARY " + json.dumps({"ok": False,
@@ -198,10 +345,14 @@ def _finish_skeleton(gw: Gateway, inputs: dict) -> int:
     return 0
 
 
-def seq_type(gw: Gateway, inputs: dict, code: int,
+def seq_type(gw: Gateway, code: int,
              status_member: str | None, leaf_values: list[int],
              null_payload: bool) -> dict:
-    """Bounded read / propose-creates / compose-full / finish via gateway."""
+    """Bounded discovery + propose-creates / compose-full / finish.
+
+    Starting identities come from inventory/read discovery through the
+    gateway (captured, counted); new member ids are agent-authored
+    locally. No staged manifest map or 6c-prefix selection."""
 
     outcome: dict = {"ok": False, "steps": []}
 
@@ -213,12 +364,17 @@ def seq_type(gw: Gateway, inputs: dict, code: int,
              "bytes": len(json.dumps(reply, sort_keys=True))})
         return reply
 
-    members = inputs["members"]
-    status_id = inputs["entities"]["status"]
-    switch_id = inputs["entities"]["switch"]
-    param_id = inputs["entities"]["param"]
-    entry_id = inputs["entities"]["switch_entry"]
-    leaf_id = inputs["entities"]["switch_leaf"]
+    try:
+        roles = discover_type_roles(gw)
+    except RuntimeError as error:
+        outcome["error"] = f"discovery refused: {error}"
+        return outcome
+    members = dict(CLIENT_MEMBERS)
+    status_id = roles["status"]
+    switch_id = roles["switch"]
+    param_id = roles["param"]
+    entry_id = roles["switch_entry"]
+    leaf_id = roles["switch_leaf"]
     failed = members["failed"]
     if status_member is None:
         status_member = failed
@@ -362,6 +518,85 @@ def seq_type(gw: Gateway, inputs: dict, code: int,
     return outcome
 
 
+def seq_stale(gw: Gateway) -> dict:
+    """STALE guard flip through the allowed surface (non-TYPE proof).
+
+    Discovers the Bool guard constant via inventory/read (kind-9
+    constant with a Bool payload — the only such entity flips under
+    the stale-sequence flow), flips it via propose/finish. No staged
+    manifest guard id."""
+
+    outcome: dict = {"ok": False, "steps": []}
+
+    def step(name: str, phase: str, command: str,
+             args: list[str]) -> dict:
+        reply = gw.call(phase, command, args)
+        outcome["steps"].append(
+            {"name": name, "ok": reply.get("ok"),
+             "bytes": len(json.dumps(reply, sort_keys=True))})
+        return reply
+
+    revision = step("revision", "read", "revision", [])
+    if not revision.get("ok"):
+        outcome["error"] = "revision refused"
+        return outcome
+    inv = step("inventory", "read", "inventory", [])
+    try:
+        objects = ((inv.get("report") or {}).get("inventory") or {}).get(
+            "objects") or []
+    except AttributeError:
+        outcome["error"] = "inventory shape"
+        return outcome
+    guard = ""
+    guard_kind = 0
+    guard_body: dict = {}
+    for item in objects if isinstance(objects, list) else []:
+        if not isinstance(item, dict):
+            continue
+        entity = item.get("entity")
+        kind = item.get("kind")
+        if not (isinstance(entity, str) and isinstance(kind, int)):
+            continue
+        if kind != 9:
+            continue
+        reply = step(f"read_{entity[:8]}", "read", "read", [entity])
+        try:
+            body = _decoded_body(_report(reply))
+        except RuntimeError:
+            continue
+        value = (body.get("value") or {}) if isinstance(body, dict) else {}
+        data = (value.get("data") or {}) if isinstance(value, dict) else {}
+        if isinstance(data, dict) and data.get("variant") == "Bool":
+            guard = entity
+            guard_kind = kind
+            guard_body = body
+            break
+    if not guard:
+        outcome["error"] = "guard not discoverable"
+        return outcome
+    flipped = json.loads(json.dumps(guard_body))
+    try:
+        flipped["value"]["data"]["value"] = not flipped["value"]["data"]["value"]
+    except (KeyError, TypeError):
+        outcome["error"] = "guard body shape"
+        return outcome
+    ops = [{"class": "ReplaceEntityVersion", "kind": guard_kind,
+            "target": guard, "field_tag": None, "payload": flipped}]
+    proposal = step("propose", "compose", "propose", [json.dumps(ops)])
+    report = proposal.get("report", {}) if proposal.get("ok") else {}
+    if not report.get("valid"):
+        outcome["error"] = "propose invalid"
+        outcome["valid"] = report.get("valid")
+        return outcome
+    finale = step("finish", "finish", "finish", [report["record"]])
+    outcome["finished"] = bool(
+        finale.get("ok") and (finale.get("report") or {}).get("finished"))
+    outcome["ok"] = outcome["finished"]
+    if not outcome["ok"]:
+        outcome["error"] = "finish refused"
+    return outcome
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         log("usage: mediated_client.py SEQUENCE [args...]")
@@ -402,20 +637,14 @@ def main() -> int:
         log("SUMMARY " + json.dumps({"ok": True, "frames": 0},
                                     sort_keys=True))
         return 0
-    try:
-        with open("/scratch/trial_inputs.json", encoding="utf-8") as handle:
-            inputs = json.load(handle)
-    except OSError as error:
-        log(f"no trial inputs: {error}")
-        return 2
     gw = Gateway(session_id=f"agent-{os.getpid()}")
-    code = _run_sequence(gw, inputs, sequence)
+    code = _run_sequence(gw, sequence)
     if socket_mode:
         emit_provider_stream(gw.cmdlog)
     return code
 
 
-def _run_sequence(gw: Gateway, inputs: dict, sequence: str) -> int:
+def _run_sequence(gw: Gateway, sequence: str) -> int:
     if sequence == "access_probe":
         results: dict = {"reads": {}, "writes": {}}
         for path in sys.argv[2:]:
@@ -477,7 +706,7 @@ def _run_sequence(gw: Gateway, inputs: dict, sequence: str) -> int:
         if not revision.get("ok") or denied.get("ok", True):
             log("SUMMARY " + json.dumps({"ok": False}, sort_keys=True))
             return 0
-        code = _finish_skeleton(gw, inputs)
+        code = _finish_skeleton(gw)
         return code
     if sequence in ("finish_skeleton", "forge_scratch", "no_finish"):
         if sequence == "no_finish":
@@ -487,13 +716,13 @@ def _run_sequence(gw: Gateway, inputs: dict, sequence: str) -> int:
             proposal = gw.call(
                 "compose", "propose",
                 [json.dumps([op_create(
-                    4, typedef_payload(inputs["members"]))])])
+                    4, typedef_payload(dict(CLIENT_MEMBERS)))])])
             summary = {"ok": bool(revision.get("ok"))
                        and bool(proposal.get("ok")),
                        "frames": gw.frames, "finished": False}
             log("SUMMARY " + json.dumps(summary, sort_keys=True))
             return 0
-        code = _finish_skeleton(gw, inputs)
+        code = _finish_skeleton(gw)
         if sequence == "forge_scratch" and code == 0:
             # Forged candidate-side diagnostics: the attempt may
             # still accept (protected flow is legitimate), but the
@@ -517,10 +746,17 @@ def _run_sequence(gw: Gateway, inputs: dict, sequence: str) -> int:
         "type_nullcode": {"code": 7, "status_member": None,
                           "leaf_values": [0, 1, 2], "null_payload": True},
     }
+    if sequence == "stale_pos":
+        outcome = seq_stale(gw)
+        outcome["frames"] = gw.frames
+        log("SUMMARY " + json.dumps(
+            {k: v for k, v in outcome.items() if k != "steps"},
+            sort_keys=True))
+        return 0
     if sequence in params:
         if sequence == "type_queued":
-            params[sequence]["status_member"] = inputs["members"]["queued"]
-        outcome = seq_type(gw, inputs, **params[sequence])
+            params[sequence]["status_member"] = CLIENT_MEMBERS["queued"]
+        outcome = seq_type(gw, **params[sequence])
         outcome["frames"] = gw.frames
         log("SUMMARY " + json.dumps(
             {k: v for k, v in outcome.items() if k != "steps"},

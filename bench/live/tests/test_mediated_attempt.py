@@ -297,6 +297,36 @@ class MediatedAttemptTests(unittest.TestCase):
         self.assertEqual(verified[0]["evidence_status"],
                          "VERIFIED_LIVE_EVIDENCE")
 
+    @unittest.skipUnless(NEEDS_BINARY and NEEDS_JUDGE_BINARY
+                         and NEEDS_CONFINEMENT,
+                         "needs SLEY2_SLEY_BINARY + SUCC_JUDGE_TEST_BINARY + bwrap")
+    def test_full_stale_flip_real_oracle(self) -> None:
+        """Non-TYPE mediated proof (no staged inputs): the stand-in
+        discovers the guard via inventory/read through the gateway
+        (captured, counted) and finishes; the real oracle judges the
+        protected workspace. Same production path as the TYPE proof."""
+
+        from bench.live.oracle import run_fixture_oracle
+
+        record = execute_attempt(
+            run_directory=self.run,
+            store=self.store,
+            adapter=StandInAdapter("stale_pos"),
+            task_id="S2B-STALE-001",
+            arm_id="sley_2_0",
+            seed=17,
+            workspace_parent=self.root / "workspaces",
+            provider_runner=run_provider_process,
+            oracle_runner=run_fixture_oracle,
+            utc_now=lambda: "2026-09-17T12:01:00Z",
+        )
+        self.assertEqual(record["status"], "accepted")
+        self.assertIsNone(record["failure_code"])
+        verified = verify_attempts(self.run, self.store)
+        self.assertEqual(len(verified), 1)
+        self.assertEqual(verified[0]["evidence_status"],
+                         "VERIFIED_LIVE_EVIDENCE")
+
 
 if __name__ == "__main__":
     unittest.main()

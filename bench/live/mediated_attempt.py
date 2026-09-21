@@ -91,12 +91,14 @@ SOCK_NAME = "gateway.sock"
 SHIM_ENV = "SLEY2_GATEWAY_SOCK"
 FRAME_LIMIT_BYTES = 8 * 1024 * 1024
 
-# Adapter-conventional member labels (deterministic, consistent across
-# the attempt; NOT frozen task content — the judge checks typedef
-# shape and case coverage, never these literals). Same convention as
-# the capture demonstration's trial inputs.
-ADAPTER_MEMBERS = {"queued": "51" * 32, "running": "52" * 32,
-                   "succeeded": "53" * 32, "failed": "54" * 32}
+# No staged trial inputs: the confined agent discovers starting
+# identities exclusively through the documented gateway surface
+# (inventory/read/resolve, all captured and counted). A private
+# manifest role map, 6c-prefix parameter selection, or conventional
+# variant-member literals must never be staged into scratch: they
+# are deterministic-test scaffolding, not campaign inputs. Agent
+# authorship of new identities (e.g. typedef member ids) happens
+# client-side through the same surface in tests and production.
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "bench" / "fixtures"
@@ -120,42 +122,6 @@ def stage_mediated_scratch(scratch: Path) -> None:
     client = (ROOT / "bench" / "live" / "mediated_client.py").read_bytes()
     (root / "mediated_client.py").write_bytes(client)
     os.chmod(root / "mediated_client.py", 0o444)
-
-
-def stage_trial_inputs(scratch: Path, task_id: str) -> dict[str, Any]:
-    """Stage runner-derived starting-state identities for deterministic
-    adapters (entity ids also visible via the inventory command; no
-    solution content, no oracle inputs). Returns the staged mapping."""
-
-    manifest_path = FIXTURES / "sley2" / task_id / "task_manifest.json"
-    try:
-        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
-        from bench.live.campaign import CampaignError as _CampaignError
-
-        raise _CampaignError(
-            f"LIVE_MEDIATED_INPUTS_INVALID: {task_id}: {error}") from error
-    entities = manifest.get("entities", {})
-    param = ""
-    for candidate in manifest.get("targets", []):
-        if isinstance(candidate, str) and candidate.startswith("6c"):
-            param = candidate
-            break
-    inputs = {
-        "task_id": task_id,
-        "entities": {
-            "status": entities.get("status"),
-            "switch": entities.get("switch"),
-            "param": param,
-            "switch_entry": entities.get("switch_entry"),
-            "switch_leaf": entities.get("switch_leaf"),
-            "typedef_hint": entities.get("status"),
-        },
-        "members": dict(ADAPTER_MEMBERS),
-    }
-    (Path(scratch) / "trial_inputs.json").write_text(
-        json.dumps(inputs, sort_keys=True), encoding="utf-8")
-    return inputs
 
 
 def resolve_sley_binary() -> Path:
@@ -551,7 +517,6 @@ def execute_mediated_attempt(
         scratch = Path(temporary) / "scratch"
         scratch.mkdir(mode=0o700)
         stage_mediated_scratch(scratch)
-        stage_trial_inputs(scratch, task_id)
         sock_path = scratch / SOCK_NAME
         server = GatewayServer(sock_path, endpoint)
         # Masked prefixes: trial state, the run's records/artifacts,
