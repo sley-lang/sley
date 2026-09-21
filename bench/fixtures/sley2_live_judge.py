@@ -3233,6 +3233,251 @@ def _is_hash64(value: object) -> bool:
             and all(ch in "0123456789abcdef" for ch in value))
 
 
+def _mediated_capture_dir() -> Path | None:
+    """Runner-controlled reconciled capture for this attempt, when the
+    trial ran through the mediated gateway (set by the runner, never
+    by the agent). Unset on the direct tool path, which keeps the
+    legacy chain-file route."""
+
+    raw = os.environ.get("SLEY2_MEDIATED_CAPTURE_DIR", "")
+    if not raw or "\x00" in raw:
+        return None
+    return Path(raw)
+
+
+def _capture_canonical(value: object) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=True).encode("utf-8")
+
+
+def _capture_seal_digest(previous: str, record: dict) -> str:
+    body = {key: value for key, value in record.items()
+            if key not in ("prev", "hash")}
+    return hashlib.sha256(
+        (previous + _capture_canonical(body).decode("ascii")
+         ).encode("ascii")).hexdigest()
+
+
+def _audit_mediated_access(capture_dir: Path, task_dir: Path,
+                           trial_ws: Path) -> dict[str, int]:
+    """CONTEXT access/budget evidence from the runner-owned reconciled
+    capture (mediated trials): hash-chained request/response pairs with
+    per-call bytes, failure, omission, truncation, and continuation
+    accounting — never candidate-side files.
+
+    Binding verification (fail-closed, never defaulted):
+    - start.json contract, attempt match, frozen pack/manifest/tool/
+      binary bindings against judge-computed values;
+    - exchanges.jsonl hash chain from genesis, request/response seq
+      pairing, per-record attempt match;
+    - completion.json contract/attempt, exchange count, chain head,
+      and final_sha256 against the trial final artifact when one
+      exists (read-only probes link nothing).
+
+    Audit rules mirror the legacy chain audit at captured-method
+    granularity (`raw:<server method>` exposes the inner query
+    method; gateway-local `resolve` is neutral): bounded query
+    methods are not whole-store reads by name; a truncated/omitted
+    bounded page must be continued in the same session scope (the
+    capture's own session_id, stronger than entry scope); a
+    query.continue with no preceding truncation in scope is
+    inconsistent; cumulative and per-response budgets bind; only
+    inventory/side count as whole-store; commit and hidden truncation
+    reject. Scope/root consistency comes from the capture's session
+    scopes and frozen pack/manifest bindings, not method names alone.
+    """
+
+    def fail(detail: str) -> None:
+        _reject("QUERY_REQUIRED_FACT_OMITTED", detail)
+
+    if not capture_dir.is_dir() or capture_dir.is_symlink():
+        fail("mediated capture missing; semantics held")
+    try:
+        start = json.loads((capture_dir / "start.json").read_bytes()
+                           .decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        fail("mediated start unreadable; semantics held")
+    if (not isinstance(start, dict)
+            or start.get("contract") != "sley2.trusted-capture.v1"
+            or not isinstance(start.get("attempt_id"), str)
+            or not start["attempt_id"]):
+        fail("mediated start shape; semantics held")
+    attempt_id = start["attempt_id"]
+    frozen = start.get("frozen")
+    if not isinstance(frozen, dict):
+        fail("mediated frozen bindings missing; semantics held")
+    try:
+        pack_digest = hashlib.sha256(
+            (task_dir / "base.pack").read_bytes()).hexdigest()
+        manifest_digest = hashlib.sha256(
+            (task_dir / "task_manifest.json").read_bytes()).hexdigest()
+    except OSError as error:
+        raise JudgeHarnessError(
+            f"LIVE_SLEY2_JUDGE_INVALID: fixture: {error}") from error
+    if frozen.get("pack_sha256") != pack_digest:
+        fail("mediated fixture binding mismatch; semantics held")
+    if frozen.get("task_manifest_sha256") != manifest_digest:
+        fail("mediated manifest binding mismatch; semantics held")
+    if frozen.get("tool_version") != TOOL_VERSION:
+        fail("mediated tool version mismatch; semantics held")
+    try:
+        judge_binary = hashlib.sha256(_resolve_binary().read_bytes()
+                                      ).hexdigest()
+    except Exception:
+        judge_binary = ""
+    if (not _is_hash64(frozen.get("binary_sha256"))
+            or (judge_binary and frozen.get("binary_sha256")
+                != judge_binary)):
+        fail("mediated tool/binary identity mismatch; semantics held")
+    try:
+        lines = (capture_dir / "exchanges.jsonl").read_bytes().decode(
+            "utf-8").splitlines()
+    except OSError:
+        fail("mediated exchanges missing; semantics held")
+    if not lines:
+        fail("mediated exchanges empty; semantics held")
+    pairs: list[tuple[dict, dict]] = []
+    previous = "0" * 64
+    pending: dict | None = None
+    seq = 0
+    for number, line in enumerate(lines):
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            fail(f"mediated exchange line {number} shape; semantics held")
+        if not isinstance(record, dict):
+            fail(f"mediated exchange line {number} shape; semantics held")
+        if record.get("attempt_id") != attempt_id:
+            fail(f"mediated exchange line {number} attempt; semantics held")
+        if record.get("prev") != previous:
+            fail(f"mediated exchange line {number} prev link; semantics held")
+        if _capture_seal_digest(previous, record) != record.get("hash"):
+            fail(f"mediated exchange line {number} hash; semantics held")
+        previous = str(record.get("hash"))
+        kind = record.get("kind")
+        if kind == "request":
+            if pending is not None:
+                fail("mediated exchange order; semantics held")
+            if record.get("seq") != seq:
+                fail("mediated exchange seq; semantics held")
+            pending = record
+        elif kind == "response":
+            if pending is None:
+                fail("mediated exchange order; semantics held")
+            if record.get("seq") != seq:
+                fail("mediated exchange seq; semantics held")
+            for key in ("phase", "method", "session_id"):
+                if record.get(key) != pending.get(key):
+                    fail("mediated request/response binding; semantics held")
+            pairs.append((pending, record))
+            pending = None
+            seq += 1
+        else:
+            fail(f"mediated exchange line {number} kind; semantics held")
+    if pending is not None:
+        fail("mediated exchange order; semantics held")
+    try:
+        completion = json.loads((capture_dir / "completion.json")
+                                .read_bytes().decode("utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        fail("mediated completion missing; semantics held")
+    if (not isinstance(completion, dict)
+            or completion.get("contract")
+            != "sley2.trusted-capture-completion.v1"
+            or completion.get("attempt_id") != attempt_id):
+        fail("mediated completion shape; semantics held")
+    if completion.get("exchanges") != len(pairs):
+        fail("mediated completion count; semantics held")
+    if completion.get("chain_head") != previous:
+        fail("mediated completion head; semantics held")
+    final = trial_ws / "final_candidate.hex"
+    try:
+        if final.is_file() and not final.is_symlink():
+            final_bytes = final.read_bytes()
+            if final_bytes:
+                # Completion binds the exact protected final bytes
+                # (the file as the runner held it).
+                final_digest = hashlib.sha256(final_bytes).hexdigest()
+                if final_digest != completion.get("final_sha256"):
+                    fail("mediated final binding mismatch; semantics held")
+    except OSError:
+        fail("mediated final binding unverifiable; semantics held")
+    whole_store = 0
+    operations = 0
+    bounded_reads = 0
+    continuations = 0
+    omitted = 0
+    truncated = 0
+    refusals = 0
+    max_response = 0
+    cumulative = 0
+    calls = 0
+    pending_truncated: dict[str, bool] = {}
+
+    def inner_method(method: object) -> str:
+        if not isinstance(method, str):
+            return ""
+        if method.startswith("raw:"):
+            return method[len("raw:"):]
+        return method
+
+    for request, response in pairs:
+        calls += 1
+        method = inner_method(request.get("method"))
+        scope = request.get("session_id")
+        if not isinstance(scope, str) or not scope:
+            fail("mediated session scope; semantics held")
+        if method in ("inventory", "side"):
+            # Full file enumeration of every served object: the only
+            # whole-store routes. Bounded query methods below are NOT
+            # whole-store by name.
+            whole_store += 1
+        if method == "commit":
+            fail("agent commit path; semantics held")
+        if method in ("propose", "compose", "append", "finish"):
+            operations += 1
+        try:
+            returned = int(response.get("response_bytes", 0) or 0)
+            omit = int(response.get("omitted", 0) or 0)
+        except (TypeError, ValueError):
+            fail("mediated response shape; semantics held")
+        trunc = bool(response.get("truncated"))
+        if response.get("failed"):
+            refusals += 1
+        omitted += omit
+        if trunc:
+            truncated += 1
+        max_response = max(max_response, returned)
+        cumulative += returned
+        if returned > MAX_RESPONSE_BYTES:
+            fail(f"response over bound {returned}; semantics held")
+        if method in BOUNDED_QUERY_METHODS:
+            bounded_reads += 1
+            if method == "query.continue":
+                continuations += 1
+                if not pending_truncated.get(scope, False):
+                    fail("inconsistent continuation; semantics held")
+                pending_truncated[scope] = False
+            elif trunc or omit > 0:
+                # Bounded page with more to fetch: an explicit
+                # query.continue must follow in this scope.
+                pending_truncated[scope] = True
+        elif trunc or omit > 0:
+            fail(f"hidden truncation on {method}; semantics held")
+        if cumulative > AGENT_CUMULATIVE_RESPONSE_BUDGET:
+            fail(f"cumulative {cumulative} over budget; semantics held")
+    if any(pending_truncated.values()):
+        fail("truncated page without continuation; semantics held")
+    if whole_store > 0:
+        fail(f"whole_store_reads={whole_store}; semantics held")
+    return {"whole_store_reads": whole_store,
+            "operations": operations, "continuations": continuations,
+            "bounded_reads": bounded_reads, "omitted": omitted,
+            "truncated": truncated, "refusals": refusals,
+            "max_response_bytes": max_response, "agent_requests": calls,
+            "invocations": len(pairs)}
+
+
 def _verify_candidate_transitions(entries: list) -> None:
     """Compose/append/finish linkage for access-evidence claims.
 
@@ -3383,13 +3628,22 @@ def _judge_bounded(session: Session, manifest: dict, corpus: dict, scratch_ws: P
     reply = session._raw_request("entity.version", _tool_entity_body(session, typedef))
     if reply["flags"].get("failed"):
         _reject("ORACLE_TYPEDEF_UNREADABLE", typedef[:32])
-    add = judge.get("add_member", {}) if isinstance(judge.get("add_member"), dict) else {}
-    if add:
-        _judge_added_member(session, scratch_ws, typedef, add)
-    impact = judge.get("impact", []) if isinstance(judge.get("impact"), list) else []
-    if impact and add:
-        _judge_impact_consts(session, scratch_ws, entities, impact, add)
+    added = _typedef_added_members(task_dir, session, scratch_ws, typedef)
+    if not added:
+        _reject("ORACLE_IMPACT_INCOMPLETE", "no added member")
+    _verify_impact_closure(session, scratch_ws, typedef, added)
     _audit_transcript_bounds(transcript)
+    mediated_dir = _mediated_capture_dir()
+    if mediated_dir is not None:
+        # Mediated trials: access/budget evidence comes from the
+        # runner-owned reconciled capture, never the obsolete
+        # candidate-workspace chain file (the gateway path writes
+        # none, by design).
+        access = _audit_mediated_access(mediated_dir, task_dir, trial_ws)
+        return ("mediated whole_store_reads={whole_store_reads} "
+                "operations={operations} continuations={continuations} "
+                "bounded_reads={bounded_reads} refusals={refusals} "
+                "max_response_bytes={max_response_bytes}").format(**access)
     access = _audit_agent_access(task_dir, trial_ws)
     _ = corpus
     return ("whole_store_reads={whole_store_reads} targeted_reads={targeted_reads} "
@@ -3398,101 +3652,246 @@ def _judge_bounded(session: Session, manifest: dict, corpus: dict, scratch_ws: P
             "max_response_bytes={max_response_bytes}").format(**access)
 
 
-def _judge_impact_consts(session: Session, scratch_ws: Path, entities: dict,
-                         impact: list, add: dict) -> None:
-    """Every impact-closure record constant carries the added member
-    (the closure update is complete, not just the typedef)."""
+def _typedef_record_fields(body: dict) -> list:
+    """Record fields of a decoded TypeDef body in definition order."""
 
-    member = add.get("member", "")
-    for role in impact:
-        if not isinstance(role, str):
-            _harness_fail("impact role")
-        target = entities.get(role, "")
-        if not target:
-            _harness_fail("impact entity")
-        reply = session._raw_request("entity.version", _tool_entity_body(session, target))
-        if reply["flags"].get("failed"):
-            _reject("ORACLE_IMPACT_INCOMPLETE", role[:32])
-        try:
-            [decoded] = sley2_codecs.run_batch([{
-                "op": "decode_response", "method": "entity.version",
-                "body": reply["body"],
-            }])
-        except (sley2_codecs.CodecError, KeyError) as error:
-            raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: impact: {error}") from error
-        entries = decoded["decoded"].get("entries") or []
-        if len(entries) != 1:
-            _reject("ORACLE_IMPACT_INCOMPLETE", role[:32])
-        path = _object_path(scratch_ws / REPO_DIR, entries[0].get("object_id", ""))
-        if path is None:
-            _reject("ORACLE_IMPACT_INCOMPLETE", role[:32])
-        try:
-            [obj] = sley2_codecs.run_batch([{
-                "op": "decode_object", "stored": path.read_bytes().hex(),
-                "epoch": session.head["epoch"],
-            }])
-        except (OSError, sley2_codecs.CodecError, KeyError) as error:
-            raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: impact: {error}") from error
-        body = obj["decoded"].get("body")
-        if not isinstance(body, dict):
-            _harness_fail("impact body")
-        value = body.get("value") or {}
-        data = value.get("data") or {} if isinstance(value, dict) else {}
-        record = data.get("value") or {} if isinstance(data, dict) else {}
-        fields = record.get("fields") if isinstance(record, dict) else None
-        if not isinstance(fields, list) or not any(
-                isinstance(f, dict) and f.get("member_id") == member for f in fields):
-            _reject("ORACLE_IMPACT_INCOMPLETE", role[:32])
-
-
-def _judge_added_member(session: Session, scratch_ws: Path, typedef: str,
-                        add: dict) -> None:
-    """The required record field is present on the typedef's CURRENT
-    version with the frozen member id and value type."""
-
-    member = add.get("member", "")
-    want_type = add.get("type", "")
-    if not member or not want_type:
-        _harness_fail("add_member spec")
-    reply = session._raw_request("entity.version", _tool_entity_body(session, typedef))
-    if reply["flags"].get("failed"):
-        _reject("ORACLE_TYPEDEF_UNREADABLE", typedef[:32])
     try:
-        [decoded] = sley2_codecs.run_batch([{
-            "op": "decode_response", "method": "entity.version", "body": reply["body"],
-        }])
-    except (sley2_codecs.CodecError, KeyError) as error:
-        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: typedef: {error}") from error
-    entries = decoded["decoded"].get("entries") or []
-    if len(entries) != 1:
-        _reject("ORACLE_TYPEDEF_UNREADABLE", typedef[:32])
-    object_id = entries[0].get("object_id", "")
-    path = _object_path(scratch_ws / REPO_DIR, object_id)
-    if path is None:
-        _reject("ORACLE_TYPEDEF_UNREADABLE", typedef[:32])
+        form = body.get("form") or {}
+        if form.get("variant") != "Record":
+            _harness_fail("typedef form")
+        fields = form.get("value") or []
+        if not isinstance(fields, list):
+            _harness_fail("typedef fields")
+        return fields
+    except AttributeError:
+        _harness_fail("typedef body")
+        raise AssertionError("unreachable")
+
+
+def _decode_object_file(session: Session, path: Path) -> dict:
+    """One stored object decoded through the pinned codecs."""
+
     try:
         [obj] = sley2_codecs.run_batch([{
             "op": "decode_object", "stored": path.read_bytes().hex(),
             "epoch": session.head["epoch"],
         }])
-    except (OSError, sley2_codecs.CodecError, KeyError) as error:
-        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: typedef: {error}") from error
-    body = obj["decoded"].get("body")
+    except (OSError, sley2_codecs.CodecError, KeyError, IndexError) as error:
+        raise JudgeHarnessError(
+            f"LIVE_SLEY2_JUDGE_INVALID: decode: {error}") from error
+    decoded = obj["decoded"]
+    if not isinstance(decoded, dict):
+        _harness_fail("decoded shape")
+    return decoded
+
+
+def _read_current_typedef(session: Session, scratch_ws: Path,
+                          typedef: str) -> dict:
+    """Current TypeDef body through its live binding (a single
+    entity.version read, not a store-wide snapshot)."""
+
+    reply = session._raw_request(
+        "entity.version", _tool_entity_body(session, typedef))
+    if reply["flags"].get("failed"):
+        _reject("ORACLE_TYPEDEF_UNREADABLE", typedef[:32])
+    try:
+        [decoded] = sley2_codecs.run_batch([{
+            "op": "decode_response", "method": "entity.version",
+            "body": reply["body"],
+        }])
+    except (sley2_codecs.CodecError, KeyError) as error:
+        raise JudgeHarnessError(
+            f"LIVE_SLEY2_JUDGE_INVALID: typedef: {error}") from error
+    entries = decoded["decoded"].get("entries") or []
+    if len(entries) != 1:
+        _reject("ORACLE_TYPEDEF_UNREADABLE", typedef[:32])
+    path = _object_path(scratch_ws / REPO_DIR,
+                        entries[0].get("object_id", ""))
+    if path is None:
+        _reject("ORACLE_TYPEDEF_UNREADABLE", typedef[:32])
+    body = _decode_object_file(session, path).get("body")
     if not isinstance(body, dict):
         _harness_fail("typedef body")
-    form = body.get("form") or {}
-    fields = form.get("value") if isinstance(form, dict) else None
-    for field in fields if isinstance(fields, list) else []:
+    return body
+
+
+def _read_base_typedef(task_dir: Path, typedef: str) -> dict:
+    """Pristine pre-image TypeDef body from the task base pack (the
+    same seeded-repo helper the impl-unchanged check uses)."""
+
+    repo_pre, pre_session, cleanup = _seeded_repo(task_dir)
+    try:
+        raw = _entity_bound_bytes(pre_session, repo_pre, typedef)
+        if raw is None:
+            _harness_fail("base typedef")
+        try:
+            [obj] = sley2_codecs.run_batch([{
+                "op": "decode_object", "stored": raw.hex(),
+                "epoch": pre_session.head["epoch"],
+            }])
+        except (sley2_codecs.CodecError, KeyError, IndexError) as error:
+            raise JudgeHarnessError(
+                f"LIVE_SLEY2_JUDGE_INVALID: base typedef: {error}") from error
+    finally:
+        cleanup()
+    body = obj["decoded"].get("body")
+    if not isinstance(body, dict):
+        _harness_fail("base typedef body")
+    return body
+
+
+def _typedef_added_members(task_dir: Path, session: Session,
+                           scratch_ws: Path, typedef: str) -> list:
+    """Members present on the current typedef but absent from the
+    pristine base pre-image, each with its declared type. The
+    governing task names no member identity or type: ANY added member
+    counts, and every impact-closure constant must carry each of them
+    with the declared type (no private-manifest literal)."""
+
+    base_fields = _typedef_record_fields(_read_base_typedef(task_dir, typedef))
+    current_fields = _typedef_record_fields(
+        _read_current_typedef(session, scratch_ws, typedef))
+    base_members = {str(field.get("member_id")) for field in base_fields
+                    if isinstance(field, dict)}
+    added = []
+    for field in current_fields:
         if not isinstance(field, dict):
+            _harness_fail("typedef fields")
+        member = str(field.get("member_id"))
+        if member not in base_members:
+            decltype = field.get("value_type")
+            if not isinstance(decltype, dict):
+                _harness_fail("typedef fields")
+            added.append((member, decltype))
+    return added
+
+
+def _live_bound_object(session: Session, scratch_ws: Path,
+                         entity: str) -> dict:
+    """Current body of one entity through its live binding."""
+
+    reply = session._raw_request(
+        "entity.version", _tool_entity_body(session, entity))
+    if reply["flags"].get("failed"):
+        raise JudgeHarnessError(
+            f"LIVE_SLEY2_JUDGE_INVALID: live binding: {entity[:16]}")
+    try:
+        [decoded] = sley2_codecs.run_batch([{
+            "op": "decode_response", "method": "entity.version",
+            "body": reply["body"],
+        }])
+    except (sley2_codecs.CodecError, KeyError) as error:
+        raise JudgeHarnessError(
+            f"LIVE_SLEY2_JUDGE_INVALID: live binding: {error}") from error
+    entries = decoded["decoded"].get("entries") or []
+    if len(entries) != 1:
+        raise JudgeHarnessError("LIVE_SLEY2_JUDGE_INVALID: live binding shape")
+    path = _object_path(scratch_ws / REPO_DIR,
+                        entries[0].get("object_id", ""))
+    if path is None:
+        raise JudgeHarnessError("LIVE_SLEY2_JUDGE_INVALID: live binding path")
+    body = _decode_object_file(session, path).get("body")
+    if not isinstance(body, dict):
+        _harness_fail("live binding body")
+    return body
+
+
+def _impact_consts(session: Session, scratch_ws: Path,
+                   typedef: str) -> list:
+    """Live record constants whose value type names the typedef: the
+    complete impact closure, discovered structurally from stored
+    state (never from manifest roles). Every stored object decodes
+    (chunked batches); entities with several stored versions resolve
+    through live bindings, so no store-wide version snapshot is
+    needed."""
+
+    groups: dict[str, list] = {}
+    paths = _store_files(scratch_ws / REPO_DIR)
+    for start in range(0, len(paths), 1000):
+        chunk = paths[start:start + 1000]
+        calls = []
+        for path in chunk:
+            try:
+                calls.append({"op": "decode_object",
+                              "stored": path.read_bytes().hex(),
+                              "epoch": session.head["epoch"]})
+            except OSError as error:
+                raise JudgeHarnessError(
+                    f"LIVE_SLEY2_JUDGE_INVALID: inventory: {error}"
+                ) from error
+        try:
+            results = sley2_codecs.run_batch(calls) if calls else []
+        except sley2_codecs.CodecError as error:
+            raise JudgeHarnessError(
+                f"LIVE_SLEY2_JUDGE_INVALID: decode: {error}") from error
+        for result in results:
+            decoded = result["decoded"]
+            if not isinstance(decoded, dict):
+                continue
+            try:
+                if decoded.get("kind") != 9:
+                    continue
+                body = decoded.get("body")
+                if not isinstance(body, dict):
+                    continue
+                value = body.get("value")
+                if not isinstance(value, dict):
+                    continue
+                typed = value.get("value_type")
+                if not (isinstance(typed, dict)
+                        and typed.get("variant") == "Named"
+                        and isinstance(typed.get("value"), dict)
+                        and typed["value"].get("definition") == typedef):
+                    continue
+                entity = (decoded.get("entity_id", "")
+                          or decoded.get("entity", ""))
+                if entity:
+                    groups.setdefault(str(entity), []).append(body)
+            except (AttributeError, TypeError):
+                continue
+    found = []
+    for entity, bodies in groups.items():
+        if len(bodies) == 1:
+            found.append((entity, bodies[0]))
             continue
-        if field.get("member_id") == member:
-            value_type = field.get("value_type") or {}
-            if isinstance(value_type, dict) and value_type.get("variant") == want_type:
-                return
-            _reject("ORACLE_MEMBER_MISMATCH", want_type[:32])
-    _reject("ORACLE_MEMBER_MISSING", member[:32])
+        try:
+            found.append((entity, _live_bound_object(
+                session, scratch_ws, entity)))
+        except JudgeHarnessError:
+            raise
+        except Exception as error:
+            raise JudgeHarnessError(
+                f"LIVE_SLEY2_JUDGE_INVALID: impact binding: {error}"
+            ) from error
+    return found
 
 
+def _verify_impact_closure(session: Session, scratch_ws: Path, typedef: str,
+                           added: list) -> None:
+    """Every impact-closure record constant carries every added member
+    with its declared type (the closure update is complete, not just
+    the typedef)."""
+
+    consts = _impact_consts(session, scratch_ws, typedef)
+    if not consts:
+        _reject("ORACLE_IMPACT_INCOMPLETE", "no impact constants")
+    for member, decltype in added:
+        for entity, body in consts:
+            try:
+                value = body.get("value") or {}
+                data = value.get("data") or {}
+                record = data.get("value") or {}
+                fields = record.get("fields")
+            except AttributeError:
+                _harness_fail("impact body")
+            if not isinstance(fields, list):
+                _harness_fail("impact body")
+            if not any(isinstance(field, dict)
+                       and field.get("member_id") == member
+                       and isinstance(field.get("value"), dict)
+                       and field["value"].get("value_type") == decltype
+                       for field in fields):
+                _reject("ORACLE_IMPACT_INCOMPLETE", entity[:32])
 def _audit_transcript_bounds(transcript: list) -> None:
     """Bounded-usage audit over the judge transcript: every response
     succeeded, no reply exceeds the per-reply byte cap, request count

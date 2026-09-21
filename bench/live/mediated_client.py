@@ -45,6 +45,10 @@ Sequences (argv[1]):
                 forbidden null error, loss of the explicit code)
   stale_pos     STALE guard flip via inventory/read discovery + finish
                 (non-TYPE mediated proof; no staged guard id)
+  context_pos   CONTEXT bounded fix via the allowed surface + finish
+                (mechanics proof with disclosed invocation-arg
+                identities: impact discovery has no permitted bounded
+                route today, retained as the review gate)
   refusal_probe allowed read + denied command (expects ok then refusal;
                 also drops forged candidate-side diagnostics)
   access_probe  attempt direct opens of protected paths given in
@@ -261,6 +265,112 @@ def variant_value(typedef_id: str, member: str,
 def sint_const(value: int) -> dict:
     return {"value_type": SINT,
             "data": {"variant": "SInt", "value": value}}
+
+
+def seq_context(gw: Gateway, typedef: str, consts: list[str],
+                member: str, update_closure: bool,
+                spam_continue: bool) -> dict:
+    """CONTEXT bounded fix through the allowed surface (mechanics
+    proof, disclosed scaffolding).
+
+    Entity identities arrive as invocation arguments (test-only
+    stand-in plan): no permitted bounded route can enumerate a
+    typedef's users today (inventory is whole-store; reads need ids;
+    server queries need an unmintable snapshot), and the required
+    member literal lives only in the private manifest — so impact
+    discovery itself is retained as the review gate, and this
+    sequence proves the fix/access mechanics, not discovery
+    fairness. Every step is a captured gateway exchange like any
+    agent action: bounded reads, one propose, finish; spam mode
+    additionally issues query.continue frames with no preceding
+    truncation (inconsistent-continuation negative)."""
+
+    outcome: dict = {"ok": False, "steps": []}
+
+    def step(name: str, phase: str, command: str,
+             args: list[str]) -> dict:
+        reply = gw.call(phase, command, args)
+        outcome["steps"].append(
+            {"name": name, "ok": reply.get("ok"),
+             "bytes": len(json.dumps(reply, sort_keys=True))})
+        return reply
+
+    revision = step("revision", "read", "revision", [])
+    if not revision.get("ok"):
+        outcome["error"] = "revision refused"
+        return outcome
+
+    def read_kind_body(entity: str) -> tuple:
+        report = _report(step(f"read_{entity[:8]}", "read", "read",
+                              [entity]))
+        decoded = report.get("decoded") or {}
+        entries = decoded.get("entries") or []
+        if len(entries) != 1:
+            raise RuntimeError("read body shape")
+        entry = entries[0]
+        if not isinstance(entry.get("body"), dict):
+            raise RuntimeError("read body shape")
+        kind = entry.get("kind")
+        if not isinstance(kind, int):
+            raise RuntimeError("read kind shape")
+        return kind, entry["body"]
+
+    try:
+        typedef_kind, typedef_body = read_kind_body(typedef)
+    except RuntimeError:
+        outcome["error"] = "typedef unreadable"
+        return outcome
+    form = dict(typedef_body.get("form") or {})
+    fields = list(form.get("value") or [])
+    if any(isinstance(field, dict) and field.get("member_id") == member
+           for field in fields):
+        outcome["error"] = "member already present"
+        return outcome
+    fields.append({"member_id": member,
+                   "value_type": {"variant": "Bool"},
+                   "visibility": "Private"})
+    form["value"] = fields
+    typedef_body["form"] = form
+    ops = [{"class": "ReplaceEntityVersion", "kind": typedef_kind,
+            "target": typedef, "field_tag": None, "payload": typedef_body}]
+    if update_closure:
+        for target in consts:
+            try:
+                const_kind, const_body = read_kind_body(target)
+            except RuntimeError:
+                outcome["error"] = f"const unreadable {target[:8]}"
+                return outcome
+            value = dict(const_body.get("value") or {})
+            data = dict(value.get("data") or {})
+            record = dict(data.get("value") or {})
+            const_fields = list(record.get("fields") or [])
+            const_fields.append({
+                "member_id": member,
+                "value": {"value_type": {"variant": "Bool"},
+                          "data": {"variant": "Bool", "value": False}}})
+            record["fields"] = const_fields
+            data["value"] = record
+            value["data"] = data
+            const_body["value"] = value
+            ops.append({"class": "ReplaceEntityVersion", "kind": const_kind,
+                        "target": target, "field_tag": None,
+                        "payload": const_body})
+    proposal = step("propose", "compose", "propose", [json.dumps(ops)])
+    report = proposal.get("report", {}) if proposal.get("ok") else {}
+    if not report.get("record"):
+        outcome["error"] = "propose refused"
+        return outcome
+    if spam_continue:
+        for index in range(2):
+            step(f"continue_{index}", "read", "raw",
+                 ["query.continue", "00"])
+    finale = step("finish", "finish", "finish", [report["record"]])
+    outcome["finished"] = bool(
+        finale.get("ok") and (finale.get("report") or {}).get("finished"))
+    outcome["ok"] = outcome["finished"]
+    if not outcome["ok"]:
+        outcome["error"] = "finish refused"
+    return outcome
 
 
 def _finish_skeleton(gw: Gateway) -> int:
@@ -694,6 +804,22 @@ def _run_sequence(gw: Gateway, sequence: str) -> int:
     }
     if sequence == "stale_pos":
         outcome = seq_stale(gw)
+        outcome["frames"] = gw.frames
+        log("SUMMARY " + json.dumps(
+            {k: v for k, v in outcome.items() if k != "steps"},
+            sort_keys=True))
+        return 0
+    if sequence == "context_pos":
+        # Mechanics scaffolding (disclosed): identities arrive as
+        # invocation arguments (test-only stand-in plan).
+        typedef = sys.argv[2] if len(sys.argv) > 2 else ""
+        consts = sys.argv[3].split(",") if len(sys.argv) > 3 else []
+        member = sys.argv[4] if len(sys.argv) > 4 else ""
+        mode = sys.argv[5] if len(sys.argv) > 5 else "pos"
+        outcome = seq_context(
+            gw, typedef, [c for c in consts if c], member,
+            update_closure=(mode != "incomplete"),
+            spam_continue=(mode == "spam"))
         outcome["frames"] = gw.frames
         log("SUMMARY " + json.dumps(
             {k: v for k, v in outcome.items() if k != "steps"},

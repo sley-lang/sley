@@ -208,12 +208,28 @@ class MediatedSleyEndpoint:
         """Mediate one frame through trusted capture. Returns the exact
         response bytes released to the agent (also durably captured)."""
 
+        # Audit method: the access audit distinguishes bounded-query
+        # routes by method name, but every query travels as a `raw`
+        # frame (the inner method hides in the request args, of which
+        # capture keeps only the digest). Record the inner method
+        # explicitly (`raw:<method>` for allowlisted server methods)
+        # so the judge can audit bounded-query discipline from
+        # captured requests/responses alone. Schema-stable: the
+        # capture record keeps the same fields; only the method
+        # vocabulary gains the `raw:` prefix for raw frames.
+        if command == "raw" and args and args[0] in sley2_tool.TOOL_METHODS:
+            audit_method = f"raw:{args[0]}"
+        elif command == "raw":
+            audit_method = "raw:denied"
+        else:
+            audit_method = command
+
         def dispatch() -> tuple[bytes, dict[str, Any]]:
             envelope, usage = self._run_command(command, args)
             return _canonical(envelope), usage
 
         return self._capture.exchange(
-            phase=phase, session_id=session_id, method=command,
+            phase=phase, session_id=session_id, method=audit_method,
             request=_canonical({"command": command, "args": args}),
             handler=dispatch)
 

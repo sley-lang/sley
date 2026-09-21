@@ -63,21 +63,34 @@ preregistered live-model campaign. `ga_claimed=false`.
 
 ## Explicitly not established here
 
-- CONTEXT mediated proof: the judge's `_audit_agent_access` reads the
-  legacy workspace chain file (`trial_ws/.sley-live-transcript.jsonl`),
-  which the mediated path no longer produces (gateway uses
-  `dispatch()`, not `main()`, so no chain file is written). The judge
-  must consume authoritative mediated access evidence (capture
-  exchanges) instead. Separately, the required member (`f1`, Bool) and
-  impact closure roles live only in the private manifest — neither in
-  the corpus prompt nor discoverable from the store — so a
-  discovery-only agent cannot know them; that needs a contracted
-  capsule/prompt decision. Next actions: (a) extend the judge with a
-  mediated-evidence route (e.g. `SLEY2_MEDIATED_CAPTURE_DIR` audit of
-  `exchanges.jsonl`, or runner-materialized chain from reconciled
-  capture before oracle); (b) adopt the member/impact contract source
-  and count it; (c) add a `context_pos` discovery sequence + real-oracle
-  test. No legacy-transcript fabrication in the meantime.
+- CONTEXT mediated proof ESTABLISHED: the judge takes a trusted
+  runner-controlled reference to the protected, reconciled capture
+  (`SLEY2_MEDIATED_CAPTURE_DIR`, set by the runner around the oracle
+  call and forwarded by `run_fixture_oracle`; never agent-settable).
+  `_audit_mediated_access` verifies capture integrity (hash chain
+  from genesis, req/resp seq pairing, per-record attempt match),
+  input bindings (frozen pack/manifest/tool/binary vs
+  judge-computed), and completion bindings (exchange count, chain
+  head, final_sha256 vs the trial final artifact), then derives
+  access/budget evidence from actual captured requests/responses
+  (`raw:<method>` exposes inner query methods; true session scopes;
+  same bounded/continuation/budget/whole-store/commit rules as the
+  legacy audit). The obsolete chain file is neither depended on nor
+  fabricated on the mediated path. Proven: `test_mediated_context.py`
+  pos ACCEPTED end to end (execute_attempt → real oracle → verify),
+  incomplete-impact and inconsistent-continuation distinguishing
+  proofs, plus 13 audit unit tests (missing/tampered evidence,
+  binding mismatches, budgets).
+- CONTEXT task-spec gate RETAINED: established that the corpus
+  ("add a required record field", no identity/type) does not specify
+  the F1/Bool manifest literal, and that no permitted bounded route
+  can enumerate a typedef's users (inventory is whole-store; reads
+  need ids; server queries need an unmintable snapshot). Concrete
+  patch on the work branch: de-literalized judge (any added member
+  via pre-image diff + structural closure discovery) with re-emitted
+  manifest; corpus/capsule alignment (naming the field, opening a
+  discovery route) under review. No private repair/impact set is
+  injected anywhere in the acceptance path.
 - CREATE complete-task rework DONE (typed Money/LineItem records,
   checked subtotal + merged-tax helpers, chained entry returning
   Result<Money,ArithmeticError>, no precomputed intermediates):

@@ -735,13 +735,27 @@ def execute_mediated_attempt(
                                             failure_code = str(error)
                                         else:
                                             oracle_started = time.monotonic_ns()
+                                            previous_capture = os.environ.get(
+                                                "SLEY2_MEDIATED_CAPTURE_DIR")
+                                            os.environ[
+                                                "SLEY2_MEDIATED_CAPTURE_DIR"] = str(
+                                                    capture_dir)
                                             try:
-                                                (verdict, oracle_stdout,
-                                                 oracle_stderr) = oracle_runner(
-                                                    arm_id=arm_id,
-                                                    task_id=task_id,
-                                                    candidate=protected_ws,
-                                                )
+                                                try:
+                                                    (verdict, oracle_stdout,
+                                                     oracle_stderr) = oracle_runner(
+                                                        arm_id=arm_id,
+                                                        task_id=task_id,
+                                                        candidate=protected_ws,
+                                                    )
+                                                finally:
+                                                    if previous_capture is None:
+                                                        del os.environ[
+                                                            "SLEY2_MEDIATED_CAPTURE_DIR"]
+                                                    else:
+                                                        os.environ[
+                                                            "SLEY2_MEDIATED_CAPTURE_DIR"] = (
+                                                                previous_capture)
                                             except OracleError:
                                                 status = "harness_failure"
                                                 failure_code = (

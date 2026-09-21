@@ -1392,11 +1392,15 @@ fn base_context() -> EmitBase {
     // Scaled store: workspace, package, two namespaces, one typedef
     // with member F0 only, three user globals holding F0-only record
     // initializers, and 10000 filler bool constants (10,011 entities
-    // at/above the corpus 10000 minimum). The fix adds member F1
-    // (Bool) and updates the three-record impact closure through
-    // bounded reads; the filler never names the typedef, so the whole
-    // fix fits one record. Entity ids are task-tagged counters
-    // (unique, deterministic).
+    // at/above the corpus 10000 minimum). The fix adds an
+    // agent-chosen record member and updates the complete impact
+    // closure (every constant naming the typedef) through bounded
+    // reads; the filler never names the typedef, so the whole fix
+    // fits one record. Entity ids are task-tagged counters (unique,
+    // deterministic). The governing task names no member identity or
+    // type: the judge discovers added members by diffing the typedef
+    // against the pristine base pre-image and the closure
+    // structurally, never from manifest literals.
     use sley_mutate::value::GlobalValueBody;
     use sley_ssmc::{ConstData, ConstValue};
     use sley_ssmc::{FieldConst, MemberId, NamedType, RecordConst};
@@ -1471,8 +1475,7 @@ fn base_context() -> EmitBase {
         );
     }
     let judge = serde_json::json!({"flow": "bounded-maintenance", "minimum_entities": 10000,
-        "typedef": "typedef", "add_member": {"member": hex(&[0xF1; 32]), "type": "Bool", "note": "cx ids are task-tagged counters"},
-        "impact": ["user_const_0", "user_const_1", "user_const_2"]});
+        "typedef": "typedef"});
     let mut targets = vec![cx_hex(t, 4)];
     targets.extend(user_consts);
     (bodies, entities, targets, judge)

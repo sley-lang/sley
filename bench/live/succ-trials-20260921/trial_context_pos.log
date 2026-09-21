@@ -1,0 +1,4 @@
+CONTEXT witness/pos: propose valid True decision {'failed_phase': None, 'tag': 1}
+CONTEXT witness/pos: finished True
+S2B-CONTEXT-001 witness/pos judge exit: 0
+workspace kept at: /tmp/sley2-context-witness-tiwd5y_6/ws

@@ -114,6 +114,11 @@ def run_fixture_oracle(
     if arm_id == "sley_2_0" and os.environ.get("SUCC_JUDGE_TEST_BINARY"):
         # Frozen Rust case-driver binary for value-level strict cases.
         environment["SUCC_JUDGE_TEST_BINARY"] = os.environ["SUCC_JUDGE_TEST_BINARY"]
+    if arm_id == "sley_2_0" and os.environ.get("SLEY2_MEDIATED_CAPTURE_DIR"):
+        # Runner-controlled reconciled capture for this attempt: the
+        # judge derives mediated access/budget evidence from it.
+        environment["SLEY2_MEDIATED_CAPTURE_DIR"] = os.environ[
+            "SLEY2_MEDIATED_CAPTURE_DIR"]
     try:
         process = subprocess.Popen(
             [sys.executable, str(oracle), str(candidate)],

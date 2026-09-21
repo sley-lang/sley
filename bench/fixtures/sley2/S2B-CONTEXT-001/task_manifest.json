@@ -8,17 +8,7 @@
     "user_const_2": "c400070000000000000000000000000000000000000000000000000000000000"
   },
   "judge": {
-    "add_member": {
-      "member": "f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1f1",
-      "note": "cx ids are task-tagged counters",
-      "type": "Bool"
-    },
     "flow": "bounded-maintenance",
-    "impact": [
-      "user_const_0",
-      "user_const_1",
-      "user_const_2"
-    ],
     "minimum_entities": 10000,
     "typedef": "typedef"
   },

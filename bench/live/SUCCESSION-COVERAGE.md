@@ -26,7 +26,7 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 | STALE | ACCEPTED `trial_stale.log` — guard flip; exact STALE_ROOT; genuine same-change-new-base rebase validates Valid; RECHECKED 2026-09-21 `trial_stale_recheck.log` | vacuous contender → ORACLE_REBASE_INVALID (`trial_stale_neg.log`, recheck `trial_stale_neg_recheck.log`) | live-model trial |
 | MERGE | ACCEPTED `trial_merge.log` — union via surface (side bodies through allowed interface); root-bound union checks + observed dual-order re-validation; RECHECKED 2026-09-21 `trial_merge_recheck.log`. ANCESTRY CORRECTED 2026-09-21: sides SHARE ancestor transaction history (base head tx bytes present in both packs — identity evidence, not export arrangement; the judge docstring's "independent geneses" claim was wrong and is fixed). PRODUCTION PATH DRIVEN 2026-09-21 (`trial_merge_production.log`, `bench/live/prove_merge_production.py`, runner-owned, no fixture changes): branch.create pointers forked at ancestor ✓; both side histories co-located by content-addressed object union (+1 object +1 tx each) ✓; merge.judge REACHED and returned a production verdict: MERGE_COMPARE_FAILED (COMPARE_ROOT_INCOMPLETE family) — reproducible on ALL trial-shaped revisions (MERGE/CREATE/TYPE bases, seeded AND committed), while extraction succeeds on harness-built repos. So repo-backed merge has no green path anywhere: the missing element (root-bindings alignment vs program projection) is product/fixture work under review, not trial harness. S3 proves merge semantics on synthetic complete sides; the live candidate-validation acceptance stands on its own evidence | dropped theirs entity → ORACLE_MERGE_CONFLICT (`trial_merge_neg.log`, recheck `trial_merge_neg_recheck.log` theirs=1 post=0) | complete-root fixture/product work under review; live-model trial |
 | PERF | ACCEPTED `trial_perf_large.log` — 5x5 governing inputs; 46-op scan → 7-op map transform via surface (58-op record); outputs identical, reduction ≥30%, effects empty, fuel non-regressing; RECHECKED 2026-09-21 `trial_perf_recheck.log`. MEMORY PREDICATE MEASURED 2026-09-21 (`trial_perf_memory.log`): contract quantity = peak monotonic semantic value units, limit = enforced max_value_units ceiling (100k); driver reports peak per case, judge gates it (missing telemetry → harness failure, never zero) | flipped probe → ORACLE_OUTPUT_MISMATCH (`trial_perf_large_neg.log`) | live-model trial |
-| CONTEXT | ACCEPTED `trial_context.log` — typedef F1 + 3-const closure; live count; bounded audit whole_store 0, targeted 4, ≤9222 B; RECHECKED 2026-09-21 `trial_context_recheck.log` (whole_store_reads=0) | incomplete closure refused at validation phase 6 (`trial_context_neg.log`, recheck `trial_context_neg_recheck.log`); hidden-truncation/inconsistent-continuation/budget unit-pinned | live-model trial |
+| CONTEXT | ACCEPTED `trial_context_pos.log` — agent-chosen member (E1, never a manifest literal) + complete 3-const closure discovered structurally (added-member diff vs pristine pre-image; every Named(typedef) const carries it); live count; bounded audit whole_store 0 | incomplete closure refused at validation phase 6 (`trial_context_neg.log`); mediated route: pos ACCEPTED through execute_attempt + real oracle with access evidence from reconciled capture (`test_mediated_context.py` 3 tests); inconsistent-continuation and incomplete-impact distinguishing proofs; missing-evidence/over-budget unit-pinned (`test_mediated_access.py` 13 tests) | discovery review gate (member literal + impact set undisclosed in agent-visible inputs; no permitted bounded enumeration route exists) + live-model trial |
 | ADVERSARY | (B) RE-PROVED 2026-09-21: `trial_adv.log` ACCEPTED (pure opcode fix; committed record carries empty-trial-projection capability only; policy root unchanged) | wrong comparison → `ORACLE_REPAIR_MISMATCH` triple (`trial_adv_neg.log`); metadata grant → `CAP_GRANT_DENIED` root untouched + steered-repair mismatch, both pinned fresh by G3 `trial_adv_g3.log` (3 passed; grant unconstructible via allowed surface — no tool path names commit/grant) | live-model trial |
 | CORRUPT | ACCEPTED `trial_corrupt.log` — constant restored (smoke) + exchange-pack rejection path: 2 bit-flips → exact EXCHANGE_DIGEST_MISMATCH, destination ref unchanged; RECHECKED 2026-09-21 `trial_corrupt_recheck.log` (S3 G2 conformance green; PACK_DIGEST_MISMATCH pinned at bundle-import owner, never equated). ORIGINAL OBLIGATION RETAINED OPEN 2026-09-21 (see `CORRUPT-SURFACE-DECISION.md`): corpus demands PACK_DIGEST_MISMATCH via bundle import of a one-byte-corrupted canonical object; the frozen trial surface exposes no bundle-import operation (serve protocol has only exchange.import; TOOL_METHODS allowlist excludes import/merge/commit by construction) — explicit surface decision for review, not a silent substitution | wrong value → ORACLE_CORRUPT_UNRESTORED (`trial_corrupt_neg.log`, recheck `trial_corrupt_neg_recheck.log`) | bundle-import surface decision under review; live-model trial |
 
@@ -46,7 +46,7 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 | STALE | accepted (guard flip) | static S3 (guard_disabled) |
 | MERGE | accepted (semantic union) | overlap → ORACLE_MERGE_CONFLICT |
 | PERF | accepted (scan→ordered-map; 7→4 instr, 42.9% ≥ 30%; outputs identical) | faster_but_wrong → ORACLE_OUTPUT_MISMATCH (valid proposal, flipped probe changes digest) |
-| CONTEXT | accepted (typedef F1 + 3-const closure, 3-phase compose) + access evidence whole_store_reads=0, 4 targeted reads, responses ≤ 9222 B | unbounded_read → QUERY_REQUIRED_FACT_OMITTED (live inventory test + static S3) |
+| CONTEXT | accepted (agent-chosen member + complete structural closure) + access evidence whole_store_reads=0 (legacy chain route for direct trials; reconciled-capture route for mediated trials) | unbounded_read → QUERY_REQUIRED_FACT_OMITTED (live inventory test + static S3); incomplete closure refused at validation phase 6 |
 | ADVERSARY | accepted (opcode fix; label ignored) | wrong_repair: operand-swap dual is a correct fix (accepted, correctly); static S3 family |
 | CORRUPT | accepted (e2e restore) | static S3 (unflipped) |
 
@@ -104,14 +104,17 @@ is consumed.
   the full 40×40 shape, reduction bar, output digests, and the
   faster_but_wrong → ORACLE_OUTPUT_MISMATCH negative.
 - CONTEXT: 10,011-entity store (typedef + 3 record consts + 3 globals +
-  10,000 filler bool consts). Filler never names the typedef (pack scan:
-  15 typedef-id occurrences, all in typedef/consts/globals/package/
-  namespace); globals need no F1 update (they name the typedef, whose
-  form changes uniformly). Impact closure (typedef + 3 consts) is
-  completely updated; judge checks all three roles. The full 10,001-
-  closure machinery stays pinned in static S3; the live trial covers
-  agent-side bounded behavior with whole_store_reads=0 derived from
-  chained evidence.
+  10,000 filler bool consts). Filler never names the typedef; globals
+  need no update (they name the typedef, whose form changes uniformly).
+  The governing task names no member identity or type, so the judge
+  accepts ANY added member (discovered by diffing the typedef against
+  the pristine pre-image) and verifies the complete impact closure
+  structurally (every constant naming the typedef carries each added
+  member with its declared type) — never from manifest literals. The
+  full 10,001-closure machinery stays pinned in static S3; the live
+  trial covers agent-side bounded behavior with whole_store_reads=0
+  derived from chained evidence (legacy chain file on direct trials,
+  reconciled capture on mediated trials).
 - TYPE: 4 Required reachable blocks via entry chaining through the
   immutable Bool dispatch (block 6d immutable ⇒ Bool dispatch
   preserved; full JobState retyping would need 6d in targets — a task
@@ -520,9 +523,19 @@ response must fit the per-response cap; any omitted/truncated page
 must be followed by query.continue in-scope (hidden truncation and
 inconsistent continuations reject); cumulative agent-visible bytes
 fit a 4 MiB trial budget; whole-store is inventory/side only.
+Mediated trials derive the same audit from the runner-owned
+reconciled capture (hash-chained exchanges, frozen pack/manifest/
+tool/binary bindings, completion final/count/head bindings), with
+`raw:<method>` exposing inner query methods and true session scopes;
+the obsolete chain file is never consulted or fabricated there.
 Positive: genuinely bounded page + continue accepted. Retained
 limitation: transcripts record bounds/digests, not requested limit
 values or continuation tokens, so token-equality is unverified.
+Discovery gate retained: the required member literal and impact set
+are undisclosed in agent-visible inputs and no permitted bounded
+enumeration route exists (inventory is whole-store; reads need ids;
+server queries need an unmintable snapshot) — concrete de-literalized
+judge patch on the work branch; corpus/capsule alignment under review.
 
 Root binding (task 3): `_live_object_id` (entity.version under the
 accepted head), `_bound_object_bytes`, `_entity_bound_bytes`,

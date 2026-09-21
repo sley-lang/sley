@@ -192,18 +192,22 @@ class AgentAccessTests(unittest.TestCase):
         self.assertIn("cumulative", raised.exception.detail)
 
     def test_incomplete_impact_facts_reject(self) -> None:
-        # Required facts unresolved: the pristine pack lacks the F1
-        # member, so the impact closure is incomplete (not merely a
+        # Required facts unresolved: the pristine pack has no added
+        # member (added-member diff is empty), and a claimed member is
+        # absent from every impact constant (not merely a
         # read-boundary question).
         from bench.live.sley2_tool import Session
         session = Session(SLEY, self.ws, [], seed_pack=True)
         try:
             manifest = json.loads((TASK_DIR / "task_manifest.json").read_text())
-            impact = manifest["judge"]["impact"]
-            add = manifest["judge"]["add_member"]
+            typedef = manifest["entities"]["typedef"]
+            added = judge._typedef_added_members(
+                TASK_DIR, session, self.ws, typedef)
+            self.assertEqual(added, [])
             with self.assertRaises(judge.JudgeRejection) as raised:
-                judge._judge_impact_consts(
-                    session, self.ws, manifest["entities"], impact, add)
+                judge._verify_impact_closure(
+                    session, self.ws, typedef,
+                    [("ff" * 32, {"variant": "Bool"})])
             self.assertEqual(raised.exception.code, "ORACLE_IMPACT_INCOMPLETE")
         finally:
             session.close()

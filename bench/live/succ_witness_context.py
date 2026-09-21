@@ -1,14 +1,24 @@
 #!/usr/bin/env python3
 """Deterministic CONTEXT witness through the real trial surface (no model).
 
-Stages the 10,011-entity store, adds the required Bool field to the
+Stages the 10,011-entity store, adds an agent-chosen Bool field to the
 typedef plus the complete 3-const impact closure through
-propose/finish, then runs the frozen live judge (live count, member +
-closure checks, bounded transcript, agent-access audit with
+propose/finish, then runs the frozen live judge (live count, added
+member + closure checks, bounded transcript, agent-access audit with
 bounded-continuation semantics). Variants:
   pos  full closure (must accept)
   neg  typedef only, closure untouched (must reject
        ORACLE_IMPACT_INCOMPLETE)
+
+The member identity is agent-authored locally (0xE1, never a
+manifest literal: the judge discovers added members by diffing the
+typedef against the pristine base pre-image). The impact set below
+still comes from fixture layout (mechanics scaffolding, disclosed):
+no permitted bounded route can enumerate a typedef's users today
+(inventory is whole-store; reads need ids; server queries need an
+unmintable snapshot), so impact discovery itself is retained as the
+review gate — the witness proves the fix mechanics, not discovery
+fairness.
 
 Usage: succ_witness_context.py [pos|neg] [logfile]
 Env: SLEY2_SLEY_BINARY, SUCC_JUDGE_TEST_BINARY (both required).
@@ -54,9 +64,10 @@ def main() -> int:
                            ).read_text())
     typedef = manifest["entities"]["typedef"]
     impact = [manifest["entities"][role]
-              for role in manifest["judge"]["impact"]]
-    member = manifest["judge"]["add_member"]["member"]
-    want_type = manifest["judge"]["add_member"]["type"]
+              for role in ("user_const_0", "user_const_1", "user_const_2")]
+    # Agent-authored member identity (never a manifest literal).
+    member = "e1" * 32
+    want_type = {"variant": "Bool"}
     saved_cwd = os.getcwd()
     os.chdir(ws)
     try:
@@ -79,7 +90,7 @@ def main() -> int:
         assert not any(isinstance(f, dict) and f.get("member_id") == member
                        for f in fields), "member already present"
         fields.append({"member_id": member,
-                       "value_type": {"variant": want_type},
+                       "value_type": want_type,
                        "visibility": "Private"})
         form["value"] = fields
         typedef_body["form"] = form
@@ -118,6 +129,7 @@ def main() -> int:
                 emit("CONTEXT witness/neg: incomplete closure refused "
                      "at validation; no finishable candidate")
                 emit(f"workspace kept at: {ws}")
+                os.chdir(saved_cwd)
                 if log_path is not None:
                     log_path.parent.mkdir(parents=True, exist_ok=True)
                     log_path.write_text("\n".join(lines) + "\n",
