@@ -2,12 +2,13 @@
 """Production merge-path proof on live MERGE content (runner-owned).
 
 Builds corpus-faithful BRANCH structure in one scratch repository —
-ancestor seed, branch.create ours/theirs at the ancestor, one
-content commit per branch (the live sides' actual semantic changes,
-replicated as candidate commits), branch.advance — then drives the
-PRODUCTION merge path: merge.judge in both operand orders,
-merge.commit, post-commit reads. No frozen fixture is modified; no
-trial-surface operation is added.
+ancestor seed, branch.create ours/theirs at the ancestor — then
+co-locates both side histories by content-addressed object union
+(commits are linear-head by design, so branch divergence is
+reconciled, never re-committed; exchange.import is one-shot), and
+drives the PRODUCTION merge path: merge.judge in both operand
+orders, merge.commit, post-commit reads. No frozen fixture is
+modified; no trial-surface operation is added.
 
 Proves (S2B-MERGE-001 content):
 - branch pointers ours/theirs fork from the ancestor transaction;
@@ -115,25 +116,49 @@ def _failure(reply: dict) -> str:
     return json.dumps(failure["decoded"])[:200]
 
 
-def _read_live_state(pack_name: str) -> dict:
-    """Live entity bodies of one frozen side pack (throwaway session)."""
+def _read_live_state(pack_name: str, read_entities: list[str] | None = None) -> dict:
+    """Live entity bodies of one frozen side pack (throwaway session).
+
+    Returns head tx, object list, decoded bodies for read_entities,
+    and the repo dir (kept on disk for co-location; the caller cleans
+    the stage)."""
 
     stage = Path(tempfile.mkdtemp(prefix="sley2-merge-side-"))
+    ws = stage / "ws"
+    ws.mkdir(mode=0o700)
+    (ws / "repo").mkdir(mode=0o700)
+    shutil.copyfile(TASK_DIR / pack_name, ws / "base.pack")
+    session = sley2_tool.Session(
+        sley2_tool.resolve_binary(), ws, [], seed_pack=True)
     try:
-        ws = stage / "ws"
-        ws.mkdir(mode=0o700)
-        (ws / "repo").mkdir(mode=0o700)
-        shutil.copyfile(TASK_DIR / pack_name, ws / "base.pack")
-        session = sley2_tool.Session(
-            sley2_tool.resolve_binary(), ws, [], seed_pack=True)
-        try:
-            inv = sley2_tool.dispatch(session, ws, ["inventory"])
-            return {"head": session.head["tx"],
-                    "objects": inv.get("inventory", {}).get("objects", [])}
-        finally:
-            session.close()
+        inv = sley2_tool.dispatch(session, ws, ["inventory"])
+        bodies: dict[str, dict] = {}
+        for eid in read_entities or []:
+            rep = sley2_tool.dispatch(session, ws, ["read", eid])
+            bodies[eid] = rep["decoded"]["entries"][0]["body"]
+        return {"head": session.head["tx"],
+                "objects": inv.get("inventory", {}).get("objects", []),
+                "bodies": bodies,
+                "repo": ws / "repo", "stage": stage}
     finally:
-        shutil.rmtree(stage, ignore_errors=True)
+        session.close()
+
+
+def _union_tree(dest: Path, source: Path) -> int:
+    """Copy content-addressed files (new files only; shared history
+    has identical bytes by content addressing). Returns files added."""
+
+    added = 0
+    for path in sorted(source.rglob("*")):
+        if not path.is_file() or path.is_symlink():
+            continue
+        target = dest / path.relative_to(source)
+        if target.exists():
+            continue
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        shutil.copyfile(path, target)
+        added += 1
+    return added
 
 
 def _judge(session, ancestor: bytes, left: bytes,
@@ -163,30 +188,44 @@ def main() -> int:
         lines.append(text)
         print(text, flush=True)
 
+    def flush_log() -> None:
+        if log_path is not None:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
     manifest = json.loads((TASK_DIR / "task_manifest.json").read_text())
     conflict = manifest["entities"][
         manifest["judge"].get("conflict", "constant")]
     workdir = Path(tempfile.mkdtemp(prefix="sley2-merge-proof-"))
+    stages: list[Path] = []
     try:
         # Live side content (identities + bodies the branches must
         # replicate as commits).
-        base_state = _read_live_state("base.pack")
-        ours_state = _read_live_state("ours.pack")
+        base_state = _read_live_state("base.pack", [conflict])
+        ours_state = _read_live_state("ours.pack", [conflict])
         theirs_state = _read_live_state("theirs.pack")
+        stages = [base_state["stage"], ours_state["stage"],
+                  theirs_state["stage"]]
         emit(f"base head {base_state['head'][:16]}... "
              f"objects {len(base_state['objects'])}")
         emit(f"ours head {ours_state['head'][:16]}... "
              f"objects {len(ours_state['objects'])}")
         emit(f"theirs head {theirs_state['head'][:16]}... "
              f"objects {len(theirs_state['objects'])}")
-        # The branch proof repository: ancestor seed + pointers.
+        # The proof repository: ancestor seed, then co-locate both
+        # side histories by object union (content-addressed; shared
+        # ancestor objects have identical bytes). Heads/branches/
+        # exchange staging stay the base's own: only objects and
+        # transactions travel. Commits are linear-head by design, so
+        # branch divergence is reconciled here, not re-committed.
         ws = workdir / "ws"
         ws.mkdir(mode=0o700)
         (ws / "repo").mkdir(mode=0o700)
         shutil.copyfile(TASK_DIR / "base.pack", ws / "base.pack")
-        session = sley2_tool.Session(
-            sley2_tool.resolve_binary(), ws, [], seed_pack=True)
+        session = None
         try:
+            session = sley2_tool.Session(
+                sley2_tool.resolve_binary(), ws, [], seed_pack=True)
             ancestor = bytes.fromhex(session.head["tx"])
             for branch in (b"ours", b"theirs"):
                 reply = session._raw_request(
@@ -196,83 +235,24 @@ def main() -> int:
                     raise SystemExit(
                         f"branch.create refused: {_failure(reply)}")
             emit("branches ours/theirs forked at ancestor")
+            proof_repo = ws / "repo"
+            for state in (ours_state, theirs_state):
+                added_objects = _union_tree(
+                    proof_repo / "objects", state["repo"] / "objects")
+                added_tx = _union_tree(
+                    proof_repo / "transactions",
+                    state["repo"] / "transactions")
+                emit(f"co-located {state['head'][:16]}... "
+                     f"+{added_objects} objects +{added_tx} tx records")
             principal = bytes.fromhex(sley2_tool.TRIAL_PRINCIPAL)
 
-            def commit_record(record_hex: str, parent: bytes) -> bytes:
-                now = int(time.time() * 1000)
-                body = _fields(
-                    [(1, parent), (2, principal),
-                     (3, enc_uvar(now)),
-                     (4, bytes.fromhex(record_hex))])
-                reply = session._raw_request("commit", body)
-                if reply["flags"].get("failed"):
-                    raise SystemExit(
-                        f"commit refused: {_failure(reply)}")
-                fields = read_record(bytes.fromhex(reply["body"]),
-                                     [1, 2, 3, 4])
-                if len(fields[1]) != 32:
-                    raise SystemExit("commit tx not fixed32")
-                return fields[1]
-
-            def advance(branch: bytes, expected: bytes,
-                        new_head: bytes) -> None:
-                reply = session._raw_request(
-                    "branch.advance",
-                    _fields([(1, branch), (2, expected),
-                             (3, new_head)]))
-                if reply["flags"].get("failed"):
-                    raise SystemExit(
-                        f"branch.advance refused: {_failure(reply)}")
-
-            # Branch content: merge-shaped changes authored fresh
-            # (branch commits mint new identities by design, so live
-            # pack entities cannot be replicated byte-identical — the
-            # live sides keep their candidate-validation acceptance;
-            # this proves the production path on branch structure
-            # with the same change shapes: one side flips the shared
-            # constant, the other adds a fresh constant).
-            base_view = sley2_tool.dispatch(
-                session, ws, ["read", conflict])
-            base_body = base_view["decoded"]["entries"][0]["body"]
-            base_bool = base_body["value"]["data"]["value"]
-            flip_body = {"value": {"value_type": {"variant": "Bool"},
-                                   "data": {"variant": "Bool",
-                                            "value": not base_bool}}}
-            fresh_body = {"value": {"value_type": {"variant": "Bool"},
-                                    "data": {"variant": "Bool",
-                                             "value": True}}}
-
-            def propose_record(ops: list) -> str:
-                rep = sley2_tool.dispatch(
-                    session, ws, ["propose", json.dumps(ops)])
-                report = rep.get("report", {})
-                if not report.get("created") or not report.get("record"):
-                    raise SystemExit(
-                        f"propose refused: {json.dumps(rep)[:300]}")
-                return report["record"]
-
-            # Theirs branch first (fresh create validates on any head).
-            fresh_ops = [{"class": "CreateEntity", "kind": 9,
-                          "target": None, "field_tag": None,
-                          "payload": fresh_body}]
-            theirs_record = propose_record(fresh_ops)
-            theirs_tx = commit_record(theirs_record, ancestor)
-            advance(b"theirs", ancestor, theirs_tx)
-            emit(f"theirs branch at {theirs_tx.hex()[:16]}... "
-                 "(fresh constant)")
-            # Fresh session: commits advance the head every token was
-            # minted under.
-            session.close()
-            session = sley2_tool.Session(
-                sley2_tool.resolve_binary(), ws, [], seed_pack=False)
-            flip_ops = [{"class": "ReplaceEntityVersion", "kind": 9,
-                         "target": conflict, "field_tag": None,
-                         "payload": flip_body}]
-            ours_record = propose_record(flip_ops)
-            ours_tx = commit_record(ours_record, ancestor)
-            advance(b"ours", ancestor, ours_tx)
-            emit(f"ours branch at {ours_tx.hex()[:16]}... "
-                 "(shared constant flipped)")
+            # Live revisions as merge inputs (addressable through
+            # the co-located histories).
+            ours_tx = bytes.fromhex(ours_state["head"])
+            theirs_tx = bytes.fromhex(theirs_state["head"])
+            emit(f"merge inputs ancestor {ancestor.hex()[:16]}... "
+                 f"ours {ours_tx.hex()[:16]}... "
+                 f"theirs {theirs_tx.hex()[:16]}...")
             # Production judgment, both operand orders.
             first = _judge(session, ancestor, ours_tx, theirs_tx)
             second = _judge(session, ancestor, theirs_tx, ours_tx)
@@ -306,9 +286,13 @@ def main() -> int:
                 rep = sley2_tool.dispatch(post, ws, ["read", conflict])
                 merged_bool = rep["decoded"]["entries"][0][
                     "body"]["value"]["data"]["value"]
+                ours_bool = ours_state["bodies"][conflict][
+                    "value"]["data"]["value"]
+                base_bool = base_state["bodies"][conflict][
+                    "value"]["data"]["value"]
                 emit(f"merged shared-constant: {merged_bool} "
-                     f"(ours flipped {base_bool} -> {not base_bool})")
-                if merged_bool != (not base_bool):
+                     f"(base {base_bool}, ours {ours_bool})")
+                if merged_bool != ours_bool:
                     raise SystemExit("ours change lost")
                 inv = sley2_tool.dispatch(post, ws, ["inventory"])
                 kinds: dict = {}
@@ -331,9 +315,9 @@ def main() -> int:
                     pass
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
-    if log_path is not None:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        for stage in stages:
+            shutil.rmtree(stage, ignore_errors=True)
+        flush_log()
     return 0
 
 

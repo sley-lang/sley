@@ -2442,11 +2442,16 @@ def _judge_merge(session: Session, manifest: dict, corpus: dict, scratch_ws: Pat
     is rebased onto the ours head and onto the theirs head (same
     classes/targets/payloads, fresh bindings; already-satisfied
     replaces skipped), and production validation must accept both.
-    Either order rejecting is ORACLE_MERGE_UNSTABLE. The frozen
-    production merge-judge path is inapplicable to these fixtures (the
-    side packs are independent geneses with no common-ancestor
-    transaction to walk); the applicable production path exercised here
-    is candidate validation itself, in both orders, against both heads.
+    Either order rejecting is ORACLE_MERGE_UNSTABLE. The side packs
+    share ancestor transaction history (base head tx bytes present in
+    both packs — verified by identity 2026-09-21), but arrive as
+    separate pack files rather than branch pointers in one repo, so
+    the frozen production merge-judge path (merge.judge over
+    co-resident revisions) is not directly drivable here; the
+    applicable production path exercised is candidate validation
+    itself, in both orders, against both heads. A branch-pointer
+    production-path proof is tracked separately
+    (bench/live/prove_merge_production.py).
 
     Executable-function tests: the MERGE fixture carries no functions
     (namespace + bool constants only), so there are no selected tests
