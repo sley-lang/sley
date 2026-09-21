@@ -1,10 +1,18 @@
 # Mediated campaign input accounting — 2026-09-21 (work branch only)
 
 Production path: `bench/live/mediated_attempt.py::execute_mediated_attempt`
-(sley_2_0 arm). Deterministic stand-in: `bench/live/mediated_client.py`
-(staged identically in production scratch and tests via
-`stage_mediated_scratch`; sequences are selected at the provider
-boundary by the adapter command, never by a production branch).
+(sley_2_0 arm). Production staging
+(`stage_mediated_scratch`): documented tooling
+(`.sley-live/TOOLING.md`), the generic frame-forwarding shim
+(`.sley-live/sley-tool`), and the generic frame transport
+(`mediated_transport.py`: Gateway, op envelopes, no task content).
+Deterministic test-only adapter: `bench/live/mediated_client.py`
+(scripted sequences, witness literals, task construction, synthetic
+provider events) — never staged by the production path; tests inject
+it at the provider boundary via `extra_scratch_files` /
+`stage_test_adapter` AFTER production staging is verified, exercising
+the real confinement, mediation, capture, oracle, append, and
+verification machinery.
 
 ## Removed privileged hint (this pass)
 
@@ -24,7 +32,7 @@ judge checks typedef shape and case coverage, never those literals).
 | 2 | `.sley-live/TOOLING.md` (SLEY2 surface) | `bench/live/tooling.py::_files` (frozen `SLEY2_TOOLING`); `tool_description_digests` pinned in the run manifest | Documented training material | Workspace file, identical every trial; reads are agent file IO, not gateway exchanges |
 | 3 | Served repository state (base pack content) | `bench/live/taskpacks.py::stage_initial` (frozen `bench/fixtures/sley2/<TASK>/base.pack`); `arm_fixture_digests` in manifest; `pack_sha256` in capture `start.json` | Starting state | Not directly visible (protected_ws masked); visible only via gateway responses below, all counted |
 | 4 | Gateway responses (inventory/read/side/revision/caps/budgets/raw/propose/append/compose/inspect/validate/finish + mechanical `resolve`) | `SLEY2_TOOLING` documented surface; `bench/live/mediated_sley.py::ALLOWED_COMMANDS`; every frame inside `TrustedCapture.exchange` | Context through the allowed interface | `action_budget` → `trial_max_exchanges`; `wall_time_budget` → `trial_max_wall_ms`; response caps; cumulative ledger; `tool_calls == completion exchanges` asserted in tests; denied/failed responses counted, never zeroed |
-| 5 | `.sley-live/sley-tool` shim + `mediated_client.py` scratch copy | `bench/live/mediated_attempt.py::stage_mediated_scratch` (shim forwards the documented surface over the socket; client is the stand-in, same bytes in tests and production) | Harness scaffolding, task-agnostic | No task content; no task-specific helper unavailable in production (same staging both paths); no special production branches |
+| 5 | `.sley-live/sley-tool` shim + `mediated_transport.py` (generic frame transport) | `bench/live/mediated_attempt.py::stage_mediated_scratch` (shim forwards the documented surface over the socket; transport moves frames only, no task content) + `assert_production_staging_clean` (permitted set + no solver markers) + `production_staging_digest` (every legitimate input digested) | Harness scaffolding, task-agnostic | No task content; identical every trial; no special production branches; test-only `mediated_client.py` (seq_type/seq_stale, CLIENT_MEMBERS, emit_provider_stream) never staged in production, injected only by tests |
 | 6 | Confinement env (`HOME=/scratch`, `PATH`/`LANG`, `$SLEY2_GATEWAY_SOCK`) | Explicit mapping in `execute_mediated_attempt` | Harness scaffolding | Not task content; identical every trial |
 | 7 | TYPE/CONTEXT/STALE role identities | Discovered via input 4 (`discover_type_roles`, `seq_stale` guard scan: inventory kinds + read bodies, structural criteria only) | Context through the allowed interface | Discovery exchanges are captured and counted like any agent action (TYPE proof: 13 exchanges; STALE proof: 5) |
 

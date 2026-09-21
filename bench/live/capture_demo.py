@@ -96,10 +96,12 @@ def frozen_bindings(protected_ws: Path, manifest: dict) -> dict:
 
 
 def setup_run(root: Path, with_binary: bool) -> dict:
-    """Stage runner-owned protected state + agent scratch (no tooling in
-    either: the gateway drives Sessions directly; the agent holds only
-    the client script copy and discovers identities via the gateway).
-    No trial-inputs file is staged in either path."""
+    """Stage runner-owned protected state + agent scratch.
+
+    Production staging first (generic transport only), then the
+    test-only deterministic adapter injection — mirroring the
+    campaign path (production staging verified before test
+    injection). No trial-inputs file is staged in either path."""
 
     protected_ws = root / "protected" / "ws"
     stage_initial("sley_2_0", TASK_ID, protected_ws)
@@ -111,8 +113,14 @@ def setup_run(root: Path, with_binary: bool) -> dict:
     manifest = json.loads((TASK_DIR / "task_manifest.json").read_text())
     scratch = root / "scratch"
     scratch.mkdir(mode=0o700, parents=True)
-    shutil.copyfile(ROOT / "bench" / "live" / "mediated_client.py",
-                    scratch / "mediated_client.py")
+    from bench.live.mediated_attempt import (
+        assert_production_staging_clean,
+        stage_mediated_scratch,
+        stage_test_adapter,
+    )
+    stage_mediated_scratch(scratch)
+    assert_production_staging_clean(scratch)
+    stage_test_adapter(scratch)
     capture_dir = root / "capture"
     frozen = frozen_bindings(protected_ws, manifest) if with_binary else None
     return {"protected_ws": protected_ws, "manifest": manifest,
@@ -192,8 +200,10 @@ def step_access() -> int:
     # it exits before any frame; run it unconsumed to show the client
     # itself cannot exfiltrate by path).
     env = {"capture_dir": capture, "scratch": scratch}
-    client_src = ROOT / "bench" / "live" / "mediated_client.py"
-    shutil.copyfile(client_src, scratch / "mediated_client.py")
+    client_src = ROOT / "bench" / "live" / "mediated_transport.py"
+    shutil.copyfile(client_src, scratch / "mediated_transport.py")
+    from bench.live.mediated_attempt import stage_test_adapter as _stage_test
+    _stage_test(scratch)
     spec = cf.SandboxSpec(scratch_dir=scratch,
                           mask_paths=(protected, capture))
     argv = cf.confinement_argv(

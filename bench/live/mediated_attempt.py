@@ -103,12 +103,36 @@ FRAME_LIMIT_BYTES = 8 * 1024 * 1024
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = ROOT / "bench" / "fixtures"
 
+# Production agent-visible scratch set. The confined production agent
+# sees exactly: documented tooling, the generic shim, and the generic
+# frame transport. Scripted witness sequences, member literals,
+# expected outcomes, and synthetic provider events are test-only and
+# are never staged here (tests inject them at the provider boundary
+# via the adapter hook below).
+PRODUCTION_STAGING_FILES = (
+    ".sley-live/TOOLING.md",
+    ".sley-live/sley-tool",
+    "mediated_transport.py",
+)
+
+# Test-only adapter assets that must never appear in production
+# staging (regression-enforced). Filenames are enforced by the
+# permitted-set check above; these are solver/witness/event code
+# markers that must not occur in staged production bytes.
+FORBIDDEN_STAGING_PATTERNS = (
+    "seq_type",
+    "seq_stale",
+    "CLIENT_MEMBERS",
+    "emit_provider_stream",
+)
+
 
 def stage_mediated_scratch(scratch: Path) -> None:
-    """Stage the confined agent view: tool contract docs, the
-    frame-forwarding ``sley-tool`` shim, and a stdlib-only client copy
-    (deterministic adapters). No packs, oracle inputs, or capture
-    paths are staged here."""
+    """Stage the confined production agent view: tool contract docs,
+    the frame-forwarding ``sley-tool`` shim, and the generic frame
+    transport (stdlib-only, task-agnostic). No packs, oracle inputs,
+    capture paths, scripted solvers, witness sequences, expected
+    outcomes, or synthetic provider events are staged here."""
 
     root = Path(scratch)
     control = root / ".sley-live"
@@ -119,9 +143,67 @@ def stage_mediated_scratch(scratch: Path) -> None:
     shim = (ROOT / "bench" / "live" / "mediated_shim.py").read_bytes()
     (control / "sley-tool").write_bytes(shim)
     os.chmod(control / "sley-tool", 0o555)
-    client = (ROOT / "bench" / "live" / "mediated_client.py").read_bytes()
-    (root / "mediated_client.py").write_bytes(client)
-    os.chmod(root / "mediated_client.py", 0o444)
+    transport = (ROOT / "bench" / "live" / "mediated_transport.py").read_bytes()
+    (root / "mediated_transport.py").write_bytes(transport)
+    os.chmod(root / "mediated_transport.py", 0o444)
+
+
+def production_staging_digest(scratch: Path) -> dict[str, str]:
+    """Digest every legitimate production-staged agent-visible input."""
+
+    root = Path(scratch)
+    digests: dict[str, str] = {}
+    for rel in PRODUCTION_STAGING_FILES:
+        digests[rel] = hashlib.sha256((root / rel).read_bytes()).hexdigest()
+    return digests
+
+
+def assert_production_staging_clean(scratch: Path) -> None:
+    """Regression gate: permitted file set only, no solver assets."""
+
+    from bench.live.campaign import CampaignError as _CampaignError
+
+    root = Path(scratch)
+    for rel in PRODUCTION_STAGING_FILES:
+        if not (root / rel).is_file():
+            raise _CampaignError(f"LIVE_MEDIATED_STAGING_MISSING: {rel}")
+    # No extra agent-visible files at the scratch top level or in
+    # .sley-live beyond the permitted set.
+    allowed = set(PRODUCTION_STAGING_FILES)
+    observed: list[str] = []
+    for path in list((root).iterdir()) + list((root / ".sley-live").iterdir()):
+        if path.is_dir():
+            continue
+        rel = str(path.relative_to(root))
+        observed.append(rel)
+        if rel not in allowed and rel != "gateway.sock":
+            raise _CampaignError(
+                f"LIVE_MEDIATED_STAGING_EXTRA: {rel}")
+    for rel in PRODUCTION_STAGING_FILES:
+        try:
+            text = (root / rel).read_text(encoding="utf-8", errors="strict")
+        except OSError as error:
+            raise _CampaignError(
+                f"LIVE_MEDIATED_STAGING_UNREADABLE: {rel}: {error}") from error
+        for pattern in FORBIDDEN_STAGING_PATTERNS:
+            if pattern in text:
+                raise _CampaignError(
+                    f"LIVE_MEDIATED_STAGING_FORBIDDEN: {pattern} in {rel}")
+
+
+def stage_test_adapter(scratch: Path, source: Path | None = None) -> Path:
+    """Test-only injection: copy the deterministic stand-in client into
+    a scratch that already carries the real production staging. Never
+    called by the production path; tests call it via the adapter hook
+    so the stand-in exercises the real confinement, mediation,
+    capture, oracle, append, and verification machinery."""
+
+    src = Path(source) if source is not None else (
+        ROOT / "bench" / "live" / "mediated_client.py")
+    dest = Path(scratch) / "mediated_client.py"
+    dest.write_bytes(src.read_bytes())
+    os.chmod(dest, 0o444)
+    return dest
 
 
 def resolve_sley_binary() -> Path:
@@ -517,6 +599,21 @@ def execute_mediated_attempt(
         scratch = Path(temporary) / "scratch"
         scratch.mkdir(mode=0o700)
         stage_mediated_scratch(scratch)
+        assert_production_staging_clean(scratch)
+        # Test-only stand-ins inject at the provider boundary AFTER
+        # the real production staging is verified: the deterministic
+        # adapter exercises the real confinement, mediation, capture,
+        # oracle, append, and verification machinery. Production
+        # adapters expose no such hook, so nothing extra is staged.
+        extra_stager = getattr(adapter, "extra_scratch_files", None)
+        if callable(extra_stager):
+            for rel, data in extra_stager() or []:
+                dest = scratch / rel
+                if dest.exists():
+                    from bench.live.campaign import CampaignError as _CE
+                    raise _CE(f"LIVE_MEDIATED_TEST_OVERWRITE: {rel}")
+                dest.write_bytes(data)
+                os.chmod(dest, 0o444)
         sock_path = scratch / SOCK_NAME
         server = GatewayServer(sock_path, endpoint)
         # Masked prefixes: trial state, the run's records/artifacts,

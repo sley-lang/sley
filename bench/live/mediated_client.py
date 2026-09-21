@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
-"""Confined deterministic adapter: the agent side of the mediated trial.
+"""Deterministic test-only adapter for mediated trials (never production).
+
+Test stand-in at the provider boundary: drives scripted witness
+sequences (seq_type/seq_stale), task-specific construction logic,
+witness member literals (CLIENT_MEMBERS), and synthetic
+provider-event emission (emit_provider_stream) for deterministic
+integration tests only.
+
+Never staged by ``stage_mediated_scratch``: the production scratch
+holds only the generic transport (``mediated_transport.py``), the
+documented shim, and authorized task inputs. Tests inject this file
+after production staging via the adapter boundary and exercise the
+real confinement, mediation, capture, oracle, append, and
+verification machinery. Not counted as model trials.
 
 Stdlib only. Runs inside the bwrap sandbox with no protected
-filesystem: the only channel is frames on stdin/stdout to the trusted
-gateway (request frame out, response frame in). Starting identities
-are discovered exclusively through the allowed gateway surface
-(inventory/read/resolve — every call captured and counted); no
-trial-inputs file, manifest role map, or staged member literals are
-consulted. Agent-authored identities (new typedef member ids) are
-generated client-side deterministically; the judge checks typedef
-shape and case coverage, never those literals. No codec, pack,
-repository, oracle, or capture path is available inside the sandbox.
+filesystem: the only channel is frames to the trusted gateway
+through ``mediated_transport.Gateway`` (every call captured and
+counted). Anything this process writes to /scratch (notes, hex
+dumps, forged transcripts) is candidate-side diagnostics:
+reconciliation never reads it.
 
 Multi-phase composition needs no client-side derivation: round 1
 proposes the skeleton record to establish the nonce (mirrors the
@@ -48,39 +57,37 @@ import json
 import os
 import sys
 
-SINT = {"variant": "SInt", "value": 64}
+try:
+    from mediated_transport import (
+        FRAME_LIMIT,
+        SINT,
+        SOCK_ENV,
+        Gateway,
+        _decoded_body,
+        _report,
+        log,
+        op_create,
+        op_replace,
+    )
+except ImportError:  # repo-side lint/typecheck: same tree, package path
+    from bench.live.mediated_transport import (
+        FRAME_LIMIT,
+        SINT,
+        SOCK_ENV,
+        Gateway,
+        _decoded_body,
+        _report,
+        log,
+        op_create,
+        op_replace,
+    )
 
 # Agent-authored member ids for the new JobState typedef (generated
 # client-side, never staged by the runner; the judge checks shape and
-# coverage, never these literals).
+# coverage, never these literals). TEST-ONLY: scripted witness
+# literals, never production inputs.
 CLIENT_MEMBERS = {"queued": "51" * 32, "running": "52" * 32,
                   "succeeded": "53" * 32, "failed": "54" * 32}
-
-SOCK_ENV = "SLEY2_GATEWAY_SOCK"
-FRAME_LIMIT = 8 * 1024 * 1024
-
-
-def _report(reply: dict) -> dict:
-    """Gateway envelope report (raises on refusal)."""
-
-    if not isinstance(reply, dict) or not reply.get("ok"):
-        raise RuntimeError(f"gateway refused: {str(reply)[:200]}")
-    report = reply.get("report")
-    if not isinstance(report, dict):
-        raise RuntimeError("gateway report shape")
-    return report
-
-
-def _decoded_body(report: dict) -> dict:
-    """Decoded entity body from a read report (raises on failure)."""
-
-    if report.get("failed"):
-        raise RuntimeError(f"read failed: {str(report)[:200]}")
-    decoded = report.get("decoded") or {}
-    entries = decoded.get("entries") or []
-    if len(entries) != 1 or not isinstance(entries[0].get("body"), dict):
-        raise RuntimeError("read body shape")
-    return entries[0]["body"]
 
 
 def discover_type_roles(gw: Gateway) -> dict:
@@ -195,16 +202,13 @@ def discover_type_roles(gw: Gateway) -> dict:
             "switch_entry": entry, "switch_leaf": leaf}
 
 
-def log(text: str) -> None:
-    sys.stderr.write(text + "\n")
-    sys.stderr.flush()
-
-
 def emit_provider_stream(commands: list[str]) -> None:
-    """Print the provider-observed event stream on stdout (socket
-    mode only; stdio mode reserves stdout for gateway frames). One
-    completed tool item per gateway frame keeps the observed tool
-    count reconciled with the captured exchange count."""
+    """TEST-ONLY synthetic provider-event emission (never production).
+
+    Prints the provider-observed event stream on stdout (socket mode
+    only). One completed tool item per gateway frame keeps the
+    observed tool count reconciled with the captured exchange count.
+    """
 
     def emit(value: dict) -> None:
         sys.stdout.write(json.dumps(value, sort_keys=True) + "\n")
@@ -224,64 +228,6 @@ def emit_provider_stream(commands: list[str]) -> None:
                     "output_tokens": 30,
                     "reasoning_output_tokens": 5}})
     sys.stdout.flush()
-
-
-class Gateway:
-    def __init__(self, session_id: str) -> None:
-        self.session_id = session_id
-        self.frames = 0
-        self.cmdlog: list[str] = []
-        sock_path = os.environ.get(SOCK_ENV, "")
-        self._sockfile = None
-        if sock_path:
-            import socket as _socket
-
-            try:
-                client = _socket.socket(_socket.AF_UNIX,
-                                        _socket.SOCK_STREAM)
-                client.connect(sock_path)
-            except OSError as error:
-                raise RuntimeError(f"gateway socket: {error}")
-            self._sockfile = client.makefile("rwb")
-
-    def call(self, phase: str, command: str,
-             args: list[str]) -> dict:
-        frame = {"phase": phase, "session_id": self.session_id,
-                 "command": command, "args": args}
-        if self._sockfile is not None:
-            raw = (json.dumps(frame, sort_keys=True) + "\n").encode()
-            try:
-                self._sockfile.write(raw)
-                self._sockfile.flush()
-                line = self._sockfile.readline(FRAME_LIMIT + 2)
-            except OSError as error:
-                raise RuntimeError(f"gateway transport: {error}")
-            if not line:
-                raise RuntimeError("gateway EOF")
-            reply = json.loads(line.decode("utf-8"))
-        else:
-            sys.stdout.write(json.dumps(frame, sort_keys=True) + "\n")
-            sys.stdout.flush()
-            line = sys.stdin.readline()
-            if not line:
-                raise RuntimeError("gateway EOF")
-            reply = json.loads(line)
-        self.frames += 1
-        self.cmdlog.append(command)
-        if reply.get("uncaptured"):
-            raise RuntimeError(
-                f"gateway capture failure: {reply.get('error')}")
-        return reply
-
-
-def op_create(kind: int, payload: dict) -> dict:
-    return {"class": "CreateEntity", "kind": kind, "target": None,
-            "field_tag": None, "payload": payload}
-
-
-def op_replace(kind: int, target: str, payload: dict) -> dict:
-    return {"class": "ReplaceEntityVersion", "kind": kind,
-            "target": target, "field_tag": None, "payload": payload}
 
 
 def named(typedef_id: str) -> dict:

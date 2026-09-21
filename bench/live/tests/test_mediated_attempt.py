@@ -45,13 +45,23 @@ def sley2_oracle_line(task_id: str, status: str,
 class StandInAdapter:
     """Deterministic provider stand-in at the provider boundary: the
     configured model identity is preserved; the launched command is
-    a confined deterministic adapter sequence instead of a model."""
+    a confined deterministic adapter sequence instead of a model.
+
+    The stand-in is test-only: production staging holds only the
+    generic transport/shim/tooling, and this adapter injects its
+    scripted client AFTER that staging is verified, exercising the
+    real confinement, mediation, capture, oracle, append, and
+    verification machinery."""
 
     def __init__(self, sequence: str, extra: list[str] | None = None) -> None:
         self.model = "gpt-5.6-sol"
         self.reasoning_effort = "medium"
         self._sequence = sequence
         self._extra = list(extra or [])
+
+    def extra_scratch_files(self) -> list[tuple[str, bytes]]:
+        return [("mediated_client.py",
+                 (ROOT / "bench" / "live" / "mediated_client.py").read_bytes())]
 
     def command(self, workspace) -> list[str]:
         _ = workspace

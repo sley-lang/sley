@@ -1,4 +1,4 @@
-//! Live-trial strict-case driver for the sley_2_0 arm.
+//! Live-trial strict-case driver for the `sley_2_0` arm.
 //!
 //! The Python trial oracle (`bench/fixtures/sley2_live_judge.py`) cannot
 //! judge computed values over SMP1: execution reports carry observation
@@ -8,7 +8,7 @@
 //!
 //! Environment in (all required unless noted):
 //! - `SUCC_JUDGE_REPO`: scratch repository path (already seeded copy).
-//! - `SUCC_JUDGE_MANIFEST`: task_manifest.json path (principal source).
+//! - `SUCC_JUDGE_MANIFEST`: `task_manifest.json` path (principal source).
 //! - `SUCC_JUDGE_CANDIDATE`: candidate record hex, or empty to skip commit.
 //! - `SUCC_JUDGE_FUNCTION`: target function entity hex.
 //! - `SUCC_JUDGE_CASES`: JSON array of
@@ -16,6 +16,7 @@
 //!   "Bool", "value": b}], "expect": {"value": {...same...}} |
 //!   {"failure": "VM_CODE"}}`.
 //! - `SUCC_JUDGE_BASELINE`: `1` to also run cases pre-commit.
+//!
 //! Stdout: one `LIVE_JUDGE_RESULT {...}` line. Exit 0 with a verdict
 //! inside the JSON; any driver failure prints a harness-error verdict.
 
@@ -38,18 +39,32 @@ fn unhex(text: &str) -> Vec<u8> {
 }
 
 fn const_of(item: &serde_json::Value) -> ConstValue {
-    let kind = item.get("type").and_then(|v| v.as_str()).unwrap_or("");
+    let kind = item
+        .get("type")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("");
     match kind {
         "SInt" => {
-            let bits = item.get("bits").and_then(|v| v.as_u64()).unwrap_or(64);
-            let value = item.get("value").and_then(|v| v.as_i64()).unwrap_or(0);
+            let bits = item
+                .get("bits")
+                .and_then(serde_json::Value::as_u64)
+                .unwrap_or(64);
+            let value = item
+                .get("value")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0);
             ConstValue {
-                value_type: TypeExpr::SInt(IntegerWidth::from_bits(bits as u16)),
-                data: ConstData::SInt(value as i128),
+                value_type: TypeExpr::SInt(IntegerWidth::from_bits(
+                    u16::try_from(bits).unwrap_or(u16::MAX),
+                )),
+                data: ConstData::SInt(i128::from(value)),
             }
         }
         "Bool" => {
-            let value = item.get("value").and_then(|v| v.as_bool()).unwrap_or(false);
+            let value = item
+                .get("value")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false);
             ConstValue {
                 value_type: TypeExpr::Bool,
                 data: ConstData::Bool(value),
