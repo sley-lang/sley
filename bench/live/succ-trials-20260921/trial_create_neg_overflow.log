@@ -1,0 +1,5 @@
+CREATE witness/neg_overflow: skeleton valid False
+CREATE witness/neg_overflow: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/neg_overflow: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': 'bcd48ba9075e1a6fa2f385efb0d2b0b86d59dd95a5bbc76befe4db4bccb05137'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': '579c82a7064bac04b75be0948e13b4aceb9aebdb5bd2a91cb6e2ecda59527704', 'truncated': False}
+S2B-CREATE-001 witness/neg_overflow judge round-1 exit: 1 code: ORACLE_UNCHECKED_ARITHMETIC status: rejected
+workspace kept at: /tmp/sley2-create-witness-0_0l10n6/ws

@@ -690,16 +690,29 @@ class CreateClassifierTests(unittest.TestCase):
     def checks(self) -> list:
         return [[1812500, 10000, 181], [0, 10000, 0], [1, 10000, 0]]
 
-    def test_ceiling_triple_is_wrong_cents(self) -> None:
+    def test_ceiling_total_mismatches_exact(self) -> None:
+        # The old scalar ceiling near-miss rule migrated to exact
+        # end-to-end comparison: a ceiling-division invoice decodes to
+        # Ok(2682), which never equals the frozen Ok(2681) want, so it
+        # rejects as ORACLE_CREATE_MISMATCH with the decoded value in
+        # detail (witness neg_wrongtotal proves the rejection path).
+        want = judge._invoice_want_ok("MONEY", "CENTS", 2681)
+        ceil = judge._invoice_want_ok("MONEY", "CENTS", 2682)
+        floor = judge._invoice_want_ok("MONEY", "CENTS", 2681)
+        self.assertNotEqual(ceil, want)
+        self.assertEqual(floor, want)
+
+    def test_overflow_value_is_unchecked_at_invoice_level(self) -> None:
+        # Overflow inputs yielding any Ok value (however embodied)
+        # reject as ORACLE_UNCHECKED_ARITHMETIC, never mismatch.
+        value = {"ok": True, "value": {"Result": {"Ok": {"Record": {
+            "definition": "MONEY",
+            "fields": {"CENTS": {"SInt": "0"}}}}}}}
         with self.assertRaises(judge.JudgeRejection) as raised:
-            judge._reject_ceil_near_miss([("e", [182, 0, 1])], self.checks())
-        self.assertEqual(raised.exception.code, "ORACLE_WRONG_CENTS")
-
-    def test_floor_triple_passes_silently(self) -> None:
-        judge._reject_ceil_near_miss([("e", [181, 0, 0])], self.checks())
-
-    def test_unrelated_triple_passes_silently(self) -> None:
-        judge._reject_ceil_near_miss([("e", [5, 5, 5])], self.checks())
+            judge._check_overflow_result(
+                value, {"code": 1}, "ORACLE_UNCHECKED_ARITHMETIC")
+        self.assertEqual(raised.exception.code,
+                         "ORACLE_UNCHECKED_ARITHMETIC")
 
 
 if __name__ == "__main__":

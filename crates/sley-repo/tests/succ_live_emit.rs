@@ -38,8 +38,11 @@
 //! - CREATE-001 stages a genesis pack (workspace/policy/anchors, no
 //!   program entities): runner-owned empty-state initialization, which
 //!   the contract permits. The invoice program itself is authored
-//!   through the trial surface (structured `CreateEntity` operations),
-//!   never pre-seeded; roles are discovered behaviorally by the judge.
+//!   through the trial surface (structured CreateEntity operations),
+//!   never pre-seeded; types and the entry are discovered by shape
+//!   against the submitted accepted state, never by fixed identities:
+//!   entity ids are nonce-derived at trial time, so the manifest pins
+//!   no program ids.
 //! - EFFECT-001 and CAP-001 carry their frozen E7 exclusions; bases are
 //!   still emitted so trial slots stage, and the live oracle rejects
 //!   them exactly as the frozen expect files do.
@@ -408,42 +411,41 @@ fn bool_constant(byte: u8, value: bool) -> (EntityId, EntityBodyValue) {
 
 fn base_create() -> EmitBase {
     // Genesis scaffolding only (workspace, policy, anchors): no program
-    // entities. The trial agent authors the invoice program (subtotal /
-    // tax / total checked primitives plus a wiring entry) through the
-    // trial surface from this empty state; nothing here is a solution.
-    // Roles are discovered behaviorally by the judge (execution of the
-    // frozen scalar checks), never by fixed identities: entity ids are
-    // nonce-derived at trial time, so the manifest pins no program ids.
-    // Checked integer arithmetic yields Result (never bare SInt), so no
-    // multi-op chaining is expressible: each primitive is one checked
-    // op (the frozen S3 shape), sequenced by the caller. The tax role
-    // spans tax_mul/tax_div; the composition identity below is the
-    // one-line corpus case over observed values.
+    // entities. The trial agent authors the invoice program (typed
+    // Money/LineItem records, checked subtotal/tax helpers, a chained
+    // entry returning Result<Money,ArithmeticError>, submitted
+    // deterministic tests) through the trial surface from this empty
+    // state; nothing here is a solution. Types and the entry are
+    // discovered by shape against the submitted accepted state, never
+    // by fixed identities: entity ids are nonce-derived at trial time,
+    // so the manifest pins no program ids. The entry takes only the
+    // line vector and the basis-point rate: no precomputed subtotal,
+    // tax product, rounded tax, or final total crosses as an input.
+    // Member meaning follows typedef field order (quantity, then
+    // unit_cents); the frozen one-line values are invariant under
+    // member relabeling, so correct programs accept under any
+    // consistent labeling while wrong dataflow still mismatches.
     let judge = serde_json::json!({
         "flow": "create",
-        "primitives": {
-            "subtotal": {"params": 2, "opcode": 66,
-                "checks": [[2, 1250, 2500], [0, 0, 0]]},
-            "tax_mul": {"params": 2, "opcode": 66,
-                "checks": [[2500, 725, 1_812_500], [0, 0, 0]]},
-            "tax_div": {"params": 2, "opcode": 67,
-                "checks": [[1_812_500, 10000, 181], [0, 10000, 0],
-                           [1, 10000, 0]]},
-            "total": {"params": 2, "opcode": 64,
-                "checks": [[2500, 181, 2681], [0, 0, 0]]},
+        "types": {
+            "money": {"record_fields": 1, "field": "SInt64"},
+            "line_item": {"record_fields": 2, "field": "SInt64"},
         },
-        "overflow": {"primitive": "subtotal",
-            "inputs": [9_223_372_036_854_775_807_i64, 2],
-            "failure": "ARITHMETIC_OVERFLOW", "code": 1},
-        "overflow_add": {"primitive": "total",
-            "inputs": [9_223_372_036_854_775_807_i64, 1],
-            "failure": "ARITHMETIC_OVERFLOW", "code": 1},
-        "composition": {"subtotal": [2, 1250], "tax_mul": [2500, 725],
-            "tax_div": [1_812_500, 10000], "total": [2500, 181],
-            "result_cents": 2681},
-        "ceiling_roles": ["tax_div"],
-        "wiring": {"entry_calls": ["subtotal", "tax_mul", "tax_div",
-                                   "total"]},
+        "entry": {"params": ["Vector(LineItem)", "SInt64"],
+                  "result": "Result(Money,ArithmeticError)"},
+        "cases": [
+            {"name": "empty", "lines": [], "tax_bp": 725,
+             "expect": {"Ok": {"cents": 0}}},
+            {"name": "one-line",
+             "lines": [{"quantity": 2, "unit_cents": 1250}],
+             "tax_bp": 725, "expect": {"Ok": {"cents": 2681}}},
+            {"name": "overflow",
+             "lines": [{"quantity": 9_223_372_036_854_775_807_i64,
+                        "unit_cents": 2}],
+             "tax_bp": 725,
+             "expect": {"Err": {"kind": "Arithmetic", "code": 1}}},
+        ],
+        "tests": {"cover": ["empty", "one-line", "overflow"]},
     });
     (vec![], BTreeMap::new(), vec![], judge)
 }

@@ -1,0 +1,5 @@
+CREATE witness/neg_notests: skeleton valid False
+CREATE witness/neg_notests: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/neg_notests: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': 'caa7f70aeb212a9cbc18612ade0089df728c6c802148aa0115a71b782b427973'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': '31b8c67c664c7a7655c98e503c6c06ab6322f0180bc6995e4ac5d294d61dac1e', 'truncated': False}
+S2B-CREATE-001 witness/neg_notests judge round-1 exit: 1 code: ORACLE_CASE_MISSING status: rejected
+workspace kept at: /tmp/sley2-create-witness-ch99e2xf/ws

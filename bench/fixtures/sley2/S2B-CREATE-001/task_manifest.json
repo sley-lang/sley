@@ -2,125 +2,73 @@
   "contract": "sley2.live-task-base.v1",
   "entities": {},
   "judge": {
-    "ceiling_roles": [
-      "tax_div"
+    "cases": [
+      {
+        "expect": {
+          "Ok": {
+            "cents": 0
+          }
+        },
+        "lines": [],
+        "name": "empty",
+        "tax_bp": 725
+      },
+      {
+        "expect": {
+          "Ok": {
+            "cents": 2681
+          }
+        },
+        "lines": [
+          {
+            "quantity": 2,
+            "unit_cents": 1250
+          }
+        ],
+        "name": "one-line",
+        "tax_bp": 725
+      },
+      {
+        "expect": {
+          "Err": {
+            "code": 1,
+            "kind": "Arithmetic"
+          }
+        },
+        "lines": [
+          {
+            "quantity": 9223372036854775807,
+            "unit_cents": 2
+          }
+        ],
+        "name": "overflow",
+        "tax_bp": 725
+      }
     ],
-    "composition": {
-      "result_cents": 2681,
-      "subtotal": [
-        2,
-        1250
+    "entry": {
+      "params": [
+        "Vector(LineItem)",
+        "SInt64"
       ],
-      "tax_div": [
-        1812500,
-        10000
-      ],
-      "tax_mul": [
-        2500,
-        725
-      ],
-      "total": [
-        2500,
-        181
-      ]
+      "result": "Result(Money,ArithmeticError)"
     },
     "flow": "create",
-    "overflow": {
-      "code": 1,
-      "failure": "ARITHMETIC_OVERFLOW",
-      "inputs": [
-        9223372036854775807,
-        2
-      ],
-      "primitive": "subtotal"
-    },
-    "overflow_add": {
-      "code": 1,
-      "failure": "ARITHMETIC_OVERFLOW",
-      "inputs": [
-        9223372036854775807,
-        1
-      ],
-      "primitive": "total"
-    },
-    "primitives": {
-      "subtotal": {
-        "checks": [
-          [
-            2,
-            1250,
-            2500
-          ],
-          [
-            0,
-            0,
-            0
-          ]
-        ],
-        "opcode": 66,
-        "params": 2
-      },
-      "tax_div": {
-        "checks": [
-          [
-            1812500,
-            10000,
-            181
-          ],
-          [
-            0,
-            10000,
-            0
-          ],
-          [
-            1,
-            10000,
-            0
-          ]
-        ],
-        "opcode": 67,
-        "params": 2
-      },
-      "tax_mul": {
-        "checks": [
-          [
-            2500,
-            725,
-            1812500
-          ],
-          [
-            0,
-            0,
-            0
-          ]
-        ],
-        "opcode": 66,
-        "params": 2
-      },
-      "total": {
-        "checks": [
-          [
-            2500,
-            181,
-            2681
-          ],
-          [
-            0,
-            0,
-            0
-          ]
-        ],
-        "opcode": 64,
-        "params": 2
-      }
-    },
-    "wiring": {
-      "entry_calls": [
-        "subtotal",
-        "tax_mul",
-        "tax_div",
-        "total"
+    "tests": {
+      "cover": [
+        "empty",
+        "one-line",
+        "overflow"
       ]
+    },
+    "types": {
+      "line_item": {
+        "field": "SInt64",
+        "record_fields": 2
+      },
+      "money": {
+        "field": "SInt64",
+        "record_fields": 1
+      }
     }
   },
   "pack_digest_blake3": "1d8c69aed8e2e33ee6f07e4f7308283acf34e653039baa7e981b6e2eb19303a3",

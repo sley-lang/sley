@@ -1,0 +1,10 @@
+CREATE witness/pos: skeleton valid False
+CREATE witness/pos: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/pos: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': '463b97f6adbfddf59515a413fb8fb079eb638423199f795a30ac2d3a14eeb2d2'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': 'dbb34dde31a6e797221dd2c1ee24e2e80b536dc6a5664319d27712a362a5496f', 'truncated': False}
+S2B-CREATE-001 witness/pos judge round-1 exit: 1 code: ORACLE_CASE_MISSING status: rejected
+S2B-CREATE-001 witness/pos harness commit round-1: 2451d38150206968
+CREATE witness/pos: skeleton valid False
+CREATE witness/pos: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/pos: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': 'b8f936433bc32d65d94fddcc67065a2747e8c28383acfd691888a189df8feaee'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': 'ae15cf36725b891363512ec76a979a8f4d87353183df4d4273d8f0cd6c5e5304', 'truncated': False}
+S2B-CREATE-001 witness/pos judge round-2 exit: 0 code: None status: accepted
+workspace kept at: /tmp/sley2-create-witness-6fa1c_qr/ws

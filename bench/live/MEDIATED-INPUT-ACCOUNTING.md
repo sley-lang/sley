@@ -78,8 +78,25 @@ preregistered live-model campaign. `ga_claimed=false`.
   capture before oracle); (b) adopt the member/impact contract source
   and count it; (c) add a `context_pos` discovery sequence + real-oracle
   test. No legacy-transcript fabrication in the meantime.
-- CREATE complete-task rework (typed LineItem/tax entry execution, no
-  precomputed intermediates) — see the task-2 handoff note.
+- CREATE complete-task rework DONE (typed Money/LineItem records,
+  checked subtotal + merged-tax helpers, chained entry returning
+  Result<Money,ArithmeticError>, no precomputed intermediates):
+  genuine 60-op program authored/committed/executed through the trial
+  surface (empty/one-line/overflow exact); submitted tests authored,
+  validated (phase-12 ceilings), committed, and executed natively;
+  full judge ACCEPTS (`trial_create_pos.log` two-round proof; 7
+  witness variants discriminate with exact codes; 23 judge-unit +
+  10 driver-unit regressions green). Structural findings retained:
+  (a) 64-op trial-surface record cap (`sley2_tool._assemble`);
+  (b) trial workspaces never advance between judge runs (judge copies
+  fresh, discards scratch), so program + tests reach committed state
+  in two harness commits (round-1 program, round-2 tests); (c) a
+  single candidate carrying tests targeting new functions is refused
+  at commit (TXN_TEST_EVIDENCE_UNSUPPORTED: validation auto-selects
+  tests targeting affected functions) — single-trial model
+  acceptance of CREATE-style code+tests needs that co-commit review
+  gate; witness round-1 harness commit is explicitly logged, not
+  agent bytes.
 - MODULE/MERGE/CORRUPT/PERF semantic dispositions — recorded in
   `SUCCESSION-COVERAGE.md`; narrowed per the closure pass, no silent
   closure.

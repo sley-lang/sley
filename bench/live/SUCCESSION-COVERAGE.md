@@ -14,7 +14,7 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 
 | Task | Positive (fresh e2e) | Negative (fresh e2e) | Remaining blocker |
 |---|---|---|---|
-| CREATE | ACCEPTED (fail-closed judge + repaired driver, 2026-09-21): 4 checked primitives authored via propose/compose/finish; roles discovered behaviorally; composition 2500+181=2681; submitted wiring entry EXECUTES NATIVELY with decoded Ok(2681) (`trial_create_pos_fixed.log`, `trial_create_entryexec_fixed.log`); valid structural alternative (permuted param order) accepts (`trial_create_alt_order.log`) | neg_wrongop/neg_wrongtotal → ORACLE_CREATE_MISMATCH (`trial_create_neg_wrongop.log`, `trial_create_neg_wrongtotal.log`); 12 judge-unit regressions pin the classification (correct pass / wrong-value MISMATCH / exec-fail + driver-error UNEXECUTABLE / 4× UNMAPPED / conflict MISMATCH / tie order-independence / bad-spec harness); legacy `trial_create_entryexec_neg.log` SUPERSEDED (fail-open era; rerun of that shape now accepts) | live-model trial |
+| CREATE | ACCEPTED (typed-invoice judge + generic driver, 2026-09-21): genuine 60-op program (Money/LineItem typedefs, checked subtotal + merged-tax helpers, chained entry → Result<Money,ArithmeticError>) authored/committed/executed via propose/compose/finish; frozen empty/one-line/overflow execute natively with exact decoded values (Ok(0)/Ok(2681)/Err(Arithmetic,1)); submitted tests authored, validated, committed, executed natively; full ACCEPT (`trial_create_pos.log` two-round proof) | neg_wrongop/neg_wrongtotal → ORACLE_CREATE_MISMATCH; neg_overflow (swallowed Err) → ORACLE_UNCHECKED_ARITHMETIC; neg_notypes → ORACLE_CREATE_UNMAPPED; neg_notests round-1 → ORACLE_CASE_MISSING; neg_wrongtests round-2 → ORACLE_TEST_MISMATCH (`trial_create_neg_*.log`); 23 judge-unit + 10 driver-unit regressions green; prior scalar-role proofs SUPERSEDED (precomputed-intermediate era) | co-commit review gate (single candidate with tests targeting new functions refused at commit: TXN_TEST_EVIDENCE_UNSUPPORTED; two harness commits prove mechanics; witness round-1 commit explicitly logged) + live-model trial |
 | REPAIR | (B) RE-PROVED 2026-09-21 under current tool/judge: `trial_repair.log` ACCEPTED (LessThan 98 → GreaterThan 100, Valid, finish) | wrong comparison 98 → 99 finishes but judge rejects `ORACLE_CLAMP_MISMATCH` triple [7,0,10] (`trial_repair_neg.log`) | live-model trial |
 | SIG | (B) RE-PROVED 2026-09-21: `trial_sig.log` ACCEPTED (2nd explicit SInt param threaded through all 3 callers; 3 CallDirect × 2 operands in distinct blocks; callee arity 2; fixed-input driver execution) | omitted caller_c → production compose refuses phase 7 ControlFlowError (`trial_sig_neg.log`); callee widened to 3 params → `ORACLE_COLLATERAL_TOUCHED` (`trial_sig_neg_arity.log`; corpus "unrelated signature change" enforced) | live-model trial |
 | MODULE | ACCEPTED `trial_module.log` — export grant on new_package via surface; observation held on 6 fixed inputs, reference_count 6, no-duplicate-impl extras; RECHECKED 2026-09-21 `trial_module_recheck.log`. BINDING ESTABLISHED 2026-09-21 (see per-task entry): in this entity model cross-package visibility IS the export set (packages bind the shared namespace via root_namespace + exports); the checksum's integrity-namespace binding changed ∅→{checksum}; identity preserved (collateral-enforced); old_package removal is FORBIDDEN by the frozen collateral targets, so export-grant is the only authorable binding change — the frozen manifest operationalizes the corpus move, no open gate | target-respecting no-op → ORACLE_STALE_IMPORT (`trial_module_neg.log`, recheck `trial_module_neg_recheck.log` exports=0) | live-model trial |
@@ -265,12 +265,19 @@ superseded evidence and are not overwritten. New evidence goes to
 
 Per-task frozen predicates (proved vs still missing):
 
-- CREATE: no scripted positive. Blank-repo staging exists
-  (`stage_initial` blank, no pack); live judging path returns
-  harness_error on missing manifest by design. Missing: blank-program
-  setup as harness work (not a model limitation), judging path for a
-  blank start, deterministic positive/negative witnesses without
-  seeding a completed solution. Static S3 only.
+- CREATE: typed-invoice design PROVED 2026-09-21 (supersedes all
+  scalar-role notes below): genuine program (Money/LineItem typedefs,
+  checked subtotal + merged-tax helpers, chained entry →
+  Result<Money,ArithmeticError>) authored/committed/executed through
+  the trial surface; frozen empty/one-line/overflow exact;
+  submitted tests authored/validated/committed/executed; full ACCEPT
+  (`trial_create_pos.log` two-round proof); 7 witness variants
+  discriminate with exact codes. Structural findings retained:
+  64-op record cap; trial workspaces never advance between judge
+  runs; single-candidate tests+new-functions refused at commit
+  (TXN_TEST_EVIDENCE_UNSUPPORTED) — co-commit review gate for
+  single-trial model acceptance. Prior scalar-role paragraphs below
+  are historical (precomputed-intermediate era).
   UPDATE 2026-09-21: scripted positives exist (`trial_create.log`
   family) and the judge now maps the submitted wiring entry to the
   frozen one-line intermediates natively (`_judge_create_entry`):
@@ -528,11 +535,14 @@ continuation positives/negatives.
 
 CREATE (task 4): genesis pack (workspace/policy/anchors, no program
 entities — runner-owned empty-state init, never a solution) +
-trusted manifest with behavioral (not identity) specs; judging path
-discovers roles by execution, checks overflow codes, composition
-identity over observed values, and entry wiring. Checked ops return
-Result (never bare SInt), so no multi-op chaining is expressible:
-single-op primitives (the S3 shape) sequenced by the caller.
+trusted manifest with shape-based (not identity) specs; judging path
+discovers Money/LineItem typedefs by record shape and the entry by
+its (Vector(LineItem), SInt64) → Result(Money,ArithmeticError)
+contract, executes the frozen empty/one-line/overflow cases natively
+with exact decoded values, and verifies submitted TestCase coverage
+the same way. Checked Results chain in-program via VariantSwitch
+(bridge-adversarial precedent): single-op helpers plus an
+entry-inlined final add fit the 64-op record cap.
 
 PERF (task 4): re-emitted at the governing 5x5 scale (46-op scan;
 the ~58-op fix record fits the 64-op surface cap); judge measures the
