@@ -64,3 +64,58 @@ or release action. Commits pushed only to
 wt2 at `acbc65f0`; checkpoints/packs/logs/review inputs/artifacts
 untouched. Candidate-bound release reports kept separate from this
 development evidence.
+
+## Addendum — D4 gates at 7bcc5a89 (+ proof refresh 03982595)
+
+- Source checkpoint: `7bcc5a89` (`work/succession-sley20-arm`;
+  D1 staging split `c75aa3ee`, emitter lint `fbe48d29`, typed driver
+  `05b2da6a`, typed CREATE `47ac2dcc`, mediated CONTEXT `05b49112`,
+  D4 lint repairs `7bcc5a89`), plus fuzz-proof refresh `03982595`
+  (same branch, fast-forward). Pushed to
+  `origin/work/succession-sley20-arm`.
+- Toolchain: pinned `1.93.0` (`rustc 1.93.0`, `cargo 1.93.0`);
+  `--locked`, `CARGO_NET_OFFLINE=true`.
+- Binaries (wt-succ `target/debug`, rebuilt from this source):
+  `sley` sha256
+  `95c4cc0b224ccd29e0f3b59294c3e2bb3a27243b3c8e2b2b6a58f2662fa62867`
+  (unchanged: no library sources touched);
+  `succ_live_judge_cases-42d77a02eb446c77` sha256
+  `48c558956bb9258a78d4eba1a058992841bdb934617e15afd59c0f909612d745`
+  (rebuilt: D2 typed driver).
+- Gate worktrees (detached, main never cleaned/reset/moved, wt2
+  untouched): `wt-lint-fbe48d29` (lint repair), `wt-d4-05b49112`
+  (superseded), `wt-d4-7bcc5a89` at `7bcc5a89` (gates).
+  Build storage: user-owned `/home/gfarch/.cache/sley-d4-7bcc5a89/target`.
+- Raw logs (persistent, resume dir): `lint-Q-05b49112.log` (FAIL, 6
+  diagnostics) → repaired on branch → `lint-R-7bcc5a89.log` (PASS);
+  `quick-R-7bcc5a89.log` (PASS through line 86); `quick-R3-7bcc5a89.log`
+  (keep-going attempt, same stop); `quick-R4-7bcc5a89.log`
+  (lines-88+ remainder, explicit); `fuzz-refresh-7bcc5a89.log`
+  (7 lane runs, all PASS); `cargo-test-7bcc5a89.log` (workspace
+  suite, all ok).
+
+| Check | Command (workdir) | Exit | Result |
+|---|---|---|---|
+| `make lint` | `make lint` (clean tree, user-owned target dir) | 0 | PASS: fmt clean, clippy 0 warnings (`lint-report.v1`) |
+| `make quick` lines 1–86 | `make quick` (clean tree) | stops 45 | all spec/fixture checks PASS; all fuzz slices PASS incl. 7 refreshed lanes (exchange, merge, merge_judgment, pack, semantic_delta, smp1, smp1_json_bridge re-proofed at 7bcc5a89 and transcribed) |
+| `make quick` line 87 | `build_candidate_content_report.py --check` | 1 | BLOCKED (structural, pre-existing): missing ignored `evidence/runtime/s20-720-release-candidate/evidence.json` in a fresh tree; satisfying it needs `release-candidate-build`, which rebinds candidate-bound release reports and needs main-line attestation — forbidden/out-of-scope for a work branch (would fail identically on any work-branch commit) |
+| quick remainder (88+) | explicit per-line runs (clean tree) | 0 except noted | contract/invariant/freeze/frontier checks PASS; `git diff --check` PASS; `cargo check --workspace` PASS; `cargo test --workspace` all ok EXCEPT pre-existing env-gated `succ_debug_commit::debug_commit_repro` (missing `SUCC_DEBUG_*` env; untouched temporary helper) and one environmental `check_transaction_contract` FAIL (absent operator `SLEY2_MASTER_GOAL` file) |
+| `cargo test --workspace` | `-- --skip debug_commit_repro` (clean tree) | 0 | 74 result lines, all ok, zero failures |
+| bench/live suites | `python3 -m unittest discover -s bench/live/tests` (wt-succ, binaries bound) | 0 | 198 tests OK (incl. 10 driver-unit, 23 judge-unit, 13 mediated-audit-unit, 3 context_pos + TYPE/STALE campaign-path integration proofs) |
+
+- Fuzz refresh (source-bound, existing tooling/dependency order):
+  7 stale lanes (lane inputs include `crates/sley-repo`, touched by
+  test-only changes) re-run (`run_*_persistent_fuzz.py`, all PASS),
+  transcribed via `transcribe_fuzz_proofs.py` with a work-branch note,
+  committed as `03982595`; slice checkers green at the new commit.
+  No crashes, no new artifacts.
+- Freshness/proof checks: slice checkers inside `quick` (all green);
+  `succ_live_packs_frozen` green (CREATE/CONTEXT manifest re-emits
+  changed judge JSON only; all packs byte-identical).
+- Retained gates (not implementation gaps): co-commit review gate
+  for single-trial CREATE code+tests (TXN_TEST_EVIDENCE_UNSUPPORTED;
+  two-harness-commit mechanics proven, witness round-1 commit
+  explicitly logged); CONTEXT discovery review gate (member literal
+  + impact set undisclosed; no permitted bounded enumeration route);
+  release-candidate attestation scope (above); live-model campaign
+  (held throughout).
