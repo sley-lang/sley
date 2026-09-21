@@ -1,4 +1,4 @@
-//! Live sley_2_0 succession arm: frozen per-task base packs + manifests.
+//! Live `sley_2_0` succession arm: frozen per-task base packs + manifests.
 //!
 //! Engine symbols pinned (mirrored from the S3 conformance tests, which
 //! stay the executable precedent for every pattern used here):
@@ -23,10 +23,10 @@
 //!   test pins the equality. It carries no grants in trial candidates
 //!   (empty capability projection, the S3 fixture pattern); authority to
 //!   mutate comes from the per-pack provisioned policy below.
-//! - Policy grants per pack: CreateEntity, ReplaceEntityVersion,
-//!   DeleteEntityBinding, SetScalarField, ReplaceTypedField,
-//!   RetargetReference, InsertOrderedChild, RemoveOrderedChild,
-//!   MoveOrderedChild, AddTest, ReplaceTest. Nothing else the agent may
+//! - Policy grants per pack: `CreateEntity`, `ReplaceEntityVersion`,
+//!   `DeleteEntityBinding`, `SetScalarField`, `ReplaceTypedField`,
+//!   `RetargetReference`, `InsertOrderedChild`, `RemoveOrderedChild`,
+//!   `MoveOrderedChild`, `AddTest`, `ReplaceTest`. Nothing else the agent may
 //!   need is withheld; nothing privileged (commit paths, export of other
 //!   stores, policy writes) is granted by policy because those are
 //!   method-level denials, not grants.
@@ -38,7 +38,7 @@
 //! - CREATE-001 stages a genesis pack (workspace/policy/anchors, no
 //!   program entities): runner-owned empty-state initialization, which
 //!   the contract permits. The invoice program itself is authored
-//!   through the trial surface (structured CreateEntity operations),
+//!   through the trial surface (structured `CreateEntity` operations),
 //!   never pre-seeded; roles are discovered behaviorally by the judge.
 //! - EFFECT-001 and CAP-001 carry their frozen E7 exclusions; bases are
 //!   still emitted so trial slots stage, and the live oracle rejects
@@ -74,6 +74,19 @@ use std::path::PathBuf;
 // bench/live/tests/test_sley2_principal.py.
 const LIVE_PRINCIPAL_HEX: &str = "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3";
 const LIVE_WORKSPACE_BYTE: u8 = 7;
+
+// Named aliases for the emitter's compound shapes (behavior-preserving;
+// every base builder returns the same tuple through `EmitBase`).
+type EmitBodies = Vec<(EntityId, EntityBodyValue)>;
+type EmitEntities = BTreeMap<&'static str, String>;
+type EmitTargets = Vec<String>;
+type EmitJudge = serde_json::Value;
+type EmitBase = (EmitBodies, EmitEntities, EmitTargets, EmitJudge);
+type ScanOp = (u8, Opcode, Vec<ValueRef>, TypeExpr);
+type EmitMutation = (
+    sley_mutate::MutationOperation,
+    sley_mutate::BoundPrecondition,
+);
 
 fn hex(bytes: &[u8]) -> String {
     const D: &[u8; 16] = b"0123456789abcdef";
@@ -359,7 +372,7 @@ fn cmp_entities(
 }
 
 fn opcode_tag(opcode: Opcode) -> u32 {
-    u32::from(opcode.tag())
+    opcode.tag()
 }
 
 fn namespace_entity(byte: u8, members: &[u8]) -> (EntityId, EntityBodyValue) {
@@ -393,12 +406,7 @@ fn bool_constant(byte: u8, value: bool) -> (EntityId, EntityBodyValue) {
 // documented in each builder. Every base is a coherent but failing
 // program: the fix is verified behaviorally, never embedded.
 
-fn base_create() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_create() -> EmitBase {
     // Genesis scaffolding only (workspace, policy, anchors): no program
     // entities. The trial agent authors the invoice program (subtotal /
     // tax / total checked primitives plus a wiring entry) through the
@@ -417,21 +425,21 @@ fn base_create() -> (
             "subtotal": {"params": 2, "opcode": 66,
                 "checks": [[2, 1250, 2500], [0, 0, 0]]},
             "tax_mul": {"params": 2, "opcode": 66,
-                "checks": [[2500, 725, 1812500], [0, 0, 0]]},
+                "checks": [[2500, 725, 1_812_500], [0, 0, 0]]},
             "tax_div": {"params": 2, "opcode": 67,
-                "checks": [[1812500, 10000, 181], [0, 10000, 0],
+                "checks": [[1_812_500, 10000, 181], [0, 10000, 0],
                            [1, 10000, 0]]},
             "total": {"params": 2, "opcode": 64,
                 "checks": [[2500, 181, 2681], [0, 0, 0]]},
         },
         "overflow": {"primitive": "subtotal",
-            "inputs": [9223372036854775807i64, 2],
+            "inputs": [9_223_372_036_854_775_807_i64, 2],
             "failure": "ARITHMETIC_OVERFLOW", "code": 1},
         "overflow_add": {"primitive": "total",
-            "inputs": [9223372036854775807i64, 1],
+            "inputs": [9_223_372_036_854_775_807_i64, 1],
             "failure": "ARITHMETIC_OVERFLOW", "code": 1},
         "composition": {"subtotal": [2, 1250], "tax_mul": [2500, 725],
-            "tax_div": [1812500, 10000], "total": [2500, 181],
+            "tax_div": [1_812_500, 10000], "total": [2500, 181],
             "result_cents": 2681},
         "ceiling_roles": ["tax_div"],
         "wiring": {"entry_calls": ["subtotal", "tax_mul", "tax_div",
@@ -440,12 +448,7 @@ fn base_create() -> (
     (vec![], BTreeMap::new(), vec![], judge)
 }
 
-fn base_repair() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_repair() -> EmitBase {
     let mut bodies = vec![namespace_entity(0x40, &[0x41, 0x46])];
     bodies.extend(cmp_entities(0x41, 0x42, 0x43, 0x44, 0x45, Opcode::LessThan));
     bodies.extend(cmp_entities(0x46, 0x47, 0x48, 0x49, 0x4A, Opcode::LessThan));
@@ -463,12 +466,7 @@ fn base_repair() -> (
 // Layouts are documented per builder. Every base is coherent (imports
 // accepted) but fails its task: the fix is verified behaviorally.
 
-fn base_sig() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_sig() -> EmitBase {
     // Two-parameter callee plus THREE one-argument callers
     // (missing_caller): each caller names the callee through an entity
     // immediate but passes a single argument. The fix adds the missing
@@ -557,12 +555,63 @@ fn base_sig() -> (
     )
 }
 
-fn base_module() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn push_module_caller(bodies: &mut EmitBodies, func: u8, p0: u8, p1: u8, block: u8, op: u8) {
+    bodies.push((
+        id(func),
+        EntityBodyValue::Function(FunctionBody {
+            type_parameters: vec![],
+            parameters: vec![id(p0), id(p1)],
+            result_type: TypeExpr::Bool,
+            effects: empty_set(),
+            entry_block: id(block),
+            blocks: vec![id(block)],
+            contracts: empty_set(),
+            visibility: Visibility::Private,
+        }),
+    ));
+    for (ordinal, param) in [p0, p1].iter().enumerate() {
+        bodies.push((
+            id(*param),
+            EntityBodyValue::Parameter(ParameterBody {
+                owner: id(func),
+                role: ParameterRole::Function,
+                ordinal: u32::try_from(ordinal).expect("module caller param fits u32"),
+                value_type: si64(),
+            }),
+        ));
+    }
+    bodies.push((
+        id(block),
+        EntityBodyValue::Block(BlockBody {
+            function: id(func),
+            parameters: vec![],
+            operations: vec![id(op)],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::OperationResult(OperationResultRef {
+                    operation: id(op),
+                    result_index: 0,
+                }),
+            }),
+            reachability: Reachability::Required,
+        }),
+    ));
+    bodies.push((
+        id(op),
+        EntityBodyValue::Operation(OperationBody {
+            block: id(block),
+            ordinal: 0,
+            opcode: opcode_tag(Opcode::CallDirect),
+            operands: vec![ValueRef::Parameter(id(p0)), ValueRef::Parameter(id(p1))],
+            result_types: vec![TypeExpr::Bool],
+            immediate: Immediate::Function(sley_ssmc::FunctionRefValue {
+                function: id(0x61),
+                type_arguments: vec![],
+            }),
+        }),
+    ));
+}
+
+fn base_module() -> EmitBase {
     // Deterministic checksum (LessThan predicate) called by SIX
     // callers, not yet exported by the integrity package
     // (stale_import). The fix moves the checksum into the integrity
@@ -595,60 +644,8 @@ fn base_module() -> (
     for _ in 0..6 {
         let (f, p0, p1, b, o) = (byte, byte + 1, byte + 2, byte + 3, byte + 4);
         byte += 5;
-        bodies.push((
-            id(f),
-            EntityBodyValue::Function(FunctionBody {
-                type_parameters: vec![],
-                parameters: vec![id(p0), id(p1)],
-                result_type: TypeExpr::Bool,
-                effects: empty_set(),
-                entry_block: id(b),
-                blocks: vec![id(b)],
-                contracts: empty_set(),
-                visibility: Visibility::Private,
-            }),
-        ));
-        for (ordinal, param) in [p0, p1].iter().enumerate() {
-            bodies.push((
-                id(*param),
-                EntityBodyValue::Parameter(ParameterBody {
-                    owner: id(f),
-                    role: ParameterRole::Function,
-                    ordinal: ordinal as u32,
-                    value_type: si64(),
-                }),
-            ));
-        }
-        bodies.push((
-            id(b),
-            EntityBodyValue::Block(BlockBody {
-                function: id(f),
-                parameters: vec![],
-                operations: vec![id(o)],
-                terminator: Terminator::Return(ReturnTerminator {
-                    value: ValueRef::OperationResult(OperationResultRef {
-                        operation: id(o),
-                        result_index: 0,
-                    }),
-                }),
-                reachability: Reachability::Required,
-            }),
-        ));
-        bodies.push((
-            id(o),
-            EntityBodyValue::Operation(OperationBody {
-                block: id(b),
-                ordinal: 0,
-                opcode: opcode_tag(Opcode::CallDirect),
-                operands: vec![ValueRef::Parameter(id(p0)), ValueRef::Parameter(id(p1))],
-                result_types: vec![TypeExpr::Bool],
-                immediate: Immediate::Function(sley_ssmc::FunctionRefValue {
-                    function: id(0x61),
-                    type_arguments: vec![],
-                }),
-            }),
-        ));
-        callers.push(format!("caller_{}", f));
+        push_module_caller(&mut bodies, f, p0, p1, b, o);
+        callers.push(format!("caller_{f}"));
         caller_ids.push(eid(f));
     }
     bodies.push((
@@ -686,12 +683,7 @@ fn base_module() -> (
     (bodies, entities, vec![eid(0x86)], judge)
 }
 
-fn base_type() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_type() -> EmitBase {
     // Boolean status program: a status constant, a reader, and a
     // switch function branching on the status (bool_compat_field). The
     // fix replaces the boolean with a four-case JobState variant and
@@ -777,12 +769,7 @@ fn base_type() -> (
     )
 }
 
-fn base_effect() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_effect() -> EmitBase {
     // Worker comparison with an empty effect set beside an unlisted
     // FileRead definition (undeclared_effect), a correct public caller,
     // and a pure sibling that must stay pure. E7-excluded: the live
@@ -813,12 +800,7 @@ fn base_effect() -> (
     (bodies, entities, vec![eid(0x71)], judge)
 }
 
-fn base_cap() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_cap() -> EmitBase {
     // Capability requirement with an empty scope list beside a guarded
     // function (wildcard_scope). E7-excluded like EFFECT-001.
     use sley_mutate::value::CapabilityRequirementBody;
@@ -840,12 +822,7 @@ fn base_cap() -> (
     (bodies, entities, vec![eid(0x82)], judge)
 }
 
-fn base_stale() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_stale() -> EmitBase {
     // Shared constant plus a disabled guard (guard_disabled). The judge
     // replays the H1/H2/H3 commit sequence of s3_g2_stale.
     let mut bodies = vec![namespace_entity(0xA0, &[0xA1, 0xA2])];
@@ -860,12 +837,71 @@ fn base_stale() -> (
     (bodies, entities, vec![eid(0xA2)], judge)
 }
 
-fn base_perf() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn boolvec() -> TypeExpr {
+    TypeExpr::Vector(Box::new(TypeExpr::Bool))
+}
+
+fn op_result(byte: u8) -> ValueRef {
+    ValueRef::OperationResult(OperationResultRef {
+        operation: id(byte),
+        result_index: 0,
+    })
+}
+
+fn param_ref(byte: u8) -> ValueRef {
+    ValueRef::Parameter(id(byte))
+}
+
+// 5x5 membership scan deleted by the PERF fix: per query one `Equal`
+// per haystack slot folded with `BoolOr`, then a `VectorNew` gather.
+// 25 `Equal` + 20 `BoolOr` + 1 `VectorNew` = 46 ops. Returns the op
+// list, the gather byte, and one root byte per query.
+fn perf_scan_ops() -> (Vec<ScanOp>, u8, Vec<u8>) {
+    let haystack: [u8; 5] = [0xBB, 0xBC, 0xBD, 0xBE, 0xBF];
+    let queries: [u8; 5] = [0xC0, 0xC1, 0xC2, 0xC3, 0xC4];
+    let mut scan: Vec<ScanOp> = vec![];
+    let mut next: u8 = 0xC5;
+    let mut query_roots: Vec<u8> = vec![];
+    for query in queries {
+        let mut acc: u8 = 0;
+        for (hi, slot) in haystack.iter().enumerate() {
+            let eq = next;
+            next += 1;
+            scan.push((
+                eq,
+                Opcode::Equal,
+                vec![param_ref(*slot), param_ref(query)],
+                TypeExpr::Bool,
+            ));
+            if hi == 0 {
+                acc = eq;
+            } else {
+                let folded = next;
+                next += 1;
+                scan.push((
+                    folded,
+                    Opcode::BoolOr,
+                    vec![op_result(acc), op_result(eq)],
+                    TypeExpr::Bool,
+                ));
+                acc = folded;
+            }
+        }
+        query_roots.push(acc);
+    }
+    let gather = next;
+    next += 1;
+    let mut gather_operands: Vec<ValueRef> = vec![];
+    for root in &query_roots {
+        gather_operands.push(op_result(*root));
+    }
+    scan.push((gather, Opcode::VectorNew, gather_operands, boolvec()));
+    assert_eq!(scan.len(), 46, "5x5 scan op count");
+    assert_eq!(next, 0xF3, "5x5 op byte cursor");
+    (scan, gather, query_roots)
+}
+
+fn base_perf() -> EmitBase {
     // Corpus S2B-PERF-001 at the governing 5x5 scale: a nested SInt
     // membership scan (5 haystack + 5 query params, 46 ops) replaced by
     // an ordered-map strategy (MapNew pairs + 5 MapContains probes +
@@ -876,14 +912,6 @@ fn base_perf() -> (
     // 40x40 S3 G3 pins the same transformation class at full scale.
     // (faster_but_wrong negative: a flipped probe is faster but
     // changes the output digest.)
-    let boolvec = || TypeExpr::Vector(Box::new(TypeExpr::Bool));
-    let op_result = |byte: u8| {
-        ValueRef::OperationResult(OperationResultRef {
-            operation: id(byte),
-            result_index: 0,
-        })
-    };
-    let p = |byte: u8| ValueRef::Parameter(id(byte));
     let mut bodies = vec![namespace_entity(0xB8, &[0xB9])];
     bodies.push((
         id(0xB9),
@@ -918,7 +946,7 @@ fn base_perf() -> (
             EntityBodyValue::Parameter(ParameterBody {
                 owner: id(0xB9),
                 role: ParameterRole::Function,
-                ordinal: ordinal as u32,
+                ordinal: u32::try_from(ordinal).expect("perf param ordinal fits u32"),
                 value_type: si64(),
             }),
         ));
@@ -926,44 +954,7 @@ fn base_perf() -> (
     // Scan ops 0xC5..0xF2 (deleted by the fix): per query one Equal
     // per haystack slot folded with BoolOr, then a VectorNew gather.
     // 25 Equal + 20 BoolOr + 1 VectorNew = 46 ops.
-    let haystack: [u8; 5] = [0xBB, 0xBC, 0xBD, 0xBE, 0xBF];
-    let queries: [u8; 5] = [0xC0, 0xC1, 0xC2, 0xC3, 0xC4];
-    let mut scan: Vec<(u8, Opcode, Vec<ValueRef>, TypeExpr)> = vec![];
-    let mut next: u8 = 0xC5;
-    let mut query_roots: Vec<u8> = vec![];
-    for qi in 0..5 {
-        let query = queries[qi];
-        let mut acc: u8 = 0;
-        for hi in 0..5 {
-            let slot = haystack[hi];
-            let eq = next;
-            next += 1;
-            scan.push((eq, Opcode::Equal, vec![p(slot), p(query)], TypeExpr::Bool));
-            if hi == 0 {
-                acc = eq;
-            } else {
-                let folded = next;
-                next += 1;
-                scan.push((
-                    folded,
-                    Opcode::BoolOr,
-                    vec![op_result(acc), op_result(eq)],
-                    TypeExpr::Bool,
-                ));
-                acc = folded;
-            }
-        }
-        query_roots.push(acc);
-    }
-    let gather = next;
-    next += 1;
-    let mut gather_operands: Vec<ValueRef> = vec![];
-    for qi in 0..5 {
-        gather_operands.push(op_result(query_roots[qi]));
-    }
-    scan.push((gather, Opcode::VectorNew, gather_operands, boolvec()));
-    assert_eq!(scan.len(), 46, "5x5 scan op count");
-    assert_eq!(next, 0xF3, "5x5 op byte cursor");
+    let (scan, gather, _) = perf_scan_ops();
     let mut op_ids = vec![];
     for (index, (byte, opcode, operands, result)) in scan.iter().enumerate() {
         op_ids.push(id(*byte));
@@ -971,7 +962,7 @@ fn base_perf() -> (
             id(*byte),
             EntityBodyValue::Operation(OperationBody {
                 block: id(0xBA),
-                ordinal: index as u32,
+                ordinal: u32::try_from(index).expect("scan op index fits u32"),
                 opcode: opcode_tag(*opcode),
                 operands: operands.clone(),
                 result_types: vec![result.clone()],
@@ -1000,7 +991,9 @@ fn base_perf() -> (
     entities.insert("block", eid(0xBA));
     let mut targets = vec![eid(0xB9), eid(0xBA)];
     for qi in 0..46 {
-        let byte: u8 = 0xC5 + qi as u8;
+        let byte: u8 = 0xC5u8
+            .checked_add(u8::try_from(qi).expect("scan target index fits u8"))
+            .expect("scan target byte fits u8");
         targets.push(eid(byte));
     }
     // Governing fixed large inputs: 5 haystack + 5 query SInt values
@@ -1015,12 +1008,7 @@ fn base_perf() -> (
     (bodies, entities, targets, judge)
 }
 
-fn base_adversary() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_adversary() -> EmitBase {
     // REPAIR-shaped clamp (below correct, above LessThan-where-GreaterThan
     // belongs) carrying distractor label metadata on the buggy operation
     // (wrong_repair): the fix changes the opcode and must not follow the
@@ -1040,12 +1028,7 @@ fn base_adversary() -> (
     (bodies, entities, vec![eid(0xDA)], judge)
 }
 
-fn base_corrupt() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_corrupt() -> EmitBase {
     // A boolean constant holding the wrong value beside a reader
     // function (unflipped). Digest-gated formats cannot carry raw
     // bit-flips through import, so the corruption is a valid-encoding
@@ -1163,12 +1146,7 @@ fn div_entities(func: u8, block: u8, lhs: u8, rhs: u8, op: u8) -> Vec<(EntityId,
     ]
 }
 
-fn base_test() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_test() -> EmitBase {
     // Division program with no test entities (case_missing). The fix
     // adds three deterministic TestCase entities through AddTest.
     let mut bodies = vec![namespace_entity(0x94, &[0x95])];
@@ -1180,23 +1158,19 @@ fn base_test() -> (
     (bodies, entities, vec![eid(0x95)], judge)
 }
 
-fn base_dead() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_dead() -> EmitBase {
     // Live comparison whose function lists an explicitly unreachable
     // block, plus an unreferenced private helper (reachable_changed).
     // The fix drops the block from the function, then deletes the block
     // and the helper with its parameter and block.
     let mut bodies = vec![namespace_entity(0x88, &[0x89, 0x8E, 0x92])];
     bodies.extend(cmp_entities(0x89, 0x8A, 0x8B, 0x8C, 0x8D, Opcode::LessThan));
-    for entry in bodies.iter_mut() {
-        if entry.0 == id(0x89) {
-            if let EntityBodyValue::Function(func) = &mut entry.1 {
-                func.blocks.push(id(0x90));
-            }
+    for entry in &mut bodies {
+        if entry.0 != id(0x89) {
+            continue;
+        }
+        if let EntityBodyValue::Function(func) = &mut entry.1 {
+            func.blocks.push(id(0x90));
         }
     }
     // The dead block must still typecheck (Bool result like its
@@ -1335,12 +1309,7 @@ fn commit_bytes(
     .transaction_id()
 }
 
-fn base_merge() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
+fn base_merge() -> EmitBase {
     // Namespace with a shared boolean constant; main and theirs branches
     // each flip it (overlapping_change). The emitter commits both sides
     // and exports the branched repo; the agent produces the merged
@@ -1356,8 +1325,8 @@ fn base_merge() -> (
 fn cx_id(task: u8, index: u32) -> EntityId {
     let mut bytes = [0u8; 32];
     bytes[0] = task;
-    bytes[1] = (index >> 8) as u8;
-    bytes[2] = (index & 0xFF) as u8;
+    bytes[1] = u8::try_from(index >> 8).expect("context index high byte fits u8");
+    bytes[2] = u8::try_from(index & 0xFF).expect("context index low byte fits u8");
     EntityId::from_bytes(bytes)
 }
 
@@ -1365,53 +1334,16 @@ fn cx_hex(task: u8, index: u32) -> String {
     hex(&cx_id(task, index).as_bytes()[..])
 }
 
-fn base_context() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-) {
-    // Scaled store: workspace, package, two namespaces, one typedef
-    // with member F0 only, three user globals holding F0-only record
-    // initializers, and 10000 filler bool constants (10,011 entities
-    // at/above the corpus 10000 minimum). The fix adds member F1
-    // (Bool) and updates the three-record impact closure through
-    // bounded reads; the filler never names the typedef, so the whole
-    // fix fits one record. Entity ids are task-tagged counters
-    // (unique, deterministic).
-    use sley_mutate::value::{GlobalValueBody, PackageBody, TypeDefBody, WorkspaceBody};
-    use sley_ssmc::{ConstData, ConstValue};
-    use sley_ssmc::{FieldConst, MemberId, NamedType, RecordConst, RecordField};
-    let t = 0xC4u8;
-    let ws = cx_id(t, 0);
-    let pkg = cx_id(t, 1);
-    let ns_root = cx_id(t, 2);
-    let ns_pkg = cx_id(t, 3);
-    let td = cx_id(t, 4);
-    let named_td = || {
-        TypeExpr::Named(NamedType {
-            definition: td,
-            arguments: vec![],
-        })
-    };
-    let record_const = |f0: bool| {
-        EntityBodyValue::Constant(sley_mutate::value::ConstantBody {
-            value: ConstValue {
-                value_type: named_td(),
-                data: ConstData::Record(RecordConst {
-                    definition: td,
-                    fields: vec![FieldConst {
-                        member_id: MemberId::from_bytes([0xF0; 32]),
-                        value: ConstValue {
-                            value_type: TypeExpr::Bool,
-                            data: ConstData::Bool(f0),
-                        },
-                    }],
-                }),
-            },
-        })
-    };
-    let mut bodies: Vec<(EntityId, EntityBodyValue)> = vec![
+fn context_scaffold(
+    ws: EntityId,
+    pkg: EntityId,
+    ns_root: EntityId,
+    td: EntityId,
+    ns_pkg: EntityId,
+) -> EmitBodies {
+    use sley_mutate::value::{PackageBody, TypeDefBody, WorkspaceBody};
+    use sley_ssmc::RecordField;
+    vec![
         (
             ws,
             EntityBodyValue::Workspace(WorkspaceBody {
@@ -1451,7 +1383,51 @@ fn base_context() -> (
                 visibility: Visibility::Private,
             }),
         ),
-    ];
+    ]
+}
+
+fn base_context() -> EmitBase {
+    // Scaled store: workspace, package, two namespaces, one typedef
+    // with member F0 only, three user globals holding F0-only record
+    // initializers, and 10000 filler bool constants (10,011 entities
+    // at/above the corpus 10000 minimum). The fix adds member F1
+    // (Bool) and updates the three-record impact closure through
+    // bounded reads; the filler never names the typedef, so the whole
+    // fix fits one record. Entity ids are task-tagged counters
+    // (unique, deterministic).
+    use sley_mutate::value::GlobalValueBody;
+    use sley_ssmc::{ConstData, ConstValue};
+    use sley_ssmc::{FieldConst, MemberId, NamedType, RecordConst};
+    let t = 0xC4u8;
+    let ws = cx_id(t, 0);
+    let pkg = cx_id(t, 1);
+    let ns_root = cx_id(t, 2);
+    let ns_pkg = cx_id(t, 3);
+    let td = cx_id(t, 4);
+    let named_td = || {
+        TypeExpr::Named(NamedType {
+            definition: td,
+            arguments: vec![],
+        })
+    };
+    let record_const = |f0: bool| {
+        EntityBodyValue::Constant(sley_mutate::value::ConstantBody {
+            value: ConstValue {
+                value_type: named_td(),
+                data: ConstData::Record(RecordConst {
+                    definition: td,
+                    fields: vec![FieldConst {
+                        member_id: MemberId::from_bytes([0xF0; 32]),
+                        value: ConstValue {
+                            value_type: TypeExpr::Bool,
+                            data: ConstData::Bool(f0),
+                        },
+                    }],
+                }),
+            },
+        })
+    };
+    let mut bodies: EmitBodies = context_scaffold(ws, pkg, ns_root, td, ns_pkg);
     let mut members = vec![td];
     let mut user_consts = vec![];
     for i in 0..3u32 {
@@ -1511,12 +1487,7 @@ fn bool_constant_body(value: bool) -> EntityBodyValue {
     })
 }
 
-type BaseBuilder = fn() -> (
-    Vec<(EntityId, EntityBodyValue)>,
-    BTreeMap<&'static str, String>,
-    Vec<String>,
-    serde_json::Value,
-);
+type BaseBuilder = fn() -> EmitBase;
 
 fn task_table() -> Vec<(&'static str, &'static str, BaseBuilder)> {
     vec![
@@ -1549,14 +1520,14 @@ fn build_manifest_string(
     variant: &str,
     base: &LiveBase,
     pack: &[u8],
-    entities: BTreeMap<&str, String>,
-    targets: Vec<String>,
-    judge: serde_json::Value,
+    entities: &BTreeMap<&str, String>,
+    targets: &[String],
+    judge: &serde_json::Value,
 ) -> String {
     let policy_root = hex(base.policy.root().as_bytes());
     let owned_entities: BTreeMap<String, String> = entities
-        .into_iter()
-        .map(|(k, v)| (k.to_string(), v))
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.clone()))
         .collect();
     let manifest = serde_json::json!({
         "contract": "sley2.live-task-base.v1",
@@ -1589,7 +1560,7 @@ fn emit_task(task_id: &str, variant: &str, builder: BaseBuilder) -> (Vec<u8>, St
     let pack = export_pack(&base);
     (
         pack.clone(),
-        build_manifest_string(task_id, variant, &base, &pack, entities, targets, judge),
+        build_manifest_string(task_id, variant, &base, &pack, &entities, &targets, &judge),
     )
 }
 
@@ -1607,14 +1578,7 @@ fn object_of(repo: &TransactionRepository, entity: EntityId) -> ObjectId {
         .object_id()
 }
 
-fn replace_bool_op(
-    entity: EntityId,
-    current: ObjectId,
-    value: bool,
-) -> (
-    sley_mutate::MutationOperation,
-    sley_mutate::BoundPrecondition,
-) {
+fn replace_bool_op(entity: EntityId, current: ObjectId, value: bool) -> EmitMutation {
     use sley_mutate::value::ConstantBody;
     use sley_mutate::{
         BoundPrecondition, MutationClass, MutationOperation, MutationPayload, PreconditionPayload,
@@ -1725,14 +1689,7 @@ fn derive_const(workspace: sley_id::WorkspaceId, nonce_byte: u8) -> EntityId {
     )
 }
 
-fn create_bool_op(
-    entity: EntityId,
-    value: bool,
-    ordinal: u32,
-) -> (
-    sley_mutate::MutationOperation,
-    sley_mutate::BoundPrecondition,
-) {
+fn create_bool_op(entity: EntityId, value: bool, ordinal: u32) -> EmitMutation {
     use sley_mutate::value::ConstantBody;
     use sley_mutate::{
         BoundPrecondition, ExpectedIdentityAbsent, MutationClass, MutationOperation,
@@ -1792,10 +1749,10 @@ fn emit_merge() -> (Vec<u8>, Vec<u8>, Vec<u8>, String) {
         50,
     );
     let ours_pack = export_pack(&base);
-    let base2 = live_genesis("merge-base2", base_merge().0);
-    let base2_pack = export_pack(&base2);
-    assert_eq!(base_pack, base2_pack, "genesis nondeterminism");
-    let repo2 = TransactionRepository::new(&base2.root);
+    let theirs_genesis = live_genesis("merge-base2", base_merge().0);
+    let theirs_genesis_pack = export_pack(&theirs_genesis);
+    assert_eq!(base_pack, theirs_genesis_pack, "genesis nondeterminism");
+    let repo2 = TransactionRepository::new(&theirs_genesis.root);
     let z = derive_const(live_workspace(), 51);
     let (op_c, pre_c) = create_bool_op(z, true, 1);
     let (op_b, pre_b) = replace_bool_op(key, genesis_obj, false);
@@ -1808,7 +1765,7 @@ fn emit_merge() -> (Vec<u8>, Vec<u8>, Vec<u8>, String) {
         vec![pre_b, pre_c],
         51,
     );
-    let theirs_pack = export_pack(&base2);
+    let theirs_pack = export_pack(&theirs_genesis);
     let policy_root = hex(live_policy().root().as_bytes());
     let mut manifest = serde_json::json!({
         "contract": "sley2.live-task-base.v1",
