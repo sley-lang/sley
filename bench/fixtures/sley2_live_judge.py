@@ -494,9 +494,16 @@ def _repo_entities(session: Session, workspace: Path) -> list[str]:
 
 
 def _judge_graph(session: Session, manifest: dict, versions_pre: dict[str, str],
-                 versions_post: dict[str, str]) -> None:
+                 versions_post: dict[str, str], scratch_ws: Path | None = None) -> None:
     """Graph-kind tasks: absent roles tombstoned, expected roles present,
-    non-target bindings byte-identical."""
+    non-target bindings byte-identical.
+
+    Structure owned by an absent role in the PRE state (a function's
+    parameters and blocks, a block's operations, transitively) follows
+    its owner, as the frozen DEAD manifest notes ("helper parameter and
+    block follow their function"): it must be removed with its owner,
+    never kept, modified or left orphaned. Ownership comes from the
+    decoded pre-state bodies, never from a literal list."""
 
     judge = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
     entities = manifest.get("entities", {}) if isinstance(manifest.get("entities"), dict) else {}
@@ -509,13 +516,71 @@ def _judge_graph(session: Session, manifest: dict, versions_pre: dict[str, str],
         want = entities.get(judge["expect_target"], judge["expect_target"])
         if not _entity_present(session, want):
             _reject("ORACLE_MISSING_TARGET", str(judge["expect_target"])[:64])
+    absent_ids = {entities[role] for role in absent if entities.get(role)}
+    cascade: set[str] | None = None
     for entity, before in versions_pre.items():
         if entity in targets:
             continue
-        if entity in [entities.get(role, "") for role in absent]:
+        if entity in absent_ids:
             continue
-        if versions_post.get(entity) != before:
-            _reject("ORACLE_COLLATERAL_TOUCHED", entity[:32])
+        if versions_post.get(entity) == before:
+            continue
+        if absent_ids and scratch_ws is not None:
+            if cascade is None:
+                cascade = _owned_by(session, scratch_ws, versions_pre, absent_ids)
+            if entity in cascade:
+                if entity in versions_post:
+                    _reject("ORACLE_UNEXPECTED_ENTITY", f"owned by absent role: {entity[:32]}")
+                continue
+        _reject("ORACLE_COLLATERAL_TOUCHED", entity[:32])
+
+
+# Structural owner field per entity kind: Parameter.owner, Block.function,
+# Operation.block (frozen entity-body layouts).
+_OWNER_FIELD = {6: "owner", 7: "function", 8: "block"}
+
+
+def _owned_by(session: Session, scratch_ws: Path, versions_pre: dict[str, str],
+              roots: set[str]) -> set[str]:
+    """Pre-state entities whose structural owner chain reaches a root.
+
+    Bodies decode from the PRE-commit object of each entity (objects are
+    immutable, so the scratch repo still holds them); an unreadable pre
+    object is a harness failure, never a silent pass."""
+
+    repo = scratch_ws / REPO_DIR
+    paths = []
+    for entity in sorted(versions_pre):
+        path = _object_path(repo, versions_pre[entity])
+        if path is None:
+            _harness_fail(f"pre object {entity[:16]}")
+        paths.append(path)
+    owner: dict[str, str] = {}
+    for entry in _decode_paths(session, paths):
+        field = _OWNER_FIELD.get(entry.get("kind"))
+        body = entry.get("body")
+        entity = entry.get("entity_id", "")
+        if field and entity and isinstance(body, dict) and isinstance(body.get(field), str):
+            owner[entity] = body[field]
+    return _owner_closure(owner, roots)
+
+
+def _owner_closure(owner: dict[str, str], roots: set[str]) -> set[str]:
+    """Entities whose owner chain (child -> owner) reaches any root."""
+
+    owned: set[str] = set()
+    for entity in owner:
+        seen = {entity}
+        node = owner[entity]
+        while True:
+            if node in roots:
+                owned.add(entity)
+                break
+            if node in seen or node not in owner:
+                break
+            seen.add(node)
+            node = owner[node]
+    return owned
 
 
 def _entity_present(session: Session, entity: str) -> bool:
@@ -1271,7 +1336,7 @@ def _judge_flows(session: Session, manifest: dict, corpus: dict, task_id: str,
         # changes behavior is reachable_changed, not unexpected).
         _judge_graph_observation(session, manifest, task_id, scratch_ws, task_dir,
                                  versions_post, current)
-        _judge_graph(session, manifest, versions_pre, versions_post)
+        _judge_graph(session, manifest, versions_pre, versions_post, scratch_ws)
         _judge_reference_count(session, manifest, scratch_ws, current)
     elif flow == "test-entity":
         _judge_test_entity(session, manifest, corpus, scratch_ws, task_dir, current)
