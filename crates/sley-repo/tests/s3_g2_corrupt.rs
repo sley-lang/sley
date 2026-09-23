@@ -1,15 +1,21 @@
 //! S2B-CORRUPT-001 (G2, sley2 arm): one flipped object byte fails import.
 //!
 //! Real machinery: `sley_repo::{export_conformance_pack, import_conformance_pack}`
-//! (`crates/sley-repo/src/lib.rs`). Engine-truth correction vs the task
-//! brief: the brief points at `exchange.rs`, but the exchange envelope
-//! trailer gate fires first on ANY byte flip, yielding
-//! `EXCHANGE_DIGEST_MISMATCH` (`crates/sley-repo/src/exchange.rs:676`).
-//! The README-normative `PACK_DIGEST_MISMATCH` symbol lives on the
-//! conformance-pack path (`PackErrorCode::DigestMismatch`,
+//! (`crates/sley-repo/src/lib.rs`). Engine-truth note vs the task brief: the
+//! brief points at `exchange.rs`. An UNRESEALED byte flip anywhere in an
+//! exchange trips the exchange envelope trailer gate first, yielding
+//! `EXCHANGE_DIGEST_MISMATCH` (`crates/sley-repo/src/exchange.rs:674-677`).
+//! That holds only for an unresealed flip: the exchange trailer is an
+//! unkeyed digest (`RepositoryExchangeId::derive`), so a flip inside the
+//! embedded pack with the exchange trailer resealed passes that gate and
+//! reaches the PACK owner's own preflight (`preflight_conformance_pack`,
+//! `exchange.rs:1384`), whose code is returned verbatim (`exchange.rs:273-281`):
+//! exact `PACK_DIGEST_MISMATCH` before any write. That exchange-route vector
+//! is pinned by `s3_corrupt_exchange_resealed_embedded_pack` below, against
+//! the staged live-trial exchange. The frozen fixture conformance test keeps
+//! the conformance-pack path (`PackErrorCode::DigestMismatch`,
 //! `crates/sley-repo/src/lib.rs:96,129`), whose outer-digest gate likewise
-//! fires before any promotion — so the conformance path is used and the exact
-//! symbol `PACK_DIGEST_MISMATCH` is pinned.
+//! fires before any promotion, and pins the same exact symbol there.
 //!
 //! Positive: flip exactly one canonical object byte (located inside an
 //! embedded object entry, never the header/trailer) -> import fails before
@@ -32,7 +38,11 @@ use sley_policy::{
     PolicyResourceCeilings, PolicyRootBuilder, PrincipalGrantBuilder,
     conformance_registry as policy_registry,
 };
-use sley_repo::{RepositoryObjectVerifier, export_conformance_pack, import_conformance_pack};
+use sley_repo::{
+    ExchangeError, RepositoryObjectVerifier, decode_conformance_pack_entries_for_testing,
+    export_conformance_pack, import_conformance_pack, import_repository_exchange,
+    preflight_repository_exchange,
+};
 use sley_state_root::{
     StateRootBuilder, conformance_epoch_id as state_epoch_id,
     conformance_registry as state_registry,
@@ -387,4 +397,256 @@ fn emit_s3_corrupt_fixture() {
     println!("S3_FIXTURE|target_after|{}", evidence.target_after.len());
     println!("S3_FIXTURE|neg_unflipped|{NEG_UNFLIPPED_CODE}");
     println!("S3_FIXTURE|neg_flip_elsewhere|{PACK_DIGEST_MISMATCH}");
+}
+
+// ---------------------------------------------------------------------------
+// Exchange-route vector: one canonical object byte flipped inside the
+// embedded pack of the staged live-trial exchange, exchange trailer resealed
+// with the owner's own digest (`RepositoryExchangeId::derive`, the exact
+// function `decode_envelope` checks at `exchange.rs:674`). Driven through
+// `import_repository_exchange`, the function the serve protocol's single
+// import method `exchange.import` calls. No production API is added: the
+// embedded pack's object entries are located with the existing test-only
+// structural decode `decode_conformance_pack_entries_for_testing`.
+// ---------------------------------------------------------------------------
+
+/// The staged live-trial exchange every `sley_2_0` CORRUPT trial seeds from.
+const STAGED_EXCHANGE: &str = "../../bench/fixtures/sley2/S2B-CORRUPT-001/base.pack";
+/// Frozen S20-540 exchange contract tag and S20-170 pack contract tag.
+const EXCHANGE_TAG: u64 = 540;
+const PACK_TAG: u64 = 170;
+const SCB_MAGIC: &[u8] = b"SLEYSCB1";
+const TRAILER_LEN: usize = 32;
+
+fn read_uvar(bytes: &[u8], position: &mut usize) -> u64 {
+    let mut value = 0_u64;
+    let mut shift = 0_u32;
+    loop {
+        let byte = bytes[*position];
+        *position += 1;
+        value |= u64::from(byte & 0x7f) << shift;
+        if byte & 0x80 == 0 {
+            return value;
+        }
+        shift += 7;
+        assert!(shift < 64, "uvar overflow");
+    }
+}
+
+/// `(payload_start, payload_len)` of an SCB1 envelope with the given tag;
+/// asserts the envelope spans the input exactly (payload + 32-byte trailer).
+fn envelope(bytes: &[u8], tag: u64) -> (usize, usize) {
+    assert_eq!(&bytes[..SCB_MAGIC.len()], SCB_MAGIC, "SCB1 magic");
+    let mut position = SCB_MAGIC.len();
+    assert_eq!(read_uvar(bytes, &mut position), 1, "format version");
+    assert_eq!(read_uvar(bytes, &mut position), tag, "contract tag");
+    position += 32; // schema epoch id
+    let len = usize::try_from(read_uvar(bytes, &mut position)).unwrap();
+    assert_eq!(position + len + TRAILER_LEN, bytes.len(), "envelope span");
+    (position, len)
+}
+
+/// Absolute `(start, len)` of record field `tag` within `bytes[start..start+len]`.
+fn record_field(bytes: &[u8], start: usize, len: usize, tag: u64) -> (usize, usize) {
+    let end = start + len;
+    let mut position = start;
+    let count = read_uvar(bytes, &mut position);
+    let mut found = None;
+    for _ in 0..count {
+        let field = read_uvar(bytes, &mut position);
+        let size = usize::try_from(read_uvar(bytes, &mut position)).unwrap();
+        if field == tag {
+            found = Some((position, size));
+        }
+        position += size;
+    }
+    assert_eq!(position, end, "record span");
+    found.expect("record field present")
+}
+
+struct StagedExchange {
+    bytes: Vec<u8>,
+    /// Absolute range of the embedded tag-170 pack.
+    pack_start: usize,
+    pack_end: usize,
+    /// Each embedded canonical object's stored bytes, absolute start + len.
+    objects: Vec<(usize, usize)>,
+}
+
+fn staged_exchange() -> StagedExchange {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(STAGED_EXCHANGE);
+    let bytes = fs::read(&path).expect("staged CORRUPT exchange readable");
+    let (payload_start, payload_len) = envelope(&bytes, EXCHANGE_TAG);
+    // Exchange payload field 2 is the embedded object pack (`exchange.rs:788`).
+    let (pack_start, pack_len) = record_field(&bytes, payload_start, payload_len, 2);
+    let pack_end = pack_start + pack_len;
+    let pack = &bytes[pack_start..pack_end];
+    envelope(pack, PACK_TAG);
+    // The embedded pack's own trailer is the owner's pack digest.
+    let pack_id = sley_id::RepositoryPackId::derive(&pack[..pack.len() - TRAILER_LEN]);
+    assert_eq!(&pack[pack.len() - TRAILER_LEN..], pack_id.as_bytes());
+    // Object entries via the owner's existing test-only structural decode.
+    let (_epochs, _roots, entries) =
+        decode_conformance_pack_entries_for_testing(pack).expect("embedded pack decodes");
+    assert!(entries.len() >= 2, "at least two canonical objects");
+    let objects = entries
+        .iter()
+        .map(|entry| {
+            let stored = entry.stored_bytes.as_slice();
+            let hits: Vec<usize> = pack
+                .windows(stored.len())
+                .enumerate()
+                .filter(|(_, window)| *window == stored)
+                .map(|(index, _)| index)
+                .collect();
+            assert_eq!(hits.len(), 1, "object bytes embedded exactly once");
+            (pack_start + hits[0], stored.len())
+        })
+        .collect();
+    StagedExchange {
+        bytes,
+        pack_start,
+        pack_end,
+        objects,
+    }
+}
+
+/// Recompute the exchange trailer exactly as the owner does.
+fn reseal(bytes: &mut [u8]) {
+    let body = bytes.len() - TRAILER_LEN;
+    let id = sley_id::RepositoryExchangeId::derive(&bytes[..body]);
+    bytes[body..].copy_from_slice(id.as_bytes());
+}
+
+/// Flip one interior byte of canonical object `which` (at `eighths`/8 of its
+/// stored bytes). Returns the resealed exchange and the absolute offset.
+fn resealed_object_flip(staged: &StagedExchange, which: usize, eighths: usize) -> (Vec<u8>, usize) {
+    let (start, len) = staged.objects[which];
+    let offset = start + len * eighths / 8;
+    assert!(
+        offset > start && offset < start + len - 1,
+        "interior object byte"
+    );
+    assert!(offset > staged.pack_start && offset < staged.pack_end);
+    let mut mutated = staged.bytes.clone();
+    mutated[offset] ^= 0x01;
+    reseal(&mut mutated);
+    (mutated, offset)
+}
+
+/// Every file under `path` with its exact bytes (sorted).
+fn tree_snapshot(path: &Path) -> Vec<(String, Vec<u8>)> {
+    dir_inventory(path)
+        .into_iter()
+        .map(|name| {
+            let bytes = fs::read(path.join(&name)).unwrap();
+            (name, bytes)
+        })
+        .collect()
+}
+
+fn head_facts(target: &Path) -> (sley_id::TransactionId, usize) {
+    let head = TransactionRepository::new(target).accepted_head().unwrap();
+    (head.transaction_id(), head.objects().len())
+}
+
+fn import_code(target: &Path, input: &[u8], verifier: &RepositoryObjectVerifier) -> String {
+    let error = import_repository_exchange(target, input, verifier).unwrap_err();
+    assert!(
+        matches!(error, ExchangeError::Pack(_)),
+        "PACK owner error, not an exchange-layer remap: {error:?}"
+    );
+    error.code().to_owned()
+}
+
+#[test]
+fn s3_corrupt_exchange_resealed_embedded_pack() {
+    let staged = staged_exchange();
+    let epoch = state_epoch_id().unwrap();
+    let verifier = RepositoryObjectVerifier::new(epoch);
+
+    // Owner-digest equivalence: resealing the untouched exchange reproduces
+    // its trailer byte for byte, and the clean exchange preflights.
+    let mut unflipped = staged.bytes.clone();
+    reseal(&mut unflipped);
+    assert_eq!(
+        unflipped, staged.bytes,
+        "reseal reproduces the owner trailer"
+    );
+    preflight_repository_exchange(&staged.bytes, &verifier).expect("clean exchange preflights");
+
+    // Two independent flips: different canonical objects, different offsets.
+    let last = staged.objects.len() - 1;
+    let (flip_a, offset_a) = resealed_object_flip(&staged, 0, 3);
+    let (flip_b, offset_b) = resealed_object_flip(&staged, last, 5);
+    assert_ne!(offset_a, offset_b);
+    for (vector, offset) in [(&flip_a, offset_a), (&flip_b, offset_b)] {
+        let differs: Vec<usize> = vector
+            .iter()
+            .zip(staged.bytes.iter())
+            .enumerate()
+            .filter(|(_, (a, b))| a != b)
+            .map(|(index, _)| index)
+            .collect();
+        // Exactly the one object byte plus (some of) the resealed trailer.
+        assert_eq!(differs[0], offset);
+        assert!(
+            differs[1..]
+                .iter()
+                .all(|index| *index >= staged.bytes.len() - TRAILER_LEN),
+            "only the object byte and the exchange trailer differ"
+        );
+        // Target-free preflight reaches the same exact PACK code.
+        let error = preflight_repository_exchange(vector, &verifier).unwrap_err();
+        assert_eq!(error.code(), PACK_DIGEST_MISMATCH);
+    }
+
+    let temp = TempDir::new("exchange-resealed");
+
+    // (1) Populated destination: clean clone, then both vectors refused with
+    // the exact PACK code, twice each, head tx / live objects / every file
+    // byte-identical.
+    let populated = temp.child("populated");
+    let clean_report =
+        import_repository_exchange(&populated, &staged.bytes, &verifier).expect("clean clone");
+    let (head_tx, head_objects) = head_facts(&populated);
+    assert_eq!(clean_report.accepted_head.transaction_id(), head_tx);
+    assert!(head_objects > 0);
+    let before = tree_snapshot(&populated);
+    for vector in [&flip_a, &flip_b] {
+        for _attempt in 0..2 {
+            assert_eq!(
+                import_code(&populated, vector, &verifier),
+                PACK_DIGEST_MISMATCH
+            );
+            assert_eq!(head_facts(&populated), (head_tx, head_objects));
+            assert!(tree_snapshot(&populated) == before, "no write on refusal");
+        }
+    }
+    // Regression (distinct layer): the same flip WITHOUT resealing stops at
+    // the exchange trailer gate, never remapped to the PACK code.
+    let mut unresealed = staged.bytes.clone();
+    unresealed[offset_a] ^= 0x01;
+    let error = import_repository_exchange(&populated, &unresealed, &verifier).unwrap_err();
+    assert_eq!(error.code(), "EXCHANGE_DIGEST_MISMATCH");
+    assert!(tree_snapshot(&populated) == before);
+
+    // (2) Fresh destination: refusal writes nothing (the target is never
+    // created), deterministic on retry; then the clean exchange imports
+    // into the same destination with no cleanup and lands on the same head.
+    let fresh = temp.child("fresh");
+    for vector in [&flip_a, &flip_b, &flip_a] {
+        assert_eq!(import_code(&fresh, vector, &verifier), PACK_DIGEST_MISMATCH);
+        assert!(!fresh.exists(), "refused import created nothing");
+    }
+    let report = import_repository_exchange(&fresh, &staged.bytes, &verifier)
+        .expect("clean re-import accepted after refusals");
+    assert_eq!(report.accepted_head.transaction_id(), head_tx);
+    assert_eq!(head_facts(&fresh), (head_tx, head_objects));
+    eprintln!(
+        "S3_EVIDENCE task=S2B-CORRUPT-001 route=exchange.import resealed=true \
+         symbol={PACK_DIGEST_MISMATCH} exchange_len={} flipped_offsets={offset_a},{offset_b} \
+         head_objects={head_objects} unresealed_symbol=EXCHANGE_DIGEST_MISMATCH",
+        staged.bytes.len()
+    );
 }
