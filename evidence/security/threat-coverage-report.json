@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "fb0872138c0165404a8999b67087bb78fd9e0a7b8d1d8a7e63173795c9ea9764",
+  "report_digest": "bb6012e60bae98a8b50a761031f7c1b77962dea5be8505201856ac1f397805a8",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -347,12 +347,13 @@
     {
       "exercised_in": [
         "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/native_test_plan.rs#tests",
         "fuzz/targets/ssmc_graph_cfg_checker.rs"
       ],
-      "exercised_source_count": 2,
+      "exercised_source_count": 3,
       "expected_failure_code": "GRAPH_UNRESOLVED_REFERENCE",
       "id": "T09",
-      "located_file_count": 4,
+      "located_file_count": 5,
       "located_in": {
         "fuzz": [
           "fuzz/targets/ssmc_graph_cfg_checker.rs"
@@ -360,7 +361,8 @@
         "implementation": [
           "crates/sley-check/src/cfg.rs",
           "crates/sley-policy/src/candidate_program.rs",
-          "crates/sley-policy/src/candidate_validation.rs"
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-policy/src/native_test_plan.rs"
         ]
       },
       "owner": "sley-check",
@@ -380,12 +382,13 @@
     {
       "exercised_in": [
         "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/native_test_plan.rs#tests",
         "fuzz/targets/ssmc_graph_cfg_checker.rs"
       ],
-      "exercised_source_count": 2,
+      "exercised_source_count": 3,
       "expected_failure_code": "GRAPH_CYCLE_FORBIDDEN",
       "id": "T10",
-      "located_file_count": 6,
+      "located_file_count": 7,
       "located_in": {
         "checkers": [
           "scripts/check_type_system.py"
