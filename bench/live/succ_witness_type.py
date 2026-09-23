@@ -4,24 +4,30 @@
 Stages the bool_compat_field base and migrates the boolean status to
 a tagged JobState variant (Failed carrying the explicit SInt code 7),
 then runs the frozen live judge. Variants:
-  mig  typedef + Failed(7) status migration (validates; judge then
-       rejects ORACLE_MISSING_CASE — only the 2 frozen blocks exist.
-       This is the structural-blocker evidence, NOT an acceptance.)
+  mig  typedef + Failed(7) status migration, switch untouched
+       (validates; the rev2 judge rejects ORACLE_BOOL_COMPAT_FIELD —
+       the switch result and its parameter are still Bool; see
+       succ-trials-20260923/trial_type_legacy_mig.log. This is the
+       incomplete-migration evidence, NOT an acceptance.)
   neg  status left Bool (must reject ORACLE_BOOL_COMPAT_FIELD)
 
-Proven blockers (do not retry without a task-encoding change):
-phase-7 judges operations, and operations in blocks unreachable from
-their function entry fail (ControlFlowError; demonstrated
-reachable-only vs dead-block probes). New case arms would be
-unreachable: 6d's edges are frozen (true->6d self-loop, false->6e),
-so no new block can join switch 6b's CFG without editing 6d — which
-is not a fixture target (targets: status, switch, 6c). The frozen
-edges further lock 6c:Bool (CondBranch condition) and the switch
-result:Bool (6e returns 6c), so JobState-typed arms cannot validate
-either. Full migration needs 6d/6e in targets: owner is benchmark
-fixture design (emit table), via the existing task-encoding gate —
-not a production semantic change. Empty trap blocks would satisfy
-the block-count check vacuously and are refused as gaming.
+v1-closure diagnosis (targets: status, switch, 6c; corrected wording,
+2026-09-23): 6d's frozen edges (true->6d self-loop, false->6e) are the
+only way into switch 6b's CFG, and the frozen edges lock 6c:Bool
+(CondBranch condition) and the switch result:Bool (6e returns 6c).
+The direct route — rewriting 6d/6e into a VariantSwitch and arms —
+validates in production (production validation never reads the
+manifest; the same record validates in
+succ-trials-20260923/trial_type_pos.log) but modifies two base
+entities outside the v1 targets, which the live judge's collateral
+check rejects (ORACLE_COLLATERAL_TOUCHED; by code reading of
+_collateral_files, confirmed in the Ariadne review, not separately
+logged); that is the defect. The
+alternative route (a fresh entry block and fresh arms through the
+targeted 6b, leaving 6d/6e orphaned) is asserted blocked by phase-7
+reachability of operations but has NO retained log; it is not claimed
+as proven. The corrected closure adds 6d/6e (and the switch_param
+role) to the manifest; bodies and pack bytes are unchanged.
 
 Usage: succ_witness_type.py [mig|neg] [logfile]
 Env: SLEY2_SLEY_BINARY, SUCC_JUDGE_TEST_BINARY (both required).

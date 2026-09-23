@@ -821,9 +821,13 @@ def _judge_type_variant(session: Session, manifest: dict, scratch_ws: Path,
     Tests: the base holds no TestCase entities and the frozen text
     names no test vectors; the judge-driven execution above is the
     test evidence. Closure (FIXTURE tier, review-gated): the
-    task_manifest targets (status, switch, switch_param, switch_entry,
-    switch_leaf) bound which base entities may change; fresh entities
-    are always allowed and are judged by the Bool scan above.
+    task_manifest targets (status 0x65, switch 0x6b, its parameter
+    0x6c, switch_entry 0x6d, switch_leaf 0x6e) bound which base
+    entities may change; fresh entities are always allowed and are
+    judged by the Bool scan above. The named `switch_param` role
+    (0x6c) is a required manifest contract and is always in the Bool
+    scan scope, so a switch that gains a second (Bool) parameter is
+    judged (ORACLE_BOOL_COMPAT_FIELD), never a harness error.
 
     Returns the verdict suffix naming the executed per-member values.
     """
@@ -934,7 +938,12 @@ def _type_structure(manifest: dict, bodies: dict[str, dict], fresh: set[str]) ->
     targets = manifest.get("targets", []) if isinstance(manifest.get("targets"), list) else []
     switch = entities.get(judge.get("switch", "switch"), "")
     status = entities.get(judge.get("status", "status"), "")
-    if not switch or not status or not entities.get("switch_param"):
+    # The named switch_param role (the base switch's status input,
+    # 0x6c) is a required manifest contract: its Bool type is the
+    # boolean status binding the task removes, so it is always in the
+    # Bool scan scope, independent of the targets list.
+    param_role = entities.get("switch_param", "")
+    if not switch or not status or not param_role:
         _harness_fail("type entities")
     if not judge.get("exhaustive", True):
         _harness_fail("exhaustive spec")
@@ -1000,8 +1009,8 @@ def _type_structure(manifest: dict, bodies: dict[str, dict], fresh: set[str]) ->
     elif payload.get("variant") != "None":
         _reject("ORACLE_TYPE_NOT_MIGRATED", "unit member carries payload")
     # --- no Bool binding among fresh + target entities ---
-    _type_bool_scan(bodies, sorted(fresh | {t for t in targets if isinstance(t, str)}),
-                    switch)
+    _type_bool_scan(bodies, sorted(fresh | {param_role}
+                                   | {t for t in targets if isinstance(t, str)}), switch)
     # --- switch: a function of the status alone ---
     switch_body = _type_body(bodies, switch, "switch")
     params = switch_body.get("parameters") or []

@@ -325,6 +325,15 @@ class RejectionPaths(TypeJudgeTestCase):
         bodies["66" * 32] = {"kind": 5, "body": {"parameters": [], "result_type": dict(BOOL)}}
         self.assertAccepts(bodies, fresh)
 
+    def test_param_role_is_scanned_without_targets(self) -> None:
+        bodies, fresh = positive()
+        bodies[PARAM]["body"]["value_type"] = dict(BOOL)
+        manifest = copy.deepcopy(MANIFEST)
+        manifest["targets"] = [STATUS, SWITCH]
+        with self.assertRaises(judge.JudgeRejection) as caught:
+            structure(bodies, fresh, manifest)
+        self.assertEqual(caught.exception.code, "ORACLE_BOOL_COMPAT_FIELD")
+
     def test_missing_param_role_is_harness_error(self) -> None:
         bodies, fresh = positive()
         manifest = copy.deepcopy(MANIFEST)
