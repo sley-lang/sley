@@ -351,34 +351,103 @@ repository.
 
 ## Import phases
 
-Import is split into preflight and persistence. Preflight (steps 1 through
-7) is a precedence order: import returns the exact code of the first failing
-check and runs no later check. Steps 1 and 2 are one decode pass (a failure
-in either returns before step 3); step 3 runs its sub-steps in the listed
-order; steps 4 through 6 follow step 3 and precede step 7, and within them
-closure rule 2 is proved after step 5, because it needs the branches that
-step 5 verifies.
+Import is split into preflight and persistence.
 
-1. bound stored bytes, decode the closed envelope and payload, verify the
-   exchange trailer;
-2. verify canonical order, counts, and closed profiles;
-3. verify the embedded pack, then the digest tree, in this exact order:
+Preflight (steps 1 through 7) is a precedence order. This is an exact
+statement of the realized check order, not a narrowed promise. Import runs
+the checks below in exactly the order listed and returns the code of the
+first check that fails; no later check runs.
+
+- Sub-steps run in their listed order.
+- A "per entry" check runs all of its listed checks for one entry before
+  the next entry, in the stated entry order.
+- A failure inside a named decode returns that decode's own code at that
+  point: an SCB, schema, `PACK_*`, `TXN_*`, `BRANCH_*` or `REF_*` code,
+  preserved and never remapped.
+
+Four checks sit earlier than a reader of the closure rules might expect:
+
+- An empty receipt set is `EXCHANGE_ANCESTRY_OPEN` in the step-2 decode
+  pass, not in step 4.
+- A digest-tree record's own profile and count failures are
+  `EXCHANGE_DIGEST_TREE_MISMATCH` in step 2, before step 3.
+- An ungrammatical branch name is `EXCHANGE_BRANCH_INVALID` in step 3.3.
+- Closure rule 6 for origin and ref records, and closure rule 2, are proved
+  in step 5, not step 4.
+
+1. bound the stored bytes (`EXCHANGE_RESOURCE_LIMIT`), decode the closed
+   envelope (magic, version, contract tag, epoch, sized payload, no trailing
+   bytes), verify the exchange trailer (`EXCHANGE_DIGEST_MISMATCH`), and
+   require the exchange schema epoch;
+2. decode the payload in one pass, verifying canonical order, counts, and
+   closed profiles as each field is decoded, in this order:
+   1. the closed record; version; the embedded-pack size bound; the
+      compression profile; the absent-signature profile;
+   2. the receipt list, in strictly ascending `TransactionId` order
+      (`EXCHANGE_DUPLICATE_ENTRY`, `EXCHANGE_CANONICAL_ORDER`). An empty
+      receipt set is `EXCHANGE_ANCESTRY_OPEN` here;
+   3. the head entry; then the branch list, in strictly ascending encoded
+      order (`EXCHANGE_DUPLICATE_ENTRY`, `EXCHANGE_CANONICAL_ORDER`);
+   4. the digest-tree record's profile and counts, each failure being
+      `EXCHANGE_DIGEST_TREE_MISMATCH` here:
+      - algorithm tag `1`;
+      - declared leaf count equal to the leaf-list length, and at least 3;
+      - leaf count equal to `1 + |receipts| + |branches| + 1`;
+   5. the expanded-allocation bound (`EXCHANGE_RESOURCE_LIMIT`);
+   6. then the schema-registry decode of the payload;
+3. verify the embedded pack, then the digest tree's content, in this exact
+   order:
    1. the embedded bytes are a tag-170 version-1 pack, else
       `EXCHANGE_PACK_INVALID`;
    2. run the complete S20-170 preflight (its steps 1 through 5) over the
-      embedded pack without store writes; its `PACK_*` codes are returned
-      unchanged (for example `PACK_DIGEST_MISMATCH` for an embedded pack
-      whose trailer does not match its bytes, even when the exchange
-      trailer is valid);
-   3. verify every declared leaf identity and the complete digest tree,
-      whose section-1 identifier is the `RepositoryPackId` verified by step
-      3.2;
-4. decode every receipt through the frozen codec and prove closure rules 1,
-   2, 3, 5, and 6;
-5. decode every branch record and ref and prove closure rule 4;
-6. verify every receipt against the embedded pack's objects exactly as the
-   verified revision lookup would (roots, policy, manifest lengths, object
-   closure, tombstones) without writes;
+      embedded pack without store writes. Its `PACK_*` codes are returned
+      unchanged. For example, an embedded pack whose trailer does not match
+      its bytes is `PACK_DIGEST_MISMATCH`, even when the exchange trailer is
+      valid;
+   3. recompute every leaf from the declared identifiers:
+      - section 1 from the `RepositoryPackId` verified by step 3.2;
+      - sections 2 and 4 from the declared `TransactionId` values, as given;
+      - section 3 from the S20-500 name key recomputed from each
+        `branch_name`, per branch in canonical order. An ungrammatical name
+        is `EXCHANGE_BRANCH_INVALID` here.
+
+      Then verify that the recomputed leaf list and root equal the declared
+      ones, else `EXCHANGE_DIGEST_TREE_MISMATCH`. The declared receipt and
+      head identities are verified against receipt bytes in step 4, not
+      here;
+4. prove the receipts, in this order:
+   1. per receipt in canonical order: decode through the frozen codec
+      (`TXN_*`). Its transaction and receipt identifiers must equal the
+      declared ones, else `EXCHANGE_RECEIPT_INVALID`;
+   2. per receipt in ascending `TransactionId` order:
+      - every parent names a receipt in the set, with the transaction kind
+        and parent shape of closure rule 1 (`EXCHANGE_ANCESTRY_OPEN`);
+      - the transaction's `WorkspaceId` equals the first receipt's
+        (closure rule 6 for transactions, `EXCHANGE_WORKSPACE_MISMATCH`);
+   3. exactly one genesis transaction (closure rule 1,
+      `EXCHANGE_ANCESTRY_OPEN`), then acyclicity (closure rule 1,
+      `EXCHANGE_ANCESTRY_CYCLE`);
+   4. head closure: the declared head is a receipt in the set with the
+      declared receipt identifier (closure rule 5, `EXCHANGE_HEAD_INVALID`);
+   5. root closure (closure rule 3, `EXCHANGE_ROOT_CLOSURE`);
+5. prove the branches, in this order:
+   1. per branch in canonical order, closure rule 4 and closure rule 6 for
+      origin and ref records:
+      - a grammatical name (`EXCHANGE_BRANCH_INVALID`);
+      - origin record and ref decode (owning codes);
+      - names equal to the entry name, and the origin/ref binding
+        (`EXCHANGE_BRANCH_INVALID`);
+      - origin and head transactions in the set (`EXCHANGE_BRANCH_INVALID`);
+      - origin and ref `WorkspaceId` equal to the receipts'
+        (`EXCHANGE_WORKSPACE_MISMATCH`);
+      - origin and current facts (`EXCHANGE_BRANCH_INVALID`);
+      - fast-forward reachability (`EXCHANGE_BRANCH_NOT_FAST_FORWARD`);
+   2. then no surplus over the accepted head and the verified branches
+      (closure rule 2, `EXCHANGE_ANCESTRY_SURPLUS`);
+6. per receipt in topological order: first the cumulative preflight bounds
+   (`EXCHANGE_RESOURCE_LIMIT`), then verify the receipt against the embedded
+   pack's objects exactly as the verified revision lookup would (roots,
+   policy, manifest lengths, object closure, tombstones), without writes;
 7. classify the target as fresh or incomplete under the import-target rules;
 8. only after all preflight checks pass, persist in this exact order, where
    every step is re-entrant (an already-complete step reverifies exact bytes
@@ -420,22 +489,33 @@ step 5 verifies.
 9. return the reconstructed accepted head, the receipt count, the branch
    count, and the promoted and present object counts.
 
-Revision 9 amendment note (2026-09-23). Ariadne ruled `RULING_ORDER: CODE`
+Revision 9 amendment note (2026-09-23; corrected the same day after the
+revision-3 review,
+`evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review_revision_3-5d8106f.md`).
+Ariadne ruled `RULING_ORDER: CODE`
 (`evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review_revision_2-01dd20c.md`):
-the implementation order is authoritative, and this text was amended to match
-it. The importer was not changed.
+the implementation order is authoritative, and the ruling required this text
+to be amended to match it. The importer was not changed.
 
-- **Realized order.** `crates/sley-repo/src/exchange.rs` `preflight` runs:
-  - the envelope and trailer;
-  - the payload decode, with the step-2 order, count and profile checks;
-  - the registry decode;
-  - the tag-170 check (`EXCHANGE_PACK_INVALID`);
-  - `preflight_conformance_pack`;
-  - the digest tree.
-- **What changed from revision 8.** Revision 8 listed "every declared
-  identity, and the complete digest tree" in step 2, ahead of the S20-170
-  preflight. Revision 9 moves them into step 3.3, after the embedded-pack
-  checks.
+- **Realized order.** Steps 1 through 6 now list the checks of
+  `crates/sley-repo/src/exchange.rs` in the order the code runs them:
+  - `decode_envelope`, then the epoch check;
+  - `decode_payload` and its field decoders, then the registry decode;
+  - the tag-170 check, then `preflight_conformance_pack`, then
+    `compute_leaves` and the root comparison;
+  - the receipt decode loop, then `verify_closure_rules`;
+  - `verify_branch_entry` per branch, then `verify_no_surplus`;
+  - `verify_receipts_against_pack`.
+- **What changed from revision 8.**
+  - Revision 8 listed "every declared identity, and the complete digest
+    tree" in step 2, ahead of the S20-170 preflight.
+  - Revision 9 moves the digest-tree content check (leaf recomputation and
+    root) into step 3.3, after the embedded-pack checks. Step 3.3
+    recomputes the leaves from the declared identifiers and recomputes the
+    section-3 name keys.
+  - The declared receipt and head identities are verified in step 4
+    (4.1 and 4.4).
+  - The tree record's own profile and counts stay in step 2.
 - **Why pack-first.**
   - The section-1 leaf identifier is the embedded pack's `RepositoryPackId`,
     which only the S20-170 preflight establishes.
@@ -449,15 +529,37 @@ it. The importer was not changed.
   written as sub-steps 3.1 through 3.3 so that the step-7 and step-8
   cross-references, rows X-01 through X-07, and the contract checker's
   markers keep their numbers.
-- **Precedence narrowed.** The ruling asked for steps 1 through 7 to be a
-  strict precedence order. The precedence sentence above is narrowed to the
-  realized groups, because the code:
-  - interleaves the step-1 payload decode with the step-2 checks;
-  - proves closure rule 2 (`verify_no_surplus`) after the step-5 branch
-    verification.
-- **Current pin.** The resealed embedded-pack ordering is pinned by
-  `crates/sley-repo/tests/s3_g2_corrupt.rs`
-  `s3_corrupt_exchange_resealed_embedded_pack`.
+- **Precedence made exact.** The ruling asked for steps 1 through 7 to be
+  a precedence order. The first revision-9 text narrowed that to coarse
+  groups. The revision-3 review found that text still missed two realized
+  exits:
+  - an empty receipt set is decided in the decode pass;
+  - rule 6 for origin and ref records is decided per branch in step 5.
+
+  The steps were therefore rewritten to list every check in code order.
+  That includes those two exits, the step-2 tree-record profile and count
+  checks, the step-3.3 branch-name check, and the rule 1 → 5 → 3 order
+  inside step 4. The precedence statement is thus exact, not narrowed. It
+  covers the checks named here, and any failure inside a named decode keeps
+  its owning code at that point.
+- **Current pins.**
+  - The resealed embedded-pack ordering is pinned by
+    `crates/sley-repo/tests/s3_g2_corrupt.rs`
+    `s3_corrupt_exchange_resealed_embedded_pack`.
+  - The out-of-order early exits are pinned pairwise by
+    `exchange::tests::preflight_precedence_early_exits_match_the_import_phase_text`.
+    Each row injects two simultaneous defects and asserts the earlier
+    check's code:
+    - empty receipts over `EXCHANGE_PACK_INVALID`;
+    - tree algorithm over `EXCHANGE_PACK_INVALID`;
+    - ungrammatical branch name over `EXCHANGE_HEAD_INVALID`;
+    - open ancestry over `EXCHANGE_HEAD_INVALID`;
+    - `EXCHANGE_HEAD_INVALID` over `EXCHANGE_ROOT_CLOSURE`;
+    - an earlier branch's `EXCHANGE_BRANCH_INVALID` over a later branch's
+      foreign `WorkspaceId`.
+  - `every_reachable_exchange_code_has_an_asserting_rejection` already
+    shows transaction workspace uniformity deciding before the genesis
+    count.
 - **Pending (not in revision 9).** A frozen `rejected.json` mutation for
   this vector, as the ruling asks. It re-freezes
   `conformance/repository-exchange/v1/rejected.json` and its `SHA256SUMS`,
