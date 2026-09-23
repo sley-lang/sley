@@ -1,0 +1,17 @@
+{
+  "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
+  "artifact_sha256": "ecf51188d52bd673800c7b91068f2ad58d93068a23e1f37e60320c58a398c1f7",
+  "artifact_size_bytes": 2508082,
+  "commit": "8d063f00133f369599032191708fa7efabb3e2fa",
+  "contract": "sley2.reproducibility-attestation.v1",
+  "differing_members": [],
+  "host_label": "secondary",
+  "manifest_digest": "f0bd407219f08ba8d131ef1529b91f21409932dc86e729dfcf6fe8b728e7e800",
+  "member_count": 15,
+  "reproducibility": "REPRODUCIBLE",
+  "toolchain": {
+    "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
+    "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
+  },
+  "working_tree_clean": true
+}
