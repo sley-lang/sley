@@ -42,6 +42,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from bench.live import sley2_codecs  # noqa: E402
+from bench.live.scratch import remove_scratch  # noqa: E402
 from bench.live import sley2_tool  # noqa: E402
 
 TASK_DIR = ROOT / "bench" / "fixtures" / "sley2" / "S2B-MERGE-001"
@@ -314,10 +315,14 @@ def main() -> int:
                 except Exception:
                     pass
     finally:
-        shutil.rmtree(workdir, ignore_errors=True)
-        for stage in stages:
-            shutil.rmtree(stage, ignore_errors=True)
-        flush_log()
+        try:
+            # Read-only store files defeat a silent ignore_errors removal;
+            # remove_scratch restores permissions or fails loudly.
+            remove_scratch(workdir)
+            for stage in stages:
+                remove_scratch(stage)
+        finally:
+            flush_log()
     return 0
 
 

@@ -43,6 +43,7 @@ def _repo_root() -> Path:
 
 sys.path.insert(0, str(_repo_root()))
 from bench.live import sley2_codecs  # noqa: E402
+from bench.live.scratch import ScratchRemovalError, remove_scratch  # noqa: E402
 from bench.live.sley2_tool import (  # noqa: E402
     _entity_body as _tool_entity_body,
     CHAIN_NAME,
@@ -643,22 +644,46 @@ def _seeded_repo(task_dir: Path) -> tuple[Path, object, object]:
     except OSError as error:
         raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: base pack: {error}") from error
     workdir = Path(tempfile.mkdtemp(prefix="sley2-pristine-"))
-    ws = workdir / "ws"
-    ws.mkdir(mode=0o700)
-    (ws / REPO_DIR).mkdir(mode=0o700)
-    try:
-        shutil.copyfile(pack, ws / "base.pack")
-    except OSError as error:
-        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: base pack: {error}") from error
-    session = Session(_resolve_binary(), ws, [], seed_pack=True)
+    ws, session = _staged_session(workdir, pack, "base pack")
 
     def cleanup() -> None:
         try:
             session.close()
         finally:
-            shutil.rmtree(workdir, ignore_errors=True)
+            _remove_workdir(workdir)
 
     return ws / REPO_DIR, session, cleanup
+
+
+def _remove_workdir(workdir: Path) -> None:
+    """Remove a judge scratch workspace or fail the judgment loudly.
+
+    Scratch trees hold read-only store and tool files; a silent
+    `ignore_errors` removal leaked ~20k inodes per run, so removal
+    restores owner permissions and retries, and a tree that still cannot
+    be removed is a harness error, never a quiet leak."""
+    try:
+        remove_scratch(workdir)
+    except ScratchRemovalError as error:
+        raise JudgeHarnessError(
+            f"LIVE_SLEY2_JUDGE_INVALID: scratch removal: {error}") from error
+
+
+def _staged_session(workdir: Path, pack: Path, what: str) -> tuple[Path, object]:
+    """Stage `pack` into a fresh workspace under `workdir` and seed a
+    session; `workdir` is removed if staging fails."""
+    try:
+        ws = workdir / "ws"
+        ws.mkdir(mode=0o700)
+        (ws / REPO_DIR).mkdir(mode=0o700)
+        try:
+            shutil.copyfile(pack, ws / "base.pack")
+        except OSError as error:
+            raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: {what}: {error}") from error
+        return ws, Session(_resolve_binary(), ws, [], seed_pack=True)
+    except BaseException:
+        _remove_workdir(workdir)
+        raise
 
 
 def _sint_cases(inputs: list) -> list:
@@ -1168,36 +1193,40 @@ def _main(task_id: str) -> int:
     candidate = _candidate_bytes(workspace)
     sley = _resolve_binary()
     workdir = Path(tempfile.mkdtemp(prefix="sley2-judge-"))
-    scratch_ws = workdir / "ws"
-    scratch_ws.mkdir(mode=0o700)
-    shutil.copytree(workspace / REPO_DIR, scratch_ws / REPO_DIR, symlinks=False)
-    transcript: list = []
-
-    def connect() -> Session:
-        return Session(sley, scratch_ws, transcript, seed_pack=False)
-
-    session = connect()
+    # Every path (accept, reject, harness error) removes the scratch copy.
     try:
-        judge_cfg = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
-        flow = judge_cfg.get("flow", "")
-        needs_versions = flow in ("graph", "test-entity", "type-variant", "create") or (
-            flow == "execute-cases" and task_id == "S2B-SIG-001")
-        versions_pre = _snapshot_versions(connect, scratch_ws) if needs_versions else {}
-        pre_tx = session.head.get("tx", "")
-        if not pre_tx:
-            _harness_fail("pre head")
-        _commit_candidate(session, manifest["principal"], candidate.hex())
-        # Post-commit reads need a fresh session: commit advances the
-        # head every token was minted under, and the endpoint refuses
-        # new opens on the committed process.
-        session.close()
+        scratch_ws = workdir / "ws"
+        scratch_ws.mkdir(mode=0o700)
+        shutil.copytree(workspace / REPO_DIR, scratch_ws / REPO_DIR, symlinks=False)
+        transcript: list = []
+
+        def connect() -> Session:
+            return Session(sley, scratch_ws, transcript, seed_pack=False)
+
         session = connect()
-        versions_post = _snapshot_versions(connect, scratch_ws) if needs_versions else {}
-        _collateral_files(session, scratch_ws, workspace, manifest, flow)
-        suffix = _judge_flows(session, manifest, corpus, task_id, versions_pre, versions_post,
-                              scratch_ws, candidate, pre_tx, workspace, task_dir, transcript)
+        try:
+            judge_cfg = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
+            flow = judge_cfg.get("flow", "")
+            needs_versions = flow in ("graph", "test-entity", "type-variant", "create") or (
+                flow == "execute-cases" and task_id == "S2B-SIG-001")
+            versions_pre = _snapshot_versions(connect, scratch_ws) if needs_versions else {}
+            pre_tx = session.head.get("tx", "")
+            if not pre_tx:
+                _harness_fail("pre head")
+            _commit_candidate(session, manifest["principal"], candidate.hex())
+            # Post-commit reads need a fresh session: commit advances the
+            # head every token was minted under, and the endpoint refuses
+            # new opens on the committed process.
+            session.close()
+            session = connect()
+            versions_post = _snapshot_versions(connect, scratch_ws) if needs_versions else {}
+            _collateral_files(session, scratch_ws, workspace, manifest, flow)
+            suffix = _judge_flows(session, manifest, corpus, task_id, versions_pre, versions_post,
+                                  scratch_ws, candidate, pre_tx, workspace, task_dir, transcript)
+        finally:
+            session.close()
     finally:
-        session.close()
+        _remove_workdir(workdir)
     detail = "all flows held" + (f"; {suffix}" if suffix else "")
     return _emit(task_id, "accepted", None, detail, 0)
 
@@ -1477,7 +1506,7 @@ def _judge_corrupt_exchange(task_dir: Path) -> None:
         finally:
             session.close()
     finally:
-        shutil.rmtree(workdir, ignore_errors=True)
+        _remove_workdir(workdir)
 
 
 def _judge_corrupt_value(session: Session, manifest: dict) -> None:
@@ -2679,11 +2708,19 @@ def _judge_merge(session: Session, manifest: dict, corpus: dict, scratch_ws: Pat
         _judge_merge_orders(candidate, manifest, sides, repos,
                             session, scratch_ws)
     finally:
+        # Every side workspace is released. A session-close error stays
+        # ignored as before; a failed scratch removal is a harness error,
+        # raised once every cleanup has run.
+        removal_failure: JudgeHarnessError | None = None
         for cleanup in cleanups:
             try:
                 cleanup()
+            except JudgeHarnessError as error:
+                removal_failure = removal_failure or error
             except Exception:
                 continue
+        if removal_failure is not None:
+            raise removal_failure
 
 
 def _judge_merge_orders(candidate: bytes, manifest: dict,
@@ -2876,20 +2913,13 @@ def _seeded_pack(pack: Path) -> tuple[Path, Path, object, object]:
     fresh chunked sessions (frozen per-session request limit)."""
 
     workdir = Path(tempfile.mkdtemp(prefix="sley2-merge-"))
-    ws = workdir / "ws"
-    ws.mkdir(mode=0o700)
-    (ws / REPO_DIR).mkdir(mode=0o700)
-    try:
-        shutil.copyfile(pack, ws / "base.pack")
-    except OSError as error:
-        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: side pack: {error}") from error
-    session = Session(_resolve_binary(), ws, [], seed_pack=True)
+    ws, session = _staged_session(workdir, pack, "side pack")
 
     def cleanup() -> None:
         try:
             session.close()
         finally:
-            shutil.rmtree(workdir, ignore_errors=True)
+            _remove_workdir(workdir)
 
     return ws / REPO_DIR, ws, session, cleanup
 

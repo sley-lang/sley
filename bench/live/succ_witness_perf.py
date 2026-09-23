@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from bench.fixtures import sley2_live_judge as judge  # noqa: E402
+from bench.live.scratch import scratch_root  # noqa: E402
 from bench.live import sley2_tool  # noqa: E402
 from bench.live.taskpacks import stage_initial  # noqa: E402
 from bench.live.tooling import stage_tooling  # noqa: E402
@@ -229,7 +230,7 @@ def main() -> int:
         finally:
             sys.argv = saved_argv
         emit(f"S2B-PERF-001 witness/{variant} judge exit: {exit_code}")
-        emit(f"workspace kept at: {ws}")
+        emit(f"workspace: {ws} (removed at exit)")
     finally:
         os.chdir(saved_cwd)
     if log_path is not None:
@@ -239,4 +240,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # Every temporary directory of the run (the witness workspace and the
+    # judge's scratch copies) lives under one root removed on every path.
+    with scratch_root("sley2-witness-perf-run-"):
+        code = main()
+    raise SystemExit(code)
