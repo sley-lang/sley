@@ -607,70 +607,36 @@ fn query_family_transports_the_frozen_engine_records() {
     assert_eq!(garbage.code, ProtocolErrorCode::PayloadInvalid.numeric());
 }
 
-/// REQ-10 accepted-head binding: `workspace.open` carries field 9 (the
-/// head's already-materialized snapshot identity) and nothing else moves.
-/// Cold, the field is structurally absent (never an omission signal) and
-/// the body equals `revision.read` of the head; the query path is the only
-/// builder; once materialized, the disclosed identity is exactly the one
-/// `query.root` binds, so a preimage built from the disclosure is answered
-/// instead of refused `QUERY_SNAPSHOT_MISMATCH`; `revision.read` bytes stay
-/// the eight-field encoding throughout.
+/// SMP1 revision 13: under a version 1 selection `workspace.open` stays
+/// exactly `revision_summary` even with a materialized head snapshot (field
+/// 9 is version 2 only), and a non-empty request body is refused
+/// `PROTOCOL_PAYLOAD_INVALID`.
 #[test]
-fn workspace_open_discloses_only_the_materialized_head_snapshot() {
-    let mut harness = Harness::new("smp1-open-snapshot");
+fn workspace_open_under_version_1_never_carries_field_9() {
+    let mut harness = Harness::new("smp1-open-v1");
     let genesis = harness.genesis;
-    let revision_before = harness.ok(Method::RevisionRead, tx(genesis)).body;
-    assert_eq!(revision_before[0], 8, "eight-field revision summary");
-    // Cold: no snapshot materialized, no field 9, no omission signal.
-    let cold = harness.ok(Method::WorkspaceOpen, Vec::new());
-    assert_eq!(cold.body, revision_before);
-    assert_eq!(cold.bounds.returned_entities, 1);
-    assert_eq!(cold.bounds.omitted, 0);
-    assert!(!cold.bounds.truncated && !cold.bounds.continuation);
+    let summary = harness.ok(Method::RevisionRead, tx(genesis)).body;
     let revision = sley_txn::TransactionRepository::new(&harness.repository)
         .verified_revision(genesis)
         .unwrap();
-    let cache = sley_repo::index_cache_path(&harness.repository, revision.state_root().root);
-    assert!(!cache.exists(), "workspace.open must never build");
-    // An undisclosed binding is refused, and the query path (not the
-    // opener) builds and materializes the head snapshot on the way.
-    let limits = QueryLimits::profile_maximum();
-    let outcome = run_root_query_fresh(
+    // Materialize the head snapshot through the query path.
+    let outcome = run_root_query(
+        &harness.repository,
         &revision,
-        RootQuery::ListEntitiesByKind {
-            kind: ModeledEntityKind::Namespace,
-        },
-        limits,
-        true,
+        &maintenance_guard(&harness.repository),
+        RootQuery::GetRootSummary,
+        QueryLimits::profile_maximum(),
+        false,
         None,
     )
     .unwrap();
-    let mut unbound = outcome.request.preimage().to_vec();
-    unbound[16..48].fill(0);
-    let refused = harness.fail(Method::QueryRoot, unbound.clone());
-    assert_eq!(refused.symbol, "QUERY_SNAPSHOT_MISMATCH");
-    assert!(cache.is_file(), "the query path materializes the snapshot");
-    // Warm: field 9 appended after the unchanged eight fields.
-    let warm = harness.ok(Method::WorkspaceOpen, Vec::new());
-    assert_eq!(warm.bounds.returned_entities, 1);
-    assert_eq!(warm.bounds.omitted, 0);
-    assert!(!warm.bounds.truncated);
-    assert_eq!(warm.body[0], 9, "nine-field head summary");
-    assert_eq!(&warm.body[1..revision_before.len()], &revision_before[1..]);
-    let tail = &warm.body[revision_before.len()..];
-    assert_eq!(&tail[..2], &[9, 32]);
-    let disclosed = &tail[2..];
-    assert_eq!(disclosed, outcome.request.snapshot_id().as_bytes());
-    // revision.read stays byte-identical for the same (head) revision.
-    assert_eq!(
-        harness.ok(Method::RevisionRead, tx(genesis)).body,
-        revision_before
-    );
-    // Bootstrap closed: the disclosed identity forms an answered request.
-    unbound[16..48].copy_from_slice(disclosed);
-    assert_eq!(unbound, outcome.request.preimage());
-    let answered = harness.ok(Method::QueryRoot, unbound);
-    assert_eq!(answered.body, outcome.response.record());
+    harness.ok(Method::QueryRoot, outcome.request.preimage().to_vec());
+    let cache = sley_repo::index_cache_path(&harness.repository, revision.state_root().root);
+    assert!(cache.is_file());
+    let opened = harness.ok(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(opened.body, summary, "version 1 bytes unchanged");
+    let refused = harness.fail(Method::WorkspaceOpen, vec![0]);
+    assert_eq!(refused.code, ProtocolErrorCode::PayloadInvalid.numeric());
 }
 
 #[test]
@@ -7413,5 +7379,83 @@ fn emit_native_test_vectors_for_fixture_refresh() {
             (5, [0xA6; 16].to_vec()),
         ])
         .unwrap(),
+    );
+}
+
+/// REQ-10 accepted-head binding under a version 2 selection (SMP1 revision
+/// 13 `open_summary`): cold, field 9 is structurally absent (the body equals
+/// `revision.read` of the head, no omission signal, no cache file written);
+/// the query path, not the opener, materializes the snapshot while refusing
+/// an unbound preimage; warm, the eight fields are unchanged and field 9 is
+/// the identity `query.root` binds, so a preimage built from the disclosure
+/// is answered; `revision.read` stays eight fields; a body is refused.
+#[test]
+fn workspace_open_v2_discloses_only_the_materialized_head_snapshot() {
+    let mut server = VServer::with_bodies(
+        "v2-open-snapshot",
+        complete_bodies(),
+        &[complete_dependency_root()],
+    );
+    let transactions = sley_txn::TransactionRepository::new(&server.repository);
+    let revision = transactions
+        .accepted_head()
+        .unwrap()
+        .into_verified_revision();
+    let head_tx = revision.transaction_id();
+    let (failed, read) = server.call(Method::RevisionRead.tag(), tx(head_tx));
+    assert!(!failed);
+    let revision_before = read.body;
+    assert_eq!(revision_before[0], 8, "eight-field revision summary");
+    let (failed, cold) = server.call(Method::WorkspaceOpen.tag(), Vec::new());
+    assert!(!failed);
+    assert_eq!(cold.body, revision_before);
+    assert_eq!(cold.bounds.returned_entities, 1);
+    assert_eq!(cold.bounds.omitted, 0);
+    assert!(!cold.bounds.truncated && !cold.bounds.continuation);
+    let cache = sley_repo::index_cache_path(&server.repository, revision.state_root().root);
+    assert!(!cache.exists(), "workspace.open must never build");
+    let outcome = run_root_query_fresh(
+        &revision,
+        RootQuery::ListEntitiesByKind {
+            kind: ModeledEntityKind::Namespace,
+        },
+        QueryLimits::profile_maximum(),
+        true,
+        None,
+    )
+    .unwrap();
+    let mut unbound = outcome.request.preimage().to_vec();
+    unbound[16..48].fill(0);
+    let (failed, refused) = server.call(Method::QueryRoot.tag(), unbound.clone());
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&refused.body).unwrap().symbol,
+        "QUERY_SNAPSHOT_MISMATCH"
+    );
+    assert!(cache.is_file(), "the query path materializes the snapshot");
+    let (failed, warm) = server.call(Method::WorkspaceOpen.tag(), Vec::new());
+    assert!(!failed);
+    assert_eq!(warm.bounds.returned_entities, 1);
+    assert_eq!(warm.bounds.omitted, 0);
+    assert!(!warm.bounds.truncated);
+    assert_eq!(warm.body[0], 9, "nine-field open summary");
+    assert_eq!(&warm.body[1..revision_before.len()], &revision_before[1..]);
+    let tail = &warm.body[revision_before.len()..];
+    assert_eq!(&tail[..2], &[9, 32]);
+    let disclosed = &tail[2..];
+    assert_eq!(disclosed, outcome.request.snapshot_id().as_bytes());
+    let (failed, read) = server.call(Method::RevisionRead.tag(), tx(head_tx));
+    assert!(!failed);
+    assert_eq!(read.body, revision_before);
+    unbound[16..48].copy_from_slice(disclosed);
+    assert_eq!(unbound, outcome.request.preimage());
+    let (failed, answered) = server.call(Method::QueryRoot.tag(), unbound);
+    assert!(!failed);
+    assert_eq!(answered.body, outcome.response.record());
+    let (failed, bodied) = server.call(Method::WorkspaceOpen.tag(), vec![0]);
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&bodied.body).unwrap().code,
+        ProtocolErrorCode::PayloadInvalid.numeric()
     );
 }

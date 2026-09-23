@@ -61,8 +61,8 @@ use sley_txn::{
     AttemptStatus, CommitInput, ImportedReceipt, NativeAcceptanceSigner, NativeAttemptId,
     NativeCommitInput, NativeDiagnosticAssembly, NativeTestExecutor, NativeVerifiedRevision,
     RepositoryMaintenanceGuard, TransactionRepository, TrustedGenesisInput, VerifiedRevision,
-    acquire_shared_repository_maintenance, assemble_diagnostic_report,
-    initialize_repository_maintenance,
+    acquire_shared_repository_maintenance, acquire_shared_repository_maintenance_nonblocking,
+    assemble_diagnostic_report, initialize_repository_maintenance,
 };
 use sley_vm::native_execution::{
     NativeImplementationLimits, profile_id as native_execution_profile,
@@ -1280,7 +1280,7 @@ impl Server {
                 self.plain(Vec::new())
             }
             Method::WorkspaceCreate => self.workspace_create(body),
-            Method::WorkspaceOpen => self.workspace_open(),
+            Method::WorkspaceOpen => self.workspace_open(body),
             Method::MergeCommit => self.merge_commit(body),
             Method::ExchangeImport => self.exchange_import(body),
             Method::CandidateCreate => self.candidate_create(body),
@@ -2887,29 +2887,44 @@ impl Server {
         )
     }
 
-    /// The head-pinned opener: the accepted head's `revision_summary`
-    /// plus, on this path only, field 9 carrying the accepted head's
-    /// already-materialized complete-root index snapshot identity (REQ-10
-    /// accepted-head binding). The identity comes from the metadata-only
-    /// cache probe, never a build, so the one-entity count stays truthful.
-    /// When no snapshot is materialized (or the probe cannot run) field 9
-    /// is structurally absent from the body; the absence is never reported
-    /// through `omitted` or `truncated`. `revision.read` keeps the eight
-    /// field encoding byte for byte.
-    fn workspace_open(&self) -> Result<(Vec<u8>, BoundedContext)> {
+    /// The head-pinned opener (SMP1 revision 13, appendix A row 201): an
+    /// empty request answered with the accepted head's summary. Under a
+    /// version 1 selection the body is exactly `revision_summary`. Under a
+    /// version 2 (or later) selection it is `open_summary`: the same eight
+    /// fields plus field 9, the accepted head's complete-root index snapshot
+    /// identity, present only when the S20-300 read-only probe finds an
+    /// accepted cache record for that root. The probe never builds or writes
+    /// the cache; any probe condition (no record, a discarded record, a
+    /// missing or contended maintenance boundary) is structural absence of
+    /// field 9, never an `omitted` or `truncated` signal, and the response
+    /// counts one entity either way. `revision.read` keeps the eight-field
+    /// encoding byte for byte.
+    fn workspace_open(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
+        if !body.is_empty() {
+            return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+        }
         let head = self.head()?;
-        let snapshot = self.materialized_head_snapshot(&head);
+        let snapshot = if self.profile.protocol_version >= PROTOCOL_VERSION_V2 {
+            self.materialized_head_snapshot(&head)
+        } else {
+            None
+        };
         let summary = head_open_summary(&head, snapshot)?;
         self.counted(summary, 1)
     }
 
-    /// The accepted head's cached snapshot identity, fail-open like the
-    /// cache itself (contract section 5): any probe trouble is absence.
+    /// The accepted head's cached snapshot identity (S20-300 revision 4
+    /// probe reader). The probe adds no wait and no write: the maintenance
+    /// boundary is taken shared without waiting and never initialized here,
+    /// so an absent or contended boundary, or any probe failure, is
+    /// absence. (Loading the accepted head itself already takes the shared
+    /// maintenance lock, blocking, as every head-bound read does; that is
+    /// S20-390 behavior this probe does not change.)
     fn materialized_head_snapshot(
         &self,
         head: &VerifiedRevision,
     ) -> Option<sley_id::IndexSnapshotId> {
-        let guard = self.maintenance().ok()?;
+        let guard = acquire_shared_repository_maintenance_nonblocking(&self.repository).ok()?;
         cached_complete_root_snapshot_id(&self.repository, head, &guard)
             .ok()
             .flatten()
@@ -3268,9 +3283,10 @@ fn revision_summary(revision: &VerifiedRevision) -> Result<Vec<u8>> {
     scb(encode_record(&revision_summary_fields(revision)?))
 }
 
-/// `workspace.open` only: the head summary plus field 9 when the head's
-/// snapshot is materialized. Kept apart from `revision_summary`, which has
-/// no knowledge of headness and serves arbitrary caller-named revisions.
+/// `workspace.open` only (SMP1 revision 13 `open_summary`): the head
+/// summary plus field 9 when the caller passes the head's materialized
+/// snapshot. Kept apart from `revision_summary`, which has no knowledge of
+/// headness and serves arbitrary caller-named revisions.
 fn head_open_summary(
     head: &VerifiedRevision,
     snapshot: Option<sley_id::IndexSnapshotId>,
