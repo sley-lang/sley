@@ -781,6 +781,187 @@ each filled the tmpfs. The fix:
 
 All my runs since then use a private `TMPDIR` on `/home`.
 
+## 13. Round 7 at `2b0f1c9` and repairs (2026-09-23)
+
+### 13.1 Round
+
+The 17 transcripts were committed unchanged in `531805ae`, together with
+the index `evidence/review/rounds/context-r7-2b0f1c9.json` (the dispatch
+index copied verbatim; each transcript's sha256 matches it). The verdicts
+are recorded as lane fields with dated, scoped notes in `1d8086fc`:
+
+- **SMP1 revision 14:** PASS x3. Ariadne has 1 P3 and 1 P4, Nabu 2 P3 and
+  2 P4, Vulcan 1 P3 and 2 P4.
+- **S20-300 revision 5:** PASS x3. Ariadne has 3 P4, Nabu 4 P4, Vulcan
+  3 P4.
+- **Bridge revision 11:** PASS x3. Ariadne has 3 P3 and 3 P4, Nabu 2 P3
+  and 2 P4, Vulcan 2 P3 and 2 P4.
+- **S20-620:** Ariadne revision 6 PASS (1 P3, 2 P4), so every lane now has
+  a PASS `_revision_6` field. The round-7 Vulcan review of the leak fix,
+  recorded as `vulcan_surface_review_revision_7`, is PASS (2 P3, 3 P4).
+- **CLI revision 9:** REVISE x3 (2 P2 each). Ariadne and Nabu also have
+  1 P3 and 1 P4; Vulcan has 2 P3 and 1 P4.
+- **Session handle revision 5:** REVISE x3 (1 P2 each). Ariadne also has
+  1 P3 and 3 P4; Nabu and Vulcan each have 2 P3 and 2 P4.
+
+The CLI and session `current_delta_review` records were NEEDS_WORK until
+the repairs moved them.
+
+Closing P3/P4 findings on the passed packages required normative text.
+Amending a reviewed revision in place would make one revision number name
+two texts (the round-6 Nabu P3). So every package with a text change took
+a new revision:
+
+| Package | Revision | Review status |
+|---|---|---|
+| SMP1 | 15 | pending |
+| S20-300 | 6 | pending |
+| Bridge | 12 | pending |
+| CLI | 10 | pending |
+| Session handle | 6 | pending |
+| NATIVE_TEST_ADMISSION | 7 | dated re-pin |
+| S20-620 | 7 | pending |
+
+Each package's `current_delta_review` is PENDING at its new revision, with
+a history note. None of these statuses moved to COMPLETE.
+
+Repair commits:
+
+- `004cf5be`: Rust code, conformance vector, oracle.
+- `236b7640`: bench.
+- `60be11c8`: contracts, ADRs, checkers and tests, summary,
+  WORK_PACKAGES.
+- `2de849d7`: fuzz proofs.
+- `0b21dcb0`: ADR-0033 with a single current pin.
+- `7b1e060c`: register/GA/dossier/sync chain. The older CLI and session
+  PASS fields got dated notes so they no longer fold the REVISE rounds.
+- `4e9cdeda`: T54.
+- `ea286692`: error-symbol registration (535 emitted, none unregistered).
+- This record's commit.
+- T54 regenerated again as the final commit after this record (Nabu P4:
+  T54 drifts whenever tracked files change after it).
+
+### 13.2 The two REVISE packages
+
+**CLI (P2 x2 in every lane).** The coordinator's rule was followed: the
+contract now states what the code does, except where the closure evidence
+required a code change.
+
+- **Version 3 surface.** CLI revision 10 admits the shipped `v3-capable`
+  profile in sections 1, 2, 3, and 9:
+  - the `[1,2,3]` offer through `Server::offered_hello_v3`;
+  - `--expected-version 1|2|3` (3 only under `v3-capable`);
+  - the version 3 table;
+  - the `sley2-cli-v3` metadata and `sley2-cli-report-v3` report;
+  - frames stamped at 1, 2, or 3.
+
+  The machine summary's `offered_hello` field names all three offers.
+- **Worker entry.** Section 10 admits `sley __native-test-worker
+  <input_path>` as a bounded exception. It says why the entry exists, that
+  it is not a user command, what it writes to stdout (a u32 tag plus an
+  ASCII code, no newline, nothing on stderr), and its status table.
+  - Sections 4 and 5 and ADR-0035 decision 8 carry the exception.
+  - The summary field `bounded_exceptions` names it.
+  - `check_cli_rules.py` allows the runner crate only as exactly one
+    `sley_test_runner::worker::run_input_path(` call plus one command
+    word. Five mutation tests and a control cover this.
+- **Code change (Vulcan P3).** The supervisor's argv and the CLI parser
+  disagreed. They now share one argv contract: the entry takes the unit's
+  absolute input path and reads the envelope from it.
+  - The worker's exit statuses moved from 1/2/3 to 1/6/7/8, disjoint from
+    the CLI's 2 to 5 (the old statuses 2 and 3 collided with
+    `CLI_USAGE_INVALID` and `CLI_INPUT_INVALID`).
+  - `native_test_worker_entry_runs_the_unit_argv_against_the_real_binary`
+    renders the unit with `render_transient_unit` and runs the argv after
+    the worker path against the real `sley` binary.
+
+**Session handle (P2 in every lane).**
+
+- Revision 6 states that 306 and 307 are head-bound under every
+  version-aware selection that carries them: version 2, and version 3.
+  The server has behaved this way since version 3 landed.
+- The Status line, section 3, ADR-0033, and the server doc comment agree.
+- The checker now reads `V3_ALL` (46 rows; the version 2 table plus
+  exactly 605, 606, and 607) and the shape of the server's gate
+  (`if self.version_aware { head_bound_versioned } else { head_bound }`).
+  It refuses a single-version gate, with revert tests.
+- New server test: `entity_reads_are_head_bound_under_version_3` (stale
+  root; both tags refuse `SESSION_ROOT_ADVANCED`).
+
+### 13.3 Per-finding closure
+
+| Finding | Disposition | Where / evidence |
+|---|---|---|
+| CLI Ariadne/Nabu/Vulcan P2: undeclared v3 surface | FIXED by the contract (13.2) | `60be11c8`; `check_cli_contract.py` flat markers |
+| CLI Ariadne/Nabu/Vulcan P2: worker entry and `sley-test-runner` edge | FIXED by the contract with a bounded, audited exception; the argv and exit statuses changed in code | `004cf5be`, `60be11c8`; `test_cli_rules.py` `WorkerExceptionCases` |
+| CLI Vulcan P3: worker argv mismatch and colliding statuses | FIXED in code: one argv contract and disjoint statuses 1/6/7/8, tested against the real binary | `004cf5be` |
+| CLI Ariadne/Nabu/Vulcan P3: ADR-0035 stuck at revision 8; no section 8 record | FIXED. ADR-0035 carries revision 9 and 10 records and names the current revision 10. Section 8 has revision 9 and 10 records. The checker anchors the ADR current line (`adr-current-revision`) and `### Revision N (`. | `60be11c8` |
+| CLI Ariadne/Vulcan P4: SMP1 qualifier dropped, unwrapped line, no mention of the non-empty 201 tightening | FIXED. Section 8 revision 9 now quotes the qualifier, states the legacy serve's non-empty 201 failure, and is wrapped. | `60be11c8` |
+| CLI Nabu P4: withdrawn in-place SMP1 13 pin unrecorded | FIXED (status sentence and section 8 revision 9) | `60be11c8` |
+| Session Ariadne/Nabu/Vulcan P2: version 3 partition | FIXED (13.2) | `004cf5be`, `60be11c8` |
+| Session Nabu P3: 605-607 precedence below version 3 | FIXED. Section 3 says these tags are refused at decode before check 1; new test `native_tags_below_version_3_refuse_at_decode_before_the_session_check` (605-607 give `PROTOCOL_METHOD_UNSUPPORTED`; 305 gives `SESSION_UNKNOWN`). | `004cf5be`, `60be11c8` |
+| Session Ariadne/Nabu/Vulcan P3: no section 9 revision 5 entry; unrevisioned edits | FIXED. New revision 5 and 6 entries. The unrevisioned edits are recorded with their commits: capsule pin `bf5b7e78` (2026-09-14), native sentence `e0ff1371` (2026-09-16), withdrawn SMP1 13 pin `a8b4cddb`. The checker requires `- Revision N (`. | `60be11c8` |
+| Session Vulcan P3: ADR-0033 decision 7 pins stale | FIXED. Decision 7 names SMP1 15 and capsule 4. The date line and the single current pin are updated. `adr_pin_problems` anchors both, with revert tests. | `60be11c8` |
+| Session Ariadne P4: ADR SMP1 pin check was a substring | FIXED (same anchor) | `60be11c8` |
+| Session Ariadne/Vulcan P4: capsule revision 3 vs 4 | FIXED. Lines 19 and 263 name capsule revision 4 and say the arm is unchanged since revision 3. | `60be11c8` |
+| Session Ariadne P4: revision 4 PASS overwritten without a note | FIXED. `current_delta_review_note` records the revision 4 PASS (`delta_review-a4b6029.md`). | `1d8086fc` |
+| Session Nabu P4: unwrapped Status line and dropped qualifier | FIXED | `60be11c8` |
+| Session Nabu P4: `workspace.open` double head load | FIXED in code. Row 201 is answered from the head its session check loaded. New test `workspace_open_answers_from_the_single_checked_head_load` (exactly one load). | `004cf5be` |
+| Session Vulcan P4: `session.close` ignores a body | RECORDED. Section 2 notes the deviation; the behavior is not changed. | `60be11c8` |
+| SMP1 Ariadne/Nabu/Vulcan P3: per-selection negotiation filter | FIXED. SMP1 revision 15 states the filter for version 1, version 2, and version 3 without the bit, citing NATIVE appendix C. The version 1 compatibility statement counts the native-tag drop (handshake identity and capabilities bytes). Three anchors with revert cases. | `60be11c8` |
+| SMP1 Ariadne/Nabu P4: ADR-0034/0035 records and session/CLI histories | FIXED (rows above and bridge rows below) | `60be11c8` |
+| SMP1 Nabu P3: S20-300 evidence item contradicts SMP1 | FIXED. The S20-300 revision 6 evidence names the consumer wrapper and says `workspace.open` waits. | `60be11c8` |
+| SMP1 Nabu P4: bridge generator comment says SMP1 13 | FIXED (the comment no longer names a revision) | `60be11c8` |
+| SMP1 Nabu P4: ENTITY_READ and NATIVE statuses unscoped | FIXED. ENTITY_READ flags its dated amendment as covered only by the SMP1 rounds. NATIVE scopes its review to the first commit (`76cd3dc4`). | `60be11c8` |
+| SMP1 Vulcan P4: server_tests docstring says "version 2 only" | FIXED | `004cf5be` |
+| SMP1 Vulcan P4 / S20-300 Nabu P4: `pub(crate)` wrapper not gated | FIXED by the gate option. `materialized_head_snapshot` has exactly one production caller inside `workspace_open`. Only the server's `#[cfg(test)]` module and crate integration tests may name it. The body may make no blocking or exclusive acquisition. Negative tests. | `60be11c8` |
+| S20-300 Ariadne/Nabu/Vulcan P4: coverage, gate, and evidence overclaims | FIXED. Coverage lists relative, parent-symlink, and `..` spellings and says a final-component symlink is refused (relative spelling now tested). The gate sentence states the exemptions and the `use` import. The evidence names the wrapper. | `004cf5be`, `60be11c8` |
+| S20-300 Vulcan P4: literal and comment bypasses | FIXED. `strip_rust` blanks comments and string, char, and raw-string literals, so `/**/as` and `"use "` bypasses are refused. Seven token-aware negative tests. | `60be11c8` |
+| S20-300 Vulcan P4: TOCTOU through the caller's spelling | FIXED. The cache path is derived from `guard.repository_root()` after `covers` (asserted in the spelling test). | `004cf5be` |
+| S20-300 Nabu P4: symlinked `index`/`index/v1`; Unix-only flags | FIXED. Both components must be real directories on read and write-back (`a_symlinked_cache_directory_is_never_read_or_written_through`). The spec scopes the `O_NOFOLLOW`/`O_NONBLOCK` sentence to Unix. | `004cf5be`, `60be11c8` |
+| S20-300 Nabu P4: T54 drift at the scope | FIXED by process: T54 is regenerated as the final commit after this record | final commit |
+| Bridge Nabu/Vulcan/Ariadne P3: undeclared v3 surface | FIXED. Bridge revision 12 section 11 names the table and its NATIVE owner, every versioned export, and the render-only `native_tests` key (`the_version_3_hello_rendering_is_render_only`). The checker requires the exports, including `METHOD_TABLE_V2_JSON`. | `004cf5be`, `60be11c8` |
+| Bridge Nabu/Vulcan/Ariadne P3: ADR-0034 stuck at revision 10; revision-agnostic markers | FIXED. ADR-0034 has revision 11 and 12 records and names the current revision. `pin_problems` anchors the ADR line and record, with revert tests (`test_smp1_json_bridge_contract.py`, added to quick). | `60be11c8` |
+| Bridge Ariadne P3: oracle judges the header before the version | FIXED. The oracle now checks the hello version before the header. New vector `hello-version-above-with-request-id` (the old oracle would refuse it with `PROTOCOL_FRAME_INVALID`). | `004cf5be` |
+| Bridge Vulcan P4: SMP1 pin substring | FIXED. The pin is anchored to the composition sentence, with a revert test. | `60be11c8` |
+| Bridge Nabu/Vulcan P4: generator comment; qualifier; "no body columns" | FIXED. The comment no longer names a revision. The status quotes the qualifier and cites the drift gate deriving `reserved` from the body cells. | `60be11c8` |
+| Bridge Ariadne P4: authority-rule quotation | FIXED (marked as the bridge's paraphrase of SMP1 section 8) | `60be11c8` |
+| Bridge Ariadne P4: closeout names revision 9 | FIXED. The closeout says it records the revision 9 implementation and points to the summary. | `60be11c8` |
+| S20-620 Ariadne P3: stale SMP1 13 / S20-300 4 pins | FIXED. Revision 7 pins SMP1 15 and S20-300 6. `composed_pin_problems` reads both status lines, with revert tests (`test_sley2_trial_runner.py`, added to quick). | `60be11c8` |
+| S20-620 Ariadne P4: absent boundary counted as probe absence | FIXED (section 9 and the server docstring) | `004cf5be`, `60be11c8` |
+| S20-620 Ariadne P4: SUCCESSION-COVERAGE stale row and gate paragraph | FIXED (row refreshed; paragraph marked historical and superseded by REQ-10) | `60be11c8` |
+| S20-620 Vulcan r7 P3: unreaped serve child | FIXED. `Session.__init__` kills and reaps on failure. The stalled-serve test fails on the old tool (child left running) and passes now. | `236b7640` |
+| S20-620 Vulcan r7 P3: merge-prover stages | FIXED. Stages are registered as created, every tree is attempted, and the prover runs under `scratch_root`. The failing-side-read test fails on the old prover. | `236b7640` |
+| S20-620 Vulcan r7 P4: `_grant` widens the parent and file modes | FIXED. Only in-tree directories are touched (hard-link and parent-mode tests). | `236b7640` |
+| S20-620 Vulcan r7 P4: path-based retry TOCTOU | FIXED by the documented precondition (no concurrent writer; all callers remove their own scratch after the last user exits) | `236b7640` |
+| S20-620 Vulcan r7 P4: "(removed at exit)" logged before removal | FIXED (worded as scheduled; a failed removal exits nonzero) | `236b7640` |
+| S20-620 Nabu P4 (carried): corpus amendment ratification | OPEN (corpus owner) | — |
+
+### 13.4 Gates at the repair head
+
+| Check | Exit | Result |
+|---|---|---|
+| `cargo fmt --check`; `cargo clippy --workspace --all-targets -D warnings` | 0 | clean |
+| `cargo test --offline --locked --no-fail-fast` on sley-repo, sley-protocol, sley-cli, sley-json-bridge, and sley-test-runner (skipping `debug_commit_repro`) | 0 | 685 passed, 0 failed |
+| All 18 persistent-fuzz slice checkers | 0 each | PASS at `60be11c8` |
+| SMP1, bridge, CLI, CLI-rules, session, S20-300, and trial-runner checkers, with their `test_*.py` suites (including the new `test_smp1_json_bridge_contract.py` and `test_sley2_trial_runner.py`) | 0 each | PASS / OK |
+| `uv run --project oracle/scb1 --frozen python scripts/check_smp1_json_bridge_vector.py` | 0 | PASS, 37 rejections |
+| `check_finding_register.py`; `check_supply_chain_audit.py` (at `4e9cdeda`) | 0 | PASS |
+| `bench/live/tests` (binaries copied out of the target directory; `TMPDIR=/home/gfarch/Work/checkpoints/sct-r7`) | 0 | 258 tests, OK. `/tmp` inodes went from 101620 to 101626. The private root gained only a `uv-*.lock`, no `sley2-*` directory. |
+| `bench/sley2/tests` | 0 | 23 tests, OK |
+| `make quick`, line by line with keep-going (133 lines at `4e9cdeda`; `TMPDIR` on /home) | — | 126 lines exit 0. The candidate-bound lines #82 to #85 and #88 fail as before. #93 (error-symbol registration drift from the new worker symbol) was fixed by `ea286692` and now passes `--check`. #133 `cargo test --workspace`: 1036 passed, 1 failed (`debug_commit_repro`, the documented env-bound diagnostic), 31 ignored. |
+| `make lint` at `ea286692` | 0 | PASS: fmt clean, 0 clippy warnings, clean tree. `lint-report.json` restored and not committed. |
+
+### 13.5 Still open
+
+- New-delta reviews of SMP1 revision 15, S20-300 revision 6, bridge
+  revision 12, CLI revision 10, session handle revision 6, and S20-620
+  revision 7. None of these statuses moved to COMPLETE.
+- Corpus task-input amendment ratification.
+- The empty-request rows other than 201 still ignore a body (recorded).
+- `capture_demo.py` keeps its run roots by design.
+- Live-model trial.
+
 ## Appendix A. Non-domain widened-token hits by file (line numbers at `44f18e2b`)
 
 ### A.1 Frozen history (review transcripts, request packets, gate records, campaign records, retained logs)
