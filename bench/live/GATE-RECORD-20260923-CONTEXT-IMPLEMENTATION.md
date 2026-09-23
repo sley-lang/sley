@@ -366,10 +366,8 @@ exit 0
 9. Additional coupled sites found beyond the rev9 inventory:
    `test_runner.py:384` (16-name version 1 literal),
    `test_mediated_gateway.py` (six `revision` calls), module docstring `side`.
-10. Finding register (#86) not regenerated: the register is a derived
-    governance record and the precedent in this chain leaves such refreshes to
-    the owned evidence-refresh process; it will move again when the
-    revision-5 lane fields land. The exact three-row drift is recorded above.
+10. Finding register (#86): not regenerated at `44f18e2b`; regenerated in the
+    follow-up (section 10.2, commit `e0146f8d`).
 
 ## 8. Widened-token disposition (Fix 3 / C4)
 
@@ -410,13 +408,12 @@ are classified frozen history).
   (section 7.3).
 - Fuzz refresh for the seven affected lanes (#42, #43, #48, #49, #109, #114,
   #115): not run.
-- Finding-register regeneration (#86): not done (section 7.10).
+- Finding-register regeneration (#86): done in the follow-up (section 10.2).
 - Corpus task-input amendment: not made (section 7.2).
-- TOOLING.md documents `open`/`revision` but not the root-query request
-  layout (`SLEYRQQ1` preimage) or the permitted `raw` method names, so a live
-  model has no documented way to form class-4/14 queries; the stand-in
-  encodes them client-side. Live-model usability of the route is not
-  established; no live-model trial ran.
+- TOOLING.md root-query documentation: done in the follow-up (section
+  10.1). No live-model trial ran, so live-model usability is documented, not
+  demonstrated; the per-invocation continuation scope limits a one-shot
+  `sley-tool` user to untruncated pages (section 10.1).
 - `docs/spec/SMP1.md` workspace.open row: not updated (section 7.5).
 - `raw workspace.open` and `open` are reachable on the direct and mediated
   routes; the harness still performs its own `workspace.open` inside every
@@ -427,6 +424,91 @@ are classified frozen history).
   item; `sha256sum` of the committed rev8 transcript here is
   `e617e0c1db180d38db658cf288b49804ebd360a21da89dc914e5c8d539b4b13b`,
   matching the rev9 verdict's stated value.
+
+## 10. Follow-up (coordinator request before the revision-5 dispatch)
+
+### 10.1 Agent contract documents the discovery queries (`8db44154`)
+
+- `bench/live/tooling.py` (`SLEY2_TOOLING` → TOOLING.md): the nineteen `raw`
+  methods (equal to `TOOL_METHODS`, test-pinned); the `query.root` /
+  `query.continue` request layout (magic, versions, the four ids from
+  `open`, completeness/limits profile, the five limits with the server's
+  accepted ranges from `validate_limits`, paging flag, cursor encoding,
+  class bodies for classes 2, 4, 14 with the canonical ascending-seed rule)
+  and the response layout (echo, total/returned/truncated/next cursor,
+  class results); the snapshot binding and cold-snapshot warm-up; the
+  paging=1 refusal; continuation; the per-scope continuation audit; budgets
+  (1048576 bytes per reply, the judge and capture per-response bound;
+  4194304 bytes per trial, the judge cumulative bound); whole-store routes.
+  Derived from the server decoder (`server.rs` `decode_root_query`), the
+  engine encoder/paging (`sley-query/src/root_query.rs`), and the judge/
+  capture constants, not from the stand-in.
+- Stand-in: the cold-snapshot warm query is now a documented class-4 request
+  (class 1 removed), so every body it sends uses classes 2/4/14 only.
+- `bench/live/tests/test_tooling.py` `RootQueryContractTests` (5 tests): the
+  documented block is pinned line for line; an encoder written only to the
+  documented layout reproduces the conformance vectors' request identities
+  (`blake3("sley2.root-query.v1" + body)` for `class-02`, `class-04`,
+  `class-14`, `page-namespaces-1/2`; a one-byte change does not match) and
+  decodes the vectors' engine response records (the stand-in's decoder
+  agrees field for field); every body the stand-in sends in all six CONTEXT
+  modes parses strictly under the documented grammar against a fake server
+  that answers only in the documented layout; the documented raw-method list
+  equals `TOOL_METHODS`. The ALLOWED_COMMANDS↔TOOLING pin is unaffected (no
+  command added; it still passes).
+- Finding (documented, not changed): the direct audit resets continuation
+  state per tool invocation and the mediated audit keys it by gateway
+  session id, which the one-shot shim sets per process
+  (`shim-<pid>`). A model driving `sley-tool` one invocation at a time can
+  therefore never satisfy a truncated page; TOOLING.md says so and tells it
+  to size pages to complete. The stand-in's paged proof uses one gateway
+  session (`mediated_transport.Gateway`, staged in production scratch but
+  not documented in TOOLING.md). Whether multi-invocation continuation
+  should be supported (stable scope id, or a cursor-bound audit) is a
+  surface decision for the revision-5 Vulcan/Ariadne lanes.
+
+### 10.2 Finding register chain (`e0146f8d`)
+
+Ran `build_finding_register` → `build_ga_acceptance_report` →
+`build_decision_dossier` → `sync_evidence_counters`, then the same four
+again (second pass: no change, `sync` `changed: []`). Result:
+- `evidence/review/finding-register.json`: the three `sley2_trial_runner`
+  lane obligations now read `package_status`
+  `S20_620_IMPLEMENTED_REVIEW_PENDING`, with dispositions and states
+  unchanged (the revision-4 `PASS_0_P0_0_P1_0_P2_0_P3` values, state PASS);
+  `sley2_trial_runner` left `complete_packages` (37 → 36);
+  `complete_packages_with_open_reviews` and `mid_string_complete_packages`
+  stay empty; obligations 484, open reviews 22, result
+  `FINDING_REGISTER_OPEN`; obligations/register digests rotated.
+- `machineresearch/sley-2.0/machine-summary.json`
+  `finding_register.complete_packages` 37 → 36 (sync).
+- `evidence/release/ga-acceptance-report.json`: only the carried
+  obligations/register/report digests changed; GA states unchanged
+  (EVIDENCED 31, GATED 4, AWAITS_REVIEW 17); `ga_claimed` false.
+- `evidence/release/decision-dossier.json`: no change.
+- `scripts/generate_supply_chain_evidence.py`: run last, after this record's
+  commit (it scans tracked files); its result and commit are reported with
+  the follow-up, not here.
+
+Checkers at `e0146f8d`: `check_finding_register.py` exit 0 (problems []),
+`retire_review_claims.py --check` 0, `build_ga_acceptance_report.py --check`
+0, `check_sley2_trial_runner.py` 0, `check_local_completion_frontier.py` 0,
+`check_decision_dossier.py` 1 (`test-inventory:drift` only, the
+pre-existing candidate-bound failure; not part of the requested chain).
+
+### 10.3 Re-run gates
+
+| Check | Command | Exit | Result |
+|---|---|---|---|
+| live suites | `python3 -m unittest discover -s bench/live/tests -t .` (binaries bound, bwrap, `TMPDIR` on `/home`) at `e0146f8d` | 0 | Ran 219 tests in 1998.5s, OK (includes the 7 integrated CONTEXT proofs and the 5 new contract tests) |
+| trial-runner tests | `python3 -m unittest discover -s bench/sley2/tests -t .` | 0 | Ran 23 tests, OK |
+| lint | `make lint` at `e0146f8d` | 0 | PASS, 0 clippy warnings, fmt clean, clean tree; `lint-report.json` restored |
+
+Environment note: one earlier re-run attempt was aborted because `/tmp`
+(tmpfs) filled. The fixture oracle subprocess does not inherit `TMPDIR`
+(`bench/live/oracle.py` passes an explicit environment), so judge
+workspaces for the 10,011-entity CONTEXT pack land in `/tmp` whatever the
+test's `TMPDIR`. Not changed (frozen oracle environment mapping).
 
 ## Appendix A. Non-domain widened-token hits by file (line numbers at `44f18e2b`)
 
