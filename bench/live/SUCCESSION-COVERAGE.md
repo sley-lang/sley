@@ -6,6 +6,7 @@ witnesses live in `bench/live/succ_witness_*.py`. No live-model
 succession result follows from scripted acceptance. `ga_claimed=false`.
 
 Current evidence logs: `bench/live/succ-trials-20260921/` (this pass).
+DEAD re-run after REQ-11: `bench/live/succ-trials-20260923/dead/` (2026-09-23).
 Historical logs: `bench/live/succ-trials-20260920/` (superseded —
 pre-repair judge outputs, retained, never overwritten) plus the frozen
 S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
@@ -21,7 +22,7 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 | TYPE | (B) PROVED on work branch 2026-09-20, oracle corrected 2026-09-21 (three-tier provenance: corpus / fixture-v2 / retired witness choices): full JobState migration ACCEPTED `trial_type_full.log` + `trial_type_pos_req7.log` (typedef 4 members + Failed(SInt); explicit Failed code; param Named; switch SInt result with exhaustive sorted VariantSwitch; 5 Required blocks, no Trap, every block entry-or-target; Failed arm forwards CasePayload; Failed leaf Block-param SInt) | bool_compat → ORACLE_BOOL_COMPAT_FIELD (`trial_type_full_neg_bool.log`); payload-loss → production compose refuses: droppayload phase 7 tag 10 (`trial_type_neg_droppayload.log`), nullcode phase 6 tag 9 (`trial_type_neg_nullcode.log`); typedef-only → rejected; trap → production refuses | fixture-design review retained for main adoption (corrected manifest on work branch only; original preserved as `task_manifest.v1-frozen.json`; corpus v1 unchanged; retired literal-7/status-Failed/distinctness logged in `TYPE-FIXTURE-REVIEW-PACKET.md` §6) |
 | EFFECT | none (deterministic E7 refusal VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16) | S3 pin s3_g3_effect_refusal_pin | adapter work + design/review gate + live-model trial |
 | CAP | none (deterministic E7 refusal VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16) | S3 pin s3_g3_cap_refusal_pin | adapter work + design/review gate + live-model trial |
-| DEAD | BLOCKED — correct deletion inadmissible (see below) | reachable_changed → ORACLE_REACHABLE_CHANGED | review-gated production repair (tombstone proposal retained) |
+| DEAD | ACCEPTED 2026-09-23 (UNBLOCKED by REQ-11 + graph-judge ownership cascade; see DEAD section): frozen deletion (namespace drops 8e, 89 drops block 90; delete 90/93/8e/8f/91) validates Valid, commits, judge `accepted` "all flows held" — absent-check, observation stability on (7,10), collateral clean (`succ-trials-20260923/dead/trial_dead_pos.log`, clean tree at 2fd93d25). Selected tests empty on the frozen pack (it carries no TestCase); non-empty survivor selection shown by `probe_survivor_test` at validation (commit then meets the pre-existing TXN_TEST_EVIDENCE_UNSUPPORTED gate). Historical BLOCKED diagnosis retained below | orphaned op 93 → validation phase 5 GRAPH_UNRESOLVED_REFERENCE (finish refused); finish-bypass → judge commit ORACLE_COMMIT_REJECTED / CANDIDATE_VALIDATION_UNRESOLVED_REFERENCE; test on tombstone 8e → phase 5 GRAPH_UNRESOLVED_REFERENCE; helper kept → ORACLE_UNEXPECTED_ENTITY; behavior changed with dead code kept → ORACLE_REACHABLE_CHANGED; live function deleted → ORACLE_PUBLIC_DELETED; extra unowned delete (92) → ORACLE_COLLATERAL_TOUCHED; required-test deletion not expressible on the frozen pack (REQ-11 unit-pinned) | live-model trial; REQ-11 landing condition (records-only mint + `make quick` at landing tip) |
 | TEST | ACCEPTED `trial_test.log` — 3 submitted TestCase entities, driver-verified boundaries, impl byte-identical via root-bound gate; RECHECKED 2026-09-21 `trial_test_recheck.log` under current tool/judge | wrong expectation → ORACLE_TEST_MISMATCH (`trial_test_neg.log`, recheck `trial_test_neg_recheck.log` with exact submitted/want detail); missing/duplicated unit-pinned | live-model trial |
 | STALE | ACCEPTED `trial_stale.log` — guard flip; exact STALE_ROOT; genuine same-change-new-base rebase validates Valid; RECHECKED 2026-09-21 `trial_stale_recheck.log` | vacuous contender → ORACLE_REBASE_INVALID (`trial_stale_neg.log`, recheck `trial_stale_neg_recheck.log`) | live-model trial |
 | MERGE | ACCEPTED `trial_merge.log` — union via surface (side bodies through allowed interface); root-bound union checks + observed dual-order re-validation; RECHECKED 2026-09-21 `trial_merge_recheck.log`. ANCESTRY CORRECTED 2026-09-21: sides SHARE ancestor transaction history (base head tx bytes present in both packs — identity evidence, not export arrangement; the judge docstring's "independent geneses" claim was wrong and is fixed). PRODUCTION PATH DRIVEN 2026-09-21 (`trial_merge_production.log`, `bench/live/prove_merge_production.py`, runner-owned, no fixture changes): branch.create pointers forked at ancestor ✓; both side histories co-located by content-addressed object union (+1 object +1 tx each) ✓; merge.judge REACHED and returned a production verdict: MERGE_COMPARE_FAILED (COMPARE_ROOT_INCOMPLETE family) — reproducible on ALL trial-shaped revisions (MERGE/CREATE/TYPE bases, seeded AND committed), while extraction succeeds on harness-built repos. So repo-backed merge has no green path anywhere: the missing element (root-bindings alignment vs program projection) is product/fixture work under review, not trial harness. S3 proves merge semantics on synthetic complete sides; the live candidate-validation acceptance stands on its own evidence | dropped theirs entity → ORACLE_MERGE_CONFLICT (`trial_merge_neg.log`, recheck `trial_merge_neg_recheck.log` theirs=1 post=0) | complete-root fixture/product work under review; live-model trial |
@@ -88,6 +89,84 @@ indexable as removed while selecting tests for survivors). The required
 review provider is unavailable; DEAD stays explicitly blocked. The
 debug helper (`succ_debug_commit.rs`) is retained until that diagnosis
 is consumed.
+
+### DEAD: RESOLVED 2026-09-23 by REQ-11 (diagnosis above kept as history)
+
+The selection owner diagnosed above was fixed by REQ-11 (commits
+883361e3 + f7f9af90, merged into this branch at 40e3b97c): phase 10
+projects the affected-Function union onto identities still bound in the
+proposed state (`live_selection_functions`,
+`crates/sley-policy/src/candidate_validation.rs`), so a deleted
+Function is a selection tombstone; the S20-240 checker is untouched.
+Reviews: Ariadne PASS, Nabu PASS rev2 (packet + Amendment 1 under
+`evidence/review/`). This is the caller-side design, not the
+checker-side index of `DEAD-TOMBSTONE-PROPOSAL.md` (now marked
+superseded).
+
+Re-run on the succession arm (binaries rebuilt from this tree into
+`/home/gfarch/Work/checkpoints/target-succ-dead`; sley sha256
+`60e77a54…0314`, driver `d8e495f8…1cf8`; every log carries full
+provenance). Witness: `bench/live/succ_witness_dead.py`. Logs:
+`bench/live/succ-trials-20260923/dead/`.
+
+- Second, DEAD-specific blocker found and fixed (harness defect, not
+  oracle relaxation): with REQ-11 the frozen deletion validated and
+  committed but the judge rejected `ORACLE_COLLATERAL_TOUCHED` on 8f
+  (`trial_dead_pos_prejudgefix.log`, run at 40e3b97c before the judge
+  change). The graph judge never implemented its frozen manifest note
+  "helper parameter and block follow their function". Commit 2fd93d25:
+  structure owned in the pre-state by an absent role (Parameter.owner,
+  Block.function, Operation.block, transitively, from decoded pre
+  bodies) must be removed with its owner; kept or modified owned
+  structure rejects `ORACLE_UNEXPECTED_ENTITY`; unowned collateral still
+  rejects `ORACLE_COLLATERAL_TOUCHED`; absent and observation checks
+  unchanged. Regression: `bench/live/tests/test_judge_dead_cascade.py`.
+- Positive (`trial_dead_pos.log`, clean tree 2fd93d25, dirty 0):
+  validate Valid (tag 1), finish, judge
+  `{"status": "accepted", "code": null, "detail": "all flows held"}`
+  exit 0. The result's affected closure still names the tombstones
+  8e/8f/90/91/93 (accounting keeps the deletions; no blanket omission).
+  Selected tests `[]`: the frozen pack contains no TestCase, so the
+  regression-spec clause "survivor test selection non-empty" cannot be
+  met by the frozen candidate itself and is not claimed for it.
+- Survivor selection probe (`trial_dead_probe_survivor_test.log`): the
+  same deletion plus one TestCase on survivor 89 validates Valid with
+  `selected_tests` = [that test] (non-empty survivor selection, helper
+  tombstoned). The judge's production commit then refuses
+  `ORACLE_COMMIT_REJECTED` / `TXN_TEST_EVIDENCE_UNSUPPORTED` — the
+  pre-existing co-commit test-evidence gate already recorded for
+  CREATE, not a DEAD defect; not an acceptance claim.
+- Negatives, each through the real path, symbols verbatim:
+  - orphaned op 93 (`trial_dead_neg_orphan93.log`): validation decision
+    tag 8, phase 5, diagnostic `GRAPH_UNRESOLVED_REFERENCE` (22004,
+    result 36006); finish refused. With finish bypassed
+    (`trial_dead_neg_orphan93_bypass.log`, stored candidate written
+    directly) the judge's commit refuses `ORACLE_COMMIT_REJECTED`
+    carrying `CANDIDATE_VALIDATION_UNRESOLVED_REFERENCE` — the symbol
+    the spec names, observed at the commit owner.
+  - TestCase targeting the deleted helper
+    (`trial_dead_neg_test_on_tombstone.log`): phase 5
+    `GRAPH_UNRESOLVED_REFERENCE`; finish refused.
+  - helper kept (`trial_dead_neg_helper_kept.log`):
+    `ORACLE_UNEXPECTED_ENTITY` (detail `dead_helper`).
+  - behavior changed, dead code kept (`trial_dead_neg_reachable_changed.log`,
+    live op 8d 98→100): `ORACLE_REACHABLE_CHANGED` (observation checked
+    before absent).
+  - live function deleted (`trial_dead_neg_public_deleted.log`):
+    `ORACLE_PUBLIC_DELETED`.
+  - extra unowned deletion of constant 92 (`trial_dead_neg_extra_delete.log`):
+    `ORACLE_COLLATERAL_TOUCHED` (cascade does not cover unowned entities).
+  - dropped survivor test / deleted required test: not expressible on
+    the frozen pack (no TestCase in it); pinned by REQ-11's production
+    regressions (`native_test_plan::function_deletion_tests`, incl.
+    `deleting_the_helper_with_its_protected_required_test_still_refuses`),
+    re-run green here (`cargo_test_sley_policy.log`). At the judge level
+    any deleted non-target, unowned entity (a test included) still
+    rejects `ORACLE_COLLATERAL_TOUCHED` (unit-pinned).
+
+Remaining for DEAD: live-model trial; REQ-11's landing condition
+(records-only mint, `make quick` exit 0 at the landing tip) is owned by
+the REQ-11 line. `succ_debug_commit.rs` may now be retired separately.
 
 ## Pack-equivalence notes (this slice)
 
@@ -380,10 +459,11 @@ Per-task frozen predicates (proved vs still missing):
   authorized independent adapter work; any semantic/profile change
   requires the existing design/review gate (exact change prepared
   separately, gate retained).
-- DEAD: BLOCKED (preserved diagnosis below). No benchmark exception,
-  no orphan workaround, no unreviewed semantic landing. Tombstone
-  proposal + regression spec in `bench/live/DEAD-TOMBSTONE-PROPOSAL.md`
-  (proposal only, review gate retained).
+- DEAD: was BLOCKED (preserved diagnosis above); RESOLVED 2026-09-23 by
+  reviewed REQ-11 plus the graph-judge ownership cascade (see "DEAD:
+  RESOLVED" above; logs `succ-trials-20260923/dead/`). No benchmark
+  exception, no orphan workaround. The tombstone proposal is marked
+  superseded (`bench/live/DEAD-TOMBSTONE-PROPOSAL.md`).
 - TEST: (A) proved under repaired judge + (B) proved 2026-09-20:
   `succ-trials-20260921/trial_test_repaired.log` — three submitted
   TestCase entities covering success/div0/overflow with exact expected
@@ -635,7 +715,8 @@ retained before any main adoption. Not a production semantic change.
 
 Production/review/provider/operator dependencies: DEAD tombstone
 semantic change needs independent review (provider unavailable, gate
-retained); EFFECT/CAP rev16 handle-model decision needs design/review;
+retained) [2026-09-23: satisfied by REQ-11, PASS both lanes; DEAD
+re-run ACCEPTED, see DEAD section]; EFFECT/CAP rev16 handle-model decision needs design/review;
 TYPE corrected closure lives on the work branch with fixture-design
 review retained for main adoption; and all
 live-model campaign prerequisites (seeds/budgets preregistered,
