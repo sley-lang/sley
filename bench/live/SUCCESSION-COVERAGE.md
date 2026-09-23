@@ -6,6 +6,7 @@ witnesses live in `bench/live/succ_witness_*.py`. No live-model
 succession result follows from scripted acceptance. `ga_claimed=false`.
 
 Current evidence logs: `bench/live/succ-trials-20260921/` (this pass).
+TYPE revision-2 evidence: `bench/live/succ-trials-20260923/` (2026-09-23).
 Historical logs: `bench/live/succ-trials-20260920/` (superseded —
 pre-repair judge outputs, retained, never overwritten) plus the frozen
 S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
@@ -18,7 +19,7 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 | REPAIR | (B) RE-PROVED 2026-09-21 under current tool/judge: `trial_repair.log` ACCEPTED (LessThan 98 → GreaterThan 100, Valid, finish) | wrong comparison 98 → 99 finishes but judge rejects `ORACLE_CLAMP_MISMATCH` triple [7,0,10] (`trial_repair_neg.log`) | live-model trial |
 | SIG | (B) RE-PROVED 2026-09-21: `trial_sig.log` ACCEPTED (2nd explicit SInt param threaded through all 3 callers; 3 CallDirect × 2 operands in distinct blocks; callee arity 2; fixed-input driver execution) | omitted caller_c → production compose refuses phase 7 ControlFlowError (`trial_sig_neg.log`); callee widened to 3 params → `ORACLE_COLLATERAL_TOUCHED` (`trial_sig_neg_arity.log`; corpus "unrelated signature change" enforced) | live-model trial |
 | MODULE | ACCEPTED `trial_module.log` — export grant on new_package via surface; observation held on 6 fixed inputs, reference_count 6, no-duplicate-impl extras; RECHECKED 2026-09-21 `trial_module_recheck.log`. BINDING ESTABLISHED 2026-09-21 (see per-task entry): in this entity model cross-package visibility IS the export set (packages bind the shared namespace via root_namespace + exports); the checksum's integrity-namespace binding changed ∅→{checksum}; identity preserved (collateral-enforced); old_package removal is FORBIDDEN by the frozen collateral targets, so export-grant is the only authorable binding change — the frozen manifest operationalizes the corpus move, no open gate | target-respecting no-op → ORACLE_STALE_IMPORT (`trial_module_neg.log`, recheck `trial_module_neg_recheck.log` exports=0) | live-model trial |
-| TYPE | (B) PROVED on work branch 2026-09-20, oracle corrected 2026-09-21 (three-tier provenance: corpus / fixture-v2 / retired witness choices): full JobState migration ACCEPTED `trial_type_full.log` + `trial_type_pos_req7.log` (typedef 4 members + Failed(SInt); explicit Failed code; param Named; switch SInt result with exhaustive sorted VariantSwitch; 5 Required blocks, no Trap, every block entry-or-target; Failed arm forwards CasePayload; Failed leaf Block-param SInt) | bool_compat → ORACLE_BOOL_COMPAT_FIELD (`trial_type_full_neg_bool.log`); payload-loss → production compose refuses: droppayload phase 7 tag 10 (`trial_type_neg_droppayload.log`), nullcode phase 6 tag 9 (`trial_type_neg_nullcode.log`); typedef-only → rejected; trap → production refuses | fixture-design review retained for main adoption (corrected manifest on work branch only; original preserved as `task_manifest.v1-frozen.json`; corpus v1 unchanged; retired literal-7/status-Failed/distinctness logged in `TYPE-FIXTURE-REVIEW-PACKET.md` §6) |
+| TYPE | (B) REVISION 2 on `work/succ-type-impl` 2026-09-23 (Ariadne REVISE of 2c97c32 answered; `TYPE-FIXTURE-REVIEW-PACKET.md` rev2): judge enforces only frozen-text predicates (Named 4-member JobState, 3 unit + 1 integer-coded; explicit Failed code; recursive Bool scan over fresh+target bindings + switch_param role; switch of the status alone dispatching by an exhaustive Member VariantSwitch; reachable arms Required, no Trap; Failed code carried into its arm) PLUS execution of the migrated switch over all 4 members through the frozen driver, twice (determinism). ACCEPTED with verdict JSON + provenance in `succ-trials-20260923/`: `trial_type_pos`, `alt_code8`, `alt_queued`, `alt_shared`, `alt_uint` (UInt code+result), `alt_arith` (Result result, checked-add arms, Failed maps code), `alt_join` (shared join block), `alt_failed_fixed` (Failed arm maps to a fixed value) | ORACLE_BOOL_COMPAT_FIELD: `neg_bool`, `neg_typedef_only`, `neg_bool_const` (fresh Bool constant), `neg_two_param` (second Bool switch param), `legacy_mig`/`legacy_neg`; ORACLE_TRAP_ARM `neg_trap` (validates in production); ORACLE_FAILED_CODE `neg_dropcode` (validates in production); production refusals `neg_droppayload` (phase 7 CFG_TARGET_ARGUMENTS), `neg_nullcode` (phase 6 TYPE_CONST_SHAPE); 49 judge unit tests (`bench/live/tests/test_judge_type_variant.py`) + 2 driver variant-input tests; `s3_g1_type.log` green | fresh review of packet rev2 before main adoption (manifest sha256 2dcb3d72… → d61216a9… for the `switch_param` role; base.pack/pack digest unchanged; original preserved as `task_manifest.v1-frozen.json`; corpus v1 unchanged); 20260921 TYPE logs retained as history only (exit-code-only; claims they cannot support marked unsupported in packet §5); live-model trial |
 | EFFECT | none (deterministic E7 refusal VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16) | S3 pin s3_g3_effect_refusal_pin | adapter work + design/review gate + live-model trial |
 | CAP | none (deterministic E7 refusal VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16) | S3 pin s3_g3_cap_refusal_pin | adapter work + design/review gate + live-model trial |
 | DEAD | BLOCKED — correct deletion inadmissible (see below) | reachable_changed → ORACLE_REACHABLE_CHANGED | review-gated production repair (tombstone proposal retained) |
@@ -115,7 +116,7 @@ is consumed.
   trial covers agent-side bounded behavior with whole_store_reads=0
   derived from chained evidence (legacy chain file on direct trials,
   reconciled capture on mediated trials).
-- TYPE: 4 Required reachable blocks via entry chaining through the
+- TYPE (historical, superseded by the 6d/6e closure and packet rev2): 4 Required reachable blocks via entry chaining through the
   immutable Bool dispatch (block 6d immutable ⇒ Bool dispatch
   preserved; full JobState retyping would need 6d in targets — a task
   change, not agent cleverness). Status genuinely migrated off Bool.
@@ -349,29 +350,25 @@ Per-task frozen predicates (proved vs still missing):
   only authorable binding change — the adopted owner contract
   (frozen manifest) operationalizes the corpus move. Remaining:
   live-model trial.
-- TYPE: (A) superseded; (B) PROVED on work branch 2026-09-20 under
-  the corrected 6d/6e closure: `succ-trials-20260921/trial_type_full.log`
-  (ACCEPTED) with `trial_type_full_neg_bool.log` (BOOL_COMPAT);
-  typedef-only and trap designs refuse (param-Bool rejection; production
-  validation refuses trap). Oracle provenance corrected 2026-09-21
-  (see `TYPE-FIXTURE-REVIEW-PACKET.md` §6): literal-7, status-is-Failed,
-  and distinct-leaves retired as restrictions — alternatives proved
-  ACCEPTED (`trial_type_alt_code8.log` Failed(8),
-  `trial_type_alt_queued.log` Queued status,
-  `trial_type_alt_shared.log` shared leaf constant;
-  `trial_type_pos_req7.log` re-proves the default positive under the
-  corrected judge); payload-loss negatives refuse in production
-  validation (`trial_type_neg_droppayload.log` phase 7 tag 10,
-  `trial_type_neg_nullcode.log` phase 6 tag 9) with
-  `ORACLE_FAILED_CODE` judge backstops. Retired
-  `trial_type_full_neg_code.log` (Failed 8 → FAILED_CODE) preserved as
-  historical evidence of the retired pin. Original
-  `trial_type_migration.log`/`trial_type_neg.log` retained as
-  historical structural-block evidence. Corrected manifest
-  (`targets` + `switch_entry`/`switch_leaf`) lives on the work branch
-  only; original preserved as `task_manifest.v1-frozen.json`; frozen
-  corpus v1 (`bench/corpus/v1/tasks.json`) unchanged; `succ_live_packs_frozen`
-  passes. Fixture-design review retained before any main adoption.
+- TYPE: (A) superseded; (B) REVISION 2 (2026-09-23, branch
+  `work/succ-type-impl`; `TYPE-FIXTURE-REVIEW-PACKET.md` rev2 answers
+  the Ariadne REVISE of 2c97c32 finding by finding). The judge's
+  fixture-tier witness-shape pins (SInt result, direct ConstantRef
+  leaves, raw-param Failed leaf, entry-or-target blocks, entry-only
+  dispatch, SInt-only code) are retired; the frozen strict oracle's
+  execution half is implemented (all four members through the frozen
+  driver, twice); the parallel-Bool scan covers every fresh/target
+  binding and the named `switch_param` role. Evidence with judge
+  verdict JSON and provenance: `succ-trials-20260923/` (8 accepted
+  designs, 8 judge rejections incl. 2 legacy, 2 production refusals,
+  `s3_g1_type.log`, `rust_gates.log`, `unittest_suites.log`).
+  Earlier logs (`succ-trials-20260921/trial_type_*`) are retained
+  unmodified as history; they record exit codes only. Corrected
+  manifest (targets + `switch_entry`/`switch_leaf`/`switch_param`)
+  lives on the work branch only; original preserved as
+  `task_manifest.v1-frozen.json`; frozen corpus v1 unchanged;
+  `succ_live_packs_frozen` passes. Fresh review retained before any
+  main adoption.
 - EFFECT/CAP: no scripted positive (deterministic E7 refusal
   VM_LOWER_OPCODE_UNSUPPORTED, excluded.json pending rev16
   handle-model schema-epoch decision). This is an unimplemented
@@ -622,6 +619,11 @@ validation). Oracle corrected 2026-09-21 to three-tier provenance
 alternatives Failed(8), Queued status, and shared leaf constants
 accept; `ORACLE_FAILED_CODE` kept as backstop. Fixture-design review
 retained before any main adoption. Not a production semantic change.
+Revision 2 (2026-09-23, `work/succ-type-impl`): remaining witness-shape
+pins retired (non-SInt results, arithmetic arms, Failed arms mapping
+the code, join blocks all accept), execution of the migrated switch
+added, Bool scan widened with the named `switch_param` role; see
+packet rev2 and `succ-trials-20260923/`.
 
 ## Gate outcomes (this pass, wt-succ branch)
 

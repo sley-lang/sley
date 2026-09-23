@@ -1,0 +1,9 @@
+provenance {"SLEY2_SLEY_BINARY": "/home/gfarch/Work/checkpoints/target-succ-type/debug/sley", "SUCC_JUDGE_TEST_BINARY": "/home/gfarch/Work/checkpoints/target-succ-type/debug/deps/succ_live_judge_cases-42d77a02eb446c77", "base_pack_sha256": "875630cdfd7139b5d23cea34cad62cb6933e5b0a0b91227480a081d0e1a45afd", "design": {"bool_const": false, "code": 7, "drop_payload": false, "failed_const": false, "leafs": [0, 0, 2], "mode": "const", "null_code": false, "status": "FAILED", "trap": false, "two_param": false}, "driver_sha256": "2f5865438d7f2e651d1ed9911db4dc3767be69244ba4e091a74b0ce843f4afa8", "env_overrides": {}, "expect": "accepted", "git_dirty_paths": ["M bench/live/SUCCESSION-COVERAGE.md", "?? bench/live/succ-trials-20260923/"], "git_head": "04fa14e6d66f02120f35250d62954695d39d15ce", "judge_sha256": "f56fad736d622b32d7da3c2a6e098cbf249453cd8c3bb814b99951871a3da43e", "manifest_sha256": "d61216a910837eddd852eeb0e28df33f926f4a99f746aeaad4e5e03104dd308f", "python": "3.14.7", "sley_sha256": "700ce8a8d354ddce45f9e1be073580f9f285d365e9cfb9978659d5163a8d916f", "utc": "2026-09-23T03:58:47+00:00", "variant": "alt_shared"}
+TYPE-FULL witness/alt_shared: skeleton valid True
+TYPE-FULL fresh ids typedef=ab5358f1 A=058d9024 B=179ccf8a C=62bdca3b pC=aaec79d2 k0=8a5c7896 k1=3a4dde40 k2=d4f478b1 o6e=b0fa2a1d oA=fc1aaf4a oB=bdf78007
+TYPE-FULL witness/alt_shared: compose valid True decision {'failed_phase': None, 'tag': 1}
+TYPE-FULL witness/alt_shared: finished True
+judge verdict: {"arm": "sley2", "code": null, "detail": "all flows held; type exec 5151={\"SInt\":\"0\"},5252={\"SInt\":\"0\"},5353={\"SInt\":\"2\"},5454={\"SInt\":\"7\"}", "status": "accepted", "task_id": "S2B-TYPE-001"}
+S2B-TYPE-001 witness/alt_shared judge exit: 0
+workspace kept at: /tmp/sley2-type-full-qxbhe9ah/ws
+outcome accepted expect accepted -> PASS
