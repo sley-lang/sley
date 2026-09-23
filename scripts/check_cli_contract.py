@@ -28,9 +28,9 @@ IMPLEMENTATION_STATUSES = (
     REVIEW_PENDING_STATUS,
     COMPLETE_STATUS,
 )
-SPEC_REVISION = 8
-SMP1_REVISION = 13
-BRIDGE_REVISION = 10
+SPEC_REVISION = 9
+SMP1_REVISION = 14
+BRIDGE_REVISION = 11
 
 CODES = (
     (43000, "CLI_USAGE_INVALID", 2),
@@ -77,7 +77,8 @@ ADR_MARKERS = (
 WORK_PACKAGE_MARKERS = (
     "`docs/spec/SLEY_CLI_V1.md`",
     "ADR-0035",
-    "(revision 8, 2026-09-14, ADR-0035; revision-6 new-delta review PASS",
+    f"(revision {SPEC_REVISION}, 2026-09-23, ADR-0035: re-pins SMP1 revision {SMP1_REVISION} and bridge revision {BRIDGE_REVISION}",
+    "revision 8, 2026-09-14; revision-6 new-delta review PASS",
     "capable CLI runtime implemented under the phase-3 slice",
 )
 CRATE_MARKERS = (
@@ -145,6 +146,33 @@ def check_current_delta_review(
     ):
         if not all(review.get(lane) == "PASS" for lane in ("ariadne", "nabu", "vulcan")):
             problems.append("review:current-delta-frozen-requires-pass")
+
+
+COMPOSITION_ANCHOR = re.compile(
+    r"every judgment about a frame comes from the server "
+    r"\(`docs/spec/SMP1\.md` revision (\d+),.*?the bridge "
+    r"\(`docs/spec/SMP1_JSON_BRIDGE_V1\.md` revision (\d+)\)",
+    flags=re.S,
+)
+
+
+def composition_pin_problems(spec: str) -> list[str]:
+    """The normative composition sentence names the pinned revisions.
+
+    The sentence that defines the CLI's authority (SMP1 for every frame
+    judgment, the bridge for every representation) is anchored, so a stale
+    revision there fails even when a history sentence elsewhere carries
+    the current pins."""
+    flat = re.sub(r"\s+", " ", spec)
+    match = COMPOSITION_ANCHOR.search(flat)
+    if match is None:
+        return ["composition-sentence:missing"]
+    problems = []
+    if int(match.group(1)) != SMP1_REVISION:
+        problems.append(f"composition-sentence:smp1-revision-{match.group(1)}")
+    if int(match.group(2)) != BRIDGE_REVISION:
+        problems.append(f"composition-sentence:bridge-revision-{match.group(2)}")
+    return problems
 
 
 def main() -> int:
@@ -223,8 +251,10 @@ def main() -> int:
     smp1_status = re.search(r"^Status: S20-400 contract draft, revision (\d+)", smp1_text, flags=re.M)
     if smp1_status is None or int(smp1_status.group(1)) != SMP1_REVISION:
         problems.append("smp1-revision-pin")
-    if f"SMP1 revision {SMP1_REVISION} and bridge revision {BRIDGE_REVISION}" not in spec:
+    flat = re.sub(r"\s+", " ", spec)
+    if f"SMP1 revision {SMP1_REVISION} and bridge revision {BRIDGE_REVISION}" not in flat:
         problems.append("smp1-pin-text")
+    problems.extend(composition_pin_problems(spec))
     bridge_text = (ROOT / "docs/spec/SMP1_JSON_BRIDGE_V1.md").read_text(encoding="utf-8")
     bridge_status = re.search(r"^Status: S20-420 contract draft, revision (\d+)", bridge_text, flags=re.M)
     if bridge_status is None or int(bridge_status.group(1)) != BRIDGE_REVISION:

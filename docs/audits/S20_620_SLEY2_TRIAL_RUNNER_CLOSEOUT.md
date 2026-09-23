@@ -7,8 +7,10 @@ allowlist is revision 4's eighteen names plus `workspace.open`, moved from
 the denied methods as the arm's accepted-head opener, whose response
 carries the accepted head's already-materialized index snapshot identity
 (REQ-10 context bounded discovery). Status
-`S20_620_IMPLEMENTED_REVIEW_PENDING`: the revision 5 Ariadne, Nabu, and
-Vulcan reviews have not run, so the package is not complete at revision 5.
+`S20_620_IMPLEMENTED_REVIEW_PENDING`. The revision 5 round (5b538f3)
+returned REVISE from all three lanes; the answered text is contract
+revision 6, whose Nabu and Vulcan reviews (f073811) PASS and whose Ariadne
+review is pending, so the package is not complete.
 23 offline tests. Implementation record:
 `bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md`. The revision 4
 status below and the revision 2 record are retained as history.

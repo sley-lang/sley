@@ -38,11 +38,11 @@ IMPLEMENTATION_STATUSES = (
     COMPLETE_STATUS,
 )
 
-CONTRACT_REVISION = 4
+CONTRACT_REVISION = 5
 # The composed authorities' current revisions. Each is cross-checked
 # against that document's own status line, so the pin fails the moment
 # the authority moves instead of matching a stale substring elsewhere.
-SMP1_REVISION = 13
+SMP1_REVISION = 14
 CAPSULE_REVISION = 4
 SMP1_PIN = f"`docs/spec/SMP1.md` at revision {SMP1_REVISION}"
 CAPSULE_PIN = (

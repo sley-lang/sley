@@ -1,6 +1,6 @@
 # Sley 2 Trial Runner v1
 
-Status: S20-620 contract draft, revision 5 (2026-09-23); Council review
+Status: S20-620 contract draft, revision 6 (2026-09-23); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 9). Revision 3 replaces the section 2 capability claim
@@ -12,7 +12,12 @@ Revision 5 moves `workspace.open` from the denied methods to
 `ARM_AFFORDANCES` (nineteen names, appended last) as the arm's
 accepted-head opener: the response carries the accepted head's
 already-materialized index snapshot identity (REQ-10, section 9), so a
-bounded root query can be formed from an allowed route.
+bounded root query can be formed from an allowed route. Revision 6 names
+the text the revision 5 review round (5b538f3, REVISE) produced when
+answered in place: section 9 cites SMP1 for the `workspace.open` body
+(probe failure is absence, warm-up owner-code precedence, non-empty body
+refused) and adds the chain-bound continuation rule; the revision 5
+verdicts stay history under their own field names and bind nothing here.
 The implementation is `bench/sley2/runner.py` and `bench/sley2/handle.py`;
 implementation state is tracked in the machine summary.
 

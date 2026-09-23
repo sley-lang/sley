@@ -23,8 +23,8 @@ V2_TABLE = ROOT / "conformance/smp1-json-bridge/v2/methods.json"
 V3_TABLE = ROOT / "conformance/smp1-json-bridge/v3/methods.json"
 NATIVE_SPEC = ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md"
 V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 5)"
-SPEC_REVISION = 10
-SMP1_REVISION = 13
+SPEC_REVISION = 11
+SMP1_REVISION = 14
 
 DRAFT_STATUS = "S20_420_CONTRACT_DRAFT_REVIEW_PENDING"
 DRAFT_IN_PROGRESS_STATUS = "S20_420_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"

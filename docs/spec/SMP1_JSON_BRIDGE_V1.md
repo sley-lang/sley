@@ -1,6 +1,6 @@
 # SMP1 JSON Bridge v1
 
-Status: S20-420 contract draft, revision 10 (2026-09-14); Council review
+Status: S20-420 contract draft, revision 11 (2026-09-23); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 names method tag zero (section 9) for the
@@ -28,8 +28,12 @@ above 1 `PROTOCOL_VERSION_UNSUPPORTED`; `PROTOCOL_FRAME_INVALID` names the
 hello's session, request id, method, and flags), states the element
 ceiling as inclusive (1,048,576 positions is refused), and declares the
 additive versioned exports the crate already carries (section 10); no
-encoding or behavior changes. The revision 9 history is retained as
-history and does not review revision 10; its new-delta review is pending. The implementation is
+encoding or behavior changes. Revision 11 (2026-09-23) re-pins the composed
+SMP1 revision 14 (SMP1 revision 14 defines the `workspace.open` (201) response under version 2 and every later selection as `open_summary` (optional field 9) and refuses a non-empty 201 body under every version); the bridge carries 201 bodies as opaque
+bytes and the method table has no body columns, so no bridge clause,
+encoding, or behavior changes. The revision 10 history is retained as
+history and does not review revision 11; its new-delta review is pending.
+The implementation is
 `crates/sley-json-bridge`; implementation state is tracked in the machine
 summary.
 
@@ -37,17 +41,11 @@ The bridge is a generated, non-canonical text representation of SMP1
 frames and of the records SMP1 itself owns. It exists so that a client
 without an SCB1 encoder can read and write frames; it owns no semantics,
 performs no validation beyond shape, and never participates in any program
-identity. It composes, and never alters, `docs/spec/SMP1.md` (revision 13):
+identity. It composes, and never alters, `docs/spec/SMP1.md` (revision 14):
 the frame, hello, selected profile, limit profile, bounded context,
 failure envelope, stream chunk, and method table are the bridge's only
 subjects. Owner bodies (queries, capsules, candidates, receipts, exchange
 bytes, and every other frozen record) cross the bridge as opaque bytes.
-
-Re-pin (2026-09-23, no bridge revision): the composed SMP1 moved from
-revision 12 to revision 13, which changes only the version 2
-`workspace.open` response body (optional field 9) and refuses a
-non-empty `workspace.open` body; the bridge carries that body as opaque
-bytes, and no clause of this contract changes.
 
 The authority rule (SMP1 section 8) is:
 

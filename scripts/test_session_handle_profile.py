@@ -151,8 +151,8 @@ class FrozenReviewCases(unittest.TestCase):
     def test_frozen_without_current_review_refused(self):
         summary = json.loads(SUMMARY_TEXT)
         section = summary["session_handle_profile"]
-        self.assertEqual(section["contract_revision"], 4)
-        # The live record may already carry the revision-4 PASSes; the
+        self.assertEqual(section["contract_revision"], CHECKER.CONTRACT_REVISION)
+        # The live record may already carry the current-revision PASSes; the
         # negative control is a freeze with the current review still open.
         for lane in ("ariadne", "nabu", "vulcan"):
             section["current_delta_review"][lane] = "PENDING"
@@ -170,8 +170,8 @@ class FrozenReviewCases(unittest.TestCase):
     def test_mismatched_current_revision_refused(self):
         summary = json.loads(SUMMARY_TEXT)
         review = summary["session_handle_profile"]["current_delta_review"]
-        self.assertEqual(review["contract_revision"], 4)
-        review["contract_revision"] = 3
+        self.assertEqual(review["contract_revision"], CHECKER.CONTRACT_REVISION)
+        review["contract_revision"] = CHECKER.CONTRACT_REVISION - 1
         code, payload = run_checker_with_overrides(
             summary_text=json.dumps(summary)
         )
@@ -186,7 +186,7 @@ class FrozenReviewCases(unittest.TestCase):
     def test_bound_all_pass_review_accepted(self):
         summary = json.loads(SUMMARY_TEXT)
         review = summary["session_handle_profile"]["current_delta_review"]
-        self.assertEqual(review["contract_revision"], 4)
+        self.assertEqual(review["contract_revision"], CHECKER.CONTRACT_REVISION)
         for lane in ("ariadne", "nabu", "vulcan"):
             review[lane] = "PASS"
         code, payload = run_checker_with_overrides(

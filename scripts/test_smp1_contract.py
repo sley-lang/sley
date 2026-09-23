@@ -284,5 +284,38 @@ class CurrentDeltaReviewCases(unittest.TestCase):
         self.assertEqual(payload.get("result"), "PASS")
 
 
+class WorkspaceOpenAnchorCases(unittest.TestCase):
+    """Revision 13/14 method 201 text and the version 3 owner pin are
+    anchored: reverting any of them is refused."""
+
+    REVERTS = (
+        ("| 201 | `workspace.open` | none | accepted head summary (appendix A) | S20-390 |",
+         "| 201 | `workspace.open` | repository path digest | accepted head | S20-390 |"),
+        ("empty; a non-empty body is `PROTOCOL_PAYLOAD_INVALID` under every version (revision 13)",
+         "empty"),
+        ("`open_summary` under version 2 and every later selection whose table carries row 201 (version 3)",
+         "`open_summary` under a version 2 selection"),
+        ("[9: IndexSnapshotId])", "9: IndexSnapshotId)"),
+        ("Field 9 is a pointer, not\nevidence", "Field 9 is"),
+    )
+
+    def test_each_revert_is_refused(self):
+        for original, reverted in self.REVERTS:
+            with self.subTest(original=original[:40]):
+                self.assertIn(original, SPEC_TEXT)
+                mutated = SPEC_TEXT.replace(original, reverted, 1)
+                code, payload = run_checker_with_spec(mutated)
+                assert_refused(self, code, payload, "spec-anchor")
+
+    def test_stale_version_3_owner_pin_is_refused(self):
+        native = (ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md").read_text(encoding="utf-8")
+        current = f"`docs/spec/SMP1.md` at revision {SMP1_REVISION}"
+        self.assertIn(current, native)
+        stale = native.replace(current, "`docs/spec/SMP1.md` at revision 12", 1)
+        self.assertIn("v3-owner-pin", " ".join(
+            CHECKER.workspace_open_anchor_problems(SPEC_TEXT, stale)))
+        self.assertEqual(CHECKER.workspace_open_anchor_problems(SPEC_TEXT, native), [])
+
+
 if __name__ == "__main__":
     unittest.main()

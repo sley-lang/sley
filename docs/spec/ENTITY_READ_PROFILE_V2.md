@@ -37,7 +37,13 @@ replacement for the separately required type/effect/contract queries.
 Add protocol version 2 with method 306 `entity.version` and method 307
 `entity.signature`. Tag 305 remains reserved. All existing tags, owner
 payloads, numeric errors, query-profile v1 classes, canonical object bytes,
-schema epochs, and digest preimages retain their version-1 definitions.
+schema epochs, and digest preimages retain their version-1 definitions,
+with one later exception owned by SMP1 (amendment 2026-09-23, SMP1
+revisions 13 and 14): under version 2 the `workspace.open` (201) response
+is `open_summary` (the version 1 `revision_summary` plus an optional field
+9), and a non-empty 201 request body is refused under every version,
+where it was previously ignored contrary to SMP1 section 4. No method of
+this profile changes.
 
 Version 2 uses the existing frame envelope, tag 400, frame epoch, field
 schema and digest domain. Its frame's `protocol_version` field is 2.
@@ -67,7 +73,8 @@ An old implementation's inability to consume a v2 offer is not silent
 downgrade authority. A caller may explicitly initiate a fresh v1-only
 negotiation; no failed or uncertain request is replayed automatically.
 Version-1-only offers, negotiation, frames and methods must retain their
-existing byte vectors and rejection behavior. Existing v1 codec entrypoints
+existing byte vectors and rejection behavior (for conforming requests;
+the non-empty 201 body refusal above is the recorded exception). Existing v1 codec entrypoints
 remain v1-only; version-aware entrypoints select the expected version
 explicitly. Post-negotiation framing and `check_claim` use the selected
 version, preserving the existing lower-version downgrade and higher-version

@@ -50,7 +50,37 @@ METHOD_TAGS = (
 # second independently maintained 43-row table exists.
 V2_ADDITIONS = (306, 307)
 V2_METHOD_TAGS = tuple(sorted(METHOD_TAGS + list(V2_ADDITIONS)))
-CONTRACT_REVISION = 13
+CONTRACT_REVISION = 14
+# Revision 13/14 normative text for method 201 (anchored on whitespace-
+# flattened text, so reverting any of it fails the gate).
+WORKSPACE_OPEN_ANCHORS = (
+    ("v1-row-201", "| 201 | `workspace.open` | none | accepted head summary (appendix A) | S20-390 |"),
+    ("appendix-a-row-201-request",
+     "| 201 `workspace.open` | empty; a non-empty body is `PROTOCOL_PAYLOAD_INVALID` under every version (revision 13) |"),
+    ("appendix-a-row-201-response",
+     "`open_summary` under version 2 and every later selection whose table carries row 201 (version 3)"),
+    ("open-summary-grammar", "7: uvar(tombstones), 8: ReceiptId, [9: IndexSnapshotId])"),
+    ("optional-by-omission",
+     "An optional record field written `[n: T]` is optional by omission: when absent the field is not encoded at all"),
+    ("open-summary-scope",
+     "`open_summary` (revisions 13 and 14) is the `workspace.open` response under version 2 and under every later "
+     "selection whose method table includes version 2's row 201"),
+    ("field-9-pointer", "Field 9 is a pointer, not evidence"),
+    ("version-1-compat",
+     "the one version 1 observable change since revision 12 is that a non-empty 201 body, previously ignored"),
+)
+NATIVE_SPEC = ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md"
+
+
+def workspace_open_anchor_problems(spec: str, native: str) -> list[str]:
+    """Anchors for the method 201 text and the version 3 owner's pin."""
+    flat = re.sub(r"\s+", " ", spec)
+    problems = [f"spec-anchor:{name}" for name, text in WORKSPACE_OPEN_ANCHORS if text not in flat]
+    native_flat = re.sub(r"\s+", " ", native)
+    pins = re.findall(r"`docs/spec/SMP1\.md` at revision (\d+)", native_flat)
+    if pins != [str(CONTRACT_REVISION)]:
+        problems.append(f"v3-owner-pin:{pins}")
+    return problems
 V1_SECTION = "### Protocol version 1"
 V2_SECTION = "### Protocol version 2 additions"
 V2_SECTION_END = "## 5. Bounded context"
@@ -295,6 +325,7 @@ def main() -> int:
     for marker in ADR_MARKERS:
         if marker not in adr:
             problems.append(f"adr-marker:{marker}")
+    problems.extend(workspace_open_anchor_problems(spec, read(NATIVE_SPEC)))
     if f"revision {CONTRACT_REVISION}" not in adr:
         problems.append(f"adr-revision:{CONTRACT_REVISION}")
     packages = read(WORK_PACKAGES)

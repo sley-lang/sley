@@ -75,6 +75,31 @@ class CurrentDeltaReviewCases(unittest.TestCase):
         self.assertIn("review:current-delta-judgment:ariadne", problems)
 
 
+class CompositionSentenceCases(unittest.TestCase):
+    """The authority sentence's SMP1 and bridge pins are anchored."""
+
+    SPEC = (ROOT / "docs/spec/SLEY_CLI_V1.md").read_text(encoding="utf-8")
+
+    def test_current_sentence_accepted(self) -> None:
+        self.assertEqual(CHECKER.composition_pin_problems(self.SPEC), [])
+
+    def test_stale_smp1_pin_in_sentence_refused(self) -> None:
+        stale = self.SPEC.replace(
+            f"(`docs/spec/SMP1.md` revision {CHECKER.SMP1_REVISION},",
+            f"(`docs/spec/SMP1.md` revision {CHECKER.SMP1_REVISION - 1},", 1)
+        self.assertNotEqual(stale, self.SPEC)
+        self.assertIn(f"composition-sentence:smp1-revision-{CHECKER.SMP1_REVISION - 1}",
+                      CHECKER.composition_pin_problems(stale))
+
+    def test_stale_bridge_pin_in_sentence_refused(self) -> None:
+        stale = self.SPEC.replace(
+            f"(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision {CHECKER.BRIDGE_REVISION}).",
+            f"(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision {CHECKER.BRIDGE_REVISION - 1}).", 1)
+        self.assertNotEqual(stale, self.SPEC)
+        self.assertIn(f"composition-sentence:bridge-revision-{CHECKER.BRIDGE_REVISION - 1}",
+                      CHECKER.composition_pin_problems(stale))
+
+
 class ValidPinControl(unittest.TestCase):
     def test_current_passing_review_accepted(self) -> None:
         self.assertEqual(review_problems(passing_review(), CHECKER.REVIEW_PENDING_STATUS), [])

@@ -1,6 +1,6 @@
 # Negotiated Session and Handle Profile v1
 
-Status: S20-330 contract draft, revision 4 (2026-09-08); implemented under
+Status: S20-330 contract draft, revision 5 (2026-09-23); implemented under
 this draft with Council re-reviews pending (Nabu architecture review,
 Ariadne contract review, Vulcan surface review), so the contract is not
 frozen and the package is not complete. Revision 2 closed the six P0s and
@@ -8,20 +8,20 @@ the freeze-blocking P1s of the 2026-09-04 review round; revision 3 answers
 every remaining P1, P2, and P3 item of that round (section 9); revision 4
 adds the protocol version 2 classification extension (the two S20-310
 entity-read methods, head-bound only in version 2) without changing the
-version 1 partition, handle bytes, or capsule format. The revision 3
-reviews are retained as history and do not review revision 4; its
-new-delta review is pending. Capable bridge/CLI runtime is phase 3.
+version 1 partition, handle bytes, or capsule format; revision 5
+(2026-09-23) re-pins SMP1 revision 14 (SMP1 revision 14 defines the `workspace.open` (201) response under version 2 and every later selection as `open_summary` (optional field 9) and refuses a non-empty 201 body under every version; 201 stays
+head-bound and no session clause changes). The revision 4 reviews are
+retained as history and do not review revision 5; its new-delta review is
+pending. Capable bridge/CLI runtime is phase 3.
 Implementation state is tracked in the machine summary.
 
 This profile defines the negotiated session authority that SMP1 (S20-400,
-revision 12) and the master context capsule (S20-320 full, revision 3)
+revision 14) and the master context capsule (S20-320 full, revision 3)
 reserved: what a session binds, how it is issued and renewed, how every
 request is checked against its binding, what a session-local handle is,
 and the `SESSION_*` codes. It composes, and never alters:
 
-- `docs/spec/SMP1.md` at revision 13 (re-pinned from revision 12 on
-  2026-09-23 without a profile revision: SMP1 revision 13 changes only the version 2 `workspace.open` response body (optional field 9) and refuses a non-empty `workspace.open` body, neither owned
-  by this profile): the handshake, `session.open`
+- `docs/spec/SMP1.md` at revision 14: the handshake, `session.open`
   (100), `session.renew` (101), `session.close` (102), the request-identity
   rules, and the reserved `handle.expand` (304) method whose bodies this
   profile freezes;

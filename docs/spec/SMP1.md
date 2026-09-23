@@ -1,6 +1,6 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 13 (2026-09-23; the revision
+Status: S20-400 contract draft, revision 14 (2026-09-23; the revision
 history is listed below after the authority rule); Council review pending
 (Ariadne contract review as the package owner, Nabu architecture review,
 Vulcan surface review). This revision supersedes the M0 constitutional
@@ -18,9 +18,9 @@ appendix B (closeout
 the JSON bridge from this contract (frozen-record revision 7, closeout
 `docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`), and S20-430 wraps the CLI
 (frozen-record revision 4, closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`).
-Current composition (revision 13): the S20-420 bridge contract
-`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 10 and the S20-430 CLI contract
-`docs/spec/SLEY_CLI_V1.md` revision 8.
+Current composition (revision 14): the S20-420 bridge contract
+`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 11 and the S20-430 CLI contract
+`docs/spec/SLEY_CLI_V1.md` revision 9.
 Further implementation state is tracked in the machine summary.
 
 SMP1 is the primary programming interface of Sley 2. It transports the
@@ -57,19 +57,30 @@ S20-620 accepted-head opener) defines the `workspace.open` (201) response
 under a version 2 selection as `open_summary` (appendix A): the eight
 `revision_summary` fields plus an optional field 9, the accepted head's
 complete-root index snapshot identity, taken from the S20-300 read-only
-cache probe; it also corrects row 201's request column to none (the body
-was always empty) and refuses a non-empty body. Document revision
-(a draft number of this file) and negotiated protocol version (the wire
-selection 1 or 2) are distinct: revision 13 still serves version 1
-exactly as before, byte for byte, including `workspace.open`. Revision 12
+cache probe; it also corrects row 201's request and response columns (the
+request body was always empty) and refuses a non-empty 201 body; 14
+answers the revision 13 review round (f0738119): `open_summary` is the 201
+response under version 2 and under every later selection whose method
+table includes version 2's row 201 (version 3, defined as the union of
+the version 1 and version 2 tables by `docs/spec/NATIVE_TEST_ADMISSION_V1.md`
+appendix D), the version 1 compatibility statement is made exact, the
+omitted-optional-field convention and the pointer-not-evidence and
+determinism scope of field 9 are stated, and the negotiation text names
+version 3. Document revision (a draft number of this file) and negotiated
+protocol version (the wire selection 1, 2, or 3) are distinct. Revision 14
+serves every conforming version 1 request exactly as before, byte for
+byte, including an empty-body `workspace.open`; the one version 1
+observable change since revision 12 is that a non-empty 201 body,
+previously ignored contrary to section 4 and appendix A, is refused
+`PROTOCOL_PAYLOAD_INVALID` under every version. Revision 12
 is a static delta only: the version 1
 implementations remain in place, capable bridge/CLI runtime is phase 3
 (implemented in CLI revision 6; phase names the rollout stage, not the
 contract revision),
 and the revision 11 review history is retained as history. The revision
-12 new-delta review passed (2026-09-15); revision 13 changes one version 2
-response body and one request column, and its new-delta review is
-pending.
+12 new-delta review passed (2026-09-15); the revision 13 review round
+returned REVISE on the version scope of field 9 and is answered by
+revision 14, whose new-delta review is pending.
 
 ## 1. Framing
 
@@ -119,7 +130,7 @@ envelope epoch outside the protocol fails at the envelope layer.
 
 ```text
 ProtocolFrame {
-  protocol_version: u32,                    // Hello 1 (bootstrap); ordinary post-Hello frames carry the selected version, 1 or 2
+  protocol_version: u32,                    // Hello 1 (bootstrap); ordinary post-Hello frames carry the selected version, 1, 2, or 3
   session:          option(SessionId[32]),  // None only for hello and session.open
   request_id:       u64,                    // scoped to the session, strictly increasing
   kind:             u32 (1 request | 2 response | 3 event | 4 hello),
@@ -208,8 +219,11 @@ and it equals the re-derived one.
 If no common version, epoch, or method family exists the server answers
 `PROTOCOL_NO_COMMON_PROFILE` and closes. The explicit version-aware
 negotiation entrypoint (`negotiate_versioned`, revision 12) supports
-selected protocol versions 1 and 2 only: an unsupported greatest-common
-result, including 3, is refused with `PROTOCOL_VERSION_UNSUPPORTED`
+selected protocol versions 1 and 2 as defined here and version 3 as
+defined by `docs/spec/NATIVE_TEST_ADMISSION_V1.md` appendices C and D
+(the union of this contract's version 1 and version 2 tables plus the
+native rows; the owner of version 3 since 2026-09-16): any other
+greatest-common result is refused with `PROTOCOL_VERSION_UNSUPPORTED`
 before establishment, without selecting a lesser common version. Under
 selected version 1 the intersection filters exactly the two version-2
 tags 306 and 307; unrelated opaque unknown numeric tags keep their
@@ -240,7 +254,7 @@ decode against the implementation version, so the rule holds on wire
 input before dispatch ever runs; the selection-level split in
 `SelectedProfile::check_claim` agrees with it. The explicit frame
 entrypoints (`encode_frame_for_version`, `decode_frame_for_version`,
-`ProtocolFrame::validate_for_version`) admit only selections 1 and 2,
+`ProtocolFrame::validate_for_version`) admit only selections 1, 2, and 3,
 like `negotiate_versioned`: any other expected version answers
 `PROTOCOL_VERSION_UNSUPPORTED` before any claim judgment, so the wire
 surface is closed by the entrypoints, not by callers. A `SchemaEpochId` is a 32-byte identity
@@ -313,9 +327,15 @@ negotiated `methods` intersection.
 The version 1 table below is frozen: 41 rows total, 37 dispatched
 (non-reserved) methods. Its rows, bytes, and legacy helpers are unchanged
 by revision 12. Revision 13 corrects the row 201 request column to none
-(appendix A always named an empty body) and adds, under a version 2
-selection only, field 9 to its response (appendix A `open_summary`); no
-version 1 byte changes.
+(appendix A always named an empty body) and its response column to the
+accepted head summary, and adds, under version 2 and every later
+selection carrying row 201, field 9 to its response (appendix A
+`open_summary`). A conforming (empty-body) version 1 request gets the same
+bytes as before; a non-empty 201 body, previously ignored, is refused
+under every version. The owner column names the owner of the base record:
+row 201's version 2 response composes two owners (S20-390 fields 1-8,
+S20-300 field 9), and appendix A, not this cell, states that split,
+because the cell also feeds the frozen bridge metadata (`methods.json`).
 
 | Tag | Method | Request body | Response body | Owner |
 |---:|---|---|---|---|
@@ -642,7 +662,10 @@ Bodies are canonical SCB1 values (`uvar` integers, `record` as
 `uvar(count) || (uvar(tag) || uvar(len) || bytes)...`, `list` as
 `uvar(count) || (uvar(len) || bytes)...`, `union` as
 `uvar(tag) || uvar(len) || bytes`, options as the SSMC1 generic union
-`0:None | 1:Some`). Fixed identities are raw 32-byte strings. The methods
+`0:None | 1:Some`). An optional record field written `[n: T]` is optional
+by omission: when absent the field is not encoded at all and the record's
+`uvar(count)` is one smaller; no option union appears. Fixed identities
+are raw 32-byte strings. The methods
 below are dispatched by the S20-410 deterministic server; the four methods
 of appendix C (revision 7) are dispatched as well, so no non-reserved method
 answers a deferred detail, and reserved methods answer with the per-seam
@@ -656,7 +679,7 @@ reason of section 4.
 | 103 `session.capabilities` | empty | the `SelectedProfile` record (section 2) |
 | 104 `session.budgets` | empty | the `LimitProfile` record |
 | 200 `workspace.create` | `record(1: state root stored bytes, 2: policy root stored bytes, 3: list(bytes(object stored bytes)), 4: list(EntityId))` | the genesis `TransactionId[32]`; bodies are S20-390's, the session-to-workspace binding is S20-330's (section 3) |
-| 201 `workspace.open` | empty; a non-empty body is `PROTOCOL_PAYLOAD_INVALID` (revision 13) | the accepted head's `revision_summary` under a version 1 selection, `open_summary` under a version 2 selection (revision 13, rules below); fields 1-8 are S20-390's, field 9 is S20-300's, the session-to-workspace binding is S20-330's (section 3) |
+| 201 `workspace.open` | empty; a non-empty body is `PROTOCOL_PAYLOAD_INVALID` under every version (revision 13) | the accepted head's `revision_summary` under a version 1 selection; `open_summary` under version 2 and every later selection whose table carries row 201 (version 3) (revisions 13 and 14, rules below); fields 1-8 are S20-390's, field 9 is S20-300's, the session-to-workspace binding is S20-330's (section 3) |
 | 202 `refs.list` | `uvar(limit)`, 1 through 4,096 | `list(branch_summary)` |
 | 203 `refs.resolve` | branch name bytes | `branch_summary` |
 | 204 `revision.read` | `TransactionId[32]` | `revision_summary` |
@@ -690,26 +713,51 @@ branch_summary   = record(1: name bytes, 2: origin TransactionId,
 revision_summary = record(1: TransactionId, 2: StateRoot, 3: PolicyRootId,
                           4: WorkspaceId, 5: SchemaEpochId, 6: uvar(objects),
                           7: uvar(tombstones), 8: ReceiptId)
-open_summary     = record(fields 1-8 exactly as revision_summary,
-                          9: IndexSnapshotId)          -- field 9 optional
+open_summary     = record(1: TransactionId, 2: StateRoot, 3: PolicyRootId,
+                          4: WorkspaceId, 5: SchemaEpochId, 6: uvar(objects),
+                          7: uvar(tombstones), 8: ReceiptId,
+                          [9: IndexSnapshotId])
 ```
 
-`open_summary` (revision 13; `workspace.open` under a version 2 selection
-only) is a composition of two owners' frozen values, not a new SMP1
+`open_summary` (revisions 13 and 14) is the `workspace.open` response
+under version 2 and under every later selection whose method table
+includes version 2's row 201 (version 3, the union of the version 1 and
+version 2 tables per `docs/spec/NATIVE_TEST_ADMISSION_V1.md` appendix D).
+It is a composition of two owners' frozen values, not a new SMP1
 semantics. Fields 1 through 8 are the S20-390 `revision_summary` of the
-accepted head, byte for byte. Field 9 is present exactly when the S20-300
-read-only cache probe (`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md`
-section 5, revision 4) accepts a cached complete-root record for the
-accepted head's root, and carries that record's `IndexSnapshotId`, the
-identity `query.root`, `query.continue`, and `capsule` bind for that head.
-The probe never builds or writes the cache; an absent, discarded, or
-unreadable record, and an absent or contended repository maintenance
-boundary (taken shared, without waiting), are all absence. Absence is
-structural: the record then has eight fields, and the bounded context
-reports one item either way, never an omission or truncation. The server
-does not otherwise vary the body: `revision.read` (204) answers
+accepted head, byte for byte. Field 9 is optional by omission (the
+convention above): it is present exactly when the S20-300 read-only cache
+probe (`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md` section 5, revision 5)
+accepts a cached complete-root record for the accepted head's root, and
+carries that record's `IndexSnapshotId`. Field 9 is a pointer, not
+evidence: the cached record was accepted without re-deriving edges, and
+`query.root`/`query.continue` bind whatever snapshot the repository cache
+serves while `capsule` always binds a freshly built snapshot, so field 9
+equals the identity every one of them binds only when the cache is honest
+(S20-300 section 5 residual); a client that adopts field 9 keeps the
+`QUERY_SNAPSHOT_MISMATCH` cross-check of a fresh `capsule`. The probe never
+builds or writes the cache; an absent, discarded, or unreadable record,
+and a contended repository maintenance boundary (taken shared, without
+waiting, never initialized by the probe), are all absence. The opener
+itself still loads the accepted head under the S20-390 blocking shared
+maintenance acquisition like every head-bound read, so an absent boundary
+fails the method and an exclusive owner makes the opener wait; only the
+probe adds no wait. Absence is structural: the record then has eight
+fields, and the bounded context reports one item either way, never an
+omission or truncation. The body is deterministic given the accepted head
+plus the derived cache state: field 9's presence is not a fact about the
+head, and equal repository state in appendix B and section 10's
+byte-identical responses include that derived state for this one body.
+The server does not otherwise vary the body: `revision.read` (204) answers
 `revision_summary` for every revision under every selection. Under a
 version 1 selection `workspace.open` answers `revision_summary` exactly.
+
+Empty request bodies: row 201 refuses a non-empty body (revision 13). The
+other rows whose request is empty (102 `session.close`, 103
+`session.capabilities`, 104 `session.budgets`, 210 `exchange.export`, 214
+`refs.recover`, 504 `recovery`) still ignore a non-empty body at this
+revision, a pre-existing deviation from section 4 that revision 14 records
+rather than changes.
 
 The bounded context of a response copies the owning record's counts: a
 `SLEYRQR1` response supplies `returned`, `total_count - returned`, its
@@ -842,8 +890,10 @@ Rules:
 ## Appendix D. Body references for the protocol version 2 additions (S20-310, revision 12)
 
 Appendices A and C above carry the 37 legacy body rows and are unchanged
-by revision 12. Revision 13 amends one of them, row 201 of appendix A, for
-the version 2 selection only (`open_summary`), as stated there. The two version-2 methods define no new serializer: their
+by revision 12. Revisions 13 and 14 amend one of them, row 201 of
+appendix A: its response under version 2 and every later selection
+carrying the row is `open_summary`, and a non-empty request body is refused
+under every version, as stated there. The two version-2 methods define no new serializer: their
 request and response records are the ENTITY_READ canonical records,
 referenced here and owned by S20-310.
 

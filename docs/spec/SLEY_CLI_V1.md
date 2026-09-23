@@ -1,6 +1,6 @@
 # Thin Machine-Oriented CLI v1
 
-Status: S20-430 contract draft, revision 8 (2026-09-14); Council review
+Status: S20-430 contract draft, revision 9 (2026-09-23); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 removes the transport feature from the
@@ -14,8 +14,11 @@ and synchronizes the CLI revision pins; revision 7 re-pins bridge
 revision 9; revision 8 re-pins bridge revision 10, states the end-of-input
 rule for every bridge ceiling (section 8), and derives the test fixtures'
 revision from the checker. Command defaults, version/report v1 shapes, and
-legacy behavior are unchanged. The revision 7 history is retained as
-history and does not review revision 8; its new-delta review is pending. The implementation is
+legacy behavior are unchanged. Revision 9 (2026-09-23) re-pins SMP1
+revision 14 and bridge revision 11 (SMP1 revision 14 defines the `workspace.open` (201) response under version 2 and every later selection as `open_summary` (optional field 9) and refuses a non-empty 201 body under every version; the CLI carries 201
+bodies as opaque bytes, so no CLI clause or behavior changes). The revision
+8 history is retained as history and does not review revision 9; its
+new-delta review is pending. The implementation is
 `crates/sley-cli`; implementation state is tracked in the machine summary.
 
 The CLI is a transport endpoint and nothing else. It moves SMP1 frames
@@ -23,9 +26,9 @@ between standard input, standard output, and the deterministic S20-410
 server over one repository path, in either the canonical byte form or the
 S20-420 JSON form, and it writes a machine-readable invocation report. It
 owns no semantics: every judgment about a frame comes from the server
-(`docs/spec/SMP1.md` revision 12, S20-440 batch admission, S20-330
+(`docs/spec/SMP1.md` revision 14, S20-440 batch admission, S20-330
 sessions) and every representation from the frozen codec or the bridge
-(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 10). The master goal requires a thin
+(`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 11). The master goal requires a thin
 machine-oriented wrapper that contains no private validation rules and that
 the semantic kernel never imports (master goal sections 14.2, 14.3, 22.6).
 
@@ -354,9 +357,6 @@ release, or GA.
 - ADR-0035 and `docs/WORK_PACKAGES.md` carry the revision-7 and
   revision-8 records.
 - The revision pins are SMP1 revision 12 and bridge revision 10.
-- Re-pin (2026-09-23, no CLI revision): SMP1 revision 13 and bridge revision 10.
-  SMP1 revision 13 changes only the version 2 `workspace.open` response body (optional field 9) and refuses a non-empty `workspace.open` body; the CLI carries that body as opaque bytes and no clause of
-  this contract changes.
 
 ## 9. Version-aware surface (phase 3, implemented in revision 6)
 

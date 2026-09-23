@@ -9,8 +9,13 @@ reviews above are retained as history and do not review revision 12; its
 new-delta review passed on 2026-09-15. Current pin (2026-09-23): revision
 13 defines the version 2 `workspace.open` response `open_summary` (the
 S20-390 `revision_summary` plus the optional S20-300 snapshot identity,
-field 9) and refuses a non-empty `workspace.open` body; version 1 bytes are
-unchanged, and the revision 13 new-delta review is pending.
+field 9) and refuses a non-empty `workspace.open` body. Current pin
+(2026-09-23, after the revision 13 round REVISE): revision 14 applies
+`open_summary` to version 2 and every later selection whose table carries
+row 201 (version 3 per NATIVE_TEST_ADMISSION appendix D) and states the
+version 1 change exactly: conforming empty-body version 1 requests keep
+their bytes, and a non-empty 201 body, previously ignored, is refused
+under every version. The revision 14 new-delta review is pending.
 
 Date: 2026-09-03
 
