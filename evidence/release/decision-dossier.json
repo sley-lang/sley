@@ -10,7 +10,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "9608bd53f961bdfbbe2f17ead48df9c5f10a2b28b9744a312072735a679ab741",
+  "dossier_digest": "ef52854ab5f7c2497e5d0677d66f7311adbcf039f7dcdd2f5d81b7538b5600e4",
   "entries": [
     {
       "evidence": [
@@ -136,7 +136,7 @@
       "note": "the property-test count is a counted zero: the inventory scanned the workspace and crate manifests, the lockfile, and every Rust and Python test source and found no proptest, quickcheck, or hypothesis harness. The unit-test, fuzz-target, and vector counts are adjacent corpus facts, not property tests. The inventory describes the corpus and runs nothing, so a passing run is separate evidence",
       "state": "EVIDENCED",
       "value": {
-        "conformance_rejections": 283,
+        "conformance_rejections": 284,
         "conformance_vectors": 537,
         "persistent_fuzz_targets": 21,
         "property_test_detail": {
@@ -146,9 +146,9 @@
           "scanned_manifests": 22
         },
         "property_tests": 0,
-        "python_tests": 568,
-        "rust_ignored_emitters": 38,
-        "rust_unit_tests": 1965
+        "python_tests": 860,
+        "rust_ignored_emitters": 39,
+        "rust_unit_tests": 1997
       }
     },
     {
@@ -341,22 +341,22 @@
           "p4": 0
         },
         "deferred_reviews": 0,
-        "obligations": 484,
+        "obligations": 536,
         "open_reviews": 22,
         "result": "FINDING_REGISTER_OPEN",
         "severity_mentions": {
           "P0": 126,
-          "P1": 178,
-          "P2": 223,
-          "P3": 273,
-          "P4": 127
+          "P1": 181,
+          "P2": 239,
+          "P3": 323,
+          "P4": 177
         },
         "states": {
-          "HISTORICAL_ROUND": 163,
-          "PASS": 299,
+          "HISTORICAL_ROUND": 179,
+          "PASS": 335,
           "PENDING": 22
         },
-        "unclaimed_carried_findings": 0,
+        "unclaimed_carried_findings": 3,
         "unclassified": 0
       }
     },
@@ -456,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "cea37951c05da9e078846730245a1e947ed76d5f62004576c7cbeadc9fa61fbb",
+  "entries_digest": "d88816167577038678aa4235c74fbe79cf5a0ea266f42cb11b74c851511bcc0a",
   "evidenced": 24,
   "gated": 10,
   "gates": {

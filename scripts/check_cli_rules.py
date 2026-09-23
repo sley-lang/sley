@@ -12,12 +12,17 @@ ROOT = Path(__file__).resolve().parents[1]
 CRATE = ROOT / "crates/sley-cli"
 MANIFEST = CRATE / "Cargo.toml"
 PROTOCOL = ROOT / "crates/sley-protocol/src/lib.rs"
+# `sley-test-runner` is admitted only for the private native-test worker
+# entry (contract section 10): the production source may name it exactly
+# once, as the worker call below, and nowhere else.
 ALLOWED_DEPENDENCIES = {
     "sley-protocol",
     "sley-json-bridge",
     "sley-test-runner",
     "serde_json",
 }
+WORKER_CALL = "sley_test_runner::worker::run_input_path("
+WORKER_COMMAND = '"__native-test-worker"'
 ALLOWED_DEV_DEPENDENCIES = {
     "sley-repo",
     "sley-id",
@@ -134,6 +139,23 @@ def audit_production_source(
     # endpoint must never name the JSON bridge feature bit.
     if "FEATURE_JSON_BRIDGE" in production:
         problems.append(f"transport-feature:{display}")
+    # The worker exception is bounded (contract section 10): every mention
+    # of the runner crate is the one worker call, and the private command
+    # word appears once, in the parser.
+    runner_mentions = len(re.findall(r"\bsley_test_runner\b", production))
+    worker_calls = production.count(WORKER_CALL)
+    if runner_mentions != worker_calls:
+        problems.append(f"worker-edge:{display}:{runner_mentions - worker_calls}")
+    counters["worker_calls"] = counters.get("worker_calls", 0) + worker_calls
+    counters["worker_commands"] = counters.get("worker_commands", 0) + production.count(WORKER_COMMAND)
+
+
+def worker_problems(counters: dict, problems: list) -> None:
+    """Exactly one worker call and one private command word (section 10)."""
+    if counters.get("worker_calls", 0) != 1:
+        problems.append(f"worker-calls:{counters.get('worker_calls', 0)}")
+    if counters.get("worker_commands", 0) != 1:
+        problems.append(f"worker-commands:{counters.get('worker_commands', 0)}")
 
 
 def section(manifest: str, name: str) -> set[str]:
@@ -169,7 +191,7 @@ def main() -> int:
         return 1
     patterns = judgment_patterns(tags)
     name_pattern = method_name_pattern(names)
-    counters = {"frame_literals": 0, "encode_calls": 0}
+    counters = {"frame_literals": 0, "encode_calls": 0, "worker_calls": 0, "worker_commands": 0}
     for path in sources:
         text = path.read_text(encoding="utf-8")
         # Tests live under `mod tests` or a `tests` directory and may use fixtures.
@@ -179,6 +201,7 @@ def main() -> int:
         problems.append(f"frame-literals:{counters['frame_literals']}")
     if counters["encode_calls"] > 1:
         problems.append(f"encode-frame-calls:{counters['encode_calls']}")
+    worker_problems(counters, problems)
 
     result = {
         "contract": "s20-430-cli-rule-audit-v1",
@@ -187,6 +210,7 @@ def main() -> int:
         "method_tags_audited": len(tags),
         "method_names_audited": len(names),
         "frame_literals": counters["frame_literals"],
+        "worker_calls": counters["worker_calls"],
         "encode_frame_calls": counters["encode_calls"],
         "problems": problems,
         "result": "PASS" if not problems else "FAIL",

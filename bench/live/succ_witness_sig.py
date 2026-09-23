@@ -37,9 +37,11 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from bench.fixtures import sley2_live_judge as judge  # noqa: E402
+from bench.live.scratch import scratch_root  # noqa: E402
 from bench.live import sley2_codecs, sley2_tool  # noqa: E402
 from bench.live.taskpacks import stage_initial  # noqa: E402
 from bench.live.tooling import stage_tooling  # noqa: E402
+from bench.live.witness_provenance import source_identity  # noqa: E402
 
 TASK_ID = "S2B-SIG-001"
 TASK_DIR = ROOT / "bench" / "fixtures" / "sley2" / TASK_ID
@@ -72,6 +74,7 @@ def main() -> int:
         lines.append(text)
         print(text, flush=True)
 
+    emit(f"SIG witness/{variant}: {source_identity(ROOT)}")
     tmp = tempfile.mkdtemp(prefix="sley2-sig-witness-")
     ws = Path(tmp) / "ws"
     stage_initial("sley_2_0", TASK_ID, ws)
@@ -136,7 +139,10 @@ def main() -> int:
         [described] = sley2_codecs.run_batch(
             [{"op": "describe_record", "record": base_record}])
         nonce = described["nonce"]
-        _, rep_rev = run("revision")
+        # Head read through the agent's own opener, then revision.read of
+        # the tx it reported (no harness-supplied head id).
+        _, rep_open = run("open")
+        _, rep_rev = run("revision", rep_open["report"]["decoded"]["tx"])
         workspace = manifest["workspace"]
         kinds = [6] * len(skel_creates)
         new_ids = [
@@ -190,7 +196,7 @@ def main() -> int:
         finally:
             sys.argv = saved_argv
         emit(f"{TASK_ID} witness/{variant} judge exit: {exit_code}")
-        emit(f"workspace kept at: {ws}")
+        emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
     finally:
         os.chdir(saved_cwd)
     if log_path is not None:
@@ -200,4 +206,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # Every temporary directory of the run (the witness workspace and the
+    # judge's scratch copies) lives under one root removed on every path.
+    with scratch_root("sley2-witness-sig-run-"):
+        code = main()
+    raise SystemExit(code)

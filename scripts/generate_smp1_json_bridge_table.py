@@ -25,8 +25,9 @@ V1_SECTION = "### Protocol version 1"
 V2_SECTION = "### Protocol version 2 additions"
 V2_SECTION_END = "## 5. Bounded context"
 # The version 3 additions live in the native draft family (still awaiting
-# owner review), not in the frozen SMP1 contract: SMP1.md stays revision 12
-# while the native contract owns the five rows below (two live selection
+# owner review), not in the SMP1 contract: SMP1.md (whatever revision its
+# Status line names) owns no version 3 row, while the native contract owns
+# the five rows below (two live selection
 # reads since N7c revision 3, report paging live since N7d-1 revision 4,
 # replay/status live since N7d-2 revision 5).
 V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 5)"

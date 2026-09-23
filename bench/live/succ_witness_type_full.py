@@ -79,8 +79,10 @@ sys.path.insert(0, str(ROOT))
 
 from bench.fixtures import sley2_live_judge as judge  # noqa: E402
 from bench.live import sley2_codecs, sley2_tool  # noqa: E402
+from bench.live.scratch import scratch_root  # noqa: E402
 from bench.live.taskpacks import stage_initial  # noqa: E402
 from bench.live.tooling import stage_tooling  # noqa: E402
+from bench.live.witness_provenance import source_identity  # noqa: E402
 
 TASK_ID = "S2B-TYPE-001"
 TASK_DIR = ROOT / "bench" / "fixtures" / "sley2" / TASK_ID
@@ -440,6 +442,7 @@ def main() -> int:
     emit("provenance " + json.dumps(provenance(variant, design, expect),
                                     sort_keys=True))
     outcome = "unknown"
+    emit(f"TYPE-FULL witness/{variant}: {source_identity(ROOT)}")
     tmp = tempfile.mkdtemp(prefix="sley2-type-full-")
     ws = Path(tmp) / "ws"
     stage_initial("sley_2_0", TASK_ID, ws)
@@ -505,7 +508,7 @@ def main() -> int:
                 verdict = {}
             outcome = ("accepted" if verdict.get("status") == "accepted"
                        else str(verdict.get("code") or verdict.get("status")))
-        emit(f"workspace kept at: {ws}")
+        emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
     finally:
         os.chdir(saved_cwd)
     ok = outcome in expect.split("|")
@@ -519,4 +522,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # Every temporary directory of the run (the witness workspace and the
+    # judge's scratch copies) lives under one root removed on every path.
+    with scratch_root("sley2-witness-type_full-run-"):
+        code = main()
+    raise SystemExit(code)

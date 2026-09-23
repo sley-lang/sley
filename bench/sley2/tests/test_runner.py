@@ -332,7 +332,7 @@ class Sley2RunnerTests(unittest.TestCase):
 
     def test_trial_with_legacy_stamp_fails_closed(self) -> None:
         """Every trial stamps the selected version 2: a legacy stamp under
-        the eighteen-name digest cannot complete (contract section 1)."""
+        the nineteen-name digest cannot complete (contract section 1)."""
         with self.assertRaises(Sley2RunnerError) as error:
             self.trial("legacy-stamp", 0, ScriptedAgent(), protocol_version=1)
         self.assertEqual(error.exception.code, Sley2ErrorCode.HANDSHAKE_FAILED)
@@ -378,13 +378,16 @@ class Sley2RunnerTests(unittest.TestCase):
         """A version 1 offer fails the missing-check by design: the two
         entity names the offer lacks are named in the refusal (contract
         section 9), so drift fails closed rather than shrinking the arm."""
-        sixteen = [name for name in runner.ARM_AFFORDANCES if not name.startswith("entity.")]
-        assert len(sixteen) == 16
+        # Nineteen names (contract revision 5) less the two entity reads:
+        # the version 1 table offers the other seventeen, workspace.open
+        # among them.
+        seventeen = [name for name in runner.ARM_AFFORDANCES if not name.startswith("entity.")]
+        assert len(seventeen) == 17
         stub = Path(self.temp.name) / "stub-sley"
         stub.write_text(
             "#!/usr/bin/env python3\n"
             "import json, sys\n"
-            f"METHODS = {sixteen!r}\n"
+            f"METHODS = {seventeen!r}\n"
             "HELLO = {\"body\": \"00\", \"bounds\": {}, \"flags\": {\"cancel\": False, \"failed\": False, \"stream\": False}, \"kind\": \"hello\", \"method\": \"\", \"methods\": METHODS, \"protocol_version\": 1, \"request_id\": 0, \"session\": None}\n"
             "args = sys.argv[1:]\n"
             "if args[0] == \"hello\" and \"--json\" in args:\n"
@@ -544,7 +547,10 @@ class ArmAffordanceTests(unittest.TestCase):
 
     The endpoint's hello lists all 43 SMP1 methods including exchange.export,
     an entire-store dump master goal 20.10 forbids an arm from holding.
-    Raised by ariadne.
+    Raised by ariadne. Exclusion is by risk, not by category: the denied
+    names move whole stores, mutate the repository or the run, or are
+    harness, oracle, or run-control surfaces, while the pure head-pinned
+    read `workspace.open` is afforded (contract revision 5).
     """
 
     def test_the_allowlist_excludes_bulk_and_mutating_methods(self):
@@ -577,6 +583,11 @@ class ArmAffordanceTests(unittest.TestCase):
             self.assertNotIn(name, runner.ARM_DENIED_METHODS)
             self.assertIn(name, names)
             self.assertNotIn(name, v1_names)
+        # Revision 5 admission: the accepted-head opener moved (not copied)
+        # from the denied side, last in tuple order.
+        self.assertEqual(runner.ARM_AFFORDANCES[-1], "workspace.open")
+        self.assertNotIn("workspace.open", runner.ARM_DENIED_METHODS)
+        self.assertIn("workspace.open", names)
 
     def test_the_digest_is_a_control_that_moves_when_the_allowlist_does(self):
         before = runner.arm_affordances_digest()

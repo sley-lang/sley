@@ -14,7 +14,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from bench.live import sley2_codecs, sley2_tool
+from bench.live import mediated_sley, sley2_codecs, sley2_tool
+from bench.live.tooling import SLEY2_TOOLING
+from bench.sley2 import runner
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -23,6 +25,37 @@ SLEY = Path(os.environ.get("SLEY2_SLEY_BINARY", "/home/gfarch/Work/target-sley2-
 # principal (the conformance exchange pack denies it at phase 9, so
 # no-op proposals there can never decide Valid).
 PACK_PATH = ROOT / "bench" / "fixtures" / "sley2" / "S2B-TEST-001" / "base.pack"
+
+
+class Sley2ToolSurfacePinTests(unittest.TestCase):
+    """Binary-free pins over the coupled command/method enumerations."""
+
+    def test_tool_methods_equal_runner_allowlist_in_order(self) -> None:
+        # The tool's guard list and the smoke runner's frozen allowlist are
+        # the same nineteen names in the same order (contract revision 5).
+        self.assertEqual(tuple(sley2_tool.TOOL_METHODS),
+                         tuple(runner.ARM_AFFORDANCES))
+        self.assertEqual(len(sley2_tool.TOOL_METHODS), 19)
+        self.assertEqual(sley2_tool.TOOL_METHODS[-1], "workspace.open")
+
+    def test_dispatch_arity_refuses_before_any_server_contact(self) -> None:
+        # `revision` requires exactly one 64-hex transaction id (the tx of
+        # a prior `open`); `open` takes none. Every malformed form is
+        # refused by the dispatcher itself, before any request is sent.
+        class NoServer:
+            def call(self, method, body_hex):
+                raise AssertionError(f"server contacted: {method}")
+
+            @property
+            def head(self):
+                raise AssertionError("harness head read")
+
+        for argv in (["revision"], ["revision", "ab" * 31],
+                     ["revision", "ab" * 33], ["revision", "zz" * 32],
+                     ["revision", "ab" * 32, "cd" * 32], ["open", "00"]):
+            with self.subTest(argv=argv):
+                with self.assertRaises(sley2_tool.Sley2ToolError):
+                    sley2_tool.dispatch(NoServer(), Path("."), argv)
 
 
 class Sley2ToolTests(unittest.TestCase):
@@ -65,12 +98,16 @@ class Sley2ToolTests(unittest.TestCase):
 
     def test_missing_pack_or_binary_refuses(self) -> None:
         (self.ws / "base.pack").unlink()
-        code, _ = self.run_tool("revision")
+        code, _ = self.run_tool("open")
         self.assertEqual(code, 2)
         (self.ws / "base.pack").write_bytes(PACK_PATH.read_bytes())
         with mock.patch.dict(os.environ, {}, clear=True):
-            code, _ = self.run_tool("revision")
+            code, _ = self.run_tool("open")
             self.assertEqual(code, 2)
+        # Control: with pack and binary restored the same command succeeds,
+        # so the two refusals above are the pack and binary refusals.
+        code, _ = self.run_tool("open")
+        self.assertEqual(code, 0)
 
     def test_inventory_lists_served_objects_with_entities(self) -> None:
         code, result = self.run_tool("inventory")
@@ -89,9 +126,19 @@ class Sley2ToolTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertFalse(result["report"]["failed"])
         self.assertIn("decoded", result["report"])
-        code, result = self.run_tool("revision")
+        code, opened = self.run_tool("open")
+        self.assertEqual(code, 0)
+        self.assertFalse(opened["report"]["failed"])
+        head = opened["report"]["decoded"]
+        self.assertEqual(len(head["tx"]), 64)
+        code, result = self.run_tool("revision", head["tx"])
         self.assertEqual(code, 0)
         self.assertFalse(result["report"]["failed"])
+        # revision.read of the opened head carries the same eight fields;
+        # only workspace.open may carry field 9 (snapshot).
+        self.assertNotIn("snapshot", result["report"]["decoded"])
+        self.assertEqual({key: value for key, value in head.items()
+                          if key != "snapshot"}, result["report"]["decoded"])
         code, result = self.run_tool("budgets")
         self.assertEqual(code, 0)
 
@@ -174,7 +221,7 @@ class Sley2ToolTests(unittest.TestCase):
         code, proposed = self.run_tool("propose", json.dumps([op]))
         self.assertEqual(code, 0)
         self.assertTrue(proposed["report"].get("valid"))
-        code, before = self.run_tool("revision")
+        code, before = self.run_tool("open")
         self.assertEqual(code, 0)
         code, appended = self.run_tool("append", proposed["report"]["record"],
                                        json.dumps([op]))
@@ -183,7 +230,7 @@ class Sley2ToolTests(unittest.TestCase):
         body = bytes.fromhex(appended["report"]["body"])
         self.assertIn(b"MUTATION_CANDIDATE_OPERATION_ORDINAL", body)
         self.assertNotIn(b"PROTOCOL_", body)
-        code, after = self.run_tool("revision")
+        code, after = self.run_tool("open")
         self.assertEqual(code, 0)
         self.assertEqual(after["report"]["body"], before["report"]["body"])
 
@@ -233,7 +280,7 @@ class Sley2ToolTests(unittest.TestCase):
 
     def test_usage_ledger_accumulates_across_invocations(self) -> None:
         self.run_tool("inventory")
-        self.run_tool("revision")
+        self.run_tool("open")
         ledger = self.ws / ".sley-live-usage"
         self.assertTrue(ledger.is_file())
         first = json.loads(ledger.read_text(encoding="utf-8"))
@@ -245,18 +292,44 @@ class Sley2ToolTests(unittest.TestCase):
 
     def test_raw_refuses_outside_allowlist(self) -> None:
         # No commit, merge, execute, export/import, report, session
-        # management, or workspace/open paths exist for the agent: every
-        # one is refused before any server contact, including commit.
+        # management, or workspace creation paths exist for the agent:
+        # every one is refused before any server contact, including
+        # commit. (workspace.open is afforded since contract revision 5.)
         for method in ("commit", "merge", "execute", "export", "import", "report",
-                       "session.open", "session.close", "workspace.open",
+                       "session.open", "session.close", "workspace.create",
                        "exchange.import"):
             with self.subTest(method=method):
                 code, _ = self.run_tool("raw", method, "00")
                 self.assertEqual(code, 2)
 
+    def test_open_and_raw_workspace_open_are_guarded_agent_reads(self) -> None:
+        # The agent's own opener is transcript-captured like any read, and
+        # the same method is reachable through the guarded raw path.
+        code, opened = self.run_tool("open")
+        self.assertEqual(code, 0)
+        code, raw = self.run_tool("raw", "workspace.open", "")
+        self.assertEqual(code, 0)
+        self.assertFalse(raw["report"]["failed"])
+        self.assertEqual(raw["report"]["body"], opened["report"]["body"])
+        code, revision = self.run_tool("revision", opened["report"]["decoded"]["tx"])
+        self.assertEqual(code, 0)
+        entries, reason = sley2_tool.verify_transcript_chain(
+            self.ws / ".sley-live-transcript.jsonl")
+        self.assertIsNone(reason, reason)
+        self.assertEqual([entry["command"] for entry in entries],
+                         ["open", "raw", "revision"])
+        self.assertEqual(entries[0]["args"], {"opened": True})
+        self.assertEqual(entries[2]["args"],
+                         {"tx": opened["report"]["decoded"]["tx"]})
+        agent_methods = [item.get("method") for item in entries[0]["session"]
+                         if item.get("direction") == "request"]
+        # Harness bookkeeping (session.open + its own head read) plus the
+        # agent's guarded workspace.open.
+        self.assertEqual(agent_methods.count("workspace.open"), 2)
+
     def test_agent_transcript_chain_verifies_and_counts(self) -> None:
         self.run_tool("inventory")
-        self.run_tool("revision")
+        self.run_tool("open")
         _, op = self._identity_op()
         code, proposed = self.run_tool("propose", json.dumps([op]))
         self.assertEqual(code, 0)
@@ -274,7 +347,7 @@ class Sley2ToolTests(unittest.TestCase):
         self.assertEqual(usage["totals"]["invocations"], len(entries))
 
     def test_transcript_tampering_breaks_verification(self) -> None:
-        self.run_tool("revision")
+        self.run_tool("open")
         chain = self.ws / ".sley-live-transcript.jsonl"
         entries, reason = sley2_tool.verify_transcript_chain(chain)
         self.assertIsNone(reason)

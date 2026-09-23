@@ -128,6 +128,12 @@ def field_core(field: str) -> frozenset[str]:
     )
 
 
+def contract_revision_round(field: str) -> int | None:
+    """The contract revision a `<lane>_..._revision_<N>` round names, or None."""
+    match = re.search(r"_revision_(\d+)$", field)
+    return int(match.group(1)) if match else None
+
+
 def field_early(field: str) -> bool:
     """Whether a field names an early review round."""
     return any(token in ROUND_EARLY or token.isdigit() for token in field.split("_"))
@@ -200,6 +206,16 @@ def supersedes(pass_field: str, fail_field: str) -> bool:
         return False
     pass_core = field_core(pass_field)
     fail_core = field_core(fail_field)
+    # Two numbered contract-revision rounds of one subject (`..._revision_9`
+    # REVISE, `..._revision_10` PASS): the later revision's PASS closes the
+    # earlier round, never the reverse. Both carry the early token
+    # `revision`, so the token rule below would leave every earlier
+    # revision round open forever and no revised package could complete.
+    # The caller still refuses a PASS dated or scoped before the round.
+    pass_round = contract_revision_round(pass_field)
+    fail_round = contract_revision_round(fail_field)
+    if pass_round is not None and fail_round is not None:
+        return pass_core == fail_core and pass_round > fail_round
     if not (pass_core <= fail_core or fail_core <= pass_core):
         return False
     if fail_core > pass_core:

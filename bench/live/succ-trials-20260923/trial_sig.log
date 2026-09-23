@@ -1,0 +1,11 @@
+SIG witness/pos: source c21ff9457ea79758df5cfd320b8a836c462b87b2 (clean apart from witness outputs)
+SIG callee params ['5353535353535353535353535353535353535353535353535353535353535353', '5454545454545454545454545454545454545454545454545454545454545454']
+SIG caller_a: operands 1 params 1
+SIG caller_b: operands 1 params 1
+SIG caller_c: operands 1 params 1
+SIG witness/pos: skeleton created True valid False
+SIG new params ['2b4da443', 'de9ff4eb', 'd56287e8']
+SIG witness/pos: compose valid True decision {'failed_phase': None, 'tag': 1}
+SIG witness/pos: finished True
+S2B-SIG-001 witness/pos judge exit: 0
+workspace kept at: /home/gfarch/Work/checkpoints/succ-context-tmp/sley2-sig-witness-5zos7o2o/ws

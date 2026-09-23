@@ -72,7 +72,9 @@ from bench.live.mediated_sley import (
     GatewayError,
     MediatedSleyEndpoint,
     adjudicate,
+    audit_label,
 )
+from bench.live.sley2_tool import TOOL_VERSION as _TOOL_VERSION
 from bench.live.oracle import OracleError
 from bench.live.process import ProcessCapture
 from bench.live.provider import ProviderError, parse_codex_jsonl
@@ -86,14 +88,16 @@ from bench.live.trusted_capture import (
     reconcile,
 )
 
-MEDIATED_TOOL_VERSION = "1"
+# One source of truth with the tool boundary the judge pins.
+MEDIATED_TOOL_VERSION = _TOOL_VERSION
 SOCK_NAME = "gateway.sock"
 SHIM_ENV = "SLEY2_GATEWAY_SOCK"
 FRAME_LIMIT_BYTES = 8 * 1024 * 1024
 
 # No staged trial inputs: the confined agent discovers starting
 # identities exclusively through the documented gateway surface
-# (inventory/read/resolve, all captured and counted). A private
+# (open/inventory/read/bounded raw queries/resolve, all captured and
+# counted). A private
 # manifest role map, 6c-prefix parameter selection, or conventional
 # variant-member literals must never be staged into scratch: they
 # are deterministic-test scaffolding, not campaign inputs. Agent
@@ -409,7 +413,7 @@ class GatewayServer:
                 response = capture.exchange(
                     phase=frame["phase"] or "ingress",
                     session_id=frame["session_id"] or "unknown",
-                    method=frame["command"] or "ingress",
+                    method=audit_label(frame["command"], frame["args"]),
                     request=_canonical({"command": frame["command"],
                                         "args": frame["args"]}),
                     handler=denied)

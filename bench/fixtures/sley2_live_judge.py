@@ -34,6 +34,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Callable
 
 
 def _repo_root() -> Path:
@@ -42,6 +43,7 @@ def _repo_root() -> Path:
 
 sys.path.insert(0, str(_repo_root()))
 from bench.live import sley2_codecs  # noqa: E402
+from bench.live.scratch import ScratchRemovalError, remove_scratch  # noqa: E402
 from bench.live.sley2_tool import (  # noqa: E402
     _entity_body as _tool_entity_body,
     CHAIN_NAME,
@@ -708,22 +710,46 @@ def _seeded_repo(task_dir: Path) -> tuple[Path, object, object]:
     except OSError as error:
         raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: base pack: {error}") from error
     workdir = Path(tempfile.mkdtemp(prefix="sley2-pristine-"))
-    ws = workdir / "ws"
-    ws.mkdir(mode=0o700)
-    (ws / REPO_DIR).mkdir(mode=0o700)
-    try:
-        shutil.copyfile(pack, ws / "base.pack")
-    except OSError as error:
-        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: base pack: {error}") from error
-    session = Session(_resolve_binary(), ws, [], seed_pack=True)
+    ws, session = _staged_session(workdir, pack, "base pack")
 
     def cleanup() -> None:
         try:
             session.close()
         finally:
-            shutil.rmtree(workdir, ignore_errors=True)
+            _remove_workdir(workdir)
 
     return ws / REPO_DIR, session, cleanup
+
+
+def _remove_workdir(workdir: Path) -> None:
+    """Remove a judge scratch workspace or fail the judgment loudly.
+
+    Scratch trees hold read-only store and tool files; a silent
+    `ignore_errors` removal leaked ~20k inodes per run, so removal
+    restores owner permissions and retries, and a tree that still cannot
+    be removed is a harness error, never a quiet leak."""
+    try:
+        remove_scratch(workdir)
+    except ScratchRemovalError as error:
+        raise JudgeHarnessError(
+            f"LIVE_SLEY2_JUDGE_INVALID: scratch removal: {error}") from error
+
+
+def _staged_session(workdir: Path, pack: Path, what: str) -> tuple[Path, object]:
+    """Stage `pack` into a fresh workspace under `workdir` and seed a
+    session; `workdir` is removed if staging fails."""
+    try:
+        ws = workdir / "ws"
+        ws.mkdir(mode=0o700)
+        (ws / REPO_DIR).mkdir(mode=0o700)
+        try:
+            shutil.copyfile(pack, ws / "base.pack")
+        except OSError as error:
+            raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: {what}: {error}") from error
+        return ws, Session(_resolve_binary(), ws, [], seed_pack=True)
+    except BaseException:
+        _remove_workdir(workdir)
+        raise
 
 
 def _sint_cases(inputs: list) -> list:
@@ -1295,36 +1321,40 @@ def _main(task_id: str) -> int:
     candidate = _candidate_bytes(workspace)
     sley = _resolve_binary()
     workdir = Path(tempfile.mkdtemp(prefix="sley2-judge-"))
-    scratch_ws = workdir / "ws"
-    scratch_ws.mkdir(mode=0o700)
-    shutil.copytree(workspace / REPO_DIR, scratch_ws / REPO_DIR, symlinks=False)
-    transcript: list = []
-
-    def connect() -> Session:
-        return Session(sley, scratch_ws, transcript, seed_pack=False)
-
-    session = connect()
+    # Every path (accept, reject, harness error) removes the scratch copy.
     try:
-        judge_cfg = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
-        flow = judge_cfg.get("flow", "")
-        needs_versions = flow in ("graph", "test-entity", "type-variant", "create") or (
-            flow == "execute-cases" and task_id == "S2B-SIG-001")
-        versions_pre = _snapshot_versions(connect, scratch_ws) if needs_versions else {}
-        pre_tx = session.head.get("tx", "")
-        if not pre_tx:
-            _harness_fail("pre head")
-        _commit_candidate(session, manifest["principal"], candidate.hex())
-        # Post-commit reads need a fresh session: commit advances the
-        # head every token was minted under, and the endpoint refuses
-        # new opens on the committed process.
-        session.close()
+        scratch_ws = workdir / "ws"
+        scratch_ws.mkdir(mode=0o700)
+        shutil.copytree(workspace / REPO_DIR, scratch_ws / REPO_DIR, symlinks=False)
+        transcript: list = []
+
+        def connect() -> Session:
+            return Session(sley, scratch_ws, transcript, seed_pack=False)
+
         session = connect()
-        versions_post = _snapshot_versions(connect, scratch_ws) if needs_versions else {}
-        _collateral_files(session, scratch_ws, workspace, manifest, flow)
-        suffix = _judge_flows(session, manifest, corpus, task_id, versions_pre, versions_post,
-                              scratch_ws, candidate, pre_tx, workspace, task_dir, transcript)
+        try:
+            judge_cfg = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
+            flow = judge_cfg.get("flow", "")
+            needs_versions = flow in ("graph", "test-entity", "type-variant", "create") or (
+                flow == "execute-cases" and task_id == "S2B-SIG-001")
+            versions_pre = _snapshot_versions(connect, scratch_ws) if needs_versions else {}
+            pre_tx = session.head.get("tx", "")
+            if not pre_tx:
+                _harness_fail("pre head")
+            _commit_candidate(session, manifest["principal"], candidate.hex())
+            # Post-commit reads need a fresh session: commit advances the
+            # head every token was minted under, and the endpoint refuses
+            # new opens on the committed process.
+            session.close()
+            session = connect()
+            versions_post = _snapshot_versions(connect, scratch_ws) if needs_versions else {}
+            _collateral_files(session, scratch_ws, workspace, manifest, flow)
+            suffix = _judge_flows(session, manifest, corpus, task_id, versions_pre, versions_post,
+                                  scratch_ws, candidate, pre_tx, workspace, task_dir, transcript)
+        finally:
+            session.close()
     finally:
-        session.close()
+        _remove_workdir(workdir)
     detail = "all flows held" + (f"; {suffix}" if suffix else "")
     return _emit(task_id, "accepted", None, detail, 0)
 
@@ -1613,7 +1643,7 @@ def _judge_corrupt_exchange(task_dir: Path) -> None:
         finally:
             session.close()
     finally:
-        shutil.rmtree(workdir, ignore_errors=True)
+        _remove_workdir(workdir)
 
 
 # Resealed embedded-pack vector (S2B-CORRUPT-001 corpus code). The exchange
@@ -1903,7 +1933,9 @@ def _judge_corrupt_pack_resealed(task_dir: Path, vectors: dict | None = None) ->
         evidence["head_tx"] = head_before
         evidence["live_objects"] = count_before
     finally:
-        shutil.rmtree(workdir, ignore_errors=True)
+        # Read-only store files defeat an ignore_errors removal; the scratch
+        # is removed on every path or the judgment fails loudly.
+        _remove_workdir(workdir)
     return evidence
 
 
@@ -3106,11 +3138,19 @@ def _judge_merge(session: Session, manifest: dict, corpus: dict, scratch_ws: Pat
         _judge_merge_orders(candidate, manifest, sides, repos,
                             session, scratch_ws)
     finally:
+        # Every side workspace is released. A session-close error stays
+        # ignored as before; a failed scratch removal is a harness error,
+        # raised once every cleanup has run.
+        removal_failure: JudgeHarnessError | None = None
         for cleanup in cleanups:
             try:
                 cleanup()
+            except JudgeHarnessError as error:
+                removal_failure = removal_failure or error
             except Exception:
                 continue
+        if removal_failure is not None:
+            raise removal_failure
 
 
 def _judge_merge_orders(candidate: bytes, manifest: dict,
@@ -3303,20 +3343,13 @@ def _seeded_pack(pack: Path) -> tuple[Path, Path, object, object]:
     fresh chunked sessions (frozen per-session request limit)."""
 
     workdir = Path(tempfile.mkdtemp(prefix="sley2-merge-"))
-    ws = workdir / "ws"
-    ws.mkdir(mode=0o700)
-    (ws / REPO_DIR).mkdir(mode=0o700)
-    try:
-        shutil.copyfile(pack, ws / "base.pack")
-    except OSError as error:
-        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: side pack: {error}") from error
-    session = Session(_resolve_binary(), ws, [], seed_pack=True)
+    ws, session = _staged_session(workdir, pack, "side pack")
 
     def cleanup() -> None:
         try:
             session.close()
         finally:
-            shutil.rmtree(workdir, ignore_errors=True)
+            _remove_workdir(workdir)
 
     return ws / REPO_DIR, ws, session, cleanup
 
@@ -3419,6 +3452,90 @@ BOUNDED_QUERY_METHODS = frozenset({"query.root", "query.restricted",
                                    "query.continue", "refs.list"})
 
 
+class _ContinuationLedger:
+    """Trial-wide continuation discharge, bound to the page it continues.
+
+    Every answered root-query page carries its continuation binding
+    (`chain`: the query key — the request with its cursor elided —, the
+    request cursor, the page's own truncation flag, and its next cursor),
+    derived on the trusted side from the exact bodies. A truncated
+    `query.root` page opens (query, next cursor). Only a successful
+    `query.continue` of that same query whose request cursor equals that
+    next cursor discharges it; a continuation page that is itself truncated
+    opens its own next cursor. A refused continue (or any failed bounded
+    response) opens and discharges nothing. A successful continue that
+    matches no open page — a skipped, past-the-end, repeated, or foreign
+    cursor, or another query — is an inconsistent continuation. Any other
+    bounded page that reports omissions or truncation (a cursor-bearing
+    `query.root`, `query.restricted`, `refs.list`) has no continuation route
+    and stays open. Scope is the trial, not the invocation or session:
+    binding is by query and cursor, so continuation works across one-shot
+    invocations while forged, refused, or unrelated continues never close
+    a page. A page still open when the trial ends rejects.
+    """
+
+    def __init__(self, reject: Callable[[str], None]) -> None:
+        self._reject = reject
+        self._open: dict[tuple[str, str], int] = {}
+        self._unbound = 0
+        self.continuations = 0
+
+    def _binding(self, chain: object) -> dict | None:
+        if not isinstance(chain, dict):
+            return None
+        if not (isinstance(chain.get("query"), str)
+                and isinstance(chain.get("truncated"), bool)
+                and (chain.get("after") is None
+                     or isinstance(chain.get("after"), str))
+                and (chain.get("next") is None
+                     or isinstance(chain.get("next"), str))):
+            return None
+        return chain
+
+    def _open_next(self, chain: dict) -> None:
+        following = chain.get("next")
+        if not isinstance(following, str):
+            self._reject("continuation binding; semantics held")
+        key = (chain["query"], following)
+        self._open[key] = self._open.get(key, 0) + 1
+
+    def page(self, method: str, failed: bool, trunc: bool, omit: int,
+             chain: object) -> None:
+        if method not in BOUNDED_QUERY_METHODS:
+            if trunc or omit > 0:
+                self._reject(f"hidden truncation on {method}; semantics held")
+            return
+        if failed:
+            return
+        binding = self._binding(chain)
+        if binding is not None and binding["truncated"] != trunc:
+            self._reject("continuation binding; semantics held")
+        if method == "query.continue":
+            if binding is None or binding.get("after") is None:
+                self._reject("inconsistent continuation; semantics held")
+            key = (binding["query"], binding["after"])
+            if self._open.get(key, 0) < 1:
+                self._reject("inconsistent continuation; semantics held")
+            self._open[key] -= 1
+            if not self._open[key]:
+                del self._open[key]
+            self.continuations += 1
+            if trunc:
+                self._open_next(binding)
+            return
+        if not (trunc or omit > 0):
+            return
+        if (method == "query.root" and trunc and binding is not None
+                and binding.get("after") is None):
+            self._open_next(binding)
+        else:
+            self._unbound += 1
+
+    def finish(self) -> None:
+        if self._open or self._unbound:
+            self._reject("truncated page without continuation; semantics held")
+
+
 def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
     """CONTEXT agent-read evidence from the trusted tool boundary.
 
@@ -3434,26 +3551,29 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
     Bounded-query semantics (governing ROOT_BACKED / RESTRICTED / CAPSULE
     contracts): query.root, query.restricted, query.continue, and
     refs.list are bounded paging routes, NOT whole-store reads by
-    method name. Each such response must fit MAX_RESPONSE_BYTES; any
-    response carrying omitted>0 or truncated must be followed by a
-    query.continue in the same session scope (explicit continuation;
-    the corpus requires bounded operation WITH omissions and
-    continuations, not their absence); a query.continue with no
-    preceding truncated response is an inconsistent continuation and
-    rejects; cumulative agent-visible bytes across the trial must fit
-    AGENT_CUMULATIVE_RESPONSE_BUDGET. Whole-store reads are only
+    method name. Each such response must fit MAX_RESPONSE_BYTES;
+    cumulative agent-visible bytes across the trial must fit
+    AGENT_CUMULATIVE_RESPONSE_BUDGET. Continuation discipline is the
+    trial-wide `_ContinuationLedger` (explicit continuation; the corpus
+    requires bounded operation WITH omissions and continuations, not
+    their absence): a truncated query.root page opens (query key, next
+    cursor), and only a successful query.continue of the same query
+    whose request cursor equals that next cursor discharges it, so
+    after == the previous page's next is verified from the exact
+    bodies. Scope is the trial, bound by query and cursor, not by
+    session. A continue that matches no open page is inconsistent; a
+    page still open at trial end, or an omitting page with no
+    continuation route, rejects. Whole-store reads are only
     inventory/side (full file enumeration). Hidden truncation,
     exceeded bounds, inconsistent continuations, and unbounded access
     reject under the frozen unbounded-read code; semantic-only success
     is noted in the rejection detail, never mislabeled as a pass.
 
-    Limitation retained: transcripts record response bounds and body
-    digests, not requested limit values or continuation tokens, so the
-    judge verifies actual returned content, per-response limits,
-    continuation discipline, and cumulative budgets — not the literal
-    requested limit parameters or after==prev-next_after token
-    equality. Judge-only inspection (judge transcript) stays separate
-    from agent-visible context and cost.
+    Limitation retained: requested limit values are not recorded, so
+    the judge verifies actual returned content and per-response limits,
+    not the literal requested limit parameters. Judge-only inspection
+    (judge transcript) stays separate from agent-visible context and
+    cost.
 
     whole_store_reads is derived, never defaulted. Unknowns are never
     reported as zero: incomplete evidence rejects instead of returning
@@ -3491,6 +3611,8 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
         judge_binary = hashlib.sha256(_resolve_binary().read_bytes()).hexdigest()
     except Exception:
         judge_binary = ""
+    ledger = _ContinuationLedger(
+        lambda detail: _reject("QUERY_REQUIRED_FACT_OMITTED", detail))
     for entry in entries:
         if not isinstance(entry, dict):
             _reject("QUERY_REQUIRED_FACT_OMITTED", "agent entry shape; semantics held")
@@ -3532,7 +3654,6 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
         # Per-call bounded accounting over the ordered session items:
         # pair each request with its following response.
         pending: dict | None = None
-        pending_truncated = False
         entry_continuations = 0
         entry_omitted = 0
         entry_truncated = 0
@@ -3576,21 +3697,10 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
                 if returned > MAX_RESPONSE_BYTES:
                     _reject("QUERY_REQUIRED_FACT_OMITTED",
                             f"response over bound {returned}; semantics held")
-                if method in BOUNDED_QUERY_METHODS:
-                    if method == "query.continue":
-                        entry_continuations += 1
-                        if not pending_truncated:
-                            _reject("QUERY_REQUIRED_FACT_OMITTED",
-                                    "inconsistent continuation; semantics held")
-                        pending_truncated = False
-                    elif trunc or omit > 0:
-                        # Bounded page with more to fetch: an explicit
-                        # query.continue must follow in this scope.
-                        pending_truncated = True
-                else:
-                    if trunc or omit > 0:
-                        _reject("QUERY_REQUIRED_FACT_OMITTED",
-                                f"hidden truncation on {method}; semantics held")
+                before = ledger.continuations
+                ledger.page(method, bool(item.get("failed")), trunc, omit,
+                            item.get("chain"))
+                entry_continuations += ledger.continuations - before
             else:
                 # Non-call transcript markers (hello/greeting/seed/scope):
                 # ordering-relevant but not agent-visible calls; the
@@ -3599,9 +3709,6 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
         if pending is not None:
             _reject("QUERY_REQUIRED_FACT_OMITTED",
                     "agent session order; semantics held")
-        if pending_truncated:
-            _reject("QUERY_REQUIRED_FACT_OMITTED",
-                    "truncated page without continuation; semantics held")
         # Reconcile the entry summary against the enumerated session
         # items (completeness: summaries must equal recorded calls —
         # overstated or understated accounting both reject, naming the
@@ -3640,6 +3747,7 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
         if cumulative > AGENT_CUMULATIVE_RESPONSE_BUDGET:
             _reject("QUERY_REQUIRED_FACT_OMITTED",
                     f"cumulative {cumulative} over budget; semantics held")
+    ledger.finish()
     if len(binary_ids) != 1 or (judge_binary and next(iter(binary_ids)) != judge_binary):
         _reject("QUERY_REQUIRED_FACT_OMITTED",
                 "tool/binary identity mismatch; semantics held")
@@ -3705,11 +3813,14 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
     Audit rules mirror the legacy chain audit at captured-method
     granularity (`raw:<server method>` exposes the inner query
     method; gateway-local `resolve` is neutral): bounded query
-    methods are not whole-store reads by name; a truncated/omitted
-    bounded page must be continued in the same session scope (the
-    capture's own session_id, stronger than entry scope); a
-    query.continue with no preceding truncation in scope is
-    inconsistent; cumulative and per-response budgets bind; only
+    methods are not whole-store reads by name; continuation is the
+    trial-wide `_ContinuationLedger`, bound by query key and cursor
+    (a truncated query.root page is discharged only by a successful
+    query.continue of the same query whose request cursor equals the
+    page's next cursor, across invocations and sessions); a
+    query.continue that matches no open page is inconsistent, and a
+    page left open at trial end rejects; cumulative and per-response
+    budgets bind; only
     inventory/side count as whole-store; commit and hidden truncation
     reject. Scope/root consistency comes from the capture's session
     scopes and frozen pack/manifest bindings, not method names alone.
@@ -3840,7 +3951,8 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
     max_response = 0
     cumulative = 0
     calls = 0
-    pending_truncated: dict[str, bool] = {}
+    ledger = _ContinuationLedger(fail)
+    from bench.live.mediated_sley import AUDIT_LABELS
 
     def inner_method(method: object) -> str:
         if not isinstance(method, str):
@@ -3851,7 +3963,13 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
 
     for request, response in pairs:
         calls += 1
-        method = inner_method(request.get("method"))
+        label = request.get("method")
+        if label not in AUDIT_LABELS:
+            # Closed label vocabulary: the gateway records denied or unknown
+            # commands as `denied`, never under an agent-chosen string, so
+            # an out-of-set label is not evidence of a routed call.
+            fail(f"mediated capture label {str(label)[:40]}; semantics held")
+        method = inner_method(label)
         scope = request.get("session_id")
         if not isinstance(scope, str) or not scope:
             fail("mediated session scope; semantics held")
@@ -3881,21 +3999,12 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
             fail(f"response over bound {returned}; semantics held")
         if method in BOUNDED_QUERY_METHODS:
             bounded_reads += 1
-            if method == "query.continue":
-                continuations += 1
-                if not pending_truncated.get(scope, False):
-                    fail("inconsistent continuation; semantics held")
-                pending_truncated[scope] = False
-            elif trunc or omit > 0:
-                # Bounded page with more to fetch: an explicit
-                # query.continue must follow in this scope.
-                pending_truncated[scope] = True
-        elif trunc or omit > 0:
-            fail(f"hidden truncation on {method}; semantics held")
+        ledger.page(method, bool(response.get("failed")), trunc, omit,
+                    response.get("chain"))
         if cumulative > AGENT_CUMULATIVE_RESPONSE_BUDGET:
             fail(f"cumulative {cumulative} over budget; semantics held")
-    if any(pending_truncated.values()):
-        fail("truncated page without continuation; semantics held")
+    ledger.finish()
+    continuations = ledger.continuations
     if whole_store > 0:
         fail(f"whole_store_reads={whole_store}; semantics held")
     return {"whole_store_reads": whole_store,

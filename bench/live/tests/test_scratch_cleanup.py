@@ -1,0 +1,246 @@
+"""Scratch workspaces are removed on every path, or removal fails loudly.
+
+The judge's `sley2-judge-*` copy was never removed, and read-only store
+and tool files defeated `shutil.rmtree(..., ignore_errors=True)` in the
+pristine/corrupt/merge helpers and the witnesses; about fifty leaked runs
+exhausted the inodes of a 1M-inode `/tmp`. These cases run in a private
+temporary root and assert that nothing named `sley2-*` survives.
+"""
+
+from __future__ import annotations
+
+import io
+import contextlib
+import json
+import os
+import shutil
+import stat
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+from bench.fixtures import sley2_live_judge as judge
+from bench.live import scratch
+from bench.live.scratch import ScratchRemovalError, remove_scratch, scratch_root
+
+
+def read_only_tree(root: Path) -> None:
+    """A repository-like tree with the modes the tooling leaves behind."""
+    store = root / "objects" / "ab"
+    store.mkdir(parents=True)
+    (store / "record").write_bytes(b"sealed")
+    (root / "HEAD").write_text("head\n")
+    locked = root / "locked"
+    locked.mkdir()
+    (locked / "inside").write_text("x")
+    for path in (store / "record", root / "HEAD", locked / "inside"):
+        path.chmod(0o400)
+    store.chmod(0o500)
+    (root / "objects").chmod(0o500)
+    locked.chmod(0o000)
+
+
+def leftovers(root: Path) -> list[str]:
+    return sorted(entry.name for entry in root.iterdir() if entry.name.startswith("sley2-"))
+
+
+class RemoveScratch(unittest.TestCase):
+    def setUp(self):
+        self.base = Path(tempfile.mkdtemp(prefix="scratch-test-"))
+
+    def tearDown(self):
+        remove_scratch(self.base)
+
+    def test_read_only_and_unlistable_tree_is_removed(self):
+        tree = self.base / "sley2-judge-x"
+        tree.mkdir()
+        read_only_tree(tree / "ws")
+        tree.chmod(0o500)
+        remove_scratch(tree)
+        self.assertFalse(os.path.lexists(tree))
+
+    def test_ignore_errors_removal_would_have_leaked(self):
+        tree = self.base / "sley2-judge-y"
+        tree.mkdir()
+        read_only_tree(tree)
+        shutil.rmtree(tree, ignore_errors=True)
+        self.assertTrue(os.path.lexists(tree), "the old removal left the tree behind")
+        remove_scratch(tree)
+        self.assertFalse(os.path.lexists(tree))
+
+    def test_a_hard_linked_outside_file_keeps_its_mode(self):
+        outside = self.base / "outside.bin"
+        outside.write_bytes(b"shared inode")
+        outside.chmod(0o400)
+        tree = self.base / "sley2-judge-link"
+        (tree / "store").mkdir(parents=True)
+        os.link(outside, tree / "store" / "linked.bin")
+        (tree / "store").chmod(0o500)
+        remove_scratch(tree)
+        self.assertFalse(os.path.lexists(tree))
+        self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o400)
+
+    def test_the_parent_is_never_widened(self):
+        parent = self.base / "locked-parent"
+        tree = parent / "sley2-judge-parent"
+        tree.mkdir(parents=True)
+        parent.chmod(0o500)
+        try:
+            with self.assertRaises(ScratchRemovalError):
+                remove_scratch(tree)
+            self.assertEqual(stat.S_IMODE(parent.stat().st_mode), 0o500)
+        finally:
+            parent.chmod(0o700)
+
+    def test_a_tree_that_survives_removal_fails_loudly(self):
+        tree = self.base / "sley2-judge-z"
+        tree.mkdir()
+        with mock.patch.object(scratch.shutil, "rmtree", lambda *a, **k: None):
+            with self.assertRaises(ScratchRemovalError):
+                remove_scratch(tree)
+
+    def test_scratch_root_is_removed_on_an_exception_and_restores_tmpdir(self):
+        before = os.environ.get("TMPDIR")
+        with self.assertRaises(RuntimeError):
+            with scratch_root("sley2-witness-test-run-") as root:
+                self.assertEqual(os.environ["TMPDIR"], str(root))
+                inner = Path(tempfile.mkdtemp(prefix="sley2-context-witness-"))
+                self.assertEqual(inner.parent, root)
+                read_only_tree(inner / "ws")
+                raise RuntimeError("witness failed")
+        self.assertFalse(os.path.lexists(root))
+        self.assertEqual(os.environ.get("TMPDIR"), before)
+
+
+class JudgeScratch(unittest.TestCase):
+    """The judge removes its scratch copy on reject and harness-error paths."""
+
+    TASK = "S2B-CONTEXT-001"
+
+    def setUp(self):
+        self.private = Path(tempfile.mkdtemp(prefix="judge-scratch-test-"))
+        self.saved = tempfile.tempdir
+        tempfile.tempdir = str(self.private)
+        self.workspace = self.private / "trial"
+        (self.workspace / judge.REPO_DIR).mkdir(parents=True)
+        read_only_tree(self.workspace / judge.REPO_DIR / "store")
+        # The copy keeps the unlistable directory out (copytree cannot read
+        # it); the rest of the read-only modes are copied into the scratch.
+        (self.workspace / judge.REPO_DIR / "store" / "locked").chmod(0o700)
+        (self.workspace / "final_candidate.hex").write_text("00\n")
+
+    def tearDown(self):
+        tempfile.tempdir = self.saved
+        remove_scratch(self.private)
+
+    def run_judge(self, binary: str) -> dict:
+        out = io.StringIO()
+        with mock.patch.object(sys, "argv", ["judge", str(self.workspace)]), \
+                mock.patch.dict(os.environ, {"SLEY2_SLEY_BINARY": binary}), \
+                contextlib.redirect_stdout(out):
+            judge.main(self.TASK)
+        return json.loads(out.getvalue().strip().splitlines()[-1])
+
+    def test_harness_error_path_leaves_no_scratch(self):
+        # A binary that exits at once: the session fails right after the
+        # scratch copy is made (this path leaked a read-only sley2-judge-*).
+        binary = self.private / "dead-binary"
+        binary.write_text("#!/bin/sh\nexit 3\n")
+        binary.chmod(0o755)
+        record = self.run_judge(str(binary))
+        self.assertEqual(record["status"], "harness_error", record)
+        self.assertEqual(leftovers(self.private), [])
+
+    @unittest.skipUnless(os.environ.get("SLEY2_SLEY_BINARY"), "SLEY2_SLEY_BINARY unbound")
+    def test_real_binary_path_leaves_no_scratch(self):
+        record = self.run_judge(os.environ["SLEY2_SLEY_BINARY"])
+        self.assertIn(record["status"], ("rejected", "harness_error"), record)
+        self.assertEqual(leftovers(self.private), [])
+
+    def test_a_scratch_that_cannot_be_removed_is_a_harness_error(self):
+        binary = self.private / "dead-binary"
+        binary.write_text("#!/bin/sh\nexit 3\n")
+        binary.chmod(0o755)
+        with mock.patch.object(judge, "remove_scratch",
+                               side_effect=ScratchRemovalError("stuck")):
+            record = self.run_judge(str(binary))
+        self.assertEqual(record["status"], "harness_error", record)
+        self.assertIn("scratch removal", record["detail"])
+        for name in leftovers(self.private):
+            remove_scratch(self.private / name)
+
+
+
+def live_processes_with(marker: str) -> list[int]:
+    found = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            command = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if marker.encode() in command:
+            found.append(int(entry.name))
+    return found
+
+
+@unittest.skipUnless(os.environ.get("SLEY2_SLEY_BINARY"), "SLEY2_SLEY_BINARY unbound")
+class StalledServeIsReaped(unittest.TestCase):
+    """A Session whose serve child stalls is reaped on the constructor's
+    failure path, so nothing keeps writing into a removed scratch."""
+
+    def test_a_stalled_serve_child_is_reaped_and_no_scratch_reappears(self):
+        from bench.live import sley2_tool
+        private = Path(tempfile.mkdtemp(prefix="judge-stall-test-"))
+        try:
+            marker = f"sley2-stall-{os.getpid()}"
+            wrapper = private / "sley"
+            real = os.environ["SLEY2_SLEY_BINARY"]
+            wrapper.write_text(
+                "#!/bin/bash\n"
+                f'if [ "$1" = serve ]; then exec -a {marker} sleep 30; fi\n'
+                f'exec "{real}" "$@"\n')
+            wrapper.chmod(0o755)
+            workspace = private / "ws"
+            (workspace / sley2_tool.REPO_DIR).mkdir(parents=True)
+            with mock.patch.object(sley2_tool, "SESSION_TIMEOUT", 1):
+                with self.assertRaises(Exception):
+                    sley2_tool.Session(wrapper, workspace, [], seed_pack=False)
+            self.assertEqual(live_processes_with(marker), [], "serve child reaped")
+            remove_scratch(workspace)
+            self.assertFalse(workspace.exists(), "nothing recreated the scratch")
+        finally:
+            remove_scratch(private)
+
+
+
+class MergeProverStages(unittest.TestCase):
+    """A side read that fails leaves no `sley2-merge-*` directory."""
+
+    def test_a_failing_side_read_leaves_no_merge_scratch(self):
+        from bench.live import prove_merge_production as prover
+        private = Path(tempfile.mkdtemp(prefix="merge-stage-test-"))
+        saved = tempfile.tempdir
+        tempfile.tempdir = str(private)
+        try:
+            def refuse(*_args, **_kwargs):
+                raise RuntimeError("side read failed")
+            with mock.patch.dict(os.environ, {"SLEY2_SLEY_BINARY": "/nonexistent/sley"}), \
+                    mock.patch.object(sys, "argv", ["prove"]), \
+                    mock.patch.object(prover.sley2_tool, "Session", refuse), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                # The side read fails after its stage exists (the binary is
+                # unbound, or the session refuses): either way no stage stays.
+                with self.assertRaises(Exception):
+                    prover.main()
+            self.assertEqual(leftovers(private), [])
+        finally:
+            tempfile.tempdir = saved
+            remove_scratch(private)
+
+
+if __name__ == "__main__":
+    unittest.main()

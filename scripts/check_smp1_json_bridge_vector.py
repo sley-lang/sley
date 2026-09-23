@@ -338,9 +338,16 @@ def frame_from_json(text: str, names: dict[str, int]) -> dict:
     if kind == 4:
         # The all-zero bounds are the bridge's own rule; the session, request
         # id, method, and flags are the codec's hello header rule (SMP1
-        # section 2), so a violation keeps PROTOCOL_FRAME_INVALID.
+        # section 2), so a violation keeps PROTOCOL_FRAME_INVALID. The codec
+        # judges the protocol version first, as a version claim (bridge
+        # contract section 8), so the version split runs before the header
+        # rule, exactly as the crate orders them.
         if any(limits) or any(returned):
             raise shape()
+        if protocol_version < 1:
+            raise smp1.Failure("PROTOCOL_DOWNGRADE")
+        if protocol_version > 1:
+            raise smp1.Failure("PROTOCOL_VERSION_UNSUPPORTED")
         if session is not None or request_id != 0 or method != 0 or flags != 0:
             raise smp1.Failure("PROTOCOL_FRAME_INVALID")
     return {

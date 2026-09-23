@@ -1,10 +1,16 @@
 //! Private worker entry and its closed request envelope.
 //!
 //! The worker is a distinct dynamic-UID process with no repository,
-//! supervisor socket, issuer keys, or signing keys. It receives exactly one
-//! length-delimited [`WorkerRequest`] frame on stdin (the daemon-owned
-//! read-only input binding) and writes exactly one length-delimited
-//! [`WorkerReply`] frame on stdout (the daemon-owned bounded channel).
+//! supervisor socket, issuer keys, or signing keys. Its argv is exactly
+//! the transient unit's (`<worker> __native-test-worker <input_path>`,
+//! [`crate::unit::render_transient_unit`]): it reads exactly one
+//! length-delimited [`WorkerRequest`] frame from `<input_path>` (the
+//! daemon-owned read-only input binding) and writes exactly one
+//! length-delimited [`WorkerReply`] frame on stdout (the daemon-owned
+//! bounded channel). Its exit statuses ([`EXIT_MALFORMED`],
+//! [`EXIT_NOT_WIRED`], [`EXIT_INPUT_UNREADABLE`], [`EXIT_OUTPUT_FAILED`])
+//! are disjoint from the CLI's own statuses 2 through 5, so the launcher
+//! can tell a worker refusal from a CLI usage or input failure.
 //!
 //! Execution dispatch lands with the N5 commit path, which owns
 //! plans-to-inputs construction and the portable program artifact. Until
@@ -18,6 +24,15 @@ use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits
 fn read_id(value: &[u8]) -> Result<[u8; 32], ScbError> {
     <[u8; 32]>::try_from(value).map_err(|_| ScbError::new(ScbErrorCode::LengthOverflow))
 }
+
+/// Exit status: malformed envelope (refusal tag 1).
+pub const EXIT_MALFORMED: i32 = 1;
+/// Exit status: well-formed envelope, execution not wired (refusal tag 2).
+pub const EXIT_NOT_WIRED: i32 = 6;
+/// Exit status: the input binding could not be opened (refusal tag 3).
+pub const EXIT_INPUT_UNREADABLE: i32 = 7;
+/// Exit status: the refusal words could not be written to the output.
+pub const EXIT_OUTPUT_FAILED: i32 = 8;
 
 /// Worker envelope magic.
 pub const WORKER_MAGIC: &[u8; 8] = b"SLEYWRK1";
@@ -51,6 +66,8 @@ pub enum WorkerRefusal {
     Malformed(&'static str),
     /// Envelope decodes but execution dispatch is not wired yet (N5).
     ExecutionNotWired,
+    /// The input binding named by argv could not be opened.
+    InputUnreadable,
 }
 
 impl WorkerRefusal {
@@ -60,6 +77,7 @@ impl WorkerRefusal {
         match self {
             Self::Malformed(_) => 1,
             Self::ExecutionNotWired => 2,
+            Self::InputUnreadable => 3,
         }
     }
 }
@@ -69,6 +87,7 @@ impl core::fmt::Display for WorkerRefusal {
         match self {
             Self::Malformed(_) => formatter.write_str("NATIVE_WORKER_MALFORMED_ENVELOPE"),
             Self::ExecutionNotWired => formatter.write_str("NATIVE_WORKER_EXECUTION_NOT_WIRED"),
+            Self::InputUnreadable => formatter.write_str("NATIVE_WORKER_INPUT_UNREADABLE"),
         }
     }
 }
@@ -296,12 +315,23 @@ pub fn dispatch(frame: &[u8]) -> Result<Vec<u8>, WorkerRefusal> {
     Err(WorkerRefusal::ExecutionNotWired)
 }
 
-/// Private worker entry over standard streams.
+/// Private worker entry over its input binding.
+///
+/// Opens `input_path` read-only and runs [`run_stdio`] over it; an input
+/// that cannot be opened refuses with tag 3 and [`EXIT_INPUT_UNREADABLE`].
+pub fn run_input_path(input_path: &std::path::Path, output: &mut dyn std::io::Write) -> i32 {
+    match std::fs::File::open(input_path) {
+        Ok(mut file) => run_stdio(&mut file, output),
+        Err(_) => write_refusal(output, WorkerRefusal::InputUnreadable),
+    }
+}
+
+/// Private worker entry over a byte stream.
 ///
 /// Reads exactly one length-delimited frame from `input`, dispatches, and
-/// writes the refusal code to `output` as two big-endian `u32` words
-/// (refusal tag, detail code). Returns the process exit code: always
-/// nonzero until N5 wires execution.
+/// writes the refusal to `output` as one big-endian `u32` refusal tag
+/// followed by the ASCII detail code. Returns the process exit code:
+/// always nonzero until N5 wires execution.
 pub fn run_stdio(input: &mut dyn std::io::Read, output: &mut dyn std::io::Write) -> i32 {
     let mut header = [0_u8; 12];
     if input.read_exact(&mut header).is_err() {
@@ -330,15 +360,17 @@ fn write_refusal(output: &mut dyn std::io::Write, refusal: WorkerRefusal) -> i32
     let detail = match refusal {
         WorkerRefusal::Malformed(code) => code,
         WorkerRefusal::ExecutionNotWired => "NATIVE_WORKER_EXECUTION_NOT_WIRED",
+        WorkerRefusal::InputUnreadable => "NATIVE_WORKER_INPUT_UNREADABLE",
     };
     let mut bytes = refusal.tag().to_be_bytes().to_vec();
     bytes.extend_from_slice(detail.as_bytes());
     if output.write_all(&bytes).is_err() {
-        return 3;
+        return EXIT_OUTPUT_FAILED;
     }
     match refusal {
-        WorkerRefusal::Malformed(_) => 1,
-        WorkerRefusal::ExecutionNotWired => 2,
+        WorkerRefusal::Malformed(_) => EXIT_MALFORMED,
+        WorkerRefusal::ExecutionNotWired => EXIT_NOT_WIRED,
+        WorkerRefusal::InputUnreadable => EXIT_INPUT_UNREADABLE,
     }
 }
 
@@ -412,11 +444,44 @@ mod tests {
         let mut input = std::io::Cursor::new(frame);
         let mut output = Vec::new();
         // Well-formed envelope reaches the unwired dispatch refusal.
-        assert_eq!(run_stdio(&mut input, &mut output), 2);
+        assert_eq!(run_stdio(&mut input, &mut output), EXIT_NOT_WIRED);
         assert_eq!(u32::from_be_bytes(output[..4].try_into().unwrap()), 2);
         assert_eq!(&output[4..], b"NATIVE_WORKER_EXECUTION_NOT_WIRED");
         let mut bad = std::io::Cursor::new(vec![0x00; 4]);
         let mut output = Vec::new();
-        assert_eq!(run_stdio(&mut bad, &mut output), 1);
+        assert_eq!(run_stdio(&mut bad, &mut output), EXIT_MALFORMED);
+    }
+
+    #[test]
+    fn exit_statuses_are_disjoint_from_the_cli_statuses() {
+        // The CLI's own statuses are 0 and 2 through 5 (SLEY_CLI_V1 section 4).
+        for status in [
+            EXIT_MALFORMED,
+            EXIT_NOT_WIRED,
+            EXIT_INPUT_UNREADABLE,
+            EXIT_OUTPUT_FAILED,
+        ] {
+            assert!(![0, 2, 3, 4, 5].contains(&status), "{status}");
+        }
+    }
+
+    #[test]
+    fn input_path_entry_reads_the_binding_and_refuses_an_absent_one() {
+        let frame = request().encode_frame().expect("encodes");
+        let dir = std::env::temp_dir().join(format!("sley-worker-input-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let path = dir.join("input.bin");
+        std::fs::write(&path, &frame).expect("write");
+        let mut output = Vec::new();
+        assert_eq!(run_input_path(&path, &mut output), EXIT_NOT_WIRED);
+        assert_eq!(&output[4..], b"NATIVE_WORKER_EXECUTION_NOT_WIRED");
+        let mut output = Vec::new();
+        assert_eq!(
+            run_input_path(&dir.join("absent.bin"), &mut output),
+            EXIT_INPUT_UNREADABLE
+        );
+        assert_eq!(u32::from_be_bytes(output[..4].try_into().unwrap()), 3);
+        assert_eq!(&output[4..], b"NATIVE_WORKER_INPUT_UNREADABLE");
+        std::fs::remove_dir_all(&dir).expect("cleanup");
     }
 }

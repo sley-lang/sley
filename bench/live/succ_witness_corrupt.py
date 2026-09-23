@@ -51,8 +51,10 @@ sys.path.insert(0, str(ROOT))
 
 from bench.fixtures import sley2_live_judge as judge  # noqa: E402
 from bench.live import sley2_tool  # noqa: E402
+from bench.live.scratch import scratch_root  # noqa: E402
 from bench.live.taskpacks import stage_initial  # noqa: E402
 from bench.live.tooling import stage_tooling  # noqa: E402
+from bench.live.witness_provenance import source_identity  # noqa: E402
 
 
 VARIANTS = ("pos", "neg", "neg-accepted", "neg-unresealed")
@@ -120,6 +122,7 @@ def main() -> int:
         lines.append(text)
         print(text, flush=True)
 
+    emit(f"CORRUPT witness/{variant}: {source_identity(ROOT)}")
     tmp = tempfile.mkdtemp(prefix="sley2-corrupt-witness-")
     ws = Path(tmp) / "ws"
     stage_initial("sley_2_0", "S2B-CORRUPT-001", ws)
@@ -202,7 +205,7 @@ def main() -> int:
                  f"{json.dumps(evidence, sort_keys=True)}")
         emit(f"S2B-CORRUPT-001 witness/{variant} provenance: "
              f"{json.dumps(_provenance(), sort_keys=True)}")
-        emit(f"workspace kept at: {ws}")
+        emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
     finally:
         os.chdir(saved_cwd)
     if log_path is not None:
@@ -212,4 +215,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # Every temporary directory of the run (the witness workspace and the
+    # judge's scratch copies) lives under one root removed on every path.
+    with scratch_root("sley2-witness-corrupt-run-"):
+        code = main()
+    raise SystemExit(code)

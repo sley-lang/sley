@@ -1,14 +1,36 @@
 # S20-620 Sley 2 Trial Runner Closeout
 
+Completion record (2026-09-23): contract revision 8 has PASS verdicts in all three Council lanes (scoped to 03b25eb; see the machine summary lane fields and `bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md` section 15); status `S20_620_COMPLETE`. The open P3/P4 findings of the last rounds are recorded as `p3_open`/`p4_open` claims in the machine summary and do not block completion. The text below is retained as history.
+
+## Revision 5 status (2026-09-23)
+
+The package now implements contract revision 5: the frozen nineteen-name
+allowlist is revision 4's eighteen names plus `workspace.open`, moved from
+the denied methods as the arm's accepted-head opener, whose response
+carries the accepted head's already-materialized index snapshot identity
+(REQ-10 context bounded discovery). Status
+`S20_620_IMPLEMENTED_REVIEW_PENDING`. The revision 5 round (5b538f3)
+returned REVISE from all three lanes; the answered text is contract
+revision 6, whose Nabu and Vulcan reviews (f073811) and Ariadne review
+(2b0f1c9) PASS. Contract revision 7 (2026-09-23) answered that round's
+P3/P4 findings; its reviews at 26d050e were Vulcan PASS, Ariadne and Nabu
+REVISE (the completion gate bound by field name only; the absent-boundary
+sentence was false). Contract revision 8 answers them; its new-delta
+review is pending, so the package is not complete.
+23 offline tests. Implementation record:
+`bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md`. The revision 4
+status below and the revision 2 record are retained as history.
+
 ## Revision 4 status (2026-09-10)
 
-The package now implements contract revision 4 (frozen eighteen-name
+The package implemented contract revision 4 (frozen eighteen-name
 allowlist with the entity reads, snapshot-bound claim digest, required
 version 2 stamping, version 2 table digest); 23 offline tests; smoke 8/8
 green with zero failed answers. The revision 2 record below is retained as
 history. Details: Revision 4 attestation.
 
 Status: **implemented under the draft Sley 2 Trial Runner v1 contract (revision 2); Council reviews pending, so the package is not complete; no model ran and no real trial exists; the Sley 2 goal remains incomplete**
+
 
 Date: 2026-09-03
 

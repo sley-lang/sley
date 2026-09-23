@@ -68,8 +68,10 @@ sys.path.insert(0, str(ROOT))
 
 from bench.fixtures import sley2_live_judge as judge  # noqa: E402
 from bench.live import sley2_codecs, sley2_tool  # noqa: E402
+from bench.live.scratch import scratch_root  # noqa: E402
 from bench.live.taskpacks import stage_initial  # noqa: E402
 from bench.live.tooling import stage_tooling  # noqa: E402
+from bench.live.witness_provenance import source_identity  # noqa: E402
 
 TASK_ID = "S2B-DEAD-001"
 TASK_DIR = ROOT / "bench" / "fixtures" / "sley2" / TASK_ID
@@ -252,6 +254,7 @@ def main() -> int:
 
     tag = f"DEAD witness/{variant}"
     emit(f"{tag}: provenance {json.dumps(provenance(), sort_keys=True)}")
+    emit(f"DEAD witness/{variant}: {source_identity(ROOT)}")
     tmp = tempfile.mkdtemp(prefix="sley2-dead-witness-")
     ws = Path(tmp) / "ws"
     stage_initial("sley_2_0", TASK_ID, ws)
@@ -328,7 +331,7 @@ def main() -> int:
         if verdict.get("code") == "ORACLE_COMMIT_REJECTED":
             emit(f"{tag}: commit refusal symbols {failure_symbols(verdict.get('detail', ''))}")
         emit(f"{TASK_ID} witness/{variant} judge exit: {exit_code}")
-        emit(f"workspace kept at: {ws}")
+        emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
     finally:
         os.chdir(saved_cwd)
         log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -337,4 +340,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # Every temporary directory of the run (the witness workspace and the
+    # judge's scratch copies) lives under one root removed on every path.
+    with scratch_root("sley2-witness-dead-run-"):
+        code = main()
+    raise SystemExit(code)

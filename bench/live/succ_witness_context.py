@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
 """Deterministic CONTEXT witness through the real trial surface (no model).
 
-Stages the 10,011-entity store, adds an agent-chosen Bool field to the
-typedef plus the complete 3-const impact closure through
-propose/finish, then runs the frozen live judge (live count, added
+Stages the 10,011-entity store and runs the agent-side CONTEXT
+discovery and repair (`mediated_client.context_discover_and_repair`)
+over the direct tool, then the frozen live judge (live count, added
 member + closure checks, bounded transcript, agent-access audit with
 bounded-continuation semantics). Variants:
-  pos  full closure (must accept)
-  neg  typedef only, closure untouched (must reject
-       ORACLE_IMPACT_INCOMPLETE)
+  pos  complete discovery and repair (must accept)
+  neg  complete discovery, typedef-only repair: production validation
+       refuses the incomplete closure, so no finishable candidate forms
 
-The member identity is agent-authored locally (0xE1, never a
-manifest literal: the judge discovers added members by diffing the
-typedef against the pristine base pre-image). The impact set below
-still comes from fixture layout (mechanics scaffolding, disclosed):
-no permitted bounded route can enumerate a typedef's users today
-(inventory is whole-store; reads need ids; server queries need an
-unmintable snapshot), so impact discovery itself is retained as the
-review gate — the witness proves the fix mechanics, not discovery
-fairness.
+Every identity comes from the interface, never from a manifest or an
+argument: `open` discloses the accepted head and (once materialized)
+its index snapshot identity; bounded class-4 and class-14 root queries
+find the record typedef and its reverse impact closure; class-2 probes
+and reads select the impacted constants. The added member identity is
+agent-authored (0xE1; the judge discovers added members by diffing the
+typedef against its pristine pre-image). The judge audits
+continuation by query and cursor; this witness reads the closure in one
+untruncated 16-entity page, and paged discovery with explicit
+continuation is proved on the mediated route
+(`bench/live/tests/test_mediated_context.py`).
 
 Usage: succ_witness_context.py [pos|neg] [logfile]
 Env: SLEY2_SLEY_BINARY, SUCC_JUDGE_TEST_BINARY (both required).
@@ -38,9 +40,12 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from bench.fixtures import sley2_live_judge as judge  # noqa: E402
+from bench.live.scratch import scratch_root  # noqa: E402
 from bench.live import sley2_tool  # noqa: E402
+from bench.live.mediated_client import context_discover_and_repair  # noqa: E402
 from bench.live.taskpacks import stage_initial  # noqa: E402
 from bench.live.tooling import stage_tooling  # noqa: E402
+from bench.live.witness_provenance import source_identity  # noqa: E402
 
 
 def main() -> int:
@@ -49,97 +54,56 @@ def main() -> int:
     for key in ("SLEY2_SLEY_BINARY", "SUCC_JUDGE_TEST_BINARY"):
         if not os.environ.get(key):
             raise SystemExit(f"missing env {key}")
+    if variant not in ("pos", "neg"):
+        raise SystemExit("variant must be pos or neg")
     lines: list[str] = []
 
     def emit(text: str) -> None:
         lines.append(text)
         print(text, flush=True)
 
+    # Source identity of the run: the commit the witness code ran at and
+    # any tracked dirty paths other than witness log outputs.
+    emit(f"CONTEXT witness/{variant}: {source_identity(ROOT)}")
+
     tmp = tempfile.mkdtemp(prefix="sley2-context-witness-")
     ws = Path(tmp) / "ws"
     stage_initial("sley_2_0", "S2B-CONTEXT-001", ws)
     stage_tooling("sley_2_0", ws)
-    manifest = json.loads((ROOT / "bench" / "fixtures" / "sley2"
-                           / "S2B-CONTEXT-001" / "task_manifest.json"
-                           ).read_text())
-    typedef = manifest["entities"]["typedef"]
-    impact = [manifest["entities"][role]
-              for role in ("user_const_0", "user_const_1", "user_const_2")]
-    # Agent-authored member identity (never a manifest literal).
-    member = "e1" * 32
-    want_type = {"variant": "Bool"}
     saved_cwd = os.getcwd()
     os.chdir(ws)
     try:
-        def run(*argv: str) -> tuple[int, dict]:
+        def call(name: str, phase: str, command: str,
+                 args: list[str]) -> dict:
             out = io.StringIO()
             with mock.patch.object(sley2_tool.sys, "stdout", out):
-                code = sley2_tool.main(list(argv))
-            return code, json.loads(out.getvalue())
+                code = sley2_tool.main([command, *args])
+            printed = json.loads(out.getvalue())
+            if code == 0:
+                return {"ok": True, "report": printed.get("report")}
+            return {"ok": False, "error": printed.get("code"),
+                    "detail": printed.get("detail")}
 
-        def read_body(entity: str) -> tuple[int, dict]:
-            _, rep = run("read", entity)
-            view = rep["report"]
-            assert not view.get("failed"), view
-            entry = view["decoded"]["entries"][0]
-            return entry["kind"], entry["body"]
-
-        kind, typedef_body = read_body(typedef)
-        form = dict(typedef_body.get("form") or {})
-        fields = list(form.get("value") or [])
-        assert not any(isinstance(f, dict) and f.get("member_id") == member
-                       for f in fields), "member already present"
-        fields.append({"member_id": member,
-                       "value_type": want_type,
-                       "visibility": "Private"})
-        form["value"] = fields
-        typedef_body["form"] = form
-        ops = [{"class": "ReplaceEntityVersion", "kind": kind,
-                "target": typedef, "field_tag": None,
-                "payload": typedef_body}]
-        if variant == "pos":
-            for target in impact:
-                kind_c, const_body = read_body(target)
-                value = dict(const_body.get("value") or {})
-                data = dict(value.get("data") or {})
-                record = dict(data.get("value") or {})
-                const_fields = list(record.get("fields") or [])
-                const_fields.append({
-                    "member_id": member,
-                    "value": {"value_type": {"variant": "Bool"},
-                              "data": {"variant": "Bool",
-                                       "value": False}}})
-                record["fields"] = const_fields
-                data["value"] = record
-                value["data"] = data
-                const_body["value"] = value
-                ops.append({"class": "ReplaceEntityVersion", "kind": kind_c,
-                            "target": target, "field_tag": None,
-                            "payload": const_body})
-        code, rep2 = run("propose", json.dumps(ops))
-        report2 = rep2.get("report", {})
+        outcome = context_discover_and_repair(
+            call, "pos" if variant == "pos" else "incomplete",
+            impact_page_size=16)
+        emit(f"CONTEXT witness/{variant}: discovery "
+             f"{json.dumps(outcome.get('discovery'), sort_keys=True)}")
         emit(f"CONTEXT witness/{variant}: propose valid "
-             f"{report2.get('valid')} decision {report2.get('decision')}")
-        if not report2.get("valid"):
-            if variant == "neg":
-                # The incomplete closure is refused at validation: the
-                # typedef change without its impact closure cannot even
-                # form a finishable candidate. That refusal IS the
-                # negative evidence (nothing to judge).
+             f"{outcome.get('valid')} decision {outcome.get('decision')}")
+        if not outcome.get("finished"):
+            if variant == "neg" and outcome.get("valid") is False:
+                # The typedef change without its impact closure cannot
+                # form a finishable candidate: that production refusal
+                # IS the negative evidence (nothing to judge).
                 emit("CONTEXT witness/neg: incomplete closure refused "
                      "at validation; no finishable candidate")
-                emit(f"workspace kept at: {ws}")
-                os.chdir(saved_cwd)
-                if log_path is not None:
-                    log_path.parent.mkdir(parents=True, exist_ok=True)
-                    log_path.write_text("\n".join(lines) + "\n",
-                                        encoding="utf-8")
+                emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
                 return 0
-            emit(f"propose detail {json.dumps(report2)[:300]}")
+            emit(f"CONTEXT witness/{variant}: not finished: "
+                 f"{outcome.get('error')}")
             return 2
-        code, rep3 = run("finish", report2["record"])
-        emit(f"CONTEXT witness/{variant}: finished "
-             f"{rep3.get('report', {}).get('finished')}")
+        emit(f"CONTEXT witness/{variant}: finished True")
         saved_argv = sys.argv
         sys.argv = ["sley2_live_judge", str(ws)]
         try:
@@ -147,14 +111,18 @@ def main() -> int:
         finally:
             sys.argv = saved_argv
         emit(f"S2B-CONTEXT-001 witness/{variant} judge exit: {exit_code}")
-        emit(f"workspace kept at: {ws}")
+        emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
     finally:
         os.chdir(saved_cwd)
-    if log_path is not None:
-        log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        if log_path is not None:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # Every temporary directory of the run (the witness workspace and the
+    # judge's scratch copies) lives under one root removed on every path.
+    with scratch_root("sley2-witness-context-run-"):
+        code = main()
+    raise SystemExit(code)

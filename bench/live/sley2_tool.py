@@ -7,11 +7,12 @@ same pattern as the endpoint smoke runner), opens a session, executes
 exactly one documented command, closes, and prints a JSON result envelope.
 No state survives across invocations; the harness records every result.
 
-The agent surface is the frozen eighteen-method allowlist (pinned equal to
-the smoke runner's list by test). Request bodies cross as lowercase hex,
-validated here; owner bodies stay opaque per the bridge contract — the
-tool decodes read responses into JSON views (display only, never a
-verdict) and assembles candidate records from structured operations, all
+The agent surface is the frozen nineteen-method allowlist, equal in tuple
+order to the smoke runner's `ARM_AFFORDANCES` (asserted by
+`test_tool_methods_equal_runner_allowlist_in_order`). Request bodies
+cross as lowercase hex, validated here; owner bodies stay opaque per the
+bridge contract — the tool decodes read responses into JSON views
+(display only, never a verdict) and assembles candidate records from structured operations, all
 through the pinned oracle/scb1 codecs. It performs no evaluation: an
 invalid assembly is refused by the server, and acceptance belongs solely
 to the independent trial oracle.
@@ -21,8 +22,11 @@ Commands (run from the trial workspace directory):
   inventory                  list served-repo object ids with decoded kinds
   read <entity-hex>          entity.version with a decoded view
   sig <entity-hex>           entity.signature with a decoded view
-  revision                   current accepted-head summary
+  open                       workspace.open: accepted-head summary, plus the
+                             head's materialized index snapshot id when present
+  revision <tx-hex>          revision.read of a transaction id (e.g. from open)
   caps | budgets             session capability / budget views (raw)
+  side ours|theirs           frozen MERGE side state with decoded bodies
   raw <method> <body-hex>    one guarded frame of any allowlisted method
    propose <ops-json>         assemble + create + validate a candidate
    append <record-hex> <ops-json>
@@ -67,7 +71,10 @@ USAGE_NAME = ".sley-live-usage"
 CHAIN_NAME = ".sley-live-transcript.jsonl"
 # Agent/tool boundary version, pinned by the judge: every chained entry
 # carries it, and access evidence from any other version is unverifiable.
-TOOL_VERSION = "1"
+# "2" (trial-runner contract revision 5): the `open` command, `revision
+# <tx>`, the nineteen-method raw set, and continuation bindings in the
+# transcript; evidence stamped "1" is the revision 4 surface and rejects.
+TOOL_VERSION = "2"
 # Stated per-call agent-visible response bound (frozen S3 CONTEXT ceiling):
 # no single response the agent sees may exceed it.
 MAX_RESPONSE_BYTES = 1048576
@@ -76,15 +83,22 @@ WHOLE_STORE_METHODS = frozenset({"inventory"})
 # Continuation machinery: bounded paging with explicit omitted/truncated
 # accounting, never silent drops.
 CONTINUATION_METHODS = frozenset({"query.continue", "query.root", "query.restricted"})
+# Root-backed query methods whose answered pages carry a continuation
+# binding (`_root_query_chain`): the judge discharges a truncated page only
+# with a successful `query.continue` of the same query at that page's next
+# cursor.
+ROOT_QUERY_METHODS = frozenset({"query.root", "query.continue"})
 PROTOCOL_VERSION = 2
 SESSION_TIMEOUT = 120
 HEX_64 = re.compile(r"[0-9a-f]{64}\Z")
 HEX_ANY = re.compile(r"[0-9a-f]*\Z")
 
-# The frozen eighteen-method surface, pinned equal to the smoke runner's
-# allowlist by test. Commit, merge, execute, export, import, report,
-# session management, and tests stay outside the agent's reach by
-# construction: the dispatcher below has no path that names them.
+# The frozen nineteen-method surface, in the smoke runner's
+# `ARM_AFFORDANCES` tuple order (contract revision 5; the pin test
+# `test_tool_methods_equal_runner_allowlist_in_order` asserts the
+# equality). Commit, merge, execute, export, import, report, session
+# management, and tests stay outside the agent's reach by construction:
+# the dispatcher below has no path that names them.
 TOOL_METHODS = (
     "candidate.append",
     "candidate.create",
@@ -104,7 +118,16 @@ TOOL_METHODS = (
     "revision.read",
     "session.budgets",
     "session.capabilities",
+    "workspace.open",
 )
+# Revision summaries (revision.read, workspace.open) share one record
+# layout; the decoded view names its fields (display only). Field 9 is the
+# accepted head's materialized index snapshot identity, carried by
+# workspace.open only and structurally absent when not materialized.
+SUMMARY_METHODS = frozenset({"revision.read", "workspace.open"})
+SUMMARY_ID_FIELDS = ((1, "tx"), (2, "root"), (3, "policy"), (4, "workspace"),
+                     (5, "epoch"), (8, "receipt"), (9, "snapshot"))
+SUMMARY_COUNT_FIELDS = ((6, "objects"), (7, "tombstones"))
 
 # Trial principal and candidate expiry: fixed constants, identical for
 # every trial, recorded in every transcript. The principal carries no
@@ -176,6 +199,60 @@ def _parse_record_fields(body: bytes) -> dict[int, bytes]:
     return fields
 
 
+# Root query wire offsets (SMP1 appendix A rows 300/301; ROOT_BACKED
+# profile sections 5-6): the request cursor starts after the fixed request
+# prefix, the response echo cursor after the fixed response prefix.
+_RQ_PREFIX = 8 + 4 + 4 + 4 * 32 + 4 + 4 + (8 + 8 + 4 + 8 + 8) + 4
+_RR_PREFIX = 8 + 4 + 4 + 32 + 4 * 32 + 4 + 4 + (8 + 8 + 4 + 8 + 8) + 4
+_CURSOR_PAYLOAD = {1: 32, 2: 68, 3: 32}
+
+
+def _cursor_span(data: bytes, at: int) -> tuple[str | None, int]:
+    """(cursor token, end offset) of an option cursor at `at`: None for
+    none, else "<kind>:<payload hex>"."""
+
+    if at + 4 > len(data):
+        raise ValueError("cursor")
+    tag = int.from_bytes(data[at:at + 4], "big")
+    if tag == 1:
+        return None, at + 4
+    if tag != 2 or at + 8 > len(data):
+        raise ValueError("cursor")
+    kind = int.from_bytes(data[at + 4:at + 8], "big")
+    size = _CURSOR_PAYLOAD.get(kind)
+    if size is None or at + 8 + size > len(data):
+        raise ValueError("cursor")
+    return f"{kind}:{data[at + 8:at + 8 + size].hex()}", at + 8 + size
+
+
+def _root_query_chain(request_hex: str, response_hex: str) -> dict[str, Any] | None:
+    """Continuation binding of one answered root query, derived on the
+    trusted side from the exact request and response bodies: `query` is the
+    sha256 of the request with its cursor elided (same class, body, limits,
+    paging, and head binding), `after` the request cursor, `truncated` and
+    `next` the response's own flag and next cursor. None when a body does
+    not parse (such a page can never discharge a continuation)."""
+
+    try:
+        request = bytes.fromhex(request_hex)
+        response = bytes.fromhex(response_hex)
+        if request[:8] != b"SLEYRQQ1" or response[:8] != b"SLEYRQR1":
+            return None
+        after, end = _cursor_span(request, _RQ_PREFIX)
+        key = hashlib.sha256(request[:_RQ_PREFIX] + request[end:]).hexdigest()
+        _, echo_end = _cursor_span(response, _RR_PREFIX)
+        at = echo_end + 4 + 8 + 8
+        if at + 4 > len(response):
+            return None
+        truncated = {1: False, 2: True}.get(int.from_bytes(response[at:at + 4], "big"))
+        if truncated is None:
+            return None
+        following, _ = _cursor_span(response, at + 4)
+    except ValueError:
+        return None
+    return {"query": key, "after": after, "truncated": truncated, "next": following}
+
+
 def _uvar(body: bytes, position: int) -> tuple[int, int]:
     value = 0
     for width in range(1, 10):
@@ -187,6 +264,26 @@ def _uvar(body: bytes, position: int) -> tuple[int, int]:
             return value, width
     _fail("uvar")
     raise AssertionError("unreachable")
+
+
+def _abandon(endpoint: Endpoint) -> None:
+    """Kill and reap an endpoint's serve child without waiting on its
+    end of input (the failure path of `Session.__init__`)."""
+    process = getattr(endpoint, "_process", None)
+    if process is None:
+        return
+    try:
+        process.kill()
+    except OSError:
+        pass
+    try:
+        process.communicate(timeout=10)
+    except Exception:  # noqa: BLE001 - reaping is best effort after kill
+        try:
+            process.wait(timeout=10)
+        except Exception:  # noqa: BLE001
+            pass
+    endpoint._closed = True  # noqa: SLF001 - the child is gone
 
 
 class Session:
@@ -207,6 +304,16 @@ class Session:
         else:
             self._pack_hex = ""
         self._endpoint = Endpoint(sley, repo, self._workspace / REPORT_NAME, SESSION_TIMEOUT, PROFILE_ARGS)
+        try:
+            self._open(sley, transcript, seed_pack)
+        except BaseException:
+            # A constructor that fails after the serve child started must
+            # not leave it running: an unreaped child could keep writing
+            # into a scratch workspace its caller is about to remove.
+            _abandon(self._endpoint)
+            raise
+
+    def _open(self, sley: Path, transcript: list[dict[str, Any]], seed_pack: bool) -> None:
         self._transcript = transcript
         self._seq = 0
         self._session: str | None = None
@@ -312,10 +419,14 @@ class Session:
         # Bounds travel in the transcript (not bodies): later audits can
         # verify bounded usage (omitted/truncated flags) without bodies.
         bounds = out.get("bounds") if isinstance(out.get("bounds"), dict) else {}
-        self._record({"direction": "response", "failed": bool(out["flags"].get("failed")),
-                      "body_sha256": hashlib.sha256((out.get("body") or "").encode()).hexdigest(),
-                      "omitted": bounds.get("omitted", 0), "truncated": bounds.get("truncated", False),
-                      "returned_bytes": bounds.get("returned_bytes", 0)})
+        failed = bool(out["flags"].get("failed"))
+        entry = {"direction": "response", "failed": failed,
+                 "body_sha256": hashlib.sha256((out.get("body") or "").encode()).hexdigest(),
+                 "omitted": bounds.get("omitted", 0), "truncated": bounds.get("truncated", False),
+                 "returned_bytes": bounds.get("returned_bytes", 0)}
+        if method in ROOT_QUERY_METHODS and not failed:
+            entry["chain"] = _root_query_chain(body_hex, out.get("body") or "")
+        self._record(entry)
         return out
 
     def _request(self, method: str, body_hex: str, request_id: int | None = None, counter: int | None = None) -> dict[str, Any]:
@@ -399,11 +510,39 @@ def _view(session: Session, method: str, body_hex: str) -> dict[str, Any]:
             return {"failed": True, "body": reply.get("body") or "", "decoded": decoded["decoded"]}
         except sley2_codecs.CodecError:
             return {"failed": True, "body": reply.get("body") or ""}
+    if method in SUMMARY_METHODS:
+        return {"failed": False, "body": reply["body"],
+                "decoded": _summary_view(reply["body"])}
     try:
         [decoded] = sley2_codecs.run_batch([{"op": "decode_response", "method": method, "body": reply["body"]}])
         return {"failed": False, "body": reply["body"], "decoded": decoded["decoded"]}
     except sley2_codecs.CodecError:
         return {"failed": False, "body": reply["body"], "decoded": None}
+
+
+def _summary_view(body_hex: str) -> dict[str, Any] | None:
+    """Framing-only view of a revision summary (display, never a verdict):
+    32-byte identities as hex, counts as integers. Field 9 appears only
+    when the response carries it; nothing is inferred for its absence."""
+
+    try:
+        fields = _parse_record_fields(bytes.fromhex(body_hex))
+    except (Sley2ToolError, ValueError):
+        return None
+    view: dict[str, Any] = {}
+    for tag, name in SUMMARY_ID_FIELDS:
+        if tag in fields:
+            view[name] = fields[tag].hex()
+    for tag, name in SUMMARY_COUNT_FIELDS:
+        if tag in fields:
+            try:
+                value, width = _uvar(fields[tag], 0)
+            except Sley2ToolError:
+                return None
+            if width != len(fields[tag]):
+                return None
+            view[name] = value
+    return view
 
 
 def _side_current(session: Session, workspace: Path) -> dict[str, Any]:
@@ -714,8 +853,15 @@ def dispatch(session: Session, workspace: Path, argv: list[str]) -> dict[str, An
         return _view(session, "entity.version", _entity_body(session, _hex(rest[0], 64).hex()))
     if command == "sig" and len(rest) == 1:
         return _view(session, "entity.signature", _entity_body(session, _hex(rest[0], 64).hex()))
-    if command == "revision" and not rest:
-        return _view(session, "revision.read", session.head["tx"])
+    if command == "open" and not rest:
+        # The agent's own accepted-head opener (contract revision 5): a
+        # guarded, transcript-captured workspace.open. The harness head
+        # read in Session.__init__ stays harness bookkeeping.
+        return _view(session, "workspace.open", "")
+    if command == "revision" and len(rest) == 1:
+        # The transaction id is agent-supplied (for instance the tx of a
+        # prior `open`); no harness-held head is read here.
+        return _view(session, "revision.read", _hex(rest[0], 64).hex())
     if command == "caps" and not rest:
         return _view(session, "session.capabilities", "")
     if command == "budgets" and not rest:
@@ -1025,6 +1171,10 @@ def _command_evidence(argv: list[str], result: dict[str, Any] | None) -> tuple[d
         records["in"] = hashlib.sha256(rest[0].encode()).hexdigest()
     elif command == "side" and len(rest) == 1:
         args = {"side": rest[0]}
+    elif command == "open" and not rest:
+        args = {"opened": True}
+    elif command == "revision" and len(rest) == 1:
+        args = {"tx": rest[0]}
     return args, records
 
 

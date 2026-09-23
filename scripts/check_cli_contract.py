@@ -28,9 +28,9 @@ IMPLEMENTATION_STATUSES = (
     REVIEW_PENDING_STATUS,
     COMPLETE_STATUS,
 )
-SPEC_REVISION = 8
-SMP1_REVISION = 12
-BRIDGE_REVISION = 10
+SPEC_REVISION = 10
+SMP1_REVISION = 15
+BRIDGE_REVISION = 12
 
 CODES = (
     (43000, "CLI_USAGE_INVALID", 2),
@@ -61,6 +61,26 @@ SPEC_MARKERS = (
     "no `--protocol-version` alias",
     "VERSION_MISMATCH",
 )
+# Revision 10 anchors, matched on whitespace-flattened text: the version 3
+# capable surface and the bounded worker entry as the code ships them.
+FLAT_SPEC_MARKERS = (
+    "[--protocol-profile v2-capable|v3-capable]",
+    "[--protocol-profile v2-capable|v3-capable --expected-version 1|2|3]",
+    "`--protocol-profile` takes exactly `v2-capable` or `v3-capable`",
+    "`v3-capable` admits `--expected-version 1|2|3`",
+    "stamped at the selected version (1, 2, or 3)",
+    "Under `--protocol-profile v3-capable` the endpoint offers `Server::offered_hello_v3`",
+    "the report is `sley2-cli-report-v3`",
+    "`selected_protocol_version` `1 | 2 | 3 | null`",
+    "the metadata is the additive contract `sley2-cli-v3`",
+    "## 10. Private native-test worker entry (revision 10)",
+    "`sley __native-test-worker <input_path>`",
+    "| 6 | 2 | `NATIVE_WORKER_EXECUTION_NOT_WIRED` |",
+    "| 7 | 3 | `NATIVE_WORKER_INPUT_UNREADABLE` |",
+    "These statuses are disjoint from the section 4 statuses (0, 2, 3, 4, 5)",
+    "`sley_test_runner::worker::run_input_path(`",
+    "for the section 10 worker entry only, `sley-test-runner`",
+)
 ADR_MARKERS = (
     "# ADR-0035: the CLI as a transport endpoint with no semantics",
     "1. **Endpoint only.**",
@@ -73,11 +93,15 @@ ADR_MARKERS = (
     "Revision 6 record (2026-09-09)",
     "the capable CLI runtime is implemented in revision 6 under the phase-3 slice",
     "Revision 8 record (2026-09-14)",
+    "Revision 9 record (2026-09-23)",
+    "Revision 10 record (2026-09-23)",
+    "8. **One bounded exception: the native-test worker entry (revision 10).**",
 )
 WORK_PACKAGE_MARKERS = (
     "`docs/spec/SLEY_CLI_V1.md`",
     "ADR-0035",
-    "(revision 8, 2026-09-14, ADR-0035; revision-6 new-delta review PASS",
+    f"(revision {SPEC_REVISION}, 2026-09-23, ADR-0035: admits the version 3 capable surface and the native-test worker entry, re-pins SMP1 revision {SMP1_REVISION} and bridge revision {BRIDGE_REVISION}",
+    "revision 8, 2026-09-14; revision-6 new-delta review PASS",
     "capable CLI runtime implemented under the phase-3 slice",
 )
 CRATE_MARKERS = (
@@ -147,6 +171,52 @@ def check_current_delta_review(
             problems.append("review:current-delta-frozen-requires-pass")
 
 
+COMPOSITION_ANCHOR = re.compile(
+    r"every judgment about a frame comes from the server "
+    r"\(`docs/spec/SMP1\.md` revision (\d+),.*?the bridge "
+    r"\(`docs/spec/SMP1_JSON_BRIDGE_V1\.md` revision (\d+)\)",
+    flags=re.S,
+)
+
+
+def composition_pin_problems(spec: str) -> list[str]:
+    """The normative composition sentence names the pinned revisions.
+
+    The sentence that defines the CLI's authority (SMP1 for every frame
+    judgment, the bridge for every representation) is anchored, so a stale
+    revision there fails even when a history sentence elsewhere carries
+    the current pins."""
+    flat = re.sub(r"\s+", " ", spec)
+    match = COMPOSITION_ANCHOR.search(flat)
+    if match is None:
+        return ["composition-sentence:missing"]
+    problems = []
+    if int(match.group(1)) != SMP1_REVISION:
+        problems.append(f"composition-sentence:smp1-revision-{match.group(1)}")
+    if int(match.group(2)) != BRIDGE_REVISION:
+        problems.append(f"composition-sentence:bridge-revision-{match.group(2)}")
+    return problems
+
+
+def revision_record_problems(spec: str, adr: str) -> list[str]:
+    """Revision 10 text, the section 8 record, and the ADR's current line.
+
+    The version 3 surface and the worker entry are anchored on flattened
+    text, section 8 must carry a `### Revision N (` record for the current
+    revision, and ADR-0035's status line must name the current revision,
+    so a stale ADR or a missing record fails instead of passing on the
+    revision-agnostic markers."""
+    flat = re.sub(r"\s+", " ", spec)
+    problems = [f"spec-flat-marker:{marker}" for marker in FLAT_SPEC_MARKERS if marker not in flat]
+    if f"### Revision {SPEC_REVISION} (" not in spec:
+        problems.append("spec-revision-record")
+    adr_flat = re.sub(r"\s+", " ", adr)
+    current = re.search(r"the S20-430 contract is a draft at revision (\d+)", adr_flat)
+    if current is None or int(current.group(1)) != SPEC_REVISION:
+        problems.append("adr-current-revision")
+    return problems
+
+
 def main() -> int:
     problems: list[str] = []
     for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES):
@@ -163,6 +233,7 @@ def main() -> int:
     for numeric, symbol, exit_status in CODES:
         if f"| {numeric} | `{symbol}` | {exit_status} |" not in spec:
             problems.append(f"spec-code:{symbol}")
+    problems.extend(revision_record_problems(spec, read(ADR)))
     adr = read(ADR)
     for marker in ADR_MARKERS:
         if marker not in adr:
@@ -187,7 +258,15 @@ def main() -> int:
         "rule_audit": "scripts/check_cli_rules.py",
         "new_stable_error_codes": len(CODES),
         "semantic_authority": "SERVER_ONLY",
-        "offered_hello": "Server::offered_hello (legacy) and Server::offered_hello_versioned (capable)",
+        "offered_hello": (
+            "Server::offered_hello (legacy), Server::offered_hello_versioned (v2-capable), "
+            "and Server::offered_hello_v3 (v3-capable)"
+        ),
+        "bounded_exceptions": [
+            "native_test_worker_entry (contract section 10): sley __native-test-worker "
+            "<input_path>, the sley-test-runner edge, raw refusal words on stdout, worker "
+            "statuses 1/6/7/8"
+        ],
         "implementation_complete": status == COMPLETE_STATUS,
     }
     for key, value in expected.items():
@@ -220,11 +299,21 @@ def main() -> int:
     if own is None or int(own.group(1)) != SPEC_REVISION:
         problems.append("spec-revision")
     smp1_text = (ROOT / "docs/spec/SMP1.md").read_text(encoding="utf-8")
-    smp1_status = re.search(r"^Status: S20-400 contract draft, revision (\d+)", smp1_text, flags=re.M)
-    if smp1_status is None or int(smp1_status.group(1)) != SMP1_REVISION:
+    # An errata-only SMP1 revision (no behaviour change) keeps the consumer
+    # pin at the normative revision it names; any other revision moves it.
+    smp1_status = re.search(
+        r"^Status: S20-400 contract draft, revision \d+ \((?:[^;)]*; )?errata-only over normative "
+        r"revision (\d+)|^Status: S20-400 contract draft, revision (\d+)",
+        smp1_text,
+        flags=re.M,
+    )
+    smp1_normative = (smp1_status.group(1) or smp1_status.group(2)) if smp1_status else None
+    if smp1_normative is None or int(smp1_normative) != SMP1_REVISION:
         problems.append("smp1-revision-pin")
-    if f"SMP1 revision {SMP1_REVISION} and bridge revision {BRIDGE_REVISION}" not in spec:
+    flat = re.sub(r"\s+", " ", spec)
+    if f"SMP1 revision {SMP1_REVISION} and bridge revision {BRIDGE_REVISION}" not in flat:
         problems.append("smp1-pin-text")
+    problems.extend(composition_pin_problems(spec))
     bridge_text = (ROOT / "docs/spec/SMP1_JSON_BRIDGE_V1.md").read_text(encoding="utf-8")
     bridge_status = re.search(r"^Status: S20-420 contract draft, revision (\d+)", bridge_text, flags=re.M)
     if bridge_status is None or int(bridge_status.group(1)) != BRIDGE_REVISION:

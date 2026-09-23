@@ -131,8 +131,8 @@ def _runner_profile(tree: ast.Module) -> tuple[list, list]:
 
 
 def _spec_allowlist(spec: str) -> list | None:
-    """The eighteen-name frozen order from contract section 9."""
-    anchor = spec.find("holds eighteen names")
+    """The nineteen-name frozen order from contract section 9."""
+    anchor = spec.find("holds nineteen names")
     if anchor < 0:
         return None
     region = spec[anchor : anchor + 2000]
@@ -142,6 +142,63 @@ def _spec_allowlist(spec: str) -> list | None:
     names = re.findall(r"`([\w.]+)`", region[:end])
     return names or None
 
+
+def composed_pin_problems(spec: str, smp1: str, snapshot: str) -> list[str]:
+    """The composed SMP1 and S20-300 pins equal those documents' Status lines.
+
+    Every `SMP1 revision N defines`, `docs/spec/SMP1.md` revision N, and
+    `section 5, revision N` (S20-300) mention must name the current
+    revision, so a composed authority moving leaves this contract red
+    instead of silently stale (Ariadne P3 at 2b0f1c9)."""
+    flat = re.sub(r"\s+", " ", spec)
+    problems: list[str] = []
+    smp1_status = re.search(r"^Status: S20-400 contract draft, revision (\d+)", smp1, flags=re.M)
+    snapshot_status = re.search(
+        r"^Status: S20-300 full contract draft, revision (\d+)", snapshot, flags=re.M)
+    if smp1_status is None or snapshot_status is None:
+        return ["composed-status-unreadable"]
+    smp1_pins = re.findall(r"SMP1 revision (\d+) defines|`docs/spec/SMP1\.md` revision (\d+)", flat)
+    smp1_values = {a or b for a, b in smp1_pins}
+    if not smp1_values or smp1_values != {smp1_status.group(1)}:
+        problems.append(f"smp1-pin:{sorted(smp1_values)}!={smp1_status.group(1)}")
+    snapshot_values = set(re.findall(
+        r"`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1\.md` section 5, revision (\d+)", flat))
+    if not snapshot_values or snapshot_values != {snapshot_status.group(1)}:
+        problems.append(f"s20-300-pin:{sorted(snapshot_values)}!={snapshot_status.group(1)}")
+    return problems
+
+
+def scope_bound_problems(section: dict, key: str, revision: int, spec_path: str,
+                         status_pattern: str, root: Path) -> list[str]:
+    """Bind a lane's `<key>_revision_<N>` PASS to the text it reviewed.
+
+    The field name alone once let a verdict filed on an older text satisfy
+    a newer revision (round-8 P2 at 26d050e): now the field's note must
+    name the reviewed commit (`on <40-hex>`), and that commit's copy of the
+    contract must carry revision N on its Status line. An unscoped note or
+    a commit git cannot show fails closed."""
+    import subprocess
+
+    field = f"{key}_revision_{revision}"
+    if not str(section.get(field, "")).startswith("PASS"):
+        return [f"completion-unbound-review:{key}"]
+    scope = re.search(r"\bon ([0-9a-f]{40})\b", str(section.get(f"{field}_note", "")))
+    if scope is None:
+        return [f"completion-unscoped-review:{key}"]
+    shown = subprocess.run(
+        ["git", "show", f"{scope.group(1)}:{spec_path}"],
+        cwd=root, capture_output=True, text=True, check=False,
+    )
+    if shown.returncode != 0:
+        return [f"completion-unknown-commit:{key}:{scope.group(1)[:12]}"]
+    status = re.search(status_pattern, shown.stdout, flags=re.M)
+    reviewed = int(status.group(1)) if status else None
+    if reviewed != revision:
+        return [f"completion-scope-mismatch:{key}:reviewed-revision-{reviewed}"]
+    return []
+
+
+STATUS_PATTERN = r"^Status: S20-620 contract draft, revision (\d+)"
 
 def main() -> int:
     problems: list[str] = []
@@ -153,6 +210,11 @@ def main() -> int:
         return 1
 
     spec = read(SPEC)
+    problems.extend(composed_pin_problems(
+        spec,
+        read(ROOT / "docs/spec/SMP1.md"),
+        read(ROOT / "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md"),
+    ))
     for marker in SPEC_MARKERS:
         if marker not in spec:
             problems.append(f"spec-marker:{marker}")
@@ -176,6 +238,14 @@ def main() -> int:
         problems.append("machine-summary:sley2_trial_runner missing")
         section = {}
     status = section.get("status")
+    # One anchored, converted extraction of the contract revision (the
+    # Status line, not the first "revision" in the preamble prose), read by
+    # the drift assertion, the completion binding, and the result payload.
+    spec_revision_match = re.search(r"^Status: S20-620 contract draft, revision (\d+)", spec, flags=re.M)
+    spec_revision = int(spec_revision_match.group(1)) if spec_revision_match else None
+    summary_revision = section.get("contract_revision")
+    if summary_revision != spec_revision:
+        problems.append(f"machine-summary:contract_revision:{summary_revision!r}!=spec:{spec_revision!r}")
     expected = {
         "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
         "adr": "docs/adr/ADR-0036-sley2-trial-runner-boundary.md",
@@ -232,8 +302,8 @@ def main() -> int:
         for _, symbol in CODES:
             if symbol not in runner:
                 problems.append(f"runner-code:{symbol}")
-        # The revision 4 delta pins: the capable profile, the frozen
-        # eighteen-name allowlist in spec order, the per-trial snapshot
+        # The revision 5 delta pins: the capable profile, the frozen
+        # nineteen-name allowlist in spec order, the per-trial snapshot
         # bound to the frozen digest, the version 2 method-table digest,
         # and the required version keyword.
         try:
@@ -254,7 +324,7 @@ def main() -> int:
                     problems.append("spec-allowlist:missing")
                 elif tuple(allowlist) != tuple(specified):
                     problems.append("allowlist-spec-order:drift")
-                if len(allowlist) != 18:
+                if len(allowlist) != 19:
                     problems.append(f"allowlist-count:{len(allowlist)}")
         for marker in (
             "admitted = tuple(affordances)",
@@ -287,12 +357,17 @@ def main() -> int:
             for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
                 if not str(section.get(key, "")).startswith("PASS"):
                     problems.append(f"completion-without-review:{key}")
+                # The completion binds each lane verdict to the revision it
+                # reviewed: the `<lane>_revision_<N>` field, and its note's
+                # commit showing revision N (scope_bound_problems).
+                problems.extend(scope_bound_problems(
+                    section, key, spec_revision, "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
+                    STATUS_PATTERN, ROOT))
 
-    revision = re.search(r"revision (\d+)", spec)
     result = {
         "contract": "s20-620-sley2-trial-runner-v1",
         "status": status,
-        "revision": int(revision.group(1)) if revision else None,
+        "revision": spec_revision,
         "implementation_present": present,
         "new_stable_error_codes": len(CODES),
         "problems": problems,
