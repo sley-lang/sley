@@ -962,6 +962,50 @@ required a code change.
 - `capture_demo.py` keeps its run roots by design.
 - Live-model trial.
 
+## 14. Round 8 at `26d050e` and repairs (2026-09-23)
+
+### 14.1 Round
+
+The 18 transcripts and their index (`evidence/review/rounds/context-r8-26d050e.json`, each transcript's sha256 matching it) were committed unchanged in `6d57eab0`. The verdicts were recorded in `83bace58`:
+
+- PASS in all three lanes: CLI revision 10, S20-300 revision 6, bridge revision 12, SMP1 revision 15, and session handle revision 6.
+- S20-620 revision 7: Vulcan PASS; Ariadne and Nabu REVISE, one P2 each.
+
+The historical 2b0f1c9 Vulcan delta verdict, which reviewed the revision 6 text, moved out of `vulcan_surface_review_revision_7` into `vulcan_surface_review_delta_2b0f1c9`, with a note saying so. The genuine revision 7 Vulcan PASS now holds `vulcan_surface_review_revision_7`.
+
+Per the coordinator, no other package was bumped or reopened for this round's P3/P4 notes. They are recorded as open claims (`p3_open`/`p4_open` with counts) in the protocol, bridge, CLI, session, S20-300, and S20-620 sections, and they do not block completion. Only the findings fixed below are left out of those claims.
+
+### 14.2 Repairs
+
+| Finding | Disposition | Commit / evidence |
+|---|---|---|
+| S20-620 Ariadne P2, Nabu P2 (and the matching Vulcan P3): the completion gate bound `<lane>_revision_<N>` by field name only | FIXED. `scope_bound_problems` requires the field's note to name the reviewed commit, and `git show <commit>:<contract>` must show revision N on its Status line. An unscoped note or an unknown commit fails closed. The same binding applies to the S20-300 gate, which had the same shape. Regression tests: the reviewers' probe (the 2b0f1c9 verdict under the revision 7 name gives `completion-scope-mismatch:…:reviewed-revision-6`), plus unscoped, unknown-commit, and older-scope cases for both gates. | `22971434` |
+| S20-620 Ariadne P3, Vulcan P3; SMP1 Vulcan P3; S20-300 Nabu P4; session Vulcan P4: "an absent maintenance boundary fails the method" is false | FIXED in all three places. The session check's `head_mixed` calls `Server::maintenance()`, which creates an absent boundary (`initialize_repository_maintenance`) before the shared acquire. So an absent boundary never reaches the probe and never fails the method. SMP1 revision 16 is errata-only over normative revision 15 (a dated text correction with no behaviour change). S20-620 is now revision 8. The server docstring is corrected. | `6519f6e0` |
+| S20-620 Ariadne P4: the revision 7 history sentence gave one scope for all three lanes | FIXED. Revision 8 names the per-lane scopes and the delta verdict. | `6519f6e0` |
+| S20-620 Nabu P4: `_abandon` reaches into runner-owned Endpoint internals | OPEN (recorded as a claim) | — |
+| S20-620 Nabu P4: corpus amendment ratification | OPEN (corpus owner) | — |
+
+**Errata and consumer pins.** An errata-only SMP1 revision has no behaviour change. Its Status line declares `errata-only over normative revision 15`, and the CLI, bridge, and session checkers now compare their pins with that normative revision, so none of those packages reopened. The SMP1 checker requires the declaration and has a revert test for it. NATIVE keeps its pin at 15. S20-620, which cites the corrected sentence, pins revision 16.
+
+The SMP1 `current_delta_review` moved to revision 16 PENDING, with a history note. S20-300 now has scoped PASS `_revision_6` fields in all three lanes; its status was left at `S20_300_FULL_IMPLEMENTED_REVIEW_PENDING`. The docstring edit staled the two SMP1-family fuzz slices, which were re-proofed at `6519f6e0` (`33864b96`). The register chain is `44b13be0` (40 open reviews, 31 complete packages, `ga_claimed` false). T54 is the final commit.
+
+### 14.3 Gates
+
+| Check | Exit | Result |
+|---|---|---|
+| Checkers and tests for SMP1, bridge, CLI, session, S20-300, S20-620, and the required index (including `test_sley2_trial_runner.py` with the new completion-binding cases and `test_smp1_contract.py` errata cases) | 0 | PASS / OK |
+| All 18 fuzz slice checkers | 0 | PASS |
+| `make quick`, line by line with keep-going (133 lines, TMPDIR on /home) | — | 126 lines exit 0. Known candidate-bound lines #82 to #85 and #88 fail. #108 (T54 drift) is fixed by the final T54 commit. `cargo test --workspace`: 1036 passed, 1 failed (`debug_commit_repro`), 31 ignored. |
+| `make lint` at `44b13be0` | 0 | PASS: 0 clippy warnings, clean tree. `lint-report.json` restored and not committed. |
+
+### 14.4 Still open
+
+- The S20-620 revision 8 and SMP1 revision 16 reviews.
+- The recorded round-8 P3/P4 claims.
+- The finding register never lets a later `_revision_N` PASS supersede an earlier same-lane `_revision_M` REVISE. Both tokens count as early rounds, so earlier REVISE rounds, for example CLI revision 9 and session revision 5, stay listed as open reviews. This is a register (S20-740) rule and is not changed here.
+- Corpus task-input amendment ratification.
+- Live-model trial.
+
 ## Appendix A. Non-domain widened-token hits by file (line numbers at `44f18e2b`)
 
 ### A.1 Frozen history (review transcripts, request packets, gate records, campaign records, retained logs)
