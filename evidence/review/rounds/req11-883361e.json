@@ -1,0 +1,31 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "883361e3446d77174c69a8de2821247096e17574",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "ariadne",
+      "section": "dead_function_deletion_selection",
+      "field": "ariadne_contract_review",
+      "verdict": "PASS_0_P0_0_P1_0_P2_1_P3_2_P4",
+      "scope_sha": "883361e3446d77174c69a8de2821247096e17574",
+      "path": "evidence/review/verdicts/dead_function_deletion_selection/ariadne_contract_review-883361e.md",
+      "sha256": "6d834fbd299c32055e9f14c0c35ff851e7ce17129c79227f10e722cc1c394ba1",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 2403
+    },
+    {
+      "role": "nabu",
+      "section": "dead_function_deletion_selection",
+      "field": "nabu_architecture_review",
+      "verdict": "REVISE_0_P0_1_P1_0_P2_1_P3_3_P4",
+      "scope_sha": "883361e3446d77174c69a8de2821247096e17574",
+      "path": "evidence/review/verdicts/dead_function_deletion_selection/nabu_architecture_review-883361e.md",
+      "sha256": "f4fbda058791616f83c7e4f28d2f76794db15409035d6bf6a814434b320fda39",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 803
+    }
+  ]
+}

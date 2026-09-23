@@ -1,5 +1,21 @@
 # DEAD tombstone-aware selection — proposal and regression spec (not landed)
 
+> **Status 2026-09-23: SUPERSEDED by REQ-11.** The defect was fixed by a
+> different, reviewed design: a caller-side projection in
+> `crates/sley-policy/src/candidate_validation.rs`
+> (`live_selection_functions`, commits 883361e3 + f7f9af90) projects the
+> affected-Function union onto identities still bound in the proposed
+> state before S20-240 selection. The checker-side tombstone index
+> proposed below in `contracts.rs` was NOT built; the S20-240 checker and
+> its contract are untouched. Review: `evidence/review/requests/REQ-11-dead-function-deletion-selection.md`
+> (Amendment 1 records the deviation), Ariadne PASS and Nabu PASS
+> (revision 2) under `evidence/review/verdicts/dead_function_deletion_selection/`.
+> The regression specification below was re-run end to end on the
+> succession arm with REQ-11 merged: `bench/live/succ-trials-20260923/dead/`
+> (positive ACCEPTED; outcome per item in the DEAD section of
+> `SUCCESSION-COVERAGE.md`). The text below is kept unchanged as the
+> historical proposal.
+
 Status: proposal only. No semantic change landed. Review gate retained.
 The minimal deletion reproducer and diagnosis in `SUCCESSION-COVERAGE.md`
 (DEAD section) are preserved and not reopened. This note prepares the
