@@ -600,6 +600,187 @@ deleted before any commit (never tracked).
 - Corpus task-input amendment ratification (Nabu P4).
 - Live-model trial.
 
+## 12. Round 6 at `f073811` and repairs (2026-09-23)
+
+### 12.1 Round
+
+Transcripts committed unchanged in `1a32ceca` with the index
+`evidence/review/rounds/context-r6-f073811.json`. The index lists eight
+reviews. The Ariadne S20-620 revision-6 NO_VERDICT stub is a process
+artifact: it is listed under `omitted_process_artifacts` and not filed,
+and the coordinator re-dispatches that lane. Verdicts:
+
+- SMP1 revision 13: Ariadne REVISE (1 P1, 4 P3, 3 P4); Nabu REVISE (1 P1,
+  1 P2, 4 P3, 1 P4); Vulcan REVISE (1 P2, 3 P3, 2 P4).
+- S20-300 revision 4: Ariadne PASS (2 P3, 3 P4); Nabu REVISE (2 P3, 2 P4);
+  Vulcan REVISE (1 P2, 2 P3, 1 P4).
+- S20-620 revision 6: Nabu PASS (2 P3, 3 P4); Vulcan PASS (3 P4).
+
+Each verdict is recorded as `<lane>_revision_<N>` with a dated, scoped note.
+
+Repair commits:
+
+- `40a84a5c`: S20-300 revision 5 (code, spec, checker, checker tests,
+  server tests).
+- `8357c243`: SMP1 revision 14, NATIVE_TEST_ADMISSION revision 6, consumer
+  re-pins, S20-620 revision 6, summary, WORK_PACKAGES.
+- `c21ff945`: judge docstrings, coverage record, witness provenance.
+- `df3a45ac`: witness logs at `c21ff945`.
+- `46118639`: fuzz lockfile.
+- `c2664f10`: fuzz proofs.
+- `50fca15f`: entrypoints anchor.
+- `59a26519`: register/GA/dossier/sync chain.
+- `5f501d39`: T54.
+- `7fcb313b`: S20-710 mirror of the new lock digest and edge.
+- `746d5b30`: T54, last.
+- `d307a22f`: scratch-workspace leak fix (section 12.6).
+- This record's commit.
+
+### 12.2 The version rule (all three SMP1 P1/P2 findings, S20-300 Ariadne P4)
+
+One rule, code unchanged: `workspace.open` answers `open_summary` (fields
+1-8 plus optional field 9) under version 2 and under every later selection
+whose method table includes version 2's row 201. Version 3 is such a
+selection, because `NATIVE_TEST_ADMISSION_V1` appendix D defines it as the
+union of the SMP1 version 1 and version 2 tables. The server gate
+`protocol_version >= PROTOCOL_VERSION_V2` already implemented this. The
+text and its pins changed:
+
+- SMP1 revision 14 (history item 14) states the rule in the `open_summary`
+  scope paragraph, in row 201 and in the history. It also says the explicit
+  entrypoints admit selections 1, 2 and 3, with version 3 defined in
+  NATIVE_TEST_ADMISSION appendices C/D.
+- S20-300 revision 5 §5 names the consumer the same way.
+- NATIVE_TEST_ADMISSION revision 6 (dated amendment) re-pins appendix D
+  from SMP1 revision 12 to revision 14. It also names the version 3 effect:
+  row 201 answers `open_summary` under version 3 as under version 2.
+- ENTITY_READ_PROFILE_V2 §2 carries a dated amendment for the row 201
+  exception.
+- `check_smp1_contract.py` requires the NATIVE_TEST_ADMISSION pin
+  "`docs/spec/SMP1.md` at revision N" to name the current contract
+  revision, and `test_smp1_contract.py` refuses a stale pin.
+- A new server test, `workspace_open_v3_answers_the_version_2_open_summary`,
+  checks version 3: a cold open equals `revision.read`, a warm open's field
+  9 equals the snapshot the root query materialized, and a body is refused.
+
+The appendix D heading "(machine-readable, revision 5)" is left unchanged.
+The table generator keys on it, and the table itself did not change.
+
+### 12.3 Per-finding closure
+
+| Finding | Disposition | Where / evidence |
+|---|---|---|
+| SMP1 Ariadne P1, Nabu P1, Vulcan P2 — version gate vs specs; no v3 test | FIXED by section 12.2 (the specs follow the code; a version 3 test is added). | `8357c243`, `40a84a5c`; `workspace_open_v3_answers_the_version_2_open_summary` |
+| SMP1 Nabu P2 — NATIVE_TEST_ADMISSION pins SMP1 revision 12 | FIXED. Revision 6 re-pins appendix D to SMP1 revision 14 and adds a status-history sentence. The SMP1 checker anchors the pin, with a refusal test. | `8357c243`; `WorkspaceOpenAnchorCases` |
+| SMP1 Ariadne P3, Nabu P3, Vulcan P3 — version 1 byte-for-byte overclaim | FIXED. The version 1 claim is limited to conforming (empty-body) requests. The text states that a non-empty 201 body is now refused under every version (before revision 13 it was answered with success). Row 201 cells are corrected, and ADR-0032 and `protocol.status_note` now match. | `8357c243` |
+| SMP1 Ariadne P3 / Nabu P3 / Vulcan P3 — pin-only re-pins; CLI :26 stale; CLI checker blind | FIXED per the ruling: each owner re-pins through its own revision. Bridge revision 11, CLI revision 9 and session handle revision 5 each add a history sentence, fix their stale pin lines and drop the pin-only paragraphs, and their checkers are bound to the new SMP1/bridge revisions. The CLI checker also anchors the composition sentence (`composition_pin_problems`, with negative tests in `CompositionSentenceCases`), flattens whitespace for pin text, and moves its work-package marker to revision 9. Statuses leave COMPLETE (`S20_420/430/330_IMPLEMENTED_REVIEW_PENDING`), and each `current_delta_review` is PENDING at its new revision. | `8357c243`; the three checkers PASS |
+| SMP1 Ariadne P3 / Nabu P3 — SMP1-family fuzz proofs stale | FIXED. Fresh proofs for all eighteen persistent-fuzz slices at the clean head `46118639`. Seven were staled by the round-6 delta and eleven more by the new `libc` dependency of `sley-repo`. Every slice checker exits 0. | `c2664f10` |
+| SMP1 Ariadne P3 — entrypoints "admit only 1 and 2" (pre-existing) | FIXED. SMP1 now says the explicit entrypoints admit selections 1, 2 and 3, with version 3 defined by NATIVE_TEST_ADMISSION appendices C/D. The checker anchors this as `entrypoints-admit-version-3`, with a revert case. | `8357c243`, `50fca15f` |
+| SMP1 Nabu P3 / Vulcan P4 — undefined `-- field 9 optional` notation | FIXED. The appendix A preamble defines optional-by-omission `[n: T]` record fields, and `open_summary` uses `[9: IndexSnapshotId]`. | `8357c243` |
+| SMP1 Vulcan P3 — field 9 is "the identity the queries bind" | FIXED. The text now reads "Field 9 is a pointer, not evidence". It equals the bound identity only when the cache is honest (the S20-300 §5 residual). `capsule` always binds a fresh snapshot, so a client that adopts field 9 keeps the `QUERY_SNAPSHOT_MISMATCH` cross-check. | `8357c243` |
+| SMP1 Ariadne P4 / Nabu P4 — non-waiting overstated; head load blocks | FIXED. One sentence states that the opener still loads the head under the S20-390 blocking shared acquisition and that only the probe adds no wait. New test `workspace_open_probe_is_non_waiting_and_never_rewrites_a_discarded_record`: while an exclusive guard is held, `materialized_head_snapshot` returns None promptly, and a corrupted cache yields an 8-field body with the cache bytes unchanged. | `8357c243`, `40a84a5c` |
+| SMP1 Nabu P4 / Vulcan P4 — determinism scope | FIXED. The body is deterministic given the head plus the derived cache state. Appendix B's "equal repository state" and section 10's byte-identity now include that state for this body. | `8357c243` |
+| SMP1 Ariadne P4 — owner column | FIXED. The v1-table preamble states the row 201 owner-cell exception. | `8357c243` |
+| SMP1 Ariadne P4 — no anchors for revision-13 text | FIXED. `WORKSPACE_OPEN_ANCHORS` covers the row 201 cells, the `open_summary` grammar and scope, optionality, the pointer sentence, the version 1 statement, the entrypoints and the native pin. Matching flattens whitespace. Revert cases are in `test_smp1_contract.py`. | `8357c243`, `50fca15f` |
+| SMP1 Vulcan P4 — other "empty" rows ignore a body | RECORDED, not changed. Appendix A states that rows 102, 103, 104, 210, 214 and 504 still ignore a non-empty body, a pre-existing deviation from section 4. | `8357c243` |
+| S20-300 Ariadne P3 — "only read-only derived query surfaces" | FIXED. The profile preamble, the ERROR_CODES S20-300 paragraph, the WORK_PACKAGES row and the `index_cache.rs` module doc now name the identity probe as the one non-query hit reader. | `40a84a5c`, `8357c243` |
+| S20-300 Ariadne P3 / Nabu P3 / Vulcan P2 — completion accepts the revision-3 base PASS | FIXED (the trial-runner Fix 2 pattern). COMPLETE now requires `<lane>_revision_5` PASS; without it the checker reports `completion-unbound-review:<lane>`. `test_complete_root_index_snapshot_profile.py`, now in `make quick`, covers four cases: the baseline passes, a flip on the base fields is refused, a flip on revision-4 fields is refused, and a bound PASS is admitted. | `40a84a5c` |
+| S20-300 Ariadne P4 / Nabu P4 / Vulcan P3 — probe gate bypassable | FIXED. `probe_gate_problems` scans `crates/` and `fuzz/` for the identifier, with comments and `use` items stripped. Only `crates/sley-repo/src/index_cache.rs` and crate `tests/` directories are exempt, and aliases are refused. The consumer must reference the probe exactly once, inside `fn materialized_head_snapshot(`. That function must call `acquire_shared_repository_maintenance_nonblocking(` and must never initialize or wait. Eight negative tests. | `40a84a5c` |
+| S20-300 Ariadne P4 / Vulcan P3 — lstat→open TOCTOU (symlink/FIFO) | FIXED. `read_record` opens with `O_NOFOLLOW \| O_NONBLOCK` and checks `is_file` on the open handle. Tests: `a_symlink_to_a_valid_record_is_absence_for_the_probe` and `a_fifo_at_the_cache_path_answers_at_once`. New direct dependency `libc =0.2.189` in `sley-repo`; it was already in the registry set, and both lockfiles plus the S20-710 mirror are updated. | `40a84a5c`, `46118639`, `7fcb313b` |
+| S20-300 Nabu P3 — raw root equality instead of `covers` | FIXED. All three guard checks now use `RepositoryMaintenanceGuard::covers`. `a_non_canonical_repository_spelling_is_covered_by_its_guard` covers a parent-symlink spelling and a `..` spelling; `covers` itself refuses a final-component symlink. | `40a84a5c` |
+| S20-300 Nabu P4 — no contention / discarded-record test | FIXED by the server test in the SMP1 Ariadne P4 / Nabu P4 row. | `40a84a5c` |
+| S20-300 Vulcan P4 — "metadata-only"; module doc | FIXED. The docs now describe a bounded decode of one file (at most `MAX_SNAPSHOT_RECORD_BYTES`) with no build, write-back or delete. The module doc names the probe. | `40a84a5c` |
+| S20-620 Nabu P3 — field-9 version gate | FIXED by section 12.2. | — |
+| S20-620 Nabu P3 — in-place amendment under revision 5 | FIXED by a revision bump. S20-620 is now revision 6, with a status sentence naming the §9 text it answers. The `_revision_5` REVISE history is kept, and the round-6 PASS verdicts bind as `_revision_6`. The checker passes and still refuses COMPLETE until Ariadne files a revision-6 verdict. | `8357c243` |
+| S20-620 Nabu P4 — CLI :26; consumer confirmations untracked | FIXED. CLI :26 now pins SMP1 revision 14, through CLI revision 9. The three owner confirmations are now `current_delta_review` PENDING records on S20-330/420/430, and the register lists them as open reviews. | `8357c243`, `59a26519` |
+| S20-620 Nabu P4 / Vulcan P4 — witness dirty flag; SIG/TYPE-FULL lack a source line | FIXED. `bench/live/witness_provenance.py` records the source commit and the exact tracked dirty paths, excluding the `bench/live/succ-trials-*` outputs (4 tests). All three witness scripts emit this line. The four logs were re-run at `c21ff945`; each reads "clean apart from witness outputs", CONTEXT pos, SIG and TYPE-FULL finish with judge exit 0, and CONTEXT neg is refused at validation phase 6 (tag 9). | `c21ff945`, `df3a45ac` |
+| S20-620 Vulcan P4 — judge docstrings describe the old scope rule | FIXED. Both audit docstrings now describe `_ContinuationLedger`: query-key and cursor binding across the trial, with `after` verified equal to the previous page's `next`. The SUCCESSION-COVERAGE paragraph is marked superseded. | `c21ff945` |
+| S20-620 Vulcan P4 — SMP1 version-1 overclaim | FIXED (see the SMP1 row). | `8357c243` |
+| S20-620 Nabu P4 — corpus amendment ratification | OPEN. Only the corpus owner can ratify it; no implementation change closes it. | — |
+
+Register note. On the first regeneration, the register folded the S20-300
+revision-4 REVISE rounds and the SMP1 revision-13 REVISE rounds as
+historical. The cause was older PASS fields that carried no date: the
+S20-300 `*_final_review` fields and the protocol base and `*_review` fields.
+Each of those fields now has a note naming the commit and date it was last
+set (`e73644ce`, 2026-09-14; `5e2f2b93`, 2026-09-10; `7221dd6e`,
+2026-09-05). Their values are unchanged. With the notes, the register keeps
+all five rounds open: 42 open reviews and 31 complete packages, and
+`ga_claimed` stays false. The session stale-safety GA criterion moves to
+AWAITS_REVIEW together with S20-330.
+
+### 12.4 Gates at the repair head
+
+| Check | Exit | Result |
+|---|---|---|
+| `cargo fmt --check`; `cargo clippy -D warnings` (sley-repo, sley-protocol, sley-cli, all targets) | 0 | clean |
+| `cargo test --offline --locked --no-fail-fast -p sley-repo -p sley-protocol -p sley-cli -- --skip debug_commit_repro` | 0 | 645 passed, 0 failed |
+| SMP1 family, S20-300, trial runner, capsule, root-backed and required-index checkers, plus their `test_*.py` (including the new `test_complete_root_index_snapshot_profile.py`) | 0 each | PASS / OK |
+| all 18 persistent-fuzz slice checkers | 0 each | PASS at `46118639` |
+| `check_finding_register.py`, `check_supply_chain_audit.py` | 0 | PASS |
+| witnesses (4) at `c21ff945` | 0 each | see the witness row in 12.3 |
+| `bench/sley2/tests` | 0 | 23 tests OK |
+| `bench/live/tests`, first run at `5f501d39` | 1 | 247 tests, 246 OK. `test_context_incomplete_discovery_rejects` returned `harness_failure` while `/tmp` was out of inodes (tmpfs 100% IUse; see 12.6). Re-run alone after `/tmp` was freed, it passed (OK, 174 s). |
+| `bench/live/tests` at `d307a22f` (leak fix; binaries copied out of the target directory; private `TMPDIR=/home/gfarch/Work/checkpoints/sct-r6`) | 0 | Ran 254 tests, OK (includes the 8 integrated CONTEXT proofs and `test_scratch_cleanup`). `/tmp` inodes went from 101471 to 101472 across the run. The private root held only a `uv-*.lock` afterwards, with no `sley2-*` directory. |
+| `bench/live/tests`, discarded attempt at `d307a22f` | 1 | Run under a longer private `TMPDIR` (`…/succ-context-tmp/live-r6b`). 8 mediated CONTEXT and 13 mediated-attempt tests failed with `harness_failure` or an empty capture. The same single test failed under `…/live-r6c` and passed under `…/succ-context-tmp`, which is consistent with the mediated gateway's AF_UNIX socket path exceeding the 108-byte limit. That cause is inferred and not otherwise verified. The full suite then passed under the shorter root (row above). |
+| `make quick` recipe, keep-going (131 lines, at `5f501d39`) | — | 124 exit 0. Failing: the candidate-bound #82 (the only failing release test is `namespace-not-attestation-bound`), #83, #84, #85 and #88 (`test-inventory:drift`). #106 failed on the S20-710 lock-digest mirror; `7fcb313b` fixed it and it now exits 0. #131 `cargo test --workspace`: 1031 passed, 1 failed (`debug_commit_repro`, the documented env-bound diagnostic), 31 ignored. |
+| `make lint` at `d307a22f` | 0 | PASS: fmt clean, 0 clippy warnings, lint inputs clean. The only dirty path was this record, uncommitted at the time, so `working_tree_clean` was false. `lint-report.json` was restored and not committed. |
+| CONTEXT witness pos at `d307a22f` (untracked log) | 0 | judge exit 0; the workspace line reads "(removed at exit)" and the private root held no `sley2-*` directory afterwards |
+
+### 12.5 Still open
+
+- Re-dispatch Ariadne on S20-620 revision 6 (the round-6 stub is a
+  process artifact).
+- Reviews of SMP1 revision 14, S20-300 revision 5, and the consumer
+  re-pins (bridge 11, CLI 9, session handle 5). All sit at
+  `*_IMPLEMENTED_REVIEW_PENDING` / PENDING.
+- Corpus task-input amendment ratification.
+- The other empty-request rows still ignore a body (recorded, not changed).
+- Live-model trial.
+- `bench/live/capture_demo.py` still keeps its run roots on purpose
+  (demo evidence, "run root kept at"). It is not covered by the leak fix.
+- Mediated runs need a short `TMPDIR`, because the gateway socket path
+  must fit AF_UNIX (inferred, see 12.4).
+
+### 12.6 Scratch-workspace leak (`d307a22f`)
+
+The coordinator found `/tmp` (tmpfs, 1M inodes) exhausted. The judge's
+`sley2-judge-*` scratch copy (`bench/fixtures/sley2_live_judge.py`,
+`workdir = Path(tempfile.mkdtemp(prefix="sley2-judge-"))`) was never
+removed. Read-only store and tool files also defeated
+`shutil.rmtree(..., ignore_errors=True)` in the `sley2-pristine-`,
+`sley2-corrupt-` and `sley2-merge-` helpers and in the witnesses'
+`sley2-*-witness-*` workspaces. About fifty leaked runs of ~19.6k files
+each filled the tmpfs. The fix:
+
+- `bench/live/scratch.py`: `remove_scratch` restores owner write (and
+  search, on directories) on the failing path's parent and on the path
+  itself, then retries. For a directory it could not list, it removes that
+  directory whole once it is accessible. It raises `ScratchRemovalError` if
+  the tree still exists. `scratch_root` gives a run a private root:
+  `tempfile.tempdir` and `TMPDIR` point into it, so child processes land
+  there too, and the root is removed on every exit path.
+- The judge removes its scratch copy in a `finally` on accept, reject and
+  harness-error paths. A failed removal becomes a harness error
+  (`LIVE_SLEY2_JUDGE_INVALID: scratch removal`). The pristine and merge
+  helpers remove their workdir when staging fails. The corrupt helper and
+  both cleanups use the same removal. The merge side cleanups still ignore
+  a session-close error, as before, but no longer swallow a removal
+  failure.
+- Every witness entrypoint runs under `scratch_root`, and its log line now
+  says "(removed at exit)". `prove_merge_production.py` uses
+  `remove_scratch`.
+- `bench/live/tests/test_scratch_cleanup.py` (7 tests) covers read-only
+  and unlistable trees, a demonstration that the old `ignore_errors`
+  removal leaves the tree, loud failure, and `scratch_root` removal on an
+  exception. It also runs judge paths in a private root and asserts no
+  `sley2-*` remains: harness error, the real binary, and a stuck removal,
+  which must become a harness error. The harness-error case fails on the
+  previous judge (`sley2-judge-41cwje_x` left behind) and passes on the
+  fixed judge.
+
+All my runs since then use a private `TMPDIR` on `/home`.
+
 ## Appendix A. Non-domain widened-token hits by file (line numbers at `44f18e2b`)
 
 ### A.1 Frozen history (review transcripts, request packets, gate records, campaign records, retained logs)
