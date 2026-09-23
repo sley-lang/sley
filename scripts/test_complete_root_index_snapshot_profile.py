@@ -91,12 +91,38 @@ class CompletionBinding(unittest.TestCase):
         self.assertIn("completion-unbound-review:nabu_architecture_review", payload["problems"])
 
     def test_complete_with_bound_current_pass_is_admitted(self):
+        # 26d050e carries contract revision 6: a PASS scoped there binds it.
         summary = json.loads(SUMMARY_TEXT)
         section = complete_flip(summary)
         for lane in LANES:
             section[f"{lane}_revision_{CHECKER.SPEC_REVISION}"] = "PASS_0_P0_0_P1_0_P2_0_P3"
+            section[f"{lane}_revision_{CHECKER.SPEC_REVISION}_note"] = (
+                "verdict dated 2026-09-23 on 26d050e629b669ef4acbd54826ef4008c05a061d")
         code, payload = run_with_summary(summary)
         self.assertEqual((code, payload["result"]), (0, "PASS"), payload["problems"])
+
+    def test_a_pass_scoped_to_an_older_text_does_not_bind(self):
+        # 2b0f1c9 carries contract revision 5; its verdict cannot bind 6.
+        summary = json.loads(SUMMARY_TEXT)
+        section = complete_flip(summary)
+        for lane in LANES:
+            section[f"{lane}_revision_{CHECKER.SPEC_REVISION}"] = "PASS_0_P0_0_P1_0_P2_0_P3"
+            section[f"{lane}_revision_{CHECKER.SPEC_REVISION}_note"] = (
+                "verdict dated 2026-09-23 on 2b0f1c9f4940c020565137891a49a3769cd02061")
+        code, payload = run_with_summary(summary)
+        self.assertEqual(code, 1)
+        self.assertIn("completion-scope-mismatch:nabu_architecture_review:reviewed-revision-5",
+                      payload["problems"])
+
+    def test_an_unscoped_pass_fails_closed(self):
+        summary = json.loads(SUMMARY_TEXT)
+        section = complete_flip(summary)
+        for lane in LANES:
+            section[f"{lane}_revision_{CHECKER.SPEC_REVISION}"] = "PASS_0_P0_0_P1_0_P2_0_P3"
+            section.pop(f"{lane}_revision_{CHECKER.SPEC_REVISION}_note", None)
+        code, payload = run_with_summary(summary)
+        self.assertEqual(code, 1)
+        self.assertIn("completion-unscoped-review:vulcan_surface_review", payload["problems"])
 
 
 def scratch_tree() -> tuple[tempfile.TemporaryDirectory, Path]:

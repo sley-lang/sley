@@ -168,6 +168,38 @@ def composed_pin_problems(spec: str, smp1: str, snapshot: str) -> list[str]:
     return problems
 
 
+def scope_bound_problems(section: dict, key: str, revision: int, spec_path: str,
+                         status_pattern: str, root: Path) -> list[str]:
+    """Bind a lane's `<key>_revision_<N>` PASS to the text it reviewed.
+
+    The field name alone once let a verdict filed on an older text satisfy
+    a newer revision (round-8 P2 at 26d050e): now the field's note must
+    name the reviewed commit (`on <40-hex>`), and that commit's copy of the
+    contract must carry revision N on its Status line. An unscoped note or
+    a commit git cannot show fails closed."""
+    import subprocess
+
+    field = f"{key}_revision_{revision}"
+    if not str(section.get(field, "")).startswith("PASS"):
+        return [f"completion-unbound-review:{key}"]
+    scope = re.search(r"\bon ([0-9a-f]{40})\b", str(section.get(f"{field}_note", "")))
+    if scope is None:
+        return [f"completion-unscoped-review:{key}"]
+    shown = subprocess.run(
+        ["git", "show", f"{scope.group(1)}:{spec_path}"],
+        cwd=root, capture_output=True, text=True, check=False,
+    )
+    if shown.returncode != 0:
+        return [f"completion-unknown-commit:{key}:{scope.group(1)[:12]}"]
+    status = re.search(status_pattern, shown.stdout, flags=re.M)
+    reviewed = int(status.group(1)) if status else None
+    if reviewed != revision:
+        return [f"completion-scope-mismatch:{key}:reviewed-revision-{reviewed}"]
+    return []
+
+
+STATUS_PATTERN = r"^Status: S20-620 contract draft, revision (\d+)"
+
 def main() -> int:
     problems: list[str] = []
     for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES):
@@ -326,9 +358,11 @@ def main() -> int:
                 if not str(section.get(key, "")).startswith("PASS"):
                     problems.append(f"completion-without-review:{key}")
                 # The completion binds each lane verdict to the revision it
-                # reviewed, by field name (`<lane>_revision_<N>`).
-                if not str(section.get(f"{key}_revision_{spec_revision}", "")).startswith("PASS"):
-                    problems.append(f"completion-unbound-review:{key}")
+                # reviewed: the `<lane>_revision_<N>` field, and its note's
+                # commit showing revision N (scope_bound_problems).
+                problems.extend(scope_bound_problems(
+                    section, key, spec_revision, "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
+                    STATUS_PATTERN, ROOT))
 
     result = {
         "contract": "s20-620-sley2-trial-runner-v1",

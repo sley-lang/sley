@@ -220,6 +220,38 @@ def probe_gate_problems(root: Path) -> list[str]:
     return problems
 
 
+def scope_bound_problems(section: dict, key: str, revision: int, spec_path: str,
+                         status_pattern: str, root: Path) -> list[str]:
+    """Bind a lane's `<key>_revision_<N>` PASS to the text it reviewed.
+
+    The field name alone once let a verdict filed on an older text satisfy
+    a newer revision (round-8 P2 at 26d050e): now the field's note must
+    name the reviewed commit (`on <40-hex>`), and that commit's copy of the
+    contract must carry revision N on its Status line. An unscoped note or
+    a commit git cannot show fails closed."""
+    import subprocess
+
+    field = f"{key}_revision_{revision}"
+    if not str(section.get(field, "")).startswith("PASS"):
+        return [f"completion-unbound-review:{key}"]
+    scope = re.search(r"\bon ([0-9a-f]{40})\b", str(section.get(f"{field}_note", "")))
+    if scope is None:
+        return [f"completion-unscoped-review:{key}"]
+    shown = subprocess.run(
+        ["git", "show", f"{scope.group(1)}:{spec_path}"],
+        cwd=root, capture_output=True, text=True, check=False,
+    )
+    if shown.returncode != 0:
+        return [f"completion-unknown-commit:{key}:{scope.group(1)[:12]}"]
+    status = re.search(status_pattern, shown.stdout, flags=re.M)
+    reviewed = int(status.group(1)) if status else None
+    if reviewed != revision:
+        return [f"completion-scope-mismatch:{key}:reviewed-revision-{reviewed}"]
+    return []
+
+
+STATUS_PATTERN = r"^Status: S20-300 full contract draft, revision (\d+)"
+
 def main() -> int:
     problems: list[str] = []
     for path in (SPEC, RESTRICTED_SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES):
@@ -335,8 +367,12 @@ def main() -> int:
                 # Completion binds each lane to the review of the current
                 # contract revision, by field name (`<lane>_revision_<N>`):
                 # historical base-field PASS values never re-complete it.
-                if not str(section.get(f"{key}_revision_{SPEC_REVISION}", "")).startswith("PASS"):
-                    problems.append(f"completion-unbound-review:{key}")
+                # ...and to the text that review saw: the note's commit
+                # must show revision N (scope_bound_problems).
+                problems.extend(scope_bound_problems(
+                    section, key, SPEC_REVISION,
+                    "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
+                    STATUS_PATTERN, ROOT))
 
     # The revision is anchored to the Status header (not the first prose
     # occurrence) and pinned: a stale pin fails the moment the contract moves.
