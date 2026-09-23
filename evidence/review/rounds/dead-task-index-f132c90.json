@@ -1,0 +1,19 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "f132c901af63dea5ab65a012bce383d52282ac61",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "ariadne",
+      "section": "dead_task_unblock",
+      "field": "ariadne_contract_review",
+      "verdict": "PASS_0_P0_0_P1_0_P2_0_P3_2_P4",
+      "scope_sha": "f132c901af63dea5ab65a012bce383d52282ac61",
+      "path": "evidence/review/verdicts/dead_task_unblock/ariadne_contract_review-f132c90.md",
+      "sha256": "9a57513a251a4bee1e46e5fbfa04f98d382771938dd9ca8b9b21466e729d60aa",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 329
+    }
+  ]
+}
