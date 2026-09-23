@@ -1736,12 +1736,14 @@ fn sorted_union(left: &[EntityId], right: &[EntityId]) -> Vec<EntityId> {
 /// S20-240 test selection.
 ///
 /// A base Function the candidate deletes has no binding in the proposed
-/// state: it is a tombstone for selection. Reference integrity already
-/// refuses any live TestCase still targeting it and policy refuses deleting a
-/// protected required test, so a tombstone selects exactly zero tests and is
-/// omitted from the closed request. Every identity still bound in the
-/// proposed state is kept, whatever its kind, so a kind change keeps refusing
-/// inside the checker. Phase-9 grants keep the full base/proposed union.
+/// state: it is a tombstone for selection. Phase 5 already refuses any live
+/// reference to it (a TestCase still targeting it included), and deleting a
+/// protected required test still refuses in the checker's required-test
+/// resolution at phase 11, so a tombstone selects exactly zero tests and is
+/// omitted from the closed request. Keeping every identity still bound in the
+/// proposed state, whatever its kind, is defensive: apply refuses a kind
+/// change, and were one reached the checker would refuse it at phase 11.
+/// Phase-9 grants keep the full base/proposed union.
 fn live_selection_functions(affected: &[EntityId], program: &CandidateProgram) -> Vec<EntityId> {
     affected
         .iter()

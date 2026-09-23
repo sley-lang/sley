@@ -83,3 +83,39 @@ recorded separately; it does not change any plan output today.
 Constraints: read-only review. No file writes. Verdict in the standard
 Council footer (`VERDICT/SECTION/FIELD/SCOPE_SHA/FINDINGS/SUMMARY`) against
 section `dead_function_deletion_selection`.
+
+## Amendment 1 (2026-09-23, after the 883361e3 round)
+
+Verdicts: Ariadne `PASS_0_P0_0_P1_0_P2_1_P3_2_P4`, Nabu
+`REVISE_0_P0_1_P1_0_P2_1_P3_3_P4` (transcripts under
+`evidence/review/verdicts/dead_function_deletion_selection/*-883361e.md`).
+
+- Test inventory (Nabu P1, Ariadne P3): `evidence/validation/test-inventory.json`
+  is regenerated in this commit (sley-policy +7). The other records the diff
+  makes stale are candidate-bound — the persistent-fuzz proof records, the
+  S20-730 reproducibility report, the T54 secret scan and the dossier/GA
+  digests that follow them. They are rebound by the release-candidate mint the
+  change lands through (the `69907ddf`→`8966da2e` pattern: fresh detached
+  mint, fuzz refresh, evidence refresh, records-only commit, `make quick` exit
+  0 at the landing tip). The acceptance criterion "`make quick` at the
+  reviewed head" is therefore restated as: vector/fixture checkers green here;
+  full `make quick` exit 0 at the landing tip after the mint.
+- Dated spec amendment (Nabu P3): `docs/spec/CANDIDATE_RESULT_V1.md` phase-10
+  rule now carries an "Amended 2026-09-23, REQ-11" note (no frozen vector
+  pinned the old refusal; only refuse-to-valid movement; profile id
+  unchanged because no previously valid result changes).
+- Kind-change wording (both P4): the branch is defensive — apply refuses a kind
+  change (`TargetKindMismatch`), and a reached one would refuse at phase 11 as
+  `TEST_PLAN_SELECTION_INVALID`, not `WrongEntityKind`. Spec, doc comment and
+  this packet say so; the "(WrongEntityKind)" parenthetical above is superseded.
+  The required-test refusal is the checker's required-test resolution rendered
+  at phase 11, not a policy check; the doc comment says so.
+- Design deviation (Nabu P4): `bench/live/DEAD-TOMBSTONE-PROPOSAL.md` proposed a
+  checker-side tombstone index in `contracts.rs`; this change projects the
+  caller's input instead, leaving the S20-240 checker and its contract
+  untouched. The frozen DEAD benchmark positive is NOT claimed unblocked by
+  this change alone: it must be re-run on the succession arm with this fix
+  merged before any such claim.
+- Latent clause (both P4): `native_test_plan.rs` `affected.contains(entity)` is
+  recorded as a separate follow-up (no plan output changes today); it is not
+  folded into this change.
