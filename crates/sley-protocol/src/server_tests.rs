@@ -607,9 +607,10 @@ fn query_family_transports_the_frozen_engine_records() {
     assert_eq!(garbage.code, ProtocolErrorCode::PayloadInvalid.numeric());
 }
 
-/// SMP1 revision 14: under a version 1 selection `workspace.open` stays
+/// SMP1 revision 15: under a version 1 selection `workspace.open` stays
 /// exactly `revision_summary` even with a materialized head snapshot (field
-/// 9 is version 2 only), and a non-empty request body is refused
+/// 9 applies under version 2 and every later selection whose table carries
+/// version 2's row 201), and a non-empty request body is refused
 /// `PROTOCOL_PAYLOAD_INVALID`.
 #[test]
 fn workspace_open_under_version_1_never_carries_field_9() {
@@ -7460,7 +7461,7 @@ fn workspace_open_v2_discloses_only_the_materialized_head_snapshot() {
     );
 }
 
-/// SMP1 revision 14: version 3 is the union of the version 1 and version 2
+/// SMP1 revision 15: version 3 is the union of the version 1 and version 2
 /// tables (`NATIVE_TEST_ADMISSION_V1` appendix D), so `workspace.open` under
 /// a version 3 selection answers exactly the version 2 `open_summary`:
 /// eight fields cold, field 9 (the identity `query.root` binds) warm.
@@ -7582,4 +7583,104 @@ fn workspace_open_probe_is_non_waiting_and_never_rewrites_a_discarded_record() {
         corrupt,
         "no rebuild, no write-back"
     );
+}
+
+/// Session profile revision 6 (S20-330 section 3): `workspace.open` is
+/// answered from the head its session check loaded, so one answer loads the
+/// accepted head exactly once and a head advanced between the check and the
+/// answer can never be served to a session bound to the older root.
+#[test]
+fn workspace_open_answers_from_the_single_checked_head_load() {
+    let mut harness = Harness::new("s330-open-one-load");
+    harness.server.reset_head_load_count();
+    let opened = harness.ok(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(
+        harness.server.head_load_count(),
+        1,
+        "one head load per answer"
+    );
+    let summary = harness.ok(Method::RevisionRead, tx(harness.genesis)).body;
+    assert_eq!(opened.body, summary);
+}
+
+/// Session profile revision 6 (S20-330 section 3): under a version 3
+/// selection the two entity-read methods are head-bound exactly as under
+/// version 2, so a stale bound root refuses both with
+/// `SESSION_ROOT_ADVANCED` before any body is read.
+#[test]
+fn entity_reads_are_head_bound_under_version_3() {
+    let bit = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1;
+    let (temp, _, _) = genesis(
+        "s330-v3-head-bound",
+        complete_bodies(),
+        &[complete_dependency_root()],
+    );
+    let repository = temp.child("repo");
+    let mut server = Server::new_versioned(
+        &repository,
+        &v3hello(v3_offered_methods(), bit),
+        &v3hello(v3_offered_methods(), bit),
+    )
+    .unwrap();
+    assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V3);
+    let session = open_v3_session(&mut server);
+    // The head advances: another root under the same workspace replaces the
+    // repository on disk, which is what a commit would leave behind.
+    let (other, _, _) = sley_repo::test_support::genesis_in_workspace(
+        "s330-v3-advance",
+        dependency_free_bodies(),
+        &[],
+        1,
+    );
+    let parked = sley_repo::test_support::TempDir::new("s330-v3-parked");
+    std::fs::rename(&repository, parked.child("repo")).unwrap();
+    std::fs::rename(other.child("repo"), &repository).unwrap();
+    for (id, tag) in [(1, ENTITY_VERSION_TAG), (2, ENTITY_SIGNATURE_TAG)] {
+        let answer = server
+            .answer(&v3request_frame(Some(session), id, tag, b"junk".to_vec()))
+            .unwrap();
+        assert!(answer.failed);
+        let (DecodedFrame::Response(frame), _) =
+            decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3)
+                .unwrap()
+        else {
+            panic!("v3 response frame");
+        };
+        let failure = ProtocolFailure::decode(&frame.body).unwrap();
+        assert_eq!(failure.symbol, "SESSION_ROOT_ADVANCED", "tag {tag}");
+    }
+}
+
+/// Session profile revision 6 (S20-330 section 3): below version 3 the
+/// native tags 605, 606, and 607 are outside the selection's table and are
+/// refused at decode, before check 1, so even an unknown session answers
+/// `PROTOCOL_METHOD_UNSUPPORTED`; a reserved tag inside the table (305)
+/// passes to check 1 and answers `SESSION_UNKNOWN`.
+#[test]
+fn native_tags_below_version_3_refuse_at_decode_before_the_session_check() {
+    let mut harness = VServer::new("s330-v2-native-precedence");
+    let stranger = SessionId::from_bytes([0x5a; 32]);
+    let refuse = |server: &mut Server, id: u64, tag: u32| {
+        let answer = server
+            .answer(&vrequest_frame(Some(stranger), id, tag, Vec::new()))
+            .unwrap();
+        assert!(answer.failed);
+        let (DecodedFrame::Response(frame), _) =
+            decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+                .unwrap()
+        else {
+            panic!("v2 response frame");
+        };
+        ProtocolFailure::decode(&frame.body).unwrap()
+    };
+    for (id, tag) in [(1, 605), (2, 606), (3, 607)] {
+        let failure = refuse(&mut harness.server, id, tag);
+        assert_eq!(
+            failure.code,
+            ProtocolErrorCode::MethodUnsupported.numeric(),
+            "tag {tag}"
+        );
+    }
+    let reserved = refuse(&mut harness.server, 4, 305);
+    assert_eq!(reserved.symbol, "SESSION_UNKNOWN");
 }

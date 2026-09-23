@@ -2418,8 +2418,13 @@ fn frame_decode_keeps_partial_stdout_before_failure() {
 }
 
 #[test]
-fn native_test_worker_entry_passes_refusal_words_through_unwrapped() {
-    use sley_test_runner::worker::WorkerRequest;
+fn native_test_worker_entry_runs_the_unit_argv_against_the_real_binary() {
+    use sley_id::{PrincipalId, WorkspaceId};
+    use sley_test_runner::config::{AllowedCaller, default_config};
+    use sley_test_runner::unit::render_transient_unit;
+    use sley_test_runner::worker::{
+        EXIT_INPUT_UNREADABLE, EXIT_MALFORMED, EXIT_NOT_WIRED, WorkerRequest,
+    };
     use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits};
 
     let frame = WorkerRequest {
@@ -2437,21 +2442,67 @@ fn native_test_worker_entry_passes_refusal_words_through_unwrapped() {
     }
     .encode_frame()
     .unwrap();
-    // Well-formed envelope reaches the unwired dispatch refusal: exit 2
-    // with raw refusal words on stdout and no CLI JSON failure.
-    let (status, stdout, stderr) = run(&["__native-test-worker"], &frame);
-    assert_eq!(status, 2);
+    let scratch = TempDir::new("native-worker");
+    let input = scratch.child("input.bin");
+    std::fs::write(&input, &frame).unwrap();
+    let junk = scratch.child("junk.bin");
+    std::fs::write(&junk, b"junk").unwrap();
+    let worker = env!("CARGO_BIN_EXE_sley");
+    let config = default_config(
+        "/run/sley-test-supervisor",
+        worker,
+        [7; 32],
+        [8; 32],
+        vec![AllowedCaller {
+            uid: 1000,
+            workspace: WorkspaceId::from_bytes([11; 32]),
+            principal: PrincipalId::from_bytes([12; 32]),
+        }],
+        "/etc/sley-test-supervisor/measurement.key",
+        "/etc/sley-test-supervisor/trust",
+    )
+    .unwrap();
+    // The supervisor's own rendering is the argv contract: everything after
+    // the worker path is handed to the real binary unchanged.
+    let run_unit = |input_path: &std::path::Path| {
+        let unit =
+            render_transient_unit(&config, "9f2c", input_path.to_str().unwrap(), 8192, 1_000)
+                .unwrap();
+        let at = unit.argv.iter().position(|word| word == worker).unwrap();
+        let output = Command::new(worker)
+            .args(&unit.argv[at + 1..])
+            .stdin(Stdio::null())
+            .output()
+            .unwrap();
+        (output.status.code().unwrap(), output.stdout, output.stderr)
+    };
+    // Well-formed envelope reaches the unwired dispatch refusal: raw
+    // refusal words on stdout, nothing on stderr, worker status 6.
+    let (status, stdout, stderr) = run_unit(&input);
+    assert_eq!(status, EXIT_NOT_WIRED);
     assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 2);
     assert_eq!(&stdout[4..], b"NATIVE_WORKER_EXECUTION_NOT_WIRED");
     assert!(stderr.is_empty());
-    // Malformed input refuses with exit 1 and the stable SCB string.
-    let (status, stdout, stderr) = run(&["__native-test-worker"], b"junk");
-    assert_eq!(status, 1);
+    // Malformed input: worker status 1 with the stable SCB string.
+    let (status, stdout, stderr) = run_unit(&junk);
+    assert_eq!(status, EXIT_MALFORMED);
     assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 1);
     assert!(stderr.is_empty());
-    // Extra words stay a usage refusal, never a worker run.
-    let (status, _, stderr) = run(&["__native-test-worker", "extra"], &frame);
-    assert_eq!(status, 2);
-    let failure: Value = serde_json::from_str(stderr.trim()).unwrap();
-    assert_eq!(failure["code"], 43000);
+    // An absent binding: worker status 7, refusal tag 3.
+    let (status, stdout, _) = run_unit(&scratch.child("absent.bin"));
+    assert_eq!(status, EXIT_INPUT_UNREADABLE);
+    assert_eq!(u32::from_be_bytes(stdout[..4].try_into().unwrap()), 3);
+    // Worker statuses never collide with the CLI's own statuses 2..=5, and
+    // any other argv shape is a CLI usage failure (exit 2, JSON on stderr).
+    for words in [
+        vec!["__native-test-worker"],
+        vec!["__native-test-worker", "relative.bin"],
+        vec!["__native-test-worker", input.to_str().unwrap(), "extra"],
+    ] {
+        let (status, stdout, stderr) = run(&words, &frame);
+        assert_eq!(status, 2, "{words:?}");
+        assert!(stdout.is_empty());
+        let failure: Value = serde_json::from_str(stderr.trim()).unwrap();
+        assert_eq!(failure["code"], 43000);
+    }
 }

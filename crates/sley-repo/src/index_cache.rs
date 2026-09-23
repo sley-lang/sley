@@ -154,11 +154,41 @@ fn discard_reason_of(error: &IndexSnapshotError) -> CacheDiscardReason {
 
 static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// Whether each existing cache directory component (`index/`,
+/// `index/v1/`) above `path` is a real directory, never a symlink or a
+/// non-directory. An absent component is fine (the writer creates it).
+fn cache_directories_are_real(path: &Path) -> bool {
+    let Some(version) = path.parent() else {
+        return false;
+    };
+    let Some(index) = version.parent() else {
+        return false;
+    };
+    [index, version].iter().all(|component| {
+        fs::symlink_metadata(component).map_or_else(
+            |error| error.kind() == std::io::ErrorKind::NotFound,
+            |metadata| metadata.file_type().is_dir(),
+        )
+    })
+}
+
 fn write_record(path: &Path, record: &[u8]) -> Result<(), IndexCacheError> {
     let directory = path
         .parent()
         .ok_or_else(|| std::io::Error::other("index cache path has no parent"))?;
+    // A symlinked `index/` or `index/v1/` is tampering: never create
+    // through it or write through it (the import purge refuses the same).
+    if !cache_directories_are_real(path) {
+        return Err(IndexCacheError::Io(std::io::Error::other(
+            "index cache directory is not a real directory",
+        )));
+    }
     fs::create_dir_all(directory)?;
+    if !cache_directories_are_real(path) {
+        return Err(IndexCacheError::Io(std::io::Error::other(
+            "index cache directory is not a real directory",
+        )));
+    }
     // Unique temporary names with exclusive creation: a fixed `.tmp` name
     // lets a planted symlink redirect the write through to another file,
     // and lets concurrent writers tear each other. The process id plus a
@@ -212,7 +242,10 @@ pub fn complete_root_snapshot(
             "index cache guard covers a different repository",
         )));
     }
-    let path = index_cache_path(repository, revision.state_root().root);
+    // Derived from the guard's canonical root, never the caller's spelling:
+    // a parent symlink retargeted after `covers` cannot aim the read or
+    // write-back outside the guarded repository.
+    let path = index_cache_path(guard.repository_root(), revision.state_root().root);
     let reason = match read_record(&path) {
         Some(record) => match accept_cached(revision, &record) {
             Ok(snapshot) => return Ok((snapshot, CacheOutcome::Hit)),
@@ -267,20 +300,29 @@ pub fn cached_complete_root_snapshot_id(
             "index cache guard covers a different repository",
         )));
     }
-    let path = index_cache_path(repository, revision.state_root().root);
+    // Derived from the guard's canonical root, never the caller's spelling:
+    // a parent symlink retargeted after `covers` cannot aim the read or
+    // write-back outside the guarded repository.
+    let path = index_cache_path(guard.repository_root(), revision.state_root().root);
     Ok(read_record(&path)
         .and_then(|record| accept_cached(revision, &record).ok())
         .map(|snapshot| snapshot.snapshot_id()))
 }
 
 /// Reads the cache file when it is a regular file, absent for anything
-/// else. There is no check-then-open window: the path is opened once with
-/// `O_NOFOLLOW` (a symlink at the cache path fails the open) and
-/// `O_NONBLOCK` (a FIFO or device cannot make the open wait), and the
-/// open handle is then required to be a regular file, so a planted
-/// symlink, FIFO, or directory is absence. The byte cap bounds what one
-/// read can materialize.
+/// else. The `index/` and `index/v1/` components must be real directories
+/// (a symlinked component is absence). On Unix the file is then opened
+/// once with `O_NOFOLLOW` (a symlink at the cache path fails the open) and
+/// `O_NONBLOCK` (a FIFO or device cannot make the open wait); on every
+/// platform the open handle is then required to be a regular file, so a
+/// planted symlink, FIFO, or directory is absence. The byte cap bounds
+/// what one read can materialize.
 fn read_record(path: &Path) -> Option<Vec<u8>> {
+    // `O_NOFOLLOW` covers only the final component, so the two cache
+    // directory components are required to be real directories first.
+    if !cache_directories_are_real(path) {
+        return None;
+    }
     let mut options = OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
@@ -330,7 +372,10 @@ pub fn verify_cached_snapshot(
         )));
     }
     let fresh = fresh_snapshot(revision)?;
-    let path = index_cache_path(repository, revision.state_root().root);
+    // Derived from the guard's canonical root, never the caller's spelling:
+    // a parent symlink retargeted after `covers` cannot aim the read or
+    // write-back outside the guarded repository.
+    let path = index_cache_path(guard.repository_root(), revision.state_root().root);
     match read_record(&path) {
         Some(record) => Ok(if record == fresh.record() {
             CacheVerify::Match
@@ -717,9 +762,68 @@ mod tests {
                 CacheVerify::Match
             );
         }
+        // A relative spelling (walked up from the working directory, no
+        // chdir) is covered too, and every spelling reads and writes the
+        // cache under the guard's canonical root.
+        let cwd = std::env::current_dir().unwrap();
+        let mut relative = PathBuf::new();
+        for _ in cwd.components().skip(1) {
+            relative.push("..");
+        }
+        relative.push(repository.strip_prefix("/").unwrap());
+        assert!(relative.is_relative());
+        assert_eq!(
+            cached_complete_root_snapshot_id(&relative, &revision, &guard).unwrap(),
+            Some(built.snapshot_id())
+        );
+        assert!(index_cache_path(guard.repository_root(), revision.state_root().root).is_file());
         let final_alias = temp.child("repo-alias");
         symlink(&repository, &final_alias).unwrap();
         assert!(cached_complete_root_snapshot_id(&final_alias, &revision, &guard).is_err());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_symlinked_cache_directory_is_never_read_or_written_through() {
+        // `O_NOFOLLOW` covers only the final component: a symlinked
+        // `index/` (or `index/v1/`) is refused as a component instead, so
+        // the probe answers absence and the write-back never lands outside
+        // the repository.
+        use std::os::unix::fs::symlink;
+        let (temp, transactions, genesis_id) =
+            genesis("index-dir-link", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        // A valid record prepared elsewhere, reachable only through links.
+        let (built, _) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        let path = index_cache_path(&repository, revision.state_root().root);
+        let outside = temp.child("outside");
+        fs::rename(repository.join("index"), &outside).unwrap();
+        symlink(&outside, repository.join("index")).unwrap();
+        assert!(outside.join("v1").join(path.file_name().unwrap()).is_file());
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            None
+        );
+        fs::remove_file(outside.join("v1").join(path.file_name().unwrap())).unwrap();
+        let (fresh, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        assert_eq!(fresh.snapshot_id(), built.snapshot_id());
+        assert!(matches!(outcome, CacheOutcome::Rebuilt(_)));
+        assert!(
+            !outside.join("v1").join(path.file_name().unwrap()).exists(),
+            "no write-back through a symlinked index directory"
+        );
+        // The same for a symlinked `index/v1/` under a real `index/`.
+        fs::remove_file(repository.join("index")).unwrap();
+        fs::create_dir(repository.join("index")).unwrap();
+        symlink(outside.join("v1"), repository.join("index").join("v1")).unwrap();
+        let _ = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        assert!(!outside.join("v1").join(path.file_name().unwrap()).exists());
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            None
+        );
     }
 
     #[test]

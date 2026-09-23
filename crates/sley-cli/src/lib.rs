@@ -266,13 +266,18 @@ pub enum Command {
         /// The protocol profile (legacy default).
         profile: ProtocolProfile,
     },
-    /// Private fixed native-test worker IPC entry.
+    /// Private fixed native-test worker entry (contract section 10).
     ///
-    /// This is not a protocol method and never appears in the method
-    /// table: the root supervisor spawns exactly this argv over a
-    /// daemon-owned input binding. Raw refusal words go to stdout and the
-    /// worker exit code passes through unwrapped.
-    NativeTestWorker,
+    /// Not a user command and not a protocol method: the root supervisor
+    /// spawns exactly the transient unit's argv
+    /// (`__native-test-worker <input_path>`, an absolute path to the
+    /// daemon-owned read-only input binding). The worker's refusal words
+    /// go to stdout and its exit status (1, 6, 7, or 8; disjoint from
+    /// section 4) passes through unwrapped.
+    NativeTestWorker {
+        /// The absolute input binding path from the unit argv.
+        input: PathBuf,
+    },
 }
 
 /// Parses the flag tail of `frame decode` / `frame encode`: at most one
@@ -401,7 +406,11 @@ pub fn parse(args: &[String]) -> Result<Command> {
         "version" => Ok(Command::Version {
             profile: parse_profile_only(rest)?,
         }),
-        "__native-test-worker" if rest.is_empty() => Ok(Command::NativeTestWorker),
+        "__native-test-worker" if rest.len() == 1 && rest[0].starts_with('/') => {
+            Ok(Command::NativeTestWorker {
+                input: PathBuf::from(&rest[0]),
+            })
+        }
         "hello" => {
             let mut json = false;
             let mut profile = ProtocolProfile::Legacy;
@@ -444,8 +453,8 @@ pub fn run(
     // Private fixed worker IPC entry: raw refusal words on stdout and the
     // worker exit code passes through unwrapped, never as a CLI JSON
     // failure. Every other command keeps the exact contract below.
-    if matches!(command, Command::NativeTestWorker) {
-        let status = sley_test_runner::worker::run_stdio(stdin, stdout);
+    if let Command::NativeTestWorker { input } = &command {
+        let status = sley_test_runner::worker::run_input_path(input, stdout);
         if let Err(error) = stdout.flush() {
             let failure = stream_failure(error);
             let _ = writeln!(stderr, "{}", failure.value());
@@ -454,7 +463,7 @@ pub fn run(
         return status;
     }
     let outcome = match command {
-        Command::NativeTestWorker => unreachable!("worker entry returns above"),
+        Command::NativeTestWorker { .. } => unreachable!("worker entry returns above"),
         Command::Serve { options, profile } => serve_profile(&options, profile, stdin, stdout),
         Command::FrameDecode {
             expected_version, ..

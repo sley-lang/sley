@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "conformance/smp1-json-bridge/v1"
 EXPECTED_VECTORS = ["request", "response", "failure", "hello-client", "hello-server"]
-EXPECTED_REJECTION_COUNT = 36
+EXPECTED_REJECTION_COUNT = 37
 
 
 def main() -> int:

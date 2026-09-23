@@ -299,6 +299,18 @@ pub(crate) fn rejections() -> Vec<(&'static str, String, BridgeError)> {
             frame_invalid.clone(),
         ),
         (
+            // The codec judges a hello's protocol version before its other
+            // header fields (contract section 8): a version above 1 with a
+            // nonzero request id is the version failure, not a frame one.
+            "hello-version-above-with-request-id",
+            text(&with(
+                with(hello_base.clone(), &["protocol_version"], Value::from(99)),
+                &["request_id"],
+                Value::from(1),
+            )),
+            protocol(ProtocolErrorCode::VersionUnsupported),
+        ),
+        (
             "hello-with-bounds",
             text(&with(
                 hello_base.clone(),
@@ -906,4 +918,32 @@ fn emit_smp1_json_bridge_vectors_for_fixture_refresh() {
             expected.symbol()
         );
     }
+}
+
+#[test]
+fn the_version_3_hello_rendering_is_render_only() {
+    // Contract section 11: the version 3 hello carries a fifth features key,
+    // `native_tests`; the reader keeps the four-key object and refuses it.
+    let offered = sley_protocol::Server::offered_hello_v3().expect("offers");
+    let text =
+        hello_to_json_for_version(&offered, sley_protocol::PROTOCOL_VERSION_V3).expect("renders");
+    let value: Value = serde_json::from_str(&text).expect("parses");
+    let features = value["features"].as_object().expect("features");
+    assert_eq!(features.len(), FEATURE_FIELDS.len() + 1);
+    assert_eq!(value["features"]["native_tests"], Value::from(true));
+    // The reader is the version 1 reader: the version 3 text fails on its
+    // first version 3 method name, and a `native_tests` key added to an
+    // otherwise valid version 1 hello is an unknown field.
+    assert_eq!(
+        hello_from_json(&text).map_err(|error| error.symbol().to_owned()),
+        Err("JSON_BRIDGE_METHOD_UNKNOWN".to_owned())
+    );
+    let (client, _) = fixture_hellos();
+    let mut v1: Value = serde_json::from_str(&hello_to_json(&client).expect("renders")).unwrap();
+    v1["features"]["native_tests"] = Value::from(true);
+    assert_eq!(
+        hello_from_json(&v1.to_string()).map_err(|error| error.symbol().to_owned()),
+        Err("JSON_BRIDGE_SHAPE_INVALID".to_owned())
+    );
+    assert!(hello_to_json_for_version(&offered, 4).is_err());
 }
