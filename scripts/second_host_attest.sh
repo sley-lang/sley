@@ -66,10 +66,18 @@ ssh -o BatchMode=yes -o ConnectTimeout=15 "$LAB_HOST" 'hostname; echo SSH_CONNEC
 if [[ "$PHASE" == "build" ]]; then
   echo "== bundle exact candidate and build on the lab (detached, clean by construction)"
   BUNDLE="$OUT/sley2-$CANDIDATE.bundle"
-  git -C "$REPO" bundle create "$BUNDLE" "$CANDIDATE" --tags 2>/dev/null || git -C "$REPO" bundle create "$BUNDLE" "$CANDIDATE"
+  # `git bundle create <file> <bare-sha>` is refused as an empty bundle: bundle
+  # the candidate through a temporary ref, removed again once the bundle exists
+  # (the 8d063f00 lane ran this step by hand for that reason).
+  REF="refs/heads/attest/${CANDIDATE:0:7}"
+  git -C "$REPO" update-ref "$REF" "$CANDIDATE"
+  git -C "$REPO" bundle create "$BUNDLE" "$REF"
+  git -C "$REPO" update-ref -d "$REF"
+  git -C "$REPO" bundle verify "$BUNDLE" >/dev/null
   scp "$BUNDLE" "$LAB_HOST:$LAB_HOME/"
   ssh "$LAB_HOST" bash -s <<LAB
 set -euo pipefail
+source ~/.cargo/env 2>/dev/null || true
 rm -rf "$LAB_DIR"
 git clone --quiet "$LAB_HOME/$(basename "$BUNDLE")" "$LAB_DIR"
 cd "$LAB_DIR"
