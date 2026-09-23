@@ -3151,19 +3151,19 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "60be11c8e45fd44f117b78ab9a439951cce2ac11",
+      "source_commit": "6519f6e0578c8abfb5e9262a374034fadfbf17fd",
       "worktree_dirty_files": [],
       "corpus_count": 713,
-      "corpus_file_count": 727,
+      "corpus_file_count": 748,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
         "counters": 4486,
-        "ft_done": 2506,
-        "ft_inited": 2200,
+        "ft_done": 2748,
+        "ft_inited": 2506,
         "new_events": true,
-        "seed": 2838736009
+        "seed": 855483237
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3185,7 +3185,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "REQ-10 round-7 repair head 60be11c8: workspace.open single checked head, cache directory hardening, CLI worker entry, bridge v3 test and vector; lane re-proofed"
+      "note": "round-8 repair head 6519f6e0: server docstring correction (absent maintenance boundary); lane re-proofed"
     },
     "generated_seed_count": 713,
     "lane_3_seeds": "multi-frame concatenated pairs reach reassemble_stream (proven); bare prefix-stripped bodies removed in 7h (they never decoded as hello records); negotiation executes through check_frame Hello arm on fixture hello frames (shared oracle); see S20-700-SMP1-001 + negotiate divergence packet",
@@ -3224,19 +3224,19 @@
     "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "60be11c8e45fd44f117b78ab9a439951cce2ac11",
+      "source_commit": "6519f6e0578c8abfb5e9262a374034fadfbf17fd",
       "worktree_dirty_files": [],
       "corpus_count": 645,
-      "corpus_file_count": 676,
+      "corpus_file_count": 700,
       "runs_requested": 1286,
       "runs_floor": 1286,
       "executed_runs": 1286,
       "coverage": {
         "counters": 7117,
-        "ft_done": 4146,
-        "ft_inited": 4073,
+        "ft_done": 4331,
+        "ft_inited": 4147,
         "new_events": true,
-        "seed": 4102182817
+        "seed": 931038734
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3255,10 +3255,10 @@
       "cc": "/usr/lib/llvm18/bin/clang-18",
       "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "worktree_dirty": false,
-      "stale_seeds_removed": 608,
+      "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "REQ-10 round-7 repair head 60be11c8: workspace.open single checked head, cache directory hardening, CLI worker entry, bridge v3 test and vector; lane re-proofed"
+      "note": "round-8 repair head 6519f6e0: server docstring correction (absent maintenance boundary); lane re-proofed"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 4f1f806240e607c0db75d63a4d7340147416a86f12517b77b3d1391e2cac3ed3) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) was located and all eleven P3/P4 findings enumerated; eight are verified closed at 178873d7 by code and audit changes in rounds 7h-7j and the b1218578 pin-layout repair, with the checker passing (exit 0). Two carried P3s (stale \"thirty-one\" count; tautological `known()` oracle) and one carried P4 (unbound checker markers) remain open and untracked, so the row cannot be closed. Two new records defects were found: the durable `last_local_proof` is stale against both runner and governed crate and contradicts the on-disk canonical-layout proof, ",
     "p3_open": [
