@@ -121,24 +121,48 @@ class AgentAccessTests(unittest.TestCase):
     def seal(self, command: str, session: list) -> None:
         sley2_tool.append_transcript(self.ws, [command], True, 5, 100, session, None)
 
-    def bounded_page(self, truncated: bool, omitted: int, returned: int = 100) -> list:
+    Q = "a1" * 32
+
+    @staticmethod
+    def cur(n: int) -> str:
+        return "1:" + f"{n:02x}" * 32
+
+    def bounded_page(self, truncated: bool, omitted: int, returned: int = 100,
+                     nxt: str | None = None, query: str | None = None) -> list:
+        chain = {"query": query or self.Q, "after": None,
+                 "truncated": truncated,
+                 "next": nxt if nxt is not None else (self.cur(1) if truncated else None)}
         return [
             {"direction": "request", "method": "query.root",
              "body_sha256": "0" * 64},
             {"direction": "response", "failed": False,
              "body_sha256": "1" * 64, "omitted": omitted,
-             "truncated": truncated, "returned_bytes": returned},
+             "truncated": truncated, "returned_bytes": returned,
+             "chain": chain},
         ]
 
     def continuation_follow(self, returned: int = 100,
-                            truncated: bool = False, omitted: int = 0) -> list:
+                            truncated: bool = False, omitted: int = 0,
+                            after: str | None = None, nxt: str | None = None,
+                            failed: bool = False) -> list:
+        response = {"direction": "response", "failed": failed,
+                    "body_sha256": "3" * 64, "omitted": omitted,
+                    "truncated": truncated, "returned_bytes": returned}
+        if not failed:
+            response["chain"] = {"query": self.Q,
+                                 "after": after or self.cur(1),
+                                 "truncated": truncated, "next": nxt}
         return [
             {"direction": "request", "method": "query.continue",
              "body_sha256": "2" * 64},
-            {"direction": "response", "failed": False,
-             "body_sha256": "3" * 64, "omitted": omitted,
-             "truncated": truncated, "returned_bytes": returned},
+            response,
         ]
+
+    def assert_rejects(self, needle: str) -> None:
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            self.audit()
+        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+        self.assertIn(needle, raised.exception.detail)
 
     def test_bounded_continuation_positive_accepted(self) -> None:
         # A genuinely bounded page (truncated with explicit omitted
@@ -153,26 +177,63 @@ class AgentAccessTests(unittest.TestCase):
         self.assertGreaterEqual(access["bounded_reads"], 2)
 
     def test_multi_page_continuation_chain_accepted(self) -> None:
-        # A continuation page that is itself truncated keeps the chain
-        # open; the next continue is consistent, not spurious.
-        # The final page is not truncated; its `omitted` counts entities
-        # earlier pages returned (server accounting) and closes the chain.
+        # Each truncated page opens its next cursor; each continue
+        # discharges the page whose next cursor it carries. The final
+        # page's `omitted` counts entities earlier pages returned.
         session = (self.bounded_page(True, 6)
-                   + self.continuation_follow(truncated=True, omitted=6)
-                   + self.continuation_follow(omitted=6))
+                   + self.continuation_follow(truncated=True, omitted=6,
+                                              nxt=self.cur(2))
+                   + self.continuation_follow(omitted=6, after=self.cur(2)))
         self.seal("raw", session)
         access = self.audit()
         self.assertEqual(access["continuations"], 2)
 
+    def test_continuation_across_invocations_accepted(self) -> None:
+        # One request per invocation (the documented sley-tool route): the
+        # continue in the next invocation discharges the page it names.
+        self.seal("raw", self.bounded_page(True, 5))
+        self.seal("raw", self.continuation_follow(omitted=5))
+        access = self.audit()
+        self.assertEqual(access["continuations"], 1)
+
     def test_truncated_continuation_without_follow_rejects(self) -> None:
         # Stopping on a truncated continuation page is hidden truncation.
         session = (self.bounded_page(True, 6)
-                   + self.continuation_follow(truncated=True, omitted=3))
+                   + self.continuation_follow(truncated=True, omitted=3,
+                                              nxt=self.cur(2)))
         self.seal("raw", session)
-        with self.assertRaises(judge.JudgeRejection) as raised:
-            self.audit()
-        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
-        self.assertIn("without continuation", raised.exception.detail)
+        self.assert_rejects("without continuation")
+
+    def test_refused_continue_does_not_discharge(self) -> None:
+        self.seal("raw", self.bounded_page(True, 5))
+        self.seal("raw", self.continuation_follow(failed=True))
+        self.assert_rejects("without continuation")
+
+    def test_past_the_end_cursor_rejects(self) -> None:
+        self.seal("raw", self.bounded_page(True, 5))
+        self.seal("raw", self.continuation_follow(
+            omitted=5, after="1:" + "ff" * 32))
+        self.assert_rejects("inconsistent continuation")
+
+    def test_two_truncated_pages_one_continue_rejects(self) -> None:
+        self.seal("raw", self.bounded_page(True, 5))
+        self.seal("raw", self.bounded_page(True, 5, query="b2" * 32))
+        self.seal("raw", self.continuation_follow(omitted=5))
+        self.assert_rejects("without continuation")
+
+    def test_prior_tool_version_rejects(self) -> None:
+        # Evidence stamped with the revision 4 tool identity ("1") is not
+        # evidence of the revision 5 surface.
+        self.seal("raw", self.bounded_page(False, 0))
+        chain = self.ws / sley2_tool.CHAIN_NAME
+        entry = json.loads(chain.read_text(encoding="utf-8").splitlines()[0])
+        entry["tool_version"] = "1"
+        body = {key: value for key, value in entry.items() if key != "hash"}
+        sealed = sley2_tool._chain_entry(body, "0" * 64)
+        chain.write_text(json.dumps(sealed, sort_keys=True) + "\n",
+                         encoding="utf-8")
+        self.assertEqual(sley2_tool.TOOL_VERSION, "2")
+        self.assert_rejects("tool version 1")
 
     def test_hidden_truncation_rejects(self) -> None:
         # Truncated page with no following continue: hidden truncation.

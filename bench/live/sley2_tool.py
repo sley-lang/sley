@@ -71,7 +71,10 @@ USAGE_NAME = ".sley-live-usage"
 CHAIN_NAME = ".sley-live-transcript.jsonl"
 # Agent/tool boundary version, pinned by the judge: every chained entry
 # carries it, and access evidence from any other version is unverifiable.
-TOOL_VERSION = "1"
+# "2" (trial-runner contract revision 5): the `open` command, `revision
+# <tx>`, the nineteen-method raw set, and continuation bindings in the
+# transcript; evidence stamped "1" is the revision 4 surface and rejects.
+TOOL_VERSION = "2"
 # Stated per-call agent-visible response bound (frozen S3 CONTEXT ceiling):
 # no single response the agent sees may exceed it.
 MAX_RESPONSE_BYTES = 1048576
@@ -80,6 +83,11 @@ WHOLE_STORE_METHODS = frozenset({"inventory"})
 # Continuation machinery: bounded paging with explicit omitted/truncated
 # accounting, never silent drops.
 CONTINUATION_METHODS = frozenset({"query.continue", "query.root", "query.restricted"})
+# Root-backed query methods whose answered pages carry a continuation
+# binding (`_root_query_chain`): the judge discharges a truncated page only
+# with a successful `query.continue` of the same query at that page's next
+# cursor.
+ROOT_QUERY_METHODS = frozenset({"query.root", "query.continue"})
 PROTOCOL_VERSION = 2
 SESSION_TIMEOUT = 120
 HEX_64 = re.compile(r"[0-9a-f]{64}\Z")
@@ -189,6 +197,60 @@ def _parse_record_fields(body: bytes) -> dict[int, bytes]:
     if position != len(body):
         _fail("record")
     return fields
+
+
+# Root query wire offsets (SMP1 appendix A rows 300/301; ROOT_BACKED
+# profile sections 5-6): the request cursor starts after the fixed request
+# prefix, the response echo cursor after the fixed response prefix.
+_RQ_PREFIX = 8 + 4 + 4 + 4 * 32 + 4 + 4 + (8 + 8 + 4 + 8 + 8) + 4
+_RR_PREFIX = 8 + 4 + 4 + 32 + 4 * 32 + 4 + 4 + (8 + 8 + 4 + 8 + 8) + 4
+_CURSOR_PAYLOAD = {1: 32, 2: 68, 3: 32}
+
+
+def _cursor_span(data: bytes, at: int) -> tuple[str | None, int]:
+    """(cursor token, end offset) of an option cursor at `at`: None for
+    none, else "<kind>:<payload hex>"."""
+
+    if at + 4 > len(data):
+        raise ValueError("cursor")
+    tag = int.from_bytes(data[at:at + 4], "big")
+    if tag == 1:
+        return None, at + 4
+    if tag != 2 or at + 8 > len(data):
+        raise ValueError("cursor")
+    kind = int.from_bytes(data[at + 4:at + 8], "big")
+    size = _CURSOR_PAYLOAD.get(kind)
+    if size is None or at + 8 + size > len(data):
+        raise ValueError("cursor")
+    return f"{kind}:{data[at + 8:at + 8 + size].hex()}", at + 8 + size
+
+
+def _root_query_chain(request_hex: str, response_hex: str) -> dict[str, Any] | None:
+    """Continuation binding of one answered root query, derived on the
+    trusted side from the exact request and response bodies: `query` is the
+    sha256 of the request with its cursor elided (same class, body, limits,
+    paging, and head binding), `after` the request cursor, `truncated` and
+    `next` the response's own flag and next cursor. None when a body does
+    not parse (such a page can never discharge a continuation)."""
+
+    try:
+        request = bytes.fromhex(request_hex)
+        response = bytes.fromhex(response_hex)
+        if request[:8] != b"SLEYRQQ1" or response[:8] != b"SLEYRQR1":
+            return None
+        after, end = _cursor_span(request, _RQ_PREFIX)
+        key = hashlib.sha256(request[:_RQ_PREFIX] + request[end:]).hexdigest()
+        _, echo_end = _cursor_span(response, _RR_PREFIX)
+        at = echo_end + 4 + 8 + 8
+        if at + 4 > len(response):
+            return None
+        truncated = {1: False, 2: True}.get(int.from_bytes(response[at:at + 4], "big"))
+        if truncated is None:
+            return None
+        following, _ = _cursor_span(response, at + 4)
+    except ValueError:
+        return None
+    return {"query": key, "after": after, "truncated": truncated, "next": following}
 
 
 def _uvar(body: bytes, position: int) -> tuple[int, int]:
@@ -327,10 +389,14 @@ class Session:
         # Bounds travel in the transcript (not bodies): later audits can
         # verify bounded usage (omitted/truncated flags) without bodies.
         bounds = out.get("bounds") if isinstance(out.get("bounds"), dict) else {}
-        self._record({"direction": "response", "failed": bool(out["flags"].get("failed")),
-                      "body_sha256": hashlib.sha256((out.get("body") or "").encode()).hexdigest(),
-                      "omitted": bounds.get("omitted", 0), "truncated": bounds.get("truncated", False),
-                      "returned_bytes": bounds.get("returned_bytes", 0)})
+        failed = bool(out["flags"].get("failed"))
+        entry = {"direction": "response", "failed": failed,
+                 "body_sha256": hashlib.sha256((out.get("body") or "").encode()).hexdigest(),
+                 "omitted": bounds.get("omitted", 0), "truncated": bounds.get("truncated", False),
+                 "returned_bytes": bounds.get("returned_bytes", 0)}
+        if method in ROOT_QUERY_METHODS and not failed:
+            entry["chain"] = _root_query_chain(body_hex, out.get("body") or "")
+        self._record(entry)
         return out
 
     def _request(self, method: str, body_hex: str, request_id: int | None = None, counter: int | None = None) -> dict[str, Any]:

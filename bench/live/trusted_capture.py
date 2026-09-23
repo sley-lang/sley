@@ -403,6 +403,7 @@ class TrustedCapture:
         omitted = 0
         truncated = False
         continued = False
+        chain: dict[str, Any] | None = None
         response: bytes
         try:
             response, usage = handler()
@@ -414,6 +415,12 @@ class TrustedCapture:
             omitted = int(usage.get("omitted", 0) or 0)
             truncated = bool(usage.get("truncated", False))
             continued = bool(usage.get("continued", False))
+            raw_chain = usage.get("chain")
+            if isinstance(raw_chain, Mapping):
+                chain = {"query": raw_chain.get("query"),
+                         "after": raw_chain.get("after"),
+                         "truncated": raw_chain.get("truncated"),
+                         "next": raw_chain.get("next")}
         except CaptureError:
             raise
         except Exception as error:  # noqa: BLE001 - boundary records all failures
@@ -421,9 +428,13 @@ class TrustedCapture:
                                    "detail": str(error)[:300]})
             failed = True
             usage = {}
+            chain = None
         wall_ms = max(0, (time.monotonic_ns() - started) // 1_000_000)
         # 3. Response BEFORE release (durable) + cumulative budgets.
-        resp_record = self._seal({
+        #    A root-query response also carries its continuation binding
+        #    (`chain`: query key, request cursor, truncation, next cursor)
+        #    so the judge binds each continue to the page it continues.
+        body = {
             "contract": CAPTURE_CONTRACT,
             "attempt_id": self._attempt,
             "kind": "response",
@@ -439,7 +450,10 @@ class TrustedCapture:
             "continued": continued,
             "wall_ms": wall_ms,
             "t_utc": utc_now(),
-        })
+        }
+        if chain is not None:
+            body["chain"] = chain
+        resp_record = self._seal(body)
         _append_synced(self._dir / EXCHANGES_NAME,
                        _canonical(resp_record) + b"\n")
         self._head = resp_record["hash"]

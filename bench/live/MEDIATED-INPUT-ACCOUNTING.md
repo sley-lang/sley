@@ -32,7 +32,7 @@ judge checks typedef shape and case coverage, never those literals).
 | 2 | `.sley-live/TOOLING.md` (SLEY2 surface) | `bench/live/tooling.py::_files` (frozen `SLEY2_TOOLING`); `tool_description_digests` pinned in the run manifest | Documented training material | Workspace file, identical every trial; reads are agent file IO, not gateway exchanges |
 | 3 | Served repository state (base pack content) | `bench/live/taskpacks.py::stage_initial` (frozen `bench/fixtures/sley2/<TASK>/base.pack`); `arm_fixture_digests` in manifest; `pack_sha256` in capture `start.json` | Starting state | Not directly visible (protected_ws masked); visible only via gateway responses below, all counted |
 | 4 | Gateway responses (inventory/read/side/open/revision/caps/budgets/raw/propose/append/compose/inspect/validate/finish + mechanical `resolve`; `revision` takes an agent-supplied tx since trial-runner contract revision 5) | `SLEY2_TOOLING` documented surface; `bench/live/mediated_sley.py::ALLOWED_COMMANDS`; every frame inside `TrustedCapture.exchange` | Context through the allowed interface | `action_budget` → `trial_max_exchanges`; `wall_time_budget` → `trial_max_wall_ms`; response caps; cumulative ledger; `tool_calls == completion exchanges` asserted in tests; denied/failed responses counted, never zeroed |
-| 5 | `.sley-live/sley-tool` shim + `mediated_transport.py` (generic frame transport) | `bench/live/mediated_attempt.py::stage_mediated_scratch` (shim forwards the documented surface over the socket; transport moves frames only, no task content) + `assert_production_staging_clean` (permitted set + no solver markers) + `production_staging_digest` (every legitimate input digested) | Harness scaffolding, task-agnostic | No task content; identical every trial; no special production branches; test-only `mediated_client.py` (seq_type/seq_stale, CLIENT_MEMBERS, emit_provider_stream) never staged in production, injected only by tests |
+| 5 | `.sley-live/sley-tool` shim + `mediated_transport.py` (generic frame transport) | `bench/live/mediated_attempt.py::stage_mediated_scratch` (shim forwards the documented surface over the socket; transport moves frames only, no task content) + `assert_production_staging_clean` (permitted set + no solver markers) + `production_staging_digest` (every legitimate input digested) | Harness scaffolding, task-agnostic | No task content; identical every trial; no special production branches; test-only `mediated_client.py` (seq_type/seq_stale, CLIENT_MEMBERS, emit_provider_stream, and the route-neutral scripted CONTEXT agent `context_discover_and_repair` with its root-query codec) never staged in production, injected only by tests on the mediated route and imported by the direct witness `succ_witness_context.py` |
 | 6 | Confinement env (`HOME=/scratch`, `PATH`/`LANG`, `$SLEY2_GATEWAY_SOCK`) | Explicit mapping in `execute_mediated_attempt` | Harness scaffolding | Not task content; identical every trial |
 | 7 | TYPE/CONTEXT/STALE role identities | Discovered via input 4 (`discover_type_roles`, `seq_stale` guard scan: inventory kinds + read bodies, structural criteria only; CONTEXT since 2026-09-23: `open` snapshot binding + bounded class-4/class-14/class-2 `raw` root queries with explicit continuation + reads, `context_discover_and_repair`) | Context through the allowed interface | Discovery exchanges are captured and counted like any agent action (TYPE proof: 13 exchanges; STALE proof: 5) |
 
@@ -97,12 +97,16 @@ preregistered live-model campaign. `ga_claimed=false`.
   explicit continuation are formable from allowed routes; the
   mediated stand-in discovers the typedef and its impact closure with
   no identity argument (`test_mediated_context.py`, 7 integrated
-  proofs). NOT done: the corpus is frozen and digest-pinned, so no
-  task-input amendment naming the field was made (the stand-in selects
-  the store's unique record typedef by bounded listing); TOOLING.md
-  does not document the root-query request layout, so live-model
-  usability of the route is not established; the revision 5 Ariadne,
-  Nabu, and Vulcan reviews have not run.
+  proofs at the time; 8 after the revision 5 repairs). TOOLING.md
+  documents the root-query request/response layouts, continuation, and
+  budgets (commit `8db44154`, pinned by `RootQueryContractTests`);
+  continuation is audited by query and cursor, not by invocation (revision
+  5 repair), so the one-shot `sley-tool` route can page. NOT done: the
+  corpus is frozen and digest-pinned, so no task-input amendment naming
+  the field was made (the stand-in selects the store's unique record
+  typedef by bounded listing; ratification belongs to the corpus owner);
+  live-model usability is documented, not demonstrated (no live-model
+  trial); the revision 5 re-review after the REVISE round is pending.
 - CREATE complete-task rework DONE (typed Money/LineItem records,
   checked subtotal + merged-tax helpers, chained entry returning
   Result<Money,ArithmeticError>, no precomputed intermediates):

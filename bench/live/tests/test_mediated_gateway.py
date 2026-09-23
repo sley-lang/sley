@@ -107,6 +107,82 @@ class MediatedGatewayTests(unittest.TestCase):
         result = tc.reconcile(self.capture_dir, b"f")
         self.assertTrue(result["reconciled"], result)
 
+    def test_denied_commands_record_under_the_fixed_label(self) -> None:
+        # The capture label set is closed: an agent-chosen command string
+        # (here one imitating a routed continue) records as `denied`.
+        for command in ("raw:query.continue", "commit"):
+            raw = self.endpoint.handle("read", "s1", command, ["00"])
+            self.assertFalse(json.loads(raw).get("ok"))
+        raw = self.endpoint.handle("read", "s1", "raw", ["commit", "00"])
+        self.assertFalse(json.loads(raw).get("ok"))
+        labels = [json.loads(line)["method"] for line in
+                  (self.capture_dir / "exchanges.jsonl").read_text(
+                      encoding="utf-8").splitlines()]
+        self.assertEqual(labels, ["denied", "denied", "denied", "denied",
+                                  "raw:denied", "raw:denied"])
+        self.assertTrue(set(labels) <= gw.AUDIT_LABELS)
+
+    @staticmethod
+    def class4_body(head: dict, snapshot: str) -> bytes:
+        """A class-4 (type definitions) request in the TOOLING layout."""
+        return (b"SLEYRQQ1" + (1).to_bytes(4, "big") * 2
+                + bytes.fromhex(snapshot)
+                + b"".join(bytes.fromhex(head[k])
+                           for k in ("epoch", "root", "workspace"))
+                + (2).to_bytes(4, "big") + (1).to_bytes(4, "big")
+                + (8).to_bytes(8, "big") + (1).to_bytes(8, "big")
+                + (65535).to_bytes(4, "big") + (524000).to_bytes(8, "big")
+                + (100000000).to_bytes(8, "big") + (2).to_bytes(4, "big")
+                + (1).to_bytes(4, "big") + (4).to_bytes(4, "big")
+                + (4).to_bytes(4, "big"))
+
+    def test_warm_up_owner_refusal_wins_and_materializes_nothing(self) -> None:
+        # On a root the complete-root judgment rejects (this TYPE fixture),
+        # the unbound warm-up query is refused with the owner's code, not
+        # QUERY_SNAPSHOT_MISMATCH, and nothing materializes: `open` keeps
+        # reporting no snapshot (spec section 9 / TOOLING wording).
+        from bench.live import sley2_codecs
+        head = json.loads(self.endpoint.handle("read", "s1", "open", []))["report"]["decoded"]
+        raw = self.endpoint.handle("read", "s1", "raw", [
+            "query.root", self.class4_body(head, "00" * 32).hex()])
+        report = json.loads(raw)["report"]
+        self.assertTrue(report["failed"])
+        [decoded] = sley2_codecs.run_batch(
+            [{"op": "decode_failure", "body": report["body"]}])
+        self.assertEqual(decoded["decoded"]["symbol"],
+                         "INDEX_SNAPSHOT_ROOT_INCOMPLETE")
+        head = json.loads(self.endpoint.handle("read", "s1", "open", []))["report"]["decoded"]
+        self.assertNotIn("snapshot", head)
+
+    def test_root_query_response_records_its_continuation_binding(self) -> None:
+        # On the CONTEXT store: the refused warm-up carries no chain; the
+        # bound query's capture response carries the chain the tool derived
+        # from the exact bodies.
+        workspace = self.root / "context" / "ws"
+        stage_initial("sley_2_0", "S2B-CONTEXT-001", workspace)
+        capture_dir = self.root / "context-capture"
+        cap = tc.TrustedCapture.create(capture_dir, attempt_id="test.gw.ctx",
+                                       frozen=FROZEN)
+        endpoint = gw.MediatedSleyEndpoint(SLEY, workspace, cap)
+        head = json.loads(endpoint.handle("read", "s1", "open", []))["report"]["decoded"]
+        endpoint.handle("read", "s1", "raw", [
+            "query.root", self.class4_body(head, "00" * 32).hex()])
+        head = json.loads(endpoint.handle("read", "s1", "open", []))["report"]["decoded"]
+        self.assertIn("snapshot", head)
+        raw = endpoint.handle("read", "s1", "raw", [
+            "query.root", self.class4_body(head, head["snapshot"]).hex()])
+        self.assertFalse(json.loads(raw)["report"]["failed"])
+        records = [json.loads(line) for line in
+                   (capture_dir / "exchanges.jsonl").read_text(
+                       encoding="utf-8").splitlines()]
+        responses = [r for r in records if r["kind"] == "response"]
+        self.assertNotIn("chain", responses[1])
+        chain = responses[3]["chain"]
+        self.assertEqual(set(chain), {"query", "after", "truncated", "next"})
+        self.assertIsNone(chain["after"])
+        self.assertFalse(chain["truncated"])
+        self.assertEqual(len(chain["query"]), 64)
+
     def test_resolve_derives_mechanically(self) -> None:
         from bench.live import sley2_codecs
         raw = self.endpoint.handle("compose", "s1", "propose",

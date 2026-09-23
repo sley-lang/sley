@@ -63,6 +63,27 @@ GATEWAY_COMMANDS = ALLOWED_COMMANDS | {"resolve"}
 
 FINAL_NAME = "final_candidate.hex"
 
+# Closed capture-label vocabulary (the judge rejects any other label).
+DENIED_LABEL = "denied"
+AUDIT_LABELS = frozenset(
+    {f"raw:{method}" for method in sley2_tool.TOOL_METHODS}
+    | {"raw:denied", DENIED_LABEL} | GATEWAY_COMMANDS)
+
+
+def audit_label(command: object, args: object) -> str:
+    """The capture label of one frame: `raw:<method>` for an allowlisted
+    raw method, `raw:denied` for any other raw method, the command itself
+    for a gateway command, and `denied` for anything else."""
+
+    if command == "raw":
+        if (isinstance(args, list) and args
+                and args[0] in sley2_tool.TOOL_METHODS):
+            return f"raw:{args[0]}"
+        return "raw:denied"
+    if isinstance(command, str) and command in GATEWAY_COMMANDS:
+        return command
+    return DENIED_LABEL
+
 
 class GatewayError(ValueError):
     """A mediated-gateway framing or dispatch error."""
@@ -199,6 +220,16 @@ class MediatedSleyEndpoint:
                 "truncated": bool(summary.get("truncated", 0)),
                 "continued": int(summary.get("continuations", 0) or 0) > 0,
             }
+            # The continuation binding of the one answered root query a
+            # `raw query.root|query.continue` frame carries (derived on the
+            # trusted side by the tool); recorded with the response so the
+            # judge binds each continue to the page it continues.
+            chains = [entry["chain"] for entry in transcript
+                      if isinstance(entry, dict)
+                      and entry.get("direction") == "response"
+                      and "chain" in entry]
+            if command == "raw" and len(chains) == 1:
+                usage["chain"] = chains[0]
             return envelope, usage
         finally:
             session.close()
@@ -220,15 +251,12 @@ class MediatedSleyEndpoint:
         # Vocabulary note (contract revision 5): admitting
         # `workspace.open` to TOOL_METHODS moves a raw frame naming it
         # from `raw:denied` to `raw:workspace.open`, and the dedicated
-        # `open` command records under its own label `open` (the else
-        # branch). Neither is a bounded paging route, so any omitted or
-        # truncated signal on them is hidden truncation to the judge.
-        if command == "raw" and args and args[0] in sley2_tool.TOOL_METHODS:
-            audit_method = f"raw:{args[0]}"
-        elif command == "raw":
-            audit_method = "raw:denied"
-        else:
-            audit_method = command
+        # `open` command records under its own label `open`. Neither is
+        # a bounded paging route, so any omitted or truncated signal on
+        # them is hidden truncation to the judge. The label set is closed
+        # (`audit_label`): a command outside the gateway surface records
+        # as `denied`, never under the agent-supplied string.
+        audit_method = audit_label(command, args)
 
         def dispatch() -> tuple[bytes, dict[str, Any]]:
             envelope, usage = self._run_command(command, args)
@@ -304,7 +332,7 @@ def gateway_loop(endpoint: MediatedSleyEndpoint, capture: TrustedCapture,
             try:
                 response = capture.exchange(
                     phase=frame["phase"], session_id=frame["session_id"],
-                    method=frame["command"],
+                    method=audit_label(frame["command"], frame["args"]),
                     request=_canonical({"command": frame["command"],
                                         "args": frame["args"]}),
                     handler=denied)
@@ -428,7 +456,7 @@ def pump_client(process: Any, endpoint: MediatedSleyEndpoint,
             try:
                 response = endpoint.capture.exchange(
                     phase=frame["phase"], session_id=frame["session_id"],
-                    method=frame["command"],
+                    method=audit_label(frame["command"], frame["args"]),
                     request=_canonical({"command": frame["command"],
                                         "args": frame["args"]}),
                     handler=denied)

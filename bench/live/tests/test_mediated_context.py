@@ -15,7 +15,9 @@ or manifest value as an argument — its only argument is the mode. It
 opens the accepted head (`open`, the afforded `workspace.open`),
 materializes and binds the head's index snapshot identity, finds the
 record typedef by a bounded class-4 listing, walks the class-14 reverse
-impact closure in 3-entity pages with explicit `query.continue`,
+impact closure in 3-entity pages with explicit `query.continue` (each
+continue bound by the judge to the page it continues, by query and
+cursor),
 probes kinds (class 2), reads the impacted constants, and authors the
 repair. The judge derives access/budget evidence from the runner-owned
 reconciled capture (``SLEY2_MEDIATED_CAPTURE_DIR``).
@@ -129,6 +131,17 @@ class MediatedContextTests(unittest.TestCase):
         self.assertNotIn("inventory", methods)
         self.assertNotIn("side", methods)
         self.assertEqual(methods[-2:], ["propose", "finish"])
+        # Every answered root-query page carries its continuation binding,
+        # and each continue's cursor is the previous page's next cursor.
+        chains = [item.get("chain") for item in self.exchanges(record)
+                  if item["kind"] == "response" and not item["failed"]
+                  and item["method"] in ("raw:query.root", "raw:query.continue")]
+        self.assertTrue(chains and all(isinstance(c, dict) for c in chains))
+        impact = [c for c in chains if c["truncated"] or c["after"]]
+        self.assertEqual(len(impact), 4)
+        for page, following in zip(impact, impact[1:]):
+            self.assertEqual(following["query"], page["query"])
+            self.assertEqual(following["after"], page["next"])
 
     @GATED
     def test_context_incomplete_discovery_rejects(self) -> None:
@@ -146,6 +159,28 @@ class MediatedContextTests(unittest.TestCase):
         self.assertEqual(record["failure_code"], "QUERY_REQUIRED_FACT_OMITTED")
         self.assertIn("truncated page without continuation",
                       self.judge_detail(record))
+
+    @GATED
+    def test_context_fake_discharge_rejects(self) -> None:
+        """Vulcan r5 P2: after a truncated impact page, a refused continue,
+        a frame whose command imitates a routed continue, and a continue at
+        a past-the-end cursor (answered, empty) close nothing. The repair
+        is complete and finishes, yet the judge rejects."""
+
+        record = self.attempt("fake_discharge")
+        summary = self.summary(record)
+        self.assertTrue(summary["finished"])
+        fake = summary["discovery"]["fake"]
+        self.assertTrue(fake["refused"])
+        self.assertFalse(fake["forged_ok"])
+        self.assertEqual(fake["past_end_returned"], 0)
+        labels = [item["method"] for item in self.exchanges(record)
+                  if item["kind"] == "request"]
+        self.assertIn("denied", labels)
+        self.assertNotIn("raw:query.continue:forged", labels)
+        self.assertEqual(record["status"], "rejected")
+        self.assertEqual(record["failure_code"], "QUERY_REQUIRED_FACT_OMITTED")
+        self.assertIn("inconsistent continuation", self.judge_detail(record))
 
     @GATED
     def test_context_incomplete_impact_cannot_finish(self) -> None:

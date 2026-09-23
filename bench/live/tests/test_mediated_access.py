@@ -21,6 +21,19 @@ import unittest
 from pathlib import Path
 
 from bench.fixtures import sley2_live_judge as judge
+from bench.live.sley2_tool import TOOL_VERSION
+
+Q = "a1" * 32
+Q2 = "b2" * 32
+
+
+def cur(n: int) -> str:
+    return "1:" + f"{n:02x}" * 32
+
+
+def chain(query: str = Q, after=None, truncated: bool = False, nxt=None) -> dict:
+    return {"query": query, "after": after, "truncated": truncated,
+            "next": nxt}
 
 ROOT = Path(__file__).resolve().parents[3]
 TASK_DIR = ROOT / "bench" / "fixtures" / "sley2" / "S2B-CONTEXT-001"
@@ -55,7 +68,7 @@ class CaptureBuilder:
         self.frozen = {
             "pack_sha256": hashlib.sha256(pack).hexdigest(),
             "task_manifest_sha256": hashlib.sha256(manifest).hexdigest(),
-            "tool_version": "1",
+            "tool_version": TOOL_VERSION,
             "binary_sha256": hashlib.sha256(binary).hexdigest(),
         }
         (root / "start.json").write_bytes(canonical({
@@ -74,7 +87,7 @@ class CaptureBuilder:
     def exchange(self, method: str, session: str = "s",
                  failed: bool = False, omitted: int = 0,
                  truncated: bool = False, continued: bool = False,
-                 response_bytes: int = 100) -> None:
+                 response_bytes: int = 100, chain: dict | None = None) -> None:
         req = seal({"contract": "sley2.trusted-capture.v1",
                     "attempt_id": self.attempt, "kind": "request",
                     "seq": self.seq, "phase": "read",
@@ -91,7 +104,9 @@ class CaptureBuilder:
                      "response_bytes": response_bytes, "failed": failed,
                      "omitted": omitted, "truncated": truncated,
                      "continued": continued, "wall_ms": 1,
-                     "t_utc": "2026-09-21T00:00:00Z"}, self.head)
+                     "t_utc": "2026-09-21T00:00:00Z",
+                     **({"chain": chain} if chain is not None else {})},
+                    self.head)
         self.lines.append(canonical(resp).decode("ascii"))
         self.head = resp["hash"]
         self.seq += 1
@@ -143,52 +158,177 @@ class MediatedAccessCase(unittest.TestCase):
         self.assertEqual(access["agent_requests"], 3)
         self.assertEqual(access["refusals"], 0)
 
+    def rejects(self, builder, needle: str | None = None) -> None:
+        builder.close(self.trial)
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            judge._audit_mediated_access(self.capture, TASK_DIR, self.trial)
+        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+        if needle is not None:
+            self.assertIn(needle, raised.exception.detail)
+
     def test_truncated_page_with_continuation_passes(self) -> None:
         path, builder = self.build()
-        builder.exchange("raw:query.root", truncated=True)
-        builder.exchange("raw:query.continue")
+        builder.exchange("raw:query.root", truncated=True, omitted=5,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", omitted=5,
+                         chain=chain(after=cur(1)))
         builder.close(self.trial)
         access = judge._audit_mediated_access(path, TASK_DIR, self.trial)
         self.assertEqual(access["continuations"], 1)
         self.assertEqual(access["bounded_reads"], 2)
 
     def test_multi_page_continuation_chain_passes(self) -> None:
-        # A truncated continuation page keeps the chain open: the next
-        # continue in scope is consistent (three-page chain).
+        # Each truncated page opens its own next cursor; each continue
+        # discharges exactly the page whose next cursor it carries.
         path, builder = self.build()
-        builder.exchange("raw:query.root", truncated=True, omitted=6)
-        builder.exchange("raw:query.continue", truncated=True, omitted=6)
+        builder.exchange("raw:query.root", truncated=True, omitted=6,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", truncated=True, omitted=6,
+                         chain=chain(after=cur(1), truncated=True, nxt=cur(2)))
         # Final page: not truncated; `omitted` still counts the entities
-        # earlier pages returned (server accounting), which closes the
-        # chain rather than opening it.
-        builder.exchange("raw:query.continue", omitted=6)
+        # earlier pages returned (server accounting).
+        builder.exchange("raw:query.continue", omitted=6,
+                         chain=chain(after=cur(2)))
         builder.close(self.trial)
         access = judge._audit_mediated_access(path, TASK_DIR, self.trial)
         self.assertEqual(access["continuations"], 2)
         self.assertEqual(access["bounded_reads"], 3)
 
+    def test_cross_scope_bound_continuation_passes(self) -> None:
+        # Binding is by query and cursor, not by session: a one-shot
+        # invocation (its own scope) may continue a page another opened.
+        path, builder = self.build()
+        builder.exchange("raw:query.root", session="shim-1", truncated=True,
+                         omitted=4, chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", session="shim-2", omitted=4,
+                         chain=chain(after=cur(1)))
+        builder.close(self.trial)
+        access = judge._audit_mediated_access(path, TASK_DIR, self.trial)
+        self.assertEqual(access["continuations"], 1)
+
+    def test_cross_scope_wrong_cursor_rejects(self) -> None:
+        path, builder = self.build()
+        builder.exchange("raw:query.root", session="shim-1", truncated=True,
+                         omitted=4, chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", session="shim-2", omitted=4,
+                         chain=chain(after=cur(2)))
+        self.rejects(builder, "inconsistent continuation")
+
     def test_truncated_continuation_without_follow_rejects(self) -> None:
         # Stopping on a truncated continuation page is hidden truncation.
         path, builder = self.build()
-        builder.exchange("raw:query.root", truncated=True, omitted=6)
-        builder.exchange("raw:query.continue", truncated=True, omitted=3)
-        builder.close(self.trial)
-        with self.assertRaises(judge.JudgeRejection) as raised:
-            judge._audit_mediated_access(path, TASK_DIR, self.trial)
-        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
-        self.assertIn("without continuation", raised.exception.detail)
+        builder.exchange("raw:query.root", truncated=True, omitted=6,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", truncated=True, omitted=3,
+                         chain=chain(after=cur(1), truncated=True, nxt=cur(2)))
+        self.rejects(builder, "without continuation")
+
+    def test_refused_continue_does_not_discharge(self) -> None:
+        # Vulcan r5 probe (a): a refused continue closes nothing.
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=4,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", failed=True)
+        self.rejects(builder, "without continuation")
+
+    def test_refused_continue_after_truncated_continue_does_not_discharge(self) -> None:
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=6,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", truncated=True, omitted=6,
+                         chain=chain(after=cur(1), truncated=True, nxt=cur(2)))
+        builder.exchange("raw:query.continue", failed=True)
+        self.rejects(builder, "without continuation")
+
+    def test_forged_continue_label_rejects(self) -> None:
+        # Vulcan r5 probe (b): a label outside the closed vocabulary (an
+        # agent-chosen command string) is not evidence of a routed call.
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=4,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue:forged", failed=True)
+        self.rejects(builder, "capture label")
+
+    def test_denied_label_does_not_discharge(self) -> None:
+        # A denied frame (the gateway's fixed label) continues nothing.
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=4,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("denied", failed=True)
+        self.rejects(builder, "without continuation")
+
+    def test_past_the_end_cursor_rejects(self) -> None:
+        # Vulcan r5 probe (c): the server answers an `ff..ff` cursor with a
+        # successful empty page; it matches no open page.
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=4,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", omitted=4,
+                         chain=chain(after="1:" + "ff" * 32))
+        self.rejects(builder, "inconsistent continuation")
+
+    def test_skipping_cursor_rejects(self) -> None:
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=6,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", omitted=6,
+                         chain=chain(after=cur(2)))
+        self.rejects(builder, "inconsistent continuation")
+
+    def test_other_query_continue_rejects(self) -> None:
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=4,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", omitted=4,
+                         chain=chain(query=Q2, after=cur(1)))
+        self.rejects(builder, "inconsistent continuation")
+
+    def test_two_truncated_pages_one_continue_rejects(self) -> None:
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=4,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.root", truncated=True, omitted=4,
+                         chain=chain(query=Q2, truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", omitted=4,
+                         chain=chain(after=cur(1)))
+        self.rejects(builder, "without continuation")
+
+    def test_unbound_continue_rejects(self) -> None:
+        # A continue with no binding (unparseable body) continues nothing.
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=4,
+                         chain=chain(truncated=True, nxt=cur(1)))
+        builder.exchange("raw:query.continue", omitted=4)
+        self.rejects(builder, "inconsistent continuation")
+
+    def test_binding_flag_mismatch_rejects(self) -> None:
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=4,
+                         chain=chain(truncated=False))
+        self.rejects(builder, "continuation binding")
+
+    def test_prior_tool_version_rejects(self) -> None:
+        # The frozen start binding names the tool boundary version; the
+        # revision 4 identity ("1") is not the revision 5 surface.
+        path, builder = self.build()
+        builder.frozen["tool_version"] = "1"
+        (path / "start.json").write_bytes(canonical({
+            "contract": "sley2.trusted-capture.v1",
+            "attempt_id": builder.attempt, "frozen": builder.frozen,
+            "caps": {}, "created_utc": "2026-09-21T00:00:00Z",
+            "creator_pid": 1}) + b"\n")
+        builder.exchange("read")
+        self.rejects(builder, "tool version mismatch")
 
     def test_continue_without_truncation_rejects(self) -> None:
         path, builder = self.build()
-        builder.exchange("raw:query.continue")
-        builder.close(self.trial)
-        with self.assertRaises(judge.JudgeRejection) as raised:
-            judge._audit_mediated_access(path, TASK_DIR, self.trial)
-        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+        builder.exchange("raw:query.continue", chain=chain(after=cur(1)))
+        self.rejects(builder, "inconsistent continuation")
 
     def test_truncated_without_continuation_rejects(self) -> None:
         path, builder = self.build()
-        builder.exchange("raw:query.root", truncated=True)
+        builder.exchange("raw:query.root", truncated=True,
+                         chain=chain(truncated=True, nxt=cur(1)))
         builder.close(self.trial)
         with self.assertRaises(judge.JudgeRejection) as raised:
             judge._audit_mediated_access(path, TASK_DIR, self.trial)

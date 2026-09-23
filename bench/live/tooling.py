@@ -150,19 +150,32 @@ response body:
 The server rebuilds every request from the accepted head and refuses
 `QUERY_SNAPSHOT_MISMATCH` unless snapshot, epoch, root, and workspace equal
 the head's. When `open` reports no `snapshot`, send one well-formed query
-with 32 zero bytes as the snapshot: it is refused, but the server
-materializes the head snapshot while answering, so the next `open`
-reports it. With paging = 1 a result larger than `max_entities` is refused
-(`QUERY_REQUIRED_FACT_OMITTED`). A page with truncated = 2 continues
-with `query.continue` carrying the same body with the cursor set to that
-page's next cursor. Continuation is audited per
-scope: a truncated page must be followed by `query.continue` in the same
-scope, and a `query.continue` with no truncated page before it rejects the
-trial. Each `sley-tool` invocation is its own scope and sends one request,
-so size `max_entities` for pages that complete (truncated = 1). Budgets:
-no single reply may exceed 1048576 bytes, and all replies together must
-stay within 4194304 bytes per trial; `inventory` and `side` read the whole
-store and reject a CONTEXT trial.
+with 32 zero bytes as the snapshot. It is refused: with
+`QUERY_SNAPSHOT_MISMATCH` when the query is otherwise answerable (the
+server then materializes the head snapshot while answering, if the index
+cache write succeeds, and the next `open` reports it), or with the owner's
+code (for example `INDEX_SNAPSHOT_ROOT_INCOMPLETE`) when it is not, in
+which case nothing materializes and no `snapshot` is ever reported. With
+paging = 1 a result larger than `max_entities` is refused
+(`QUERY_REQUIRED_FACT_OMITTED`); that refusal is counted, not rejected.
+
+A page with truncated = 2 must be continued: send `query.continue` with the
+same body (paging 2) and the cursor set to that page's next cursor, from
+this or any later invocation; continuation is bound to the query and the
+cursor, not to the invocation. Only `query.continue` carries a cursor. The
+trial is rejected if any truncated page is never continued, if a successful
+`query.continue` does not continue a still-open page of the same query at
+exactly its next cursor, or if a page with no continuation route (a
+`query.root` sent with a cursor, `query.restricted`, `refs.list`) reports
+omissions or truncation; a refused `query.continue` continues nothing.
+
+Budgets: every tool reply (the whole JSON the command prints, in which a
+body appears as hex, twice its byte length) must stay within 1048576 bytes,
+so keep `max_response_bytes` at or below 524000; a larger reply fails the
+trial. All replies together must stay within 4194304 bytes per trial (the
+judged total; on the mediated route the runner's capture also stops a trial
+outright at 8388608).
+`inventory` and `side` read the whole store and reject a CONTEXT trial.
 
 `inventory` lists served object ids with decoded kinds. `read`/`sig` show
 an entity with its decoded body: edit by authoring the modified body as

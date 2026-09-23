@@ -34,6 +34,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Callable
 
 
 def _repo_root() -> Path:
@@ -2991,6 +2992,90 @@ BOUNDED_QUERY_METHODS = frozenset({"query.root", "query.restricted",
                                    "query.continue", "refs.list"})
 
 
+class _ContinuationLedger:
+    """Trial-wide continuation discharge, bound to the page it continues.
+
+    Every answered root-query page carries its continuation binding
+    (`chain`: the query key — the request with its cursor elided —, the
+    request cursor, the page's own truncation flag, and its next cursor),
+    derived on the trusted side from the exact bodies. A truncated
+    `query.root` page opens (query, next cursor). Only a successful
+    `query.continue` of that same query whose request cursor equals that
+    next cursor discharges it; a continuation page that is itself truncated
+    opens its own next cursor. A refused continue (or any failed bounded
+    response) opens and discharges nothing. A successful continue that
+    matches no open page — a skipped, past-the-end, repeated, or foreign
+    cursor, or another query — is an inconsistent continuation. Any other
+    bounded page that reports omissions or truncation (a cursor-bearing
+    `query.root`, `query.restricted`, `refs.list`) has no continuation route
+    and stays open. Scope is the trial, not the invocation or session:
+    binding is by query and cursor, so continuation works across one-shot
+    invocations while forged, refused, or unrelated continues never close
+    a page. A page still open when the trial ends rejects.
+    """
+
+    def __init__(self, reject: Callable[[str], None]) -> None:
+        self._reject = reject
+        self._open: dict[tuple[str, str], int] = {}
+        self._unbound = 0
+        self.continuations = 0
+
+    def _binding(self, chain: object) -> dict | None:
+        if not isinstance(chain, dict):
+            return None
+        if not (isinstance(chain.get("query"), str)
+                and isinstance(chain.get("truncated"), bool)
+                and (chain.get("after") is None
+                     or isinstance(chain.get("after"), str))
+                and (chain.get("next") is None
+                     or isinstance(chain.get("next"), str))):
+            return None
+        return chain
+
+    def _open_next(self, chain: dict) -> None:
+        following = chain.get("next")
+        if not isinstance(following, str):
+            self._reject("continuation binding; semantics held")
+        key = (chain["query"], following)
+        self._open[key] = self._open.get(key, 0) + 1
+
+    def page(self, method: str, failed: bool, trunc: bool, omit: int,
+             chain: object) -> None:
+        if method not in BOUNDED_QUERY_METHODS:
+            if trunc or omit > 0:
+                self._reject(f"hidden truncation on {method}; semantics held")
+            return
+        if failed:
+            return
+        binding = self._binding(chain)
+        if binding is not None and binding["truncated"] != trunc:
+            self._reject("continuation binding; semantics held")
+        if method == "query.continue":
+            if binding is None or binding.get("after") is None:
+                self._reject("inconsistent continuation; semantics held")
+            key = (binding["query"], binding["after"])
+            if self._open.get(key, 0) < 1:
+                self._reject("inconsistent continuation; semantics held")
+            self._open[key] -= 1
+            if not self._open[key]:
+                del self._open[key]
+            self.continuations += 1
+            if trunc:
+                self._open_next(binding)
+            return
+        if not (trunc or omit > 0):
+            return
+        if (method == "query.root" and trunc and binding is not None
+                and binding.get("after") is None):
+            self._open_next(binding)
+        else:
+            self._unbound += 1
+
+    def finish(self) -> None:
+        if self._open or self._unbound:
+            self._reject("truncated page without continuation; semantics held")
+
+
 def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
     """CONTEXT agent-read evidence from the trusted tool boundary.
 
@@ -3063,6 +3148,8 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
         judge_binary = hashlib.sha256(_resolve_binary().read_bytes()).hexdigest()
     except Exception:
         judge_binary = ""
+    ledger = _ContinuationLedger(
+        lambda detail: _reject("QUERY_REQUIRED_FACT_OMITTED", detail))
     for entry in entries:
         if not isinstance(entry, dict):
             _reject("QUERY_REQUIRED_FACT_OMITTED", "agent entry shape; semantics held")
@@ -3104,7 +3191,6 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
         # Per-call bounded accounting over the ordered session items:
         # pair each request with its following response.
         pending: dict | None = None
-        pending_truncated = False
         entry_continuations = 0
         entry_omitted = 0
         entry_truncated = 0
@@ -3148,29 +3234,10 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
                 if returned > MAX_RESPONSE_BYTES:
                     _reject("QUERY_REQUIRED_FACT_OMITTED",
                             f"response over bound {returned}; semantics held")
-                if method in BOUNDED_QUERY_METHODS:
-                    if method == "query.continue":
-                        entry_continuations += 1
-                        if not pending_truncated:
-                            _reject("QUERY_REQUIRED_FACT_OMITTED",
-                                    "inconsistent continuation; semantics held")
-                        # A continuation page that is itself truncated
-                        # keeps the chain open: another continue must
-                        # follow (multi-page chains are legitimate;
-                        # stopping on a truncated continue page is hidden
-                        # truncation). On a continuation page `omitted`
-                        # also counts entities returned by earlier pages
-                        # (server: total_count - returned), so only the
-                        # truncation flag signals more to fetch.
-                        pending_truncated = trunc
-                    elif trunc or omit > 0:
-                        # Bounded page with more to fetch: an explicit
-                        # query.continue must follow in this scope.
-                        pending_truncated = True
-                else:
-                    if trunc or omit > 0:
-                        _reject("QUERY_REQUIRED_FACT_OMITTED",
-                                f"hidden truncation on {method}; semantics held")
+                before = ledger.continuations
+                ledger.page(method, bool(item.get("failed")), trunc, omit,
+                            item.get("chain"))
+                entry_continuations += ledger.continuations - before
             else:
                 # Non-call transcript markers (hello/greeting/seed/scope):
                 # ordering-relevant but not agent-visible calls; the
@@ -3179,9 +3246,6 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
         if pending is not None:
             _reject("QUERY_REQUIRED_FACT_OMITTED",
                     "agent session order; semantics held")
-        if pending_truncated:
-            _reject("QUERY_REQUIRED_FACT_OMITTED",
-                    "truncated page without continuation; semantics held")
         # Reconcile the entry summary against the enumerated session
         # items (completeness: summaries must equal recorded calls —
         # overstated or understated accounting both reject, naming the
@@ -3220,6 +3284,7 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
         if cumulative > AGENT_CUMULATIVE_RESPONSE_BUDGET:
             _reject("QUERY_REQUIRED_FACT_OMITTED",
                     f"cumulative {cumulative} over budget; semantics held")
+    ledger.finish()
     if len(binary_ids) != 1 or (judge_binary and next(iter(binary_ids)) != judge_binary):
         _reject("QUERY_REQUIRED_FACT_OMITTED",
                 "tool/binary identity mismatch; semantics held")
@@ -3420,7 +3485,8 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
     max_response = 0
     cumulative = 0
     calls = 0
-    pending_truncated: dict[str, bool] = {}
+    ledger = _ContinuationLedger(fail)
+    from bench.live.mediated_sley import AUDIT_LABELS
 
     def inner_method(method: object) -> str:
         if not isinstance(method, str):
@@ -3431,7 +3497,13 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
 
     for request, response in pairs:
         calls += 1
-        method = inner_method(request.get("method"))
+        label = request.get("method")
+        if label not in AUDIT_LABELS:
+            # Closed label vocabulary: the gateway records denied or unknown
+            # commands as `denied`, never under an agent-chosen string, so
+            # an out-of-set label is not evidence of a routed call.
+            fail(f"mediated capture label {str(label)[:40]}; semantics held")
+        method = inner_method(label)
         scope = request.get("session_id")
         if not isinstance(scope, str) or not scope:
             fail("mediated session scope; semantics held")
@@ -3461,27 +3533,12 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
             fail(f"response over bound {returned}; semantics held")
         if method in BOUNDED_QUERY_METHODS:
             bounded_reads += 1
-            if method == "query.continue":
-                continuations += 1
-                if not pending_truncated.get(scope, False):
-                    fail("inconsistent continuation; semantics held")
-                # A truncated continuation page keeps the chain open
-                # (multi-page chains are legitimate; stopping on one is
-                # hidden truncation). On a continuation page `omitted`
-                # also counts entities returned by earlier pages (server:
-                # total_count - returned), so only truncation signals
-                # more to fetch.
-                pending_truncated[scope] = trunc
-            elif trunc or omit > 0:
-                # Bounded page with more to fetch: an explicit
-                # query.continue must follow in this scope.
-                pending_truncated[scope] = True
-        elif trunc or omit > 0:
-            fail(f"hidden truncation on {method}; semantics held")
+        ledger.page(method, bool(response.get("failed")), trunc, omit,
+                    response.get("chain"))
         if cumulative > AGENT_CUMULATIVE_RESPONSE_BUDGET:
             fail(f"cumulative {cumulative} over budget; semantics held")
-    if any(pending_truncated.values()):
-        fail("truncated page without continuation; semantics held")
+    ledger.finish()
+    continuations = ledger.continuations
     if whole_store > 0:
         fail(f"whole_store_reads={whole_store}; semantics held")
     return {"whole_store_reads": whole_store,

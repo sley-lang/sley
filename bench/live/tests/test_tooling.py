@@ -301,12 +301,70 @@ class RootQueryContractTests(unittest.TestCase):
         start = SLEY2_TOOLING.index("```text\nrequest body:") + len("```text\n")
         block = SLEY2_TOOLING[start:SLEY2_TOOLING.index("```", start)]
         self.assertEqual(block, DOCUMENTED_LAYOUT)
+        flat = " ".join(SLEY2_TOOLING.split())
         for sentence in ("QUERY_SNAPSHOT_MISMATCH",
                          "with 32 zero bytes as the snapshot",
-                         "cursor set to that\npage's next cursor",
-                         "no single reply may exceed 1048576 bytes",
-                         "stay within 4194304 bytes per trial"):
-            self.assertIn(sentence, SLEY2_TOOLING)
+                         "or with the owner's code (for example "
+                         "`INDEX_SNAPSHOT_ROOT_INCOMPLETE`) when it is not",
+                         "the cursor set to that page's next cursor, from "
+                         "this or any later invocation; continuation is bound "
+                         "to the query and the cursor, not to the invocation",
+                         "Only `query.continue` carries a cursor",
+                         "a refused `query.continue` continues nothing",
+                         "keep `max_response_bytes` at or below 524000"):
+            self.assertIn(sentence, flat)
+
+    def test_documented_budgets_are_the_enforced_constants(self) -> None:
+        from bench.fixtures import sley2_live_judge as judge
+        from bench.live import trusted_capture as tc
+        flat = " ".join(SLEY2_TOOLING.split())
+        self.assertIn(f"must stay within {sley2_tool.MAX_RESPONSE_BYTES} bytes",
+                      flat)
+        self.assertEqual(sley2_tool.MAX_RESPONSE_BYTES, judge.MAX_RESPONSE_BYTES)
+        self.assertIn(f"within {judge.AGENT_CUMULATIVE_RESPONSE_BUDGET} bytes "
+                      "per trial", flat)
+        import tempfile as _tempfile
+        with _tempfile.TemporaryDirectory() as temporary:
+            cap = tc.TrustedCapture.create(
+                _Path(temporary) / "c", attempt_id="pin",
+                frozen={"pack_sha256": "a" * 64,
+                        "task_manifest_sha256": "b" * 64,
+                        "tool_version": sley2_tool.TOOL_VERSION,
+                        "binary_sha256": "c" * 64})
+            caps = json.loads((_Path(temporary) / "c" / "start.json")
+                              .read_text(encoding="utf-8"))["caps"]
+            del cap
+        self.assertEqual(caps["per_response_max_bytes"],
+                         sley2_tool.MAX_RESPONSE_BYTES)
+        self.assertIn(f"stops a trial outright at "
+                      f"{caps['trial_max_response_bytes']}", flat)
+        self.assertEqual(mediated_client.SAFE_MAX_RESPONSE_BYTES, 524000)
+
+    def test_a_maximal_documented_page_fits_the_per_reply_bound(self) -> None:
+        # A root-query response is at most max_response_bytes (server
+        # contract); at the documented safe ceiling the hex reply fits on
+        # both routes: the direct tool's printed envelope and the mediated
+        # gateway's canonical envelope.
+        from bench.live.trusted_capture import _canonical
+        body = "ab" * mediated_client.SAFE_MAX_RESPONSE_BYTES
+        report = {"failed": False, "body": body}
+        printed = json.dumps({"command": ["raw"], "outcome": "completed",
+                              "return_code": 0, "report": report,
+                              "transcript_sha256": "0" * 64,
+                              "stderr_text": "", "stdout_bytes": "",
+                              "stderr_bytes": "", "truncated": False},
+                             sort_keys=True)
+        self.assertLessEqual(len(printed), sley2_tool.MAX_RESPONSE_BYTES)
+        mediated = _canonical({"ok": True, "report": report})
+        self.assertLessEqual(len(mediated), sley2_tool.MAX_RESPONSE_BYTES)
+        # And the stand-in never asks for more than the documented ceiling.
+        head = {"snapshot": "11" * 32, "epoch": "22" * 32, "root": "33" * 32,
+                "workspace": "44" * 32}
+        req = doc_parse_request(bytes.fromhex(mediated_client.root_query_preimage(
+            head, 4, (4).to_bytes(4, "big"), max_entities=8,
+            allow_continuation=True)))
+        self.assertLessEqual(req["max_response_bytes"],
+                             mediated_client.SAFE_MAX_RESPONSE_BYTES)
 
     def test_documented_raw_methods_are_the_tool_methods(self) -> None:
         start = SLEY2_TOOLING.index("response body as hex")
@@ -404,7 +462,8 @@ class RootQueryContractTests(unittest.TestCase):
                 self.assertTrue(outcome.get("finished"), outcome)
                 discovery = outcome["discovery"]
                 self.assertEqual(discovery["impact_seen"],
-                                 7 if mode == "stop_early" else 10)
+                                 7 if mode in ("stop_early", "fake_discharge")
+                                 else 10)
                 self.assertEqual(discovery["impacted_constants"], 3)
 
 
@@ -460,7 +519,8 @@ class _DocumentedFakeServer:
         if command == "finish":
             return {"ok": True, "report": {"finished": True}}
         if command != "raw":
-            raise AssertionError(f"unexpected command {command}")
+            # Anything outside the documented commands is a gateway denial.
+            return {"ok": False, "error": "GATEWAY_COMMAND_DENIED"}
         method, body = args
         self.bodies.append((method, body))
         req = doc_parse_request(bytes.fromhex(body))

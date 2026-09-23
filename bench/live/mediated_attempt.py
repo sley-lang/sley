@@ -72,7 +72,9 @@ from bench.live.mediated_sley import (
     GatewayError,
     MediatedSleyEndpoint,
     adjudicate,
+    audit_label,
 )
+from bench.live.sley2_tool import TOOL_VERSION as _TOOL_VERSION
 from bench.live.oracle import OracleError
 from bench.live.process import ProcessCapture
 from bench.live.provider import ProviderError, parse_codex_jsonl
@@ -86,7 +88,8 @@ from bench.live.trusted_capture import (
     reconcile,
 )
 
-MEDIATED_TOOL_VERSION = "1"
+# One source of truth with the tool boundary the judge pins.
+MEDIATED_TOOL_VERSION = _TOOL_VERSION
 SOCK_NAME = "gateway.sock"
 SHIM_ENV = "SLEY2_GATEWAY_SOCK"
 FRAME_LIMIT_BYTES = 8 * 1024 * 1024
@@ -410,7 +413,7 @@ class GatewayServer:
                 response = capture.exchange(
                     phase=frame["phase"] or "ingress",
                     session_id=frame["session_id"] or "unknown",
-                    method=frame["command"] or "ingress",
+                    method=audit_label(frame["command"], frame["args"]),
                     request=_canonical({"command": frame["command"],
                                         "args": frame["args"]}),
                     handler=denied)

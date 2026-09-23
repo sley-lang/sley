@@ -16,10 +16,11 @@ its index snapshot identity; bounded class-4 and class-14 root queries
 find the record typedef and its reverse impact closure; class-2 probes
 and reads select the impacted constants. The added member identity is
 agent-authored (0xE1; the judge discovers added members by diffing the
-typedef against its pristine pre-image). The direct tool audits
-continuation per invocation, so this witness reads the closure in one
-untruncated page; paged discovery with explicit continuation is proved
-on the mediated route (`bench/live/tests/test_mediated_context.py`).
+typedef against its pristine pre-image). The judge audits
+continuation by query and cursor; this witness reads the closure in one
+untruncated 16-entity page, and paged discovery with explicit
+continuation is proved on the mediated route
+(`bench/live/tests/test_mediated_context.py`).
 
 Usage: succ_witness_context.py [pos|neg] [logfile]
 Env: SLEY2_SLEY_BINARY, SUCC_JUDGE_TEST_BINARY (both required).
@@ -58,6 +59,17 @@ def main() -> int:
     def emit(text: str) -> None:
         lines.append(text)
         print(text, flush=True)
+
+    # Source identity of the run: the commit the witness code ran at, and
+    # whether tracked files differed from it (log provenance).
+    import subprocess
+    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
+                          capture_output=True, text=True, check=False)
+    dirty = subprocess.run(["git", "status", "--porcelain",
+                            "--untracked-files=no"], cwd=ROOT,
+                           capture_output=True, text=True, check=False)
+    emit(f"CONTEXT witness/{variant}: source {head.stdout.strip() or 'unknown'}"
+         f"{' (tracked changes present)' if dirty.stdout.strip() else ''}")
 
     tmp = tempfile.mkdtemp(prefix="sley2-context-witness-")
     ws = Path(tmp) / "ws"

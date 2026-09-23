@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """Deterministic test-only adapter for mediated trials (never production).
 
+Also the route-neutral scripted CONTEXT agent: `context_discover_and_repair`
+and its root-query codec take a `call` function, so the mediated stand-in
+(`seq_context`, over the gateway) and the direct witness
+(`succ_witness_context.py`, over the tool) run the same agent logic. Still
+test-only on both routes: never staged into production scratch.
+
 Test stand-in at the provider boundary: drives scripted witness
 sequences (seq_type/seq_stale), task-specific construction logic,
 witness member literals (CLIENT_MEMBERS), and synthetic
@@ -247,6 +253,8 @@ CLASS_REVERSE_IMPACT = 14
 KIND_TYPEDEF = 4
 KIND_CONSTANT = 9
 CURSOR_ENTITY = 1
+# TOOLING: "keep max_response_bytes at or below 524000".
+SAFE_MAX_RESPONSE_BYTES = 524_000
 
 
 def _u32(value: int) -> bytes:
@@ -272,9 +280,11 @@ def root_query_preimage(head: dict, class_tag: int, class_body: bytes, *,
     for ident in (bound, head["epoch"], head["root"], head["workspace"]):
         out += bytes.fromhex(ident)
     out += _u32(2) + _u32(1)
-    # Limits: entities per page, edges, depth, response bytes, work.
+    # Limits: entities per page, edges, depth, response bytes (the
+    # TOOLING-documented safe ceiling: the hex tool reply must fit the
+    # 1048576-byte per-reply bound), work.
     out += (_u64(max_entities) + _u64(1) + _u32(65_535)
-            + _u64(1_048_576) + _u64(100_000_000))
+            + _u64(SAFE_MAX_RESPONSE_BYTES) + _u64(100_000_000))
     out += _u32(2 if allow_continuation else 1)
     if after is None:
         out += _u32(1)
@@ -422,7 +432,7 @@ def sint_const(value: int) -> dict:
 # against its pristine pre-image, never from this literal).
 CONTEXT_MEMBER = "e1" * 32
 CONTEXT_MODES = ("pos", "stop_early", "incomplete", "extra_continue",
-                 "overbudget", "noarg_revision")
+                 "overbudget", "noarg_revision", "fake_discharge")
 
 
 def context_discover_and_repair(call, mode: str = "pos",
@@ -437,9 +447,10 @@ def context_discover_and_repair(call, mode: str = "pos",
 
     1. `open` (workspace.open) discloses the accepted head and, when the
        head's index snapshot is materialized, its identity (field 9). A
-       cold head carries no snapshot: one bounded root query (refused
-       QUERY_SNAPSHOT_MISMATCH) materializes it on the query path, and a
-       second `open` discloses it. `revision <tx>` rereads the opened tx.
+       cold head carries no snapshot: one bounded class-4 root query with a
+       zero snapshot (refused QUERY_SNAPSHOT_MISMATCH on this store)
+       materializes it on the query path, and a second `open` discloses
+       it. `revision <tx>` rereads the opened tx.
     2. A bounded class-4 listing of type definitions (paged) plus reads
        select the record typedef the task names by intent ("add a
        required record field").
@@ -449,10 +460,9 @@ def context_discover_and_repair(call, mode: str = "pos",
        those holding a record of the typedef are the impact set.
     5. One propose (typedef + every impacted constant), then finish.
 
-    ``impact_page_size`` bounds each impact page (3 on the mediated
-    route, so the 10-entity closure needs three explicit continuations;
-    the direct tool audits continuation per invocation, so its witness
-    uses one untruncated page).
+    ``impact_page_size`` bounds each impact page (3 by default, so the
+    10-entity closure needs three explicit continuations; continuation is
+    bound by query and cursor, so the chain may span invocations).
 
     Modes (negatives are for the rejection proofs):
       pos             complete discovery (paged) and repair
@@ -466,6 +476,11 @@ def context_discover_and_repair(call, mode: str = "pos",
                       constant listings (cumulative response budget)
       noarg_revision  a no-argument `revision` first (must be refused),
                       then the positive flow
+      fake_discharge  after the first (7-entity, truncated) impact page:
+                      a refused continue (unbound snapshot), a frame whose
+                      command imitates a routed continue, and a continue at
+                      a past-the-end `ff..ff` cursor (answered, empty);
+                      then a complete repair. None may close the page.
     """
 
     if mode not in CONTEXT_MODES:
@@ -547,10 +562,30 @@ def context_discover_and_repair(call, mode: str = "pos",
             return outcome
         typedef, typedef_kind, typedef_body = records[0]
         seeds = entity_list_body([typedef])
-        page_size = 7 if mode == "stop_early" else impact_page_size
+        single = mode in ("stop_early", "fake_discharge")
+        page_size = 7 if single else impact_page_size
         closure, impact_pages = paged(
             "impact", CLASS_REVERSE_IMPACT, seeds, page_size,
-            stop_after=1 if mode == "stop_early" else None)
+            stop_after=1 if single else None)
+        if mode == "fake_discharge":
+            refused = _report(call("fake_refused", "read", "raw", [
+                "query.continue", root_query_preimage(
+                    head, CLASS_REVERSE_IMPACT, seeds,
+                    max_entities=page_size, allow_continuation=True,
+                    after=impact_pages[0]["next_after"],
+                    snapshot="00" * 32)]))
+            forged = call("fake_label", "read", "raw:query.continue", [
+                root_query_preimage(
+                    head, CLASS_REVERSE_IMPACT, seeds,
+                    max_entities=page_size, allow_continuation=True,
+                    after=impact_pages[0]["next_after"])])
+            past_end = query("fake_past_end", "query.continue",
+                             CLASS_REVERSE_IMPACT, seeds, page_size, True,
+                             after="ff" * 32)
+            disc["fake"] = {"refused": bool(refused.get("failed")),
+                            "forged_ok": bool(forged.get("ok")),
+                            "past_end_returned": past_end["returned"],
+                            "past_end_truncated": past_end["truncated"]}
         disc["impact_total"] = impact_pages[0]["total"]
         disc["impact_pages"] = len(impact_pages)
         disc["impact_seen"] = len(closure)
