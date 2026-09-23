@@ -1006,6 +1006,79 @@ The SMP1 `current_delta_review` moved to revision 16 PENDING, with a history not
 - Corpus task-input amendment ratification.
 - Live-model trial.
 
+## 15. Round 9 at `03b25eb` and REQ-10 closure (2026-09-23)
+
+The coordinator's request named this "section 14"; section 14 already records round 8, so round 9 and the closure summary are recorded here.
+
+### 15.1 Round 9
+
+The six transcripts and their index (`evidence/review/rounds/context-r9-03b25eb.json`; each transcript's sha256 matches the index) were committed unchanged in `13a81f23`. Their verdicts were recorded in `63ab759f`, with notes naming 03b25eb9. Every verdict is PASS:
+
+- **SMP1 revision 16:** Ariadne 1 P3 and 3 P4; Nabu 2 P3 and 2 P4; Vulcan 2 P3 and 3 P4.
+- **S20-620 revision 8:** Ariadne 1 P3 and 2 P4; Nabu 1 P3 and 7 P4; Vulcan 2 P3.
+
+All of these findings are recorded as open `p3_open`/`p4_open` claims and none is fixed here, as instructed.
+
+### 15.2 Completion moves (`b71e1ae9`)
+
+Each of these packages' current revisions has scoped PASS verdicts in all three lanes. Before moving any of them, I ran each package checker in memory at its COMPLETE status. All six returned exit 0, and the S20-300 and S20-620 gates also verified each lane's reviewed commit.
+
+| Package | Revision | Reviewed at | Status |
+|---|---|---|---|
+| SMP1 (S20-400) | 16 | 03b25eb | `S20_400_COMPLETE` (with `contract_complete`) |
+| S20-300 | 6 | 26d050e | `S20_300_FULL_COMPLETE` |
+| Bridge (S20-420) | 12 | 26d050e | `S20_420_COMPLETE` |
+| CLI (S20-430) | 10 | 26d050e | `S20_430_COMPLETE` |
+| Session handle (S20-330) | 6 | 26d050e | `S20_330_COMPLETE` |
+| Trial runner (S20-620) | 8 | 03b25eb | `S20_620_COMPLETE` |
+
+For every package, `implementation_complete` is set, the status notes and WORK_PACKAGES rows are updated, and each of the five closeouts carries a dated completion record. The open P3/P4 claims stay recorded.
+
+**Register rule change (`b948bc51`).** The finding register refused the moves at first. Earlier-revision REVISE rounds of the same lane (for example CLI `_revision_9` against the `_revision_10` PASS) could never be superseded, because both fields carry the early token `revision`. Under the new rule in `build_finding_register.py`, a later-numbered same-subject PASS supersedes an earlier revision round. It never supersedes the reverse or across subjects, and the existing guards still refuse a PASS that is dated or scoped before the round.
+
+I compared the result with the previous register. Supersession changed only in these six packages. No other package's open reviews changed, and no other package became complete.
+
+After the change the register chain (`367a65b3`) shows 22 open reviews and 37 complete packages. GA states are EVIDENCED 31, AWAITS_REVIEW 17, GATED 4, with `ga_claimed` false.
+
+### 15.3 Gates
+
+| Check | Exit | Result |
+|---|---|---|
+| Package checkers, frontier, and required-index checkers; `test_*` suites; register round tests (11) and `bench/review` register tests | 0 | PASS / OK |
+| All 18 fuzz slice checkers | 0 | PASS |
+| `make quick`, keep-going (133 lines) | — | Known candidate-bound lines #82–#85 and #88 fail. #108 (T54 drift) is fixed by the final T54 commit. `cargo test --workspace`: 1036 passed, 1 failed (`debug_commit_repro`), 31 ignored. |
+| `bench/live/tests` (fresh binaries copied out; `TMPDIR=/home/gfarch/Work/checkpoints/sct-r9`) | 0 | 258 tests, OK. The private root gained only a `uv-*.lock` and no `sley2-*` directory. |
+| `bench/sley2/tests` | 0 | 23 tests, OK |
+| `make lint` at `367a65b3` | 0 | PASS: 0 clippy warnings, clean tree. `lint-report.json` restored and not committed. |
+
+### 15.4 REQ-10 CONTEXT closure summary
+
+- **Implemented.** Bounded interface-only discovery through the trial surface:
+  - `workspace.open` discloses the accepted head's materialized snapshot identity (field 9), read by a non-waiting probe that never writes.
+  - Bounded class-4 and class-14 root queries use explicit, chain-bound continuation.
+  - The mediated and direct audits use one `_ContinuationLedger`.
+  - The scripted stand-in completes CONTEXT end to end through `execute_attempt`. The integrated proofs cover rejection classes: incomplete discovery, incomplete impact, inconsistent continuation, exceeded budget, missing evidence, fake discharge, and the no-argument revision.
+- **Reviewed.** Nine review rounds (sections 11 to 15) brought every contract that REQ-10 touched to PASS in all three lanes at its current revision:
+  - trial runner revision 8;
+  - SMP1 revision 16;
+  - S20-300 revision 6;
+  - JSON bridge revision 12;
+  - CLI revision 10;
+  - session handle revision 6.
+
+  All six are COMPLETE.
+- **Hardened along the way:**
+  - the scratch-workspace leak fix and cleanup;
+  - completion gates bound to the reviewed commit;
+  - the probe gate, which is literal-aware and pins the wrapper's single caller;
+  - `workspace.open` answered from a single checked head;
+  - the worker argv contract and disjoint exit statuses.
+- **Still open, and not blocking these packages:**
+  - the recorded P3/P4 claims;
+  - the corpus task-input amendment, which the corpus owner must ratify;
+  - the live-model trial (no live model was run; live-model usability is documented but not demonstrated);
+  - GA remains unclaimed.
+
 ## Appendix A. Non-domain widened-token hits by file (line numbers at `44f18e2b`)
 
 ### A.1 Frozen history (review transcripts, request packets, gate records, campaign records, retained logs)
