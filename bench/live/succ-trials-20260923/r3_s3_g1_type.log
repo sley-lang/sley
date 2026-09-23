@@ -1,0 +1,14 @@
+provenance utc=2026-09-23T04:30:00Z git_head=9352e0fe821c0bdf2ca4827f91c576b28be21746 dirty=[?? bench/live/succ-trials-20260923/r3_s3_g1_type.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_arith.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_code8.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_failed_discard.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_failed_fixed.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_join.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_queued.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_shared.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_uint.log;?? bench/live/succ-trials-20260923/trial_type_r3_legacy_mig.log;?? bench/live/succ-trials-20260923/trial_type_r3_legacy_neg.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_bool.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_bool_const.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_droppayload.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_nullcode.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_trap.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_two_param.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_typedef_only.log;?? bench/live/succ-trials-20260923/trial_type_r3_pos.log;] python=3.14.7 cargo=1.93.0 CARGO_TARGET_DIR=/home/gfarch/Work/checkpoints/target-succ-type SLEY2_SLEY_BINARY=/home/gfarch/Work/checkpoints/target-succ-type/debug/sley sley_sha256=700ce8a8d354ddce45f9e1be073580f9f285d365e9cfb9978659d5163a8d916f SUCC_JUDGE_TEST_BINARY=/home/gfarch/Work/checkpoints/target-succ-type/debug/deps/succ_live_judge_cases-42d77a02eb446c77 driver_sha256=2f5865438d7f2e651d1ed9911db4dc3767be69244ba4e091a74b0ce843f4afa8 manifest_sha256=d61216a910837eddd852eeb0e28df33f926f4a99f746aeaad4e5e03104dd308f judge_sha256=0ffd61d4261ad2847b611c35762e128cf4e22996afb2369b8fe0503311fcddbc
+command: cargo test --offline -p sley-repo --test s3_g1_type -- --nocapture
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.19s
+     Running tests/s3_g1_type.rs (/home/gfarch/Work/checkpoints/target-succ-type/debug/deps/s3_g1_type-29d2c0b5a93b75d2)
+
+running 4 tests
+test emit_s3_type_fixture ... ignored, fixture emitter; run explicitly for refresh
+test s3_type_neg_bool_compat_field ... ok
+test s3_type_neg_missing_case ... ok
+test s3_type_fixture_conformance ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+cargo exit: 0

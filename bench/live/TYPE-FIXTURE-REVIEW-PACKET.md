@@ -1,3 +1,121 @@
+# TYPE fixture correction — review packet, revision 3 (2026-09-23)
+
+Branch `work/succ-type-impl`. The revision-3 commits are listed
+below:
+
+| Commit | Content |
+|---|---|
+| `358b3333` | Files the revision-2 verdict (`evidence/review/verdicts/type_fixture_correction/ariadne_contract_review_revision_2-d3de686.md`) and the round index (`evidence/review/rounds/type-r2-d3de686.json`) |
+| `9352e0fe` | Judge, witness and unit-test change |
+| — | This packet and the evidence commit |
+
+The revision-2 verdict was `REVISE_0_P0_1_P1`. It verified all eight
+prior findings closed and approved rulings 1a, 1b, 2a and 2b. It did
+not approve 2c and raised one new P1. Revision 3 answers only that
+P1. The rest of revision 2 (below) stands, except where this section
+supersedes it. Revision 1 remains in Appendix A. The status is
+unchanged: the work is not adopted to `main`, a fresh review is
+required, and `ga_claimed=false`.
+
+## R3.1 [P1] contract-semantics — D3 consumer-shape pin: closed
+
+The review found that predicate D3 rejected a production-valid Failed
+case edge that carries no CasePayload (`neg_dropcode`). That design
+behaves exactly like the accepted `alt_failed_fixed`. It is also the
+IR form of the frozen S3 reference arm `JobState::Failed(_) => "failed"`
+(`crates/sley-repo/tests/s3_g1_type.rs:199`).
+
+Closure, following the verdict's closure evidence:
+
+- **Rejection removed.** `_type_structure` no longer inspects the
+  arguments of the Failed case edge. The per-switch checks now end at
+  canonical case coverage (`bench/fixtures/sley2_live_judge.py:1063-1074`).
+  No non-verdict observation is kept. Nothing depends on the consumer
+  shape any more.
+- **Docstring updated.** The judge docstring now says that how the
+  Failed arm uses its code is free: it may bind, map or discard it.
+  It also states that "Failed carries an explicit error code" and
+  "null error" govern the variant type and its values
+  (`:782-786`, `:810-816`).
+- **Value-level enforcement unchanged.** A2 and A3 still enforce the
+  frozen requirement on the type and its values:
+  - The typedef must have exactly one integer-coded member. A missing
+    code, or a code of non-integer type, → ORACLE_FAILED_CODE
+    (`:987-994`).
+  - A Failed status value must carry an explicit integer code. A null
+    payload, or a non-integer code, → ORACLE_FAILED_CODE
+    (`:1005-1012`).
+  - Production validation still refuses a null-payload Failed
+    constant first (`trial_type_r3_neg_nullcode.log`, phase 6
+    TYPE_CONST_SHAPE).
+- **Witness relabelled.** `neg_dropcode` is now the accepted design
+  `alt_failed_discard` (`bench/live/succ_witness_type_full.py:35-38`,
+  `:115`). Its Failed edge carries no payload and its arm returns 3.
+  `neg_droppayload` stays a production refusal, and the reason is now
+  stated: its arm still declares a code parameter that the edge no
+  longer feeds, which production rejects as CFG_TARGET_ARGUMENTS
+  (`:55-59`).
+- **Unit tests.** `bench/live/tests/test_judge_type_variant.py` has
+  53 tests.
+  - The former rejection test is now the acceptance test
+    `test_failed_edge_discarding_code_accepts` (`:441`).
+  - Four tests show that A2/A3 still reject inside the discard shape
+    with ORACLE_FAILED_CODE (`:447-469`): a null Failed status, a
+    codeless Failed member, a non-integer code type, and a
+    non-integer status code.
+- **Superseded in revision 2.** §3 row D3, the ORACLE_FAILED_CODE
+  entry in the §4 P2 test count, interpretation boundary 2c, and the
+  §5 `neg_dropcode` line are replaced by this section. The
+  revision-2 `trial_type_neg_dropcode.log` is kept unmodified as
+  history of the retired pin.
+
+## R3.2 Evidence (fresh, judge at `9352e0fe`)
+
+All logs are new files in `bench/live/succ-trials-20260923/` with the
+prefix `trial_type_r3_` or `r3_`. No file was overwritten. Every
+witness log carries a provenance JSON line with the git head
+`9352e0fe`, the judge sha256, the binaries, the manifest and the
+design, followed by the judge verdict JSON and a self-check.
+
+Accepted (9 designs):
+
+- `alt_failed_discard`: executed values SInt 0/1/2/3, the same as
+  `alt_failed_fixed`.
+- The other eight: `pos`, `alt_code8`, `alt_queued`, `alt_shared`,
+  `alt_uint`, `alt_arith`, `alt_join`, `alt_failed_fixed`.
+
+Rejected by the judge:
+
+- ORACLE_BOOL_COMPAT_FIELD: `neg_bool`, `neg_typedef_only`,
+  `neg_bool_const`, `neg_two_param`, and the legacy runs `mig` and
+  `neg` (`trial_type_r3_legacy_*.log`).
+- ORACLE_TRAP_ARM: `neg_trap`.
+
+Refused by production before the judge runs:
+
+- `neg_droppayload`: CFG_TARGET_ARGUMENTS.
+- `neg_nullcode`: TYPE_CONST_SHAPE.
+
+Other logs:
+
+- `r3_s3_g1_type.log`: 3 passed.
+- `r3_rust_gates.log`: `succ_live_packs_frozen` plus 12 driver tests.
+- `r3_unittest_suites.log`:
+  - bench/live with binaries and bwrap bound: 251 OK, 0 skipped.
+  - bench/live without the binaries: 251 OK, 75 skipped.
+  - bench/sley2: 23 OK.
+
+The manifest and pack are unchanged since revision 2: manifest sha256
+`d61216a9…308f`, pack digest `7579dee1…`.
+
+## R3.3 Reviewer action requested
+
+Approve the D3 retirement (R3.1), which completes rulings 2a-2c. Then
+approve the revision-2 requests (a)-(c) of §7 with D3 removed from
+the predicate table, before any cherry-pick to `main`.
+
+---
+
 # TYPE fixture correction — review packet, revision 2 (2026-09-23)
 
 Branch: `work/succ-type-impl` (base `ab42a3a9`). Revision-2 commits:
@@ -79,7 +197,7 @@ revision.
 | C2 | Some reachable block dispatches on that parameter through a VariantSwitch. Any reachable block counts, not only the entry | "update switches"; "exhaustively handled" | :1046-1058 | SWITCH_NOT_MIGRATED | unit `test_no_variant_switch…`, `test_switch_on_other_value…`, `test_dispatch_outside_entry_accepts` |
 | D1 | Each such switch has Member keys that cover exactly the 4 members, canonically sorted. The terminator form has no default key, so there is no implicit default | "all four cases are exhaustively handled"; forbidden "implicit default case" | :1059-1070 | MISSING_CASE | unit `test_three_cases…`, `test_builtin_case_key…`, `test_unsorted_cases…` |
 | D2 | Every block reachable from the entry is Required, lies inside the switch, and is not a Trap | "exhaustively handled" (a trap handles nothing) | :1026-1045 | MISSING_CASE / TRAP_ARM | unit `test_reachable_non_required_arm…`, `test_edge_outside_function…`, `test_trap_arm…`; live `trial_type_neg_trap.log` |
-| D3 | The Failed case edge carries CasePayload into its arm. The arm binds the error code; what it computes from the code is free | "Failed carries an explicit error code" (the case is Failed(error_code), not a unit case) | :1071-1077 | FAILED_CODE | unit `test_failed_edge_dropping_code…`; live `trial_type_neg_dropcode.log` (production accepts, judge rejects) |
+| D3 | RETIRED in revision 3 (R3.1). Was: The Failed case edge carries CasePayload into its arm. The arm binds the error code; what it computes from the code is free | "Failed carries an explicit error code" (the case is Failed(error_code), not a unit case) | :1071-1077 | FAILED_CODE | unit `test_failed_edge_dropping_code…`; live `trial_type_neg_dropcode.log` (production accepts, judge rejects) |
 | E | Execution: the migrated switch runs through the frozen case driver over all 4 member values (Failed carries the fixed explicit code 7, and the driver requires that payload, never defaulted). Every case returns a value. A second run returns identical values | strict oracle `type_graph_and_execution`; "serialized semantic values are deterministic" | :1082-1109 (fixed code :760) | MISSING_CASE / NONDETERMINISTIC | unit `ExecutionHalf` (6 cases); live: every accepted log's verdict detail lists the 4 executed values |
 
 FIXTURE tier (review-gated): the 5-entity closure and the
