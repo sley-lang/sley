@@ -1,0 +1,19 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "6c5d157b717b070944a2832395b8be42ec988b0e",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "ariadne",
+      "section": "corrupt_surface_decision",
+      "field": "ariadne_contract_review_revision_4",
+      "verdict": "PASS_0_P0_0_P1_0_P2_2_P3_2_P4_PRIOR_P2_P3_P4_CLOSED",
+      "scope_sha": "6c5d157b717b070944a2832395b8be42ec988b0e",
+      "path": "evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review_revision_4-6c5d157.md",
+      "sha256": "4ea2d244e884be8380ce7d6584e2bc092d456a347215e95775273184dbe1e07b",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 304
+    }
+  ]
+}

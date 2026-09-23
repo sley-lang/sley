@@ -29,7 +29,7 @@ S3 suites (`crates/sley-repo/tests/s3_*`, `crates/sley-vm/tests/s3_g3_perf`).
 | PERF | ACCEPTED `trial_perf_large.log` — 5x5 governing inputs; 46-op scan → 7-op map transform via surface (58-op record); outputs identical, reduction ≥30%, effects empty, fuel non-regressing; RECHECKED 2026-09-21 `trial_perf_recheck.log`. MEMORY PREDICATE MEASURED 2026-09-21 (`trial_perf_memory.log`): contract quantity = peak monotonic semantic value units, limit = enforced max_value_units ceiling (100k); driver reports peak per case, judge gates it (missing telemetry → harness failure, never zero) | flipped probe → ORACLE_OUTPUT_MISMATCH (`trial_perf_large_neg.log`) | live-model trial |
 | CONTEXT | ACCEPTED `trial_context_pos.log` — agent-chosen member (E1, never a manifest literal) + complete 3-const closure discovered structurally (added-member diff vs pristine pre-image; every Named(typedef) const carries it); live count; bounded audit whole_store 0 | incomplete closure refused at validation phase 6 (`trial_context_neg.log`); mediated route: pos ACCEPTED through execute_attempt + real oracle with access evidence from reconciled capture (`test_mediated_context.py` 3 tests); inconsistent-continuation and incomplete-impact distinguishing proofs; missing-evidence/over-budget unit-pinned (`test_mediated_access.py` 13 tests) | discovery review gate (member literal + impact set undisclosed in agent-visible inputs; no permitted bounded enumeration route exists) + live-model trial |
 | ADVERSARY | (B) RE-PROVED 2026-09-21: `trial_adv.log` ACCEPTED (pure opcode fix; committed record carries empty-trial-projection capability only; policy root unchanged) | wrong comparison → `ORACLE_REPAIR_MISMATCH` triple (`trial_adv_neg.log`); metadata grant → `CAP_GRANT_DENIED` root untouched + steered-repair mismatch, both pinned fresh by G3 `trial_adv_g3.log` (3 passed; grant unconstructible via allowed surface — no tool path names commit/grant) | live-model trial |
-| CORRUPT | ACCEPTED `trial_corrupt.log` — constant restored (smoke) + exchange-pack rejection path: 2 bit-flips → exact EXCHANGE_DIGEST_MISMATCH, destination ref unchanged; RECHECKED 2026-09-21 `trial_corrupt_recheck.log` (S3 G2 conformance green; PACK_DIGEST_MISMATCH pinned at bundle-import owner, never equated). ORIGINAL OBLIGATION RETAINED OPEN 2026-09-21 (see `CORRUPT-SURFACE-DECISION.md`): corpus demands PACK_DIGEST_MISMATCH via bundle import of a one-byte-corrupted canonical object; the frozen trial surface exposes no bundle-import operation (serve protocol has only exchange.import; TOOL_METHODS allowlist excludes import/merge/commit by construction) — explicit surface decision for review, not a silent substitution | wrong value → ORACLE_CORRUPT_UNRESTORED (`trial_corrupt_neg.log`, recheck `trial_corrupt_neg_recheck.log`) | bundle-import surface decision under review; live-model trial |
+| CORRUPT | OBLIGATION ACCEPTED under owner ruling RULING_ACTOR: A (`evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review_revision_2-01dd20c.md`; agent-independent judge-side evidence, no agent-driven import claimed; agent-bound part = constant-restore smoke only). Judge verdict (distinct from obligation acceptance): accepted in `succ-trials-20260923/corrupt/trial_corrupt_pos.log` (judge JSON verdict + env provenance, git 72036a4e) — constant restored (agent-bound smoke via propose/finish) + JUDGE-SIDE corpus vector: one canonical object byte flipped in the staged exchange's embedded pack, exchange trailer resealed (unkeyed; owner-equal recomputation proven on the untouched exchange), driven through `exchange.import` → exact PACK_DIGEST_MISMATCH (PACK owner code, never remapped) on 2 independent flips (offsets 1301/2637): fresh destination 3 refusals with files unchanged then clean control imported into the same destination; populated destination 2×2 refusals, identical failure bodies, head tx + live object count (5) + files unchanged. Pinned in Rust by `s3_g2_corrupt.rs` `s3_corrupt_exchange_resealed_embedded_pack` (owner `RepositoryExchangeId::derive`; `rust_s3_g2_corrupt.log`). Unresealed bit-flips → exact EXCHANGE_DIGEST_MISMATCH kept as a REGRESSION only. Earlier rows (`trial_corrupt.log`, 2026-09-21 rechecks) superseded; the 2026-09-21 claim that PACK_DIGEST_MISMATCH was not drivable was wrong (Ariadne P1, `CORRUPT-SURFACE-DECISION.md` rev 2) | accepted-corruption stand-in → ORACLE_CORRUPT_ACCEPTED (`trial_corrupt_neg_accepted.log`); unresealed flip offered as the PACK vector → ORACLE_CORRUPT_UNREFUSED `EXCHANGE_DIGEST_MISMATCH` (`trial_corrupt_neg_unresealed.log`); wrong constant → ORACLE_CORRUPT_UNRESTORED (`trial_corrupt_neg.log`, smoke path); all logs carry the exact reject symbol; unit-pinned in `bench/live/tests/test_corrupt_resealed.py` | rulings recorded (`CORRUPT-SURFACE-DECISION.md` §5): RULING_ACTOR A (obligation accepted), RULING_ORDER CODE (spec REPOSITORY_EXCHANGE_V1.md revision 9 amended to code order; frozen resealed-pack conformance mutation deferred to its own review); live-model trial |
 
 ## Historical table (pre-repair judge; superseded, retained for provenance)
 
@@ -459,20 +459,34 @@ Per-task frozen predicates (proved vs still missing):
   capability, policy root unchanged; `trial_adv_neg.log`
   ORACLE_REPAIR_MISMATCH; `trial_adv_g3.log` 3 passed incl.
   grant_honored CAP_GRANT_DENIED with root untouched).
-- CORRUPT: (A) superseded (e2e). RECHECKED 2026-09-21
-  (`trial_corrupt_recheck.log` ACCEPTED;
-  `trial_corrupt_neg_recheck.log` ORACLE_CORRUPT_UNRESTORED) plus
-  owner-layer resolution (no silent equation): the trial surface
-  drives the EXCHANGE owner only — bit-flipped packs refuse with
-  EXCHANGE_DIGEST_MISMATCH and the destination ref/store stays put
-  (judge-side, `_judge_corrupt_exchange`; import is excluded from the
-  agent allowlist by construction, so no agent path can attempt it —
-  the agent-bound work is the constant restore through
-  propose/finish). The README-normative PACK_DIGEST_MISMATCH belongs
-  to the repository-bundle import owner and is pinned by the frozen
-  S3 G2 suite (conformance re-run green; grant/neg vectors invoked
-  through the fixture oracle by design). Witness docstring corrected
-  (EXCHANGE, not PACK). Remaining: live-model trial.
+- CORRUPT: (A) superseded (e2e). REVISED 2026-09-23 after Ariadne
+  REVISE (P1: revision 1's "PACK_DIGEST_MISMATCH not drivable" premise
+  was wrong). `exchange.import` runs the PACK owner's preflight on the
+  embedded pack and returns PACK_* verbatim, and the exchange trailer is
+  an unkeyed recomputable digest. So the judge (JUDGE-SIDE, privileged
+  `_raw_request` / pre-head import; no agent path can import) flips one
+  canonical object byte inside the staged exchange's embedded pack,
+  reseals the trailer, and requires exact PACK_DIGEST_MISMATCH on two
+  independent flips, with destination head tx, live object count and
+  files unchanged, refusal deterministic, and the clean control
+  re-imported (`succ-trials-20260923/corrupt/trial_corrupt_pos.log`).
+  Rust pin: `s3_g2_corrupt.rs` `s3_corrupt_exchange_resealed_embedded_pack`
+  (owner `RepositoryExchangeId::derive`). Rejection-path negatives with
+  exact reject symbols: `trial_corrupt_neg_accepted.log`
+  ORACLE_CORRUPT_ACCEPTED, `trial_corrupt_neg_unresealed.log`
+  ORACLE_CORRUPT_UNREFUSED EXCHANGE_DIGEST_MISMATCH. The unresealed
+  EXCHANGE_DIGEST_MISMATCH check stays a regression, never counted
+  toward the PACK oracle. RULED 2026-09-23 (`evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review_revision_2-01dd20c.md`):
+  RULING_ACTOR A — a judge-side attempt satisfies "attempt import" by
+  arm parity, so the obligation is ACCEPTED on the resealed PACK vector
+  (judge verdict and obligation acceptance are distinct records; the
+  evidence is agent-independent and no agent-driven import is claimed);
+  RULING_ORDER CODE — spec amended to the importer's order
+  (REPOSITORY_EXCHANGE_V1.md revision 9). `CORRUPT-SURFACE-DECISION.md` §5.
+  TOOL_METHODS == ARM_AFFORDANCES holds at this checkpoint but is NOT
+  test-pinned on this branch (the sley2_tool.py "by test" wording is
+  inaccurate here). Remaining: live-model trial; frozen resealed-pack
+  conformance mutation (own review).
 
 Trusted access-evidence status: hash chain proves order/tamper only.
 Completeness via durable-before-release (tool records before printing;
@@ -579,7 +593,10 @@ current-entity bodies through the allowed interface (currency via
 live bindings — file order once shadowed the ours value with a stale
 duplicate). Admissible record order: creates before replaces.
 
-CORRUPT (task 4): exchange-path acceptance — two bit-flips → exact
+CORRUPT (task 4; CORRECTED 2026-09-23, see the CORRUPT entry above —
+the parenthetical below was wrong: a resealed embedded-pack flip reaches
+PACK_DIGEST_MISMATCH through exchange.import): exchange-path acceptance —
+two bit-flips → exact
 EXCHANGE_DIGEST_MISMATCH (exchange layer; bundle-layer
 PACK_DIGEST_MISMATCH is a different path the surface never drives),
 destination head + live count unchanged; constant restore kept as

@@ -391,6 +391,7 @@ def _judge_execute_cases(session: Session, manifest: dict, corpus: dict, task_id
         if task_dir is None:
             _harness_fail("corrupt pack dir")
         _judge_corrupt_exchange(task_dir)
+        _judge_corrupt_pack_resealed(task_dir)
         return
     post = _run_driver(repo, function, _driver_cases(corpus)).get("cases")
     if not isinstance(post, list):
@@ -1475,18 +1476,25 @@ def _judge_adversarial(session: Session, manifest: dict, candidate: bytes) -> No
         _reject("ORACLE_POLICY_CHANGED", session.head.get("policy", "")[:32])
 
 def _judge_corrupt_exchange(task_dir: Path) -> None:
-    """Exchange-pack corruption and rejection path (CORRUPT acceptance
-    evidence): a bit-flipped pack must fail import with the exact
-    frozen digest symbol, and the destination ref must not move.
+    """Exchange-trailer regression (judge-side; kept as a regression,
+    never as the corpus PACK obligation): a bit-flipped exchange whose
+    trailer is NOT resealed must fail import with the exact exchange
+    digest symbol, and the destination ref must not move.
 
     Two independent single-bit corruptions (middle, last byte) both
-    map to EXCHANGE_DIGEST_MISMATCH (frozen S3 s3_g2_corrupt parity
-    for the exchange layer; the README-normative PACK_DIGEST_MISMATCH
-    lives one layer up, on repository-bundle import, which the trial
-    surface never drives). The destination head transaction and live
-    object count are identical before and after each rejected import.
-    The constant-value restoration checked beside this is a separate
-    smoke test, never this task's acceptance evidence."""
+    map to EXCHANGE_DIGEST_MISMATCH: the unkeyed exchange trailer gate
+    (crates/sley-repo/src/exchange.rs:674-677) fires first only because
+    the trailer is left stale. The corpus code PACK_DIGEST_MISMATCH is
+    reached through the same `exchange.import` route once the trailer
+    is resealed (the exchange owner runs the PACK owner's preflight on
+    the embedded pack, exchange.rs:1384, and returns PACK_* verbatim,
+    exchange.rs:273-281); that vector is `_judge_corrupt_pack_resealed`.
+    The judge corrupts and imports these bytes itself through the
+    privileged `_raw_request`; the trial agent never touches them. The
+    destination head transaction and live object count are identical
+    before and after each rejected import. The constant-value
+    restoration checked beside this is a separate smoke test, never
+    this task's acceptance evidence."""
 
     pack_path = task_dir / "base.pack"
     try:
@@ -1541,6 +1549,297 @@ def _judge_corrupt_exchange(task_dir: Path) -> None:
             session.close()
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
+
+
+# Resealed embedded-pack vector (S2B-CORRUPT-001 corpus code). The exchange
+# trailer is the unkeyed digest blake3(domain || envelope-without-trailer)
+# (crates/sley-repo/src/exchange.rs:674; crates/sley-id/src/lib.rs:167-171,501),
+# so the judge recomputes it through the pinned oracle project's blake3 and
+# proves the recomputation equals the owner's on the untouched staged
+# exchange before using it. The Rust pin reseals with the owner's own
+# `RepositoryExchangeId::derive` (crates/sley-repo/tests/s3_g2_corrupt.rs,
+# `s3_corrupt_exchange_resealed_embedded_pack`) and flips the same offsets.
+EXCHANGE_DIGEST_DOMAIN = b"sley2.repository-exchange.v1"
+EXCHANGE_CONTRACT_TAG = 540
+PACK_CONTRACT_TAG = 170
+_SCB_MAGIC = b"SLEYSCB1"
+_TRAILER_LEN = 32
+CORRUPT_PACK_SYMBOL = "PACK_DIGEST_MISMATCH"
+_RESEAL_SERVICE = (
+    "import json, sys, blake3\n"
+    "domain = bytes.fromhex(sys.argv[1])\n"
+    "items = json.loads(sys.stdin.read())\n"
+    "print(json.dumps([blake3.blake3(domain + bytes.fromhex(i)).hexdigest() for i in items]))\n"
+)
+
+
+def _scb_uvar(data: bytes, position: int) -> tuple[int, int]:
+    try:
+        value, width = _uvar(data, position)
+    except (ValueError, IndexError) as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: exchange uvar: {error}") from error
+    return value, position + width
+
+
+def _scb_envelope(data: bytes, tag: int) -> tuple[int, int]:
+    """(payload_start, payload_len) of one SCB1 envelope spanning `data`
+    exactly: magic, version 1, contract tag, epoch, sized payload,
+    32-byte trailer."""
+
+    if not data.startswith(_SCB_MAGIC):
+        _harness_fail("exchange magic")
+    version, position = _scb_uvar(data, len(_SCB_MAGIC))
+    contract, position = _scb_uvar(data, position)
+    if version != 1 or contract != tag:
+        _harness_fail(f"envelope tag {contract}")
+    length, position = _scb_uvar(data, position + 32)
+    if position + length + _TRAILER_LEN != len(data):
+        _harness_fail("envelope span")
+    return position, length
+
+
+def _scb_fields(data: bytes, start: int, length: int) -> dict[int, tuple[int, int]]:
+    """Record field tag -> absolute (start, length) inside data[start:start+length]."""
+
+    count, position = _scb_uvar(data, start)
+    fields: dict[int, tuple[int, int]] = {}
+    for _ in range(count):
+        tag, position = _scb_uvar(data, position)
+        size, position = _scb_uvar(data, position)
+        fields[tag] = (position, size)
+        position += size
+    if position != start + length:
+        _harness_fail("record span")
+    return fields
+
+
+def _scb_elements(data: bytes, start: int, length: int) -> list[tuple[int, int]]:
+    count, position = _scb_uvar(data, start)
+    elements = []
+    for _ in range(count):
+        size, position = _scb_uvar(data, position)
+        elements.append((position, size))
+        position += size
+    if position != start + length:
+        _harness_fail("list span")
+    return elements
+
+
+def _embedded_objects(exchange: bytes) -> list[tuple[int, int]]:
+    """Absolute (start, length) of every canonical object's stored bytes
+    inside the embedded tag-170 pack: exchange payload field 2
+    (exchange.rs:788) -> pack payload field 5 -> entry field 3, whose
+    declared length is entry field 2 (crates/sley-repo/src/lib.rs:800-811)."""
+
+    payload_start, payload_len = _scb_envelope(exchange, EXCHANGE_CONTRACT_TAG)
+    fields = _scb_fields(exchange, payload_start, payload_len)
+    if 2 not in fields:
+        _harness_fail("exchange pack field")
+    pack_start, pack_len = fields[2]
+    pack = exchange[pack_start:pack_start + pack_len]
+    inner_start, inner_len = _scb_envelope(pack, PACK_CONTRACT_TAG)
+    pack_fields = _scb_fields(pack, inner_start, inner_len)
+    if 5 not in pack_fields:
+        _harness_fail("pack objects field")
+    objects = []
+    for entry_start, entry_len in _scb_elements(pack, *pack_fields[5]):
+        entry = _scb_fields(pack, entry_start, entry_len)
+        if 2 not in entry or 3 not in entry:
+            _harness_fail("pack object entry")
+        declared, _ = _scb_uvar(pack, entry[2][0])
+        stored_start, stored_len = entry[3]
+        if declared != stored_len:
+            _harness_fail("pack object length")
+        objects.append((pack_start + stored_start, stored_len))
+    if len(objects) < 2:
+        _harness_fail("pack object count")
+    return objects
+
+
+def _exchange_digests(prefixes: list[bytes]) -> list[bytes]:
+    """blake3(EXCHANGE_DIGEST_DOMAIN || prefix) per prefix, through the
+    pinned oracle project (system python has no blake3)."""
+
+    try:
+        completed = subprocess.run(
+            [sley2_codecs._uv(), "run", "--offline", "--frozen", "--project",
+             str(sley2_codecs.ORACLE_PROJECT), "python", "-c", _RESEAL_SERVICE,
+             EXCHANGE_DIGEST_DOMAIN.hex()],
+            input=json.dumps([prefix.hex() for prefix in prefixes]).encode("utf-8"),
+            capture_output=True, timeout=120, check=False)
+    except (OSError, subprocess.TimeoutExpired, sley2_codecs.CodecError) as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: reseal: {error}") from error
+    if completed.returncode != 0:
+        _harness_fail(f"reseal exit {completed.returncode}")
+    try:
+        digests = [bytes.fromhex(item) for item in json.loads(completed.stdout.decode("utf-8"))]
+    except (UnicodeError, ValueError, TypeError) as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: reseal output: {error}") from error
+    if len(digests) != len(prefixes) or any(len(d) != _TRAILER_LEN for d in digests):
+        _harness_fail("reseal shape")
+    return digests
+
+
+def _resealed_pack_vectors(exchange: bytes) -> dict:
+    """The resealed corpus vectors over the staged exchange: two
+    independent single-byte flips inside canonical object bytes (first
+    object at 3/8, last object at 5/8 of its stored bytes), each with
+    the exchange trailer recomputed; plus the resealed-unflipped control,
+    which must equal the staged exchange byte for byte (proof that the
+    recomputation is the owner's digest on this input)."""
+
+    objects = _embedded_objects(exchange)
+    flips = []
+    for label, (start, length), eighths in (("object-first", objects[0], 3),
+                                             ("object-last", objects[-1], 5)):
+        offset = start + length * eighths // 8
+        if not start < offset < start + length - 1:
+            _harness_fail("flip offset")
+        body = bytearray(exchange[:-_TRAILER_LEN])
+        body[offset] ^= 0x01
+        flips.append((label, offset, bytes(body)))
+    digests = _exchange_digests([exchange[:-_TRAILER_LEN]] + [body for _, _, body in flips])
+    control = exchange[:-_TRAILER_LEN] + digests[0]
+    if control != exchange:
+        _harness_fail("reseal diverges from the owner trailer")
+    vectors = [{"label": label, "offset": offset, "hex": (body + digest).hex()}
+               for (label, offset, body), digest in zip(flips, digests[1:])]
+    return {"control_hex": control.hex(), "vectors": vectors}
+
+
+def _failure_symbol(reply: dict) -> str:
+    try:
+        [failure] = sley2_codecs.run_batch([{"op": "decode_failure", "body": reply["body"]}])
+    except sley2_codecs.CodecError as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: corrupt code: {error}") from error
+    return str(failure["decoded"].get("symbol", ""))
+
+
+def _pre_head_import(ws: Path, body_hex: str) -> dict:
+    """One sessionless `exchange.import` on a repository with no accepted
+    head (the only state in which the method travels without a session,
+    crates/sley-protocol/src/server.rs:1132-1149): the same dispatch the
+    trial tool's privileged seeding uses."""
+
+    from bench.sley2.runner import request_frame
+
+    sley = _resolve_binary()
+    endpoint = Endpoint(sley, ws / REPO_DIR, ws / REPORT_NAME, SESSION_TIMEOUT, PROFILE_ARGS)
+    try:
+        hello, _, _ = endpoint_offer(sley)
+        greeting = endpoint.send(hello)
+        if not greeting or greeting[-1].get("kind") != "hello":
+            _harness_fail("corrupt negotiation")
+        replies = endpoint.send(request_frame("exchange.import", body_hex, None, 0,
+                                              protocol_version=PROTOCOL_VERSION))
+    finally:
+        endpoint.close()
+    if not replies:
+        _harness_fail("corrupt import reply")
+    return replies[-1]
+
+
+def _tree_bytes(path: Path) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for item in sorted(path.rglob("*")):
+        if item.is_file() and not item.is_symlink():
+            out[str(item.relative_to(path))] = hashlib.sha256(item.read_bytes()).hexdigest()
+    return out
+
+
+def _require_pack_refusal(reply: dict, label: str) -> str:
+    if not reply["flags"].get("failed"):
+        _reject("ORACLE_CORRUPT_ACCEPTED", f"{label}: corrupted exchange imported")
+    symbol = _failure_symbol(reply)
+    if symbol != CORRUPT_PACK_SYMBOL:
+        _reject("ORACLE_CORRUPT_UNREFUSED", f"{label}: {symbol}"[:120])
+    return symbol
+
+
+def _judge_corrupt_pack_resealed(task_dir: Path, vectors: dict | None = None) -> dict:
+    """Corpus vector (judge-side): one canonical object byte altered in
+    the staged exchange's embedded pack, exchange trailer resealed,
+    `exchange.import` must refuse with exact PACK_DIGEST_MISMATCH (the
+    PACK owner's code, never remapped), and the destination must not
+    move.
+
+    One destination, two states. Fresh (no head): each resealed flip,
+    plus a retry of the first, is refused and the repository files are
+    byte-identical; the resealed-unflipped control then imports into
+    that same destination with no cleanup (clean re-import accepted,
+    deterministic recovery). Populated (the recovered head): each flip
+    is refused twice with the same failure body, and the head
+    transaction and live object count are unchanged on a fresh session
+    and the repository files are byte-identical across every refusal.
+    The judge drives these bytes through the privileged route; no agent
+    path can attempt an import (exchange.import is denied to every arm,
+    bench/sley2/runner.py:126). Whether that satisfies the corpus
+    "attempt import" is an open owner question
+    (bench/live/CORRUPT-SURFACE-DECISION.md). Returns the observed
+    evidence for the witness log."""
+
+    pack_path = task_dir / "base.pack"
+    try:
+        exchange = pack_path.read_bytes()
+    except OSError as error:
+        raise JudgeHarnessError(f"LIVE_SLEY2_JUDGE_INVALID: pack: {error}") from error
+    built = vectors if vectors is not None else _resealed_pack_vectors(exchange)
+    flips = built["vectors"]
+    if not flips:
+        _harness_fail("corrupt vectors")
+    evidence: dict = {"route": "exchange.import", "resealed": True, "fresh": [], "populated": []}
+    workdir = Path(tempfile.mkdtemp(prefix="sley2-corrupt-pack-"))
+    try:
+        ws = workdir / "ws"
+        ws.mkdir(mode=0o700)
+        repo = ws / REPO_DIR
+        repo.mkdir(mode=0o700)
+        for vector in flips + flips[:1]:
+            before = _tree_bytes(repo)
+            symbol = _require_pack_refusal(_pre_head_import(ws, vector["hex"]), vector["label"])
+            if _tree_bytes(repo) != before:
+                _reject("ORACLE_CORRUPT_REF_MOVED", f"{vector['label']}: fresh destination written")
+            evidence["fresh"].append({"label": vector["label"], "offset": vector.get("offset"),
+                                      "symbol": symbol})
+        recovered = _pre_head_import(ws, built["control_hex"])
+        if recovered["flags"].get("failed"):
+            _reject("ORACLE_CORRUPT_UNRECOVERED", _failure_symbol(recovered)[:120])
+        evidence["control"] = "accepted"
+        session = Session(_resolve_binary(), ws, [], seed_pack=False)
+        try:
+            head_before = session.head.get("tx", "")
+            count_before = _live_object_count(session)
+            if not head_before or count_before <= 0:
+                _harness_fail("recovered head")
+            for vector in flips:
+                bodies = []
+                for _ in range(2):
+                    before = _tree_bytes(repo)
+                    reply = session._raw_request("exchange.import", vector["hex"])
+                    symbol = _require_pack_refusal(reply, vector["label"])
+                    if _tree_bytes(repo) != before:
+                        _reject("ORACLE_CORRUPT_REF_MOVED",
+                                f"{vector['label']}: populated destination written")
+                    bodies.append(reply["body"])
+                if bodies[0] != bodies[1]:
+                    _reject("ORACLE_CORRUPT_UNREFUSED", f"{vector['label']}: retry diverged")
+                evidence["populated"].append({"label": vector["label"], "symbol": symbol,
+                                              "attempts": 2})
+        finally:
+            session.close()
+        fresh = Session(_resolve_binary(), ws, [], seed_pack=False)
+        try:
+            if fresh.head.get("tx", "") != head_before:
+                _reject("ORACLE_CORRUPT_REF_MOVED", "destination head moved")
+            if _live_object_count(fresh) != count_before:
+                _reject("ORACLE_CORRUPT_REF_MOVED", "destination store changed")
+        finally:
+            fresh.close()
+        evidence["head_tx"] = head_before
+        evidence["live_objects"] = count_before
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+    return evidence
 
 
 def _judge_corrupt_value(session: Session, manifest: dict) -> None:
