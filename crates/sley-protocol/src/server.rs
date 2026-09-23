@@ -2929,8 +2929,10 @@ impl Server {
     /// encoding byte for byte. The answer is built from the head the
     /// session check retained; a native-format head still fails through
     /// the version 1 loader exactly as before. An absent maintenance
-    /// boundary never reaches the probe: the head load that precedes it
-    /// takes the boundary shared, blocking, and fails the method.
+    /// boundary never reaches the probe: the session check that precedes
+    /// it loads the head through `maintenance()`, which creates the
+    /// boundary when it is absent (`initialize_repository_maintenance`)
+    /// and then takes it shared, blocking, so the probe always finds it.
     fn workspace_open(
         &self,
         body: &[u8],

@@ -316,12 +316,31 @@ class WorkspaceOpenAnchorCases(unittest.TestCase):
 
     def test_stale_version_3_owner_pin_is_refused(self):
         native = (ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md").read_text(encoding="utf-8")
-        current = f"`docs/spec/SMP1.md` at revision {SMP1_REVISION}"
+        # The version 3 owner pins SMP1's normative revision (an errata-only
+        # SMP1 revision keeps it).
+        current = f"`docs/spec/SMP1.md` at revision {CHECKER.NORMATIVE_REVISION}"
         self.assertIn(current, native)
         stale = native.replace(current, "`docs/spec/SMP1.md` at revision 12", 1)
         self.assertIn("v3-owner-pin", " ".join(
             CHECKER.workspace_open_anchor_problems(SPEC_TEXT, stale)))
         self.assertEqual(CHECKER.workspace_open_anchor_problems(SPEC_TEXT, native), [])
+
+
+
+class ErrataRevisionCases(unittest.TestCase):
+    """Revision 16 is errata-only over normative revision 15: the Status line
+    must declare it, or consumers' revision 15 pins would silently stand
+    against a normative change."""
+
+    DECLARATION = "errata-only over normative revision 15; "
+
+    def test_the_declaration_is_present(self):
+        self.assertIn(self.DECLARATION, SPEC_TEXT)
+
+    def test_dropping_the_errata_declaration_is_refused(self):
+        code, payload = run_checker_with_spec(SPEC_TEXT.replace(self.DECLARATION, "", 1))
+        self.assertNotEqual(code, 0)
+        self.assertIn(f"spec-normative-revision:16!={CHECKER.NORMATIVE_REVISION}", payload["problems"])
 
 
 if __name__ == "__main__":

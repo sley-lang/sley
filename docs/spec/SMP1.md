@@ -1,6 +1,6 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 15 (2026-09-23; the revision
+Status: S20-400 contract draft, revision 16 (2026-09-23; errata-only over normative revision 15; the revision
 history is listed below after the authority rule); Council review pending
 (Ariadne contract review as the package owner, Nabu architecture review,
 Vulcan surface review). This revision supersedes the M0 constitutional
@@ -18,7 +18,7 @@ appendix B (closeout
 the JSON bridge from this contract (frozen-record revision 7, closeout
 `docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`), and S20-430 wraps the CLI
 (frozen-record revision 4, closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`).
-Current composition (revision 15): the S20-420 bridge contract
+Current composition (revision 16): the S20-420 bridge contract
 `docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 12 and the S20-430 CLI contract
 `docs/spec/SLEY_CLI_V1.md` revision 10.
 Further implementation state is tracked in the machine summary.
@@ -72,7 +72,13 @@ version-aware negotiation exactly (version 1 drops 306, 307, 605, 606, and
 607; version 2 drops 605, 606, and 607; version 3 without the native-tests
 bit drops 601, 602, 605, 606, and 607), which since 2026-09-16 the code had
 applied while this text named only 306 and 307, and the version 1
-compatibility statement counts it. Document revision (a draft number of this file) and negotiated
+compatibility statement counts it; 16 (2026-09-23) is errata-only, a text
+correction with no behaviour change: the revision 15 round (26d050e,
+PASS x3) found appendix A's sentence that an absent maintenance boundary
+fails `workspace.open` false, because the session check creates an absent
+boundary before the head load, and revision 16 states that behaviour. No
+wire, table, or behaviour changes, so consumers keep their revision 15
+pins (the normative revision). Document revision (a draft number of this file) and negotiated
 protocol version (the wire selection 1, 2, or 3) are distinct. Revision 15
 serves every conforming version 1 request exactly as revision 12 did,
 byte for byte, including an empty-body `workspace.open`, with two version 1
@@ -92,8 +98,9 @@ and the revision 11 review history is retained as history. The revision
 12 new-delta review passed (2026-09-15); the revision 13 review round
 returned REVISE on the version scope of field 9 and is answered by
 revision 14, whose new-delta review passed on 2b0f1c9 (2026-09-23) with
-P3/P4 findings answered by revision 15, whose new-delta review is
-pending.
+P3/P4 findings answered by revision 15, whose new-delta review passed on
+26d050e (2026-09-23); revision 16 is its errata-only correction, whose
+review is pending.
 
 ## 1. Framing
 
@@ -761,9 +768,13 @@ builds or writes the cache; an absent, discarded, or unreadable record,
 and a contended repository maintenance boundary (taken shared, without
 waiting, never initialized by the probe), are all absence. The opener
 itself still loads the accepted head under the S20-390 blocking shared
-maintenance acquisition like every head-bound read, so an absent boundary
-fails the method and an exclusive owner makes the opener wait; only the
-probe adds no wait. Absence is structural: the record then has eight
+maintenance acquisition like every head-bound read. That acquisition
+first creates the maintenance boundary when it is absent (the S20-390
+`initialize_repository_maintenance`, run by the session check that
+precedes every session-bound answer), so an absent boundary never reaches
+the probe, and an exclusive owner makes the opener wait; only the probe
+adds no wait and never initializes the boundary (revision 16 erratum; the
+earlier text said an absent boundary fails the method). Absence is structural: the record then has eight
 fields, and the bounded context reports one item either way, never an
 omission or truncation. The body is deterministic given the accepted head
 plus the derived cache state: field 9's presence is not a fact about the

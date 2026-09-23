@@ -299,8 +299,16 @@ def main() -> int:
     if own is None or int(own.group(1)) != SPEC_REVISION:
         problems.append("spec-revision")
     smp1_text = (ROOT / "docs/spec/SMP1.md").read_text(encoding="utf-8")
-    smp1_status = re.search(r"^Status: S20-400 contract draft, revision (\d+)", smp1_text, flags=re.M)
-    if smp1_status is None or int(smp1_status.group(1)) != SMP1_REVISION:
+    # An errata-only SMP1 revision (no behaviour change) keeps the consumer
+    # pin at the normative revision it names; any other revision moves it.
+    smp1_status = re.search(
+        r"^Status: S20-400 contract draft, revision \d+ \((?:[^;)]*; )?errata-only over normative "
+        r"revision (\d+)|^Status: S20-400 contract draft, revision (\d+)",
+        smp1_text,
+        flags=re.M,
+    )
+    smp1_normative = (smp1_status.group(1) or smp1_status.group(2)) if smp1_status else None
+    if smp1_normative is None or int(smp1_normative) != SMP1_REVISION:
         problems.append("smp1-revision-pin")
     flat = re.sub(r"\s+", " ", spec)
     if f"SMP1 revision {SMP1_REVISION} and bridge revision {BRIDGE_REVISION}" not in flat:

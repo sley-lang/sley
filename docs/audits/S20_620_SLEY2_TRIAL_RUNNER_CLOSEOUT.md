@@ -10,10 +10,11 @@ carries the accepted head's already-materialized index snapshot identity
 `S20_620_IMPLEMENTED_REVIEW_PENDING`. The revision 5 round (5b538f3)
 returned REVISE from all three lanes; the answered text is contract
 revision 6, whose Nabu and Vulcan reviews (f073811) and Ariadne review
-(2b0f1c9) PASS. Contract revision 7 (2026-09-23) answers that round's
-P3/P4 findings (re-pins SMP1 revision 15 and S20-300 revision 6, and the
-absent-boundary sentence); its new-delta review is pending, so the package
-is not complete.
+(2b0f1c9) PASS. Contract revision 7 (2026-09-23) answered that round's
+P3/P4 findings; its reviews at 26d050e were Vulcan PASS, Ariadne and Nabu
+REVISE (the completion gate bound by field name only; the absent-boundary
+sentence was false). Contract revision 8 answers them; its new-delta
+review is pending, so the package is not complete.
 23 offline tests. Implementation record:
 `bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md`. The revision 4
 status below and the revision 2 record are retained as history.

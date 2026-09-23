@@ -50,7 +50,11 @@ METHOD_TAGS = (
 # second independently maintained 43-row table exists.
 V2_ADDITIONS = (306, 307)
 V2_METHOD_TAGS = tuple(sorted(METHOD_TAGS + list(V2_ADDITIONS)))
-CONTRACT_REVISION = 15
+CONTRACT_REVISION = 16
+# Revision 16 is errata-only (a text correction with no behaviour change),
+# so the normative revision consumers pin stays 15; the Status line must
+# declare that, and consumers' pins are checked against it.
+NORMATIVE_REVISION = 15
 # Revision 13/14 normative text for method 201 (anchored on whitespace-
 # flattened text, so reverting any of it fails the gate).
 WORKSPACE_OPEN_ANCHORS = (
@@ -86,7 +90,7 @@ def workspace_open_anchor_problems(spec: str, native: str) -> list[str]:
     problems = [f"spec-anchor:{name}" for name, text in WORKSPACE_OPEN_ANCHORS if text not in flat]
     native_flat = re.sub(r"\s+", " ", native)
     pins = re.findall(r"`docs/spec/SMP1\.md` at revision (\d+)", native_flat)
-    if pins != [str(CONTRACT_REVISION)]:
+    if pins != [str(NORMATIVE_REVISION)]:
         problems.append(f"v3-owner-pin:{pins}")
     return problems
 V1_SECTION = "### Protocol version 1"
@@ -416,6 +420,15 @@ def main() -> int:
             problems.append(f"reverse-pin:{name}:status-line")
         elif len(pins) != 1 or pins[0] != found.group(1):
             problems.append(f"reverse-pin:{name}:revision-{found.group(1) if found else '?'}")
+    errata = re.search(
+        r"^Status: S20-400 contract draft, revision \d+ \((?:[^;)]*; )?errata-only over normative "
+        r"revision (\d+)",
+        spec,
+        flags=re.M,
+    )
+    declared_normative = int(errata.group(1)) if errata else CONTRACT_REVISION
+    if declared_normative != NORMATIVE_REVISION:
+        problems.append(f"spec-normative-revision:{declared_normative}!={NORMATIVE_REVISION}")
     status_hits = re.findall(
         r"^Status: S20-400 contract draft, revision (\d+)", spec, flags=re.M
     )

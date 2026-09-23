@@ -465,10 +465,16 @@ def main() -> int:
     if revision is None or int(revision.group(1)) != CONTRACT_REVISION:
         problems.append("spec-revision")
     smp1 = read(SMP1_SPEC)
+    # An errata-only SMP1 revision (no behaviour change) keeps the consumer
+    # pin at the normative revision it names; any other revision moves it.
     smp1_revision = re.search(
-        r"^Status: S20-400 contract draft, revision (\d+)", smp1, flags=re.M
+        r"^Status: S20-400 contract draft, revision \d+ \((?:[^;)]*; )?errata-only over normative "
+        r"revision (\d+)|^Status: S20-400 contract draft, revision (\d+)",
+        smp1,
+        flags=re.M,
     )
-    if smp1_revision is None or int(smp1_revision.group(1)) != SMP1_REVISION:
+    smp1_normative = (smp1_revision.group(1) or smp1_revision.group(2)) if smp1_revision else None
+    if smp1_normative is None or int(smp1_normative) != SMP1_REVISION:
         problems.append("smp1-revision-pin")
     capsule_spec = read(CAPSULE_SPEC)
     capsule_revision = re.search(

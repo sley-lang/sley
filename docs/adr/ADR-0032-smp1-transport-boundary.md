@@ -21,9 +21,15 @@ revision 15 states the explicit negotiation's per-selection filter exactly
 (version 1 drops 306, 307, 605, 606, and 607; version 2 drops 605, 606, and
 607; version 3 without the native-tests bit drops 601, 602, 605, 606, and
 607) and counts the version 1 native-tag drop in the compatibility
-statement. The revision 15 new-delta review is pending.
+statement. The revision 15 new-delta review passed on 26d050e
+(2026-09-23). Current pin (2026-09-23, errata): revision 16 is errata-only
+over normative revision 15, a text correction with no behaviour change:
+appendix A now says the session check creates an absent maintenance
+boundary before the head load (it never fails the method, as revision 15
+said); consumers keep their revision 15 pins. The revision 16 review is
+pending.
 
-Date: 2026-09-03; current pins 2026-09-08 (revision 12) and 2026-09-23 (revisions 13 to 15)
+Date: 2026-09-03; current pins 2026-09-08 (revision 12) and 2026-09-23 (revisions 13 to 16)
 
 ## Context
 
