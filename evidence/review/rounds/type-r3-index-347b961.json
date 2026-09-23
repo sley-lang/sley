@@ -1,0 +1,19 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "347b9611efd6fe203282334d1b271c07f09553ae",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "ariadne",
+      "section": "type_fixture_correction",
+      "field": "ariadne_contract_review_revision_3",
+      "verdict": "PASS_0_P0_0_P1_0_P2_0_P3_1_P4",
+      "scope_sha": "347b9611efd6fe203282334d1b271c07f09553ae",
+      "path": "evidence/review/verdicts/type_fixture_correction/ariadne_contract_review_revision_3-347b961.md",
+      "sha256": "7cf28d2e4aa3d0fcdff97b91482a8e9a821190b74004d29cee96141cc939c2c9",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 114
+    }
+  ]
+}
