@@ -308,7 +308,22 @@ phase 14 as executed or passed.
 - Phase 9 independently rebuilds and compares the capability summary, verifies
   authenticated token bindings where present, enforces policy mutation-class
   grants and ceilings, and runs protected ordinary-program isolation.
-- Phase 10 invokes the owning contract checker.
+- Phase 10 invokes the owning contract checker. Its affected-Function input
+  is the phase-5 base/proposed affected Function union projected onto the
+  identities still bound in the proposed state: a Function the candidate
+  deletes is a selection tombstone. Phase 5 has already refused any live
+  reference to it (a TestCase still targeting it included), so it selects
+  exactly zero tests and is omitted from the checker's closed request, which
+  requires every affected Function to resolve there. Phase 9 grants and the
+  recorded affected closure keep the full union. Keeping every identity still
+  bound in the proposed state is defensive: apply already refuses a kind change
+  (`TargetKindMismatch`), and were one reached the checker would refuse it at
+  phase 11 as `TEST_PLAN_SELECTION_INVALID`. (Amended 2026-09-23, REQ-11: before
+  this rule, every Function-deleting candidate refused at phase 11 with
+  `TEST_PLAN_SELECTION_INVALID`; no frozen vector pinned that refusal, the only
+  movement is refuse-to-valid for such candidates, and
+  `full_validation_profile_id` is unchanged because no previously valid result
+  changes.)
 - Phase 11 finalizes the checker-produced plan against protected mandatory
   tests/contracts; caller-selected tests are forbidden.
 - Phase 12 charges deterministic operation, decoded-value, graph, checker,
