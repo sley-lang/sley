@@ -521,7 +521,9 @@ CONTEXT semantics (task 2): query.root/restricted/continue/refs.list
 are bounded paging routes, not whole-store by name. Each bounded
 response must fit the per-response cap; any omitted/truncated page
 must be followed by query.continue in-scope (hidden truncation and
-inconsistent continuations reject); cumulative agent-visible bytes
+inconsistent continuations reject; superseded 2026-09-23: continuation
+is now the trial-wide `_ContinuationLedger`, bound by query key and
+cursor rather than session scope); cumulative agent-visible bytes
 fit a 4 MiB trial budget; whole-store is inventory/side only.
 Mediated trials derive the same audit from the runner-owned
 reconciled capture (hash-chained exchanges, frozen pack/manifest/
@@ -529,8 +531,12 @@ tool/binary bindings, completion final/count/head bindings), with
 `raw:<method>` exposing inner query methods and true session scopes;
 the obsolete chain file is never consulted or fabricated there.
 Positive: genuinely bounded page + continue accepted. Retained
-limitation: transcripts record bounds/digests, not requested limit
-values or continuation tokens, so token-equality is unverified.
+limitation (historical; superseded 2026-09-23): transcripts recorded
+bounds/digests, not requested limit values or continuation tokens, so
+token-equality was unverified. The ledger now derives each page's
+query key, request cursor, truncation, and next cursor from the exact
+bodies and verifies after == previous next; only requested limit
+values remain unrecorded.
 Discovery gate retained: the required member literal and impact set
 are undisclosed in agent-visible inputs and no permitted bounded
 enumeration route exists (inventory is whole-store; reads need ids;

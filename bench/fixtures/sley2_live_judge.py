@@ -3091,26 +3091,29 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
     Bounded-query semantics (governing ROOT_BACKED / RESTRICTED / CAPSULE
     contracts): query.root, query.restricted, query.continue, and
     refs.list are bounded paging routes, NOT whole-store reads by
-    method name. Each such response must fit MAX_RESPONSE_BYTES; any
-    response carrying omitted>0 or truncated must be followed by a
-    query.continue in the same session scope (explicit continuation;
-    the corpus requires bounded operation WITH omissions and
-    continuations, not their absence); a query.continue with no
-    preceding truncated response is an inconsistent continuation and
-    rejects; cumulative agent-visible bytes across the trial must fit
-    AGENT_CUMULATIVE_RESPONSE_BUDGET. Whole-store reads are only
+    method name. Each such response must fit MAX_RESPONSE_BYTES;
+    cumulative agent-visible bytes across the trial must fit
+    AGENT_CUMULATIVE_RESPONSE_BUDGET. Continuation discipline is the
+    trial-wide `_ContinuationLedger` (explicit continuation; the corpus
+    requires bounded operation WITH omissions and continuations, not
+    their absence): a truncated query.root page opens (query key, next
+    cursor), and only a successful query.continue of the same query
+    whose request cursor equals that next cursor discharges it, so
+    after == the previous page's next is verified from the exact
+    bodies. Scope is the trial, bound by query and cursor, not by
+    session. A continue that matches no open page is inconsistent; a
+    page still open at trial end, or an omitting page with no
+    continuation route, rejects. Whole-store reads are only
     inventory/side (full file enumeration). Hidden truncation,
     exceeded bounds, inconsistent continuations, and unbounded access
     reject under the frozen unbounded-read code; semantic-only success
     is noted in the rejection detail, never mislabeled as a pass.
 
-    Limitation retained: transcripts record response bounds and body
-    digests, not requested limit values or continuation tokens, so the
-    judge verifies actual returned content, per-response limits,
-    continuation discipline, and cumulative budgets — not the literal
-    requested limit parameters or after==prev-next_after token
-    equality. Judge-only inspection (judge transcript) stays separate
-    from agent-visible context and cost.
+    Limitation retained: requested limit values are not recorded, so
+    the judge verifies actual returned content and per-response limits,
+    not the literal requested limit parameters. Judge-only inspection
+    (judge transcript) stays separate from agent-visible context and
+    cost.
 
     whole_store_reads is derived, never defaulted. Unknowns are never
     reported as zero: incomplete evidence rejects instead of returning
@@ -3350,11 +3353,14 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
     Audit rules mirror the legacy chain audit at captured-method
     granularity (`raw:<server method>` exposes the inner query
     method; gateway-local `resolve` is neutral): bounded query
-    methods are not whole-store reads by name; a truncated/omitted
-    bounded page must be continued in the same session scope (the
-    capture's own session_id, stronger than entry scope); a
-    query.continue with no preceding truncation in scope is
-    inconsistent; cumulative and per-response budgets bind; only
+    methods are not whole-store reads by name; continuation is the
+    trial-wide `_ContinuationLedger`, bound by query key and cursor
+    (a truncated query.root page is discharged only by a successful
+    query.continue of the same query whose request cursor equals the
+    page's next cursor, across invocations and sessions); a
+    query.continue that matches no open page is inconsistent, and a
+    page left open at trial end rejects; cumulative and per-response
+    budgets bind; only
     inventory/side count as whole-store; commit and hidden truncation
     reject. Scope/root consistency comes from the capture's session
     scopes and frozen pack/manifest bindings, not method names alone.

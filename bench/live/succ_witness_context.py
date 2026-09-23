@@ -44,6 +44,7 @@ from bench.live import sley2_tool  # noqa: E402
 from bench.live.mediated_client import context_discover_and_repair  # noqa: E402
 from bench.live.taskpacks import stage_initial  # noqa: E402
 from bench.live.tooling import stage_tooling  # noqa: E402
+from bench.live.witness_provenance import source_identity  # noqa: E402
 
 
 def main() -> int:
@@ -60,16 +61,9 @@ def main() -> int:
         lines.append(text)
         print(text, flush=True)
 
-    # Source identity of the run: the commit the witness code ran at, and
-    # whether tracked files differed from it (log provenance).
-    import subprocess
-    head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT,
-                          capture_output=True, text=True, check=False)
-    dirty = subprocess.run(["git", "status", "--porcelain",
-                            "--untracked-files=no"], cwd=ROOT,
-                           capture_output=True, text=True, check=False)
-    emit(f"CONTEXT witness/{variant}: source {head.stdout.strip() or 'unknown'}"
-         f"{' (tracked changes present)' if dirty.stdout.strip() else ''}")
+    # Source identity of the run: the commit the witness code ran at and
+    # any tracked dirty paths other than witness log outputs.
+    emit(f"CONTEXT witness/{variant}: {source_identity(ROOT)}")
 
     tmp = tempfile.mkdtemp(prefix="sley2-context-witness-")
     ws = Path(tmp) / "ws"
