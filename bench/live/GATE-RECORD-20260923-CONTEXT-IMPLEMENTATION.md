@@ -510,6 +510,96 @@ Environment note: one earlier re-run attempt was aborted because `/tmp`
 workspaces for the 10,011-entity CONTEXT pack land in `/tmp` whatever the
 test's `TMPDIR`. Not changed (frozen oracle environment mapping).
 
+## 11. Revision-5 review round at `5b538f3` and repairs (2026-09-23)
+
+### 11.1 Round
+
+Transcripts committed unchanged in `149f9142`, sha256 equal to the round
+index: Ariadne `ariadne_contract_review_revision_5-5b538f3.md`
+(`6c708655…970`) REVISE_0_P0_1_P1_1_P2_3_P3_2_P4; Nabu
+`nabu_architecture_review_revision_5-5b538f3.md` (`5de991a8…4c9`)
+REVISE_0_P0_0_P1_1_P2_4_P3_4_P4; Vulcan
+`vulcan_surface_review_revision_5-5b538f3.md` (`a0bb48d1…c1d`)
+REVISE_0_P0_0_P1_1_P2_3_P3_2_P4; index
+`evidence/review/rounds/context-r5-5b538f3.json`. The three verdicts are
+recorded as `sley2_trial_runner.<lane>_revision_5` with dated, scoped notes;
+the base revision-4 PASS fields gained dated notes so the finding register
+keeps the three REVISE rounds open (without them the register folded the
+REVISE rounds under the undated base PASS — a misrepresentation this
+avoids). Status stays `S20_620_IMPLEMENTED_REVIEW_PENDING`.
+
+Repair commits: `dda51a16` (Rust), `a8b4cddb` (SMP1 revision 13, S20-300
+revision 4, S20-620 section 9, summaries, register), `2563d577` (judge,
+tool, gateway, capture, TOOLING, stand-in, tests, records), `2485d350`
+(register/GA/dossier/sync chain, two passes to convergence), `1450577a`
+(`generate_supply_chain_evidence.py`, last), and this record's commit.
+
+### 11.2 Per-finding closure
+
+| Finding | Disposition | Where / evidence |
+|---|---|---|
+| Ariadne P1 / Nabu P2 — SMP1 owns method 201 | FIXED. SMP1 revision 13: row 201 request corrected to none; appendix A row 201 and `open_summary` grammar (S20-390 fields 1-8 + optional S20-300 field 9, version 2 selections only, structural absence, one item, non-empty body refused); revision-12 "unchanged" statements amended; version 1 bytes unchanged (now true by a version gate). Owning package moved: `protocol` status `S20_400_COMPLETE` → `S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING`, `contract_revision` 13, `current_delta_review` 13 PENDING×3, `contract_complete` false; WORK_PACKAGES S20-400 row, ADR-0032. S20-620 §9 now cites SMP1; Boundary sentence true. | `a8b4cddb`, `dda51a16`; `check_smp1_contract.py` PASS rev 13; `workspace_open_under_version_1_never_carries_field_9`, `workspace_open_v2_discloses_only_the_materialized_head_snapshot`. Owner-lane (Ariadne) review of revision 13 NOT run. |
+| Ariadne P2 — S20-300 admits the probe | FIXED. Profile revision 4 §5 "Identity probe": exact rules (four acceptance rules, at most one file read, no object, no build, no write-back, no delete, discard = absence, guard rule), sole consumer, pointer-not-evidence; §8 evidence, §9 exclusion corrected; checker revision 4 with a probe-caller allowlist gate (`server.rs` only); summary `S20_300_FULL_COMPLETE` → `S20_300_FULL_IMPLEMENTED_REVIEW_PENDING`, `cache_consumers` updated; ADR-0029, WORK_PACKAGES row. | `a8b4cddb`; `check_complete_root_index_snapshot_profile.py` PASS rev 4. Revision 4 reviews NOT run. |
+| Ariadne P3 — §9 precision | FIXED. "Only when … any probe failure is absence"; warm-up refusal is `QUERY_SNAPSHOT_MISMATCH` only when the engine answers, else the owner code, and materialization only if the cache write succeeds. Pinned by a test that observed the owner-code case on the TYPE fixture (`INDEX_SNAPSHOT_ROOT_INCOMPLETE`, no snapshot ever disclosed). | `a8b4cddb`; `test_mediated_gateway.test_warm_up_owner_refusal_wins_and_materializes_nothing` |
+| Ariadne P3 — one-shot route cannot page | FIXED by the alternative the finding allows: the multi-invocation continuation decision landed (chain-bound audit, Vulcan P2 row); TOOLING states the rule; sentence pins in `test_documented_layout_is_pinned`. Review of that decision is the next round's. | `2563d577` |
+| Ariadne P3 / Nabu P3 — stale records | FIXED. SUCCESSION-COVERAGE CONTEXT row and MEDIATED-INPUT-ACCOUNTING corrected (layout documented, 8 integrated proofs, live-model usability documented not demonstrated). | `2563d577` |
+| Ariadne P4 / Vulcan P4 — `workspace.open` ignores a body | FIXED for `workspace.open` (non-empty → `PROTOCOL_PAYLOAD_INVALID`, both versions, tested). The other body-ignoring methods named (session.capabilities/budgets, exchange.export, refs.recover, recovery) are unchanged pre-existing behavior, not agent-reachable except via denied methods / the two session reads. | `dda51a16` |
+| Ariadne P4 — ADR-0036 status, §9 heading | FIXED. ADR status refreshed to revision 5; heading "9. Clarifications (revision 2 onward)"; checker anchors verbatim (PASS). | `a8b4cddb` |
+| Nabu P3 — opener lock behavior | FIXED in part, premise corrected. The probe now takes the boundary shared **without waiting** and never initializes it (no create_dir/fsync). Correction: the opener already took a blocking shared maintenance lock before this change — `head()` → `accepted_head()` acquires it (`crates/sley-txn/src/repository.rs:881-884`) — so blocking behind an exclusive GC/import owner is pre-existing S20-390 behavior, now stated in the docstring and §9. A protocol-level contention test is not possible for the probe alone (the head load blocks first); I wrote one, it hung for exactly that reason, and it was removed. | `dda51a16`, `a8b4cddb` |
+| Nabu P3 — continuation scope authority | FIXED (option (a)): cursor-bound audit, trial-wide, works on the documented one-shot route. | `2563d577` (Vulcan P2 row) |
+| Nabu P3 — tool identity | FIXED. `TOOL_VERSION` "2"; `MEDIATED_TOOL_VERSION` derived from it; prior-version rejection tests on both routes. | `2563d577`; `test_agent_access.test_prior_tool_version_rejects`, `test_mediated_access.test_prior_tool_version_rejects` |
+| Nabu P4 — witness logs lack identity | FIXED. The witness emits `source <commit>` (and whether tracked files differed); logs re-run at the repair head (section 11.3). | `2563d577` + log commit |
+| Nabu P4 — test-only module dependency | FIXED by docstring and accounting row 5 (route-neutral scripted agent, test-only on both routes). | `2563d577` |
+| Nabu P4 — budgets pinned as literals | FIXED. `test_documented_budgets_are_the_enforced_constants` ties the numbers to `sley2_tool.MAX_RESPONSE_BYTES`, the judge's `MAX_RESPONSE_BYTES` and `AGENT_CUMULATIVE_RESPONSE_BUDGET`, and the capture's per-response and trial caps. | `2563d577` |
+| Nabu P4 — corpus amendment ratification | OPEN. Needs the corpus owner in the REQ-10 design chain; not an implementation action. | — |
+| Vulcan P2 — unconditional continuation discharge | FIXED. The tool derives each answered root-query page's binding (query key = request with cursor elided, request cursor, truncation, next cursor) from the exact bodies on the trusted side; the gateway carries it into the capture response record; both audits use one trial-wide `_ContinuationLedger`: only a successful `query.continue` of the same query at the open page's exact next cursor discharges; refused, unbound, forged-label, skipping, past-the-end, other-query, and surplus continues never discharge; routes without continuation (cursor-bearing `query.root`, `query.restricted`, `refs.list`) stay open. Regressions: 13 new mediated-audit cases (10 of them FAIL/ERROR on the pre-repair judge, run with the `2563d577^` judge file), 5 new direct-audit cases, and the integrated `fake_discharge` mode (refused continue + imitation label + `ff…ff` cursor → rejected "inconsistent continuation"). | `2563d577` |
+| Vulcan P3 — open capture labels | FIXED. `audit_label` closed set; denied/unknown commands record as `denied` on every capture path (handle, gateway loop, pump, ingress server); the mediated audit rejects any label outside `AUDIT_LABELS`. | `2563d577`; `test_denied_commands_record_under_the_fixed_label`, `test_forged_continue_label_rejects` |
+| Vulcan P3 — surface contract / scope | FIXED. Continuation no longer depends on scope; TOOLING says so; regressions: cross-scope bound continue accepted, cross-scope wrong cursor rejected. The staged transport is not documented in TOOLING (no longer needed for paging). | `2563d577` |
+| Vulcan P3 — budget units | FIXED. TOOLING states the per-reply bound in reply bytes (hex doubles the body) with the safe `max_response_bytes` 524000 and the 8388608 capture backstop; the stand-in requests 524000; `test_a_maximal_documented_page_fits_the_per_reply_bound` covers both routes' envelopes. | `2563d577` |
+| Vulcan P4 — probe resource claims | FIXED. Non-waiting guard; §9 and S20-300 §5 state the one-file bounded decode (≤ `MAX_SNAPSHOT_RECORD_BYTES`) instead of "metadata-only". | `dda51a16`, `a8b4cddb` |
+
+Deviation to disclose: the consumer contracts that pin the SMP1 revision
+(`SMP1_JSON_BRIDGE_V1.md`, `SLEY_CLI_V1.md`, `SESSION_HANDLE_PROFILE_V1.md`,
+ADR-0033, and their checkers' `SMP1_REVISION`) were re-pinned to 13 as
+pin-only edits with an explicit re-pin sentence and no consumer revision
+bump or status move. The CLI's own precedent re-pinned through a CLI
+revision (revision 4 and 5). The S20-330, S20-420 and S20-430 owners should
+confirm or require revisions; `test_smp1_contract.py` now derives the SMP1
+revision from its Status line instead of the literal 12.
+
+### 11.3 Gates at the repair head
+
+| Check | Command | Exit | Result |
+|---|---|---|---|
+| server tests | `cargo test --locked --offline -p sley-protocol --lib workspace_open` | 0 | 2 passed |
+| touched crates | `cargo test --locked --offline --no-fail-fast -p sley-repo -p sley-protocol -p sley-cli` | 101 | 640 passed, 1 failed (`debug_commit_repro`, documented diagnostic), 25 ignored |
+| SMP1 family | `check_smp1_contract.py`, `check_cli_contract.py`, `check_smp1_json_bridge_contract.py`, `check_session_handle_profile.py`, `test_smp1_contract.py`, `test_current_contract_review.py`, `test_session_handle_profile.py`, `test_cli_contract.py`, `generate_smp1_json_bridge_table.py --check` | 0 each | PASS / OK |
+| S20-300 | `check_complete_root_index_snapshot_profile.py` | 0 | PASS, revision 4 |
+| trial runner | `check_sley2_trial_runner.py` | 0 | PASS, revision 5 |
+| register | `check_finding_register.py` | 0 | PASS (28 open reviews incl. the 3 S20-620 REVISE rounds and 3 SMP1 current-delta PENDING) |
+| live suites | `python3 -m unittest discover -s bench/live/tests -t .` at `1450577a` (binaries bound, bwrap, `TMPDIR` on `/home`) | 0 | Ran 243 tests, OK (includes the 8 integrated CONTEXT proofs) |
+| integrated CONTEXT proofs | `python3 -m unittest -v bench.live.tests.test_mediated_context` (repair tree) | 0 after one rerun | 8 tests: 7 OK in the first run, `test_context_exceeded_budget_rejects` failed on a binary relink by a concurrent cargo run (environment note below) and passed alone; all 8 pass again inside the 243-test run |
+| trial-runner tests | `python3 -m unittest discover -s bench/sley2/tests -t .` | 0 | Ran 23 tests, OK |
+| witnesses | `succ_witness_context.py pos|neg`, `succ_witness_sig.py pos`, `succ_witness_type_full.py pos` at `1450577a` | 0 each | CONTEXT pos ACCEPTED, CONTEXT neg refused at validation phase 6, SIG ACCEPTED, TYPE-FULL ACCEPTED; logs committed in `5233dd9e` |
+| quick | recipe keep-going (130 lines) at `1450577a` | — | 118 exit 0; failing: fuzz proof records predating lane changes #42, #43, #48, #49, #109, #114, #115 (fuzz refresh not run); candidate-bound #83, #84, #85, #88 (`test-inventory:drift`); #130 `cargo test --workspace` 1026 passed / 1 failed (`debug_commit_repro`) / 31 ignored. #86 and #105 now pass. |
+| lint | `make lint` at `5233dd9e` | 0 | PASS, 0 clippy warnings, fmt clean, clean tree; `lint-report.json` restored and not committed |
+
+Environment notes: a first full integrated run failed one test with
+"mediated tool/binary identity mismatch" because a concurrent
+`cargo test -p sley-cli` relinked the served binary mid-attempt; rerun
+alone it passed, and no cargo ran during the final suite runs. A stray
+in-repository `target/` directory created by one unscoped cargo command was
+deleted before any commit (never tracked).
+
+### 11.4 Still open
+
+- Re-review of revision 5 (all three lanes), SMP1 revision 13 current-delta
+  review, S20-300 revision 4 reviews; consumer-owner confirmation of the
+  pin-only re-pins.
+- Fuzz refresh for the seven affected lanes.
+- Corpus task-input amendment ratification (Nabu P4).
+- Live-model trial.
+
 ## Appendix A. Non-domain widened-token hits by file (line numbers at `44f18e2b`)
 
 ### A.1 Frozen history (review transcripts, request packets, gate records, campaign records, retained logs)
