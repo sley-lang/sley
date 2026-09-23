@@ -1737,7 +1737,7 @@ fn sorted_union(left: &[EntityId], right: &[EntityId]) -> Vec<EntityId> {
 ///
 /// A base Function the candidate deletes has no binding in the proposed
 /// state: it is a tombstone for selection. Phase 5 already refuses any live
-/// reference to it (a TestCase still targeting it included), and deleting a
+/// reference to it (a `TestCase` still targeting it included), and deleting a
 /// protected required test still refuses in the checker's required-test
 /// resolution at phase 11, so a tombstone selects exactly zero tests and is
 /// omitted from the closed request. Keeping every identity still bound in the
