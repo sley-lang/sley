@@ -110,6 +110,60 @@ snapshot is already materialized, its identity as `snapshot` (the binding
 root-backed queries name; a bounded `query.root` materializes it).
 `revision` takes a transaction id from a prior `open` (or any other
 reported tx), because no state survives across invocations.
+`raw` sends one request body to one of these methods and returns the
+response body as hex (`failed` true for a refusal): candidate.append,
+candidate.create, candidate.discard, candidate.inspect, candidate.validate,
+capsule, compare, entity.signature, entity.version, handle.expand,
+query.continue, query.restricted, query.root, refs.list, refs.resolve,
+revision.read, session.budgets, session.capabilities, workspace.open.
+
+Bounded root queries (`raw query.root BODY_HEX`, continuation
+`raw query.continue BODY_HEX`). Integers are big-endian; ids are 32 bytes.
+
+```text
+request body:
+  "SLEYRQQ1"                     8 bytes
+  u32 1, u32 1                   format, profile
+  snapshot, epoch, root, workspace   32 bytes each, from `open`
+  u32 2, u32 1                   completeness, limits profile
+  u64 max_entities               1..65535 entries per page
+  u64 max_edges                  1..400000
+  u32 max_depth                  0..65535
+  u64 max_response_bytes         1..67108864
+  u64 max_work                   1..100000000
+  u32 paging                     1 = single page, 2 = allow continuation
+  cursor                         u32 1 (none) | u32 2, u32 1, entity id
+  u32 class, class body:
+    2   entity                   id -> its kind and object id
+    4   entities of one kind     u32 kind (4 = type definition, 9 = constant)
+    14  reverse impact closure   u64 n (1..65535), then n seed ids, strictly ascending
+response body:
+  "SLEYRQR1", u32 1, u32 1, query id, snapshot, epoch, root, workspace,
+  u32 2, u32 1, the five limits, u32 paging, cursor (echoed request)
+  u32 class, u64 total (whole result), u64 returned (this page),
+  u32 truncated (1 no, 2 yes),
+  next cursor (same encoding), u32 depth, u64 work, u64 bytes, u32 class
+  result, class 2: u32 kind, object id, fingerprint (u32 1 | u32 2, 32 bytes)
+  result, classes 4 and 14: u64 count, then count entity ids
+```
+
+The server rebuilds every request from the accepted head and refuses
+`QUERY_SNAPSHOT_MISMATCH` unless snapshot, epoch, root, and workspace equal
+the head's. When `open` reports no `snapshot`, send one well-formed query
+with 32 zero bytes as the snapshot: it is refused, but the server
+materializes the head snapshot while answering, so the next `open`
+reports it. With paging = 1 a result larger than `max_entities` is refused
+(`QUERY_REQUIRED_FACT_OMITTED`). A page with truncated = 2 continues
+with `query.continue` carrying the same body with the cursor set to that
+page's next cursor. Continuation is audited per
+scope: a truncated page must be followed by `query.continue` in the same
+scope, and a `query.continue` with no truncated page before it rejects the
+trial. Each `sley-tool` invocation is its own scope and sends one request,
+so size `max_entities` for pages that complete (truncated = 1). Budgets:
+no single reply may exceed 1048576 bytes, and all replies together must
+stay within 4194304 bytes per trial; `inventory` and `side` read the whole
+store and reject a CONTEXT trial.
+
 `inventory` lists served object ids with decoded kinds. `read`/`sig` show
 an entity with its decoded body: edit by authoring the modified body as
 structured JSON (field names per the decoded view) or, for scalar fields,

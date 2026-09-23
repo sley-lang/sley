@@ -229,8 +229,11 @@ def discover_type_roles(gw: Gateway) -> dict:
             "switch_entry": entry, "switch_leaf": leaf}
 
 
-# Root-backed query wire (docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md;
-# sley-query encode_preimage / encode_response). Agent-side encoding of the
+# Root-backed query wire, exactly as the agent contract documents it
+# (`SLEY2_TOOLING`, "Bounded root queries": classes 2, 4, and 14 only;
+# `test_tooling.RootQueryContractTests` checks every body this stand-in
+# sends against the documented layout, and the layout against the
+# conformance vectors). Agent-side encoding of the
 # served `query.root`/`query.continue` request preimage: every identity it
 # names comes from the agent's own `open` (snapshot, epoch, root,
 # workspace) or from earlier discovery responses, never from a staged
@@ -238,7 +241,6 @@ def discover_type_roles(gw: Gateway) -> dict:
 # refuses QUERY_SNAPSHOT_MISMATCH on any difference.
 ROOT_QUERY_MAGIC = b"SLEYRQQ1"
 ROOT_RESPONSE_MAGIC = b"SLEYRQR1"
-CLASS_ROOT_SUMMARY = 1
 CLASS_GET_ENTITY = 2
 CLASS_ENTITIES_BY_KIND = 4
 CLASS_REVERSE_IMPACT = 14
@@ -481,8 +483,9 @@ def context_discover_and_repair(call, mode: str = "pos",
     if "snapshot" not in head:
         warm = _report(call("warm_snapshot", "read", "raw", [
             "query.root", root_query_preimage(
-                head, CLASS_ROOT_SUMMARY, b"", max_entities=1,
-                allow_continuation=False, snapshot="00" * 32)]))
+                head, CLASS_ENTITIES_BY_KIND, _u32(KIND_TYPEDEF),
+                max_entities=8, allow_continuation=True,
+                snapshot="00" * 32)]))
         disc["warm_refused"] = bool(warm.get("failed"))
         head = open_head(call)
         if "snapshot" not in head:
