@@ -753,129 +753,238 @@ def _immediate_function(immediate: object) -> str:
     return ""
 
 
+# Fixed explicit Failed code the execution check drives through the
+# migrated switch. The frozen corpus pins no literal; 7 is the frozen S3
+# test-vector code (s3_g1_type.rs `JobState::Failed(7)`) and fits every
+# signed/unsigned integer width a code may declare.
+TYPE_EXEC_FAILED_CODE = 7
+_TYPE_CODE_VARIANTS = ("SInt", "UInt")
+# Entity kinds (sley-mutate EntityBodyValueKind).
+_KIND_TYPEDEF, _KIND_FUNCTION, _KIND_PARAMETER = 4, 5, 6
+_KIND_CONSTANT, _KIND_GLOBAL = 9, 10
+
+
 def _judge_type_variant(session: Session, manifest: dict, scratch_ws: Path,
-                        current: set[str]) -> None:
-    """TYPE task: complete JobState migration (frozen corpus S2B-TYPE-001).
+                        versions_pre: dict[str, str],
+                        versions_post: dict[str, str]) -> str:
+    """TYPE task: JobState migration (frozen corpus S2B-TYPE-001).
 
-    Predicate provenance (three tiers — alternatives reject ONLY where
-    the governing tier requires it):
+    Frozen text (bench/corpus/v1/tasks.json S2B-TYPE-001): replace a
+    running boolean with a JobState tagged variant (Queued, Running,
+    Succeeded, Failed(error_code)) and update constructors, switches,
+    and tests; required outcomes: no boolean status binding remains,
+    all four cases exhaustively handled, Failed carries an explicit
+    error code, serialized semantic values deterministic; forbidden:
+    implicit default case, null error, parallel boolean compatibility
+    field; strict oracle `type_graph_and_execution`, variant_cases 4,
+    exhaustive.
 
-    CORPUS-FROZEN (bench/corpus/v1/tasks.json S2B-TYPE-001, immutable):
-    - no boolean status binding remains (status/param/switch-result
-      never Bool; no parallel bool compat field);
-    - all four cases exhaustively handled: VariantSwitch whose Member
-      keys cover exactly the typedef members, every member targeting a
-      Required arm (a Trap arm does not handle its case), no implicit
-      default;
-    - Failed carries an explicit SInt error code: the typedef holds
-      exactly one Some(SInt) member, and any live Failed value carries
-      a Some(SInt) payload (forbidden "null error" — a Failed member
-      with a null payload rejects);
-    - constructors, switches, and tests updated (closure roles below;
-      the base holds no Test entities so test update is established
-      through this verification, documented);
-    - serialized values deterministic (explicit fixed SInt values; live
-      served-state reads, never bare-record parse alone).
+    Every predicate below is derived from that text; none is a
+    witness-shape choice (the switch result type, how arms compute
+    their values, whether the Failed arm returns the code raw or maps
+    it, and how many blocks / join blocks the switch uses are all
+    free):
 
-    FIXTURE-SPECIFIED (task_manifest.json v2 closure on the work
-    branch, review-gated before main adoption):
-    - closure roles status/switch/param/switch_entry/switch_leaf (the
-      block count follows from the roles, not from a corpus number);
-    - switch result SInt with SInt-constant leaves (the fixture's
-      concrete observable; the corpus requires non-Bool + exhaustive,
-      the fixture pins SInt);
-    - Failed arm forwards CasePayload and the Failed leaf returns its
-      Block param (this is how the fixture requires the error code to
-      be handled rather than dropped).
+    - status constructor: the status constant is a Named value of a
+      tagged variant with exactly four members, three unit members and
+      one member carrying an integer (SInt or UInt, any width) error
+      code; a value of the coded member carries an explicit code
+      (null payload -> ORACLE_FAILED_CODE; no coded member at all ->
+      ORACLE_FAILED_CODE, the "null error" outcome). The corpus pins
+      no status value and no code literal.
+    - no boolean status binding / no parallel boolean compatibility
+      field: every Constant, Parameter (function or block), GlobalValue
+      and TypeDef member among the fresh and target entities, plus the
+      switch result type, is Bool-free (recursively) ->
+      ORACLE_BOOL_COMPAT_FIELD. Operation results (transient values,
+      e.g. an arm-internal comparison) are not bindings.
+    - switches updated: the switch function is a function of the
+      status alone (one parameter, Named JobState; the base switch has
+      exactly one status input) and dispatches on it through a
+      VariantSwitch on that parameter, in any reachable block
+      (ORACLE_SWITCH_NOT_MIGRATED).
+    - exhaustive handling: every such VariantSwitch has Member keys
+      exactly covering the four members (no default key exists in the
+      terminator form, so no implicit default); every block reachable
+      from the entry is Required and none is a Trap
+      (ORACLE_MISSING_CASE / ORACLE_TRAP_ARM); the Failed case edge
+      carries the case payload into its arm (the arm binds the error
+      code; dropping it -> ORACLE_FAILED_CODE).
+    - execution (strict oracle `type_graph_and_execution`): the
+      migrated switch executes through the frozen case driver over all
+      four member values (Failed carrying the fixed explicit code
+      TYPE_EXEC_FAILED_CODE, payload required by the driver, never
+      defaulted); every case returns a value (a trap, fuel exhaustion
+      or engine error -> ORACLE_MISSING_CASE) and a second execution
+      returns identical values (-> ORACLE_NONDETERMINISTIC).
 
-    RETIRED witness choices (0b26c39c proved them; this correction
-    retires them as restrictions — historical logs preserved):
-    - literal code 7: the corpus requires an EXPLICIT code, not 7.
-      Failed(7) was the positive witness's choice (matching the S3
-      test-vector literal). Failed(8) with an explicit SInt payload
-      satisfies the corpus and accepts. The wrong-code negative now
-      demonstrates loss/corruption of the required payload (Failed
-      member with null payload → ORACLE_FAILED_CODE), not
-      disagreement with the witness literal.
-    - status-is-Failed: the corpus pins no status value. Any typedef
-      member value accepts; the explicit-payload rule applies when the
-      value IS the Failed member.
-    - distinct leaf constants: the corpus requires deterministic, not
-      distinct. Leaves sharing an SInt constant accept.
+    Tests: the base holds no TestCase entities and the frozen text
+    names no test vectors; the judge-driven execution above is the
+    test evidence. Closure (FIXTURE tier, review-gated): the
+    task_manifest targets (status, switch, switch_param, switch_entry,
+    switch_leaf) bound which base entities may change; fresh entities
+    are always allowed and are judged by the Bool scan above.
 
-    Structural vs behavioral (kept distinct):
-    - structural (parse-level): typedef shape/member counts, sorted
-      Member-key coverage, Required/no-Trap arms, closure membership.
-    - behavioral (execution machinery): the submitted candidate passes
-      server-side candidate.validate (every arm typechecks at
-      validation time, including CasePayload forwarding); the judged
-      status/param/switch bodies are read LIVE from the served
-      post-commit head through entity.version (a live tagged state,
-      not record bytes); SInt round-trip determinism is executed by
-      the frozen S3 suite (real VM: u8 codes + Failed payload
-      round-trip, re-run with the re-proofs).
+    Returns the verdict suffix naming the executed per-member values.
     """
+
+    current = set(versions_post.values())
+    fresh = set(versions_post) - set(versions_pre)
+    bodies = _type_current_bodies(session, scratch_ws, current)
+    plan = _type_structure(manifest, bodies, fresh)
+    values = _type_execute(scratch_ws / REPO_DIR, plan)
+    return "type exec " + ",".join(
+        f"{member[:4]}={json.dumps(value, sort_keys=True, separators=(',', ':'))}"
+        for member, value in zip(plan["members"], values))
+
+
+def _type_current_bodies(session: Session, scratch_ws: Path,
+                         current: set[str]) -> dict[str, dict]:
+    """entity -> {"kind", "body"} for every CURRENT served version."""
+
+    found: dict[str, dict] = {}
+    for entry in _decode_paths(session, _current_paths(scratch_ws, current)):
+        entity = entry.get("entity_id", "")
+        body = entry.get("body")
+        if isinstance(entity, str) and entity and isinstance(body, dict):
+            found[entity] = {"kind": entry.get("kind"), "body": body}
+    return found
+
+
+def _type_has_bool(type_expr: object) -> bool:
+    """Whether a decoded TypeExpr is or contains Bool (Option(Bool),
+    Tuple(.., Bool), Vector(Bool), Result arms, map keys/values)."""
+
+    if isinstance(type_expr, dict):
+        if type_expr.get("variant") == "Bool":
+            return True
+        return any(_type_has_bool(value) for value in type_expr.values())
+    if isinstance(type_expr, list):
+        return any(_type_has_bool(value) for value in type_expr)
+    return False
+
+
+def _type_body(bodies: dict[str, dict], entity: object, what: str) -> dict:
+    item = bodies.get(entity) if isinstance(entity, str) else None
+    if item is None:
+        _reject("ORACLE_MISSING_TARGET", f"{what} {str(entity)[:32]}")
+        raise AssertionError("unreachable")
+    return item["body"]
+
+
+def _type_bool_scan(bodies: dict[str, dict], scope: list[str], switch: str) -> None:
+    """Parallel boolean compatibility field: no Bool-typed binding among
+    the fresh and target entities (constants, function and block
+    parameters, globals, typedef members) and no Bool switch result."""
+
+    for entity in scope:
+        item = bodies.get(entity)
+        if item is None:
+            continue  # tombstoned target: nothing bound
+        kind, body = item.get("kind"), item.get("body") or {}
+        found: list[tuple[str, object]] = []
+        if kind == _KIND_CONSTANT:
+            found.append(("constant", (body.get("value") or {}).get("value_type")))
+        elif kind == _KIND_PARAMETER:
+            found.append((f"{str(body.get('role', '')).lower() or 'parameter'} parameter",
+                          body.get("value_type")))
+        elif kind == _KIND_GLOBAL:
+            found.append(("global", body.get("value_type")))
+        elif kind == _KIND_TYPEDEF:
+            form = body.get("form") or {}
+            for member in (form.get("value") or []) if isinstance(form, dict) else []:
+                if isinstance(member, dict):
+                    found.append(("typedef member", member.get("value_type")))
+                    found.append(("typedef member", member.get("payload_type")))
+        elif kind == _KIND_FUNCTION and entity == switch:
+            found.append(("switch result", body.get("result_type")))
+        for where, type_expr in found:
+            if _type_has_bool(type_expr):
+                _reject("ORACLE_BOOL_COMPAT_FIELD", f"{where} {entity[:16]} Bool-typed")
+
+
+def _type_edge_targets(terminator: object) -> list[str]:
+    """Every edge target named by a terminator (Branch, CondBranch,
+    VariantSwitch cases), in terminator order."""
+
+    targets: list[str] = []
+
+    def walk(node: object) -> None:
+        if isinstance(node, dict):
+            if isinstance(node.get("target"), str) and "arguments" in node:
+                targets.append(node["target"])
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(terminator)
+    return targets
+
+
+def _type_structure(manifest: dict, bodies: dict[str, dict], fresh: set[str]) -> dict:
+    """Graph half of `type_graph_and_execution` over decoded CURRENT
+    bodies (pure; unit-tested over decoded-body fixtures). Returns the
+    execution plan: switch function, typedef, members in definition
+    order, and the Failed member."""
 
     judge = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
     entities = manifest.get("entities", {}) if isinstance(manifest.get("entities"), dict) else {}
+    targets = manifest.get("targets", []) if isinstance(manifest.get("targets"), list) else []
     switch = entities.get(judge.get("switch", "switch"), "")
     status = entities.get(judge.get("status", "status"), "")
-    param_expect = entities.get("switch_param", entities.get("param", ""))
-    # Back-compat: original manifest named only switch/status; the
-    # corrected closure exposes switch_entry/switch_leaf/param via
-    # targets. Resolve param through live targets when not named.
-    if not switch or not status:
+    if not switch or not status or not entities.get("switch_param"):
         _harness_fail("type entities")
+    if not judge.get("exhaustive", True):
+        _harness_fail("exhaustive spec")
     want_cases = int(judge.get("variant_cases", 4))
-    # --- status constructor ---
-    status_body = _decode_body(session, scratch_ws, status, current)
-    value = status_body.get("value") or {}
+    # --- status constructor: Named tagged variant ---
+    value = _type_body(bodies, status, "status").get("value") or {}
     value_type = value.get("value_type") or {}
-    if value_type.get("variant") == "Bool":
+    if _type_has_bool(value_type):
         _reject("ORACLE_BOOL_COMPAT_FIELD", "status still Bool")
     if value_type.get("variant") != "Named":
         _reject("ORACLE_TYPE_NOT_MIGRATED", "status not Named")
-    named = value_type.get("value") or {}
-    typedef_id = named.get("definition", "")
+    typedef_id = (value_type.get("value") or {}).get("definition", "")
     if not typedef_id or not isinstance(typedef_id, str):
         _reject("ORACLE_TYPE_NOT_MIGRATED", "status typedef")
-    # --- typedef shape: exactly 4 members, one Some SInt, three None ---
-    typedef_body = _decode_body(session, scratch_ws, typedef_id, current)
-    form = (typedef_body.get("form") or {}).get("value") if isinstance(
-        typedef_body.get("form"), dict) else None
-    if not isinstance(form, list) or len(form) != want_cases:
+    # --- typedef: four members, three unit + one integer-coded ---
+    form = _type_body(bodies, typedef_id, "typedef").get("form") or {}
+    members = form.get("value") if isinstance(form, dict) else None
+    if not isinstance(form, dict) or form.get("variant") != "Variant":
+        _reject("ORACLE_TYPE_NOT_MIGRATED", "status type not a tagged variant")
+    if not isinstance(members, list) or len(members) != want_cases:
         _reject("ORACLE_TYPE_NOT_MIGRATED",
-                f"typedef members {len(form) if isinstance(form, list) else '?'} != 4")
-    some_members: list[str] = []
-    none_members: list[str] = []
-    for member in form:
-        if not isinstance(member, dict):
+                f"typedef members {len(members) if isinstance(members, list) else '?'}"
+                f" != {want_cases}")
+    member_ids: list[str] = []
+    coded: list[tuple[str, dict]] = []
+    for member in members:
+        if not isinstance(member, dict) or not isinstance(member.get("member_id"), str):
             _reject("ORACLE_TYPE_NOT_MIGRATED", "typedef member shape")
-        mid = member.get("member_id", "")
-        payload = member.get("payload_type") or {}
-        variant = payload.get("variant")
-        if variant == "Some":
-            inner = payload.get("value") or {}
-            if inner.get("variant") != "SInt":
-                _reject("ORACLE_TYPE_NOT_MIGRATED", "Failed payload not SInt")
-            some_members.append(str(mid))
-        elif variant == "None":
-            none_members.append(str(mid))
-        else:
+        member_ids.append(member["member_id"])
+        payload_type = member.get("payload_type") or {}
+        if payload_type.get("variant") == "Some":
+            coded.append((member["member_id"], payload_type.get("value") or {}))
+        elif payload_type.get("variant") != "None":
             _reject("ORACLE_TYPE_NOT_MIGRATED", "typedef payload shape")
-    if len(some_members) != 1 or len(none_members) != want_cases - 1:
-        _reject("ORACLE_TYPE_NOT_MIGRATED", "need 3xNone + 1xSome(SInt)")
-    failed_member = some_members[0]
-    member_ids = {str(m.get("member_id", "")) for m in form}
-    # --- status value: a live typedef member; explicit code required
-    # iff the value IS the Failed member (corpus: explicit code + no
-    # null error; the corpus pins no literal and no status value) ---
+    if len(set(member_ids)) != want_cases:
+        _reject("ORACLE_TYPE_NOT_MIGRATED", "duplicate typedef members")
+    if not coded:
+        _reject("ORACLE_FAILED_CODE", "no member carries an error code (null error)")
+    if len(coded) != 1:
+        _reject("ORACLE_TYPE_NOT_MIGRATED",
+                f"need {want_cases - 1} unit members + 1 coded member")
+    failed_member, code_type = coded[0]
+    if code_type.get("variant") not in _TYPE_CODE_VARIANTS:
+        _reject("ORACLE_FAILED_CODE", "Failed payload not an integer error code")
+    # --- status value: a member of the typedef; explicit code iff it
+    # is the coded (Failed) member ---
     data = value.get("data") or {}
-    if data.get("variant") != "Variant":
-        _reject("ORACLE_TYPE_NOT_MIGRATED", "status data not Variant")
     variant = data.get("value") or {}
-    if variant.get("definition") != typedef_id:
-        _reject("ORACLE_TYPE_NOT_MIGRATED", "status typedef mismatch")
+    if data.get("variant") != "Variant" or variant.get("definition") != typedef_id:
+        _reject("ORACLE_TYPE_NOT_MIGRATED", "status data not a JobState value")
     status_member = variant.get("member_id", "")
     if status_member not in member_ids:
         _reject("ORACLE_TYPE_NOT_MIGRATED", "status member outside typedef")
@@ -883,166 +992,113 @@ def _judge_type_variant(session: Session, manifest: dict, scratch_ws: Path,
     if status_member == failed_member:
         if payload.get("variant") != "Some":
             _reject("ORACLE_FAILED_CODE", "Failed null payload")
-        inner = payload.get("value") or {}
-        inner_data = inner.get("data") or {}
-        if inner_data.get("variant") != "SInt" or not isinstance(
-                inner_data.get("value"), int):
-            _reject("ORACLE_FAILED_CODE", "Failed code not explicit SInt")
+        inner_data = (payload.get("value") or {}).get("data") or {}
+        if (inner_data.get("variant") not in _TYPE_CODE_VARIANTS
+                or isinstance(inner_data.get("value"), bool)
+                or not isinstance(inner_data.get("value"), int)):
+            _reject("ORACLE_FAILED_CODE", "Failed code not an explicit integer")
     elif payload.get("variant") != "None":
         _reject("ORACLE_TYPE_NOT_MIGRATED", "unit member carries payload")
-    # --- param migrates to Named typedef (no Bool compat) ---
-    targets = manifest.get("targets", []) if isinstance(
-        manifest.get("targets"), list) else []
-    # Param entity: prefer named manifest role, else discover the switch's
-    # sole parameter through the function body (live binding, not guess).
-    switch_body_pre = _decode_body(session, scratch_ws, switch, current)
-    params = switch_body_pre.get("parameters") or []
-    param_id = ""
-    if param_expect and isinstance(param_expect, str):
-        param_id = param_expect
-    elif len(params) == 1 and isinstance(params[0], str):
-        param_id = params[0]
-    else:
-        _harness_fail("type param")
-    param_body = _decode_body(session, scratch_ws, param_id, current)
-    param_type = param_body.get("value_type") or {}
-    if param_type.get("variant") == "Bool":
-        _reject("ORACLE_BOOL_COMPAT_FIELD", "param still Bool")
+    # --- no Bool binding among fresh + target entities ---
+    _type_bool_scan(bodies, sorted(fresh | {t for t in targets if isinstance(t, str)}),
+                    switch)
+    # --- switch: a function of the status alone ---
+    switch_body = _type_body(bodies, switch, "switch")
+    params = switch_body.get("parameters") or []
+    if len(params) != 1:
+        _reject("ORACLE_SWITCH_NOT_MIGRATED",
+                f"switch takes {len(params)} parameters, not the status alone")
+    param_id = params[0]
+    param_type = _type_body(bodies, param_id, "switch param").get("value_type") or {}
     if param_type.get("variant") != "Named" or (
             param_type.get("value") or {}).get("definition") != typedef_id:
-        _reject("ORACLE_TYPE_NOT_MIGRATED", "param not Named typedef")
-    # --- switch function ---
-    switch_body = switch_body_pre
-    result_type = switch_body.get("result_type") or {}
-    if result_type.get("variant") == "Bool":
-        _reject("ORACLE_BOOL_COMPAT_FIELD", "switch result still Bool")
-    if result_type.get("variant") != "SInt":
-        _reject("ORACLE_TYPE_NOT_MIGRATED", "switch result not SInt")
-    blocks = switch_body.get("blocks") or []
-    if len(blocks) < want_cases:
-        _reject("ORACLE_MISSING_CASE", f"{len(blocks)} blocks < {want_cases} variants")
-    if not judge.get("exhaustive", True):
-        _harness_fail("exhaustive spec")
+        _reject("ORACLE_TYPE_NOT_MIGRATED", "switch param not Named JobState")
+    blocks = [b for b in (switch_body.get("blocks") or []) if isinstance(b, str)]
     entry_id = switch_body.get("entry_block", "")
-    if not entry_id:
+    if not entry_id or entry_id not in blocks:
         _harness_fail("switch entry")
-    # All blocks Required, no Trap terminators.
-    block_bodies: dict[str, dict] = {}
-    for block_id in blocks:
-        block = _decode_body(session, scratch_ws, block_id, current)
-        block_bodies[block_id] = block
+    # --- reachable blocks: Required, never Trap ---
+    reachable: list[str] = []
+    pending = [entry_id]
+    terminators: dict[str, dict] = {}
+    while pending:
+        block_id = pending.pop(0)
+        if block_id in terminators:
+            continue
+        if block_id not in blocks:
+            _reject("ORACLE_MISSING_CASE", f"edge target {block_id[:16]} outside switch")
+        block = _type_body(bodies, block_id, "block")
         if block.get("reachability") != "Required":
-            _reject("ORACLE_MISSING_CASE", f"block {block_id[:16]} not required")
+            _reject("ORACLE_MISSING_CASE", f"block {block_id[:16]} not Required")
         terminator = block.get("terminator") or {}
         if terminator.get("variant") == "Trap":
             _reject("ORACLE_TRAP_ARM", f"block {block_id[:16]} trap")
-    # Entry must be an exhaustive VariantSwitch (not the frozen Bool
-    # CondBranch). Typedef-only migration keeps CondBranch and rejects
-    # here, never as acceptance.
-    entry = block_bodies.get(entry_id)
-    if entry is None:
-        _harness_fail("entry body")
-    terminator = entry.get("terminator") or {}
-    if terminator.get("variant") != "VariantSwitch":
-        _reject("ORACLE_SWITCH_NOT_MIGRATED", "entry not VariantSwitch")
-    sw = terminator.get("value") or {}
-    selector = sw.get("value") or {}
-    if selector.get("variant") != "Parameter" or selector.get("value") != param_id:
-        _reject("ORACLE_SWITCH_NOT_MIGRATED", "switch not on param")
-    cases = sw.get("cases") or []
-    if len(cases) != want_cases:
-        _reject("ORACLE_MISSING_CASE", f"{len(cases)} cases != 4")
-    # Case keys must be Member keys covering exactly the typedef members,
-    # strictly sorted (production SwitchCases rule).
-    keys = []
-    for case in cases:
-        key = (case.get("case_key") or {}) if isinstance(case, dict) else {}
-        if key.get("variant") != "Member":
-            _reject("ORACLE_MISSING_CASE", "non-Member case")
-        keys.append(str(key.get("value", "")))
-    if keys != sorted(keys):
-        _reject("ORACLE_MISSING_CASE", "cases not sorted")
-    if set(keys) != {str(m.get("member_id", "")) for m in form}:
-        _reject("ORACLE_MISSING_CASE", "cases != typedef members")
-    # Every function block is entry or a case target (no unreachable
-    # arms, no hidden trap blocks). Every target is a listed block.
-    targets_of_switch = set()
-    failed_uses_payload = False
-    for case in cases:
-        edge = case.get("edge") or {}
-        target = edge.get("target", "")
-        args = edge.get("arguments") or []
-        if target not in block_bodies:
-            _reject("ORACLE_MISSING_CASE", f"case target {str(target)[:16]} not in blocks")
-        targets_of_switch.add(target)
-        key_val = str(((case.get("case_key") or {}).get("value", "")))
-        if key_val == failed_member:
-            # Failed arm must forward the explicit payload.
+        terminators[block_id] = terminator
+        reachable.append(block_id)
+        pending.extend(_type_edge_targets(terminator))
+    # --- dispatch on the status input, exhaustively ---
+    switches = []
+    for block_id in reachable:
+        terminator = terminators[block_id]
+        if terminator.get("variant") != "VariantSwitch":
+            continue
+        selector = (terminator.get("value") or {}).get("value") or {}
+        if selector.get("variant") == "Parameter" and selector.get("value") == param_id:
+            switches.append(terminator.get("value") or {})
+    if not switches:
+        _reject("ORACLE_SWITCH_NOT_MIGRATED", "no VariantSwitch on the status input")
+    for sw in switches:
+        cases = [c for c in (sw.get("cases") or []) if isinstance(c, dict)]
+        keys = []
+        for case in cases:
+            key = case.get("case_key") or {}
+            if key.get("variant") != "Member":
+                _reject("ORACLE_MISSING_CASE", "non-Member case key")
+            keys.append(str(key.get("value", "")))
+        if len(keys) != want_cases or set(keys) != set(member_ids):
+            _reject("ORACLE_MISSING_CASE", f"{len(keys)} cases != the {want_cases} members")
+        if keys != sorted(keys):
+            _reject("ORACLE_MISSING_CASE", "cases not sorted")
+        for case in cases:
+            if str((case.get("case_key") or {}).get("value", "")) != failed_member:
+                continue
+            args = (case.get("edge") or {}).get("arguments") or []
             if not any(isinstance(a, dict) and a.get("variant") == "CasePayload"
                        for a in args):
-                _reject("ORACLE_FAILED_CODE", "Failed arm drops payload")
-            failed_uses_payload = True
-    if not failed_uses_payload:
-        _reject("ORACLE_FAILED_CODE", "no Failed payload arm")
-    if set(blocks) != targets_of_switch | {entry_id}:
-        # Entry may also be a case target (self-loop designs); allow
-        # entry in targets but forbid any block outside entry+targets.
-        if not set(blocks).issubset(targets_of_switch | {entry_id}):
-            _reject("ORACLE_MISSING_CASE", "unreachable block present")
-        if not targets_of_switch.issubset(set(blocks)):
-            _reject("ORACLE_MISSING_CASE", "case target outside blocks")
-    # Leaf returns: Failed leaf returns its Block param (SInt payload);
-    # other leaves return SInt constants via ConstantRef (explicit,
-    # deterministic; distinctness was a retired witness choice — shared
-    # constants accept). Trap already rejected above.
-    seen_const_values: list[int] = []
-    for case in cases:
-        edge = case.get("edge") or {}
-        target = edge.get("target", "")
-        leaf = block_bodies[target]
-        # Entry-as-target (self-loop) cannot be a returning leaf; such
-        # designs reject as non-exhaustive handling.
-        if target == entry_id:
-            _reject("ORACLE_MISSING_CASE", "entry self-loop arm")
-        term = leaf.get("terminator") or {}
-        if term.get("variant") != "Return":
-            _reject("ORACLE_MISSING_CASE", f"leaf {target[:16]} not Return")
-        ret = (term.get("value") or {}).get("value") or {}
-        key_val = str(((case.get("case_key") or {}).get("value", "")))
-        if key_val == failed_member:
-            if ret.get("variant") != "Parameter":
-                _reject("ORACLE_FAILED_CODE", "Failed leaf not param return")
-            # Param must be a Block param of this leaf with SInt type.
-            leaf_params = leaf.get("parameters") or []
-            if ret.get("value") not in leaf_params:
-                _reject("ORACLE_FAILED_CODE", "Failed return not leaf param")
-            pb = _decode_body(session, scratch_ws, ret.get("value"), current)
-            if pb.get("role") != "Block":
-                _reject("ORACLE_FAILED_CODE", "Failed param role")
-            ptype = pb.get("value_type") or {}
-            if ptype.get("variant") != "SInt":
-                _reject("ORACLE_FAILED_CODE", "Failed param not SInt")
-        else:
-            if ret.get("variant") != "OperationResult":
-                _reject("ORACLE_MISSING_CASE", f"leaf {target[:16]} not op return")
-            op_ref = ret.get("value") or {}
-            op_id = op_ref.get("operation", "")
-            if not op_id:
-                _reject("ORACLE_MISSING_CASE", "leaf op ref")
-            op_body = _decode_body(session, scratch_ws, op_id, current)
-            if op_body.get("opcode") != 1:
-                _reject("ORACLE_MISSING_CASE", "leaf op not ConstantRef")
-            imm = op_body.get("immediate") or {}
-            if imm.get("variant") != "Entity":
-                _reject("ORACLE_MISSING_CASE", "leaf const ref")
-            const_body = _decode_body(session, scratch_ws, imm.get("value", ""), current)
-            const_val = (const_body.get("value") or {})
-            const_data = const_val.get("data") or {}
-            if const_data.get("variant") != "SInt":
-                _reject("ORACLE_MISSING_CASE", "leaf const not SInt")
-            seen_const_values.append(int(const_data.get("value")))
-    _ = targets
-    _ = seen_const_values
+                _reject("ORACLE_FAILED_CODE", "Failed arm drops the error code")
+    return {"switch": switch, "typedef": typedef_id, "members": member_ids,
+            "failed": failed_member}
+
+
+def _type_execute(repo: Path, plan: dict) -> list:
+    """Execution half of `type_graph_and_execution`: all four member
+    values through the frozen case driver, twice; every case returns a
+    value and both runs agree. Returns the per-member values."""
+
+    cases = []
+    for member in plan["members"]:
+        item: dict = {"member": member}
+        if member == plan["failed"]:
+            item["payload"] = {"value": TYPE_EXEC_FAILED_CODE}
+        cases.append({"inputs": [item]})
+    runs = []
+    for _ in range(2):
+        results = _run_driver(repo, plan["switch"], cases).get("cases")
+        if not isinstance(results, list) or len(results) != len(cases):
+            _harness_fail("type case shape")
+        values = []
+        for member, result in zip(plan["members"], results):
+            value = result.get("value") if isinstance(result, dict) else None
+            if (not isinstance(result, dict) or not result.get("ok") or value is None
+                    or (isinstance(value, dict) and "non_success" in value)):
+                _reject("ORACLE_MISSING_CASE",
+                        f"member {member[:16]} returned no value: "
+                        f"{json.dumps(result, sort_keys=True)[:120]}")
+            values.append(value)
+        runs.append(values)
+    if runs[0] != runs[1]:
+        _reject("ORACLE_NONDETERMINISTIC", "switch values differ between runs")
+    return runs[0]
 
 
 def _judge_graph_observation(session: Session, manifest: dict, task_id: str,
@@ -1253,8 +1309,9 @@ def _judge_flows(session: Session, manifest: dict, corpus: dict, task_id: str,
                  workspace: Path, task_dir: Path, transcript: list) -> str | None:
     """Dispatch the frozen per-kind judging flow from the manifest.
 
-    Returns an optional access-evidence suffix for the verdict detail
-    (bounded-maintenance only); every other flow returns None."""
+    Returns an optional evidence suffix for the verdict detail
+    (bounded-maintenance access counts; type-variant executed values);
+    every other flow returns None."""
 
     judge = manifest.get("judge", {}) if isinstance(manifest.get("judge"), dict) else {}
     flow = judge.get("flow", "")
@@ -1287,7 +1344,8 @@ def _judge_flows(session: Session, manifest: dict, corpus: dict, task_id: str,
     elif flow == "create":
         _judge_create(session, manifest, corpus, scratch_ws, current)
     elif flow == "type-variant":
-        _judge_type_variant(session, manifest, scratch_ws, current)
+        suffix = _judge_type_variant(session, manifest, scratch_ws, versions_pre,
+                                     versions_post)
     elif flow == "excluded-e7":
         _reject("ORACLE_EXCLUDED", "frozen E7 exclusion")
     else:

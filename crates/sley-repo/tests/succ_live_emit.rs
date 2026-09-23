@@ -751,6 +751,11 @@ fn base_type() -> EmitBase {
     entities.insert("namespace", eid(0x64));
     entities.insert("status", eid(0x65));
     entities.insert("switch", eid(0x6B));
+    // Named parameter role: the live judge resolves the switch's status
+    // input by role (never by guessing), so a switch that gains a second
+    // (parallel Bool compatibility) parameter is judged, not a harness
+    // error.
+    entities.insert("switch_param", eid(0x6C));
     entities.insert("switch_entry", eid(0x6D));
     entities.insert("switch_leaf", eid(0x6E));
     let judge = serde_json::json!({"flow": "type-variant", "status": "status", "switch": "switch",

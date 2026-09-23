@@ -28,8 +28,12 @@
 //!     EXACTLY the definition's member set (no missing, no extra),
 //!     each field decoded against its declared field type, fields
 //!     stored in definition order. The definition must exist in the
-//!     submitted accepted state; variant definitions are explicitly
-//!     unsupported as driver inputs.
+//!     submitted accepted state.
+//!   - `Named(variant definition)`: `{"member": memberhex}` for a unit
+//!     case, `{"member": memberhex, "payload": item}` for a payload
+//!     case. The member must be one of the definition's cases; the
+//!     payload is required iff the case declares a payload type (never
+//!     defaulted, never silently dropped) and decodes against it.
 //!   - `Result{ok, error}`: `{"ok": item}` or `{"err": item}` (exactly
 //!     one), decoded against the corresponding arm type.
 //!
@@ -51,7 +55,7 @@ use sley_id::EntityId;
 use sley_repo::RepositoryObjectVerifier;
 use sley_ssmc::{
     ConstData, ConstValue, FieldConst, IntegerWidth, MemberId, NamedType, RecordConst, ResultConst,
-    TypeDefinition, TypeExpr, Visibility,
+    TypeDefinition, TypeExpr, VariantConst, Visibility,
 };
 use sley_state_root::conformance_epoch_id as state_epoch_id;
 use sley_store::ObjectStore;
@@ -224,7 +228,7 @@ fn const_of(
             }
             ConstData::Sequence(elements)
         }
-        TypeExpr::Named(named) => record_of(resolver, &named.definition, item, depth)?,
+        TypeExpr::Named(named) => named_of(resolver, &named.definition, item, depth)?,
         TypeExpr::Result { ok, error } => {
             let has_ok = item.get("ok").is_some();
             let has_err = item.get("err").is_some();
@@ -268,22 +272,79 @@ fn const_of(
     Ok(value)
 }
 
-/// Decode a record item against a submitted record definition: the member
-/// set must match exactly, fields decode against declared field types in
-/// definition order, and the definition identity is preserved.
-fn record_of(
+/// Decode a named item against its submitted definition (record or
+/// variant form).
+fn named_of(
     resolver: &ConstResolver<'_>,
     definition: &EntityId,
     item: &serde_json::Value,
     depth: u32,
 ) -> Result<ConstData, String> {
     let typedef = resolver.definition(definition)?;
-    let fields = match &typedef.form {
-        sley_ssmc::TypeDefForm::Record(fields) => fields,
-        sley_ssmc::TypeDefForm::Variant(_) => {
-            return Err("variant definition unsupported as driver input".to_string());
+    match &typedef.form {
+        sley_ssmc::TypeDefForm::Record(fields) => {
+            record_of(resolver, definition, fields, item, depth)
         }
+        sley_ssmc::TypeDefForm::Variant(cases) => {
+            variant_of(resolver, definition, cases, item, depth)
+        }
+    }
+}
+
+/// Decode a variant item: `{"member": hex}` or `{"member": hex,
+/// "payload": item}`. The member must be a declared case; the payload is
+/// present iff the case declares a payload type (no defaulted payloads,
+/// no dropped payloads); no other keys are accepted.
+fn variant_of(
+    resolver: &ConstResolver<'_>,
+    definition: &EntityId,
+    cases: &[sley_ssmc::VariantCase],
+    item: &serde_json::Value,
+    depth: u32,
+) -> Result<ConstData, String> {
+    let object = item
+        .as_object()
+        .ok_or_else(|| "Variant item must be an object".to_string())?;
+    if object.keys().any(|key| key != "member" && key != "payload") {
+        return Err("Variant item accepts only member/payload".to_string());
+    }
+    let member_text = object
+        .get("member")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| "Variant member required".to_string())?;
+    let member = MemberId::from_bytes(hex32(member_text)?);
+    let case = cases
+        .iter()
+        .find(|case| case.member_id == member)
+        .ok_or_else(|| format!("Variant member not declared {member_text}"))?;
+    let payload = match (&case.payload_type, object.get("payload")) {
+        (Some(payload_type), Some(entry)) => Some(Box::new(const_of(
+            resolver,
+            payload_type,
+            entry,
+            depth + 1,
+        )?)),
+        (None, None) => None,
+        (Some(_), None) => return Err("Variant payload required".to_string()),
+        (None, Some(_)) => return Err("Variant unit case carries payload".to_string()),
     };
+    Ok(ConstData::Variant(VariantConst {
+        definition: *definition,
+        member_id: member,
+        payload,
+    }))
+}
+
+/// Decode a record item against a submitted record definition: the member
+/// set must match exactly, fields decode against declared field types in
+/// definition order, and the definition identity is preserved.
+fn record_of(
+    resolver: &ConstResolver<'_>,
+    definition: &EntityId,
+    fields: &[sley_ssmc::RecordField],
+    item: &serde_json::Value,
+    depth: u32,
+) -> Result<ConstData, String> {
     let supplied = item
         .get("fields")
         .and_then(serde_json::Value::as_object)
@@ -1050,5 +1111,90 @@ mod typed_driver_tests {
         } else {
             TypeExpr::Vector(Box::new(nested_vector(inner, depth - 1)))
         }
+    }
+
+    const JOB_DEF: [u8; 32] = [0xB1; 32];
+    const QUEUED: [u8; 32] = [0x51; 32];
+    const FAILED: [u8; 32] = [0x54; 32];
+
+    fn job_definitions() -> Vec<TypeDefinition> {
+        vec![TypeDefinition {
+            entity_id: EntityId::from_bytes(JOB_DEF),
+            type_parameters: vec![],
+            form: sley_ssmc::TypeDefForm::Variant(vec![
+                sley_ssmc::VariantCase {
+                    member_id: MemberId::from_bytes(QUEUED),
+                    payload_type: None,
+                },
+                sley_ssmc::VariantCase {
+                    member_id: MemberId::from_bytes(FAILED),
+                    payload_type: Some(TypeExpr::UInt(IntegerWidth::from_bits(16))),
+                },
+            ]),
+            invariants: vec![],
+            visibility: Visibility::Private,
+        }]
+    }
+
+    fn job_item(item: &serde_json::Value) -> Result<ConstValue, String> {
+        let definitions = job_definitions();
+        let types = TypeEnvironment::new(definitions.clone()).unwrap();
+        let resolver = fixture_resolver(&types, &definitions);
+        const_of(&resolver, &named(JOB_DEF), item, 0)
+    }
+
+    #[test]
+    fn variant_unit_and_payload_members_decode() {
+        let queued = job_item(&serde_json::json!({"member": "51".repeat(32)})).unwrap();
+        assert!(matches!(
+            queued.data,
+            ConstData::Variant(ref v) if v.member_id == MemberId::from_bytes(QUEUED)
+                && v.payload.is_none()
+        ));
+        let failed = job_item(&serde_json::json!({
+            "member": "54".repeat(32), "payload": {"value": 7}}))
+        .unwrap();
+        let ConstData::Variant(ref variant) = failed.data else {
+            panic!("variant expected")
+        };
+        assert_eq!(variant.member_id, MemberId::from_bytes(FAILED));
+        let payload = variant.payload.as_ref().expect("payload kept");
+        assert_eq!(payload.data, ConstData::UInt(7));
+        let definitions = job_definitions();
+        let owned: BTreeMap<EntityId, &TypeDefinition> = definitions
+            .iter()
+            .map(|definition| (definition.entity_id, definition))
+            .collect();
+        assert_eq!(
+            const_summary(&owned, &failed.data).unwrap(),
+            serde_json::json!({"Variant": {
+                "definition": "b1".repeat(32),
+                "member": "54".repeat(32),
+                "payload": {"UInt": "7"},
+            }})
+        );
+    }
+
+    #[test]
+    fn variant_payload_is_never_defaulted_or_dropped() {
+        let missing = job_item(&serde_json::json!({"member": "54".repeat(32)})).unwrap_err();
+        assert!(
+            missing.contains("payload required"),
+            "unexpected: {missing}"
+        );
+        let extra = job_item(&serde_json::json!({
+            "member": "51".repeat(32), "payload": {"value": 1}}))
+        .unwrap_err();
+        assert!(extra.contains("carries payload"), "unexpected: {extra}");
+        let unknown = job_item(&serde_json::json!({"member": "ff".repeat(32)})).unwrap_err();
+        assert!(unknown.contains("not declared"), "unexpected: {unknown}");
+        let stray = job_item(&serde_json::json!({
+            "member": "51".repeat(32), "fields": {}}))
+        .unwrap_err();
+        assert!(stray.contains("only member/payload"), "unexpected: {stray}");
+        let range = job_item(&serde_json::json!({
+            "member": "54".repeat(32), "payload": {"value": 70000}}))
+        .unwrap_err();
+        assert!(range.contains("out of range"), "unexpected: {range}");
     }
 }
