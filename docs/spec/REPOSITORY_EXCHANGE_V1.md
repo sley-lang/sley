@@ -7,7 +7,14 @@ decision 10) and changes no preimage; revision 8 (2026-09-18, after the
 per-operation symlink discipline of the importer and names the frozen
 accepted-head readers that fail closed on a marked root, changing no
 preimage, code, or rejection code (text amendments only, recorded here as
-the c04539b9 review asked). Nabu design
+the c04539b9 review asked). Revision 9 (2026-09-23) reorders the
+import-phase preflight text to the realized code order under Ariadne
+ruling `RULING_ORDER: CODE`
+(`evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review_revision_2-01dd20c.md`):
+the embedded-pack checks precede the digest-tree check, and preflight
+precedence is stated; it changes no preimage, code, rejection code, or
+importer behavior (see "Revision 9 amendment note" under Import phases).
+Nabu design
 consult applied; Ariadne contract review `PASS_CONTRACT_DRAFT` on revision 6
 (session `forge-ariadne-s20-540-pass5-20260903T023812-51133a3e`) after five
 passes; Vulcan import-surface review `PASS_CONTRACT_DRAFT` on revision 4
@@ -344,14 +351,28 @@ repository.
 
 ## Import phases
 
-Import is split into preflight and persistence:
+Import is split into preflight and persistence. Preflight (steps 1 through
+7) is a precedence order: import returns the exact code of the first failing
+check and runs no later check. Steps 1 and 2 are one decode pass (a failure
+in either returns before step 3); step 3 runs its sub-steps in the listed
+order; steps 4 through 6 follow step 3 and precede step 7, and within them
+closure rule 2 is proved after step 5, because it needs the branches that
+step 5 verifies.
 
 1. bound stored bytes, decode the closed envelope and payload, verify the
    exchange trailer;
-2. verify canonical order, counts, closed profiles, every declared identity,
-   and the complete digest tree;
-3. run the complete S20-170 preflight (its steps 1 through 5) over the
-   embedded pack without store writes;
+2. verify canonical order, counts, and closed profiles;
+3. verify the embedded pack, then the digest tree, in this exact order:
+   1. the embedded bytes are a tag-170 version-1 pack, else
+      `EXCHANGE_PACK_INVALID`;
+   2. run the complete S20-170 preflight (its steps 1 through 5) over the
+      embedded pack without store writes; its `PACK_*` codes are returned
+      unchanged (for example `PACK_DIGEST_MISMATCH` for an embedded pack
+      whose trailer does not match its bytes, even when the exchange
+      trailer is valid);
+   3. verify every declared leaf identity and the complete digest tree,
+      whose section-1 identifier is the `RepositoryPackId` verified by step
+      3.2;
 4. decode every receipt through the frozen codec and prove closure rules 1,
    2, 3, 5, and 6;
 5. decode every branch record and ref and prove closure rule 4;
@@ -398,6 +419,52 @@ Import is split into preflight and persistence:
       ownership;
 9. return the reconstructed accepted head, the receipt count, the branch
    count, and the promoted and present object counts.
+
+Revision 9 amendment note (2026-09-23). Ariadne ruled `RULING_ORDER: CODE`
+(`evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review_revision_2-01dd20c.md`):
+the implementation order is authoritative, and this text was amended to match
+it. The importer was not changed.
+
+- **Realized order.** `crates/sley-repo/src/exchange.rs` `preflight` runs:
+  - the envelope and trailer;
+  - the payload decode, with the step-2 order, count and profile checks;
+  - the registry decode;
+  - the tag-170 check (`EXCHANGE_PACK_INVALID`);
+  - `preflight_conformance_pack`;
+  - the digest tree.
+- **What changed from revision 8.** Revision 8 listed "every declared
+  identity, and the complete digest tree" in step 2, ahead of the S20-170
+  preflight. Revision 9 moves them into step 3.3, after the embedded-pack
+  checks.
+- **Why pack-first.**
+  - The section-1 leaf identifier is the embedded pack's `RepositoryPackId`,
+    which only the S20-170 preflight establishes.
+  - `PACK_*` codes are preserved, never remapped.
+  - The frozen `nested-exchange` mutation pins the tag-170 check
+    (`EXCHANGE_PACK_INVALID`) ahead of the tree.
+  - A tree-first reading would turn a resealed embedded-pack object-byte
+    flip into `EXCHANGE_DIGEST_TREE_MISMATCH` instead of the owning
+    `PACK_DIGEST_MISMATCH`.
+- **Numbering kept.** The ruling asked for a new step after step 3. It is
+  written as sub-steps 3.1 through 3.3 so that the step-7 and step-8
+  cross-references, rows X-01 through X-07, and the contract checker's
+  markers keep their numbers.
+- **Precedence narrowed.** The ruling asked for steps 1 through 7 to be a
+  strict precedence order. The precedence sentence above is narrowed to the
+  realized groups, because the code:
+  - interleaves the step-1 payload decode with the step-2 checks;
+  - proves closure rule 2 (`verify_no_surplus`) after the step-5 branch
+    verification.
+- **Current pin.** The resealed embedded-pack ordering is pinned by
+  `crates/sley-repo/tests/s3_g2_corrupt.rs`
+  `s3_corrupt_exchange_resealed_embedded_pack`.
+- **Pending (not in revision 9).** A frozen `rejected.json` mutation for
+  this vector, as the ruling asks. It re-freezes
+  `conformance/repository-exchange/v1/rejected.json` and its `SHA256SUMS`,
+  and changes the generator's fixed rejection list. It also invalidates
+  every evidence digest bound to them (the independent-conformance, GA,
+  release-provenance and decision-dossier builders). So it needs its own
+  conformance review.
 
 The lock order is the frozen `maintenance -> refs -> accepted`: the importer
 holds exclusive `locks/maintenance.lock` for the whole persistence phase (the
