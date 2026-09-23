@@ -44,6 +44,9 @@ def _repo_root() -> Path:
 sys.path.insert(0, str(_repo_root()))
 from bench.live import sley2_codecs  # noqa: E402
 from bench.live.scratch import ScratchRemovalError, remove_scratch  # noqa: E402
+# The capture contract names come from their owner: kept as literals here
+# they read as unregistered digest labels beside the CORRUPT blake3 helper.
+from bench.live.trusted_capture import CAPTURE_CONTRACT, COMPLETION_CONTRACT  # noqa: E402
 from bench.live.sley2_tool import (  # noqa: E402
     _entity_body as _tool_entity_body,
     CHAIN_NAME,
@@ -3837,7 +3840,7 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
     except (OSError, UnicodeError, json.JSONDecodeError):
         fail("mediated start unreadable; semantics held")
     if (not isinstance(start, dict)
-            or start.get("contract") != "sley2.trusted-capture.v1"
+            or start.get("contract") != CAPTURE_CONTRACT
             or not isinstance(start.get("attempt_id"), str)
             or not start["attempt_id"]):
         fail("mediated start shape; semantics held")
@@ -3922,7 +3925,7 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
         fail("mediated completion missing; semantics held")
     if (not isinstance(completion, dict)
             or completion.get("contract")
-            != "sley2.trusted-capture-completion.v1"
+            != COMPLETION_CONTRACT
             or completion.get("attempt_id") != attempt_id):
         fail("mediated completion shape; semantics held")
     if completion.get("exchanges") != len(pairs):
