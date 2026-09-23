@@ -72,6 +72,20 @@ class SupersedeTests(unittest.TestCase):
             )
         )
 
+    def test_a_later_revision_pass_folds_an_earlier_revision_round(self) -> None:
+        self.assertTrue(builder.supersedes(
+            "vulcan_surface_review_revision_10", "vulcan_surface_review_revision_9"))
+        self.assertTrue(builder.supersedes(
+            "nabu_architecture_review_revision_8", "nabu_architecture_review_revision_7"))
+
+    def test_an_earlier_revision_pass_never_folds_a_later_round(self) -> None:
+        self.assertFalse(builder.supersedes(
+            "vulcan_surface_review_revision_9", "vulcan_surface_review_revision_10"))
+
+    def test_revision_rounds_of_another_subject_never_fold(self) -> None:
+        self.assertFalse(builder.supersedes(
+            "vulcan_entity_read_review_revision_10", "vulcan_surface_review_revision_9"))
+
     def test_same_field_never_supersedes(self) -> None:
         self.assertFalse(
             builder.supersedes("ariadne_contract_review", "ariadne_contract_review")
