@@ -1,0 +1,21 @@
+utc: 2026-09-23T03:43:51Z
+git_head: 72036a4e9b71cf8460542900121c686f71e80a08
+cargo: cargo 1.93.0 (083ac5135 2025-12-15)
+CARGO_TARGET_DIR: /home/gfarch/Work/checkpoints/target-succ-corrupt
+command: cargo test --offline -p sley-repo --test s3_g2_corrupt -- --nocapture
+   Compiling sley-repo v2.0.0-alpha.0 (/home/gfarch/Work/checkpoints/sley2-finish-20260915/resume-20260918/wt-succ-corrupt/crates/sley-repo)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.67s
+     Running tests/s3_g2_corrupt.rs (/home/gfarch/Work/checkpoints/target-succ-corrupt/debug/deps/s3_g2_corrupt-9539b2911aaa89b3)
+
+running 5 tests
+test emit_s3_corrupt_fixture ... ignored, fixture refresh emitter; run through the generator script
+test s3_corrupt_neg_flip_elsewhere ... ignored, negative oracle handshake; fixture oracle invokes it explicitly
+test s3_corrupt_neg_unflipped ... ignored, negative oracle handshake; fixture oracle invokes it explicitly
+S3_EVIDENCE task=S2B-CORRUPT-001 symbol=PACK_DIGEST_MISMATCH pack_len=1679 flipped_offset=984
+test s3_corrupt_fixture_conformance ... ok
+S3_EVIDENCE task=S2B-CORRUPT-001 route=exchange.import resealed=true symbol=PACK_DIGEST_MISMATCH exchange_len=5825 flipped_offsets=1301,2637 head_objects=5 unresealed_symbol=EXCHANGE_DIGEST_MISMATCH
+test s3_corrupt_exchange_resealed_embedded_pack ... ok
+
+test result: ok. 2 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+exit: 0
