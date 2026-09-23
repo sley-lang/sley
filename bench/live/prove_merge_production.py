@@ -42,7 +42,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from bench.live import sley2_codecs  # noqa: E402
-from bench.live.scratch import remove_scratch  # noqa: E402
+from bench.live.scratch import ScratchRemovalError, remove_scratch, scratch_root  # noqa: E402
 from bench.live import sley2_tool  # noqa: E402
 
 TASK_DIR = ROOT / "bench" / "fixtures" / "sley2" / "S2B-MERGE-001"
@@ -117,14 +117,17 @@ def _failure(reply: dict) -> str:
     return json.dumps(failure["decoded"])[:200]
 
 
-def _read_live_state(pack_name: str, read_entities: list[str] | None = None) -> dict:
+def _read_live_state(pack_name: str, stages: list[Path],
+                     read_entities: list[str] | None = None) -> dict:
     """Live entity bodies of one frozen side pack (throwaway session).
 
     Returns head tx, object list, decoded bodies for read_entities,
-    and the repo dir (kept on disk for co-location; the caller cleans
-    the stage)."""
+    and the repo dir (kept on disk for co-location). The stage is
+    registered in `stages` the moment it exists, so the caller removes it
+    on every path, including a failure inside this function."""
 
     stage = Path(tempfile.mkdtemp(prefix="sley2-merge-side-"))
+    stages.append(stage)
     ws = stage / "ws"
     ws.mkdir(mode=0o700)
     (ws / "repo").mkdir(mode=0o700)
@@ -202,11 +205,9 @@ def main() -> int:
     try:
         # Live side content (identities + bodies the branches must
         # replicate as commits).
-        base_state = _read_live_state("base.pack", [conflict])
-        ours_state = _read_live_state("ours.pack", [conflict])
-        theirs_state = _read_live_state("theirs.pack")
-        stages = [base_state["stage"], ours_state["stage"],
-                  theirs_state["stage"]]
+        base_state = _read_live_state("base.pack", stages, [conflict])
+        ours_state = _read_live_state("ours.pack", stages, [conflict])
+        theirs_state = _read_live_state("theirs.pack", stages)
         emit(f"base head {base_state['head'][:16]}... "
              f"objects {len(base_state['objects'])}")
         emit(f"ours head {ours_state['head'][:16]}... "
@@ -317,14 +318,22 @@ def main() -> int:
     finally:
         try:
             # Read-only store files defeat a silent ignore_errors removal;
-            # remove_scratch restores permissions or fails loudly.
-            remove_scratch(workdir)
-            for stage in stages:
-                remove_scratch(stage)
+            # remove_scratch restores permissions or fails loudly. Every
+            # tree is attempted; the first failure is raised afterwards.
+            failures: list[BaseException] = []
+            for tree in [workdir, *stages]:
+                try:
+                    remove_scratch(tree)
+                except ScratchRemovalError as error:
+                    failures.append(error)
+            if failures:
+                raise failures[0]
         finally:
             flush_log()
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    with scratch_root("sley2-merge-prover-run-"):
+        code = main()
+    raise SystemExit(code)

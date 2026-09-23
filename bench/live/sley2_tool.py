@@ -266,6 +266,26 @@ def _uvar(body: bytes, position: int) -> tuple[int, int]:
     raise AssertionError("unreachable")
 
 
+def _abandon(endpoint: Endpoint) -> None:
+    """Kill and reap an endpoint's serve child without waiting on its
+    end of input (the failure path of `Session.__init__`)."""
+    process = getattr(endpoint, "_process", None)
+    if process is None:
+        return
+    try:
+        process.kill()
+    except OSError:
+        pass
+    try:
+        process.communicate(timeout=10)
+    except Exception:  # noqa: BLE001 - reaping is best effort after kill
+        try:
+            process.wait(timeout=10)
+        except Exception:  # noqa: BLE001
+            pass
+    endpoint._closed = True  # noqa: SLF001 - the child is gone
+
+
 class Session:
     """One disposable serve session over the workspace repository."""
 
@@ -284,6 +304,16 @@ class Session:
         else:
             self._pack_hex = ""
         self._endpoint = Endpoint(sley, repo, self._workspace / REPORT_NAME, SESSION_TIMEOUT, PROFILE_ARGS)
+        try:
+            self._open(sley, transcript, seed_pack)
+        except BaseException:
+            # A constructor that fails after the serve child started must
+            # not leave it running: an unreaped child could keep writing
+            # into a scratch workspace its caller is about to remove.
+            _abandon(self._endpoint)
+            raise
+
+    def _open(self, sley: Path, transcript: list[dict[str, Any]], seed_pack: bool) -> None:
         self._transcript = transcript
         self._seq = 0
         self._session: str | None = None

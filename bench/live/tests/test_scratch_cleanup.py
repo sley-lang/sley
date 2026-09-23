@@ -70,6 +70,30 @@ class RemoveScratch(unittest.TestCase):
         remove_scratch(tree)
         self.assertFalse(os.path.lexists(tree))
 
+    def test_a_hard_linked_outside_file_keeps_its_mode(self):
+        outside = self.base / "outside.bin"
+        outside.write_bytes(b"shared inode")
+        outside.chmod(0o400)
+        tree = self.base / "sley2-judge-link"
+        (tree / "store").mkdir(parents=True)
+        os.link(outside, tree / "store" / "linked.bin")
+        (tree / "store").chmod(0o500)
+        remove_scratch(tree)
+        self.assertFalse(os.path.lexists(tree))
+        self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o400)
+
+    def test_the_parent_is_never_widened(self):
+        parent = self.base / "locked-parent"
+        tree = parent / "sley2-judge-parent"
+        tree.mkdir(parents=True)
+        parent.chmod(0o500)
+        try:
+            with self.assertRaises(ScratchRemovalError):
+                remove_scratch(tree)
+            self.assertEqual(stat.S_IMODE(parent.stat().st_mode), 0o500)
+        finally:
+            parent.chmod(0o700)
+
     def test_a_tree_that_survives_removal_fails_loudly(self):
         tree = self.base / "sley2-judge-z"
         tree.mkdir()
@@ -146,6 +170,76 @@ class JudgeScratch(unittest.TestCase):
         self.assertIn("scratch removal", record["detail"])
         for name in leftovers(self.private):
             remove_scratch(self.private / name)
+
+
+
+def live_processes_with(marker: str) -> list[int]:
+    found = []
+    for entry in Path("/proc").iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            command = (entry / "cmdline").read_bytes()
+        except OSError:
+            continue
+        if marker.encode() in command:
+            found.append(int(entry.name))
+    return found
+
+
+@unittest.skipUnless(os.environ.get("SLEY2_SLEY_BINARY"), "SLEY2_SLEY_BINARY unbound")
+class StalledServeIsReaped(unittest.TestCase):
+    """A Session whose serve child stalls is reaped on the constructor's
+    failure path, so nothing keeps writing into a removed scratch."""
+
+    def test_a_stalled_serve_child_is_reaped_and_no_scratch_reappears(self):
+        from bench.live import sley2_tool
+        private = Path(tempfile.mkdtemp(prefix="judge-stall-test-"))
+        try:
+            marker = f"sley2-stall-{os.getpid()}"
+            wrapper = private / "sley"
+            real = os.environ["SLEY2_SLEY_BINARY"]
+            wrapper.write_text(
+                "#!/bin/bash\n"
+                f'if [ "$1" = serve ]; then exec -a {marker} sleep 30; fi\n'
+                f'exec "{real}" "$@"\n')
+            wrapper.chmod(0o755)
+            workspace = private / "ws"
+            (workspace / sley2_tool.REPO_DIR).mkdir(parents=True)
+            with mock.patch.object(sley2_tool, "SESSION_TIMEOUT", 1):
+                with self.assertRaises(Exception):
+                    sley2_tool.Session(wrapper, workspace, [], seed_pack=False)
+            self.assertEqual(live_processes_with(marker), [], "serve child reaped")
+            remove_scratch(workspace)
+            self.assertFalse(workspace.exists(), "nothing recreated the scratch")
+        finally:
+            remove_scratch(private)
+
+
+
+class MergeProverStages(unittest.TestCase):
+    """A side read that fails leaves no `sley2-merge-*` directory."""
+
+    def test_a_failing_side_read_leaves_no_merge_scratch(self):
+        from bench.live import prove_merge_production as prover
+        private = Path(tempfile.mkdtemp(prefix="merge-stage-test-"))
+        saved = tempfile.tempdir
+        tempfile.tempdir = str(private)
+        try:
+            def refuse(*_args, **_kwargs):
+                raise RuntimeError("side read failed")
+            with mock.patch.dict(os.environ, {"SLEY2_SLEY_BINARY": "/nonexistent/sley"}), \
+                    mock.patch.object(sys, "argv", ["prove"]), \
+                    mock.patch.object(prover.sley2_tool, "Session", refuse), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                # The side read fails after its stage exists (the binary is
+                # unbound, or the session refuses): either way no stage stays.
+                with self.assertRaises(Exception):
+                    prover.main()
+            self.assertEqual(leftovers(private), [])
+        finally:
+            tempfile.tempdir = saved
+            remove_scratch(private)
 
 
 if __name__ == "__main__":

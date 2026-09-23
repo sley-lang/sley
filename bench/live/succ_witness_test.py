@@ -131,7 +131,7 @@ def main() -> int:
         finally:
             sys.argv = saved_argv
         emit(f"S2B-TEST-001 witness/{variant} judge exit: {exit_code}")
-        emit(f"workspace: {ws} (removed at exit)")
+        emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
     finally:
         os.chdir(saved_cwd)
     if log_path is not None:

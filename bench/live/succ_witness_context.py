@@ -98,7 +98,7 @@ def main() -> int:
                 # IS the negative evidence (nothing to judge).
                 emit("CONTEXT witness/neg: incomplete closure refused "
                      "at validation; no finishable candidate")
-                emit(f"workspace: {ws} (removed at exit)")
+                emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
                 return 0
             emit(f"CONTEXT witness/{variant}: not finished: "
                  f"{outcome.get('error')}")
@@ -111,7 +111,7 @@ def main() -> int:
         finally:
             sys.argv = saved_argv
         emit(f"S2B-CONTEXT-001 witness/{variant} judge exit: {exit_code}")
-        emit(f"workspace: {ws} (removed at exit)")
+        emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
     finally:
         os.chdir(saved_cwd)
         if log_path is not None:

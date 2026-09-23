@@ -760,7 +760,7 @@ def main() -> int:
             exit_code, verdict = adjudicate("round-1")
             assert exit_code == 1, exit_code
             assert verdict.get("code") == "ORACLE_CREATE_UNMAPPED", verdict
-            emit(f"workspace: {ws} (removed at exit)")
+            emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
             return finish_log()
 
         # Round 1: program without tests. Correct programs commit and
@@ -778,18 +778,18 @@ def main() -> int:
         elif variant in ("neg_wrongop", "neg_wrongtotal"):
             assert exit_code == 1, (exit_code, verdict)
             assert verdict.get("code") == "ORACLE_CREATE_MISMATCH", verdict
-            emit(f"workspace: {ws} (removed at exit)")
+            emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
             return finish_log()
         elif variant == "neg_overflow":
             assert exit_code == 1, (exit_code, verdict)
             assert verdict.get("code") == "ORACLE_UNCHECKED_ARITHMETIC", (
                 verdict)
-            emit(f"workspace: {ws} (removed at exit)")
+            emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
             return finish_log()
         else:
             raise SystemExit(f"unknown variant {variant}")
         if variant == "neg_notests":
-            emit(f"workspace: {ws} (removed at exit)")
+            emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
             return finish_log()
 
         # Round 2: submitted tests against the committed program.
@@ -815,7 +815,7 @@ def main() -> int:
             assert verdict.get("code") == "ORACLE_TEST_MISMATCH", verdict
         else:
             raise SystemExit(f"unknown variant {variant}")
-        emit(f"workspace: {ws} (removed at exit)")
+        emit(f"workspace: {ws} (scheduled for removal at exit; a failed removal exits nonzero)")
     finally:
         os.chdir(saved_cwd)
     if log_path is not None:
