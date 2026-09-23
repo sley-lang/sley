@@ -342,9 +342,9 @@
     "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
-  "obligations_digest": "a7c803f2f86330216499a923af7e014a5b71182864db7f43d14fa0aac5c6073a",
-  "register_digest": "6c6cfdd3bcb0504635c7c4d25ba2f4770f5f28bede87595021928faf36c0c860",
-  "report_digest": "e967f9ddeaa29b98bf2ec3151c0512a08a5852adc71feb9653e60f293c09bd09",
+  "obligations_digest": "275290d89b9d75b983bc8e1631811c9f1e38853148438963764b2cefd682e426",
+  "register_digest": "43a9459eae7da8863d77129960e1970dceb0c3fb28c116d74ebba8a970f6c86c",
+  "report_digest": "e5a14791b12c818f13f2f1ae25fcacfc112591f3887115affaa9071042e08ebc",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,
