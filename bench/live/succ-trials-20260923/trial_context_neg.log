@@ -1,0 +1,4 @@
+CONTEXT witness/neg: discovery {"impact_continuations": 0, "impact_left_truncated": false, "impact_pages": 1, "impact_seen": 10, "impact_total": 10, "impacted_constants": 3, "opened_with_snapshot": false, "record_typedefs": 1, "snapshot": "c9fc1f5320be304bffd203a4777932f678e81b5d16e8e4285846239deae87a7e", "typedef_pages": 1, "warm_refused": true}
+CONTEXT witness/neg: propose valid False decision {'failed_phase': 6, 'tag': 9}
+CONTEXT witness/neg: incomplete closure refused at validation; no finishable candidate
+workspace kept at: /home/gfarch/Work/checkpoints/succ-context-tmp/sley2-context-witness-ol8gk4xn/ws
