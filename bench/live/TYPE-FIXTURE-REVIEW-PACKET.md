@@ -305,9 +305,10 @@ unmodified as history.
 - `python3 -m unittest discover -s bench/sley2 -t .`: 23 OK.
 - `cargo test -p sley-repo --test succ_live_emit --test succ_live_judge_cases --test s3_g1_type`:
   1+12+3 passed (1+0+1 ignored emitters).
-- `make lint`: see the gate line in the commit message of the
-  evidence commit. `evidence/build/lint-report.json` is restored, not
-  committed.
+- `make lint` at `9a674053` (the evidence commit): PASS
+  (clippy_clean, 0 warnings, fmt_clean, lint inputs clean, working
+  tree clean). `evidence/build/lint-report.json` was restored
+  afterwards and is not committed.
 
 ## 7. Reviewer action requested (single request)
 
