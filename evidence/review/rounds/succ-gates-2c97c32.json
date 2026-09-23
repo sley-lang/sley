@@ -1,0 +1,31 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "2c97c32f4dd5d87040cffee2af4b7519ed0f5bdf",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "ariadne",
+      "section": "corrupt_surface_decision",
+      "field": "ariadne_contract_review",
+      "verdict": "REVISE_0_P0_1_P1_1_P2_3_P3_1_P4",
+      "scope_sha": "2c97c32f4dd5d87040cffee2af4b7519ed0f5bdf",
+      "path": "evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review-2c97c32.md",
+      "sha256": "c1441207043cd1b3e36b2ab701084a4303b51a70e7ce04d9c2eb3302aeac7fc1",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 345
+    },
+    {
+      "role": "ariadne",
+      "section": "type_fixture_correction",
+      "field": "ariadne_contract_review",
+      "verdict": "REVISE_0_P0_1_P1_4_P2_1_P3_2_P4",
+      "scope_sha": "2c97c32f4dd5d87040cffee2af4b7519ed0f5bdf",
+      "path": "evidence/review/verdicts/type_fixture_correction/ariadne_contract_review-2c97c32.md",
+      "sha256": "c4a7974811df52d365b5674a060d449670cf3658800cae8686d790299f30f216",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 319
+    }
+  ]
+}
