@@ -1,6 +1,6 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 12 (2026-09-08; the revision
+Status: S20-400 contract draft, revision 13 (2026-09-23; the revision
 history is listed below after the authority rule); Council review pending
 (Ariadne contract review as the package owner, Nabu architecture review,
 Vulcan surface review). This revision supersedes the M0 constitutional
@@ -18,7 +18,7 @@ appendix B (closeout
 the JSON bridge from this contract (frozen-record revision 7, closeout
 `docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`), and S20-430 wraps the CLI
 (frozen-record revision 4, closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`).
-Current composition (revision 12): the S20-420 bridge contract
+Current composition (revision 13): the S20-420 bridge contract
 `docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 10 and the S20-430 CLI contract
 `docs/spec/SLEY_CLI_V1.md` revision 8.
 Further implementation state is tracked in the machine summary.
@@ -52,15 +52,24 @@ rule, failed-stream flag, per-seam reserved reasons, gated extended
 profile, stated details mapping, ordered appendix A, this history list);
 12 adds the protocol version 2 static successor metadata (the two
 S20-310 entity-read methods of `docs/spec/ENTITY_READ_PROFILE_V2.md`)
-without changing any version 1 row, byte, or helper. Document revision
+without changing any version 1 row, byte, or helper; 13 (REQ-10, the
+S20-620 accepted-head opener) defines the `workspace.open` (201) response
+under a version 2 selection as `open_summary` (appendix A): the eight
+`revision_summary` fields plus an optional field 9, the accepted head's
+complete-root index snapshot identity, taken from the S20-300 read-only
+cache probe; it also corrects row 201's request column to none (the body
+was always empty) and refuses a non-empty body. Document revision
 (a draft number of this file) and negotiated protocol version (the wire
-selection 1 or 2) are distinct: revision 12 still serves version 1
-exactly as before. Revision 12 is a static delta only: the version 1
+selection 1 or 2) are distinct: revision 13 still serves version 1
+exactly as before, byte for byte, including `workspace.open`. Revision 12
+is a static delta only: the version 1
 implementations remain in place, capable bridge/CLI runtime is phase 3
 (implemented in CLI revision 6; phase names the rollout stage, not the
 contract revision),
-and the revision 11 review history is retained as history. Those reviews
-do not review revision 12; its new-delta review is pending.
+and the revision 11 review history is retained as history. The revision
+12 new-delta review passed (2026-09-15); revision 13 changes one version 2
+response body and one request column, and its new-delta review is
+pending.
 
 ## 1. Framing
 
@@ -303,7 +312,10 @@ negotiated `methods` intersection.
 
 The version 1 table below is frozen: 41 rows total, 37 dispatched
 (non-reserved) methods. Its rows, bytes, and legacy helpers are unchanged
-by revision 12.
+by revision 12. Revision 13 corrects the row 201 request column to none
+(appendix A always named an empty body) and adds, under a version 2
+selection only, field 9 to its response (appendix A `open_summary`); no
+version 1 byte changes.
 
 | Tag | Method | Request body | Response body | Owner |
 |---:|---|---|---|---|
@@ -313,7 +325,7 @@ by revision 12.
 | 103 | `session.capabilities` | none | `SelectedProfile` | S20-400 |
 | 104 | `session.budgets` | none | `LimitProfile` remaining | S20-400 |
 | 200 | `workspace.create` | trusted genesis input | `TransactionId` | S20-390 |
-| 201 | `workspace.open` | repository path digest | accepted head | S20-390 |
+| 201 | `workspace.open` | none | accepted head summary (appendix A) | S20-390 |
 | 202 | `refs.list` | limit | `list(ResolvedBranch)` | S20-500 |
 | 203 | `refs.resolve` | branch name | `ResolvedBranch` | S20-500 |
 | 204 | `revision.read` | `TransactionId` | verified revision summary | S20-390 |
@@ -644,7 +656,7 @@ reason of section 4.
 | 103 `session.capabilities` | empty | the `SelectedProfile` record (section 2) |
 | 104 `session.budgets` | empty | the `LimitProfile` record |
 | 200 `workspace.create` | `record(1: state root stored bytes, 2: policy root stored bytes, 3: list(bytes(object stored bytes)), 4: list(EntityId))` | the genesis `TransactionId[32]`; bodies are S20-390's, the session-to-workspace binding is S20-330's (section 3) |
-| 201 `workspace.open` | empty | `revision_summary` of the accepted head; bodies are S20-390's, the session-to-workspace binding is S20-330's (section 3) |
+| 201 `workspace.open` | empty; a non-empty body is `PROTOCOL_PAYLOAD_INVALID` (revision 13) | the accepted head's `revision_summary` under a version 1 selection, `open_summary` under a version 2 selection (revision 13, rules below); fields 1-8 are S20-390's, field 9 is S20-300's, the session-to-workspace binding is S20-330's (section 3) |
 | 202 `refs.list` | `uvar(limit)`, 1 through 4,096 | `list(branch_summary)` |
 | 203 `refs.resolve` | branch name bytes | `branch_summary` |
 | 204 `revision.read` | `TransactionId[32]` | `revision_summary` |
@@ -678,7 +690,26 @@ branch_summary   = record(1: name bytes, 2: origin TransactionId,
 revision_summary = record(1: TransactionId, 2: StateRoot, 3: PolicyRootId,
                           4: WorkspaceId, 5: SchemaEpochId, 6: uvar(objects),
                           7: uvar(tombstones), 8: ReceiptId)
+open_summary     = record(fields 1-8 exactly as revision_summary,
+                          9: IndexSnapshotId)          -- field 9 optional
 ```
+
+`open_summary` (revision 13; `workspace.open` under a version 2 selection
+only) is a composition of two owners' frozen values, not a new SMP1
+semantics. Fields 1 through 8 are the S20-390 `revision_summary` of the
+accepted head, byte for byte. Field 9 is present exactly when the S20-300
+read-only cache probe (`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md`
+section 5, revision 4) accepts a cached complete-root record for the
+accepted head's root, and carries that record's `IndexSnapshotId`, the
+identity `query.root`, `query.continue`, and `capsule` bind for that head.
+The probe never builds or writes the cache; an absent, discarded, or
+unreadable record, and an absent or contended repository maintenance
+boundary (taken shared, without waiting), are all absence. Absence is
+structural: the record then has eight fields, and the bounded context
+reports one item either way, never an omission or truncation. The server
+does not otherwise vary the body: `revision.read` (204) answers
+`revision_summary` for every revision under every selection. Under a
+version 1 selection `workspace.open` answers `revision_summary` exactly.
 
 The bounded context of a response copies the owning record's counts: a
 `SLEYRQR1` response supplies `returned`, `total_count - returned`, its
@@ -811,7 +842,8 @@ Rules:
 ## Appendix D. Body references for the protocol version 2 additions (S20-310, revision 12)
 
 Appendices A and C above carry the 37 legacy body rows and are unchanged
-by revision 12. The two version-2 methods define no new serializer: their
+by revision 12. Revision 13 amends one of them, row 201 of appendix A, for
+the version 2 selection only (`open_summary`), as stated there. The two version-2 methods define no new serializer: their
 request and response records are the ENTITY_READ canonical records,
 referenced here and owned by S20-310.
 

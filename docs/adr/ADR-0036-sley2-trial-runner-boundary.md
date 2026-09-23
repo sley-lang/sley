@@ -1,8 +1,12 @@
 # ADR-0036: the Sley 2 arm as an endpoint-only, trace-complete runner
 
-Status: proposed; the S20-620 contract is a draft at revision 2 with
-Council review pending; implemented at `bench/sley2/runner.py`
-(2026-09-03) with five offline tests and a smoke over the real endpoint
+Status: proposed; the S20-620 contract is a draft at revision 5
+(2026-09-23: `workspace.open` admitted as the accepted-head opener,
+nineteen-name allowlist) with the revision 5 Council reviews returned
+REVISE and repairs pending re-review; implemented at
+`bench/sley2/runner.py` with 23 offline tests and a smoke over the real
+endpoint. (Revision 2 record: implemented 2026-09-03 with five offline
+tests.)
 
 Date: 2026-09-03
 

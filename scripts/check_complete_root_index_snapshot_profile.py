@@ -21,7 +21,7 @@ ROOT_QUERY = ROOT / "crates/sley-repo/src/root_query.rs"
 EXCHANGE = ROOT / "crates/sley-repo/src/exchange.rs"
 FIXTURE_DIR = ROOT / "conformance/complete-root-index-snapshot"
 
-SPEC_REVISION = 3
+SPEC_REVISION = 4
 
 DRAFT_STATUS = "S20_300_FULL_CONTRACT_DRAFT_REVIEW_PENDING"
 DRAFT_IN_PROGRESS_STATUS = "S20_300_FULL_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
@@ -50,6 +50,7 @@ SPEC_MARKERS = (
     "`<repository>/index/v1/`",
     "never read\nthe cache",
     "`verify_cached_snapshot(repository, revision)`",
+    "`cached_complete_root_snapshot_id(repository, revision, guard)`",
     "## 9. Explicit exclusions",
 )
 RESTRICTED_MARKERS = (
@@ -76,6 +77,7 @@ SNAPSHOT_MARKERS = (
 CACHE_MARKERS = (
     "pub fn complete_root_snapshot",
     "pub fn verify_cached_snapshot",
+    "pub fn cached_complete_root_snapshot_id",
     'const INDEX_DIRECTORY: &str = "index";',
     ".idx.scb1",
     "RepositoryMaintenanceGuard",
@@ -130,7 +132,7 @@ def main() -> int:
         "completeness_arm": 2,
         "entity_kinds": 18,
         "new_stable_error_codes": len(CODES),
-        "cache_consumers": "READ_ONLY_DERIVED_QUERY_SURFACES_ONLY",
+        "cache_consumers": "READ_ONLY_DERIVED_QUERY_SURFACES_AND_WORKSPACE_OPEN_IDENTITY_PROBE",
         "contract_revision": SPEC_REVISION,
         "implementation_complete": status == COMPLETE_STATUS,
     }
@@ -173,6 +175,16 @@ def main() -> int:
             if call_pattern.search(text) and "fn complete_root_snapshot" not in text:
                 if str(path.relative_to(ROOT)) not in allowed_callers:
                     problems.append(f"cache-caller:{path.relative_to(ROOT)}")
+        # The revision 4 identity probe is the one other hit reader: its
+        # only sanctioned caller is the SMP1 revision 13 workspace.open.
+        probe_callers = {"crates/sley-protocol/src/server.rs"}
+        probe_pattern = re.compile(r"cached_complete_root_snapshot_id\(")
+        for path in sorted((ROOT / "crates").rglob("*.rs")):
+            if "tests" in path.parts or path.name in ("index_cache.rs",):
+                continue
+            text = path.read_text(encoding="utf-8")
+            if probe_pattern.search(text) and str(path.relative_to(ROOT)) not in probe_callers:
+                problems.append(f"probe-caller:{path.relative_to(ROOT)}")
         root_query = read(ROOT_QUERY) if ROOT_QUERY.exists() else ""
         if "run_root_query_fresh(revision" not in root_query:
             problems.append("capsule:not-fresh-only")

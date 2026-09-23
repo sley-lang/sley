@@ -1,12 +1,15 @@
 # Complete-Root Index Snapshot Profile v1
 
-Status: S20-300 full contract draft, revision 3 (2026-09-14); implemented
+Status: S20-300 full contract draft, revision 4 (2026-09-23); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
 and the package is not complete. Revision 3 closes the remaining
 report-grade findings with guard-held cache access, exclusive temp files,
 fail-open cache I/O, fresh-only exported capsules, and the residual
-precision notes. Implementation state is tracked in the
+precision notes. Revision 4 admits one second hit reader, the read-only
+identity probe `cached_complete_root_snapshot_id` (section 5), whose only
+consumer is the SMP1 revision 13 `workspace.open` snapshot identity
+(REQ-10); nothing else changes. Implementation state is tracked in the
 machine summary.
 
 This profile completes S20-300. It adds the complete-root completeness arm
@@ -146,7 +149,8 @@ and it is bounded three ways: the cache is under the same local filesystem
 authority as objects, receipts, and refs, which is why an exchange import
 removes an inherited one rather than adopting it; only transient
 in-process reads on the read-only derived query surfaces (S20-310
-root-backed queries) may consume a hit, and exported evidence MUST NOT
+root-backed queries) and the identity probe below may consume a hit, and
+exported evidence MUST NOT
 rest on a bare hit — exported capsules build from a fresh snapshot, never
 from the cache; validation, comparison, merge, commit, exchange, GC, and recovery never read
 the cache. `verify_cached_snapshot(repository, revision)` rebuilds and
@@ -156,6 +160,27 @@ a differing one (including a present-but-unreadable file) demands
 investigation. Concurrent readers and writers observe atomic renames over
 deterministic fresh builds, so last-writer-wins is harmless: every fresh
 build of one revision is byte-identical.
+
+**Identity probe (revision 4).**
+`cached_complete_root_snapshot_id(repository, revision, guard)` answers
+the `IndexSnapshotId` of the cached record for `revision.root` when, and
+only when, that record exists as a regular file and is accepted under rules
+1 through 4 above; it answers absence otherwise. It is the cheap half of
+`complete_root_snapshot` alone: it reads and bounded-decodes at most one
+cache file (up to `MAX_SNAPSHOT_RECORD_BYTES`), reads no object, extracts no
+edge, never builds, never writes back, and never deletes. A missing,
+unreadable, non-file, or discarded record is absence, not an error and not a
+rebuild (unlike the discard-rebuild-write rule of `complete_root_snapshot`);
+the only error is a guard naming another repository (`INDEX_SNAPSHOT_IO`).
+The caller holds shared repository maintenance over the same repository,
+as for every cache-touching call. Its one sanctioned consumer is the
+SMP1 revision 13 `workspace.open` field 9 under a version 2 selection
+(`docs/spec/SMP1.md` appendix A `open_summary`), which takes the guard
+without waiting and without initializing the boundary and treats any
+failure as absence; the identity it discloses is a pointer, not evidence:
+queries that bind it still load or rebuild the snapshot through
+`complete_root_snapshot`, and exported evidence still builds fresh. A new
+probe caller fails the stage checker until it is deliberately listed.
 
 Cache files are derived and disposable: they are outside the object store,
 outside every retention root, never packed or exchanged, and safe to delete
@@ -205,6 +230,9 @@ Implementation acceptance requires at least:
   discarded and rewritten, a second root cached beside the first,
   `verify_cached_snapshot` equality, and an incomplete S20-540 clone that
   carries an `index` directory still classifying as incomplete;
+- identity probe tests (revision 4): cold absence with nothing written, the
+  identity of an accepted record, a hit without object access, and a
+  discarded record reported as absence without a rewrite;
 - an S20-700 persistent libFuzzer target over the arm-`2` decoder;
 - Tier 1 plus semantics-focused Tier 2 validation;
 - Ariadne contract review, Nabu architecture review, and Vulcan surface
@@ -217,7 +245,8 @@ This contract does not claim:
 - the full S20-320 capsule, which is a later package building on the
   fresh-only rule above; S20-310 root-backed queries consume arm-`2`
   snapshots today (built directly or through the repository cache, whose
-  hit path still has no readers beyond those queries), and cross-repository,
+  hit path has no readers beyond those queries and the revision 4 identity
+  probe), and cross-repository,
   signed, or exchanged snapshots;
 - fingerprint catalogs inside the record;
 - SMP1, sessions, JSON bridge, CLI, runtime, benchmark, packaging, release,

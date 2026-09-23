@@ -44,7 +44,12 @@ SUMMARY_TEXT = (ROOT / "machineresearch/sley-2.0/machine-summary.json").read_tex
 
 APPENDIX_A = "## Appendix A. Body records of the dispatched methods (S20-410)"
 APPENDIX_B = "## Appendix B. Cancellation, streaming, and budget records (S20-440)"
-CURRENT_COMPOSITION = "Current composition (revision 12):"
+# The current revision follows the anchored Status line, so a contract
+# revision move never leaves this suite asserting a stale literal.
+SMP1_REVISION = int(re.search(
+    r"^Status: S20-400 contract draft, revision (\d+)", SPEC_TEXT, flags=re.M
+).group(1))
+CURRENT_COMPOSITION = f"Current composition (revision {SMP1_REVISION}):"
 # The composed pins follow the bridge and CLI status lines, so a revision
 # move never leaves this suite asserting a stale literal.
 BRIDGE_REVISION = re.search(
@@ -204,7 +209,7 @@ class CompositionAnchorCases(unittest.TestCase):
     """A-ST-R2-02/N-STATIC-R2-03/VUL-P2S-R2-02: the current record and the
     Status it binds to are line-anchored, not substrings."""
 
-    STATUS_LINE = "Status: S20-400 contract draft, revision 12"
+    STATUS_LINE = f"Status: S20-400 contract draft, revision {SMP1_REVISION}"
 
     def test_historical_prefixed_composition_refused(self):
         self.assertEqual(SPEC_TEXT.count(CURRENT_COMPOSITION), 1)
@@ -263,15 +268,15 @@ class CurrentDeltaReviewCases(unittest.TestCase):
     def test_mismatched_current_revision_refused(self):
         summary = json.loads(SUMMARY_TEXT)
         review = summary["protocol"]["current_delta_review"]
-        self.assertEqual(review["contract_revision"], 12)
-        review["contract_revision"] = 11
+        self.assertEqual(review["contract_revision"], SMP1_REVISION)
+        review["contract_revision"] = SMP1_REVISION - 1
         code, payload = run_checker_with_spec(SPEC_TEXT, json.dumps(summary))
         assert_refused(self, code, payload, "review")
 
     def test_bound_all_pass_review_accepted(self):
         summary = json.loads(SUMMARY_TEXT)
         review = summary["protocol"]["current_delta_review"]
-        self.assertEqual(review["contract_revision"], 12)
+        self.assertEqual(review["contract_revision"], SMP1_REVISION)
         for lane in ("ariadne", "nabu", "vulcan"):
             review[lane] = "PASS"
         code, payload = run_checker_with_spec(SPEC_TEXT, json.dumps(summary))

@@ -27,7 +27,9 @@ real trial, derives no ratio, and makes no succession claim. It composes
 the S20-610 run manifest (`sley2.raw-run-manifest.v1`, one manifest per
 run naming all three arms), the S20-610 canonical JSON and digest-chain
 mechanics, the S20-430 endpoint (`docs/spec/SLEY_CLI_V1.md`), the S20-420
-JSON form, and the S20-540 exchange fixture; it alters none of them. The
+JSON form, and the S20-540 exchange fixture; it alters none of them (the
+revision 5 accepted-head opener relies on the `workspace.open` response
+that SMP1 revision 13 defines; this contract only admits the method). The
 master goal requires an agent that receives only an SMP1 context capsule
 and mutation affordances and completes its task without raw repository
 files, source syntax, an entire-store dump, or human intervention (master
@@ -270,7 +272,7 @@ the raw and legacy arms; Accepted Change Tokens and accounting (S20-630);
 statistics and trial sets (S20-640); succession thresholds; artifact
 provenance; publication; runtime, packaging, release, or GA.
 
-## 9. Revision 2 clarifications
+## 9. Clarifications (revision 2 onward)
 
 - The shared S20-610 manifest's `execution_mode: offline_injected` and
   `external_command_policy: forbidden` are **S20-610 shared run-level
@@ -306,27 +308,40 @@ provenance; publication; runtime, packaging, release, or GA.
   fails exactly as for any unoffered name. A name the
   allowlist claims that the endpoint does not offer is
   `SLEY2_TRIAL_HANDSHAKE_FAILED`, so drift in either direction stops the run.
-- `workspace.open` (revision 5) is the arm's accepted-head opener. It takes
-  no body, mutates nothing, and answers the accepted head's revision summary
-  (fields 1 through 8, identical to `revision.read` of that head) plus field
-  9, the accepted head's complete-root index snapshot identity, when and
-  only when that snapshot is already materialized in the repository index
-  cache. The identity comes from a metadata-only cache probe (S20-300,
-  `sley-repo`), never a build, so the response still counts one entity;
-  snapshot builds stay on the query path (`query.root`/`query.continue`),
-  which materializes the head snapshot as a side effect of answering or
-  refusing. Field 9 is encoded on the `workspace.open` path only:
-  `revision.read` of any revision, head or not, keeps its eight-field
-  bytes. When the snapshot is not materialized, field 9 is structurally
-  absent from the response body; the absence is never signalled through
-  `bounds.omitted` or `bounds.truncated`, because `workspace.open` is not a
-  bounded paging route and an omission there is hidden truncation. A
-  cold-snapshot trial therefore opens, observes no field 9, issues a
-  bounded root query (which the endpoint refuses `QUERY_SNAPSHOT_MISMATCH`
-  while materializing the snapshot), and opens again; the refusal is a
-  counted, recorded response like any other. Disclosure and discovery pin
-  one revision by construction; a head that advances in between keeps the
-  existing mismatch symbol and session-staleness handling.
+- `workspace.open` (revision 5) is the arm's accepted-head opener. Its
+  request and response are SMP1's, not this contract's: `docs/spec/SMP1.md`
+  revision 13, appendix A row 201 and `open_summary`. Under the trial's
+  version 2 selection it answers the accepted head's eight
+  `revision_summary` fields plus, only when the S20-300 identity probe
+  (`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md` section 5, revision 4)
+  accepts a cached complete-root record for that root, field 9, that
+  record's snapshot identity; any probe failure (no record, a discarded
+  one, an absent or contended maintenance boundary) is absence. The
+  probe never builds or writes the cache, so the response counts one
+  entity; the opener's head load takes the shared maintenance lock as
+  every head-bound read does. Absence is structural (eight fields), never
+  `bounds.omitted` or `bounds.truncated`: `workspace.open` is not a bounded
+  paging route, so an omission there is hidden truncation to the judge. A
+  non-empty request body is refused `PROTOCOL_PAYLOAD_INVALID`. A
+  cold-snapshot trial opens, observes no field 9, sends one bounded root
+  query with an unbound snapshot, and opens again. That query is refused:
+  `QUERY_SNAPSHOT_MISMATCH` when the engine can answer it, in which case
+  the snapshot is materialized on the query path if the cache write
+  succeeds; otherwise the owner's code (for example
+  `INDEX_SNAPSHOT_ROOT_INCOMPLETE` on a root the complete-root judgment
+  rejects), in which case nothing materializes and field 9 never appears.
+  Either refusal is a counted, recorded response. Disclosure and discovery
+  pin one revision by construction; a head that advances in between keeps
+  the existing mismatch symbol and session-staleness handling.
+- Continuation (revision 5 live-judge rule, `bench/fixtures/sley2_live_judge.py`):
+  in the live trial evidence (the tool transcript, or the runner-owned
+  capture on the mediated route) each answered root-query page carries its
+  continuation binding (query key, request cursor,
+  truncation, next cursor), derived on the trusted side from the exact
+  bodies; a truncated page is discharged only by a successful
+  `query.continue` of the same query at that page's next cursor, from any
+  invocation, and a page left open, or a continue matching no open page,
+  rejects the trial.
 - `tool_calls` counts the agent's session-scoped requests and excludes the
   runner's `session.close`; seeding and opening carry no session and are
   not counted either.

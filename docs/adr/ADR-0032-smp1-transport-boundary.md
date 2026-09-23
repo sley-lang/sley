@@ -6,7 +6,11 @@ and no new findings; implementation is S20-410. Current pin (2026-09-08):
 the contract draft is at revision 12 (static protocol version 2 successor
 metadata; version 1 rows, bytes, and helpers unchanged). The revision 11
 reviews above are retained as history and do not review revision 12; its
-new-delta review is pending.
+new-delta review passed on 2026-09-15. Current pin (2026-09-23): revision
+13 defines the version 2 `workspace.open` response `open_summary` (the
+S20-390 `revision_summary` plus the optional S20-300 snapshot identity,
+field 9) and refuses a non-empty `workspace.open` body; version 1 bytes are
+unchanged, and the revision 13 new-delta review is pending.
 
 Date: 2026-09-03
 

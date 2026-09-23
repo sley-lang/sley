@@ -50,7 +50,7 @@ METHOD_TAGS = (
 # second independently maintained 43-row table exists.
 V2_ADDITIONS = (306, 307)
 V2_METHOD_TAGS = tuple(sorted(METHOD_TAGS + list(V2_ADDITIONS)))
-CONTRACT_REVISION = 12
+CONTRACT_REVISION = 13
 V1_SECTION = "### Protocol version 1"
 V2_SECTION = "### Protocol version 2 additions"
 V2_SECTION_END = "## 5. Bounded context"
@@ -295,8 +295,8 @@ def main() -> int:
     for marker in ADR_MARKERS:
         if marker not in adr:
             problems.append(f"adr-marker:{marker}")
-    if "revision 12" not in adr:
-        problems.append("adr-revision:12")
+    if f"revision {CONTRACT_REVISION}" not in adr:
+        problems.append(f"adr-revision:{CONTRACT_REVISION}")
     packages = read(WORK_PACKAGES)
     for marker in WORK_PACKAGE_MARKERS:
         if marker not in packages:

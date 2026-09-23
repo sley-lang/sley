@@ -19,7 +19,9 @@ reserved: what a session binds, how it is issued and renewed, how every
 request is checked against its binding, what a session-local handle is,
 and the `SESSION_*` codes. It composes, and never alters:
 
-- `docs/spec/SMP1.md` at revision 12: the handshake, `session.open`
+- `docs/spec/SMP1.md` at revision 13 (re-pinned from revision 12 on
+  2026-09-23 without a profile revision: SMP1 revision 13 changes only the version 2 `workspace.open` response body (optional field 9) and refuses a non-empty `workspace.open` body, neither owned
+  by this profile): the handshake, `session.open`
   (100), `session.renew` (101), `session.close` (102), the request-identity
   rules, and the reserved `handle.expand` (304) method whose bodies this
   profile freezes;

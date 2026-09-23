@@ -782,9 +782,9 @@
     "full_profile_status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING"
   },
   "complete_root_index_snapshot": {
-    "status": "S20_300_FULL_COMPLETE",
+    "status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
-    "contract_revision": 3,
+    "contract_revision": 4,
     "adr": "docs/adr/ADR-0029-complete-root-index-snapshot-boundary.md",
     "checker": "scripts/check_complete_root_index_snapshot_profile.py",
     "completeness_arm": 2,
@@ -792,12 +792,12 @@
     "new_stable_error_codes": 3,
     "new_error_code_range": "30008 through 30010",
     "cache_path": "index/v1/<root hex>.idx.scb1",
-    "cache_consumers": "READ_ONLY_DERIVED_QUERY_SURFACES_ONLY",
+    "cache_consumers": "READ_ONLY_DERIVED_QUERY_SURFACES_AND_WORKSPACE_OPEN_IDENTITY_PROBE",
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
     "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "implementation_complete": true,
+    "implementation_complete": false,
     "implementation": [
       "crates/sley-query/src/snapshot.rs",
       "crates/sley-repo/src/index_cache.rs"
@@ -822,7 +822,7 @@
     "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
     "vulcan_surface_review_initial": "FAIL_0_P0_5_P1_4_P2_4_P3",
     "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
-    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_300_FULL_IMPLEMENTED_REVIEW_PENDING)"
+    "status_note": "moved off the terminal status on 2026-09-23 (previous status S20_300_FULL_COMPLETE, 2026-09-15): contract revision 4 admits the read-only identity probe cached_complete_root_snapshot_id as the one non-query hit reader (no build, no write-back, discard = absence), consumed only by the SMP1 revision 13 workspace.open field 9 (REQ-10). The base review fields keep their revision-3 PASS values as history; the revision 4 Ariadne, Nabu, and Vulcan reviews have not run. Previous note: moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_300_FULL_IMPLEMENTED_REVIEW_PENDING)"
   },
   "restricted_query_profile": {
     "status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
@@ -1934,14 +1934,14 @@
     "v2_required": false
   },
   "protocol": {
-    "status": "S20_400_COMPLETE",
+    "status": "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1.md",
-    "contract_revision": 12,
+    "contract_revision": 13,
     "current_delta_review": {
-      "contract_revision": 12,
-      "ariadne": "PASS",
-      "nabu": "PASS",
-      "vulcan": "PASS"
+      "contract_revision": 13,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
     },
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
@@ -1960,7 +1960,7 @@
     "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3",
-    "contract_complete": true,
+    "contract_complete": false,
     "implementation_package": "S20-410",
     "implementation": "crates/sley-protocol",
     "hello_frame_kind": 4,
@@ -2179,7 +2179,7 @@
         602
       ]
     },
-    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING)"
+    "status_note": "moved off the terminal status on 2026-09-23 (previous status S20_400_COMPLETE, 2026-09-15; revision 12 new-delta review PASS): revision 13 defines the version 2 workspace.open response open_summary (the S20-390 revision_summary plus the optional S20-300 snapshot identity, field 9, REQ-10) and refuses a non-empty workspace.open body; version 1 bytes are unchanged. The base review fields keep their revision 11/12 PASS values as history; current_delta_review is bound to revision 13 with every lane PENDING, so the contract returns to S20_400_COMPLETE only after revision 13 PASS reviews. Consumer re-pins (S20-330, S20-420, S20-430) were made as pin-only edits in the same change. Previous note: moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING)"
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",
@@ -4347,6 +4347,15 @@
     "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "ariadne_contract_review_note": "Ariadne contract revision 4 PASS, recorded by 2026-09-15 when the package moved to S20_620_COMPLETE; it predates transcript capture (no transcript exists) and does not review revision 5; kept byte-exact as history until revision-5-bound PASS reviews return the status to COMPLETE (REQ-10 rev8 Fix 3)",
+    "nabu_architecture_review_note": "Nabu contract revision 4 PASS, recorded by 2026-09-15 when the package moved to S20_620_COMPLETE; it predates transcript capture (no transcript exists) and does not review revision 5; kept byte-exact as history until revision-5-bound PASS reviews return the status to COMPLETE (REQ-10 rev8 Fix 3)",
+    "vulcan_surface_review_note": "Vulcan contract revision 4 PASS, recorded by 2026-09-15 when the package moved to S20_620_COMPLETE; it predates transcript capture (no transcript exists) and does not review revision 5; kept byte-exact as history until revision-5-bound PASS reviews return the status to COMPLETE (REQ-10 rev8 Fix 3)",
+    "ariadne_contract_review_revision_5": "REVISE_0_P0_1_P1_1_P2_3_P3_2_P4",
+    "ariadne_contract_review_revision_5_note": "Ariadne contract revision 5 verdict dated 2026-09-23 on 5b538f36eaee0574027539e512760a05e6d3ae29; transcript evidence/review/verdicts/sley2_trial_runner/ariadne_contract_review_revision_5-5b538f3.md; round index evidence/review/rounds/context-r5-5b538f3.json; findings answered on the work branch (bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md section 11), re-review pending",
+    "nabu_architecture_review_revision_5": "REVISE_0_P0_0_P1_1_P2_4_P3_4_P4",
+    "nabu_architecture_review_revision_5_note": "Nabu contract revision 5 verdict dated 2026-09-23 on 5b538f36eaee0574027539e512760a05e6d3ae29; transcript evidence/review/verdicts/sley2_trial_runner/nabu_architecture_review_revision_5-5b538f3.md; round index evidence/review/rounds/context-r5-5b538f3.json; findings answered on the work branch (bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md section 11), re-review pending",
+    "vulcan_surface_review_revision_5": "REVISE_0_P0_0_P1_1_P2_3_P3_2_P4",
+    "vulcan_surface_review_revision_5_note": "Vulcan contract revision 5 verdict dated 2026-09-23 on 5b538f36eaee0574027539e512760a05e6d3ae29; transcript evidence/review/verdicts/sley2_trial_runner/vulcan_surface_review_revision_5-5b538f3.md; round index evidence/review/rounds/context-r5-5b538f3.json; findings answered on the work branch (bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md section 11), re-review pending",
     "implementation_complete": false,
     "implementation_started": true,
     "implementation": [

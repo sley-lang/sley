@@ -354,6 +354,9 @@ release, or GA.
 - ADR-0035 and `docs/WORK_PACKAGES.md` carry the revision-7 and
   revision-8 records.
 - The revision pins are SMP1 revision 12 and bridge revision 10.
+- Re-pin (2026-09-23, no CLI revision): SMP1 revision 13 and bridge revision 10.
+  SMP1 revision 13 changes only the version 2 `workspace.open` response body (optional field 9) and refuses a non-empty `workspace.open` body; the CLI carries that body as opaque bytes and no clause of
+  this contract changes.
 
 ## 9. Version-aware surface (phase 3, implemented in revision 6)
 

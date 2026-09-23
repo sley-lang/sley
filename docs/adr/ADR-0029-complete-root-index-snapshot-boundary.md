@@ -36,6 +36,9 @@ soon as a lane returns.
    edge endpoints and inversion), and only for read-only derived query
    surfaces. Validation, comparison, merge, commit, exchange, GC, and
    recovery never read it; `verify_cached_snapshot` exists for audits.
+   Profile revision 4 (2026-09-23) adds one read-only identity probe that
+   reports an accepted record's `IndexSnapshotId` without building or
+   writing, for the SMP1 revision 13 `workspace.open` field 9 only.
 4. **Derived and disposable.** Cache files sit outside the object store and
    every retention root, are never packed or exchanged, and may be deleted
    at any time; `index` joins the incomplete-clone layout allowlist.
