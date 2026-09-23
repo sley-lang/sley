@@ -802,6 +802,7 @@ pub fn validate_candidate_bytes(
     let base_functions = base_program.affected_functions(&renderer.affected_closure);
     let proposed_functions = program.affected_functions(&renderer.affected_closure);
     let affected_functions = sorted_union(&base_functions, &proposed_functions);
+    let selection_functions = live_selection_functions(&affected_functions, &program);
     renderer.pass(
         5,
         &[
@@ -1004,7 +1005,7 @@ pub fn validate_candidate_bytes(
         &program.globals,
         &program.contracts,
         &program.tests,
-        &affected_functions,
+        &selection_functions,
         &context.policy.record().required_tests,
     ) {
         Ok(report) => report,
@@ -1728,6 +1729,24 @@ fn sorted_union(left: &[EntityId], right: &[EntityId]) -> Vec<EntityId> {
         .copied()
         .collect::<BTreeSet<_>>()
         .into_iter()
+        .collect()
+}
+
+/// Projects the affected Function identities onto the proposed request for
+/// S20-240 test selection.
+///
+/// A base Function the candidate deletes has no binding in the proposed
+/// state: it is a tombstone for selection. Reference integrity already
+/// refuses any live TestCase still targeting it and policy refuses deleting a
+/// protected required test, so a tombstone selects exactly zero tests and is
+/// omitted from the closed request. Every identity still bound in the
+/// proposed state is kept, whatever its kind, so a kind change keeps refusing
+/// inside the checker. Phase-9 grants keep the full base/proposed union.
+fn live_selection_functions(affected: &[EntityId], program: &CandidateProgram) -> Vec<EntityId> {
+    affected
+        .iter()
+        .copied()
+        .filter(|function| program.kinds.contains_key(function))
         .collect()
 }
 

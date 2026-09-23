@@ -1786,3 +1786,489 @@ mod deletion_tests {
         );
     }
 }
+
+/// Function deletion through candidate validation and native planning: a
+/// deleted base Function is a selection tombstone (zero tests), survivors keep
+/// their selection, and orphaned references still refuse.
+#[cfg(test)]
+mod function_deletion_tests {
+    use sley_id::{CandidateNonce, ObjectId, PrincipalId, TransactionId, WorkspaceId};
+    use sley_mutate::{
+        BoundPrecondition, CandidateExpiry, CandidateRecord, EntityObject, EntityObjectRecord,
+        ExactContainerVersion, ExactEntityVersion, ImportedCandidate, MutationClass,
+        MutationOperation, MutationPayload, OrderedRemove, PreconditionPayload,
+        PreimageRequirement, build_candidate, build_entity_object, full_validation_profile_id,
+        value::{
+            BlockBody, EntityBodyValue, EntityIdSet, FunctionBody, NamespaceBody, ParameterBody,
+            TestCaseBody,
+        },
+    };
+    use sley_ssmc::{
+        ConstData, ConstValue, EffectEnvironment, ExpectedOutcome, ParameterRole, Reachability,
+        ResourceLimits, ReturnTerminator, Terminator, TypeExpr, ValueRef, Visibility,
+    };
+    use sley_state_root::{
+        AcceptedStateRoot, StateRootBuilder, conformance_epoch_id as state_epoch_id,
+        conformance_registry as state_registry,
+    };
+    use sley_tests::NativeAggregateLimits;
+    use sley_vm::native_execution::NativeImplementationLimits;
+
+    use super::super::candidate_validation::tests::fixed;
+    use super::*;
+    use crate::{
+        AcceptedPolicyRoot, CandidateValidationContext, CandidateValidationLimits,
+        CandidateValidationOutput, PolicyResourceCeilings, PolicyRootBuilder,
+        PrincipalGrantBuilder, build_capability_summary_projection,
+        conformance_registry as policy_registry, validate_candidate_bytes,
+    };
+
+    const NOW: u64 = 1_000;
+
+    /// Survivor function, its parameter, reachable block, test, and the
+    /// explicitly unreachable block the DEAD shape removes.
+    const SURVIVOR: u8 = 40;
+    const SURVIVOR_PARAMETER: u8 = 41;
+    const SURVIVOR_BLOCK: u8 = 42;
+    const SURVIVOR_TEST: u8 = 43;
+    const UNREACHABLE_BLOCK: u8 = 44;
+    /// Unused private helper with its parameter and block.
+    const HELPER: u8 = 50;
+    const HELPER_PARAMETER: u8 = 51;
+    const HELPER_BLOCK: u8 = 52;
+    /// Optional test targeting the helper.
+    const HELPER_TEST: u8 = 53;
+
+    fn id(byte: u8) -> EntityId {
+        fixed(byte, EntityId::from_bytes)
+    }
+
+    fn unit() -> ConstValue {
+        ConstValue {
+            value_type: TypeExpr::Unit,
+            data: ConstData::Unit,
+        }
+    }
+
+    fn empty_set() -> EntityIdSet {
+        EntityIdSet::from_unsorted(vec![]).unwrap()
+    }
+
+    fn function(parameter: u8, blocks: &[u8]) -> EntityBodyValue {
+        EntityBodyValue::Function(FunctionBody {
+            type_parameters: vec![],
+            parameters: vec![id(parameter)],
+            result_type: TypeExpr::Unit,
+            effects: empty_set(),
+            entry_block: id(blocks[0]),
+            blocks: blocks.iter().map(|byte| id(*byte)).collect(),
+            contracts: empty_set(),
+            visibility: Visibility::Private,
+        })
+    }
+
+    fn parameter(owner: u8) -> EntityBodyValue {
+        EntityBodyValue::Parameter(ParameterBody {
+            owner: id(owner),
+            role: ParameterRole::Function,
+            ordinal: 0,
+            value_type: TypeExpr::Unit,
+        })
+    }
+
+    fn block(owner: u8, parameter: u8, reachability: Reachability) -> EntityBodyValue {
+        EntityBodyValue::Block(BlockBody {
+            function: id(owner),
+            parameters: vec![],
+            operations: vec![],
+            terminator: Terminator::Return(ReturnTerminator {
+                value: ValueRef::Parameter(id(parameter)),
+            }),
+            reachability,
+        })
+    }
+
+    fn test_case(target: u8) -> EntityBodyValue {
+        EntityBodyValue::TestCase(TestCaseBody {
+            target: id(target),
+            inputs: vec![unit()],
+            effect_environment: EffectEnvironment::Replay(vec![]),
+            expected: ExpectedOutcome::Value(unit()),
+            observations: vec![],
+            resource_limits: ResourceLimits {
+                fuel: 10,
+                memory_bytes: 64,
+                output_bytes: 64,
+                effect_count: 0,
+                call_depth: 2,
+                wall_timeout_millis: 100,
+            },
+        })
+    }
+
+    struct DeadSetup {
+        transaction_id: TransactionId,
+        base_objects: Vec<EntityObject>,
+        base_state: AcceptedStateRoot,
+        policy: AcceptedPolicyRoot,
+        schema_epoch_id: sley_id::SchemaEpochId,
+        summary: CapabilitySummaryDigest,
+    }
+
+    impl DeadSetup {
+        fn object_id(&self, byte: u8) -> ObjectId {
+            self.base_objects
+                .iter()
+                .find(|object| object.record().entity_id == id(byte))
+                .expect("base entity present")
+                .object_id()
+        }
+
+        fn delete(
+            &self,
+            ordinal: u32,
+            byte: u8,
+            kind: u16,
+        ) -> (MutationOperation, BoundPrecondition) {
+            (
+                MutationOperation {
+                    ordinal,
+                    class: MutationClass::DeleteEntityBinding,
+                    target_kind: kind,
+                    target_entity: id(byte),
+                    field_tag: None,
+                    payload: MutationPayload::DeleteEntityBinding,
+                    precondition_ordinal: ordinal,
+                },
+                BoundPrecondition {
+                    operation_ordinal: ordinal,
+                    requirement: PreimageRequirement::ExactEntityVersion,
+                    payload: PreconditionPayload::ExactEntityVersion(ExactEntityVersion {
+                        entity_id: id(byte),
+                        object_id: self.object_id(byte),
+                    }),
+                },
+            )
+        }
+
+        /// Removes the unreachable block from the survivor's block list.
+        fn remove_unreachable(&self, ordinal: u32) -> (MutationOperation, BoundPrecondition) {
+            (
+                MutationOperation {
+                    ordinal,
+                    class: MutationClass::RemoveOrderedChild,
+                    target_kind: 5,
+                    target_entity: id(SURVIVOR),
+                    field_tag: Some(6),
+                    payload: MutationPayload::RemoveOrderedChild(OrderedRemove {
+                        index: 1,
+                        expected_child: id(UNREACHABLE_BLOCK),
+                    }),
+                    precondition_ordinal: ordinal,
+                },
+                BoundPrecondition {
+                    operation_ordinal: ordinal,
+                    requirement: PreimageRequirement::ExactContainerVersion,
+                    payload: PreconditionPayload::ExactContainerVersion(ExactContainerVersion {
+                        container_id: id(SURVIVOR),
+                        object_id: self.object_id(SURVIVOR),
+                        field_tag: 6,
+                    }),
+                },
+            )
+        }
+
+        fn candidate(
+            &self,
+            steps: Vec<(MutationOperation, BoundPrecondition)>,
+        ) -> ImportedCandidate {
+            let (operations, preconditions) = steps.into_iter().unzip();
+            build_candidate(&CandidateRecord {
+                format_version: 1,
+                workspace_id: fixed(1, WorkspaceId::from_bytes),
+                base_transaction_id: self.transaction_id,
+                base_root: self.base_state.root,
+                schema_epoch_id: self.schema_epoch_id,
+                policy_root_id: self.policy.root(),
+                principal_id: fixed(2, PrincipalId::from_bytes),
+                capability_summary_digest: self.summary,
+                operations,
+                preconditions,
+                validation_profile_id: full_validation_profile_id().unwrap(),
+                candidate_nonce: fixed(31, CandidateNonce::from_bytes),
+                expiry: CandidateExpiry::unix_millis(NOW + 1_000),
+            })
+            .unwrap()
+        }
+
+        fn context(&self) -> CandidateValidationContext<'_> {
+            CandidateValidationContext::new(
+                self.transaction_id,
+                &self.base_state,
+                &self.base_objects,
+                &[],
+                &self.policy,
+                fixed(2, PrincipalId::from_bytes),
+                &[],
+                NOW,
+                CandidateValidationLimits::full_v1(),
+            )
+            .unwrap()
+        }
+
+        fn validate(&self, candidate: &ImportedCandidate) -> CandidateValidationOutput {
+            validate_candidate_bytes(&self.context(), &candidate.stored_bytes)
+                .expect("output builds")
+        }
+
+        fn inputs(&self) -> NativePlanInputs<'_> {
+            NativePlanInputs {
+                base_transaction_id: self.transaction_id,
+                base_state: &self.base_state,
+                base_objects: &self.base_objects,
+                policy: &self.policy,
+                capability_summary: self.summary,
+                limits: CandidateValidationLimits::full_v1(),
+                implementation_limits: NativeImplementationLimits::HARD_MAXIMA,
+                aggregate: NativeAggregateLimits::HARD_MAXIMA,
+            }
+        }
+    }
+
+    /// Base: survivor (reachable + explicitly unreachable block, one test),
+    /// unused private helper, optionally a helper test (optionally required).
+    fn dead_setup(helper_test: bool, helper_test_required: bool) -> DeadSetup {
+        let workspace_id = fixed(1, WorkspaceId::from_bytes);
+        let principal_id = fixed(2, PrincipalId::from_bytes);
+        let transaction_id = fixed(3, TransactionId::from_bytes);
+        let grant = PrincipalGrantBuilder::new(PolicyResourceCeilings::new(
+            1_000, 1_000, 1_000, 100, 100, 100,
+        ))
+        .mutation_class(MutationClass::DeleteEntityBinding)
+        .mutation_class(MutationClass::RemoveOrderedChild)
+        .build()
+        .unwrap();
+        let mut policy = PolicyRootBuilder::new(workspace_id).principal_grant(principal_id, grant);
+        if helper_test_required {
+            policy = policy.required_test(id(HELPER_TEST));
+        }
+        let policy = policy.build(&policy_registry().unwrap()).unwrap();
+
+        let schema_epoch_id = state_epoch_id().unwrap();
+        let object = |byte: u8, body: EntityBodyValue| {
+            build_entity_object(
+                schema_epoch_id,
+                &EntityObjectRecord {
+                    entity_id: id(byte),
+                    body,
+                    label: None,
+                    semantic_fingerprint: None,
+                },
+            )
+            .unwrap()
+        };
+        let mut base_objects = vec![
+            object(
+                10,
+                EntityBodyValue::Namespace(NamespaceBody {
+                    parent: None,
+                    members: empty_set(),
+                }),
+            ),
+            object(
+                SURVIVOR,
+                function(SURVIVOR_PARAMETER, &[SURVIVOR_BLOCK, UNREACHABLE_BLOCK]),
+            ),
+            object(SURVIVOR_PARAMETER, parameter(SURVIVOR)),
+            object(
+                SURVIVOR_BLOCK,
+                block(SURVIVOR, SURVIVOR_PARAMETER, Reachability::Required),
+            ),
+            object(SURVIVOR_TEST, test_case(SURVIVOR)),
+            object(
+                UNREACHABLE_BLOCK,
+                block(
+                    SURVIVOR,
+                    SURVIVOR_PARAMETER,
+                    Reachability::ExplicitlyUnreachable,
+                ),
+            ),
+            object(HELPER, function(HELPER_PARAMETER, &[HELPER_BLOCK])),
+            object(HELPER_PARAMETER, parameter(HELPER)),
+            object(
+                HELPER_BLOCK,
+                block(HELPER, HELPER_PARAMETER, Reachability::Required),
+            ),
+        ];
+        if helper_test {
+            base_objects.push(object(HELPER_TEST, test_case(HELPER)));
+        }
+        let mut state_builder = StateRootBuilder::new(
+            workspace_id,
+            fixed(20, ObjectId::from_bytes),
+            fixed(21, ObjectId::from_bytes),
+            policy.root(),
+        );
+        for object in &base_objects {
+            state_builder =
+                state_builder.entity_binding(object.record().entity_id, object.object_id());
+        }
+        let base_state = state_builder.build(&state_registry().unwrap()).unwrap();
+        let summary = build_capability_summary_projection(
+            principal_id,
+            workspace_id,
+            policy.root(),
+            base_state.root,
+            &[],
+        )
+        .unwrap()
+        .digest();
+        DeadSetup {
+            transaction_id,
+            base_objects,
+            base_state,
+            policy,
+            schema_epoch_id,
+            summary,
+        }
+    }
+
+    fn helper_cascade(
+        setup: &DeadSetup,
+        first: u32,
+    ) -> Vec<(MutationOperation, BoundPrecondition)> {
+        vec![
+            setup.delete(first, HELPER, 5),
+            setup.delete(first + 1, HELPER_PARAMETER, 6),
+            setup.delete(first + 2, HELPER_BLOCK, 7),
+        ]
+    }
+
+    fn assert_failure(output: &CandidateValidationOutput, phase: u32, symbol: &str) {
+        let record = &output.result().record;
+        assert!(!output.is_valid());
+        assert_eq!(record.diagnostics.len(), 1);
+        assert_eq!(record.diagnostics[0].phase_tag, phase);
+        assert_eq!(record.diagnostics[0].source_symbol, symbol);
+    }
+
+    #[test]
+    fn baseline_fixture_validates_with_a_selected_survivor_test() {
+        let setup = dead_setup(false, false);
+        // A pure survivor edit (drop the unreachable block) selects the
+        // survivor's test: the fixture is not vacuous.
+        let candidate = setup.candidate(vec![
+            setup.remove_unreachable(0),
+            setup.delete(1, UNREACHABLE_BLOCK, 7),
+        ]);
+        let output = setup.validate(&candidate);
+        assert!(
+            output.is_valid(),
+            "{:?}",
+            output.result().record.diagnostics
+        );
+        assert_eq!(
+            output.result().record.selected_tests,
+            vec![id(SURVIVOR_TEST)]
+        );
+    }
+
+    #[test]
+    fn deleting_an_unused_private_helper_validates_and_selects_nothing_for_it() {
+        let setup = dead_setup(false, false);
+        let candidate = setup.candidate(helper_cascade(&setup, 0));
+        let output = setup.validate(&candidate);
+        assert!(
+            output.is_valid(),
+            "{:?}",
+            output.result().record.diagnostics
+        );
+        assert!(output.result().record.selected_tests.is_empty());
+        let plan = native_test_plan(&output, &setup.inputs()).expect("plan derives");
+        assert!(plan.selected().is_empty());
+        assert!(plan.changed().is_empty());
+    }
+
+    #[test]
+    fn dead_code_removal_keeps_survivor_selection_and_tombstones_the_helper() {
+        let setup = dead_setup(false, false);
+        let mut steps = vec![
+            setup.remove_unreachable(0),
+            setup.delete(1, UNREACHABLE_BLOCK, 7),
+        ];
+        steps.extend(helper_cascade(&setup, 2));
+        let candidate = setup.candidate(steps);
+        let output = setup.validate(&candidate);
+        assert!(
+            output.is_valid(),
+            "{:?}",
+            output.result().record.diagnostics
+        );
+        let record = &output.result().record;
+        assert_eq!(record.selected_tests, vec![id(SURVIVOR_TEST)]);
+        // Phase-5 accounting still names the deleted helper: the tombstone
+        // is omitted from selection only, never from the affected closure.
+        assert!(record.affected_closure.contains(&id(HELPER)));
+        assert!(record.affected_closure.contains(&id(SURVIVOR)));
+        let plan = native_test_plan(&output, &setup.inputs()).expect("plan derives");
+        let selected: Vec<_> = plan
+            .selected()
+            .iter()
+            .map(|entry| entry.test_entity)
+            .collect();
+        assert_eq!(selected, vec![id(SURVIVOR_TEST)]);
+    }
+
+    #[test]
+    fn orphaning_the_helper_block_still_refuses() {
+        let setup = dead_setup(false, false);
+        let candidate = setup.candidate(vec![
+            setup.delete(0, HELPER, 5),
+            setup.delete(1, HELPER_PARAMETER, 6),
+        ]);
+        let output = setup.validate(&candidate);
+        assert_failure(&output, 5, "GRAPH_UNRESOLVED_REFERENCE");
+    }
+
+    #[test]
+    fn a_live_test_targeting_the_deleted_helper_still_refuses() {
+        let setup = dead_setup(true, false);
+        let candidate = setup.candidate(helper_cascade(&setup, 0));
+        let output = setup.validate(&candidate);
+        assert_failure(&output, 5, "GRAPH_UNRESOLVED_REFERENCE");
+    }
+
+    #[test]
+    fn deleting_the_helper_with_its_optional_test_validates_and_records_the_test() {
+        let setup = dead_setup(true, false);
+        let mut steps = helper_cascade(&setup, 0);
+        steps.push(setup.delete(3, HELPER_TEST, 14));
+        let candidate = setup.candidate(steps);
+        let output = setup.validate(&candidate);
+        assert!(
+            output.is_valid(),
+            "{:?}",
+            output.result().record.diagnostics
+        );
+        assert!(output.result().record.selected_tests.is_empty());
+        let plan = native_test_plan(&output, &setup.inputs()).expect("plan derives");
+        assert!(plan.selected().is_empty());
+        assert_eq!(plan.changed().len(), 1);
+        assert_eq!(plan.changed()[0].test_entity, id(HELPER_TEST));
+        assert_eq!(plan.changed()[0].after, None);
+    }
+
+    #[test]
+    fn deleting_the_helper_with_its_protected_required_test_still_refuses() {
+        let setup = dead_setup(true, true);
+        let mut steps = helper_cascade(&setup, 0);
+        steps.push(setup.delete(3, HELPER_TEST, 14));
+        let candidate = setup.candidate(steps);
+        let output = setup.validate(&candidate);
+        assert_failure(&output, 11, "TEST_PLAN_SELECTION_INVALID");
+        assert_eq!(
+            native_test_plan(&output, &setup.inputs()).expect_err("refuses"),
+            NativePlanErrorV1::SelectionInvalid
+        );
+    }
+}

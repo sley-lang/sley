@@ -308,7 +308,15 @@ phase 14 as executed or passed.
 - Phase 9 independently rebuilds and compares the capability summary, verifies
   authenticated token bindings where present, enforces policy mutation-class
   grants and ceilings, and runs protected ordinary-program isolation.
-- Phase 10 invokes the owning contract checker.
+- Phase 10 invokes the owning contract checker. Its affected-Function input
+  is the phase-5 base/proposed affected Function union projected onto the
+  identities still bound in the proposed state: a Function the candidate
+  deletes is a selection tombstone. Phase 5 has already refused any live
+  reference to it (a TestCase still targeting it included), so it selects
+  exactly zero tests and is omitted from the checker's closed request, which
+  requires every affected Function to resolve there. An identity still bound
+  under another kind is kept and refuses inside the checker. Phase 9 grants
+  and the recorded affected closure keep the full union.
 - Phase 11 finalizes the checker-produced plan against protected mandatory
   tests/contracts; caller-selected tests are forbidden.
 - Phase 12 charges deterministic operation, decoded-value, graph, checker,
