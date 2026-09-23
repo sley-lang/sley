@@ -66,6 +66,8 @@ WORKSPACE_OPEN_ANCHORS = (
      "`open_summary` (revisions 13 and 14) is the `workspace.open` response under version 2 and under every later "
      "selection whose method table includes version 2's row 201"),
     ("field-9-pointer", "Field 9 is a pointer, not evidence"),
+    ("entrypoints-admit-version-3",
+     "`ProtocolFrame::validate_for_version`) admit only selections 1, 2, and 3, like `negotiate_versioned`"),
     ("version-1-compat",
      "the one version 1 observable change since revision 12 is that a non-empty 201 body, previously ignored"),
 )

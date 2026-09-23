@@ -297,6 +297,7 @@ class WorkspaceOpenAnchorCases(unittest.TestCase):
          "`open_summary` under a version 2 selection"),
         ("[9: IndexSnapshotId])", "9: IndexSnapshotId)"),
         ("Field 9 is a pointer, not\nevidence", "Field 9 is"),
+        ("admit only selections 1, 2, and 3,", "admit only selections 1 and 2,"),
     )
 
     def test_each_revert_is_refused(self):
