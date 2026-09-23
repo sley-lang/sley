@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 CONTRACT = "sley2.finding-register.v1"
-CONTRACT_REVISION = 9
+CONTRACT_REVISION = 10
 # Field names that name a role, actor, session, instant, or free note rather
 # than a disposition (contract section 1). All suffix-anchored: a bare
 # substring match would silently drop a future field that merely contains
@@ -949,10 +949,15 @@ def open_lines_about(
 ) -> list[int]:
     """Lines of the transcript that record the claim's severity OPEN and speak
     about the claim: a transcript that records the claim OPEN cannot close it
-    on another line (Vulcan P3 at 1a9f0aa). The OPEN item's head is bounded
-    to the finding's own tag and anchor list, and the claim's shared
-    vocabulary never relates (Ariadne P4 at 8966da2e: a carry parenthetical
-    quoting another finding's kind had held a claim open)."""
+    on another line (Vulcan P3 at 1a9f0aa). The OPEN item's whole head is
+    read under the strong read — backticked identifiers, finding ids,
+    file:line anchors and quoted phrases all hold the claim open, and no
+    shared-vocabulary exemption narrows it (Vulcan P2/P3 at d158d26b: the
+    8966da2e-round reduction to bracketed tags and paths had dropped every
+    unbracketed identifier from the refusal; an ambiguity fails closed).
+    `section`/`section_name` are accepted for the callers' signature and
+    deliberately unused."""
+    del section, section_name
     if not path.is_file():
         return []
     lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
@@ -967,11 +972,9 @@ def open_lines_about(
         else:
             opens = [m for m in STATUS_OPEN.finditer(line) if not _quoted(line, m.start(), m.end())]
             head = line[: opens[0].start()]
-        head = " ".join(CATEGORY.findall(head) + PATH_TOKEN.findall(head))
-        shared = shared_vocabulary(section, severity, claim, section_name) if section is not None else set()
         # A strong identity only (identifier, finding id, file:line anchor or
         # quoted phrase): one lane files several findings under one kind.
-        if line_speaks_about(head, claim, strong=True, shared=shared, paths_ok=False):
+        if line_speaks_about(head, claim, strong=True, paths_ok=False):
             found.append(index + 1)
     return found
 
@@ -1340,6 +1343,40 @@ def exact_claim_binding(section: str, claim: str, transcript: Path, lines: list[
     return False
 
 
+def declared_other_findings(section: str, claim: str, transcript: Path) -> dict[int, str]:
+    """OPEN lines of the transcript that an exact-claim binding declares, one
+    by one with a reason, to be another finding's (d158d26b round: the full
+    strong OPEN read also refuses a closure when a distinct finding's OPEN
+    head shares an identifier or a line span). Only the tracked retirement
+    file declares them; a declaration is never inferred."""
+    try:
+        entries = json.loads(RETIREMENTS.read_text(encoding="utf-8"))
+        relative = transcript.resolve().relative_to(ROOT.resolve()).as_posix()
+    except (OSError, ValueError, json.JSONDecodeError):
+        return {}
+    for entry in entries:
+        if not isinstance(entry, dict) or entry.get("section") != section or entry.get("verified_by") != relative:
+            continue
+        for item in entry.get("claims") or []:
+            if isinstance(item, dict) and item.get("claim") == claim:
+                declared = item.get("open_lines_of_other_findings") or {}
+                return {int(n): str(reason) for n, reason in declared.items() if str(reason).strip()}
+    return {}
+
+
+def refusing_open_lines(section: str, claim: str, transcript: Path, severity: str, exact: bool) -> list[int]:
+    """The OPEN lines that refuse this closure: every strong-read OPEN line,
+    less — for an exact-claim binding only — the lines its entry declares to
+    be other findings'. A declaration naming a line that is not such an
+    OPEN line is stale and refuses too (the transcript is the authority)."""
+    found = open_lines_about(transcript, claim, severity)
+    if not exact:
+        return found
+    declared = declared_other_findings(section, claim, transcript)
+    stale = [n for n in declared if n not in found]
+    return sorted(set(n for n in found if n not in declared) | set(stale))
+
+
 def package_closed_claims(summary: dict) -> dict[str, int]:
     """Every retired per-package claim, dotted field to count, shape-checked.
 
@@ -1441,10 +1478,11 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                     )
                 # A transcript that records the claim's severity OPEN cannot
                 # close it on another line — exact-claim bindings included.
-                if open_lines_about(resolved, entry["claim"], severity, value, section):
+                refusing = refusing_open_lines(section, entry["claim"], resolved, severity, entry.get("binding") == "exact-claim")
+                if refusing:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
-                        f"{section}.{field}: {resolved.name} also records the claim OPEN at {open_lines_about(resolved, entry['claim'], severity, value, section)}",
+                        f"{section}.{field}: {resolved.name} also records the claim OPEN at {refusing}",
                     )
             claims[f"{section}.{field}"] = len(item)
     return dict(sorted(claims.items()))
@@ -1647,46 +1685,28 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: re-statement is not the same finding: {entry['claim'][:60]!r}",
                     )
-                # The fold resolves its root by the named sha (Vulcan P2 at
-                # 8966da2e) — every fold, exact-key inheritance included
-                # (Ariadne P3 at 8966da2e, second batch: seven inheritances
-                # had restated a claim at another round than the one named).
-                # Two shapes replay the fold's rules: a named carry, and an
-                # exact-key inheritance (non-empty identifier) into a retired
-                # claim — never identity by an absent identifier.
+                # The ledger replays the fold's one rule (d158d26b round: no
+                # closure path through a fold): a named carry, restating the
+                # claim at the round it names, from a strictly later round,
+                # whose chain ends at an OPEN claim.
                 named_sha = named_carry_sha(entry["claim"])
                 target_scope = claim_scope(entry["restates"]) or raising_scope(section, entry["restates"], value)
-                retired_targets = {item.get("claim") for item in value.get(f"p{severity}_closed_claims") or [] if isinstance(item, dict)}
-                own_key = finding_key(entry["claim"], section, value)
-                exact_inherit = (
-                    own_key == finding_key(entry["restates"], section, value)
-                    and bool(own_key[3])
-                    and entry["restates"] in retired_targets
-                )
-                # A retired carry of the same named root is that round's
-                # finding too (the named root resolved one hop).
-                if named_sha and (target_scope or "")[:7] != named_sha and not (
-                    exact_inherit and named_carry_sha(entry["restates"]) == named_sha
-                ):
+                if not is_carry(entry["claim"]) or not named_sha:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: re-statement carries no carried/prior marker: {entry['claim'][:60]!r}",
+                    )
+                if (target_scope or "")[:7] != named_sha:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: re-statement names {named_sha} but restates a claim at {target_scope}: {entry['claim'][:60]!r}",
                     )
-                # An exact-key inheritance into a retired claim needs
-                # neither a carry phrase nor a later scope: it is the same
-                # finding, already judged (Ariadne P2 at 8966da2e).
-                if not exact_inherit:
-                    if not is_carry(entry["claim"]):
-                        raise RegisterError(
-                            RegisterErrorCode.SUMMARY_INVALID,
-                            f"{section}.{field}: re-statement carries no carried/prior marker: {entry['claim'][:60]!r}",
-                        )
-                    later, first = claim_scope(entry["claim"]), claim_scope(entry["restates"])
-                    if later is None or (first is not None and not strictly_later_scope(later, first)):
-                        raise RegisterError(
-                            RegisterErrorCode.SUMMARY_INVALID,
-                            f"{section}.{field}: re-statement is not a strictly later round: {entry['claim'][:60]!r}",
-                        )
+                later, first = claim_scope(entry["claim"]), claim_scope(entry["restates"])
+                if later is None or (first is not None and not strictly_later_scope(later, first)):
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: re-statement is not a strictly later round: {entry['claim'][:60]!r}",
+                    )
                 links = {item["claim"]: item["restates"] for item in item_entries if isinstance(item, dict) and "claim" in item and "restates" in item}
                 seen: set[str] = set()
                 target = entry["restates"]
@@ -1699,6 +1719,12 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: restates a claim the section does not carry: {target[:60]!r}",
+                    )
+                # A fold never transfers a closure (d158d26b round).
+                if target not in open_list:
+                    raise RegisterError(
+                        RegisterErrorCode.SUMMARY_INVALID,
+                        f"{section}.{field}: re-statement of a retired claim: {entry['claim'][:60]!r}",
                     )
             claims[f"{section}.{field}"] = len(item)
     return dict(sorted(claims.items()))

@@ -38,7 +38,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from build_finding_register import (  # noqa: E402
     claim_relation_problem, claim_scope, closed_severities, cited_closure_lines, finding_key, is_carry,
-    is_closure_line, is_tracked, line_speaks_about, named_carry_sha, open_lines_about, raising_scope, same_finding,
+    is_closure_line, is_tracked, line_speaks_about, named_carry_sha, open_lines_about, raising_scope, refusing_open_lines, same_finding,
     scope_generation, shared_vocabulary, shares_its_kind, transcript_path,
 )
 
@@ -289,7 +289,7 @@ def retire(summary: dict, retirements: list[dict]) -> int:
                             closure = cited_closure_lines(ROOT / item["verified_by"], f"P{severity}")
                             lines = exact.get("lines") or []
                             relation = relation_problem(name, entry, item["verified_by"], section)
-                            if open_lines_about(ROOT / item["verified_by"], entry, f"P{severity}", section, name):
+                            if refusing_open_lines(name, entry, ROOT / item["verified_by"], f"P{severity}", True):
                                 relation = relation or "the transcript records the claim OPEN"
                             if relation or not lines or not set(lines) <= set(closure):
                                 raise SystemExit(
@@ -355,27 +355,19 @@ def fold_restatements(summary: dict) -> int:
     """Fold a lane's later re-statement of a carried open finding into the
     claim at the round it names (Nabu/Vulcan/Ariadne P4 at 76ae15ab: carried
     findings were listed once per round). The re-statement moves to
-    `pN_restated_claims` as `{claim, restates}`; nothing vanishes, the named
-    root (whose scope a later closure must strictly postdate) stays open,
-    and the closure line must still speak about it. A fold into a retired
-    root additionally requires the closing transcript to strictly postdate
-    the re-statement — a claim filed after the closure was written inherits
-    nothing (Nabu/Vulcan P2 at 8966da2e). A re-statement whose
-    named sha matches no same-finding claim stays open (Ariadne/Nabu/Vulcan
-    P2 at 8966da2e: five `[predicate-precision]` re-statements naming
-    79fdcc6/b58ac1e/8f774d0 had folded into a closed root at 76ae15a).
+    `pN_restated_claims` as `{claim, restates}`; nothing vanishes and the
+    named root stays open.
 
-    Two passes, one identity rule (8966da2e round, second batch): (1) a
-    named carry folds into the one same-key claim at the round it names;
-    (2) an open claim whose exact key — with a non-empty identifier —
-    matches a retired claim inherits that status only when the retired
-    claim's own cited closing lines speak about it under the retirement
-    read, and at the named round (or into a retired carry of the same
-    named root) when it names one. An absent identifier (`""`) is never an
-    identity for (2). An uncarried copy is never folded by key alone: a
-    lane may raise a distinct finding on an identifier it used before, so
-    `pN_open_count` is a claim count and the register reports the distinct
-    findings separately (`package_open_findings`)."""
+    One rule, no closure path (d158d26b round: every ambiguity fails
+    closed): a named carry folds only into the one OPEN same-key claim at the
+    round it names, from a strictly later round. A fold never transfers a
+    closure — a carry whose named root is retired stays open, `retire`
+    judges it on its own closing lines, and a carry the root's closing round
+    could have judged but did not close is a split `--check` refuses until
+    an explicit exact-claim binding reconciles it (Nabu P2, Vulcan P3,
+    Nabu P3, Vulcan P3 at d158d26b: the exact-key inheritance and the
+    retired-root guard had handed one finding's closure to another). Two
+    same-key claims at the named round are ambiguous and fold nothing."""
     folded = 0
     for name, section in summary.items():
         if not isinstance(section, dict):
@@ -384,9 +376,7 @@ def fold_restatements(summary: dict) -> int:
             entries = section.get(f"p{severity}_open")
             if not isinstance(entries, list) or not entries:
                 continue
-            closed_items = [item for item in section.get(f"p{severity}_closed_claims", []) if isinstance(item, dict)]
-            roots = entries + [item["claim"] for item in closed_items]
-            keys = {entry: finding_key(entry, name, section) for entry in roots}
+            keys = {entry: finding_key(entry, name, section) for entry in entries}
             keep: list[str] = []
             restated = list(section.get(f"p{severity}_restated_claims", []))
 
@@ -394,99 +384,29 @@ def fold_restatements(summary: dict) -> int:
                 scope = claim_scope(claim) or raising_scope(name, claim, section)
                 return scope[:7] if scope else None
 
-            def closing_lines_name(item: dict, entry: str) -> bool:
-                """The retired claim's own cited closing lines speak about
-                the entry under the retirement read (strong identity with the
-                lane's shared vocabulary, OPEN-line refusal), and the closing
-                transcript strictly postdates the entry — the rule `retire`
-                applies (Ariadne P3 / Nabu, Vulcan P2 at 8966da2e). An
-                unscoped entry or closing transcript counts for nothing."""
-                path = item["verified_by"].split("#")[0]
-                cited = re.search(r"#L([0-9,]+)", item["verified_by"])
-                lines = [int(n) for n in cited.group(1).split(",")] if cited else []
-                if not path or not lines:
-                    return False
-                # The inheriting pair is one finding by its exact key, so the
-                # retired member's own words are not "another finding's"
-                # vocabulary (Vulcan P3 at 8966da2e, s20_700: exclude only
-                # the linked pair, never every equal key).
-                view = dict(section)
-                view[f"p{severity}_closed_claims"] = [
-                    other for other in closed_items if other is not item
-                ]
-                naming = set(speaking_lines(ROOT / path, f"P{severity}", entry, view, name))
-                closer_scope = transcript_scope(path)
-                entry_scope = scope_of(entry)
-                return bool(
-                    set(lines) & naming
-                    and closer_scope is not None
-                    and entry_scope is not None
-                    and strictly_later(closer_scope, entry_scope)
-                )
-
             for entry in entries:
-                # The root is the claim at the round the re-statement names
-                # (its tag or raising scope equals the named sha) — never the
-                # earliest listed nor the farthest ancestor (Vulcan P2 at
-                # 8f774d0c; P2s at 8966da2e). Two same-key claims at that
-                # round are ambiguous and the carry stays open (Ariadne P3 at
-                # 8966da2e, second batch).
                 named_sha = named_carry_sha(entry)
                 if keys[entry][0] is None or not is_carry(entry) or not named_sha:
                     keep.append(entry)
                     continue
                 matching = list(dict.fromkeys(
-                    other for other in roots
+                    other for other in entries
                     if other != entry and same_finding(keys[other], keys[entry]) and scope_of(other) == named_sha
                 ))
                 if len(matching) != 1:
                     keep.append(entry)
                     continue
                 root = matching[0]
-                closer = next((item for item in closed_items if item["claim"] == root), None)
-                if closer is not None and not closing_lines_name(closer, entry):
-                    keep.append(entry)
-                    continue
-                later = claim_scope(entry)
-                first = claim_scope(root)
+                later, first = claim_scope(entry), claim_scope(root)
                 # Only a strictly later round's re-statement folds; an
-                # untagged claim is the earliest by construction.
-                if first is None and later is not None or (first and later and strictly_later(later, first)):
+                # untagged root is the earliest by construction.
+                if later is not None and (first is None or strictly_later(later, first)):
                     restated.append({"claim": entry, "restates": root})
                     folded += 1
                 else:
                     keep.append(entry)
-            # One finding, one status (Ariadne P2 at 8966da2e): an open claim
-            # whose exact, identifier-bearing key matches a retired claim
-            # inherits that status when the retired claim's own closing lines
-            # name it (and, for a named carry, only at the named round or
-            # into a retired carry of the same named root). A
-            # member the closing lines do not name stays open; the
-            # split-status refusal in `--check` then forces an explicit
-            # reconciliation.
-            retired_by_key: dict[tuple, list[dict]] = {}
-            for item in closed_items:
-                retired_by_key.setdefault(keys[item["claim"]], []).append(item)
-            settled: list[str] = []
-            for entry in keep:
-                named_sha = named_carry_sha(entry) if is_carry(entry) else None
-                targets = [
-                    item for item in retired_by_key.get(keys[entry], [])
-                    if keys[entry][3] and item["claim"] != entry
-                    and (
-                        named_sha is None
-                        or scope_of(item["claim"]) == named_sha
-                        or named_carry_sha(item["claim"]) == named_sha
-                    )
-                    and closing_lines_name(item, entry)
-                ]
-                if not targets:
-                    settled.append(entry)
-                    continue
-                restated.append({"claim": entry, "restates": targets[0]["claim"]})
-                folded += 1
-            section[f"p{severity}_open"] = settled
-            section[f"p{severity}_open_count"] = len(settled)
+            section[f"p{severity}_open"] = keep
+            section[f"p{severity}_open_count"] = len(keep)
             if restated:
                 section[f"p{severity}_restated_claims"] = restated
     return folded
@@ -573,7 +493,59 @@ def split_status_problems(summary: dict) -> list[str]:
                 if scope is None or any(strictly_later(closer, scope[:7]) for closer in closed_by_key[key]):
                     reported.add(key)
                     problems.append(f"{name}.p{severity}: one finding open and closed: {key[1]!r} {key[2]!r} {key[3]!r}")
+            problems.extend(named_carry_splits(name, section, severity))
     return problems
+
+
+def named_carry_splits(name: str, section: dict, severity: int) -> list[str]:
+    """A named carry and its named root — same lane, kind and file/origin,
+    the root raised at the round the carry names, whatever either
+    identifier — are one finding by the reviewer's own statement (Ariadne P3
+    at d158d26b: 18 named-carry/named-root pairs kept two statuses because
+    the identifiers differed or were absent). One open and the other closed
+    is a split when the closing transcript strictly postdates the open
+    member (it could have judged it); `--check` refuses it until an
+    explicit exact-claim binding reconciles it. Detection only: the link
+    never folds or closes anything."""
+    def scope_of(claim: str) -> str | None:
+        scope = claim_scope(claim) or raising_scope(name, claim, section)
+        return scope[:7] if scope else None
+
+    open_claims = [c for c in section.get(f"p{severity}_open") or [] if isinstance(c, str)]
+    closed = [item for item in section.get(f"p{severity}_closed_claims") or [] if isinstance(item, dict)]
+    # A folded carry already shares its open root's status; only open and
+    # retired claims are linked here.
+    members = [(c, None) for c in open_claims] + [(item["claim"], item) for item in closed]
+    problems: list[str] = []
+    for carry, carry_item in members:
+        sha = named_carry_sha(carry) if is_carry(carry) else None
+        if not sha:
+            continue
+        carry_key = finding_key(carry, name, section)
+        at_round = [
+            (root, root_item) for root, root_item in members
+            if root != carry and scope_of(root) == sha and finding_key(root, name, section)[:3] == carry_key[:3]
+        ]
+        # The named root: the one claim at that round with the carry's exact
+        # key, else the one claim of its lane, kind and file there. Several
+        # candidates name no single root, and no link is drawn.
+        exact = [pair for pair in at_round if finding_key(pair[0], name, section) == carry_key]
+        chosen = exact if exact else at_round
+        if len(chosen) != 1:
+            continue
+        root, root_item = chosen[0]
+        if (carry_item is None) == (root_item is None):
+            continue
+        if carry_key[3] and finding_key(root, name, section) == carry_key:
+            continue  # the identity rule above already reports an equal key
+        open_member, closed_item = (carry, root_item) if carry_item is None else (root, carry_item)
+        closer = transcript_scope(closed_item.get("verified_by", ""))
+        opened = scope_of(open_member)
+        if closer and opened and strictly_later(closer, opened):
+            problems.append(
+                f"{name}.p{severity}: named carry and named root split: {carry[:70]!r} / {root[:70]!r}"
+            )
+    return sorted(set(problems))
 
 
 def regeneration_divergence(tracked: dict, retirements: list[dict]) -> list[str]:
@@ -622,7 +594,12 @@ def replay_problems(summary: dict) -> list[str]:
                 closure = set(cited_closure_lines(ROOT / path, f"P{severity}")) if path else set()
                 if item.get("binding") == "exact-claim":
                     from build_finding_register import exact_claim_binding
-                    if not wanted or not wanted <= closure or not exact_claim_binding(name, claim, ROOT / path, sorted(wanted)):
+                    if (
+                        not wanted
+                        or not wanted <= closure
+                        or not exact_claim_binding(name, claim, ROOT / path, sorted(wanted))
+                        or refusing_open_lines(name, claim, ROOT / path, f"P{severity}", True)
+                    ):
                         problems.append(f"{name}.p{severity}_closed_claims (exact-claim): {verified_by[:100]} :: {claim[:60]}")
                 elif not wanted or not wanted <= closure or not wanted & recorded:
                     problems.append(f"{name}.p{severity}_closed_claims: {verified_by[:100]} :: {claim[:60]}")

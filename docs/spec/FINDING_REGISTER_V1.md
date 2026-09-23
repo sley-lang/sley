@@ -1,6 +1,6 @@
 # Finding Register v1
 
-Status: S20-740 contract draft, revision 9 (2026-09-23); Council review
+Status: S20-740 contract draft, revision 10 (2026-09-23); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). The mechanics are `scripts/build_finding_register.py`;
 implementation state is tracked in the machine summary.
@@ -34,8 +34,11 @@ identifier, naming its carried root) folds into the claim at the round
 it names as `pN_restated_claims` `{claim, restates}`
 (`--fold-restatements`); the named root stays open, a closure must
 still postdate its scope and speak about it, and the register reports
-`package_restated_claims`. One finding receives one status: no key is
-open in one copy and closed in another (`--check` refuses a split). After the 1a9f0aab round (Nabu P2, Ariadne
+`package_restated_claims`. One finding receives one status: `--check`
+refuses a split — an identifier-bearing key, or a named carry and its
+named root, open in one copy and closed by a transcript that strictly
+postdates the open copy (the scope of the refusal is stated in full in
+the revision 10 paragraph below). After the 1a9f0aab round (Nabu P2, Ariadne
 P2/P3, Vulcan P3): the severity a closure line records is the one its own
 leading token names (`[P1]`, `Prior P3`, `P2/P3`), never a severity
 mentioned later in the head; the claim-to-line relation is a finding
@@ -96,8 +99,9 @@ automatically. Closers are ordered by git ancestry (the earliest closing
 transcript binds) and a line whose own head names the finding is
 preferred over one naming it only in trailing prose. Document ids
 (`ADR-0040`, `S20-540`) are not finding ids; an anchor's line span
-(`413-417,424-425`) relates without its file name, a single line number
-never does; a re-statement's leading carry marker
+(`413-417,424-425`) relates only when the line also names the claim's
+file basename, or the claim cites no file (revision 8, stated at revision
+10), and a single line number never does; a re-statement's leading carry marker
 (`(carried from <sha>, OPEN …)`) is stripped before its finding key is
 taken. Finding ids are shared vocabulary like kinds and identifiers; a
 finding id carried by a cited path is not the claim's. The strong read
@@ -204,6 +208,49 @@ also reports, without failing, a live PRIOR token that closes fewer
 severities than its transcript's status lines (`closer_disagreements`);
 the union still closes, per the b58ac1e0 rule. This is contract
 revision 9.
+
+After the d158d26b round (2026-09-23: Nabu and Vulcan packaging P2s;
+Ariadne packaging, Ariadne, Nabu and Vulcan reproducibility and Vulcan
+standards P3s), every ambiguity fails closed and every rule the mechanics
+apply is stated here; where this text and an earlier paragraph differ,
+this paragraph governs.
+- Folding. A named carry (a leading `(carried from <sha>, …)` clause or a
+  `carried from <sha>` phrase outside quoted spans) folds into the one
+  open claim of its exact finding key raised at the round it names, from
+  a strictly later round; two such claims fold nothing. A fold never
+  transfers a closure: there is no exact-key inheritance and no fold into
+  a retired root, so a carry whose root is retired stays open until
+  `retire` closes it on its own closing lines or an exact-claim binding
+  does. The ledger refuses a re-statement that is not a named carry of a
+  claim at the named round, that is not strictly later, or whose chain
+  ends at a retired claim.
+- OPEN refusal. The OPEN item's whole head is read under the strong read
+  (identifier, finding id, file:line anchor, quoted phrase; no path rule,
+  no shared-vocabulary exemption). It applies to automatic closures, the
+  explicit rule, exact-claim bindings, the builder and the replay alike.
+  An exact-claim binding alone may declare, line by line in
+  `open_lines_of_other_findings` with a reason, an OPEN line that is
+  another finding's; an undeclared matching line, or a declared line that
+  is not such an OPEN line, refuses the closure.
+- Split status. `--check` refuses (a) an identifier-bearing key open in
+  one copy and closed in another by a transcript that strictly postdates
+  the open copy, and (b) a named carry and its named root — the one claim
+  at the named round with the carry's exact key, else the one claim there
+  of its lane, kind and file, whatever the identifiers — one open and the
+  other closed by a transcript that strictly postdates the open member.
+  A copy raised at or after the closing round is that round's own
+  statement. Every split is reconciled by an exact-claim binding, never
+  by a broader rule.
+- Identity. An absent identifier (`""`) is no identity; ledger field
+  names (the `pN_*` lists, the register's `package_*` outputs, lane and
+  verdict field names) are never identities, so a finding whose subject
+  is such a name is closed by an exact-claim binding; the span rule above
+  needs the claim's file basename on the line.
+- Records. Every closure a rule change reopens, and every status a
+  re-derivation changes, is listed per claim with the refusing rule in
+  `evidence/review/rounds/revision-10-retirement-changes.json`; the eight
+  reviewer-verified closures revisions 8 and 9 reopened are restored by
+  exact-claim bindings there listed. This is contract revision 10.
 Every closure recorded at 76ae15ab that revision 7 changed is listed per
 claim, with the refusing rule where it stays open, in
 `evidence/review/rounds/revision-7-retirement-changes.json` (the round's

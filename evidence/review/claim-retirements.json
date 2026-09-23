@@ -2166,5 +2166,327 @@
    }
   ],
   "reason": "exact-claim bindings (8966da2e round, second batch): verified line by line 2026-09-22"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review_revision_6@8f774d0: [fold-identity] scripts/build_finding_register.py:1307,1317,1330 (`carried = CARRY.search(body)` over the whole body, case-insensitive, drops the identifier), :1334-1339 (`same_finding`: an absent identifier matches any identifier), :1342-1348 (`is_carry`) with scripts/retire_review_claims.py:366 (`fold_restatements` folds into the earliest listed same-finding claim) and docs/spec/FINDING_REGISTER",
+    "lines": [
+     61
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review_revision_7@8966da2, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@db53894: [duplicated-predicate] scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:505-526 and docs/spec/FINDING_REGISTER_V1.md:207-208",
+    "lines": [
+     84
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review@1a9f0aa, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@7622776: [verification-depth] scripts/build_finding_register.py:534-574 (`package_closed_claims`) with docs/spec/FINDING_REGISTER_V1.md:8-21,222-225 and evidence/review/",
+    "lines": [
+     28
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review@c67b072, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@7622776: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - no test exercises the lint branch at scripts/check_release_candidate_packa",
+    "lines": [
+     38
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@c67b072: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4253 \u2192 second_host_attest.sh - the runbook is still untracked (0 ",
+    "lines": [
+     40
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@7622776: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4230 \u2192 /home/gfarch/Work/checkpoints/sley2-finish-20260915/resume",
+    "lines": [
+     40
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@c67b072: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
+    "lines": [
+     39
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@76ae15a: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - \u00a77 still lists ",
+    "lines": [
+     36
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review@db53894, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@db53894: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4212 \u2192 /home/gfarch/Work/checkpoints/sley2-finish-20260915/resume",
+    "lines": [
+     40
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@c67b072: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - the lint branch at scripts/check_release_candidate_packaging.py:238-246 st",
+    "lines": [
+     38
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@76ae15a: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - the lint branch at scripts/check_release_candidate_packaging.py:238-246 st",
+    "lines": [
+     38
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@76ae15a: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
+    "lines": [
+     39
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-b58ac1e.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review@7622776: [robustness] scripts/record_lint_report.py:65-69 - carried from c04539b9/db53894e, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASC",
+    "lines": [
+     45
+    ],
+    "reason": "the named-carry family's closing line (it closes vulcan_surface_review, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "vulcan_surface_review@c67b072: [robustness] scripts/retire_review_claims.py:124-173,158 with scripts/build_finding_register.py:626-638 - carried from 76227765, partially mitigated: `--check` ",
+    "lines": [
+     48
+    ],
+    "reason": "the named-carry family's closing line (it closes vulcan_surface_review@7622776, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-8f774d0.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@b58ac1e: [record-consistency] (carried from 79fdcc63, OPEN \u2014 narrowed) machineresearch/sley-2.0/machine-summary.json packaging `p4_open[2,55]` (was `p4_open[2,3,4,13,15,16,24,26,33,62,64]`) with evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md:40 and evidence/review/claim-retirements.json - ten of the fourteen nabu P4 claims my 1a9f0aa closure lines verified item by ",
+    "lines": [
+     34
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review@79fdcc6, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@7622776: [ledger-duplication] machineresearch/sley-2.0/machine-summary.json:4283-4289 vs :4296-4302 (`p4_open`), :4412 vs :4420 (`p4_closed_claims`) - seven carried-open",
+    "lines": [
+     38
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review@1a9f0aa, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-7622776.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review: [contract-vs-mechanics] scripts/build_reproducibility_report.py:464-465 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142 - Section 2 says ",
+    "lines": [
+     28
+    ],
+    "reason": "the lane's own item status line names this finding; verified at 8966da2e and reopened by a revision 8/9 rule (span basename, identifier-less equal key or ledger vocabulary) \u2014 restored by explicit binding (Ariadne P3 at d158d26b)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-7622776.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review: [contract-drift] scripts/build_reproducibility_report.py:464, docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142, docs/adr/ADR-0040-reproducibi",
+    "lines": [
+     27
+    ],
+    "reason": "the lane's own item status line names this finding; verified at 8966da2e and reopened by a revision 8/9 rule (span basename, identifier-less equal key or ledger vocabulary) \u2014 restored by explicit binding (Ariadne P3 at d158d26b)"
+   },
+   {
+    "claim": "nabu_architecture_review@db53894: [contract-drift] scripts/build_reproducibility_report.py:464-465, docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142, docs/adr/ADR-0040-reprodu",
+    "lines": [
+     27
+    ],
+    "reason": "the lane's own item status line names this finding; verified at 8966da2e and reopened by a revision 8/9 rule (span basename, identifier-less equal key or ledger vocabulary) \u2014 restored by explicit binding (Ariadne P3 at d158d26b)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-b58ac1e.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@79fdcc6: [contract-vs-mechanics] scripts/build_finding_register.py:846-852 - Carried unchanged: 154 of 196 recorded closures are ancestry-checked; the 42 bare-lane, `_final` and `_closure_note` closures (vulcan 12, nabu 9, ariadne_implementation_review_final 7, ariadne 5, three closure notes 9) carry no scope while FINDING_REGISTER_V1.md:23-25 promises a strictly later scope unconditionally - Closure: retr",
+    "lines": [
+     32
+    ],
+    "reason": "the lane's own item status line names this finding; verified at 8966da2e and reopened by a revision 8/9 rule (span basename, identifier-less equal key or ledger vocabulary) \u2014 restored by explicit binding (Ariadne P3 at d158d26b)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The 45b2cd98 row says \"u",
+    "lines": [
+     25
+    ],
+    "reason": "the lane's own item status line names this finding; verified at 8966da2e and reopened by a revision 8/9 rule (span basename, identifier-less equal key or ledger vocabulary) \u2014 restored by explicit binding (Ariadne P3 at d158d26b)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review@76ae15a: [fail-open] scripts/retire_review_claims.py:84-90 (transcript_for) - Carried OPEN, byte-identical: zero or ambiguous `<section>/<lane>*-<scope7>.md` matches fal",
+    "lines": [
+     28
+    ],
+    "reason": "the lane's own item status line names this finding; verified at 8966da2e and reopened by a revision 8/9 rule (span basename, identifier-less equal key or ledger vocabulary) \u2014 restored by explicit binding (Ariadne P3 at d158d26b)"
+   },
+   {
+    "claim": "vulcan_surface_review_revision_11@c67b072: [fail-open] scripts/retire_review_claims.py:84-90 (transcript_for) - When the `<section>/<lane>*-<scope7>.md` glob matches zero or more than one file the resolv",
+    "lines": [
+     28
+    ],
+    "reason": "the lane's own item status line names this finding; verified at 8966da2e and reopened by a revision 8/9 rule (span basename, identifier-less equal key or ledger vocabulary) \u2014 restored by explicit binding (Ariadne P3 at d158d26b)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@6589c6e: [record-accuracy] evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-1a9f0aa.md:18,20,22,24 and vulcan_surface_review-1a9f0aa.md:28 vs scripts/retire_review_claims.py:121-147 (`transcript_closers`: only a VERDICT carrying a `_PRIOR_\u2026_CLOSED` group, :47) and evidence/review/claim-retirements.json (no entry cites either transcript) - five per-finding closure",
+    "lines": [
+     79
+    ],
+    "reason": "the lane's own P3 item status line names the @6589c6e copy explicitly (d158d26b round)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-8f774d0.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@76ae15a: [ledger-duplication] (carried from 76227765, OPEN, grown) machineresearch/sley-2.0/machine-summary.json:4414 (`p4_open_count` 63, \u226425 distinct), :4423-4437 (`p3",
+    "lines": [
+     38
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review@7622776, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@c67b072: [ledger-duplication] (carried from 76227765, OPEN, grown) machineresearch/sley-2.0/machine-summary.json:4303-4347 (`p4_open`, 42 listed, \u226425 distinct; e.g. :430",
+    "lines": [
+     38
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review@7622776, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@7622776: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:505-531 and docs/spec/",
+    "lines": [
+     84
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review@db53894, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@c67b072: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:517-538 - the row stil",
+    "lines": [
+     84
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review@db53894, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@76ae15a: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:517-538 - the row stil",
+    "lines": [
+     84
+    ],
+    "reason": "the named-carry family's closing line (it closes nabu_architecture_review@db53894, a named carry/root of this claim) closes this member too; the closing round postdates it (d158d26b round, named-carry split reconciliation)"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-8966da2.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review_revision_6@8f774d0: [relation-precision] scripts/build_finding_register.py:824 (`shared_vocabulary` skips every `same_finding` neighbour) with :831-835 (`shares_its_kind`), :1040-1044,1058,1118 and bench/review/tests/test_retire_review_claims.py:247-265 - under a shared kind the strong read is lost for a carried (identifier-less) claim and for every original that has one as a neighbour, because `same_finding`'s wildc",
+    "lines": [
+     22
+    ],
+    "open_lines_of_other_findings": {
+     "21": "another finding's OPEN head: the [P2] [fail-open] `finding_key`/`same_finding` wildcard finding (a distinct kind), which shares only line spans of scripts/build_finding_register.py with this [relation-precision] claim",
+     "45": "another finding's raising line: the [P2] [fail-open] `CARRIED_FROM`/`LEADING_CARRY` finding (a distinct kind), which shares only line spans of scripts/build_finding_register.py with this claim"
+    },
+    "reason": "the lane's own item status line names this finding and closed it (recorded closed at 339c4fac); the full strong OPEN read (d158d26b round) also matches the declared OPEN lines, each another finding's"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
+ },
+ {
+  "section": "s20_700_vm_persistent_fuzz_slice",
+  "verified_by": "evidence/review/verdicts/s20_700_vm_persistent_fuzz_slice/vulcan_review_closure-7622776.md",
+  "claims": [
+   {
+    "claim": "vulcan_review_closure_note@db53894: [record-consistency] machineresearch/sley-2.0/machine-summary.json:3334 - proof `note` says \"clean detached worktree\" while `worktree_dirty_files` at `:3303-331",
+    "lines": [
+     17
+    ],
+    "open_lines_of_other_findings": {
+     "15": "another finding's OPEN head: the carried P4 [fail-closed-gap] (`worktree_dirty_files` recorded but ungated), a distinct kind that shares only the `worktree_dirty_files` field name with this [record-consistency] claim"
+    },
+    "reason": "the lane's own item status line names this finding and closed it (recorded closed at 339c4fac); the full strong OPEN read (d158d26b round) also matches the declared OPEN lines, each another finding's"
+   }
+  ],
+  "reason": "exact-claim bindings (d158d26b round): verified line by line 2026-09-23"
  }
 ]

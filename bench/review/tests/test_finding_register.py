@@ -456,12 +456,22 @@ class InvariantTests(unittest.TestCase):
                 "- carried, narrowed: `open_risks` still open")
         restatement = (f"vulcan_review_revision_1@76ae15a: {core} - carried from 178873d7, OPEN")
         folded_claim = f"vulcan_review_revision_1@178873d: {core}"
+        # d158d26b round: a fold never transfers a closure — the root is
+        # open; a re-statement of a retired claim is refused.
         good = json.loads(json.dumps(base))
-        good["release_candidate_packaging"]["p3_closed_claims"] = [
-            {"claim": folded_claim, "verified_by": transcript + "#L23 — line 23"}
-        ]
+        good["release_candidate_packaging"]["p3_closed_claims"] = []
+        good["release_candidate_packaging"]["p3_open"] = [folded_claim]
+        good["release_candidate_packaging"]["p3_open_count"] = 1
+        good["release_candidate_packaging"]["vulcan_review"] = "REVISE_0_P0_0_P1_0_P2_1_P3"
         good["release_candidate_packaging"]["p3_restated_claims"] = [{"claim": restatement, "restates": folded_claim}]
         self.assertEqual(self.build_from(good)["package_restated_claims"], {"release_candidate_packaging.p3_restated_claims": 1})
+        retired_root = json.loads(json.dumps(base))
+        retired_root["release_candidate_packaging"]["p3_closed_claims"] = [
+            {"claim": folded_claim, "verified_by": transcript + "#L23 — line 23"}
+        ]
+        retired_root["release_candidate_packaging"]["p3_restated_claims"] = [{"claim": restatement, "restates": folded_claim}]
+        self.assertIn("re-statement of a retired claim", str(self.build_fails(retired_root)))
+        base = good
         for bad_fold in (
             [{"claim": "vulcan_review@c67b072: [record] carried", "restates": folded_claim}],  # another finding
             [{"claim": f"vulcan_review_revision_1@76ae15a: {core} - fresh", "restates": folded_claim}],  # no carry marker
@@ -597,24 +607,23 @@ class InvariantTests(unittest.TestCase):
             finally:
                 register._tracked = None
 
-    def test_open_check_bounded_head_and_shared(self) -> None:
-        # Ariadne P4 at 8966da2e: the OPEN head is bounded to the finding's
-        # own tag and anchor list, and the claim's shared vocabulary never
-        # relates — another finding quoting this finding's identifier in
-        # its head holds it only while nothing else of the lane carries it.
+    def test_open_check_reads_the_whole_head(self) -> None:
+        # d158d26b round (Vulcan P2/P3): the OPEN head is read whole under
+        # the strong read, with no shared-vocabulary exemption — a head naming
+        # the claim's identifier holds it open, whatever else the lane
+        # carries (the 8966da2e-round narrowing is withdrawn; an ambiguity
+        # fails closed, and a reviewer-verified closure it blocks is restored
+        # by an exact-claim binding declaring the other finding's line).
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "evidence/review/verdicts/x"
             root.mkdir(parents=True)
             transcript = root / "nabu_review-abc1234.md"
             transcript.write_text(
                 "- **[P4] [ledger-duplication] [`alpha_guard`] note — OPEN.** (carried from 76227765)\n"
-                "- **[P4] [`alpha_guard`] still stale in scripts/a.py:1 — OPEN.**\n")
+                "- **[P4] `alpha_guard` still stale in scripts/a.py:1 — OPEN.**\n")
             claim = "nabu@c67b072: [revision-identity] scripts/a.py:1 - `alpha_guard` open here"
             twin = "nabu@c67b072: [revision-identity] scripts/a.py:2 - `alpha_guard` twin"
-            # The twin carries the identifier too: shared, so the foreign
-            # head never holds this claim — only its own anchored line does.
-            self.assertEqual(register.open_lines_about(transcript, claim, "P4", {"p4_open": [claim, twin]}, "x"), [2])
-            # Alone, the foreign head naming the identifier holds it.
+            self.assertEqual(register.open_lines_about(transcript, claim, "P4", {"p4_open": [claim, twin]}, "x"), [1, 2])
             self.assertEqual(register.open_lines_about(transcript, claim, "P4", {"p4_open": [claim]}, "x"), [1, 2])
 
     def test_cited_closure_lines_and_transcript_paths(self) -> None:
@@ -1064,6 +1073,59 @@ class InvariantTests(unittest.TestCase):
             self.assertIn(cite, hits[0]["verified_by"])
             self.assertEqual(hits[0].get("binding"), "exact-claim")
             self.assertFalse(any(claim.startswith(prefix) for n in (3, 4) for claim in section.get(f"p{n}_open", [])))
+
+
+    def test_the_span_rule_needs_the_claims_file_basename(self) -> None:
+        # Ariadne P3 at d158d26b (reproducibility): a bare line span relates
+        # only when the line also names the claim's file basename (or the
+        # claim cites no file) — the rule revision 8 applied, now stated in
+        # the contract; the three reviewer-verified closures it reopened are
+        # restored by exact-claim bindings.
+        claim = ("ariadne_contract_review: [contract-vs-mechanics] scripts/build_reproducibility_report.py:464-465 "
+                 "vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142 - Section 2 says")
+        self.assertFalse(register.line_speaks_about("- Finding 3 [P4] builder :464-465 dropped an entry — **CLOSED.**", claim))
+        self.assertTrue(register.line_speaks_about(
+            "- Finding 3 [P4] build_reproducibility_report.py :464-465 dropped an entry — **CLOSED.**", claim))
+        summary = json.loads(register.SUMMARY.read_text(encoding="utf-8"))
+        section = summary["reproducibility_and_independent_conformance"]
+        closed = {item["claim"]: item for item in section.get("p4_closed_claims", [])}
+        for prefix, cite in (
+            ("ariadne_contract_review: [contract-vs-mechanics] scripts/build_reproducibility_report.py:464-465", "ariadne_contract_review-7622776.md#L28 "),
+            ("vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; docs/spec/", "vulcan_surface_review-c04539b.md#L25 "),
+            ("nabu_architecture_review@79fdcc6: [contract-vs-mechanics] scripts/build_finding_register.py:846-852", "nabu_architecture_review-b58ac1e.md#L32 "),
+        ):
+            hits = [item for claim, item in closed.items() if claim.startswith(prefix)]
+            self.assertEqual(len(hits), 1, prefix)
+            self.assertIn(cite, hits[0]["verified_by"])
+            self.assertEqual(hits[0].get("binding"), "exact-claim")
+
+    def test_a_ledger_word_subject_keeps_its_verified_closure(self) -> None:
+        # Ariadne P3 at d158d26b (packaging): `package_closed_claims` is both a
+        # register output key (never an identity) and the subject of nabu's
+        # 7622776 [verification-depth] finding; the lane's own #L28 closure
+        # is restored by an exact-claim binding, not by widening identity.
+        self.assertTrue(register.is_lane_field_name("package_closed_claims"))
+        summary = json.loads(register.SUMMARY.read_text(encoding="utf-8"))
+        section = summary["release_candidate_packaging"]
+        hits = [item for item in section.get("p3_closed_claims", [])
+                if item["claim"].startswith("nabu_architecture_review@7622776: [verification-depth]")]
+        self.assertEqual(len(hits), 1)
+        self.assertIn("nabu_architecture_review-1a9f0aa.md#L28 ", hits[0]["verified_by"])
+        self.assertEqual(hits[0].get("binding"), "exact-claim")
+
+    def test_the_revision_10_change_record_lists_every_reopened_closure(self) -> None:
+        # Ariadne P3 at d158d26b (both sections): the closures revisions 8/9
+        # reopened are recorded per claim with the refusing rule, and each is
+        # closed again by an explicit binding.
+        record = json.loads((register.ROOT / "evidence/review/rounds/revision-10-retirement-changes.json").read_text(encoding="utf-8"))
+        self.assertEqual(record["contract_revision"], register.CONTRACT_REVISION)
+        reopened = record["reopened_by_revisions_8_9"]
+        self.assertEqual(len(reopened), 8)
+        for row in reopened:
+            self.assertTrue(row["refusing_rule"])
+            self.assertEqual(row["now"]["state"], "closed", row["claim"][:60])
+            self.assertEqual(row["now"]["binding"], "exact-claim", row["claim"][:60])
+        self.assertFalse(any(row["before"] == "closed" and row["after"]["state"] != "closed" for row in record["revision_10_changes"]))
 
 
 if __name__ == "__main__":
