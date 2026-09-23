@@ -5,8 +5,18 @@ Status 2026-09-23, branch `work/succ-corrupt-impl`. Revision 1
 REVISE_0_P0_1_P1_1_P2_3_P3_1_P4, DECISION OPTION_3
 (`evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review-2c97c32.md`).
 This revision answers each finding by id and implements the verdict's
-closure list items 1-4. Item 5 (who must attempt the import) stays open
-for the owner (section 4). `ga_claimed=false`.
+closure list items 1-4. Item 5 (who must attempt the import) was left open
+for the owner (section 4).
+
+Revision 2 then passed Ariadne review on 2026-09-23, at scope `01dd20cb`.
+That review issued two rulings, recorded in section 5:
+
+- `RULING_ACTOR: A`: the obligation is accepted on the resealed PACK
+  vector.
+- `RULING_ORDER: CODE`: the spec was amended to the importer's order.
+
+It also closed its own P3 (section 2 [P1]) and P4 (SUCCESSION-COVERAGE.md).
+`ga_claimed=false`.
 
 ## 1. Corpus obligation (frozen, unchanged)
 
@@ -98,7 +108,8 @@ The `_judge_corrupt_exchange` docstring at :1420-1422 claimed
 The unresealed EXCHANGE_DIGEST_MISMATCH check stays, labelled as a
 regression.
 
-Owner observation, not decided here. The spec's import-phase list puts
+Owner observation (revision 2; since ruled `RULING_ORDER: CODE`, see
+section 5). The spec's import-phase list put
 "the complete digest tree" (step 2) before "the complete S20-170 preflight
 ... over the embedded pack" (step 3) (REPOSITORY_EXCHANGE_V1.md:348-352).
 The code runs the pack preflight first (exchange.rs:1384, then the tree
@@ -109,9 +120,14 @@ check at :1386-1396), because the pack leaf is keyed by the pack's
   declared identity is exactly the check that yields PACK_DIGEST_MISMATCH.
 - A literal tree-first reading would instead yield
   EXCHANGE_DIGEST_TREE_MISMATCH.
-- No frozen exchange conformance vector pins this ordering.
-  `conformance/repository-exchange/v1/rejected.json` has 6 mutations, and
-  none alters the embedded pack.
+- `conformance/repository-exchange/v1/rejected.json` has 6 frozen
+  mutations. One of them, `nested-exchange`, replaces the embedded pack with
+  a whole tag-540 exchange (exchange.rs:3243-3250,3291). It pins the tag-170
+  shape check (`EXCHANGE_PACK_INVALID`, exchange.rs:1381-1383) ahead of the
+  digest tree (:1386-1396).
+- No mutation alters embedded-pack content under a valid tag-170 header, so
+  no frozen vector pins the S20-170 preflight (`PACK_DIGEST_MISMATCH`)
+  against the digest tree.
 - The new Rust pin fixes the implemented behavior. It does not settle the
   spec reading.
 
@@ -212,8 +228,13 @@ names no actor. The claim is withdrawn and restated as section 4.
 
 ## 3. Decision state
 
-OPTION_3 stands as ruled. No PACK-layer acceptance is claimed for the
-`sley_2_0` arm, and the exchange-trailer check remains only a regression.
+This section is the revision 2 state. The owner rulings in section 5
+supersede it: under `RULING_ACTOR: A` the obligation is accepted on the
+resealed PACK vector.
+
+OPTION_3 stood as ruled at revision 2. No PACK-layer acceptance was claimed
+for the `sley_2_0` arm, and the exchange-trailer check remains only a
+regression.
 
 What changed is the evidence behind the open item:
 
@@ -230,7 +251,7 @@ What changed is the evidence behind the open item:
 - The only item between this evidence and closing the obligation is the
   owner ruling in section 4.
 
-## 4. Open owner question (verdict closure item 5): does a judge-side attempt satisfy "attempt import"?
+## 4. Owner question (verdict closure item 5, now ruled A in section 5): does a judge-side attempt satisfy "attempt import"?
 
 Facts for the ruling:
 
@@ -272,10 +293,86 @@ The owner is asked to rule one of:
 A related question for the owner is the spec phase-order observation under
 [P1].
 
-Until the owner rules, the CORRUPT record claims three things only:
+Until the owner ruled, the CORRUPT record claimed three things only:
 
 - the resealed-vector evidence, labelled judge-side;
 - the exchange-trailer regression;
 - the constant-restore smoke check.
 
-`ga_claimed=false`.
+## 5. Rulings (Ariadne revision 2 review, 2026-09-23)
+
+Source: `evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review_revision_2-01dd20c.md`. The verdict is `PASS_0_P0_0_P1_0_P2_1_P3_1_P4_PRIOR_P3_P4_CLOSED`
+at scope `01dd20cb`. The round index is
+`evidence/review/rounds/corrupt-r2-01dd20c.json`.
+
+### RULING_ACTOR: A
+
+A judge-side corruption and import attempt satisfies "attempt import", by
+parity across the arms:
+
+- The frozen text names no actor (tasks.json:137).
+- In the legacy and raw arms, the oracle or test harness makes the
+  corruption and the import attempt.
+- The sley2 run control deliberately denies bulk import to the agent
+  (runner.py:90-94,115-117,126).
+
+The ruling carries two conditions, both kept in this record and in
+SUCCESSION-COVERAGE.md:
+
+- The evidence is agent-independent (judge-side). The only agent-bound part
+  is the constant-restore smoke check through propose/finish.
+- The acceptance claims no agent-driven import.
+
+**Consequence.** The S2B-CORRUPT-001 obligation for the `sley_2_0` arm is
+ACCEPTED on the resealed PACK vector. The evidence is:
+
+- the Rust pin `s3_corrupt_exchange_resealed_embedded_pack`;
+- the judge path `_judge_corrupt_pack_resealed`;
+- the log `succ-trials-20260923/corrupt/trial_corrupt_pos.log`;
+- rejection-path negatives with exact reject symbols.
+
+Two things must stay distinct:
+
+- **Judge verdict.** The JSON `status` a trial receives. The judge accepts
+  a trial whose candidate restores the constant, provided the judge-side
+  vectors hold.
+- **Obligation acceptance.** The owner ruling above that this judge-side
+  evidence discharges the corpus requirement.
+
+The unresealed EXCHANGE_DIGEST_MISMATCH check remains a regression only, and
+no EXCHANGE code counts toward the PACK oracle. The live-model trial remains
+outstanding. `ga_claimed=false`: this is an obligation record, not a GA
+claim.
+
+### RULING_ORDER: CODE
+
+The importer's order is authoritative (exchange.rs:1381-1397: tag-170 check,
+then `preflight_conformance_pack`, then the digest tree). The spec was
+amended to match; no code changed.
+
+`docs/spec/REPOSITORY_EXCHANGE_V1.md` revision 9 makes these changes:
+
+- It adds a status line citing the ruling.
+- It adds an import-phase precedence paragraph.
+- Step 2 no longer carries "every declared identity, and the complete
+  digest tree".
+- Step 3 becomes ordered sub-steps:
+  - 3.1, the tag-170 check (`EXCHANGE_PACK_INVALID`);
+  - 3.2, the S20-170 preflight, with `PACK_*` preserved;
+  - 3.3, the declared leaf identities and the complete digest tree, keyed by
+    the `RepositoryPackId` from 3.2.
+- It adds a dated "Revision 9 amendment note".
+
+The note states three deliberate narrowings of the ruling's list, all for
+spec review:
+
+- **Sub-steps, not a new top-level step.** This keeps the step-7 and step-8
+  cross-references, rows X-01 through X-07, and the checker markers intact.
+- **Precedence as realized.** The precedence statement follows the code
+  rather than a strict 1-7 order. The code interleaves the step-1 payload
+  decode with the step-2 checks, and proves closure rule 2 after step 5.
+- **Frozen conformance mutation deferred.** A frozen `rejected.json`
+  mutation for the resealed vector is not added. It would re-freeze a
+  digest-bound corpus, whose digests feed the independent-conformance, GA,
+  release-provenance and decision-dossier evidence. It needs its own
+  conformance review. Until then the order is pinned by `s3_g2_corrupt.rs`.
