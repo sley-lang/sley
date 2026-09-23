@@ -2626,24 +2626,24 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8",
+      "source_commit": "22088166dfe21c92581118a0fa7064072e4afaac",
       "worktree_dirty_files": [],
       "corpus_count": 500,
-      "corpus_file_count": 500,
-      "executed_runs": 756,
+      "corpus_file_count": 514,
+      "executed_runs": 770,
       "coverage": {
         "counters": 9022,
-        "ft_done": 3709,
-        "ft_inited": 3630,
+        "ft_done": 3734,
+        "ft_inited": 3709,
         "new_events": true,
-        "seed": 860537425
+        "seed": 1097429820
       },
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "cc": "/usr/lib/llvm18/bin/clang-18",
       "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
-      "runs_floor": 756,
+      "runs_floor": 770,
       "owner_lib_sancov": 148,
       "coverage_ok": true,
       "worktree_dirty": false,
@@ -2671,7 +2671,7 @@
         "fuzz/regressions/S20_700_PACK_001.json",
         "fuzz/regressions/S20_700_PACK_002.json"
       ],
-      "note": "merge head a7aba12f (REQ-10 CONTEXT into the arm with TYPE/CORRUPT/DEAD): lane re-proofed; tracked regression records retested"
+      "note": "merge-branch head 22088166 (sley-policy doc comment): lane re-proofed; tracked regression records retested"
     },
     "vulcan_review_note": "Qualifying re-review of the c7fec98 fix at a525797 (transcript vulcan_review-c7fec98.md, FIELD vulcan_review, ROUND final): all five classes verified executing (static + seed-0493 probe + 775/775 proof), precedence sets match S20-540 order, no-store exemption intact, verdict field Honest. PASS with 3 P3 + 4 P4. VR-C7-01 (tracked proof still 4c30d1b; reseal_lane still exact-class wording) closes with the standard proof-refresh records commit; VR-C7-02/03 are owner items for the next target round; VR-C7-04..07 are P4 notes. Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_4_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 9f41fe3f93805e0cbe17b4694252f107879a97d7e3b7917609b3e6358edbbced) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-c7fec98.md) was located; of its 3 P3 + 4 P4 findings, VR-C7-01 and VR-C7-04 are verified closed by records commit 1f969f99, while VR-C7-02, VR-C7-03, VR-C7-05, VR-C7-06 and VR-C7-07 remain open because the target and checker are byte-identical to c7fec98 and the owners explicitly deferred the target round. One new P4 record note: the tracked proof is bound to a SHA reachable from no branch and the on-disk canonical-toolchain proof is unfolded. The lane's fix itself remains sound and the checker passes at HEAD, but the row cannot be closed as PRIOR_P3_P4_CLOS",
@@ -2707,19 +2707,19 @@
     "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8",
+      "source_commit": "22088166dfe21c92581118a0fa7064072e4afaac",
       "worktree_dirty_files": [],
       "corpus_count": 518,
-      "corpus_file_count": 518,
+      "corpus_file_count": 530,
       "runs_requested": 1036,
       "runs_floor": 1036,
       "executed_runs": 1036,
       "coverage": {
         "counters": 40060,
-        "ft_done": 7925,
-        "ft_inited": 7873,
+        "ft_done": 7957,
+        "ft_inited": 7925,
         "new_events": true,
-        "seed": 1727015468
+        "seed": 457959120
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2741,7 +2741,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "merge head a7aba12f (REQ-10 CONTEXT into the arm with TYPE/CORRUPT/DEAD): lane re-proofed"
+      "note": "merge-branch head 22088166 (sley-policy doc comment): lane re-proofed"
     }
   },
   "s20_700_complete_root_persistent_fuzz_slice": {
@@ -2819,19 +2819,19 @@
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8",
+      "source_commit": "22088166dfe21c92581118a0fa7064072e4afaac",
       "worktree_dirty_files": [],
       "corpus_count": 330,
-      "corpus_file_count": 330,
+      "corpus_file_count": 338,
       "runs_requested": 644,
       "runs_floor": 644,
       "executed_runs": 644,
       "coverage": {
         "counters": 4245,
-        "ft_done": 1827,
-        "ft_inited": 1798,
+        "ft_done": 1853,
+        "ft_inited": 1827,
         "new_events": true,
-        "seed": 1351908097
+        "seed": 2808549709
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2853,7 +2853,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "merge head a7aba12f (REQ-10 CONTEXT into the arm with TYPE/CORRUPT/DEAD): lane re-proofed"
+      "note": "merge-branch head 22088166 (sley-policy doc comment): lane re-proofed"
     }
   },
   "s20_700_merge_persistent_fuzz_slice": {
@@ -2875,19 +2875,19 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8",
+      "source_commit": "22088166dfe21c92581118a0fa7064072e4afaac",
       "worktree_dirty_files": [],
       "corpus_count": 319,
-      "corpus_file_count": 319,
+      "corpus_file_count": 343,
       "runs_requested": 638,
       "runs_floor": 638,
       "executed_runs": 638,
       "coverage": {
         "counters": 3577,
-        "ft_done": 1265,
-        "ft_inited": 1112,
+        "ft_done": 1344,
+        "ft_inited": 1265,
         "new_events": true,
-        "seed": 3087359633
+        "seed": 4068630210
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2909,7 +2909,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "merge head a7aba12f (REQ-10 CONTEXT into the arm with TYPE/CORRUPT/DEAD): lane re-proofed"
+      "note": "merge-branch head 22088166 (sley-policy doc comment): lane re-proofed"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_4_P3_0_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 a359ecde4a9c057c954048e8e0eed9ab313b6677d71ab83f16fd79e0a2851911) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-7cf25acd25d2.md) was located and its three P3s enumerated; at 178873d7 F2 is verified closed (audit :28-33 now names the five decoder codes, commit 71232591), F3 is untouched, and F1 is mitigated in code by the b1218578 pin-layout repair with an unoverridden clang 18.1.8 PASS on disk, but that proof is unfiled while the tracked record still carries the clang-22 override run and the \"unproven\" clause. Two new P3s: the tracked proof commit is not in HEAD's lineage and predates the HEAD harness, and the slice checker is marker-only so it cannot reject a stale p",
     "p3_open": [
@@ -2935,19 +2935,19 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8",
+      "source_commit": "22088166dfe21c92581118a0fa7064072e4afaac",
       "worktree_dirty_files": [],
       "corpus_count": 47,
-      "corpus_file_count": 47,
+      "corpus_file_count": 105,
       "runs_requested": 512,
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
         "counters": 35647,
-        "ft_done": 3982,
-        "ft_inited": 3711,
+        "ft_done": 4229,
+        "ft_inited": 3982,
         "new_events": true,
-        "seed": 4186313736
+        "seed": 2460551333
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -2969,7 +2969,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "merge head a7aba12f (REQ-10 CONTEXT into the arm with TYPE/CORRUPT/DEAD): lane re-proofed"
+      "note": "merge-branch head 22088166 (sley-policy doc comment): lane re-proofed"
     }
   },
   "s20_700_complete_root_snapshot_persistent_fuzz_slice": {
@@ -3170,19 +3170,19 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8",
+      "source_commit": "22088166dfe21c92581118a0fa7064072e4afaac",
       "worktree_dirty_files": [],
       "corpus_count": 713,
-      "corpus_file_count": 713,
+      "corpus_file_count": 729,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
         "counters": 4486,
-        "ft_done": 2371,
-        "ft_inited": 2149,
+        "ft_done": 2753,
+        "ft_inited": 2371,
         "new_events": true,
-        "seed": 4106677602
+        "seed": 1142737545
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3204,7 +3204,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "merge head a7aba12f (REQ-10 CONTEXT into the arm with TYPE/CORRUPT/DEAD): lane re-proofed"
+      "note": "merge-branch head 22088166 (sley-policy doc comment): lane re-proofed"
     },
     "generated_seed_count": 713,
     "lane_3_seeds": "multi-frame concatenated pairs reach reassemble_stream (proven); bare prefix-stripped bodies removed in 7h (they never decoded as hello records); negotiation executes through check_frame Hello arm on fixture hello frames (shared oracle); see S20-700-SMP1-001 + negotiate divergence packet",
@@ -3243,19 +3243,19 @@
     "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8",
+      "source_commit": "22088166dfe21c92581118a0fa7064072e4afaac",
       "worktree_dirty_files": [],
       "corpus_count": 645,
-      "corpus_file_count": 645,
+      "corpus_file_count": 676,
       "runs_requested": 1286,
       "runs_floor": 1286,
       "executed_runs": 1286,
       "coverage": {
         "counters": 7117,
-        "ft_done": 4070,
-        "ft_inited": 3958,
+        "ft_done": 4250,
+        "ft_inited": 4068,
         "new_events": true,
-        "seed": 2780772343
+        "seed": 4082427878
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3277,7 +3277,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "merge head a7aba12f (REQ-10 CONTEXT into the arm with TYPE/CORRUPT/DEAD): lane re-proofed"
+      "note": "merge-branch head 22088166 (sley-policy doc comment): lane re-proofed"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 4f1f806240e607c0db75d63a4d7340147416a86f12517b77b3d1391e2cac3ed3) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) was located and all eleven P3/P4 findings enumerated; eight are verified closed at 178873d7 by code and audit changes in rounds 7h-7j and the b1218578 pin-layout repair, with the checker passing (exit 0). Two carried P3s (stale \"thirty-one\" count; tautological `known()` oracle) and one carried P4 (unbound checker markers) remain open and untracked, so the row cannot be closed. Two new records defects were found: the durable `last_local_proof` is stale against both runner and governed crate and contradicts the on-disk canonical-layout proof, ",
     "p3_open": [
@@ -3717,19 +3717,19 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8",
+      "source_commit": "22088166dfe21c92581118a0fa7064072e4afaac",
       "worktree_dirty_files": [],
       "corpus_count": 821,
-      "corpus_file_count": 821,
+      "corpus_file_count": 856,
       "runs_requested": 1642,
       "runs_floor": 1642,
       "executed_runs": 1642,
       "coverage": {
         "counters": 7042,
-        "ft_done": 3175,
-        "ft_inited": 3070,
+        "ft_done": 3217,
+        "ft_inited": 3175,
         "new_events": true,
-        "seed": 3980271397
+        "seed": 3131383286
       },
       "coverage_ok": true,
       "crash_artifacts": [],
@@ -3751,7 +3751,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "merge head a7aba12f (REQ-10 CONTEXT into the arm with TYPE/CORRUPT/DEAD): lane re-proofed"
+      "note": "merge-branch head 22088166 (sley-policy doc comment): lane re-proofed"
     },
     "must_reject_classes": [
       "identity-changed (adapter_id)",
