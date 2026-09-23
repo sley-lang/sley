@@ -13,10 +13,15 @@ That review issued two rulings, recorded in section 5:
 
 - `RULING_ACTOR: A`: the obligation is accepted on the resealed PACK
   vector.
-- `RULING_ORDER: CODE`: the spec was amended to the importer's order.
+- `RULING_ORDER: CODE`: the ruling required the spec to be amended to the
+  importer's order, and spec revision 9 does so.
 
-It also closed its own P3 (section 2 [P1]) and P4 (SUCCESSION-COVERAGE.md).
-`ga_claimed=false`.
+That review also raised a P3 (section 2 [P1]) and a P4
+(SUCCESSION-COVERAGE.md). This revision addresses both; their closure was
+verified in the revision-3 review
+(`evidence/review/verdicts/corrupt_surface_decision/ariadne_contract_review_revision_3-5d8106f.md`).
+The revision-3 review's own spec findings (P2 precedence, P3 step 3.3) are
+answered in section 5. `ga_claimed=false`.
 
 ## 1. Corpus obligation (frozen, unchanged)
 
@@ -347,32 +352,69 @@ claim.
 ### RULING_ORDER: CODE
 
 The importer's order is authoritative (exchange.rs:1381-1397: tag-170 check,
-then `preflight_conformance_pack`, then the digest tree). The spec was
-amended to match; no code changed.
+then `preflight_conformance_pack`, then the digest tree). The ruling required
+the spec to be amended to match. Revision 9 does so, and no importer code
+changed.
 
 `docs/spec/REPOSITORY_EXCHANGE_V1.md` revision 9 makes these changes:
 
 - It adds a status line citing the ruling.
-- It adds an import-phase precedence paragraph.
-- Step 2 no longer carries "every declared identity, and the complete
-  digest tree".
+- It rewrites import-phase steps 1 through 6 to list every check in the
+  order `exchange.rs` runs it, and adds an exact precedence paragraph.
+- The precedence paragraph names the checks that run ahead of a
+  later-numbered step:
+  - the empty receipt set (`EXCHANGE_ANCESTRY_OPEN`, step 2);
+  - the tree-record profile and counts (`EXCHANGE_DIGEST_TREE_MISMATCH`,
+    step 2);
+  - the ungrammatical branch name (`EXCHANGE_BRANCH_INVALID`, step 3.3);
+  - closure rule 6 for origin and ref records, and closure rule 2 (both
+    step 5).
 - Step 3 becomes ordered sub-steps:
   - 3.1, the tag-170 check (`EXCHANGE_PACK_INVALID`);
   - 3.2, the S20-170 preflight, with `PACK_*` preserved;
-  - 3.3, the declared leaf identities and the complete digest tree, keyed by
-    the `RepositoryPackId` from 3.2.
-- It adds a dated "Revision 9 amendment note".
+  - 3.3, leaf recomputation from the declared identifiers, with section-3
+    name keys recomputed, then the leaf list and root, keyed by the
+    `RepositoryPackId` from 3.2.
+- The declared receipt and head identities are verified in step 4 (4.1 and
+  4.4).
+- It adds a dated "Revision 9 amendment note", corrected after the
+  revision-3 review.
 
-The note states three deliberate narrowings of the ruling's list, all for
+Revision-3 review answers:
+
+- **[P2] precedence: CLOSED by exact enumeration, not narrowing.**
+  - I re-read `exchange.rs` preflight end to end: `decode_envelope`,
+    `decode_payload` and its field decoders, the registry decode,
+    `compute_leaves`, the receipt loop, `verify_closure_rules`,
+    `verify_branch_entry`, `verify_no_surplus` and
+    `verify_receipts_against_pack`.
+  - Beyond the reviewer's examples, this found that inside step 4 the head
+    check (rule 5) runs before root closure (rule 3), and that the
+    transaction workspace check interleaves per receipt with rule 1. Both
+    are now stated.
+  - The early exits are pinned pairwise by the new unit test
+    `exchange::tests::preflight_precedence_early_exits_match_the_import_phase_text`,
+    including both of the reviewer's failure scenarios:
+    - zero receipts plus a nested exchange gives `EXCHANGE_ANCESTRY_OPEN`;
+    - an earlier binding-broken branch plus a later foreign-workspace branch
+      gives `EXCHANGE_BRANCH_INVALID`.
+  - The test also pins a tree-algorithm failure over the nested pack,
+    `BRANCH_INVALID` over `HEAD_INVALID`, `ANCESTRY_OPEN` over
+    `HEAD_INVALID`, and `HEAD_INVALID` over `ROOT_CLOSURE`.
+- **[P3] step 3.3 wording: CLOSED.** Step 3.3 is reworded as the closure
+  evidence asks, and the note's "moves them into step 3.3" sentence is
+  corrected.
+
+The note records these deliberate choices against the ruling's list, all for
 spec review:
 
 - **Sub-steps, not a new top-level step.** This keeps the step-7 and step-8
   cross-references, rows X-01 through X-07, and the checker markers intact.
-- **Precedence as realized.** The precedence statement follows the code
-  rather than a strict 1-7 order. The code interleaves the step-1 payload
-  decode with the step-2 checks, and proves closure rule 2 after step 5.
+- **Precedence exact, as realized.** The code is not a plain 1-7 order, so
+  the steps were rewritten to the realized order rather than asserting one.
 - **Frozen conformance mutation deferred.** A frozen `rejected.json`
   mutation for the resealed vector is not added. It would re-freeze a
   digest-bound corpus, whose digests feed the independent-conformance, GA,
   release-provenance and decision-dossier evidence. It needs its own
-  conformance review. Until then the order is pinned by `s3_g2_corrupt.rs`.
+  conformance review. Until then the order is pinned by `s3_g2_corrupt.rs`
+  and the exchange unit test above.
