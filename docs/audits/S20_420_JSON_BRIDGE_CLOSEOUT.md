@@ -2,6 +2,8 @@
 
 Status: **implemented under the draft SMP1 JSON Bridge v1 contract; this closeout records the revision 9 implementation (the current contract revision and review state are in the machine summary `json_bridge` section; revisions 10 to 12 are recorded in the contract and ADR-0034); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
+Completion record (2026-09-23): contract revision 12 has PASS verdicts in all three Council lanes (scoped to 26d050e; see the machine summary lane fields and `bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md` section 15); status `S20_420_COMPLETE`. The open P3/P4 findings of the last rounds are recorded as `p3_open`/`p4_open` claims in the machine summary and do not block completion. The text below is retained as history.
+
 Date: 2026-09-03; revised 2026-09-14 (revision 9: compiler-derived 4x text ceiling, allocation-free element ceiling with boundary tests, duplicate-key and hello-rendering declarations, envelope and fuzz-slice boundaries, all eighteen P1s closed or bounded)
 
 Validation tier: **Tier 1 plus protocol-focused Tier 2 handoff**

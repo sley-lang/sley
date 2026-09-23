@@ -2,6 +2,8 @@
 
 Status: **implemented under the draft Complete-Root Index Snapshot Profile v1 contract (revision 3); the three Council review rounds landed 2026-09-04 (all FAIL) and revision 3 closes every report-grade finding below; the package awaits re-review, so it is not complete; the Sley 2 goal remains incomplete**
 
+Completion record (2026-09-23): contract revision 6 has PASS verdicts in all three Council lanes (scoped to 26d050e; see the machine summary lane fields and `bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md` section 15); status `S20_300_FULL_COMPLETE`. The open P3/P4 findings of the last rounds are recorded as `p3_open`/`p4_open` claims in the machine summary and do not block completion. The text below is retained as history.
+
 Date: 2026-09-03; revised 2026-09-14 (revision 3)
 
 Validation tier: **Tier 1 plus query-and-repository-focused Tier 2 handoff**

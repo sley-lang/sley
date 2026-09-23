@@ -1,5 +1,7 @@
 # S20-620 Sley 2 Trial Runner Closeout
 
+Completion record (2026-09-23): contract revision 8 has PASS verdicts in all three Council lanes (scoped to 03b25eb; see the machine summary lane fields and `bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md` section 15); status `S20_620_COMPLETE`. The open P3/P4 findings of the last rounds are recorded as `p3_open`/`p4_open` claims in the machine summary and do not block completion. The text below is retained as history.
+
 ## Revision 5 status (2026-09-23)
 
 The package now implements contract revision 5: the frozen nineteen-name
@@ -28,6 +30,7 @@ green with zero failed answers. The revision 2 record below is retained as
 history. Details: Revision 4 attestation.
 
 Status: **implemented under the draft Sley 2 Trial Runner v1 contract (revision 2); Council reviews pending, so the package is not complete; no model ran and no real trial exists; the Sley 2 goal remains incomplete**
+
 
 Date: 2026-09-03
 
