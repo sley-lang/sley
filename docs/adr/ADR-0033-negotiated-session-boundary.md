@@ -3,8 +3,8 @@
 Status: accepted; the S20-330 contract was at revision 3 with the
 Ariadne contract, Nabu architecture, and Vulcan surface re-reviews PASS
 and no new findings; implemented under the contract
-(`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`). Current pin
-(2026-09-08): the contract draft is at revision 4 (protocol version 2
+(`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`). Earlier pin
+(2026-09-08): the contract draft was at revision 4 (protocol version 2
 extension: the two entity-read tags head-bound only in version 2; the
 version 1 partition, handle bytes, and capsule format unchanged). The
 revision 3 reviews above are retained as history and do not review
