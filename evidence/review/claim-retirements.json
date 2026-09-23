@@ -2047,5 +2047,124 @@
    }
   ],
   "reason": "exact-claim bindings (8966da2e round): Vulcan record-staleness P4 \u2014 the reviewer's own b58ac1e per-finding closure lines, verified line by line"
+ },
+ {
+  "section": "s20_700_remaining_surface_audit",
+  "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-8f774d0.md",
+  "claims": [
+   {
+    "claim": "vulcan_review_closure_note@79fdcc6: [gate] scripts/build_finding_register.py:940-1016 - prior shared-vocabulary relation OPEN, narrowed: `shared_vocabulary` (`:724-753`) covers kind phrases and identifiers only, so a finding id two findings of a lane carry in their leading text still relates them \u2014 1a9f0aa `#L41` (the V-02 *pin* CLOSED row) speaks about the four V-02 regression-record P3s (`[tests] fuzz/regressions/ - prior V-02 \u2026`)",
+    "lines": [
+     30
+    ],
+    "reason": "the lane's own P3 item status line (prior shared-vocabulary relation, narrowed again \u2014 CLOSED) closes the carried 79fdcc6 finding the b58ac1e round re-raised; the identifier is shared with a later distinct finding, so the binding is exact (8966da2e round, split-status reconciliation)"
+   }
+  ],
+  "reason": "exact-claim bindings (8966da2e round, second batch): verified line by line 2026-09-22"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-1a9f0aa.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@76ae15a: [checker-binding] scripts/retire_review_claims.py:9-14,48-52,99-103 and Makefile:90,282 - carried OPEN, unchanged: (a) `role()` splits on `_` only so the dotted",
+    "lines": [
+     22
+    ],
+    "reason": "the lane's own P4 item status line (checker-binding, role() / --check / docstring \u2014 CLOSED) closes this carried copy as it closes the c67b072 claim bound at [149] (8966da2e round, split-status reconciliation)"
+   },
+   {
+    "claim": "ariadne_contract_review@76ae15a: [record-accuracy/regeneration] scripts/retire_review_claims.py:93-121,142-153 vs machineresearch/sley-2.0/machine-summary.json:5301-5302 (`p3_closed_claims[6]`)",
+    "lines": [
+     18
+    ],
+    "reason": "the lane's own P3 item status line (record-accuracy/regeneration \u2026 CLOSED) names this finding (Ariadne P3 at 8966da2e, own-line closures)"
+   },
+   {
+    "claim": "ariadne_contract_review@76ae15a: [record-accuracy] machineresearch/sley-2.0/machine-summary.json:5314-5317 (`p4_closed_claims[1]`) vs evidence/review/claim-retirements.json:121-133 (retirement ",
+    "lines": [
+     20
+    ],
+    "reason": "the lane's own P4 item status line (record-accuracy, the revision_10 oracle-embeds P4 \u2026 CLOSED) names this finding (Ariadne P3 at 8966da2e, own-line closures)"
+   },
+   {
+    "claim": "ariadne_contract_review@76ae15a: [record-accuracy] machineresearch/sley-2.0/machine-summary.json:5293-5294 (`p3_closed_claims[4]`, `verified_by \u2026ariadne_contract_review-db53894.md#L23,28`) vs e",
+    "lines": [
+     24
+    ],
+    "reason": "the lane's own P4 item status line (record-accuracy, db53894 :28 quoted closure line \u2026 CLOSED) names this finding (Ariadne P3 at 8966da2e, own-line closures)"
+   }
+  ],
+  "reason": "exact-claim bindings (8966da2e round, second batch): verified line by line 2026-09-22"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-7622776.md",
+  "claims": [
+   {
+    "claim": "vulcan_surface_review@db53894: [fail-closed-gap] scripts/build_reproducibility_report.py:403-468 - Carried OPEN, unchanged since c04539b9: `carried_attestations` never runs `verify_report` on",
+    "lines": [
+     26
+    ],
+    "reason": "the lane's own P4 item status line (fail-closed-gap, `carried_attestations` trusts the tracked report \u2014 CLOSED) closes this db53894 carried copy of the c04539b finding (8966da2e round, split-status reconciliation)"
+   }
+  ],
+  "reason": "exact-claim bindings (8966da2e round, second batch): verified line by line 2026-09-22"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-76ae15a.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@c67b072: [record-provenance] machineresearch/sley-2.0/machine-summary.json:5168-5171 (`p2_closed_claims[5]`) vs evidence/review/claim-retirements.json:498-514 (retiremen",
+    "lines": [
+     18
+    ],
+    "reason": "the lane's own P3 item status line (Finding 1 [P3] record-provenance \u2026 CLOSED) names this finding (Ariadne P3 at 8966da2e, own-line closures)"
+   }
+  ],
+  "reason": "exact-claim bindings (8966da2e round, second batch): verified line by line 2026-09-22"
+ },
+ {
+  "section": "reproducibility_and_independent_conformance",
+  "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-6589c6e.md",
+  "claims": [
+   {
+    "claim": "ariadne_contract_review@1a9f0aa: [record-accuracy/contract-accuracy] evidence/review/claim-retirements.json:120 ([10] `[2,3,4]\u2192[2,3]`), :132 ([11] `[3,4]\u2192[3]`), :505 ([41] `[2]\u2192[3]`, reason still \"P3 \u2026 and P4 \u2026 lines 25-26\"), :376 ([32] reason \"P3 and P4 (lines 24-25)\" vs `severities [3]`), old [12]/[15] removed; machineresearch/sley-2.0/machine-summary.json:5061-5064 (`p2_open` \u00d72, `p2_open_count 2`), :5144 (`p4_open_count 62`);",
+    "lines": [
+     19
+    ],
+    "reason": "the lane's own P3 item status line (record-accuracy/contract-accuracy \u2026 CLOSED) names this finding (Ariadne P3 at 8966da2e, own-line closures)"
+   }
+  ],
+  "reason": "exact-claim bindings (8966da2e round, second batch): verified line by line 2026-09-22"
+ },
+ {
+  "section": "release_candidate_packaging",
+  "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-8f774d0.md",
+  "claims": [
+   {
+    "claim": "nabu_architecture_review@1a9f0aa: [ledger-duplication] (carried from 76227765, OPEN \u2014 narrowed) machineresearch/sley-2.0/machine-summary.json:4441-4527 (`p4_open` 59 listed / 31 distinct lane-kind, 16 groups listed more than once; `p3_open` 14 / 9, my `[verification-depth]` \u00d73), :4649 with scripts/retire_review_claims.py:249-270 (`finding_key`: `ANCHOR` reads \"76227765/c67b0729\" as a path; identifier = first backtick, so `git`/`gr",
+    "lines": [
+     38
+    ],
+    "reason": "the lane's own P4 item status line ([ledger-duplication] (carried from 76227765) \u2026 `finding_key` \u2014 CLOSED) closes the carried 76227765 finding this earlier copy states; the b58ac1e copy is bound to the same line, and `finding_key` is shared with the lane's distinct 8966da2 regression finding, so the binding is exact (8966da2e round, split-status reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@6589c6e: [ledger-duplication] (carried from 76227765, OPEN) machineresearch/sley-2.0/machine-summary.json packaging `p4_open` (71 listed / 32 distinct lane-kind / 68 distinct `finding_key`; 21 lane-kind groups listed more than once), `p4_restated_claims` (36) with scripts/build_finding_register.py:1012-1026 (`finding_key` now the builder's \u2014 good \u2014 but keyed on the first backtick and on `ANCHOR`, which rea",
+    "lines": [
+     38
+    ],
+    "reason": "the lane's own P4 item status line ([ledger-duplication] (carried from 76227765) \u2026 `finding_key` \u2014 CLOSED) closes the carried 76227765 finding this earlier copy states; the b58ac1e copy is bound to the same line, and `finding_key` is shared with the lane's distinct 8966da2 regression finding, so the binding is exact (8966da2e round, split-status reconciliation)"
+   },
+   {
+    "claim": "nabu_architecture_review@79fdcc6: [ledger-duplication] (carried from 76227765, OPEN) machineresearch/sley-2.0/machine-summary.json packaging `p4_open` (85 listed / 36 distinct lane-kind / 84 distinct `finding_key`; 20 lane-kind groups listed more than once; nabu `[ledger-duplication]` \u00d75, `[record-consistency]` \u00d75, `[runbook-tracking]` \u00d73), `p4_restated_claims` (34, was 36) with scripts/build_finding_register.py:1182-1206 (`findin",
+    "lines": [
+     38
+    ],
+    "reason": "the lane's own P4 item status line ([ledger-duplication] (carried from 76227765) \u2026 `finding_key` \u2014 CLOSED) closes the carried 76227765 finding this earlier copy states; the b58ac1e copy is bound to the same line, and `finding_key` is shared with the lane's distinct 8966da2 regression finding, so the binding is exact (8966da2e round, split-status reconciliation)"
+   }
+  ],
+  "reason": "exact-claim bindings (8966da2e round, second batch): verified line by line 2026-09-22"
  }
 ]

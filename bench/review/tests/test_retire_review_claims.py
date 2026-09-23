@@ -418,31 +418,34 @@ class RetireReviewClaimsTests(unittest.TestCase):
 
     def test_split_status_refusal(self) -> None:
         # Ariadne P2 at 8966da2e: a key open in one copy and closed in
-        # another is refused by `--check` until explicitly reconciled.
+        # another is refused by `--check` until explicitly reconciled — when
+        # the closing round could have judged the open copy (it strictly
+        # postdates it) and the key carries an identifier. A copy raised at
+        # the closing round is that round's own statement, and an absent
+        # identifier is no identity (8966da2e round, second batch).
+        closer = f"evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-{self.second[:7]}.md#L1 — y"
         claim = f"vulcan_surface_review@{self.first[:7]}: [record] scripts/a.py:1 - `note` stale"
         split = {"s": {
             "p4_open": [claim], "p4_open_count": 1,
-            "p4_closed_claims": [{"claim": claim, "verified_by": "evidence/review/verdicts/x.md#L1 — y"}],
+            "p4_closed_claims": [{"claim": claim, "verified_by": closer}],
         }}
         problems = retire.split_status_problems(split)
         self.assertEqual(len(problems), 1)
         self.assertIn("open and closed", problems[0])
         clean = {"s": {"p4_open": [claim], "p4_open_count": 1}}
         self.assertEqual(retire.split_status_problems(clean), [])
-
-    def test_split_status_refusal(self) -> None:
-        # Ariadne P2 at 8966da2e: a key open in one copy and closed in
-        # another is refused by `--check` until explicitly reconciled.
-        claim = f"vulcan_surface_review@{self.first[:7]}: [record] scripts/a.py:1 - `note` stale"
-        split = {"s": {
-            "p4_open": [claim], "p4_open_count": 1,
-            "p4_closed_claims": [{"claim": claim, "verified_by": "evidence/review/verdicts/x.md#L1 — y"}],
+        same_round = claim.replace(f"@{self.first[:7]}", f"@{self.second[:7]}")
+        raised_at_closer = {"s": {
+            "p4_open": [same_round], "p4_open_count": 1,
+            "p4_closed_claims": [{"claim": claim, "verified_by": closer}],
         }}
-        problems = retire.split_status_problems(split)
-        self.assertEqual(len(problems), 1)
-        self.assertIn("open and closed", problems[0])
-        clean = {"s": {"p4_open": [claim], "p4_open_count": 1}}
-        self.assertEqual(retire.split_status_problems(clean), [])
+        self.assertEqual(retire.split_status_problems(raised_at_closer), [])
+        bare = claim.replace("`note`", "the note")
+        identifier_less = {"s": {
+            "p4_open": [bare], "p4_open_count": 1,
+            "p4_closed_claims": [{"claim": bare.replace(":1 -", ":2 -"), "verified_by": closer}],
+        }}
+        self.assertEqual(retire.split_status_problems(identifier_less), [])
 
     def test_equal_key_open_claim_inherits_a_later_closure(self) -> None:
         # Nabu P4 at 8966da2e: exact identity needs no carry phrase — an
@@ -600,6 +603,189 @@ class RetireReviewClaimsTests(unittest.TestCase):
                 "verified_by": rel, "reason": "x"}
         with self.assertRaises(SystemExit):
             retire.retire({"release_candidate_packaging": {"p4_open": [claim], "p4_open_count": 1}}, [item])
+
+
+    # 8966da2e round, second batch (Ariadne/Nabu/Vulcan reproducibility,
+    # Vulcan standards, Vulcan s20_700 closure): each reviewer probe pinned.
+
+    def third_commit(self) -> str:
+        (self.root / "x").write_text("c\n")
+        self.commit("third")
+        return self.git("rev-parse", "HEAD").strip()
+
+    def generic_and_specific_heads(self) -> None:
+        (self.section / f"vulcan_surface_review-{self.second[:7]}.md").write_text(
+            "- **[P3] [robustness] scripts/build_finding_register.py — CLOSED.** generic\n"
+            "- **[P3] [robustness] `finding_key` in scripts/build_finding_register.py — CLOSED.** specific\n"
+            "VERDICT: PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED\n"
+        )
+        self.git("add", ".")
+        register._tracked = None
+
+    def test_generic_head_under_carried_and_identifier_less_shapes(self) -> None:
+        # Ariadne P2 / Vulcan P3 (s20_700) at 8966da2e: two carries of
+        # distinct findings, or two identifier-less originals, under one
+        # generic head retire exactly what the identifier head names — never
+        # both by an equal (`None` or `""`) key.
+        self.generic_and_specific_heads()
+        first = self.first[:7]
+        base = f"vulcan_surface_review@{first}: [robustness] "
+        ident_1 = "scripts/build_finding_register.py:10 - the `finding_key` anchor is coarse"
+        ident_2 = "scripts/build_finding_register.py:20 - the `closure_head` read is partial"
+        bare_1 = "scripts/build_finding_register.py:10 - the key is coarse"
+        bare_2 = "scripts/build_finding_register.py:20 - the read is partial"
+        shapes = {
+            "leading carries": ([base + f"(carried from {first}, OPEN) " + ident_1, base + f"(carried from {first}, OPEN) " + ident_2], 1),
+            "trailing carries": ([base + ident_1 + f" - carried from {first}", base + ident_2 + f" - carried from {first}"], 1),
+            "identifier-less originals": ([base + bare_1, base + bare_2], 0),
+            "sha-less clauses": ([base + "(prior, OPEN) " + ident_1, base + "(residual) " + ident_2], 1),
+            "identifier-less leading carries": ([base + f"(carried from {first}, OPEN) " + bare_1, base + f"(carried from {first}, OPEN) " + bare_2], 0),
+            "identifier-less trailing carries": ([base + bare_1 + f" - carried from {first}", base + bare_2 + f" - carried from {first}"], 0),
+        }
+        for label, (claims, expected) in shapes.items():
+            register._raising.clear()
+            summary = {"release_candidate_packaging": {"p3_open": list(claims), "p3_open_count": 2}}
+            self.assertEqual(retire.retire(summary, []), expected, label)
+            for item in summary["release_candidate_packaging"].get("p3_closed_claims", []):
+                self.assertIn("#L2 ", item["verified_by"], label)
+
+    def test_a_quoted_carried_from_is_not_the_claims_carry(self) -> None:
+        # Nabu P3 / Vulcan P3 / Vulcan P2 (s20_700) at 8966da2e: Ariadne's
+        # `[128]` finding quoted a Nabu claim's "carried from 76227765" and
+        # was keyed to that round; a quoted phrase is the quoted text's carry.
+        first, second = self.first[:7], self.second[:7]
+        quoted = (f"ariadne_contract_review@{second}: [record-accuracy] evidence/review/claim-retirements.json entry [128] - "
+                  f"the new entry binds `nabu@c67b072: [x] (carried from {first}, OPEN)` and \"carried from {first}\" text")
+        self.assertFalse(register.is_carry(quoted))
+        self.assertIsNone(register.named_carry_sha(quoted))
+        self.assertNotEqual(register.finding_key(quoted)[2], first)
+        backticked = f"vulcan_surface_review@{second}: [record] scripts/a.py:3 - `alpha_guard` cites `carried from {first}`"
+        self.assertFalse(register.is_carry(backticked))
+        own = f"vulcan_surface_review@{second}: [record] scripts/a.py:3 - `alpha_guard` still stale - carried from {first}"
+        self.assertTrue(register.is_carry(own))
+        self.assertEqual(register.named_carry_sha(own), first)
+        root = f"vulcan_surface_review@{first}: [record] scripts/a.py:1 - `alpha_guard` stale"
+        summary = {"s": {"p4_open": [root, backticked], "p4_open_count": 2}}
+        self.assertEqual(retire.fold_restatements(summary), 0)
+        # Sha-less leading clauses are no carry (8966da2e P2s).
+        for clause in ("(prior, OPEN) ", "(residual) ", "(carried, OPEN) ", "(prior art) "):
+            self.assertFalse(register.is_carry(f"v@{second}: [x] {clause}scripts/z.py:5 - `zeta` bad"), clause)
+
+    def test_a_named_distinct_restatement_never_folds_into_a_closed_sibling(self) -> None:
+        # Vulcan P3 at 8966da2e (reproducibility probe): a closed `alpha_one`
+        # root plus `(carried from <sha>, OPEN) … beta_two` folds nothing.
+        second = self.second[:7]
+        third = self.third_commit()
+        closer = self.section / f"vulcan_surface_review-{third[:7]}.md"
+        closer.write_text("- **[P4] [record] `alpha_one` in scripts/a.py — CLOSED.**\n")
+        self.git("add", ".")
+        root = f"vulcan_surface_review@{second}: [record] scripts/a.py:1 - `alpha_one` stale"
+        copy = f"vulcan_surface_review@{second}: [record] (carried from {second}, OPEN) scripts/a.py:3 - `beta_two` missing"
+        summary = {"s": {"p4_open": [copy], "p4_open_count": 1,
+                         "p4_closed_claims": [{"claim": root, "verified_by": f"{closer.relative_to(self.root).as_posix()}#L1 — c"}]}}
+        self.assertEqual(retire.fold_restatements(summary), 0)
+        self.assertEqual(summary["s"]["p4_open"], [copy])
+
+    def test_the_standards_fixture_retires_the_root_and_folds_nothing(self) -> None:
+        # Vulcan P2 at 8966da2e (standards): the root closes by the strong
+        # read; a distinct carried finding, a wrong sha, a sha-less clause
+        # and a prose parenthetical all stay open.
+        first, second = self.first[:7], self.second[:7]
+        third = self.third_commit()
+        (self.section / f"vulcan_surface_review-{third[:7]}.md").write_text(
+            "- **[P4] [fail-closed-gap] `alpha_beta` in scripts/x.py — CLOSED.**\n"
+            "VERDICT: PASS_0_P0_0_P1_0_P2_0_P3_0_P4_PRIOR_P4_CLOSED\n")
+        self.git("add", ".")
+        register._tracked = None
+        root = f"vulcan_surface_review@{first}: [fail-closed-gap] scripts/x.py:10 - the `alpha_beta` guard is open"
+        for clause in (f"(carried from {first}, OPEN) ", "(carried from 0000000, OPEN) ", "(carried, OPEN) ", "(prior art) "):
+            restate = f"vulcan_surface_review@{second}: [fail-closed-gap] {clause}scripts/x.py:90 - the `gamma_delta` bound is missing"
+            summary = {"release_candidate_packaging": {"p4_open": [root, restate], "p4_open_count": 2}}
+            self.assertEqual(retire.retire(summary, []), 1, clause)
+            self.assertEqual(retire.fold_restatements(summary), 0, clause)
+            self.assertEqual(summary["release_candidate_packaging"]["p4_open"], [restate], clause)
+
+    def test_nabu_fixtures_fold_only_into_the_carried_identifier(self) -> None:
+        # Nabu P2 at 8966da2e: (A) a carried `beta_function` never folds into
+        # a retired `alpha_function` root closed by a line naming only
+        # alpha; (B) with both open it folds into beta, never alpha.
+        first, second = self.first[:7], self.second[:7]
+        third = self.third_commit()
+        closer = self.section / f"nabu_architecture_review-{third[:7]}.md"
+        closer.write_text("- **[P4] [record-precision] `alpha_function` in scripts/y.py — CLOSED.**\n")
+        self.git("add", ".")
+        alpha = f"nabu_architecture_review@{first}: [record-precision] scripts/y.py:1 - `alpha_function` wrong"
+        beta = f"nabu_architecture_review@{first}: [record-precision] scripts/y.py:2 - `beta_function` wrong"
+        copy = f"nabu_architecture_review@{second}: [record-precision] (carried from {first}, OPEN) scripts/y.py:2 - `beta_function` still wrong"
+        summary = {"s": {"p4_open": [copy], "p4_open_count": 1,
+                         "p4_closed_claims": [{"claim": alpha, "verified_by": f"{closer.relative_to(self.root).as_posix()}#L1 — c"}]}}
+        self.assertEqual(retire.fold_restatements(summary), 0)
+        summary = {"s": {"p4_open": [alpha, beta, copy], "p4_open_count": 3}}
+        self.assertEqual(retire.fold_restatements(summary), 1)
+        self.assertEqual(summary["s"]["p4_restated_claims"], [{"claim": copy, "restates": beta}])
+
+    def test_exact_key_inheritance_needs_an_identifier_and_a_naming_line(self) -> None:
+        # Ariadne P3 at 8966da2e, second batch (closed-root check; R1): an
+        # identifier-less original never inherits a retired claim's status
+        # by an equal `""` key, and an identifier-bearing one only when the
+        # retired claim's own closing line speaks about it.
+        first, second = self.first[:7], self.second[:7]
+        third = self.third_commit()
+        closer = self.section / f"vulcan_surface_review-{third[:7]}.md"
+        closer.write_text("- **[P4] [record] scripts/a.py:1 guard stale — CLOSED.**\n"
+                          "- **[P4] [record] `alpha_guard` span 40-44 — CLOSED.**\n")
+        self.git("add", ".")
+        rel = closer.relative_to(self.root).as_posix()
+        shut = f"vulcan_surface_review@{first}: [record] scripts/a.py:1 - the guard is stale"
+        other = f"vulcan_surface_review@{second}: [record] scripts/a.py:40-44 - an unrelated bound is missing"
+        summary = {"s": {"p4_open": [other], "p4_open_count": 1,
+                         "p4_closed_claims": [{"claim": shut, "verified_by": f"{rel}#L1 — c"}]}}
+        self.assertEqual(retire.fold_restatements(summary), 0)
+        self.assertEqual(summary["s"]["p4_open"], [other])
+        # Identifier-bearing: the cited line (#L1) does not name the copy.
+        shut_id = f"vulcan_surface_review@{first}: [record] scripts/a.py:1 - `alpha_guard` stale"
+        copy_id = f"vulcan_surface_review@{second}: [record] scripts/a.py:40-44 - `alpha_guard` again"
+        summary = {"s": {"p4_open": [copy_id], "p4_open_count": 1,
+                         "p4_closed_claims": [{"claim": shut_id, "verified_by": f"{rel}#L1 — c"}]}}
+        self.assertEqual(retire.fold_restatements(summary), 0)
+        summary["s"]["p4_closed_claims"][0]["verified_by"] = f"{rel}#L2 — c"
+        self.assertEqual(retire.fold_restatements(summary), 1)
+
+    def test_exact_key_inheritance_honours_the_named_round(self) -> None:
+        # Ariadne P3 at 8966da2e, second batch (seven inheritances named
+        # another round): a named carry inherits only a retired claim at the
+        # round it names, or a retired carry of the same named root.
+        first, second = self.first[:7], self.second[:7]
+        third = self.third_commit()
+        (self.root / "x").write_text("d\n")
+        self.commit("fourth")
+        fourth = self.git("rev-parse", "HEAD").strip()
+        closer = self.section / f"vulcan_surface_review-{fourth[:7]}.md"
+        closer.write_text("- **[P4] [record] `alpha_guard` in scripts/a.py — CLOSED.**\n")
+        self.git("add", ".")
+        rel = closer.relative_to(self.root).as_posix()
+        at_second = f"vulcan_surface_review@{second}: [record] scripts/a.py:1 - `alpha_guard` stale"
+        copy = f"vulcan_surface_review@{third[:7]}: [record] (carried from {first}, OPEN) scripts/a.py:3 - `alpha_guard` still stale"
+        summary = {"s": {"p4_open": [copy], "p4_open_count": 1,
+                         "p4_closed_claims": [{"claim": at_second, "verified_by": f"{rel}#L1 — c"}]}}
+        self.assertEqual(retire.fold_restatements(summary), 0)
+        sibling = f"vulcan_surface_review@{second}: [record] (carried from {first}, OPEN) scripts/a.py:2 - `alpha_guard` stale"
+        summary = {"s": {"p4_open": [copy], "p4_open_count": 1,
+                         "p4_closed_claims": [{"claim": sibling, "verified_by": f"{rel}#L1 — c"}]}}
+        self.assertEqual(retire.fold_restatements(summary), 1)
+        self.assertEqual(summary["s"]["p4_restated_claims"], [{"claim": copy, "restates": sibling}])
+
+    def test_an_ambiguous_named_root_stays_open(self) -> None:
+        # Ariadne P3 at 8966da2e, second batch: two same-key claims at the
+        # named round are ambiguous; the carry folds into neither.
+        first, second = self.first[:7], self.second[:7]
+        one = f"vulcan_surface_review@{first}: [record] scripts/a.py:1 - the guard is stale"
+        two = f"vulcan_surface_review@{first}: [record] scripts/a.py:9 - a bound is missing"
+        copy = f"vulcan_surface_review@{second}: [record] (carried from {first}, OPEN) scripts/a.py:3 - still"
+        summary = {"s": {"p4_open": [one, two, copy], "p4_open_count": 3}}
+        self.assertEqual(retire.fold_restatements(summary), 0)
+        summary = {"s": {"p4_open": [one, copy], "p4_open_count": 2}}
+        self.assertEqual(retire.fold_restatements(summary), 1)
 
 
 if __name__ == "__main__":

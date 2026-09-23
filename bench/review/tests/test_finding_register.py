@@ -414,6 +414,7 @@ class InvariantTests(unittest.TestCase):
     def test_revision_7_ledger_shape_rules(self) -> None:
         # Strict `#L` grammar, no open-and-closed claim, list/count agreement,
         # tag grammar, and restated-claim validation.
+        self.synthetic_raising()
         transcript = "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md"
         claim = "vulcan_review_revision_1@178873d: [record] open_risks / dossier reproduced on two hosts"
         base = {
@@ -634,9 +635,23 @@ class InvariantTests(unittest.TestCase):
         real = "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md"
         self.assertIsNotNone(register.transcript_path(real + "#L22 — line 22"))
 
+    def synthetic_raising(self) -> None:
+        """The legacy fixtures tag a synthetic claim at 178873d that no
+        raising transcript records; the tagged-claim refusal (8966da2e
+        round, second batch) has its own test, so these fixtures bind the
+        synthetic claim's severity explicitly."""
+        real = register.raising_severity
+        patcher = unittest.mock.patch.object(
+            register, "raising_severity",
+            lambda section, claim: "P3" if "open_risks" in claim else real(section, claim),
+        )
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_retired_claims_must_name_an_existing_transcript(self) -> None:
         # Revision 6: a pN_closed_claims entry is {claim, verified_by} with an
         # existing transcript path; anything else is SUMMARY_INVALID.
+        self.synthetic_raising()
         transcript = "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md"
         self.assertTrue((register.ROOT / transcript).is_file())
         # The section must own the transcript directory and the claim's lane
@@ -981,6 +996,74 @@ class InvariantTests(unittest.TestCase):
         self.assertTrue(own("| P3 | **CLOSED (P3)** |", "CLOSED"))
         self.assertFalse(own("| P3 | **CLOSED (leg 2 open)** |", "CLOSED"))
         self.assertTrue(own("| P4 | **OPEN** |", "OPEN"))
+
+
+    def test_a_tagged_claim_no_raising_transcript_records_is_refused(self) -> None:
+        # Vulcan P3 at 8966da2e (standards): `raising_severity` returned None
+        # for a tagged claim its raising round never recorded, and the open
+        # and retired lists skipped the binding; now every list refuses it.
+        # A lane-less field reads its own `<stem>*-<scope>.md` transcript.
+        lane_less = ("epoch1_reanchor_review_closure_note@1a9f0aa: [checker] scripts/retire_review_claims.py:200-206,222-225 "
+                     "(lane resolution at scripts/retire_review_claims.py:50-56 and scripts/build_finding_register.py:99-104)")
+        self.assertEqual(register.raising_severity("mutation_value_profile", lane_less), "P3")
+        unraised = "vulcan_surface_review@1a9f0aa: [record-note] scripts/q.py:1 - no transcript line raises this"
+        self.assertIsNone(register.raising_severity("release_candidate_packaging", unraised))
+        transcript = "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md"
+        base = {
+            "release_candidate_packaging": {"status": "S20_999_IMPLEMENTED_REVIEW_PENDING", "vulcan_review": "REVISE_0_P0_1_P1",
+                                            "p1_open": [unraised], "p1_open_count": 1},
+            "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+        }
+        error = self.build_fails(base)
+        self.assertEqual(error.code, register.RegisterErrorCode.SUMMARY_INVALID)
+        self.assertIn("no raising transcript records the tagged claim", str(error))
+        closed = {
+            "release_candidate_packaging": {
+                "status": "S20_999_IMPLEMENTED_REVIEW_PENDING", "vulcan_review": "PASS_0_P0_0_P1_0_P2_0_P3_PRIOR_P3_CLOSED",
+                "p3_open": [], "p3_open_count": 0,
+                "p3_closed_claims": [{"claim": unraised, "verified_by": transcript + "#L23 — x"}],
+            },
+            "open_findings": {"p0": 0, "p1": 0, "p2": 0, "p3": 0, "p4": 0},
+        }
+        self.assertIn("no raising transcript records the tagged claim", str(self.build_fails(closed)))
+
+    def test_open_findings_count_distinct_identities(self) -> None:
+        # Ariadne P3 / Vulcan P4 at 8966da2e, second batch: `pN_open_count`
+        # counts claims (one per round that stated a finding); the register
+        # reports distinct findings beside it. An identifier-bearing key
+        # counts once; an identifier-less claim counts itself.
+        summary = {"s": {"p4_open": [
+            "vulcan_surface_review@1a9f0aa: [record] scripts/a.py:1 - `alpha_guard` stale",
+            "vulcan_surface_review@6589c6e: [record] scripts/a.py:7 - `alpha_guard` stale, carried unchanged",
+            "vulcan_surface_review@1a9f0aa: [record] scripts/a.py:2 - the guard is stale",
+            "vulcan_surface_review@6589c6e: [record] scripts/a.py:3 - the bound is stale",
+        ], "p4_open_count": 4}}
+        self.assertEqual(register.package_open_findings(summary), {"s.p4_open": 3})
+        tracked = register.build_register()
+        self.assertEqual(set(tracked["package_open_findings"]),
+                         {key for key in tracked["package_open_claims"] if key.endswith("_open")})
+        for key, count in tracked["package_open_findings"].items():
+            self.assertLessEqual(count, tracked["package_open_claims"][key])
+
+    def test_own_line_closures_are_bound_exactly(self) -> None:
+        # Ariadne P3 at 8966da2e, second batch: the five reproducibility
+        # claims closed by the lane's own item lines (76ae15a :18,
+        # 1a9f0aa :18,20,24, 6589c6e :19) are retired by exact-claim entries.
+        summary = json.loads(register.SUMMARY.read_text(encoding="utf-8"))
+        section = summary["reproducibility_and_independent_conformance"]
+        closed = {item["claim"]: item for n in (3, 4) for item in section.get(f"p{n}_closed_claims", [])}
+        for prefix, cite in (
+            ("ariadne_contract_review@c67b072: [record-provenance]", "ariadne_contract_review-76ae15a.md#L18 "),
+            ("ariadne_contract_review@76ae15a: [record-accuracy/regeneration]", "ariadne_contract_review-1a9f0aa.md#L18 "),
+            ("ariadne_contract_review@1a9f0aa: [record-accuracy/contract-accuracy]", "ariadne_contract_review-6589c6e.md#L19 "),
+            ("ariadne_contract_review@76ae15a: [record-accuracy] machineresearch/sley-2.0/machine-summary.json:5314-5317", "ariadne_contract_review-1a9f0aa.md#L20 "),
+            ("ariadne_contract_review@76ae15a: [record-accuracy] machineresearch/sley-2.0/machine-summary.json:5293-5294", "ariadne_contract_review-1a9f0aa.md#L24 "),
+        ):
+            hits = [item for claim, item in closed.items() if claim.startswith(prefix)]
+            self.assertEqual(len(hits), 1, prefix)
+            self.assertIn(cite, hits[0]["verified_by"])
+            self.assertEqual(hits[0].get("binding"), "exact-claim")
+            self.assertFalse(any(claim.startswith(prefix) for n in (3, 4) for claim in section.get(f"p{n}_open", [])))
 
 
 if __name__ == "__main__":

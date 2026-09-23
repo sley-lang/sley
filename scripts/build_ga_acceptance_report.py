@@ -320,6 +320,14 @@ def derive_criteria(sources: dict) -> list[dict]:
         if key.endswith(("p0_open_count", "p1_open_count", "p2_open_count"))
     )
     open_p0_p2 = sum(int(declared.get(key, 0) or 0) for key in ("p0", "p1", "p2")) + claimed_p0_p2
+    # Distinct findings by key (8966da2e round, second batch): the claim
+    # count lists a carried finding once per round; the gate reads claims
+    # (it can only over-count) and the row states both.
+    distinct_p0_p2 = sum(
+        int(value or 0)
+        for key, value in (register.get("package_open_findings", {}) or {}).items()
+        if key.endswith(("p0_open", "p1_open", "p2_open"))
+    )
     obligations = [row for row in register.get("obligations", []) or [] if isinstance(row, dict)]
     flagged = flagged_rows(register)
 
@@ -591,7 +599,7 @@ def derive_criteria(sources: dict) -> list[dict]:
          f"independent security review: {security_note}. Whether a located, exercised control mitigates its threat stays the review's judgment"),
         ("26.6 policy and security", "no P0/P1/P2 finding remains open", state(open_p0_p2 == 0, GATED),
          f"finding register declares {open_p0_p2} open P0/P1/P2 findings across {register.get('obligation_count')} obligations "
-         f"({claimed_p0_p2} of them per-package open claims)"),
+         f"({claimed_p0_p2} of them per-package open claims, {distinct_p0_p2} distinct findings by finding key)"),
         ("26.6 policy and security", "opacity is not used as a security argument",
          state(anti_goal("opacity as security") == "HOLDS"),
          f"anti-goal conformance report 'opacity as security' {anti_goal('opacity as security')}; every contract is public in docs/spec "

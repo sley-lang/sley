@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 CONTRACT = "sley2.finding-register.v1"
-CONTRACT_REVISION = 8
+CONTRACT_REVISION = 9
 # Field names that name a role, actor, session, instant, or free note rather
 # than a disposition (contract section 1). All suffix-anchored: a bare
 # substring match would silently drop a future field that merely contains
@@ -648,23 +648,41 @@ def raising_severity(section: str, claim: str) -> str | None:
     """The severity the claim's raising transcript records for it: the
     `[Pn]` finding line of `<section>/<lane>*-<scope7>.md` whose text begins
     with the claim's description, or None when the claim is untagged, the
-    transcript is not filed, or no finding line matches (older rounds
-    recorded truncated descriptions)."""
+    transcript is not filed, or no finding line matches. A lane-less field
+    (`<stem>_note`) reads its own `<stem>*-<scope7>.md` transcript, as
+    `raising_scope` does (8966da2e round, second batch: the two lane-less
+    tagged claims had no raising severity at all). A tagged claim with no
+    raising severity is refused wherever it is listed
+    (`tagged_claim_unraised`)."""
     match = CLAIM_TAG.match(claim)
     if not match or not match.group(2):
         return None
     lane = reviewer_of(match.group(1))
     description = claim.split(": ", 1)[1] if ": " in claim else ""
-    if not lane or not description:
+    if not description:
         return None
+    stem = lane if lane else match.group(1).removesuffix("_note")
     directory = ROOT / "evidence/review/verdicts" / section.split(".")[0]
-    for path in sorted(directory.glob(f"{lane}*-{match.group(2)[:7]}.md")) if directory.is_dir() else []:
+    for path in sorted(directory.glob(f"{stem}*-{match.group(2)[:7]}.md")) if directory.is_dir() else []:
         if not is_tracked(path.relative_to(ROOT).as_posix()):
             continue
         hit = _finding_line_match(path.read_text(encoding="utf-8", errors="replace").splitlines(), description)
         if hit:
             return hit
     return None
+
+
+def tagged_claim_unraised(section: str, field: str, claim: str, raised: str | None) -> None:
+    """Refuse a tagged claim whose raising round records no finding line for
+    it: the claim then binds to no severity, and any list would accept it
+    (Vulcan P3 at 8966da2e, standards: the open and retired lists skipped the
+    binding on `None`; only re-stated claims were refused)."""
+    tag = CLAIM_TAG.match(claim)
+    if tag and tag.group(2) and raised is None:
+        raise RegisterError(
+            RegisterErrorCode.SUMMARY_INVALID,
+            f"{section}.{field}: no raising transcript records the tagged claim: {claim[:60]!r}",
+        )
 
 
 def package_open_claims(summary: dict) -> dict[str, int]:
@@ -688,6 +706,8 @@ def package_open_claims(summary: dict) -> dict[str, int]:
                     )
                 for claim in item:
                     raised = raising_severity(section, claim) if isinstance(claim, str) else None
+                    if isinstance(claim, str):
+                        tagged_claim_unraised(section, field, claim, raised)
                     if raised and raised != "P" + field[1]:
                         raise RegisterError(
                             RegisterErrorCode.SUMMARY_INVALID,
@@ -900,8 +920,12 @@ def shared_vocabulary(section: dict, severity: str, claim: str, section_name: st
         # apart) still count toward each other's vocabulary, so a generic
         # head never retires either (Vulcan P4 at 8966da2e: 28 equal-key
         # groups had dropped from each other's shared set).
+        # Identity by absence is no identity (Ariadne P2 / Vulcan P3 at
+        # 8966da2e, second batch): two carries of distinct findings that
+        # both lack a backticked identifier key equal (`""`), so the
+        # exemption needs a non-empty identifier on the equal key too.
         if other_lane != lane or (
-            other_key == own_key and (is_carry(other) or is_carry(claim))
+            other_key == own_key and own_key[3] and (is_carry(other) or is_carry(claim))
         ):
             continue
         other_phrases, other_identifiers = identity_tokens(other)
@@ -1350,6 +1374,7 @@ def package_closed_claims(summary: dict) -> dict[str, int]:
                         f"{section}.{field} entries are {{claim, verified_by[, binding: exact-claim]}} strings",
                     )
                 raised = raising_severity(section, entry["claim"])
+                tagged_claim_unraised(section, field, entry["claim"], raised)
                 if raised and raised != "P" + field[1]:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
@@ -1492,7 +1517,7 @@ def finding_key(claim: str, section: str | None = None, fields: dict | None = No
     # originates from (the `carried from <sha>` scope a re-statement names,
     # else the claim's raising scope), or its description when no round is
     # known.
-    sha = CARRIED_FROM.search(body)
+    sha = CARRIED_FROM.search(unquoted(body))
     origin = sha.group(1)[:7] if sha else (raising_scope(section, claim, fields) if section else (tag.group(2)[:7] if tag and tag.group(2) else None))
     if origin is None:
         description = rest.split(" - ", 1)[1] if " - " in rest else rest
@@ -1512,16 +1537,26 @@ def same_finding(one: tuple, other: tuple) -> bool:
     return one == other
 
 
+def unquoted(text: str) -> str:
+    """The text without its backticked and quoted spans: a `carried from
+    <sha>` phrase the claim quotes from another claim or transcript is that
+    other text's carry, never this claim's (Nabu P3 / Vulcan P3 / Vulcan P2
+    at 8966da2e: Ariadne's `[128]` finding quoted a Nabu claim's
+    "carried from 76227765" and was keyed to that round)."""
+    return re.sub(r"`[^`]*`|\"[^\"]*\"|“[^”]*”", " ", text)
+
+
 def is_carry(claim: str) -> bool:
     """The claim names its carried root: a leading `(carried from <sha>, …)`
-    clause or a `carried from <sha>` phrase (8f774d0c round: a prose word
-    such as `prior` or `unchanged` had made an original a re-statement;
-    8966da2e round: a sha-less leading clause such as `(prior)` or
-    `(carried, unchanged)` had done the same)."""
+    clause or a `carried from <sha>` phrase outside quoted spans (8f774d0c
+    round: a prose word such as `prior` or `unchanged` had made an original
+    a re-statement; 8966da2e round: a sha-less leading clause such as
+    `(prior)` or `(carried, unchanged)`, or a quoted foreign phrase, had
+    done the same)."""
     body = claim.split(": ", 1)[1] if ": " in claim else claim
     kind = re.match(r"\[([^\]]+)\]", body)
     rest = body[kind.end():].strip() if kind else body
-    return CARRIED_FROM.search(body) is not None or LEADING_CARRY.match(rest) is not None
+    return CARRIED_FROM.search(unquoted(body)) is not None or LEADING_CARRY.match(rest) is not None
 
 
 def named_carry_sha(claim: str) -> str | None:
@@ -1531,10 +1566,10 @@ def named_carry_sha(claim: str) -> str | None:
     earliest scope alone (Ariadne/Nabu/Vulcan P2 at 8966da2e: five open
     `[predicate-precision]` findings naming 79fdcc6/b58ac1e/8f774d0 had
     folded into a closed root at 76ae15a)."""
-    found = CARRIED_FROM.search(claim)
+    body = claim.split(": ", 1)[1] if ": " in claim else claim
+    found = CARRIED_FROM.search(unquoted(body))
     if found:
         return found.group(1)[:7]
-    body = claim.split(": ", 1)[1] if ": " in claim else claim
     kind = re.match(r"\[([^\]]+)\]", body)
     rest = body[kind.end():].strip() if kind else body
     leading = LEADING_CARRY.match(rest)
@@ -1592,12 +1627,7 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
                 # (Vulcan P4 at 8966da2e: `None` had been accepted on no
                 # match; untagged claims still resolve through transcripts
                 # and notes).
-                tag = CLAIM_TAG.match(entry["claim"])
-                if tag and tag.group(2) and raised is None:
-                    raise RegisterError(
-                        RegisterErrorCode.SUMMARY_INVALID,
-                        f"{section}.{field}: no raising transcript records the tagged claim: {entry['claim'][:60]!r}",
-                    )
+                tagged_claim_unraised(section, field, entry["claim"], raised)
                 if entry["claim"] in open_list or entry["claim"] in closed or entry["restates"] == entry["claim"]:
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
@@ -1618,17 +1648,26 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
                         f"{section}.{field}: re-statement is not the same finding: {entry['claim'][:60]!r}",
                     )
                 # The fold resolves its root by the named sha (Vulcan P2 at
-                # 8966da2e); the ledger replays the same rule, except for an
-                # exact-key inheritance into a retired claim (one finding,
-                # one status — Ariadne P2 at 8966da2e).
+                # 8966da2e) — every fold, exact-key inheritance included
+                # (Ariadne P3 at 8966da2e, second batch: seven inheritances
+                # had restated a claim at another round than the one named).
+                # Two shapes replay the fold's rules: a named carry, and an
+                # exact-key inheritance (non-empty identifier) into a retired
+                # claim — never identity by an absent identifier.
                 named_sha = named_carry_sha(entry["claim"])
                 target_scope = claim_scope(entry["restates"]) or raising_scope(section, entry["restates"], value)
                 retired_targets = {item.get("claim") for item in value.get(f"p{severity}_closed_claims") or [] if isinstance(item, dict)}
+                own_key = finding_key(entry["claim"], section, value)
                 exact_inherit = (
-                    finding_key(entry["claim"], section, value) == finding_key(entry["restates"], section, value)
+                    own_key == finding_key(entry["restates"], section, value)
+                    and bool(own_key[3])
                     and entry["restates"] in retired_targets
                 )
-                if named_sha and not exact_inherit and (target_scope or "")[:7] != named_sha:
+                # A retired carry of the same named root is that round's
+                # finding too (the named root resolved one hop).
+                if named_sha and (target_scope or "")[:7] != named_sha and not (
+                    exact_inherit and named_carry_sha(entry["restates"]) == named_sha
+                ):
                     raise RegisterError(
                         RegisterErrorCode.SUMMARY_INVALID,
                         f"{section}.{field}: re-statement names {named_sha} but restates a claim at {target_scope}: {entry['claim'][:60]!r}",
@@ -1663,6 +1702,35 @@ def package_restated_claims(summary: dict) -> dict[str, int]:
                     )
             claims[f"{section}.{field}"] = len(item)
     return dict(sorted(claims.items()))
+
+
+def package_open_findings(summary: dict) -> dict[str, int]:
+    """Distinct findings per section open list (Ariadne P3 / Vulcan P4 at
+    8966da2e, second batch): `pN_open_count` counts claims — one per round
+    that stated the finding — so a carried finding is listed once per round.
+    Claims sharing an identifier-bearing finding key count once here; an
+    identifier-less claim counts itself (an absent identifier is no
+    identity). Report-only: the GA row still gates on the claim count, which
+    can only over-count."""
+    findings: dict[str, int] = {}
+    for section, value in summary.items():
+        if not isinstance(value, dict):
+            continue
+        for field, item in value.items():
+            if not PACKAGE_OPEN_LIST.match(field) or not isinstance(item, list):
+                continue
+            keys: set[tuple] = set()
+            singles = 0
+            for claim in item:
+                if not isinstance(claim, str):
+                    continue
+                key = finding_key(claim, section, value)
+                if key[0] is None or not key[3]:
+                    singles += 1
+                else:
+                    keys.add(key)
+            findings[f"{section}.{field}"] = len(keys) + singles
+    return dict(sorted(findings.items()))
 
 
 def build_register() -> dict:
@@ -1775,6 +1843,7 @@ def build_register() -> dict:
         "complete_packages_with_open_reviews": violations,
         "declared_open_findings": declared,
         "package_open_claims": claims,
+        "package_open_findings": package_open_findings(summary),
         "package_closed_claims": package_closed_claims(summary),
         "package_restated_claims": package_restated_claims(summary),
         "result": "FINDING_REGISTER_CLEAR" if clear else "FINDING_REGISTER_OPEN",

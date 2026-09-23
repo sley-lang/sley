@@ -1,6 +1,6 @@
 # ADR-0042: the finding register is derived from recorded dispositions
 
-Status: proposed; the S20-740 contract is a draft at revision 7 with Council
+Status: proposed; the S20-740 contract is a draft at revision 9 with Council
 review pending; register mechanics implemented (2026-09-05, revised
 2026-09-11 with enforced round ordering, lane-core compatibility, and
 lane-leaf collection) with the
@@ -66,3 +66,5 @@ Note (revision 5, 2026-09-18): round folding additionally requires that a closin
 Note (revision 6, 2026-09-18): per-package open claims are retired only into `pN_closed_claims` entries that name an existing verifying transcript (`scripts/retire_review_claims.py`, `evidence/review/claim-retirements.json`); the builder validates every retirement.
 
 Note (revision 7, 2026-09-19): a closure line is a structural per-finding status line (bold head, table cell or standalone bold status; never a quoted marker, a finding-raising line or a mixed-status line) that speaks about the claim, at a strictly later scope by ancestry; closers are derived from every filed transcript, `--check` replays every recorded closure, and a lane's re-statements of a carried finding fold into its earliest claim (`pN_restated_claims`).
+
+Note (revisions 8 and 9, 2026-09-19 and 2026-09-23): a re-statement names its carried root with a sha outside quoted text and folds only into the claim at the round it names; an absent identifier is never an identity (shared vocabulary, exact-key inheritance, split status); exact-key inheritance into a retired claim needs a cited closing line that speaks about the inheriting claim; `pN_open_count` counts claims and the register reports distinct findings as `package_open_findings`.

@@ -1,6 +1,6 @@
 # Finding Register v1
 
-Status: S20-740 contract draft, revision 8 (2026-09-19); Council review
+Status: S20-740 contract draft, revision 9 (2026-09-23); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). The mechanics are `scripts/build_finding_register.py`;
 implementation state is tracked in the machine summary.
@@ -169,6 +169,41 @@ themselves, never from the ledger's popped `restates` link, so the
 incremental and regenerated reads agree; two originals sharing one key
 still count toward each other's vocabulary. This is contract revision
 8.
+
+After the 8966da2e round's second batch (2026-09-22/23: Ariadne, Nabu
+and Vulcan reproducibility P2/P3s, Vulcan standards P2/P3s, Vulcan
+s20_700 closure P2/P3): identity by absence is no identity. An absent
+identifier (`""`) never makes two claims one finding for the shared
+vocabulary (two carries of distinct findings without backticked
+identifiers still count toward each other), for exact-key inheritance or
+for the split-status refusal. A `carried from <sha>` phrase counts only
+outside backticked and quoted spans (`unquoted`): a claim quoting another
+claim's carry is not a re-statement and does not take that round as its
+origin. Exact-key inheritance into a retired claim requires a non-empty
+identifier and a cited closing line of the retired claim that speaks
+about the inheriting claim under the retirement read (strong identity,
+with the lane's shared vocabulary less the inheriting pair itself, and
+the OPEN-line refusal), from a closing transcript that strictly
+postdates it; a named carry inherits only at the round it names or from
+a retired carry of the same named root, and the ledger replays the same
+named-sha rule. A named carry whose round holds two same-key claims is
+ambiguous and stays open. The split-status refusal applies to an
+identifier-bearing key whose open copy the closing round could have
+judged (the closer strictly postdates it); a copy raised at or after the
+closing round is that round's own statement. An uncarried copy never
+folds by key alone — a lane may raise a distinct finding on an
+identifier it used before — so `pN_open_count` is a claim count (one per
+round that stated a finding) and the register reports
+`package_open_findings`, the distinct identifier-bearing keys per open
+list plus each identifier-less claim; the GA row gates on the claim
+count, which can only over-count, and states both. A tagged claim whose
+raising round records no finding line for it is refused in every list
+(`SUMMARY_INVALID`), and a lane-less field reads its own
+`<stem>*-<scope7>.md` transcript for its raising severity. `--check`
+also reports, without failing, a live PRIOR token that closes fewer
+severities than its transcript's status lines (`closer_disagreements`);
+the union still closes, per the b58ac1e0 rule. This is contract
+revision 9.
 Every closure recorded at 76ae15ab that revision 7 changed is listed per
 claim, with the refusing rule where it stays open, in
 `evidence/review/rounds/revision-7-retirement-changes.json` (the round's
