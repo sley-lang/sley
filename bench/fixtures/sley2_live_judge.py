@@ -781,7 +781,7 @@ def _judge_type_variant(session: Session, manifest: dict, scratch_ws: Path,
 
     Every predicate below is derived from that text; none is a
     witness-shape choice (the switch result type, how arms compute
-    their values, whether the Failed arm returns the code raw or maps
+    their values, whether the Failed arm returns the code raw, maps it, or discards
     it, and how many blocks / join blocks the switch uses are all
     free):
 
@@ -807,9 +807,13 @@ def _judge_type_variant(session: Session, manifest: dict, scratch_ws: Path,
       exactly covering the four members (no default key exists in the
       terminator form, so no implicit default); every block reachable
       from the entry is Required and none is a Trap
-      (ORACLE_MISSING_CASE / ORACLE_TRAP_ARM); the Failed case edge
-      carries the case payload into its arm (the arm binds the error
-      code; dropping it -> ORACLE_FAILED_CODE).
+      (ORACLE_MISSING_CASE / ORACLE_TRAP_ARM). How the Failed arm uses
+      its code is free: it may bind it (CasePayload), map it, or
+      discard it (the frozen S3 reference switch is
+      `JobState::Failed(_) => "failed"`, s3_g1_type.rs:199). "Failed
+      carries an explicit error code" / "null error" govern the
+      variant type and its values (typedef + status rules above), not
+      the consumer shape (revision 3; Ariadne r2 P1).
     - execution (strict oracle `type_graph_and_execution`): the
       migrated switch executes through the frozen case driver over all
       four member values (Failed carrying the fixed explicit code
@@ -1068,13 +1072,6 @@ def _type_structure(manifest: dict, bodies: dict[str, dict], fresh: set[str]) ->
             _reject("ORACLE_MISSING_CASE", f"{len(keys)} cases != the {want_cases} members")
         if keys != sorted(keys):
             _reject("ORACLE_MISSING_CASE", "cases not sorted")
-        for case in cases:
-            if str((case.get("case_key") or {}).get("value", "")) != failed_member:
-                continue
-            args = (case.get("edge") or {}).get("arguments") or []
-            if not any(isinstance(a, dict) and a.get("variant") == "CasePayload"
-                       for a in args):
-                _reject("ORACLE_FAILED_CODE", "Failed arm drops the error code")
     return {"switch": switch, "typedef": typedef_id, "members": member_ids,
             "failed": failed_member}
 

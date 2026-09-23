@@ -7,7 +7,8 @@ One case per rejection path (ORACLE_TYPE_NOT_MIGRATED,
 ORACLE_SWITCH_NOT_MIGRATED, ORACLE_MISSING_CASE, ORACLE_FAILED_CODE,
 ORACLE_TRAP_ARM, ORACLE_BOOL_COMPAT_FIELD, ORACLE_NONDETERMINISTIC) and
 one per retired witness-shape pin that must now accept (non-SInt
-result, arithmetic arms, a Failed arm mapping the code, a join block,
+result, arithmetic arms, a Failed arm mapping or discarding the code
+(revision 3: no consumer-shape rule), a join block,
 a shared arm block, a dispatch outside the entry block, any code
 literal / status member / integer code type). Integration proofs run
 through bench/live/succ_witness_type_full.py.
@@ -137,6 +138,17 @@ def positive(code_type: dict = SINT) -> tuple[dict, set[str]]:
     return bodies, fresh
 
 
+def discard_shape() -> tuple[dict, set[str]]:
+    """Failed edge carries no CasePayload; the Failed arm binds no code
+    and returns a constant (the frozen S3 `Failed(_)` arm)."""
+
+    bodies, fresh = positive()
+    bodies[ENTRY]["body"]["terminator"]["value"]["cases"][3]["edge"]["arguments"] = []
+    bodies[BLOCK_C] = block([], [OP_6E], ret(res(OP_6E)))
+    del bodies[P_CODE]
+    return bodies, fresh - {P_CODE}
+
+
 def structure(bodies: dict, fresh: set[str], manifest: dict | None = None) -> dict:
     return judge._type_structure(manifest or MANIFEST, bodies, fresh)
 
@@ -231,12 +243,6 @@ class RejectionPaths(TypeJudgeTestCase):
         bodies, fresh = positive()
         bodies[SWITCH]["body"]["blocks"].remove(BLOCK_B)
         self.assertRejects("ORACLE_MISSING_CASE", bodies, fresh)
-
-    def test_failed_edge_dropping_code_is_failed_code(self) -> None:
-        bodies, fresh = positive()
-        bodies[ENTRY]["body"]["terminator"]["value"]["cases"][3]["edge"]["arguments"] = []
-        bodies[BLOCK_C] = block([], [OP_6E], ret(res(OP_6E)))
-        self.assertRejects("ORACLE_FAILED_CODE", bodies, fresh)
 
     def test_failed_status_null_payload_is_failed_code(self) -> None:
         bodies, fresh = positive()
@@ -431,6 +437,35 @@ class RetiredPinsAccept(TypeJudgeTestCase):
 
     def test_unsigned_code_accepts(self) -> None:
         self.assertAccepts(*positive(code_type=UINT))
+
+    def test_failed_edge_discarding_code_accepts(self) -> None:
+        # Revision 3 (Ariadne r2 P1): the IR form of the frozen S3 arm
+        # `JobState::Failed(_) => "failed"` -- no CasePayload, no bound
+        # code -- is a correct exhaustive migration.
+        self.assertAccepts(*discard_shape())
+
+    def test_discard_shape_still_rejects_null_failed_status(self) -> None:
+        bodies, fresh = discard_shape()
+        bodies[STATUS] = status_value(FAILED, None)
+        self.assertRejects("ORACLE_FAILED_CODE", bodies, fresh)
+
+    def test_discard_shape_still_rejects_codeless_failed_member(self) -> None:
+        bodies, fresh = discard_shape()
+        bodies[TYPEDEF]["body"]["form"]["value"][3]["payload_type"] = {"variant": "None"}
+        bodies[STATUS] = status_value(QUEUED)
+        self.assertRejects("ORACLE_FAILED_CODE", bodies, fresh)
+
+    def test_discard_shape_still_rejects_non_integer_code(self) -> None:
+        bodies, fresh = discard_shape()
+        bodies[TYPEDEF]["body"]["form"]["value"][3]["payload_type"] = {
+            "variant": "Some", "value": {"variant": "Text"}}
+        self.assertRejects("ORACLE_FAILED_CODE", bodies, fresh)
+
+    def test_discard_shape_still_rejects_non_integer_status_code(self) -> None:
+        bodies, fresh = discard_shape()
+        bodies[STATUS] = status_value(FAILED, {"value_type": {"variant": "Text"},
+                                               "data": {"variant": "Text", "value": "E7"}})
+        self.assertRejects("ORACLE_FAILED_CODE", bodies, fresh)
 
     def test_unit_member_with_payload_rejects(self) -> None:
         bodies, fresh = positive()

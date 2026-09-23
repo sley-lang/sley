@@ -32,6 +32,10 @@ Variants (expected outcome in brackets):
   alt_join         join design                                 [accepted]
   alt_failed_fixed const, the Failed arm binds the code but maps
                    it to a fixed value (3)                     [accepted]
+  alt_failed_discard const, the Failed edge carries no payload and
+                   the arm returns 3 (the IR form of the frozen S3
+                   arm `JobState::Failed(_) => "failed"`; was
+                   neg_dropcode in revision 2)                 [accepted]
   neg_bool         status left Bool                            [ORACLE_BOOL_COMPAT_FIELD]
   neg_typedef_only typedef + Failed status, switch untouched   [ORACLE_BOOL_COMPAT_FIELD]
   neg_bool_const   const design + a fresh Bool constant        [ORACLE_BOOL_COMPAT_FIELD]
@@ -39,8 +43,6 @@ Variants (expected outcome in brackets):
   neg_trap         const design, Failed arm traps              [ORACLE_TRAP_ARM]
   neg_droppayload  const design, Failed edge drops CasePayload [production refusal]
   neg_nullcode     const design, status Failed with null code  [production refusal]
-  neg_dropcode     const design, Failed arm binds no code and
-                   returns a constant (edge carries no payload) [ORACLE_FAILED_CODE]
 
 Usage: succ_witness_type_full.py VARIANT [logfile]
 Env: SLEY2_SLEY_BINARY, SUCC_JUDGE_TEST_BINARY (both required).
@@ -50,9 +52,11 @@ TYPE_NULLCODE=1, TYPE_DROPPAYLOAD=1. Production refusals
 (neg_droppayload: phase 7 CFG_TARGET_ARGUMENTS; neg_nullcode: phase 6
 TYPE_CONST_SHAPE) stop before the judge runs, so the judge's
 null-payload ORACLE_FAILED_CODE path is a fail-closed backstop covered
-by unit tests (bench/live/tests/test_judge_type_variant.py); the
-judge's dropped-code path is reached live by neg_dropcode, which
-production validation accepts.
+by unit tests (bench/live/tests/test_judge_type_variant.py).
+neg_droppayload is a production refusal only because its Failed arm
+still declares a code parameter the edge no longer feeds
+(CFG_TARGET_ARGUMENTS); the judge has no consumer-shape rule (revision
+3 retired it), and the payload-free arm alt_failed_discard accepts.
 """
 
 from __future__ import annotations
@@ -108,6 +112,8 @@ VARIANTS = {
     "alt_arith": ({"mode": "arith"}, "accepted"),
     "alt_join": ({"mode": "join"}, "accepted"),
     "alt_failed_fixed": ({"failed_const": True}, "accepted"),
+    "alt_failed_discard": ({"drop_payload": True, "failed_const": True},
+                           "accepted"),
     "neg_bool": ({"mode": "status_bool"}, "ORACLE_BOOL_COMPAT_FIELD"),
     "neg_typedef_only": ({"mode": "typedef_only"}, "ORACLE_BOOL_COMPAT_FIELD"),
     "neg_bool_const": ({"bool_const": True}, "ORACLE_BOOL_COMPAT_FIELD"),
@@ -115,8 +121,6 @@ VARIANTS = {
     "neg_trap": ({"trap": True}, "ORACLE_TRAP_ARM"),
     "neg_droppayload": ({"drop_payload": True}, "production_refused"),
     "neg_nullcode": ({"null_code": True}, "production_refused"),
-    "neg_dropcode": ({"drop_payload": True, "failed_const": True},
-                     "ORACLE_FAILED_CODE"),
 }
 
 
