@@ -239,9 +239,10 @@ class MediatedAttemptTests(unittest.TestCase):
         self.assertEqual(record["status"], "harness_failure")
         ledger = json.loads(
             (self.capture_dir(record) / "budgets.json").read_bytes())
-        self.assertEqual(ledger["totals"]["exchanges"], 2)
+        # open + revision <tx> (first session) + caps (second session).
+        self.assertEqual(ledger["totals"]["exchanges"], 3)
         usage = self.store.read(record["artifacts"]["agent_usage_sha256"])
-        self.assertEqual(json.loads(usage)["totals"]["exchanges"], 2)
+        self.assertEqual(json.loads(usage)["totals"]["exchanges"], 3)
 
     @unittest.skipUnless(NEEDS_BINARY and NEEDS_CONFINEMENT,
                          "needs SLEY2_SLEY_BINARY + bwrap")
@@ -250,8 +251,9 @@ class MediatedAttemptTests(unittest.TestCase):
         self.assertEqual(record["status"], "accepted")
         ledger = json.loads(
             (self.capture_dir(record) / "budgets.json").read_bytes())
-        # revision + denied commit + revision + propose + finish.
-        self.assertEqual(ledger["totals"]["exchanges"], 5)
+        # open + revision <tx> + denied commit + open + revision <tx>
+        # + propose + finish.
+        self.assertEqual(ledger["totals"]["exchanges"], 7)
         self.assertGreaterEqual(ledger["totals"]["failed"], 1)
 
     @unittest.skipUnless(NEEDS_BINARY and NEEDS_CONFINEMENT,

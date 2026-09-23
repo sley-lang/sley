@@ -1,8 +1,21 @@
 # S20-620 Sley 2 Trial Runner Closeout
 
+## Revision 5 status (2026-09-23)
+
+The package now implements contract revision 5: the frozen nineteen-name
+allowlist is revision 4's eighteen names plus `workspace.open`, moved from
+the denied methods as the arm's accepted-head opener, whose response
+carries the accepted head's already-materialized index snapshot identity
+(REQ-10 context bounded discovery). Status
+`S20_620_IMPLEMENTED_REVIEW_PENDING`: the revision 5 Ariadne, Nabu, and
+Vulcan reviews have not run, so the package is not complete at revision 5.
+23 offline tests. Implementation record:
+`bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md`. The revision 4
+status below and the revision 2 record are retained as history.
+
 ## Revision 4 status (2026-09-10)
 
-The package now implements contract revision 4 (frozen eighteen-name
+The package implemented contract revision 4 (frozen eighteen-name
 allowlist with the entity reads, snapshot-bound claim digest, required
 version 2 stamping, version 2 table digest); 23 offline tests; smoke 8/8
 green with zero failed answers. The revision 2 record below is retained as

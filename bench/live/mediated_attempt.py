@@ -93,7 +93,8 @@ FRAME_LIMIT_BYTES = 8 * 1024 * 1024
 
 # No staged trial inputs: the confined agent discovers starting
 # identities exclusively through the documented gateway surface
-# (inventory/read/resolve, all captured and counted). A private
+# (open/inventory/read/bounded raw queries/resolve, all captured and
+# counted). A private
 # manifest role map, 6c-prefix parameter selection, or conventional
 # variant-member literals must never be staged into scratch: they
 # are deterministic-test scaffolding, not campaign inputs. Agent

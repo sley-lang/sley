@@ -45,10 +45,11 @@ Sequences (argv[1]):
                 forbidden null error, loss of the explicit code)
   stale_pos     STALE guard flip via inventory/read discovery + finish
                 (non-TYPE mediated proof; no staged guard id)
-  context_pos   CONTEXT bounded fix via the allowed surface + finish
-                (mechanics proof with disclosed invocation-arg
-                identities: impact discovery has no permitted bounded
-                route today, retained as the review gate)
+  context MODE  CONTEXT bounded discovery + repair via the allowed
+                surface: open (accepted-head snapshot binding), bounded
+                class-4/class-14 root queries with explicit continuation,
+                class-2 kind probes, reads, propose, finish. No identity
+                arrives as an argument (modes: see CONTEXT_MODES)
   refusal_probe allowed read + denied command (expects ok then refusal;
                 also drops forged candidate-side diagnostics)
   access_probe  attempt direct opens of protected paths given in
@@ -94,6 +95,30 @@ CLIENT_MEMBERS = {"queued": "51" * 32, "running": "52" * 32,
                   "succeeded": "53" * 32, "failed": "54" * 32}
 
 
+def open_head(call) -> dict:
+    """The agent's own head read: `open` (workspace.open, the afforded
+    accepted-head opener), then `revision <tx>` of the tx that open
+    reported. No harness-supplied head id is involved. ``call`` is
+    ``(name, phase, command, args) -> reply``; returns the decoded head
+    view (tx/root/policy/workspace/epoch/..., plus `snapshot` only when
+    the head snapshot is materialized). Raises RuntimeError on refusal."""
+
+    opened = call("open", "read", "open", [])
+    report = _report(opened)
+    head = report.get("decoded") if not report.get("failed") else None
+    if not isinstance(head, dict) or len(str(head.get("tx", ""))) != 64:
+        raise RuntimeError("open refused")
+    revision = call("revision", "read", "revision", [head["tx"]])
+    reread = _report(revision)
+    if reread.get("failed"):
+        raise RuntimeError("revision refused")
+    return head
+
+
+def _plain(gw: Gateway):
+    return lambda name, phase, command, args: gw.call(phase, command, args)
+
+
 def discover_type_roles(gw: Gateway) -> dict:
     """Discover TYPE starting identities through the allowed surface.
 
@@ -110,9 +135,7 @@ def discover_type_roles(gw: Gateway) -> dict:
     Every step is a captured gateway exchange like any agent action.
     """
 
-    revision = gw.call("read", "revision", [])
-    if not revision.get("ok"):
-        raise RuntimeError("revision refused")
+    open_head(_plain(gw))
     inv_reply = gw.call("read", "inventory", [])
     report = _report(inv_reply)
     objects = ((report.get("inventory") or {}).get("objects")) or []
@@ -206,6 +229,131 @@ def discover_type_roles(gw: Gateway) -> dict:
             "switch_entry": entry, "switch_leaf": leaf}
 
 
+# Root-backed query wire (docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md;
+# sley-query encode_preimage / encode_response). Agent-side encoding of the
+# served `query.root`/`query.continue` request preimage: every identity it
+# names comes from the agent's own `open` (snapshot, epoch, root,
+# workspace) or from earlier discovery responses, never from a staged
+# input. The server rebuilds the preimage from the accepted head and
+# refuses QUERY_SNAPSHOT_MISMATCH on any difference.
+ROOT_QUERY_MAGIC = b"SLEYRQQ1"
+ROOT_RESPONSE_MAGIC = b"SLEYRQR1"
+CLASS_ROOT_SUMMARY = 1
+CLASS_GET_ENTITY = 2
+CLASS_ENTITIES_BY_KIND = 4
+CLASS_REVERSE_IMPACT = 14
+KIND_TYPEDEF = 4
+KIND_CONSTANT = 9
+CURSOR_ENTITY = 1
+
+
+def _u32(value: int) -> bytes:
+    return int(value).to_bytes(4, "big")
+
+
+def _u64(value: int) -> bytes:
+    return int(value).to_bytes(8, "big")
+
+
+def root_query_preimage(head: dict, class_tag: int, class_body: bytes, *,
+                        max_entities: int, allow_continuation: bool,
+                        after: str | None = None,
+                        snapshot: str | None = None) -> str:
+    """Hex request preimage for one root-backed query over the opened
+    head. ``snapshot`` defaults to the head's disclosed field 9."""
+
+    bound = head.get("snapshot") if snapshot is None else snapshot
+    if not isinstance(bound, str) or len(bound) != 64:
+        raise RuntimeError("no snapshot binding")
+    out = bytearray(ROOT_QUERY_MAGIC)
+    out += _u32(1) + _u32(1)
+    for ident in (bound, head["epoch"], head["root"], head["workspace"]):
+        out += bytes.fromhex(ident)
+    out += _u32(2) + _u32(1)
+    # Limits: entities per page, edges, depth, response bytes, work.
+    out += (_u64(max_entities) + _u64(1) + _u32(65_535)
+            + _u64(1_048_576) + _u64(100_000_000))
+    out += _u32(2 if allow_continuation else 1)
+    if after is None:
+        out += _u32(1)
+    else:
+        out += _u32(2) + _u32(CURSOR_ENTITY) + bytes.fromhex(after)
+    out += _u32(class_tag) + class_body
+    return bytes(out).hex()
+
+
+def entity_list_body(seeds: list[str]) -> bytes:
+    return _u64(len(seeds)) + b"".join(bytes.fromhex(s) for s in seeds)
+
+
+def decode_root_response(body_hex: str) -> dict:
+    """Decode a root-query response: header counts, truncation, next
+    cursor, and the result of an entity-list class (4, 14) or of the
+    single-entity class 2 (kind, object id)."""
+
+    data = bytes.fromhex(body_hex)
+    at = 0
+
+    def take(size: int) -> bytes:
+        nonlocal at
+        if at + size > len(data):
+            raise RuntimeError("root response short")
+        chunk = data[at:at + size]
+        at += size
+        return chunk
+
+    def u32() -> int:
+        return int.from_bytes(take(4), "big")
+
+    def u64() -> int:
+        return int.from_bytes(take(8), "big")
+
+    def cursor() -> str | None:
+        if u32() == 1:
+            return None
+        tag = u32()
+        if tag != CURSOR_ENTITY:
+            raise RuntimeError("unexpected cursor kind")
+        return take(32).hex()
+
+    if take(8) != ROOT_RESPONSE_MAGIC or u32() != 1 or u32() != 1:
+        raise RuntimeError("root response header")
+    take(32)  # query id
+    snapshot = take(32).hex()
+    take(32 * 3)  # epoch, root, workspace
+    if u32() != 2 or u32() != 1:
+        raise RuntimeError("root response profile")
+    take(8 + 8 + 4 + 8 + 8)  # echoed limits
+    u32()  # continuation flag
+    cursor()  # echoed request cursor
+    class_tag = u32()
+    total = u64()
+    returned = u64()
+    truncated = u32() == 2
+    next_after = cursor()
+    u32()  # reached depth
+    u64()  # charged work
+    u64()  # response bytes
+    if u32() != class_tag:
+        raise RuntimeError("root response class")
+    page = {"snapshot": snapshot, "class": class_tag, "total": total,
+            "returned": returned, "truncated": truncated,
+            "next_after": next_after}
+    if class_tag == CLASS_GET_ENTITY:
+        page["kind"] = u32()
+        page["object_id"] = take(32).hex()
+        if u32() == 2:
+            take(32)  # fingerprint
+    else:
+        count = u64()
+        page["entities"] = [take(32).hex() for _ in range(count)]
+        if count != returned:
+            raise RuntimeError("root response count")
+    if at != len(data):
+        raise RuntimeError("root response trailer")
+    return page
+
+
 def emit_provider_stream(commands: list[str]) -> None:
     """TEST-ONLY synthetic provider-event emission (never production).
 
@@ -267,104 +415,211 @@ def sint_const(value: int) -> dict:
             "data": {"variant": "SInt", "value": value}}
 
 
-def seq_context(gw: Gateway, typedef: str, consts: list[str],
-                member: str, update_closure: bool,
-                spam_continue: bool) -> dict:
-    """CONTEXT bounded fix through the allowed surface (mechanics
-    proof, disclosed scaffolding).
+# Agent-authored identity of the added record member (generated
+# client-side; the judge discovers added members by diffing the typedef
+# against its pristine pre-image, never from this literal).
+CONTEXT_MEMBER = "e1" * 32
+CONTEXT_MODES = ("pos", "stop_early", "incomplete", "extra_continue",
+                 "overbudget", "noarg_revision")
 
-    Entity identities arrive as invocation arguments (test-only
-    stand-in plan): no permitted bounded route can enumerate a
-    typedef's users today (inventory is whole-store; reads need ids;
-    server queries need an unmintable snapshot), and the required
-    member literal lives only in the private manifest — so impact
-    discovery itself is retained as the review gate, and this
-    sequence proves the fix/access mechanics, not discovery
-    fairness. Every step is a captured gateway exchange like any
-    agent action: bounded reads, one propose, finish; spam mode
-    additionally issues query.continue frames with no preceding
-    truncation (inconsistent-continuation negative)."""
 
-    outcome: dict = {"ok": False, "steps": []}
+def context_discover_and_repair(call, mode: str = "pos",
+                                impact_page_size: int = 3) -> dict:
+    """CONTEXT bounded discovery and repair through the allowed surface.
 
-    def step(name: str, phase: str, command: str,
-             args: list[str]) -> dict:
-        reply = gw.call(phase, command, args)
-        outcome["steps"].append(
-            {"name": name, "ok": reply.get("ok"),
-             "bytes": len(json.dumps(reply, sort_keys=True))})
-        return reply
+    ``call`` is ``(name, phase, command, args) -> reply envelope``, so
+    the same agent logic runs over the mediated gateway and over the
+    direct tool. Every identity the sequence names is discovered through
+    the interface — nothing arrives as an invocation argument or from a
+    manifest:
 
-    revision = step("revision", "read", "revision", [])
-    if not revision.get("ok"):
-        outcome["error"] = "revision refused"
-        return outcome
+    1. `open` (workspace.open) discloses the accepted head and, when the
+       head's index snapshot is materialized, its identity (field 9). A
+       cold head carries no snapshot: one bounded root query (refused
+       QUERY_SNAPSHOT_MISMATCH) materializes it on the query path, and a
+       second `open` discloses it. `revision <tx>` rereads the opened tx.
+    2. A bounded class-4 listing of type definitions (paged) plus reads
+       select the record typedef the task names by intent ("add a
+       required record field").
+    3. Class-14 reverse impact closure from that typedef, paged with
+       explicit `query.continue` until no page is truncated.
+    4. Class-2 kind probes on each closure member; constants are read and
+       those holding a record of the typedef are the impact set.
+    5. One propose (typedef + every impacted constant), then finish.
 
-    def read_kind_body(entity: str) -> tuple:
-        report = _report(step(f"read_{entity[:8]}", "read", "read",
-                              [entity]))
-        decoded = report.get("decoded") or {}
-        entries = decoded.get("entries") or []
-        if len(entries) != 1:
+    ``impact_page_size`` bounds each impact page (3 on the mediated
+    route, so the 10-entity closure needs three explicit continuations;
+    the direct tool audits continuation per invocation, so its witness
+    uses one untruncated page).
+
+    Modes (negatives are for the rejection proofs):
+      pos             complete discovery (paged) and repair
+      stop_early      stops after the first (7-entity, truncated) impact
+                      page although it already holds every constant:
+                      complete repair, incomplete discovery evidence
+      incomplete      complete discovery, typedef-only repair
+      extra_continue  complete discovery, then one query.continue on the
+                      finished chain (inconsistent continuation)
+      overbudget      complete discovery and repair plus seven full
+                      constant listings (cumulative response budget)
+      noarg_revision  a no-argument `revision` first (must be refused),
+                      then the positive flow
+    """
+
+    if mode not in CONTEXT_MODES:
+        raise RuntimeError(f"unknown context mode {mode}")
+    outcome: dict = {"ok": False, "mode": mode, "discovery": {}}
+    disc = outcome["discovery"]
+    if mode == "noarg_revision":
+        bad = call("revision_noarg", "read", "revision", [])
+        disc["noarg_revision_refused"] = not bad.get("ok")
+        if bad.get("ok"):
+            outcome["error"] = "no-argument revision was not refused"
+            return outcome
+    head = open_head(call)
+    disc["opened_with_snapshot"] = "snapshot" in head
+    if "snapshot" not in head:
+        warm = _report(call("warm_snapshot", "read", "raw", [
+            "query.root", root_query_preimage(
+                head, CLASS_ROOT_SUMMARY, b"", max_entities=1,
+                allow_continuation=False, snapshot="00" * 32)]))
+        disc["warm_refused"] = bool(warm.get("failed"))
+        head = open_head(call)
+        if "snapshot" not in head:
+            outcome["error"] = "snapshot not disclosed after warm query"
+            return outcome
+    disc["snapshot"] = head["snapshot"]
+
+    def query(name: str, method: str, class_tag: int, body: bytes,
+              page_size: int, allow: bool, after: str | None = None) -> dict:
+        report = _report(call(name, "read", "raw", [
+            method, root_query_preimage(
+                head, class_tag, body, max_entities=page_size,
+                allow_continuation=allow, after=after)]))
+        if report.get("failed"):
+            raise RuntimeError(f"{name} refused")
+        page = decode_root_response(report.get("body") or "")
+        if page["snapshot"] != head["snapshot"] or page["class"] != class_tag:
+            raise RuntimeError(f"{name} binding")
+        return page
+
+    def paged(name: str, class_tag: int, body: bytes, page_size: int,
+              stop_after: int | None = None) -> tuple[list[str], list[dict]]:
+        page = query(f"{name}_0", "query.root", class_tag, body,
+                     page_size, True)
+        pages = [page]
+        found = list(page["entities"])
+        while page["truncated"]:
+            if stop_after is not None and len(pages) >= stop_after:
+                break
+            page = query(f"{name}_{len(pages)}", "query.continue", class_tag,
+                         body, page_size, True, after=page["next_after"])
+            pages.append(page)
+            found.extend(page["entities"])
+        return found, pages
+
+    def read_body(entity: str) -> tuple[int, dict]:
+        report = _report(call(f"read_{entity[:8]}", "read", "read", [entity]))
+        entries = (report.get("decoded") or {}).get("entries") or []
+        if report.get("failed") or len(entries) != 1:
             raise RuntimeError("read body shape")
         entry = entries[0]
-        if not isinstance(entry.get("body"), dict):
+        if not isinstance(entry.get("body"), dict) or not isinstance(
+                entry.get("kind"), int):
             raise RuntimeError("read body shape")
-        kind = entry.get("kind")
-        if not isinstance(kind, int):
-            raise RuntimeError("read kind shape")
-        return kind, entry["body"]
+        return entry["kind"], entry["body"]
 
     try:
-        typedef_kind, typedef_body = read_kind_body(typedef)
-    except RuntimeError:
-        outcome["error"] = "typedef unreadable"
+        typedefs, typedef_pages = paged(
+            "typedefs", CLASS_ENTITIES_BY_KIND, _u32(KIND_TYPEDEF), 8)
+        records = []
+        for entity in typedefs:
+            kind, body = read_body(entity)
+            if ((body.get("form") or {}).get("variant")) == "Record":
+                records.append((entity, kind, body))
+        disc["typedef_pages"] = len(typedef_pages)
+        disc["record_typedefs"] = len(records)
+        if len(records) != 1:
+            outcome["error"] = "record typedef not uniquely discoverable"
+            return outcome
+        typedef, typedef_kind, typedef_body = records[0]
+        seeds = entity_list_body([typedef])
+        page_size = 7 if mode == "stop_early" else impact_page_size
+        closure, impact_pages = paged(
+            "impact", CLASS_REVERSE_IMPACT, seeds, page_size,
+            stop_after=1 if mode == "stop_early" else None)
+        disc["impact_total"] = impact_pages[0]["total"]
+        disc["impact_pages"] = len(impact_pages)
+        disc["impact_seen"] = len(closure)
+        disc["impact_continuations"] = len(impact_pages) - 1
+        disc["impact_left_truncated"] = impact_pages[-1]["truncated"]
+        if mode == "extra_continue":
+            extra = query("impact_extra", "query.continue",
+                          CLASS_REVERSE_IMPACT, seeds, page_size, True,
+                          after=closure[-1])
+            disc["extra_continue_returned"] = extra["returned"]
+        targets: list[tuple[str, int, dict]] = []
+        for entity in closure:
+            if entity == typedef:
+                continue
+            probe = query(f"kind_{entity[:8]}", "query.root",
+                          CLASS_GET_ENTITY, bytes.fromhex(entity), 1, False)
+            if probe["kind"] != KIND_CONSTANT:
+                continue
+            kind, body = read_body(entity)
+            data = ((body.get("value") or {}).get("data") or {})
+            record = data.get("value") if isinstance(data, dict) else None
+            if (isinstance(data, dict) and data.get("variant") == "Record"
+                    and isinstance(record, dict)
+                    and record.get("definition") == typedef):
+                targets.append((entity, kind, body))
+        disc["impacted_constants"] = len(targets)
+    except RuntimeError as error:
+        outcome["error"] = f"discovery refused: {error}"
         return outcome
+
     form = dict(typedef_body.get("form") or {})
     fields = list(form.get("value") or [])
-    if any(isinstance(field, dict) and field.get("member_id") == member
+    if any(isinstance(field, dict) and field.get("member_id") == CONTEXT_MEMBER
            for field in fields):
         outcome["error"] = "member already present"
         return outcome
-    fields.append({"member_id": member,
+    fields.append({"member_id": CONTEXT_MEMBER,
                    "value_type": {"variant": "Bool"},
                    "visibility": "Private"})
     form["value"] = fields
     typedef_body["form"] = form
-    ops = [{"class": "ReplaceEntityVersion", "kind": typedef_kind,
-            "target": typedef, "field_tag": None, "payload": typedef_body}]
-    if update_closure:
-        for target in consts:
-            try:
-                const_kind, const_body = read_kind_body(target)
-            except RuntimeError:
-                outcome["error"] = f"const unreadable {target[:8]}"
-                return outcome
-            value = dict(const_body.get("value") or {})
+    ops = [op_replace(typedef_kind, typedef, typedef_body)]
+    if mode != "incomplete":
+        for entity, kind, body in targets:
+            value = dict(body.get("value") or {})
             data = dict(value.get("data") or {})
             record = dict(data.get("value") or {})
-            const_fields = list(record.get("fields") or [])
-            const_fields.append({
-                "member_id": member,
+            record["fields"] = list(record.get("fields") or []) + [{
+                "member_id": CONTEXT_MEMBER,
                 "value": {"value_type": {"variant": "Bool"},
-                          "data": {"variant": "Bool", "value": False}}})
-            record["fields"] = const_fields
+                          "data": {"variant": "Bool", "value": False}}}]
             data["value"] = record
             value["data"] = data
-            const_body["value"] = value
-            ops.append({"class": "ReplaceEntityVersion", "kind": const_kind,
-                        "target": target, "field_tag": None,
-                        "payload": const_body})
-    proposal = step("propose", "compose", "propose", [json.dumps(ops)])
+            body["value"] = value
+            ops.append(op_replace(kind, entity, body))
+    if mode == "overbudget":
+        for index in range(7):
+            try:
+                query(f"constants_{index}", "query.root",
+                      CLASS_ENTITIES_BY_KIND, _u32(KIND_CONSTANT), 65_535,
+                      False)
+            except RuntimeError as error:
+                outcome["error"] = f"listing refused: {error}"
+                return outcome
+    proposal = call("propose", "compose", "propose", [json.dumps(ops)])
     report = proposal.get("report", {}) if proposal.get("ok") else {}
-    if not report.get("record"):
-        outcome["error"] = "propose refused"
+    outcome["valid"] = report.get("valid")
+    outcome["decision"] = report.get("decision")
+    if not report.get("valid"):
+        outcome["error"] = "propose invalid"
         return outcome
-    if spam_continue:
-        for index in range(2):
-            step(f"continue_{index}", "read", "raw",
-                 ["query.continue", "00"])
-    finale = step("finish", "finish", "finish", [report["record"]])
+    finale = call("finish", "finish", "finish", [report["record"]])
     outcome["finished"] = bool(
         finale.get("ok") and (finale.get("report") or {}).get("finished"))
     outcome["ok"] = outcome["finished"]
@@ -373,15 +628,35 @@ def seq_context(gw: Gateway, typedef: str, consts: list[str],
     return outcome
 
 
+def seq_context(gw: Gateway, mode: str) -> dict:
+    """Mediated CONTEXT sequence: every step is a captured gateway
+    exchange (see context_discover_and_repair)."""
+
+    steps: list[dict] = []
+
+    def call(name: str, phase: str, command: str, args: list[str]) -> dict:
+        reply = gw.call(phase, command, args)
+        steps.append({"name": name, "ok": reply.get("ok"),
+                      "bytes": len(json.dumps(reply, sort_keys=True))})
+        return reply
+
+    try:
+        outcome = context_discover_and_repair(call, mode)
+    except RuntimeError as error:
+        outcome = {"ok": False, "mode": mode, "error": str(error)}
+    outcome["steps"] = steps
+    return outcome
+
+
 def _finish_skeleton(gw: Gateway) -> int:
     """Minimal legitimate flow: bounded read, skeleton propose, and
     finish. The finished record lands in protected state only.
     Member ids are agent-authored locally (never staged inputs)."""
 
-    revision = gw.call("read", "revision", [])
-    if not revision.get("ok"):
-        log("SUMMARY " + json.dumps({"ok": False,
-                                     "error": "revision refused"},
+    try:
+        open_head(_plain(gw))
+    except RuntimeError as error:
+        log("SUMMARY " + json.dumps({"ok": False, "error": str(error)},
                                     sort_keys=True))
         return 0
     proposal = gw.call(
@@ -435,9 +710,10 @@ def seq_type(gw: Gateway, code: int,
     if status_member is None:
         status_member = failed
 
-    revision = step("revision", "read", "revision", [])
-    if not revision.get("ok"):
-        outcome["error"] = "revision refused"
+    try:
+        open_head(step)
+    except RuntimeError as error:
+        outcome["error"] = str(error)
         return outcome
     # Bounded status read: behavior evidence through the allowed
     # interface (the pre-migration Bool body is expected here).
@@ -592,9 +868,10 @@ def seq_stale(gw: Gateway) -> dict:
              "bytes": len(json.dumps(reply, sort_keys=True))})
         return reply
 
-    revision = step("revision", "read", "revision", [])
-    if not revision.get("ok"):
-        outcome["error"] = "revision refused"
+    try:
+        open_head(step)
+    except RuntimeError as error:
+        outcome["error"] = str(error)
         return outcome
     inv = step("inventory", "read", "inventory", [])
     try:
@@ -724,7 +1001,11 @@ def _run_sequence(gw: Gateway, sequence: str) -> int:
         log("ACCESS_PROBE_RESULT " + json.dumps(results, sort_keys=True))
         return 0
     if sequence == "refusal_probe":
-        first = gw.call("read", "revision", [])
+        try:
+            open_head(_plain(gw))
+            first = {"ok": True}
+        except RuntimeError as error:
+            first = {"ok": False, "error": str(error)}
         second = gw.call("read", "commit", ["00"])
         log(json.dumps(
             {"first_ok": first.get("ok"),
@@ -747,9 +1028,13 @@ def _run_sequence(gw: Gateway, sequence: str) -> int:
         # usage must accumulate trial-wide, never reset per session.
         first = Gateway(session_id=f"agent-{os.getpid()}-a")
         second = Gateway(session_id=f"agent-{os.getpid()}-b")
-        revision = first.call("read", "revision", [])
+        try:
+            open_head(_plain(first))
+            head_ok = True
+        except RuntimeError:
+            head_ok = False
         caps = second.call("read", "caps", [])
-        summary = {"ok": bool(revision.get("ok")) and bool(caps.get("ok")),
+        summary = {"ok": head_ok and bool(caps.get("ok")),
                    "frames": gw.frames + first.frames + second.frames}
         log("SUMMARY " + json.dumps(summary, sort_keys=True))
         gw.cmdlog.extend(first.cmdlog + second.cmdlog)
@@ -757,9 +1042,13 @@ def _run_sequence(gw: Gateway, sequence: str) -> int:
     if sequence == "denied_then_finish":
         # A denied command is a recorded, counted refusal; the
         # attempt continues and may still legitimately finish.
-        revision = gw.call("read", "revision", [])
+        try:
+            open_head(_plain(gw))
+            head_ok = True
+        except RuntimeError:
+            head_ok = False
         denied = gw.call("read", "commit", ["00"])
-        if not revision.get("ok") or denied.get("ok", True):
+        if not head_ok or denied.get("ok", True):
             log("SUMMARY " + json.dumps({"ok": False}, sort_keys=True))
             return 0
         code = _finish_skeleton(gw)
@@ -768,13 +1057,16 @@ def _run_sequence(gw: Gateway, sequence: str) -> int:
         if sequence == "no_finish":
             # A valid partial flow with no finish: no runner-held
             # final exists, so no completion linkage is possible.
-            revision = gw.call("read", "revision", [])
+            try:
+                open_head(_plain(gw))
+                head_ok = True
+            except RuntimeError:
+                head_ok = False
             proposal = gw.call(
                 "compose", "propose",
                 [json.dumps([op_create(
                     4, typedef_payload(dict(CLIENT_MEMBERS)))])])
-            summary = {"ok": bool(revision.get("ok"))
-                       and bool(proposal.get("ok")),
+            summary = {"ok": head_ok and bool(proposal.get("ok")),
                        "frames": gw.frames, "finished": False}
             log("SUMMARY " + json.dumps(summary, sort_keys=True))
             return 0
@@ -809,17 +1101,11 @@ def _run_sequence(gw: Gateway, sequence: str) -> int:
             {k: v for k, v in outcome.items() if k != "steps"},
             sort_keys=True))
         return 0
-    if sequence == "context_pos":
-        # Mechanics scaffolding (disclosed): identities arrive as
-        # invocation arguments (test-only stand-in plan).
-        typedef = sys.argv[2] if len(sys.argv) > 2 else ""
-        consts = sys.argv[3].split(",") if len(sys.argv) > 3 else []
-        member = sys.argv[4] if len(sys.argv) > 4 else ""
-        mode = sys.argv[5] if len(sys.argv) > 5 else "pos"
-        outcome = seq_context(
-            gw, typedef, [c for c in consts if c], member,
-            update_closure=(mode != "incomplete"),
-            spam_continue=(mode == "spam"))
+    if sequence == "context":
+        # Discovery through the interface only: the sole argument is the
+        # mode; no entity identity or manifest value is passed in.
+        mode = sys.argv[2] if len(sys.argv) > 2 else "pos"
+        outcome = seq_context(gw, mode)
         outcome["frames"] = gw.frames
         log("SUMMARY " + json.dumps(
             {k: v for k, v in outcome.items() if k != "steps"},

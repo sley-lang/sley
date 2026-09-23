@@ -162,7 +162,10 @@ def main() -> int:
             [{"op": "describe_record", "record": base_record}])
         nonce = described["nonce"]
         # Workspace from live head (0707... frozen trial workspace).
-        _, rep_rev = run("revision")
+        # Head read through the agent's own opener, then revision.read of
+        # the tx it reported (no harness-supplied head id).
+        _, rep_open = run("open")
+        _, rep_rev = run("revision", rep_open["report"]["decoded"]["tx"])
         # Workspace id is in manifest (frozen); use it for derivation.
         workspace = manifest["workspace"]
         # Create order (11 creates): typedef, newA, newB, newC block,

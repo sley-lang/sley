@@ -31,10 +31,10 @@ judge checks typedef shape and case coverage, never those literals).
 | 1 | Prompt bytes (frozen task JSON + seed) | `bench/live/tooling.py::build_prompt`; corpus `bench/corpus/v1/tasks.json` (frozen; `corpus_digest` + `task_statement_digest` pinned in the run manifest) | Task text | `context_budget`: `model_input_tokens` enforced vs manifest; prompt digest stored (`prompt_sha256`) |
 | 2 | `.sley-live/TOOLING.md` (SLEY2 surface) | `bench/live/tooling.py::_files` (frozen `SLEY2_TOOLING`); `tool_description_digests` pinned in the run manifest | Documented training material | Workspace file, identical every trial; reads are agent file IO, not gateway exchanges |
 | 3 | Served repository state (base pack content) | `bench/live/taskpacks.py::stage_initial` (frozen `bench/fixtures/sley2/<TASK>/base.pack`); `arm_fixture_digests` in manifest; `pack_sha256` in capture `start.json` | Starting state | Not directly visible (protected_ws masked); visible only via gateway responses below, all counted |
-| 4 | Gateway responses (inventory/read/side/revision/caps/budgets/raw/propose/append/compose/inspect/validate/finish + mechanical `resolve`) | `SLEY2_TOOLING` documented surface; `bench/live/mediated_sley.py::ALLOWED_COMMANDS`; every frame inside `TrustedCapture.exchange` | Context through the allowed interface | `action_budget` → `trial_max_exchanges`; `wall_time_budget` → `trial_max_wall_ms`; response caps; cumulative ledger; `tool_calls == completion exchanges` asserted in tests; denied/failed responses counted, never zeroed |
+| 4 | Gateway responses (inventory/read/side/open/revision/caps/budgets/raw/propose/append/compose/inspect/validate/finish + mechanical `resolve`; `revision` takes an agent-supplied tx since trial-runner contract revision 5) | `SLEY2_TOOLING` documented surface; `bench/live/mediated_sley.py::ALLOWED_COMMANDS`; every frame inside `TrustedCapture.exchange` | Context through the allowed interface | `action_budget` → `trial_max_exchanges`; `wall_time_budget` → `trial_max_wall_ms`; response caps; cumulative ledger; `tool_calls == completion exchanges` asserted in tests; denied/failed responses counted, never zeroed |
 | 5 | `.sley-live/sley-tool` shim + `mediated_transport.py` (generic frame transport) | `bench/live/mediated_attempt.py::stage_mediated_scratch` (shim forwards the documented surface over the socket; transport moves frames only, no task content) + `assert_production_staging_clean` (permitted set + no solver markers) + `production_staging_digest` (every legitimate input digested) | Harness scaffolding, task-agnostic | No task content; identical every trial; no special production branches; test-only `mediated_client.py` (seq_type/seq_stale, CLIENT_MEMBERS, emit_provider_stream) never staged in production, injected only by tests |
 | 6 | Confinement env (`HOME=/scratch`, `PATH`/`LANG`, `$SLEY2_GATEWAY_SOCK`) | Explicit mapping in `execute_mediated_attempt` | Harness scaffolding | Not task content; identical every trial |
-| 7 | TYPE/CONTEXT/STALE role identities | Discovered via input 4 (`discover_type_roles`, `seq_stale` guard scan: inventory kinds + read bodies, structural criteria only) | Context through the allowed interface | Discovery exchanges are captured and counted like any agent action (TYPE proof: 13 exchanges; STALE proof: 5) |
+| 7 | TYPE/CONTEXT/STALE role identities | Discovered via input 4 (`discover_type_roles`, `seq_stale` guard scan: inventory kinds + read bodies, structural criteria only; CONTEXT since 2026-09-23: `open` snapshot binding + bounded class-4/class-14/class-2 `raw` root queries with explicit continuation + reads, `context_discover_and_repair`) | Context through the allowed interface | Discovery exchanges are captured and counted like any agent action (TYPE proof: 13 exchanges; STALE proof: 5) |
 
 No input comes from the private `task_manifest.json` role map in the
 production path. The run manifest (`repo_commit`, digests, budgets,
@@ -84,13 +84,25 @@ preregistered live-model campaign. `ga_claimed=false`.
 - CONTEXT task-spec gate RETAINED: established that the corpus
   ("add a required record field", no identity/type) does not specify
   the F1/Bool manifest literal, and that no permitted bounded route
-  can enumerate a typedef's users (inventory is whole-store; reads
-  need ids; server queries need an unmintable snapshot). Concrete
+  could enumerate a typedef's users (inventory is whole-store; reads
+  need ids; server queries needed an unmintable snapshot). Concrete
   patch on the work branch: de-literalized judge (any added member
   via pre-image diff + structural closure discovery) with re-emitted
-  manifest; corpus/capsule alignment (naming the field, opening a
-  discovery route) under review. No private repair/impact set is
-  injected anywhere in the acceptance path.
+  manifest. No private repair/impact set is injected anywhere in the
+  acceptance path. 2026-09-23 (REQ-10, trial-runner contract revision
+  5, `bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md`): the
+  discovery route is implemented on the work branch — `workspace.open`
+  is afforded and discloses the accepted head's materialized snapshot
+  identity (field 9), so bounded class-4/class-14 root queries with
+  explicit continuation are formable from allowed routes; the
+  mediated stand-in discovers the typedef and its impact closure with
+  no identity argument (`test_mediated_context.py`, 7 integrated
+  proofs). NOT done: the corpus is frozen and digest-pinned, so no
+  task-input amendment naming the field was made (the stand-in selects
+  the store's unique record typedef by bounded listing); TOOLING.md
+  does not document the root-query request layout, so live-model
+  usability of the route is not established; the revision 5 Ariadne,
+  Nabu, and Vulcan reviews have not run.
 - CREATE complete-task rework DONE (typed Money/LineItem records,
   checked subtotal + merged-tax helpers, chained entry returning
   Result<Money,ArithmeticError>, no precomputed intermediates):

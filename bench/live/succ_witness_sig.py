@@ -136,7 +136,10 @@ def main() -> int:
         [described] = sley2_codecs.run_batch(
             [{"op": "describe_record", "record": base_record}])
         nonce = described["nonce"]
-        _, rep_rev = run("revision")
+        # Head read through the agent's own opener, then revision.read of
+        # the tx it reported (no harness-supplied head id).
+        _, rep_open = run("open")
+        _, rep_rev = run("revision", rep_open["report"]["decoded"]["tx"])
         workspace = manifest["workspace"]
         kinds = [6] * len(skel_creates)
         new_ids = [

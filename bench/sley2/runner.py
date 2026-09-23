@@ -111,10 +111,16 @@ ARM_AFFORDANCES = (
     "revision.read",
     "session.budgets",
     "session.capabilities",
+    "workspace.open",
 )
 # Named so the reason for each exclusion survives: bulk export and import move
-# whole stores, the rest mutate the repository or the run, and neither belongs
-# to an agent that is being measured on reading context and proposing a change.
+# whole stores; the rest mutate the repository or the run, or are harness,
+# oracle, or run-control surfaces (session management, execution, reports,
+# receipts, diagnostics, test selection, recovery). None belongs to an agent
+# that is being measured on reading context and proposing a change. Exclusion
+# is by risk, not by category: `workspace.open` (contract revision 5) takes no
+# body, mutates nothing, and answers the accepted head, so it moved to the
+# affordances as the arm's accepted-head opener.
 ARM_DENIED_METHODS = (
     "branch.advance",
     "branch.create",
@@ -140,12 +146,11 @@ ARM_DENIED_METHODS = (
     "tests.affected",
     "tests.selected",
     "workspace.create",
-    "workspace.open",
 )
 CONTEXT_METHODS = frozenset({"capsule", "query.root", "query.continue", "query.restricted"})
 TRIAL_STATUSES = frozenset({"accepted", "rejected", "timeout", "harness_failure"})
 AGENT_REQUEST_FIELDS = frozenset({"method", "body", "cancel"})
-# The capable CLI profile every live runner path uses: the eighteen-name
+# The capable CLI profile every live runner path uses: the nineteen-name
 # allowlist needs the version 2 methods, so the offer, the serve process,
 # and the handshake probe all run version-aware.
 PROFILE_ARGS = ("--protocol-profile", "v2-capable")
@@ -443,7 +448,7 @@ def _run_sley(sley: Path, arguments: list[str], stdin: bytes, timeout_seconds: i
 def endpoint_offer(sley: Path, timeout_seconds: int = 30) -> tuple[dict[str, Any], list[str], dict[str, Any]]:
     """The client hello frame, the affordances, and the endpoint version, all from the binary.
 
-    The offer is the capable `[1,2]` hello: the eighteen-name allowlist
+    The offer is the capable `[1,2]` hello: the nineteen-name allowlist
     requires the version 2 methods, so a version 1 offer fails the
     missing-check below by design (drift fails closed)."""
 
@@ -928,12 +933,12 @@ def run_scripted_trial(
     # claimed digest.
     admitted = tuple(affordances)
     # The snapshot is bound to the frozen allowlist, not merely carried:
-    # a trial that does not run the eighteen-name surface stops here, so
+    # a trial that does not run the nineteen-name surface stops here, so
     # drift in either direction fails closed (contract section 9).
     if _canonical_sha256(list(admitted)) != arm_affordances_digest():
         _fail(Sley2ErrorCode.HANDSHAKE_FAILED, "allowlist digest")
     # The frozen allowlist requires a version 2 offer, so every trial
-    # stamps 2: a legacy stamp under the eighteen-name digest cannot
+    # stamps 2: a legacy stamp under the nineteen-name digest cannot
     # complete, and the endpoint's own selection record checks the stamp
     # below (contract sections 1 and 9).
     if protocol_version != 2:

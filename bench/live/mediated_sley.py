@@ -46,7 +46,7 @@ GATEWAY_CONTRACT = "sley2.mediated-gateway.v1"
 
 # The frozen documented surface (same commands as sley2_tool.dispatch).
 ALLOWED_COMMANDS = frozenset({
-    "inventory", "side", "read", "sig", "revision", "caps", "budgets",
+    "inventory", "side", "read", "sig", "open", "revision", "caps", "budgets",
     "raw", "inspect", "validate", "append", "compose", "propose", "finish",
 })
 
@@ -217,6 +217,12 @@ class MediatedSleyEndpoint:
         # captured requests/responses alone. Schema-stable: the
         # capture record keeps the same fields; only the method
         # vocabulary gains the `raw:` prefix for raw frames.
+        # Vocabulary note (contract revision 5): admitting
+        # `workspace.open` to TOOL_METHODS moves a raw frame naming it
+        # from `raw:denied` to `raw:workspace.open`, and the dedicated
+        # `open` command records under its own label `open` (the else
+        # branch). Neither is a bounded paging route, so any omitted or
+        # truncated signal on them is hidden truncation to the judge.
         if command == "raw" and args and args[0] in sley2_tool.TOOL_METHODS:
             audit_method = f"raw:{args[0]}"
         elif command == "raw":

@@ -131,8 +131,8 @@ def _runner_profile(tree: ast.Module) -> tuple[list, list]:
 
 
 def _spec_allowlist(spec: str) -> list | None:
-    """The eighteen-name frozen order from contract section 9."""
-    anchor = spec.find("holds eighteen names")
+    """The nineteen-name frozen order from contract section 9."""
+    anchor = spec.find("holds nineteen names")
     if anchor < 0:
         return None
     region = spec[anchor : anchor + 2000]
@@ -176,6 +176,14 @@ def main() -> int:
         problems.append("machine-summary:sley2_trial_runner missing")
         section = {}
     status = section.get("status")
+    # One anchored, converted extraction of the contract revision (the
+    # Status line, not the first "revision" in the preamble prose), read by
+    # the drift assertion, the completion binding, and the result payload.
+    spec_revision_match = re.search(r"^Status: S20-620 contract draft, revision (\d+)", spec, flags=re.M)
+    spec_revision = int(spec_revision_match.group(1)) if spec_revision_match else None
+    summary_revision = section.get("contract_revision")
+    if summary_revision != spec_revision:
+        problems.append(f"machine-summary:contract_revision:{summary_revision!r}!=spec:{spec_revision!r}")
     expected = {
         "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
         "adr": "docs/adr/ADR-0036-sley2-trial-runner-boundary.md",
@@ -232,8 +240,8 @@ def main() -> int:
         for _, symbol in CODES:
             if symbol not in runner:
                 problems.append(f"runner-code:{symbol}")
-        # The revision 4 delta pins: the capable profile, the frozen
-        # eighteen-name allowlist in spec order, the per-trial snapshot
+        # The revision 5 delta pins: the capable profile, the frozen
+        # nineteen-name allowlist in spec order, the per-trial snapshot
         # bound to the frozen digest, the version 2 method-table digest,
         # and the required version keyword.
         try:
@@ -254,7 +262,7 @@ def main() -> int:
                     problems.append("spec-allowlist:missing")
                 elif tuple(allowlist) != tuple(specified):
                     problems.append("allowlist-spec-order:drift")
-                if len(allowlist) != 18:
+                if len(allowlist) != 19:
                     problems.append(f"allowlist-count:{len(allowlist)}")
         for marker in (
             "admitted = tuple(affordances)",
@@ -287,12 +295,15 @@ def main() -> int:
             for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
                 if not str(section.get(key, "")).startswith("PASS"):
                     problems.append(f"completion-without-review:{key}")
+                # The completion binds each lane verdict to the revision it
+                # reviewed, by field name (`<lane>_revision_<N>`).
+                if not str(section.get(f"{key}_revision_{spec_revision}", "")).startswith("PASS"):
+                    problems.append(f"completion-unbound-review:{key}")
 
-    revision = re.search(r"revision (\d+)", spec)
     result = {
         "contract": "s20-620-sley2-trial-runner-v1",
         "status": status,
-        "revision": int(revision.group(1)) if revision else None,
+        "revision": spec_revision,
         "implementation_present": present,
         "new_stable_error_codes": len(CODES),
         "problems": problems,

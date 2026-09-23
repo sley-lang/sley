@@ -59,11 +59,28 @@ class MediatedGatewayTests(unittest.TestCase):
                                                 self.cap)
 
     def test_allowed_read_round_trip_captured(self) -> None:
-        raw = self.endpoint.handle("read", "s1", "revision", [])
+        raw = self.endpoint.handle("read", "s1", "open", [])
         envelope = json.loads(raw)
         self.assertTrue(envelope.get("ok"), envelope)
         self.assertEqual(self.cap.totals["exchanges"], 1)
         self.assertEqual(self.cap.totals["failed"], 0)
+        # revision takes the tx the agent's own open reported.
+        tx = envelope["report"]["decoded"]["tx"]
+        raw = self.endpoint.handle("read", "s1", "revision", [tx])
+        envelope = json.loads(raw)
+        self.assertTrue(envelope.get("ok"), envelope)
+        self.assertEqual(self.cap.totals["exchanges"], 2)
+        self.assertEqual(self.cap.totals["failed"], 0)
+
+    def test_revision_without_tx_is_a_recorded_refusal(self) -> None:
+        # The no-argument form has no harness-supplied head to fall back
+        # on: it is refused as a recorded, counted failed response.
+        raw = self.endpoint.handle("read", "s1", "revision", [])
+        envelope = json.loads(raw)
+        self.assertFalse(envelope.get("ok"))
+        self.assertIn("LIVE_SLEY2_TOOL_INVALID", envelope.get("detail", ""))
+        self.assertEqual(self.cap.totals["exchanges"], 1)
+        self.assertEqual(self.cap.totals["failed"], 1)
 
     def test_denied_server_method_recorded_as_failed(self) -> None:
         # `commit` is outside the frozen allowlist: the server refuses
@@ -117,7 +134,7 @@ class MediatedGatewayTests(unittest.TestCase):
         self.assertEqual(resolved["report"]["nonce"], described["nonce"])
 
     def test_adjudicate_accepted(self) -> None:
-        self.endpoint.handle("read", "s1", "revision", [])
+        self.endpoint.handle("read", "s1", "open", [])
         final = b"held-final"
         self.cap.complete(final)
         status, code = gw.adjudicate(self.capture_dir, final,
@@ -125,7 +142,7 @@ class MediatedGatewayTests(unittest.TestCase):
         self.assertEqual((status, code), ("accepted", None))
 
     def test_adjudicate_rejected(self) -> None:
-        self.endpoint.handle("read", "s1", "revision", [])
+        self.endpoint.handle("read", "s1", "open", [])
         final = b"held-final"
         self.cap.complete(final)
         status, code = gw.adjudicate(self.capture_dir, final,
@@ -134,7 +151,7 @@ class MediatedGatewayTests(unittest.TestCase):
         self.assertEqual((status, code), ("rejected", "ORACLE_X"))
 
     def test_adjudicate_unreconciled_never_accepts(self) -> None:
-        self.endpoint.handle("read", "s1", "revision", [])
+        self.endpoint.handle("read", "s1", "open", [])
         # No completion: reconcile fails; even an accepted oracle
         # cannot rehabilitate.
         status, code = gw.adjudicate(self.capture_dir, b"held-final",
@@ -143,7 +160,7 @@ class MediatedGatewayTests(unittest.TestCase):
         self.assertEqual(code, "CAPTURE_COMPLETION_MISSING")
 
     def test_adjudicate_no_final_never_accepts(self) -> None:
-        self.endpoint.handle("read", "s1", "revision", [])
+        self.endpoint.handle("read", "s1", "open", [])
         self.cap.complete(b"no-final-bytes")
         status, code = gw.adjudicate(self.capture_dir, None,
                                      {"status": "accepted", "code": None})
@@ -151,7 +168,7 @@ class MediatedGatewayTests(unittest.TestCase):
         self.assertEqual(code, "CAPTURE_GATE_NO_FINAL")
 
     def test_adjudicate_final_mismatch(self) -> None:
-        self.endpoint.handle("read", "s1", "revision", [])
+        self.endpoint.handle("read", "s1", "open", [])
         self.cap.complete(b"real-final")
         status, code = gw.adjudicate(self.capture_dir, b"other-final",
                                      {"status": "accepted", "code": None})

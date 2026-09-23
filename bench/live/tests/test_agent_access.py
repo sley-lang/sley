@@ -64,7 +64,7 @@ class AgentAccessTests(unittest.TestCase):
     def test_bounded_reads_derive_zero_whole_store(self) -> None:
         code, _ = self.run_tool("read", self.typedef)
         self.assertEqual(code, 0)
-        code, _ = self.run_tool("revision")
+        code, _ = self.run_tool("open")
         self.assertEqual(code, 0)
         access = self.audit()
         self.assertEqual(access["whole_store_reads"], 0)
@@ -85,7 +85,7 @@ class AgentAccessTests(unittest.TestCase):
         self.assertIn("whole_store_reads=1", raised.exception.detail)
 
     def test_tampered_chain_rejects(self) -> None:
-        code, _ = self.run_tool("revision")
+        code, _ = self.run_tool("open")
         self.assertEqual(code, 0)
         chain = self.ws / sley2_tool.CHAIN_NAME
         lines = chain.read_text(encoding="utf-8").splitlines()
@@ -97,8 +97,10 @@ class AgentAccessTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
 
     def test_truncated_chain_rejects(self) -> None:
-        self.run_tool("revision")
-        self.run_tool("revision")
+        code, opened = self.run_tool("open")
+        self.assertEqual(code, 0)
+        code, _ = self.run_tool("revision", opened["report"]["decoded"]["tx"])
+        self.assertEqual(code, 0)
         chain = self.ws / sley2_tool.CHAIN_NAME
         lines = chain.read_text(encoding="utf-8").splitlines()
         self.assertEqual(len(lines), 2)
@@ -128,13 +130,14 @@ class AgentAccessTests(unittest.TestCase):
              "truncated": truncated, "returned_bytes": returned},
         ]
 
-    def continuation_follow(self, returned: int = 100) -> list:
+    def continuation_follow(self, returned: int = 100,
+                            truncated: bool = False, omitted: int = 0) -> list:
         return [
             {"direction": "request", "method": "query.continue",
              "body_sha256": "2" * 64},
             {"direction": "response", "failed": False,
-             "body_sha256": "3" * 64, "omitted": 0,
-             "truncated": False, "returned_bytes": returned},
+             "body_sha256": "3" * 64, "omitted": omitted,
+             "truncated": truncated, "returned_bytes": returned},
         ]
 
     def test_bounded_continuation_positive_accepted(self) -> None:
@@ -148,6 +151,28 @@ class AgentAccessTests(unittest.TestCase):
         self.assertEqual(access["whole_store_reads"], 0)
         self.assertEqual(access["continuations"], 1)
         self.assertGreaterEqual(access["bounded_reads"], 2)
+
+    def test_multi_page_continuation_chain_accepted(self) -> None:
+        # A continuation page that is itself truncated keeps the chain
+        # open; the next continue is consistent, not spurious.
+        # The final page is not truncated; its `omitted` counts entities
+        # earlier pages returned (server accounting) and closes the chain.
+        session = (self.bounded_page(True, 6)
+                   + self.continuation_follow(truncated=True, omitted=6)
+                   + self.continuation_follow(omitted=6))
+        self.seal("raw", session)
+        access = self.audit()
+        self.assertEqual(access["continuations"], 2)
+
+    def test_truncated_continuation_without_follow_rejects(self) -> None:
+        # Stopping on a truncated continuation page is hidden truncation.
+        session = (self.bounded_page(True, 6)
+                   + self.continuation_follow(truncated=True, omitted=3))
+        self.seal("raw", session)
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            self.audit()
+        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+        self.assertIn("without continuation", raised.exception.detail)
 
     def test_hidden_truncation_rejects(self) -> None:
         # Truncated page with no following continue: hidden truncation.

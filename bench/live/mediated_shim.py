@@ -21,7 +21,7 @@ import socket
 import sys
 
 READ_COMMANDS = frozenset({
-    "inventory", "side", "read", "sig", "revision", "caps", "budgets",
+    "inventory", "side", "read", "sig", "open", "revision", "caps", "budgets",
     "raw", "inspect",
 })
 COMPOSE_COMMANDS = frozenset({

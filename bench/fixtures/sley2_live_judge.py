@@ -3154,7 +3154,15 @@ def _audit_agent_access(task_dir: Path, trial_ws: Path) -> dict[str, int]:
                         if not pending_truncated:
                             _reject("QUERY_REQUIRED_FACT_OMITTED",
                                     "inconsistent continuation; semantics held")
-                        pending_truncated = False
+                        # A continuation page that is itself truncated
+                        # keeps the chain open: another continue must
+                        # follow (multi-page chains are legitimate;
+                        # stopping on a truncated continue page is hidden
+                        # truncation). On a continuation page `omitted`
+                        # also counts entities returned by earlier pages
+                        # (server: total_count - returned), so only the
+                        # truncation flag signals more to fetch.
+                        pending_truncated = trunc
                     elif trunc or omit > 0:
                         # Bounded page with more to fetch: an explicit
                         # query.continue must follow in this scope.
@@ -3457,7 +3465,13 @@ def _audit_mediated_access(capture_dir: Path, task_dir: Path,
                 continuations += 1
                 if not pending_truncated.get(scope, False):
                     fail("inconsistent continuation; semantics held")
-                pending_truncated[scope] = False
+                # A truncated continuation page keeps the chain open
+                # (multi-page chains are legitimate; stopping on one is
+                # hidden truncation). On a continuation page `omitted`
+                # also counts entities returned by earlier pages (server:
+                # total_count - returned), so only truncation signals
+                # more to fetch.
+                pending_truncated[scope] = trunc
             elif trunc or omit > 0:
                 # Bounded page with more to fetch: an explicit
                 # query.continue must follow in this scope.

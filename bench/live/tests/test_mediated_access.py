@@ -6,8 +6,9 @@ binding mismatches, broken chains, inconsistent continuations,
 truncation without continuation, whole-store reads, commit paths,
 and budget overruns must all fail closed, and only a clean bounded
 capture may pass. End-to-end mediated proof (real capture through
-execute_attempt into the real oracle) lives in the context_pos
-campaign-path tests.
+execute_attempt into the real oracle) lives in the CONTEXT
+campaign-path tests (``test_mediated_context.py``, stand-in sequence
+``context MODE``).
 """
 
 from __future__ import annotations
@@ -150,6 +151,32 @@ class MediatedAccessCase(unittest.TestCase):
         access = judge._audit_mediated_access(path, TASK_DIR, self.trial)
         self.assertEqual(access["continuations"], 1)
         self.assertEqual(access["bounded_reads"], 2)
+
+    def test_multi_page_continuation_chain_passes(self) -> None:
+        # A truncated continuation page keeps the chain open: the next
+        # continue in scope is consistent (three-page chain).
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=6)
+        builder.exchange("raw:query.continue", truncated=True, omitted=6)
+        # Final page: not truncated; `omitted` still counts the entities
+        # earlier pages returned (server accounting), which closes the
+        # chain rather than opening it.
+        builder.exchange("raw:query.continue", omitted=6)
+        builder.close(self.trial)
+        access = judge._audit_mediated_access(path, TASK_DIR, self.trial)
+        self.assertEqual(access["continuations"], 2)
+        self.assertEqual(access["bounded_reads"], 3)
+
+    def test_truncated_continuation_without_follow_rejects(self) -> None:
+        # Stopping on a truncated continuation page is hidden truncation.
+        path, builder = self.build()
+        builder.exchange("raw:query.root", truncated=True, omitted=6)
+        builder.exchange("raw:query.continue", truncated=True, omitted=3)
+        builder.close(self.trial)
+        with self.assertRaises(judge.JudgeRejection) as raised:
+            judge._audit_mediated_access(path, TASK_DIR, self.trial)
+        self.assertEqual(raised.exception.code, "QUERY_REQUIRED_FACT_OMITTED")
+        self.assertIn("without continuation", raised.exception.detail)
 
     def test_continue_without_truncation_rejects(self) -> None:
         path, builder = self.build()

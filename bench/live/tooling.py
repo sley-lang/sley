@@ -84,7 +84,9 @@ Commands:
 ```text
 .sley-live/sley-tool inventory
 .sley-live/sley-tool read ENTITY_HEX
-.sley-live/sley-tool sig ENTITY_HEX.sley-live/sley-tool revision
+.sley-live/sley-tool sig ENTITY_HEX
+.sley-live/sley-tool open
+.sley-live/sley-tool revision TX_HEX
 .sley-live/sley-tool caps
 .sley-live/sley-tool budgets
 .sley-live/sley-tool raw METHOD BODY_HEX
@@ -102,6 +104,12 @@ the branch states are trial inputs, and the merged outcome is composed
 from them through `propose`/`compose`/`finish` like any other change.
 
 
+`open` reports the accepted-head summary (`tx`, `root`, `policy`,
+`workspace`, `epoch`, counts, `receipt`) and, only when the head's index
+snapshot is already materialized, its identity as `snapshot` (the binding
+root-backed queries name; a bounded `query.root` materializes it).
+`revision` takes a transaction id from a prior `open` (or any other
+reported tx), because no state survives across invocations.
 `inventory` lists served object ids with decoded kinds. `read`/`sig` show
 an entity with its decoded body: edit by authoring the modified body as
 structured JSON (field names per the decoded view) or, for scalar fields,

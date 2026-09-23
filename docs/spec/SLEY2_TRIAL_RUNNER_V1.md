@@ -1,6 +1,6 @@
 # Sley 2 Trial Runner v1
 
-Status: S20-620 contract draft, revision 4 (2026-09-09); Council review
+Status: S20-620 contract draft, revision 5 (2026-09-23); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 9). Revision 3 replaces the section 2 capability claim
@@ -8,6 +8,11 @@ with the cooperative-adapter trust boundary the round showed it to be.
 Revision 4 admits `entity.version` and `entity.signature` to
 `ARM_AFFORDANCES` (eighteen names) and binds the claim digest to the
 per-trial immutable snapshot; the two names require a version 2 offer.
+Revision 5 moves `workspace.open` from the denied methods to
+`ARM_AFFORDANCES` (nineteen names, appended last) as the arm's
+accepted-head opener: the response carries the accepted head's
+already-materialized index snapshot identity (REQ-10, section 9), so a
+bounded root query can be formed from an allowed route.
 The implementation is `bench/sley2/runner.py` and `bench/sley2/handle.py`;
 implementation state is tracked in the machine summary.
 
@@ -32,7 +37,7 @@ goal sections 20.10, 21.3, 21.4, 21.6, 21.7).
 
 - One trial is one `sley serve --repository <disposable> --json --report
   <path> --protocol-profile v2-capable` process in per-frame mode. The
-  frozen eighteen-name allowlist requires a version 2 offer, so version 1
+  frozen nineteen-name allowlist requires a version 2 offer, so version 1
   trials do not run under this contract. The runner writes one
   `Frame` line per request and reads event and response lines until the
   response naming that request identifier arrives. The runner never speaks
@@ -288,18 +293,40 @@ provenance; publication; runtime, packaging, release, or GA.
   its snapshot to the frozen allowlist before execution (any other list is
   `SLEY2_TRIAL_HANDSHAKE_FAILED`) and claim validation requires the digest to
   equal it, so a widened claim never verifies. The allowlist
-  holds eighteen names in this frozen order, and the claim digest is
+  holds nineteen names in this frozen order, and the claim digest is
   order-sensitive: `candidate.append`, `candidate.create`,
   `candidate.discard`, `candidate.inspect`, `candidate.validate`, `capsule`,
   `compare`, `entity.signature`, `entity.version`, `handle.expand`,
   `query.continue`, `query.restricted`, `query.root`, `refs.list`,
   `refs.resolve`, `revision.read`, `session.budgets`,
-  `session.capabilities`. Those two entity names require a version 2
-  endpoint offer
+  `session.capabilities`, `workspace.open`. Those two entity names (the
+  revision 4 entity reads above, not the revision 5 opener) require a
+  version 2 endpoint offer
   (SLEY_CLI_V1 section 9 profile): under a version 1 offer the handshake
   fails exactly as for any unoffered name. A name the
   allowlist claims that the endpoint does not offer is
   `SLEY2_TRIAL_HANDSHAKE_FAILED`, so drift in either direction stops the run.
+- `workspace.open` (revision 5) is the arm's accepted-head opener. It takes
+  no body, mutates nothing, and answers the accepted head's revision summary
+  (fields 1 through 8, identical to `revision.read` of that head) plus field
+  9, the accepted head's complete-root index snapshot identity, when and
+  only when that snapshot is already materialized in the repository index
+  cache. The identity comes from a metadata-only cache probe (S20-300,
+  `sley-repo`), never a build, so the response still counts one entity;
+  snapshot builds stay on the query path (`query.root`/`query.continue`),
+  which materializes the head snapshot as a side effect of answering or
+  refusing. Field 9 is encoded on the `workspace.open` path only:
+  `revision.read` of any revision, head or not, keeps its eight-field
+  bytes. When the snapshot is not materialized, field 9 is structurally
+  absent from the response body; the absence is never signalled through
+  `bounds.omitted` or `bounds.truncated`, because `workspace.open` is not a
+  bounded paging route and an omission there is hidden truncation. A
+  cold-snapshot trial therefore opens, observes no field 9, issues a
+  bounded root query (which the endpoint refuses `QUERY_SNAPSHOT_MISMATCH`
+  while materializing the snapshot), and opens again; the refusal is a
+  counted, recorded response like any other. Disclosure and discovery pin
+  one revision by construction; a head that advances in between keeps the
+  existing mismatch symbol and session-staleness handling.
 - `tool_calls` counts the agent's session-scoped requests and excludes the
   runner's `session.close`; seeding and opening carry no session and are
   not counted either.

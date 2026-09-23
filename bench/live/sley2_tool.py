@@ -7,11 +7,12 @@ same pattern as the endpoint smoke runner), opens a session, executes
 exactly one documented command, closes, and prints a JSON result envelope.
 No state survives across invocations; the harness records every result.
 
-The agent surface is the frozen eighteen-method allowlist (pinned equal to
-the smoke runner's list by test). Request bodies cross as lowercase hex,
-validated here; owner bodies stay opaque per the bridge contract — the
-tool decodes read responses into JSON views (display only, never a
-verdict) and assembles candidate records from structured operations, all
+The agent surface is the frozen nineteen-method allowlist, equal in tuple
+order to the smoke runner's `ARM_AFFORDANCES` (asserted by
+`test_tool_methods_equal_runner_allowlist_in_order`). Request bodies
+cross as lowercase hex, validated here; owner bodies stay opaque per the
+bridge contract — the tool decodes read responses into JSON views
+(display only, never a verdict) and assembles candidate records from structured operations, all
 through the pinned oracle/scb1 codecs. It performs no evaluation: an
 invalid assembly is refused by the server, and acceptance belongs solely
 to the independent trial oracle.
@@ -21,8 +22,11 @@ Commands (run from the trial workspace directory):
   inventory                  list served-repo object ids with decoded kinds
   read <entity-hex>          entity.version with a decoded view
   sig <entity-hex>           entity.signature with a decoded view
-  revision                   current accepted-head summary
+  open                       workspace.open: accepted-head summary, plus the
+                             head's materialized index snapshot id when present
+  revision <tx-hex>          revision.read of a transaction id (e.g. from open)
   caps | budgets             session capability / budget views (raw)
+  side ours|theirs           frozen MERGE side state with decoded bodies
   raw <method> <body-hex>    one guarded frame of any allowlisted method
    propose <ops-json>         assemble + create + validate a candidate
    append <record-hex> <ops-json>
@@ -81,10 +85,12 @@ SESSION_TIMEOUT = 120
 HEX_64 = re.compile(r"[0-9a-f]{64}\Z")
 HEX_ANY = re.compile(r"[0-9a-f]*\Z")
 
-# The frozen eighteen-method surface, pinned equal to the smoke runner's
-# allowlist by test. Commit, merge, execute, export, import, report,
-# session management, and tests stay outside the agent's reach by
-# construction: the dispatcher below has no path that names them.
+# The frozen nineteen-method surface, in the smoke runner's
+# `ARM_AFFORDANCES` tuple order (contract revision 5; the pin test
+# `test_tool_methods_equal_runner_allowlist_in_order` asserts the
+# equality). Commit, merge, execute, export, import, report, session
+# management, and tests stay outside the agent's reach by construction:
+# the dispatcher below has no path that names them.
 TOOL_METHODS = (
     "candidate.append",
     "candidate.create",
@@ -104,7 +110,16 @@ TOOL_METHODS = (
     "revision.read",
     "session.budgets",
     "session.capabilities",
+    "workspace.open",
 )
+# Revision summaries (revision.read, workspace.open) share one record
+# layout; the decoded view names its fields (display only). Field 9 is the
+# accepted head's materialized index snapshot identity, carried by
+# workspace.open only and structurally absent when not materialized.
+SUMMARY_METHODS = frozenset({"revision.read", "workspace.open"})
+SUMMARY_ID_FIELDS = ((1, "tx"), (2, "root"), (3, "policy"), (4, "workspace"),
+                     (5, "epoch"), (8, "receipt"), (9, "snapshot"))
+SUMMARY_COUNT_FIELDS = ((6, "objects"), (7, "tombstones"))
 
 # Trial principal and candidate expiry: fixed constants, identical for
 # every trial, recorded in every transcript. The principal carries no
@@ -399,11 +414,39 @@ def _view(session: Session, method: str, body_hex: str) -> dict[str, Any]:
             return {"failed": True, "body": reply.get("body") or "", "decoded": decoded["decoded"]}
         except sley2_codecs.CodecError:
             return {"failed": True, "body": reply.get("body") or ""}
+    if method in SUMMARY_METHODS:
+        return {"failed": False, "body": reply["body"],
+                "decoded": _summary_view(reply["body"])}
     try:
         [decoded] = sley2_codecs.run_batch([{"op": "decode_response", "method": method, "body": reply["body"]}])
         return {"failed": False, "body": reply["body"], "decoded": decoded["decoded"]}
     except sley2_codecs.CodecError:
         return {"failed": False, "body": reply["body"], "decoded": None}
+
+
+def _summary_view(body_hex: str) -> dict[str, Any] | None:
+    """Framing-only view of a revision summary (display, never a verdict):
+    32-byte identities as hex, counts as integers. Field 9 appears only
+    when the response carries it; nothing is inferred for its absence."""
+
+    try:
+        fields = _parse_record_fields(bytes.fromhex(body_hex))
+    except (Sley2ToolError, ValueError):
+        return None
+    view: dict[str, Any] = {}
+    for tag, name in SUMMARY_ID_FIELDS:
+        if tag in fields:
+            view[name] = fields[tag].hex()
+    for tag, name in SUMMARY_COUNT_FIELDS:
+        if tag in fields:
+            try:
+                value, width = _uvar(fields[tag], 0)
+            except Sley2ToolError:
+                return None
+            if width != len(fields[tag]):
+                return None
+            view[name] = value
+    return view
 
 
 def _side_current(session: Session, workspace: Path) -> dict[str, Any]:
@@ -714,8 +757,15 @@ def dispatch(session: Session, workspace: Path, argv: list[str]) -> dict[str, An
         return _view(session, "entity.version", _entity_body(session, _hex(rest[0], 64).hex()))
     if command == "sig" and len(rest) == 1:
         return _view(session, "entity.signature", _entity_body(session, _hex(rest[0], 64).hex()))
-    if command == "revision" and not rest:
-        return _view(session, "revision.read", session.head["tx"])
+    if command == "open" and not rest:
+        # The agent's own accepted-head opener (contract revision 5): a
+        # guarded, transcript-captured workspace.open. The harness head
+        # read in Session.__init__ stays harness bookkeeping.
+        return _view(session, "workspace.open", "")
+    if command == "revision" and len(rest) == 1:
+        # The transaction id is agent-supplied (for instance the tx of a
+        # prior `open`); no harness-held head is read here.
+        return _view(session, "revision.read", _hex(rest[0], 64).hex())
     if command == "caps" and not rest:
         return _view(session, "session.capabilities", "")
     if command == "budgets" and not rest:
@@ -1025,6 +1075,10 @@ def _command_evidence(argv: list[str], result: dict[str, Any] | None) -> tuple[d
         records["in"] = hashlib.sha256(rest[0].encode()).hexdigest()
     elif command == "side" and len(rest) == 1:
         args = {"side": rest[0]}
+    elif command == "open" and not rest:
+        args = {"opened": True}
+    elif command == "revision" and len(rest) == 1:
+        args = {"tx": rest[0]}
     return args, records
 
 

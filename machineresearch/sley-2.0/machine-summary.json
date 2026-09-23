@@ -4327,9 +4327,9 @@
     "nabu_review_note": "PASS via harness nabu TO_OFFLINE review 2026-09-13 on a4b60294e4dd75133fa08f92bf16022fb05bb807 (transcript evidence/review/verdicts/s20_610_offline_raw_runner/nabu_review-a4b6029.md): offline + append-only verified live, checker PASS, 0 findings"
   },
   "sley2_trial_runner": {
-    "status": "S20_620_COMPLETE",
+    "status": "S20_620_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
-    "contract_revision": 4,
+    "contract_revision": 5,
     "adr": "docs/adr/ADR-0036-sley2-trial-runner-boundary.md",
     "checker": "scripts/check_sley2_trial_runner.py",
     "arm": "sley_2_0",
@@ -4347,7 +4347,7 @@
     "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3",
-    "implementation_complete": true,
+    "implementation_complete": false,
     "implementation_started": true,
     "implementation": [
       "bench/sley2/runner.py",
@@ -4370,7 +4370,7 @@
       "S20-620 narrowed S20-610's shared run-level execution_mode and external_command_policy by its own prose while starting endpoint processes; both controls are now defined once in S20-610, which states that an arm's measured artifact is not an external command and attaches the conditions an arm running its artifact must satisfy, and S20-620 cites that definition instead of restating it"
     ],
     "p0_open": [],
-    "status_note": "moved to the terminal status on 2026-09-15 after every lane passed: three-lane contract/architecture/surface reviews PASS and, where the checker binds one, the current-delta review PASS at the current contract revision; the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them"
+    "status_note": "moved off the terminal status on 2026-09-23 (previous status S20_620_COMPLETE, 2026-09-15): contract revision 5 moves workspace.open from the denied methods to ARM_AFFORDANCES (nineteen names) as the accepted-head opener whose response carries the materialized head snapshot identity (REQ-10 context bounded discovery). The three base review fields keep their revision-4 PASS values byte-exact as historical evidence; those verdicts predate transcript capture, so no _revision_4 fields are written. Completion now also requires <lane>_revision_5 fields starting PASS (checker code completion-unbound-review), written with notes by the revision-5 Ariadne, Nabu, and Vulcan reviews, none of which has run; the base fields move to the revision-5 values only in the commit that returns the status to COMPLETE. The WORK_PACKAGES row and the closeout Revision 5 status paragraph both read revision 5 implemented with lane reviews pending; the closeout retains its revision 2 Status line (Council reviews pending) and its Revision 4 attestation as history"
   },
   "succession_accounting": {
     "status": "S20_630_COMPLETE",
