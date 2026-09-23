@@ -39,11 +39,12 @@ use sley_repo::{
     IndexCacheError, MAX_ANCESTRY_NODES, MergeCommitInput, MergeOutcome, MergeSide,
     NativeExchangeTrust, NativeReplayRequest, NativeReplayStatus, ReportStoreErrorCode,
     RepositoryObjectVerifier, RepositoryQueryError, RetentionAnchor, RetentionKind,
-    RetentionSnapshot, RetentionTarget, acquire_exclusive_gc, build_merge_plan, commit_merge,
-    compare_complete_roots, encode_verified_entity_read_response, export_repository_exchange,
-    gc_collect, gc_dry_run, import_repository_exchange, judge_merge_verified,
-    prepare_verified_entity_read, read_execution_report, replay_native_commit, run_root_query,
-    run_root_query_fresh, store_execution_report, transaction_ancestry,
+    RetentionSnapshot, RetentionTarget, acquire_exclusive_gc, build_merge_plan,
+    cached_complete_root_snapshot_id, commit_merge, compare_complete_roots,
+    encode_verified_entity_read_response, export_repository_exchange, gc_collect, gc_dry_run,
+    import_repository_exchange, judge_merge_verified, prepare_verified_entity_read,
+    read_execution_report, replay_native_commit, run_root_query, run_root_query_fresh,
+    store_execution_report, transaction_ancestry,
 };
 use sley_scb1::{
     encode_bytes, encode_list, encode_option_uvar, encode_record, encode_union, encode_uvar,
@@ -2886,10 +2887,32 @@ impl Server {
         )
     }
 
+    /// The head-pinned opener: the accepted head's `revision_summary`
+    /// plus, on this path only, field 9 carrying the accepted head's
+    /// already-materialized complete-root index snapshot identity (REQ-10
+    /// accepted-head binding). The identity comes from the metadata-only
+    /// cache probe, never a build, so the one-entity count stays truthful.
+    /// When no snapshot is materialized (or the probe cannot run) field 9
+    /// is structurally absent from the body; the absence is never reported
+    /// through `omitted` or `truncated`. `revision.read` keeps the eight
+    /// field encoding byte for byte.
     fn workspace_open(&self) -> Result<(Vec<u8>, BoundedContext)> {
         let head = self.head()?;
-        let summary = revision_summary(&head)?;
+        let snapshot = self.materialized_head_snapshot(&head);
+        let summary = head_open_summary(&head, snapshot)?;
         self.counted(summary, 1)
+    }
+
+    /// The accepted head's cached snapshot identity, fail-open like the
+    /// cache itself (contract section 5): any probe trouble is absence.
+    fn materialized_head_snapshot(
+        &self,
+        head: &VerifiedRevision,
+    ) -> Option<sley_id::IndexSnapshotId> {
+        let guard = self.maintenance().ok()?;
+        cached_complete_root_snapshot_id(&self.repository, head, &guard)
+            .ok()
+            .flatten()
     }
 
     fn candidate_create(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
@@ -3242,8 +3265,26 @@ fn branch_summary(branch: &sley_repo::ResolvedBranch) -> Result<Vec<u8>> {
 }
 
 fn revision_summary(revision: &VerifiedRevision) -> Result<Vec<u8>> {
+    scb(encode_record(&revision_summary_fields(revision)?))
+}
+
+/// `workspace.open` only: the head summary plus field 9 when the head's
+/// snapshot is materialized. Kept apart from `revision_summary`, which has
+/// no knowledge of headness and serves arbitrary caller-named revisions.
+fn head_open_summary(
+    head: &VerifiedRevision,
+    snapshot: Option<sley_id::IndexSnapshotId>,
+) -> Result<Vec<u8>> {
+    let mut fields = revision_summary_fields(head)?;
+    if let Some(snapshot) = snapshot {
+        fields.push((9, snapshot.as_bytes().to_vec()));
+    }
+    scb(encode_record(&fields))
+}
+
+fn revision_summary_fields(revision: &VerifiedRevision) -> Result<Vec<(u32, Vec<u8>)>> {
     let record = &revision.state_root().record;
-    scb(encode_record(&[
+    Ok(vec![
         (1, revision.transaction_id().as_bytes().to_vec()),
         (2, revision.state_root().root.as_bytes().to_vec()),
         (3, revision.policy_root().root().as_bytes().to_vec()),
@@ -3255,7 +3296,7 @@ fn revision_summary(revision: &VerifiedRevision) -> Result<Vec<u8>> {
             encode_uvar(to_u64(revision.tombstoned_entities().len())?),
         ),
         (8, revision.receipt().receipt_id.as_bytes().to_vec()),
-    ]))
+    ])
 }
 
 fn encode_limits(limits: &LimitProfile) -> Result<Vec<u8>> {

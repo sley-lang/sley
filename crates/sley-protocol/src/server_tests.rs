@@ -11,7 +11,7 @@ use sley_query::{
 use sley_repo::test_support::{
     complete_bodies, complete_dependency_root, executable_bodies, genesis,
 };
-use sley_repo::{CompleteRootRequest, run_root_query};
+use sley_repo::{CompleteRootRequest, run_root_query, run_root_query_fresh};
 use sley_scb1::{MAX_BYTE_PAYLOAD, encode_bytes, encode_record, encode_uvar};
 
 use crate::server::{
@@ -605,6 +605,72 @@ fn query_family_transports_the_frozen_engine_records() {
     // Garbage query bodies fail as payloads.
     let garbage = harness.fail(Method::QueryRoot, b"not a query".to_vec());
     assert_eq!(garbage.code, ProtocolErrorCode::PayloadInvalid.numeric());
+}
+
+/// REQ-10 accepted-head binding: `workspace.open` carries field 9 (the
+/// head's already-materialized snapshot identity) and nothing else moves.
+/// Cold, the field is structurally absent (never an omission signal) and
+/// the body equals `revision.read` of the head; the query path is the only
+/// builder; once materialized, the disclosed identity is exactly the one
+/// `query.root` binds, so a preimage built from the disclosure is answered
+/// instead of refused `QUERY_SNAPSHOT_MISMATCH`; `revision.read` bytes stay
+/// the eight-field encoding throughout.
+#[test]
+fn workspace_open_discloses_only_the_materialized_head_snapshot() {
+    let mut harness = Harness::new("smp1-open-snapshot");
+    let genesis = harness.genesis;
+    let revision_before = harness.ok(Method::RevisionRead, tx(genesis)).body;
+    assert_eq!(revision_before[0], 8, "eight-field revision summary");
+    // Cold: no snapshot materialized, no field 9, no omission signal.
+    let cold = harness.ok(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(cold.body, revision_before);
+    assert_eq!(cold.bounds.returned_entities, 1);
+    assert_eq!(cold.bounds.omitted, 0);
+    assert!(!cold.bounds.truncated && !cold.bounds.continuation);
+    let revision = sley_txn::TransactionRepository::new(&harness.repository)
+        .verified_revision(genesis)
+        .unwrap();
+    let cache = sley_repo::index_cache_path(&harness.repository, revision.state_root().root);
+    assert!(!cache.exists(), "workspace.open must never build");
+    // An undisclosed binding is refused, and the query path (not the
+    // opener) builds and materializes the head snapshot on the way.
+    let limits = QueryLimits::profile_maximum();
+    let outcome = run_root_query_fresh(
+        &revision,
+        RootQuery::ListEntitiesByKind {
+            kind: ModeledEntityKind::Namespace,
+        },
+        limits,
+        true,
+        None,
+    )
+    .unwrap();
+    let mut unbound = outcome.request.preimage().to_vec();
+    unbound[16..48].fill(0);
+    let refused = harness.fail(Method::QueryRoot, unbound.clone());
+    assert_eq!(refused.symbol, "QUERY_SNAPSHOT_MISMATCH");
+    assert!(cache.is_file(), "the query path materializes the snapshot");
+    // Warm: field 9 appended after the unchanged eight fields.
+    let warm = harness.ok(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(warm.bounds.returned_entities, 1);
+    assert_eq!(warm.bounds.omitted, 0);
+    assert!(!warm.bounds.truncated);
+    assert_eq!(warm.body[0], 9, "nine-field head summary");
+    assert_eq!(&warm.body[1..revision_before.len()], &revision_before[1..]);
+    let tail = &warm.body[revision_before.len()..];
+    assert_eq!(&tail[..2], &[9, 32]);
+    let disclosed = &tail[2..];
+    assert_eq!(disclosed, outcome.request.snapshot_id().as_bytes());
+    // revision.read stays byte-identical for the same (head) revision.
+    assert_eq!(
+        harness.ok(Method::RevisionRead, tx(genesis)).body,
+        revision_before
+    );
+    // Bootstrap closed: the disclosed identity forms an answered request.
+    unbound[16..48].copy_from_slice(disclosed);
+    assert_eq!(unbound, outcome.request.preimage());
+    let answered = harness.ok(Method::QueryRoot, unbound);
+    assert_eq!(answered.body, outcome.response.record());
 }
 
 #[test]

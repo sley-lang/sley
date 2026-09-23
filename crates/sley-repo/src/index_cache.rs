@@ -13,7 +13,7 @@ use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use sley_id::StateRoot;
+use sley_id::{IndexSnapshotId, StateRoot};
 use sley_query::{
     CacheDiscardReason, IndexSnapshot, IndexSnapshotBuildError, IndexSnapshotError,
     IndexSnapshotErrorCode, MAX_SNAPSHOT_RECORD_BYTES, SnapshotContext,
@@ -232,6 +232,41 @@ pub fn complete_root_snapshot(
     // snapshot (contract section 5 fail-open).
     let _ = write_record(&path, fresh.record());
     Ok((fresh, CacheOutcome::Rebuilt(reason)))
+}
+
+/// Probes the cache for the verified revision's already-materialized
+/// complete-root snapshot and returns its identity, without ever building
+/// one (S20-300, owner Merlin; REQ-10 accepted-head disclosure).
+///
+/// Only the cheap path runs: the cache record is read and accepted under
+/// the same four rules as [`complete_root_snapshot`] (`accept_cached`
+/// reads no object and extracts no edge). An absent, unreadable,
+/// non-file, or discarded record yields `None`; there is no
+/// `fresh_snapshot` fallthrough and no write-back, so the caller's cost
+/// class stays metadata-only. Builds stay on the query paths
+/// ([`complete_root_snapshot`] under `query.root`/`query.continue`).
+///
+/// The caller MUST hold shared repository maintenance over
+/// `repository`, as for [`complete_root_snapshot`].
+///
+/// # Errors
+///
+/// Returns `INDEX_SNAPSHOT_IO` only for a guard naming a different
+/// repository; every cache condition is an absence, not an error.
+pub fn cached_complete_root_snapshot_id(
+    repository: &Path,
+    revision: &VerifiedRevision,
+    guard: &RepositoryMaintenanceGuard,
+) -> Result<Option<IndexSnapshotId>, IndexCacheError> {
+    if guard.repository_root() != repository {
+        return Err(IndexCacheError::Io(std::io::Error::other(
+            "index cache guard covers a different repository",
+        )));
+    }
+    let path = index_cache_path(repository, revision.state_root().root);
+    Ok(read_record(&path)
+        .and_then(|record| accept_cached(revision, &record).ok())
+        .map(|snapshot| snapshot.snapshot_id()))
 }
 
 /// Reads the cache file when it is a regular file: refused (not failed)
@@ -523,6 +558,49 @@ mod tests {
             error.code().as_str(),
             IndexSnapshotErrorCode::RootIo.as_str()
         );
+        let error = cached_complete_root_snapshot_id(&other, &revision, &guard).unwrap_err();
+        assert_eq!(
+            error.code().as_str(),
+            IndexSnapshotErrorCode::RootIo.as_str()
+        );
+    }
+
+    #[test]
+    fn probe_reports_only_a_materialized_snapshot_and_never_builds() {
+        let (temp, transactions, genesis_id) =
+            genesis("index-probe", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        let path = index_cache_path(&repository, revision.state_root().root);
+        // Cold: absent, and the probe writes nothing back.
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            None
+        );
+        assert!(!path.exists(), "the probe must never build or write");
+        // Materialized by the query path: the probe names that snapshot.
+        let (built, _) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            Some(built.snapshot_id())
+        );
+        // A hit reads no object: removing the store does not change it.
+        fs::remove_dir_all(repository.join("objects")).unwrap();
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            Some(built.snapshot_id())
+        );
+        // A record the four rules discard is an absence, not a rebuild.
+        let mut corrupt = built.record().to_vec();
+        let last = corrupt.len() - 1;
+        corrupt[last] ^= 1;
+        fs::write(&path, &corrupt).unwrap();
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            None
+        );
+        assert_eq!(fs::read(&path).unwrap(), corrupt, "no write-back");
     }
 
     #[test]
