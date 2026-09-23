@@ -149,6 +149,15 @@ plus `oracle/scb1`), and 177 dependency relationships; the lockfile digest
 is recorded in the machine summary (`s20_710_pre_release_audit.cargo_lock_sha256`)
 and re-derived by `scripts/check_supply_chain_audit.py`.
 
+2026-09-23 (REQ-10 CONTEXT round-6 repair): `sley-repo` now depends
+directly on `libc =0.2.189` for the identity probe's `O_NOFOLLOW |
+O_NONBLOCK` open. The package was already in the registry set with its
+curated license, so the counts stay at 20 workspace crates and 40 registry
+packages. The relationships rise to 178 (the one new `sley-repo` → `libc`
+edge), and the lockfile digest moves with it. The candidate-bound standards
+SBOM pair still describes the previous candidate (177 relationships) until
+the next candidate build.
+
 Three license expressions entered the registry set with those crates and
 were curated into `PERMISSIVE_CARGO_LICENSES`
 (`scripts/generate_supply_chain_evidence.py`) after reading each crate's
