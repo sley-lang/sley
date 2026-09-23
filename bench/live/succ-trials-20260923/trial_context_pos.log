@@ -1,6 +1,6 @@
-CONTEXT witness/pos: source 1450577a6e0824d6dd0536f8eaef4a4194077e74
+CONTEXT witness/pos: source c21ff9457ea79758df5cfd320b8a836c462b87b2 (clean apart from witness outputs)
 CONTEXT witness/pos: discovery {"impact_continuations": 0, "impact_left_truncated": false, "impact_pages": 1, "impact_seen": 10, "impact_total": 10, "impacted_constants": 3, "opened_with_snapshot": false, "record_typedefs": 1, "snapshot": "c9fc1f5320be304bffd203a4777932f678e81b5d16e8e4285846239deae87a7e", "typedef_pages": 1, "warm_refused": true}
 CONTEXT witness/pos: propose valid True decision {'failed_phase': None, 'tag': 1}
 CONTEXT witness/pos: finished True
 S2B-CONTEXT-001 witness/pos judge exit: 0
-workspace kept at: /home/gfarch/Work/checkpoints/succ-context-tmp/sley2-context-witness-ooy727op/ws
+workspace kept at: /home/gfarch/Work/checkpoints/succ-context-tmp/sley2-context-witness-pr58f4f8/ws
