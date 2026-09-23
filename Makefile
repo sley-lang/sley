@@ -98,6 +98,7 @@ quick:
 	python3 scripts/check_declared_limits.py --check
 	python3 scripts/test_cli_contract.py
 	python3 scripts/test_complete_entity_impact_checker.py
+	python3 scripts/test_complete_root_index_snapshot_profile.py
 	python3 scripts/test_cli_rules.py
 	python3 scripts/test_current_contract_review.py
 	python3 scripts/test_required_contract_index.py

@@ -2887,10 +2887,12 @@ impl Server {
         )
     }
 
-    /// The head-pinned opener (SMP1 revision 13, appendix A row 201): an
+    /// The head-pinned opener (SMP1 revision 14, appendix A row 201): an
     /// empty request answered with the accepted head's summary. Under a
     /// version 1 selection the body is exactly `revision_summary`. Under a
-    /// version 2 (or later) selection it is `open_summary`: the same eight
+    /// version 2 selection, and under every later selection whose table
+    /// includes version 2's row 201 (version 3, `NATIVE_TEST_ADMISSION_V1`
+    /// appendix D), it is `open_summary`: the same eight
     /// fields plus field 9, the accepted head's complete-root index snapshot
     /// identity, present only when the S20-300 read-only probe finds an
     /// accepted cache record for that root. The probe never builds or writes
@@ -2913,14 +2915,14 @@ impl Server {
         self.counted(summary, 1)
     }
 
-    /// The accepted head's cached snapshot identity (S20-300 revision 4
+    /// The accepted head's cached snapshot identity (S20-300 revision 5
     /// probe reader). The probe adds no wait and no write: the maintenance
     /// boundary is taken shared without waiting and never initialized here,
     /// so an absent or contended boundary, or any probe failure, is
     /// absence. (Loading the accepted head itself already takes the shared
     /// maintenance lock, blocking, as every head-bound read does; that is
     /// S20-390 behavior this probe does not change.)
-    fn materialized_head_snapshot(
+    pub(crate) fn materialized_head_snapshot(
         &self,
         head: &VerifiedRevision,
     ) -> Option<sley_id::IndexSnapshotId> {
@@ -3283,7 +3285,7 @@ fn revision_summary(revision: &VerifiedRevision) -> Result<Vec<u8>> {
     scb(encode_record(&revision_summary_fields(revision)?))
 }
 
-/// `workspace.open` only (SMP1 revision 13 `open_summary`): the head
+/// `workspace.open` only (SMP1 revision 14 `open_summary`): the head
 /// summary plus field 9 when the caller passes the head's materialized
 /// snapshot. Kept apart from `revision_summary`, which has no knowledge of
 /// headness and serves arbitrary caller-named revisions.

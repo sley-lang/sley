@@ -607,7 +607,7 @@ fn query_family_transports_the_frozen_engine_records() {
     assert_eq!(garbage.code, ProtocolErrorCode::PayloadInvalid.numeric());
 }
 
-/// SMP1 revision 13: under a version 1 selection `workspace.open` stays
+/// SMP1 revision 14: under a version 1 selection `workspace.open` stays
 /// exactly `revision_summary` even with a materialized head snapshot (field
 /// 9 is version 2 only), and a non-empty request body is refused
 /// `PROTOCOL_PAYLOAD_INVALID`.
@@ -7383,7 +7383,7 @@ fn emit_native_test_vectors_for_fixture_refresh() {
 }
 
 /// REQ-10 accepted-head binding under a version 2 selection (SMP1 revision
-/// 13 `open_summary`): cold, field 9 is structurally absent (the body equals
+/// 14 `open_summary`): cold, field 9 is structurally absent (the body equals
 /// `revision.read` of the head, no omission signal, no cache file written);
 /// the query path, not the opener, materializes the snapshot while refusing
 /// an unbound preimage; warm, the eight fields are unchanged and field 9 is
@@ -7457,5 +7457,129 @@ fn workspace_open_v2_discloses_only_the_materialized_head_snapshot() {
     assert_eq!(
         ProtocolFailure::decode(&bodied.body).unwrap().code,
         ProtocolErrorCode::PayloadInvalid.numeric()
+    );
+}
+
+/// SMP1 revision 14: version 3 is the union of the version 1 and version 2
+/// tables (`NATIVE_TEST_ADMISSION_V1` appendix D), so `workspace.open` under
+/// a version 3 selection answers exactly the version 2 `open_summary`:
+/// eight fields cold, field 9 (the identity `query.root` binds) warm.
+#[test]
+fn workspace_open_v3_answers_the_version_2_open_summary() {
+    let bit = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1;
+    let (temp, _, _) = genesis(
+        "v3-open-snapshot",
+        complete_bodies(),
+        &[complete_dependency_root()],
+    );
+    let repository = temp.child("repo");
+    let mut server = Server::new_versioned(
+        &repository,
+        &v3hello(v3_offered_methods(), bit),
+        &v3hello(v3_offered_methods(), bit),
+    )
+    .unwrap();
+    assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V3);
+    let session = open_v3_session(&mut server);
+    let call = |server: &mut Server, id: u64, tag: u32, body: Vec<u8>| {
+        let answer = server
+            .answer(&v3request_frame(Some(session), id, tag, body))
+            .unwrap();
+        let (DecodedFrame::Response(frame), _) =
+            decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3)
+                .unwrap()
+        else {
+            panic!("v3 response frame");
+        };
+        (answer.failed, frame)
+    };
+    let revision = sley_txn::TransactionRepository::new(&repository)
+        .accepted_head()
+        .unwrap()
+        .into_verified_revision();
+    let (failed, read) = call(
+        &mut server,
+        1,
+        Method::RevisionRead.tag(),
+        tx(revision.transaction_id()),
+    );
+    assert!(!failed);
+    let (failed, cold) = call(&mut server, 2, Method::WorkspaceOpen.tag(), Vec::new());
+    assert!(!failed);
+    assert_eq!(cold.body, read.body, "cold: eight fields, as revision.read");
+    // Warm the cache through the sanctioned query surface.
+    let warmed = run_root_query(
+        &repository,
+        &revision,
+        &maintenance_guard(&repository),
+        RootQuery::GetRootSummary,
+        QueryLimits::profile_maximum(),
+        false,
+        None,
+    )
+    .unwrap();
+    let (failed, warm) = call(&mut server, 3, Method::WorkspaceOpen.tag(), Vec::new());
+    assert!(!failed);
+    assert_eq!(warm.body[0], 9, "warm: open_summary");
+    assert_eq!(&warm.body[1..read.body.len()], &read.body[1..]);
+    assert_eq!(&warm.body[read.body.len()..read.body.len() + 2], &[9, 32]);
+    assert!(warm.body.ends_with(warmed.request.snapshot_id().as_bytes()));
+    assert_eq!(warm.bounds.returned_entities, 1);
+    assert_eq!(warm.bounds.omitted, 0);
+    let (failed, bodied) = call(&mut server, 4, Method::WorkspaceOpen.tag(), vec![0]);
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&bodied.body).unwrap().code,
+        ProtocolErrorCode::PayloadInvalid.numeric()
+    );
+}
+
+/// The probe's consumer obligations (S20-300 section 5): with an exclusive
+/// maintenance owner holding the boundary, the probe answers absence at
+/// once instead of waiting; and a discarded (corrupted) cache record makes
+/// `workspace.open` answer eight fields while the file's bytes stay as they
+/// were (no rebuild, no write-back).
+#[test]
+fn workspace_open_probe_is_non_waiting_and_never_rewrites_a_discarded_record() {
+    let mut server = VServer::with_bodies(
+        "v2-open-probe-obligations",
+        complete_bodies(),
+        &[complete_dependency_root()],
+    );
+    let revision = sley_txn::TransactionRepository::new(&server.repository)
+        .accepted_head()
+        .unwrap()
+        .into_verified_revision();
+    let warmed = run_root_query(
+        &server.repository,
+        &revision,
+        &maintenance_guard(&server.repository),
+        RootQuery::GetRootSummary,
+        QueryLimits::profile_maximum(),
+        false,
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        server.server.materialized_head_snapshot(&revision),
+        Some(warmed.request.snapshot_id())
+    );
+    let exclusive = sley_txn::acquire_exclusive_repository_maintenance(&server.repository).unwrap();
+    let started = std::time::Instant::now();
+    assert_eq!(server.server.materialized_head_snapshot(&revision), None);
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    drop(exclusive);
+    let cache = sley_repo::index_cache_path(&server.repository, revision.state_root().root);
+    let mut corrupt = std::fs::read(&cache).unwrap();
+    let last = corrupt.len() - 1;
+    corrupt[last] ^= 1;
+    std::fs::write(&cache, &corrupt).unwrap();
+    let (failed, opened) = server.call(Method::WorkspaceOpen.tag(), Vec::new());
+    assert!(!failed);
+    assert_eq!(opened.body[0], 8, "a discarded record is absence");
+    assert_eq!(
+        std::fs::read(&cache).unwrap(),
+        corrupt,
+        "no rebuild, no write-back"
     );
 }

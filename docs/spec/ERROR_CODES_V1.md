@@ -270,7 +270,8 @@ S20-300 full reserves numeric codes 30008 through 30010 for the exact
 that contract): an incomplete root (wrapping the exact `IMPACT_*` code), a
 cached inventory that differs from the root's bindings, and cache I/O. They
 cover the complete-root arm and the repository-owned index cache whose hits
-serve read-only derived query surfaces only.
+serve read-only derived query surfaces and the profile's one non-query hit
+reader, the read-only identity probe (profile revision 4 and later).
 
 S20-310 restricted freezes numeric codes 31000 through 31007 for the exact
 `QUERY_*` failures listed in `RESTRICTED_QUERY_PROFILE_V1.md`. They cover four
@@ -315,7 +316,7 @@ a draft with Council review pending and reserves, rather than freezes, these
 codes.
 
 S20-330 freezes numeric codes 33000 through 33007 for the exact `SESSION_*`
-failures of `SESSION_HANDLE_PROFILE_V1.md` (contract draft revision 4,
+failures of `SESSION_HANDLE_PROFILE_V1.md` (contract draft revision 5,
 implemented under the draft with Council re-reviews pending). They travel
 in the SMP1 failure envelope:
 

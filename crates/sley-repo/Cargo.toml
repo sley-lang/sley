@@ -8,6 +8,7 @@ description = "Sley 2 canonical repository packs and clean reconstruction."
 
 [dependencies]
 blake3 = "=1.8.2"
+libc = "=0.2.189"
 sley-id = { path = "../sley-id" }
 sley-mutate = { path = "../sley-mutate" }
 sley-scb1 = { path = "../sley-scb1" }

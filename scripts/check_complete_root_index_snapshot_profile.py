@@ -21,7 +21,7 @@ ROOT_QUERY = ROOT / "crates/sley-repo/src/root_query.rs"
 EXCHANGE = ROOT / "crates/sley-repo/src/exchange.rs"
 FIXTURE_DIR = ROOT / "conformance/complete-root-index-snapshot"
 
-SPEC_REVISION = 4
+SPEC_REVISION = 5
 
 DRAFT_STATUS = "S20_300_FULL_CONTRACT_DRAFT_REVIEW_PENDING"
 DRAFT_IN_PROGRESS_STATUS = "S20_300_FULL_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
@@ -87,6 +87,82 @@ CACHE_MARKERS = (
 
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+PROBE = "cached_complete_root_snapshot_id"
+PROBE_DEFINITION = "crates/sley-repo/src/index_cache.rs"
+PROBE_CONSUMER = "crates/sley-protocol/src/server.rs"
+PROBE_CONSUMER_FN = "fn materialized_head_snapshot("
+LINE_COMMENT = re.compile(r"//[^\n]*")
+USE_ITEM = re.compile(r"\buse\s[^;]*;", re.S)
+
+
+def _function_body(text: str, signature: str) -> str | None:
+    """The brace-balanced body following `signature`, or None."""
+    start = text.find(signature)
+    if start < 0:
+        return None
+    open_brace = text.find("{", start)
+    if open_brace < 0:
+        return None
+    depth = 0
+    for index in range(open_brace, len(text)):
+        if text[index] == "{":
+            depth += 1
+        elif text[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[open_brace:index + 1]
+    return None
+
+
+def probe_gate_problems(root: Path) -> list[str]:
+    """The identity probe has exactly one reader (profile section 5).
+
+    Every Rust file under `crates/` and `fuzz/` is scanned for the bare
+    identifier (a call, an import, an alias, or a function pointer), with
+    line comments stripped. Only the definition file (by full path) and
+    crate-level integration tests (`crates/<crate>/tests/`) are exempt. The
+    sanctioned consumer file may import the identifier (never under an
+    alias) and must reference it exactly once outside `use` items, inside
+    `materialized_head_snapshot`; that function must take the maintenance
+    boundary without waiting and without initializing it.
+    """
+    problems: list[str] = []
+    identifier = re.compile(r"\b" + PROBE + r"\b")
+    files = sorted((root / "crates").rglob("*.rs")) + sorted((root / "fuzz").rglob("*.rs"))
+    for path in files:
+        relative = path.relative_to(root)
+        parts = relative.parts
+        if str(relative) == PROBE_DEFINITION:
+            continue
+        if len(parts) > 3 and parts[0] == "crates" and parts[2] == "tests":
+            continue
+        text = LINE_COMMENT.sub("", path.read_text(encoding="utf-8"))
+        hits = len(identifier.findall(text))
+        if not hits:
+            continue
+        if str(relative) != PROBE_CONSUMER:
+            problems.append(f"probe-caller:{relative}")
+            continue
+        if re.search(r"\b" + PROBE + r"\s+as\b", text):
+            problems.append(f"probe-caller:{relative}:aliased")
+        code = USE_ITEM.sub("", text)
+        uses = len(identifier.findall(code))
+        body = _function_body(code, PROBE_CONSUMER_FN)
+        in_body = len(identifier.findall(body)) if body is not None else 0
+        if uses != 1 or in_body != 1:
+            problems.append(f"probe-caller:{relative}:references={uses}:in-consumer={in_body}")
+        if body is None or "acquire_shared_repository_maintenance_nonblocking(" not in body:
+            problems.append("probe-consumer:not-non-waiting")
+        if body is not None and (
+            "initialize_repository_maintenance" in body or "self.maintenance()" in body
+        ):
+            problems.append("probe-consumer:initializes-or-waits")
+    consumer = root / PROBE_CONSUMER
+    if consumer.exists() and not identifier.search(LINE_COMMENT.sub("", read(consumer))):
+        problems.append("probe-consumer:missing")
+    return problems
 
 
 def main() -> int:
@@ -175,16 +251,9 @@ def main() -> int:
             if call_pattern.search(text) and "fn complete_root_snapshot" not in text:
                 if str(path.relative_to(ROOT)) not in allowed_callers:
                     problems.append(f"cache-caller:{path.relative_to(ROOT)}")
-        # The revision 4 identity probe is the one other hit reader: its
-        # only sanctioned caller is the SMP1 revision 13 workspace.open.
-        probe_callers = {"crates/sley-protocol/src/server.rs"}
-        probe_pattern = re.compile(r"cached_complete_root_snapshot_id\(")
-        for path in sorted((ROOT / "crates").rglob("*.rs")):
-            if "tests" in path.parts or path.name in ("index_cache.rs",):
-                continue
-            text = path.read_text(encoding="utf-8")
-            if probe_pattern.search(text) and str(path.relative_to(ROOT)) not in probe_callers:
-                problems.append(f"probe-caller:{path.relative_to(ROOT)}")
+        # The identity probe is the one other hit reader: exactly one
+        # reference, inside the SMP1 workspace.open consumer, non-waiting.
+        problems.extend(probe_gate_problems(ROOT))
         root_query = read(ROOT_QUERY) if ROOT_QUERY.exists() else ""
         if "run_root_query_fresh(revision" not in root_query:
             problems.append("capsule:not-fresh-only")
@@ -208,6 +277,11 @@ def main() -> int:
             for key in ("ariadne_contract_review", "nabu_architecture_review", "vulcan_surface_review"):
                 if not str(section.get(key, "")).startswith("PASS"):
                     problems.append(f"completion-without-review:{key}")
+                # Completion binds each lane to the review of the current
+                # contract revision, by field name (`<lane>_revision_<N>`):
+                # historical base-field PASS values never re-complete it.
+                if not str(section.get(f"{key}_revision_{SPEC_REVISION}", "")).startswith("PASS"):
+                    problems.append(f"completion-unbound-review:{key}")
 
     # The revision is anchored to the Status header (not the first prose
     # occurrence) and pinned: a stale pin fails the moment the contract moves.

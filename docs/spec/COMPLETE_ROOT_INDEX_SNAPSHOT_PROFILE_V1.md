@@ -1,6 +1,6 @@
 # Complete-Root Index Snapshot Profile v1
 
-Status: S20-300 full contract draft, revision 4 (2026-09-23); implemented
+Status: S20-300 full contract draft, revision 5 (2026-09-23); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
 and the package is not complete. Revision 3 closes the remaining
@@ -9,8 +9,14 @@ fail-open cache I/O, fresh-only exported capsules, and the residual
 precision notes. Revision 4 admits one second hit reader, the read-only
 identity probe `cached_complete_root_snapshot_id` (section 5), whose only
 consumer is the SMP1 revision 13 `workspace.open` snapshot identity
-(REQ-10); nothing else changes. Implementation state is tracked in the
-machine summary.
+(REQ-10); nothing else changes. Revision 5 answers the revision 4 review
+round (f0738119): the consumer is named for every selection that carries
+SMP1 revision 14's `open_summary` (version 2 and the version 3 union); the
+preamble and section 9 name the probe as the one non-query hit reader;
+guard coverage is canonical (`RepositoryMaintenanceGuard::covers`); the
+cache file is opened once with `O_NOFOLLOW | O_NONBLOCK`; and completion
+binds each lane to its revision-5 review. Implementation state is tracked
+in the machine summary.
 
 This profile completes S20-300. It adds the complete-root completeness arm
 to the frozen `SLEYIDX1` record, binds every complete-root snapshot to the
@@ -36,8 +42,10 @@ The central security rule of the restricted profile is unchanged:
 Provenance for a complete-root snapshot comes from the build path alone:
 the record is derived from a verified revision's objects through the
 S20-250 full judgment, and a cache hit is accepted only under the repository
-authority that wrote it, only for read-only derived query surfaces, and
-never as input to validation, comparison, merge, commit, or recovery.
+authority that wrote it, only by the read-only derived query surfaces and
+the one non-query hit reader, the section 5 identity probe (which reads a
+record's identity, never its contents as evidence), and never as input to
+validation, comparison, merge, commit, or recovery.
 
 ## 1. Completeness arm and context
 
@@ -107,8 +115,14 @@ the `StateRoot`, suffix `.idx.scb1`, written by temp-and-rename (a unique
 `<name>.tmp.<pid>.<counter>` created exclusively, then rename, directory
 synced) after a fresh build from a verified revision under shared
 repository maintenance. Every cache-touching call takes the caller's
-maintenance guard over the same repository and refuses a guard for another
-root; unguarded access is a contract violation the code does not admit.
+maintenance guard over the same repository and refuses a guard that does
+not cover it (compared canonically, `RepositoryMaintenanceGuard::covers`,
+so a relative or otherwise non-canonical spelling of the same repository is
+covered and another root is not); unguarded access is a contract violation
+the code does not admit. A cache file is opened once with `O_NOFOLLOW` and
+`O_NONBLOCK` and must be a regular file on the open handle: a symlink,
+FIFO, device, or directory at the cache path is never followed and cannot
+make a reader wait.
 `index` joins the frozen repository layout entries that an incomplete S20-540 clone may carry,
 and an S20-540 import **removes** that directory before it promotes anything.
 Every other entry such a clone holds is proved to belong to the exchange; a
@@ -161,7 +175,7 @@ investigation. Concurrent readers and writers observe atomic renames over
 deterministic fresh builds, so last-writer-wins is harmless: every fresh
 build of one revision is byte-identical.
 
-**Identity probe (revision 4).**
+**Identity probe (revision 4; consumer and guard wording revision 5).**
 `cached_complete_root_snapshot_id(repository, revision, guard)` answers
 the `IndexSnapshotId` of the cached record for `revision.root` when, and
 only when, that record exists as a regular file and is accepted under rules
@@ -171,16 +185,25 @@ cache file (up to `MAX_SNAPSHOT_RECORD_BYTES`), reads no object, extracts no
 edge, never builds, never writes back, and never deletes. A missing,
 unreadable, non-file, or discarded record is absence, not an error and not a
 rebuild (unlike the discard-rebuild-write rule of `complete_root_snapshot`);
-the only error is a guard naming another repository (`INDEX_SNAPSHOT_IO`).
-The caller holds shared repository maintenance over the same repository,
-as for every cache-touching call. Its one sanctioned consumer is the
-SMP1 revision 13 `workspace.open` field 9 under a version 2 selection
-(`docs/spec/SMP1.md` appendix A `open_summary`), which takes the guard
-without waiting and without initializing the boundary and treats any
-failure as absence; the identity it discloses is a pointer, not evidence:
+the only error is a guard that does not cover the repository
+(`INDEX_SNAPSHOT_IO`). The caller holds shared repository maintenance over
+the same repository, as for every cache-touching call. Its one sanctioned
+consumer is the `workspace.open` field 9 of SMP1 revision 14
+(`docs/spec/SMP1.md` appendix A `open_summary`), answered under a version 2
+selection and under every later selection whose table includes version
+2's row 201 (version 3, `NATIVE_TEST_ADMISSION_V1.md` appendix D). That
+consumer takes the guard without waiting and without initializing the
+boundary and treats any failure as absence (the opener's accepted-head load
+keeps the S20-390 blocking shared acquisition; only the probe adds no
+wait); the identity it discloses is a pointer, not evidence:
 queries that bind it still load or rebuild the snapshot through
-`complete_root_snapshot`, and exported evidence still builds fresh. A new
-probe caller fails the stage checker until it is deliberately listed.
+`complete_root_snapshot`, and exported evidence still builds fresh. The
+stage checker admits exactly one reference to the probe outside
+`crates/sley-repo/src/index_cache.rs`: the call inside
+`materialized_head_snapshot` in `crates/sley-protocol/src/server.rs`,
+paired there with the non-waiting shared acquisition. Any other reference
+to the identifier (a call, an import, an alias, a function pointer) in
+`crates/` or `fuzz/` fails the gate until it is deliberately listed.
 
 Cache files are derived and disposable: they are outside the object store,
 outside every retention root, never packed or exchanged, and safe to delete
@@ -232,7 +255,11 @@ Implementation acceptance requires at least:
   carries an `index` directory still classifying as incomplete;
 - identity probe tests (revision 4): cold absence with nothing written, the
   identity of an accepted record, a hit without object access, and a
-  discarded record reported as absence without a rewrite;
+  discarded record reported as absence without a rewrite; (revision 5) a
+  symlink to a valid record and a FIFO at the cache path answered promptly
+  as absence, a non-canonical repository spelling covered by its guard,
+  and, through `workspace.open`, absence while an exclusive maintenance
+  owner holds the boundary and an unchanged discarded record;
 - an S20-700 persistent libFuzzer target over the arm-`2` decoder;
 - Tier 1 plus semantics-focused Tier 2 validation;
 - Ariadne contract review, Nabu architecture review, and Vulcan surface
@@ -245,7 +272,7 @@ This contract does not claim:
 - the full S20-320 capsule, which is a later package building on the
   fresh-only rule above; S20-310 root-backed queries consume arm-`2`
   snapshots today (built directly or through the repository cache, whose
-  hit path has no readers beyond those queries and the revision 4 identity
+  hit path has no readers beyond those queries and the section 5 identity
   probe), and cross-repository,
   signed, or exchanged snapshots;
 - fingerprint catalogs inside the record;
