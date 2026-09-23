@@ -143,6 +143,31 @@ def _spec_allowlist(spec: str) -> list | None:
     return names or None
 
 
+def composed_pin_problems(spec: str, smp1: str, snapshot: str) -> list[str]:
+    """The composed SMP1 and S20-300 pins equal those documents' Status lines.
+
+    Every `SMP1 revision N defines`, `docs/spec/SMP1.md` revision N, and
+    `section 5, revision N` (S20-300) mention must name the current
+    revision, so a composed authority moving leaves this contract red
+    instead of silently stale (Ariadne P3 at 2b0f1c9)."""
+    flat = re.sub(r"\s+", " ", spec)
+    problems: list[str] = []
+    smp1_status = re.search(r"^Status: S20-400 contract draft, revision (\d+)", smp1, flags=re.M)
+    snapshot_status = re.search(
+        r"^Status: S20-300 full contract draft, revision (\d+)", snapshot, flags=re.M)
+    if smp1_status is None or snapshot_status is None:
+        return ["composed-status-unreadable"]
+    smp1_pins = re.findall(r"SMP1 revision (\d+) defines|`docs/spec/SMP1\.md` revision (\d+)", flat)
+    smp1_values = {a or b for a, b in smp1_pins}
+    if not smp1_values or smp1_values != {smp1_status.group(1)}:
+        problems.append(f"smp1-pin:{sorted(smp1_values)}!={smp1_status.group(1)}")
+    snapshot_values = set(re.findall(
+        r"`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1\.md` section 5, revision (\d+)", flat))
+    if not snapshot_values or snapshot_values != {snapshot_status.group(1)}:
+        problems.append(f"s20-300-pin:{sorted(snapshot_values)}!={snapshot_status.group(1)}")
+    return problems
+
+
 def main() -> int:
     problems: list[str] = []
     for path in (SPEC, ADR, WORK_PACKAGES, SUMMARY, ERROR_CODES):
@@ -153,6 +178,11 @@ def main() -> int:
         return 1
 
     spec = read(SPEC)
+    problems.extend(composed_pin_problems(
+        spec,
+        read(ROOT / "docs/spec/SMP1.md"),
+        read(ROOT / "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md"),
+    ))
     for marker in SPEC_MARKERS:
         if marker not in spec:
             problems.append(f"spec-marker:{marker}")

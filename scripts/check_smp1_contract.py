@@ -50,7 +50,7 @@ METHOD_TAGS = (
 # second independently maintained 43-row table exists.
 V2_ADDITIONS = (306, 307)
 V2_METHOD_TAGS = tuple(sorted(METHOD_TAGS + list(V2_ADDITIONS)))
-CONTRACT_REVISION = 14
+CONTRACT_REVISION = 15
 # Revision 13/14 normative text for method 201 (anchored on whitespace-
 # flattened text, so reverting any of it fails the gate).
 WORKSPACE_OPEN_ANCHORS = (
@@ -63,13 +63,19 @@ WORKSPACE_OPEN_ANCHORS = (
     ("optional-by-omission",
      "An optional record field written `[n: T]` is optional by omission: when absent the field is not encoded at all"),
     ("open-summary-scope",
-     "`open_summary` (revisions 13 and 14) is the `workspace.open` response under version 2 and under every later "
+     "`open_summary` (revisions 13 to 15) is the `workspace.open` response under version 2 and under every later "
      "selection whose method table includes version 2's row 201"),
     ("field-9-pointer", "Field 9 is a pointer, not evidence"),
     ("entrypoints-admit-version-3",
      "`ProtocolFrame::validate_for_version`) admit only selections 1, 2, and 3, like `negotiate_versioned`"),
     ("version-1-compat",
-     "the one version 1 observable change since revision 12 is that a non-empty 201 body, previously ignored"),
+     "with two version 1 observable changes on record: a non-empty 201 body, previously ignored"),
+    ("version-1-native-filter-compat",
+     "a version 1 selection drops the native tags 605, 606, and 607 from the intersection as well as 306 and 307"),
+    ("per-selection-filter",
+     "under selected version 1 it removes the version-2 tags 306 and 307 and the native tags 605, 606, and 607; "
+     "under selected version 2 it removes 605, 606, and 607; under selected version 3 without the native-tests "
+     "feature bit it removes 601, 602, 605, 606, and 607"),
 )
 NATIVE_SPEC = ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md"
 

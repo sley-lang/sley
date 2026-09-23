@@ -42,12 +42,13 @@ REAL_SOURCE = (ROOT / "crates/sley-cli/src/lib.rs").read_text(encoding="utf-8").
 
 def audit(production: str) -> tuple[list, dict]:
     problems: list = []
-    counters = {"frame_literals": 0, "encode_calls": 0}
+    counters = {"frame_literals": 0, "encode_calls": 0, "worker_calls": 0, "worker_commands": 0}
     CHECKER.audit_production_source("lib.rs", production, PATTERNS, NAME_PATTERN, problems, counters)
     if counters["frame_literals"] > 1:
         problems.append(f"frame-literals:{counters['frame_literals']}")
     if counters["encode_calls"] > 1:
         problems.append(f"encode-frame-calls:{counters['encode_calls']}")
+    CHECKER.worker_problems(counters, problems)
     return problems, counters
 
 
@@ -116,6 +117,36 @@ class EncodeCallCases(unittest.TestCase):
         )
         self.assertEqual(counters["encode_calls"], 2)
         self.assertIn("encode-frame-calls:2", problems)
+
+
+
+class WorkerExceptionCases(unittest.TestCase):
+    """The worker exception is bounded to one call and one command word."""
+
+    def test_real_source_has_exactly_one_worker_call(self) -> None:
+        _, counters = audit(REAL_SOURCE)
+        self.assertEqual((counters["worker_calls"], counters["worker_commands"]), (1, 1))
+
+    def test_other_runner_path_refused(self) -> None:
+        problems, _ = audit(REAL_SOURCE + "\nfn leak() { sley_test_runner::probe::run(); }\n")
+        self.assertIn("worker-edge:lib.rs:1", problems)
+
+    def test_runner_import_refused(self) -> None:
+        problems, _ = audit("use sley_test_runner::worker;\n" + REAL_SOURCE)
+        self.assertIn("worker-edge:lib.rs:1", problems)
+
+    def test_second_worker_call_refused(self) -> None:
+        problems, _ = audit(
+            REAL_SOURCE + "\nfn again() { sley_test_runner::worker::run_input_path(p, o); }\n")
+        self.assertIn("worker-calls:2", problems)
+
+    def test_second_command_word_refused(self) -> None:
+        problems, _ = audit(REAL_SOURCE + '\nconst ALIAS: &str = "__native-test-worker";\n')
+        self.assertIn("worker-commands:2", problems)
+
+    def test_removed_worker_call_refused(self) -> None:
+        problems, _ = audit(REAL_SOURCE.replace(CHECKER.WORKER_CALL, "run_elsewhere("))
+        self.assertIn("worker-calls:0", problems)
 
 
 if __name__ == "__main__":

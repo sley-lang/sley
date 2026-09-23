@@ -784,7 +784,7 @@
   "complete_root_index_snapshot": {
     "status": "S20_300_FULL_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
-    "contract_revision": 5,
+    "contract_revision": 6,
     "adr": "docs/adr/ADR-0029-complete-root-index-snapshot-boundary.md",
     "checker": "scripts/check_complete_root_index_snapshot_profile.py",
     "completeness_arm": 2,
@@ -837,7 +837,7 @@
     "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
     "vulcan_surface_review_initial": "FAIL_0_P0_5_P1_4_P2_4_P3",
     "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
-    "status_note": "revision 5 reviews PASS x3 on 2b0f1c9 (2026-09-23, recorded as _revision_5 fields), with P4 findings to close. Previous note: revision 5 (2026-09-23) answers the revision 4 round on f073811 (Ariadne PASS, Nabu and Vulcan REVISE; recorded as _revision_4 fields): canonical guard coverage, a no-follow non-blocking cache open, a one-reader probe gate, and completion bound by field name to <lane>_revision_5 PASS (checker completion-unbound-review). The revision 5 reviews have not run. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_300_FULL_COMPLETE, 2026-09-15): contract revision 4 admits the read-only identity probe cached_complete_root_snapshot_id as the one non-query hit reader (no build, no write-back, discard = absence), consumed only by the SMP1 revision 13 workspace.open field 9 (REQ-10). The base review fields keep their revision-3 PASS values as history; the revision 4 Ariadne, Nabu, and Vulcan reviews have not run. Previous note: moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_300_FULL_IMPLEMENTED_REVIEW_PENDING)"
+    "status_note": "revision 6 (2026-09-23) answers the revision 5 round's P4 findings (PASS x3 on 2b0f1c9): the cache path comes from the guard's canonical root, both cache directory components must be real directories, the coverage/gate/evidence sentences are exact, the probe gate is literal- and comment-aware and pins the consumer wrapper's one caller, SMP1 revision 15 is the consumer's pin, and completion binds each lane to its revision-6 review; the revision 6 reviews have not run. Previous note: revision 5 reviews PASS x3 on 2b0f1c9 (2026-09-23, recorded as _revision_5 fields), with P4 findings to close. Previous note: revision 5 (2026-09-23) answers the revision 4 round on f073811 (Ariadne PASS, Nabu and Vulcan REVISE; recorded as _revision_4 fields): canonical guard coverage, a no-follow non-blocking cache open, a one-reader probe gate, and completion bound by field name to <lane>_revision_5 PASS (checker completion-unbound-review). The revision 5 reviews have not run. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_300_FULL_COMPLETE, 2026-09-15): contract revision 4 admits the read-only identity probe cached_complete_root_snapshot_id as the one non-query hit reader (no build, no write-back, discard = absence), consumed only by the SMP1 revision 13 workspace.open field 9 (REQ-10). The base review fields keep their revision-3 PASS values as history; the revision 4 Ariadne, Nabu, and Vulcan reviews have not run. Previous note: moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_300_FULL_IMPLEMENTED_REVIEW_PENDING)"
   },
   "restricted_query_profile": {
     "status": "S20_310_RESTRICTED_EPOCH1_COMPLETE",
@@ -1068,12 +1068,12 @@
   "session_handle_profile": {
     "status": "S20_330_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SESSION_HANDLE_PROFILE_V1.md",
-    "contract_revision": 5,
+    "contract_revision": 6,
     "current_delta_review": {
-      "contract_revision": 5,
-      "ariadne": "NEEDS_WORK",
-      "nabu": "NEEDS_WORK",
-      "vulcan": "NEEDS_WORK"
+      "contract_revision": 6,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
     },
     "adr": "docs/adr/ADR-0033-negotiated-session-boundary.md",
     "checker": "scripts/check_session_handle_profile.py",
@@ -1103,7 +1103,7 @@
     "nabu_architecture_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "ariadne_contract_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "vulcan_surface_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "current_delta_review_note": "history: the revision 4 current_delta_review PASS x3 (transcript evidence/review/verdicts/session_handle_profile/delta_review-a4b6029.md, scope a4b60294, transcript committed 2026-09-13 in 97c1ec30) was replaced on 2026-09-23 (8357c243) by the revision 5 record; the revision 5 round on 2b0f1c9 returned REVISE x3",
+    "current_delta_review_note": "history: the revision 5 current_delta_review REVISE x3 on 2b0f1c9 (2026-09-23) is kept as the _revision_5 lane fields; replaced by the revision 6 record (PENDING). Previous note: history: the revision 4 current_delta_review PASS x3 (transcript evidence/review/verdicts/session_handle_profile/delta_review-a4b6029.md, scope a4b60294, transcript committed 2026-09-13 in 97c1ec30) was replaced on 2026-09-23 (8357c243) by the revision 5 record; the revision 5 round on 2b0f1c9 returned REVISE x3",
     "ariadne_contract_review_revision_5": "REVISE_0_P0_0_P1_1_P2_1_P3_3_P4",
     "ariadne_contract_review_revision_5_note": "Ariadne verdict dated 2026-09-23 on 2b0f1c9f4940c020565137891a49a3769cd02061; transcript evidence/review/verdicts/session_handle_profile/ariadne_contract_review_revision_5-2b0f1c9.md; round index evidence/review/rounds/context-r7-2b0f1c9.json; findings answered on the work branch (bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md section 13)",
     "nabu_architecture_review_revision_5": "REVISE_0_P0_0_P1_1_P2_2_P3_2_P4",
@@ -1203,17 +1203,17 @@
     "nabu_architecture_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
     "vulcan_surface_review_initial": "FAIL_2_P0_4_P1_3_P2_3_P3",
     "vulcan_surface_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
-    "status_note": "revision 5 current-delta review REVISE x3 on 2b0f1c9 (2026-09-23; recorded as _revision_5 fields, current_delta_review NEEDS_WORK): the profile classifies 306/307 as head-bound only under version 2 while SMP1 revision 14 admits version 3. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_330_COMPLETE): revision 5 re-pins SMP1 revision 14 (session profile; SMP1 revision 14 defines the version 2 and later workspace.open response open_summary and refuses a non-empty 201 body) with no clause of this contract changing; current_delta_review is bound to revision 5 with every lane PENDING, as the SMP1 revision 13 Ariadne ruling requires a revisioned re-pin. Previous note: moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_330_IMPLEMENTED_REVIEW_PENDING)"
+    "status_note": "revision 6 (2026-09-23) answers the revision 5 round (REVISE x3 on 2b0f1c9): the version 2 head-bound extension is stated for version 2 and version 3, 605-607 are refused at decode below version 3, workspace.open answers from its single checked head load (server change with a test), and SMP1 is re-pinned to revision 15; current_delta_review is bound to revision 6 with every lane PENDING. Previous note: revision 5 current-delta review REVISE x3 on 2b0f1c9 (2026-09-23; recorded as _revision_5 fields, current_delta_review NEEDS_WORK): the profile classifies 306/307 as head-bound only under version 2 while SMP1 revision 14 admits version 3. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_330_COMPLETE): revision 5 re-pins SMP1 revision 14 (session profile; SMP1 revision 14 defines the version 2 and later workspace.open response open_summary and refuses a non-empty 201 body) with no clause of this contract changing; current_delta_review is bound to revision 5 with every lane PENDING, as the SMP1 revision 13 Ariadne ruling requires a revisioned re-pin. Previous note: moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_330_IMPLEMENTED_REVIEW_PENDING)"
   },
   "json_bridge": {
     "status": "S20_420_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
-    "contract_revision": 11,
+    "contract_revision": 12,
     "current_delta_review": {
-      "contract_revision": 11,
-      "ariadne": "PASS",
-      "nabu": "PASS",
-      "vulcan": "PASS"
+      "contract_revision": 12,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
     },
     "adr": "docs/adr/ADR-0034-json-bridge-boundary.md",
     "checker": "scripts/check_smp1_json_bridge_contract.py",
@@ -1268,8 +1268,8 @@
     "ariadne_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "nabu_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
     "vulcan_final_review": "PASS_PRIOR_P0_P1_P2_P3_CLOSED_NO_NEW_P0_P1_P2_P3_P4",
-    "current_delta_review_note": "revision-10 delta round 2026-09-14 on 1023a31 (scope 1023a31 = e0ec341 after the operator-approved attribution strip (identical tree)): ariadne PASS (1 P3: oracle judges the hello header before the version split, no non-1 hello-version vector; 2 P4), nabu PASS (1 P3: ADR/WP markers revision-agnostic; 1 P4), vulcan PASS (3 P4); transcripts evidence/review/verdicts/json_bridge/delta_review_{ariadne,nabu,vulcan}-1023a31.md. Prior revision-9 round on 43f2f5b (= 7c7da9c): REVISE x3 (1 P2 each), closed by revision 10 and the refiled limits census",
-    "status_note": "revision 11 current-delta review PASS x3 on 2b0f1c9 (2026-09-23, recorded as _revision_11 fields and in current_delta_review), with P3/P4 findings to close. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_420_COMPLETE): revision 11 re-pins SMP1 revision 14 (bridge; SMP1 revision 14 defines the version 2 and later workspace.open response open_summary and refuses a non-empty 201 body) with no clause of this contract changing; current_delta_review is bound to revision 11 with every lane PENDING, as the SMP1 revision 13 Ariadne ruling requires a revisioned re-pin. Previous note: moved to the terminal status on 2026-09-15 after every lane passed: three-lane contract/architecture/surface reviews PASS and, where the checker binds one, the current-delta review PASS at the current contract revision; the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them",
+    "current_delta_review_note": "history: the revision 11 current_delta_review PASS x3 on 2b0f1c9 (2026-09-23) is kept as the _revision_11 lane fields; replaced by the revision 12 record (PENDING). Previous note: revision-10 delta round 2026-09-14 on 1023a31 (scope 1023a31 = e0ec341 after the operator-approved attribution strip (identical tree)): ariadne PASS (1 P3: oracle judges the hello header before the version split, no non-1 hello-version vector; 2 P4), nabu PASS (1 P3: ADR/WP markers revision-agnostic; 1 P4), vulcan PASS (3 P4); transcripts evidence/review/verdicts/json_bridge/delta_review_{ariadne,nabu,vulcan}-1023a31.md. Prior revision-9 round on 43f2f5b (= 7c7da9c): REVISE x3 (1 P2 each), closed by revision 10 and the refiled limits census",
+    "status_note": "revision 12 (2026-09-23) answers the revision 11 round's P3/P4 findings (PASS x3 on 2b0f1c9): the version 3 surface is declared (section 11), the oracle judges a hello's version before its header (new rejected vector, 37 rejections), ADR-0034 carries the revision 11 and 12 records with an anchored checker, and SMP1 is re-pinned to revision 15; current_delta_review is bound to revision 12 with every lane PENDING. Previous note: revision 11 current-delta review PASS x3 on 2b0f1c9 (2026-09-23, recorded as _revision_11 fields and in current_delta_review), with P3/P4 findings to close. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_420_COMPLETE): revision 11 re-pins SMP1 revision 14 (bridge; SMP1 revision 14 defines the version 2 and later workspace.open response open_summary and refuses a non-empty 201 body) with no clause of this contract changing; current_delta_review is bound to revision 11 with every lane PENDING, as the SMP1 revision 13 Ariadne ruling requires a revisioned re-pin. Previous note: moved to the terminal status on 2026-09-15 after every lane passed: three-lane contract/architecture/surface reviews PASS and, where the checker binds one, the current-delta review PASS at the current contract revision; the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them",
     "ariadne_contract_review_initial": "FAIL_1_P0_8_P1_5_P2_4_P3",
     "ariadne_contract_review_note": "rotated 2026-09-15: the 2026-09-04 Council FAIL round is retained as the _initial field; the base field carries the 2026-09-13/14 final PASS (operator-authorized harness finals, transcripts under evidence/review/verdicts/<section>/)",
     "nabu_architecture_review_initial": "FAIL_1_P0_6_P1_8_P2_5_P3",
@@ -1280,12 +1280,12 @@
   "cli": {
     "status": "S20_430_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY_CLI_V1.md",
-    "contract_revision": 9,
+    "contract_revision": 10,
     "current_delta_review": {
-      "contract_revision": 9,
-      "ariadne": "NEEDS_WORK",
-      "nabu": "NEEDS_WORK",
-      "vulcan": "NEEDS_WORK"
+      "contract_revision": 10,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
     },
     "adr": "docs/adr/ADR-0035-thin-cli-boundary.md",
     "checker": "scripts/check_cli_contract.py",
@@ -1328,7 +1328,8 @@
       "crates/sley-protocol/src/server.rs"
     ],
     "binary": "sley",
-    "offered_hello": "Server::offered_hello (legacy) and Server::offered_hello_versioned (capable)",
+    "offered_hello": "Server::offered_hello (legacy), Server::offered_hello_versioned (v2-capable), and Server::offered_hello_v3 (v3-capable)",
+    "bounded_exceptions": ["native_test_worker_entry (contract section 10): sley __native-test-worker <input_path>, the sley-test-runner edge, raw refusal words on stdout, worker statuses 1/6/7/8"],
     "closeout": "docs/audits/S20_430_THIN_CLI_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": [
@@ -1337,8 +1338,8 @@
       "byte-mode stdout was never flushed and main exits via process::exit, with all tests driving run() over Vec<u8>, so the sley binary and the process boundary had zero evidence; raised by nabu. Every answer now flushes before the next frame is read with a final flush at exit (flush failure is CLI_IO_FAILURE, section 2 obligation), and a subprocess test drives the real binary over pipes proving unfragmented byte delivery and exit-status propagation. Exit-time truncation did not reproduce on this toolchain (572-byte newline-free and 63KB payloads cross intact); the flush stands as the liveness guarantee and defense in depth",
       "the endpoint mutated Server::offered_hello with FEATURE_JSON_BRIDGE under --json, folding a transport flag into SelectedProfile, handshake_id, and SessionAuthority; raised by vulcan with direction offer-always. Closed by offering-never instead: the negotiated hello is always the server's unedited offer (the endpoint edits no hello anywhere), and always-offer was rejected as a false JSON capability claim in byte mode per nabu; pinned by the same mode-independence test and audit ban"
     ],
-    "current_delta_review_note": "revision-8 delta round 2026-09-14 on 1023a31 (scope 1023a31 = e0ec341 after the operator-approved attribution strip (identical tree)): ariadne PASS (3 P4), nabu PASS (1 P4), vulcan PASS (1 P4); transcripts evidence/review/verdicts/cli/delta_review_{ariadne,nabu,vulcan}-1023a31.md. Prior revision-7 round on 43f2f5b (= 7c7da9c): ariadne REVISE_0_P0_0_P1_1_P2_4_P3, nabu REVISE_0_P0_0_P1_1_P2_1_P3, vulcan PASS, closed by revision 8",
-    "status_note": "revision 9 current-delta review REVISE x3 on 2b0f1c9 (2026-09-23; recorded as _revision_9 fields, current_delta_review NEEDS_WORK): the shipped v3-capable surface and the __native-test-worker entry with its sley-test-runner edge are not admitted by the contract. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_430_COMPLETE): revision 9 re-pins SMP1 revision 14 (CLI; bridge pin revision 11; SMP1 revision 14 defines the version 2 and later workspace.open response open_summary and refuses a non-empty 201 body) with no clause of this contract changing; current_delta_review is bound to revision 9 with every lane PENDING, as the SMP1 revision 13 Ariadne ruling requires a revisioned re-pin. Previous note: moved to the terminal status on 2026-09-15 after every lane passed: three-lane contract/architecture/surface reviews PASS and, where the checker binds one, the current-delta review PASS at the current contract revision; the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them",
+    "current_delta_review_note": "history: the revision 9 current_delta_review REVISE x3 on 2b0f1c9 (2026-09-23) is kept as the _revision_9 lane fields; replaced by the revision 10 record (PENDING). Previous note: revision-8 delta round 2026-09-14 on 1023a31 (scope 1023a31 = e0ec341 after the operator-approved attribution strip (identical tree)): ariadne PASS (3 P4), nabu PASS (1 P4), vulcan PASS (1 P4); transcripts evidence/review/verdicts/cli/delta_review_{ariadne,nabu,vulcan}-1023a31.md. Prior revision-7 round on 43f2f5b (= 7c7da9c): ariadne REVISE_0_P0_0_P1_1_P2_4_P3, nabu REVISE_0_P0_0_P1_1_P2_1_P3, vulcan PASS, closed by revision 8",
+    "status_note": "revision 10 (2026-09-23) answers the revision 9 round (REVISE x3 on 2b0f1c9): the shipped v3-capable surface is admitted (sections 1-3, 9) and the private native-test worker entry is a bounded exception (section 10) whose argv now matches the supervisor's transient unit and whose exit statuses (1, 6, 7, 8) are disjoint from section 4; SMP1 revision 15 and bridge revision 12 pins; current_delta_review is bound to revision 10 with every lane PENDING. Previous note: revision 9 current-delta review REVISE x3 on 2b0f1c9 (2026-09-23; recorded as _revision_9 fields, current_delta_review NEEDS_WORK): the shipped v3-capable surface and the __native-test-worker entry with its sley-test-runner edge are not admitted by the contract. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_430_COMPLETE): revision 9 re-pins SMP1 revision 14 (CLI; bridge pin revision 11; SMP1 revision 14 defines the version 2 and later workspace.open response open_summary and refuses a non-empty 201 body) with no clause of this contract changing; current_delta_review is bound to revision 9 with every lane PENDING, as the SMP1 revision 13 Ariadne ruling requires a revisioned re-pin. Previous note: moved to the terminal status on 2026-09-15 after every lane passed: three-lane contract/architecture/surface reviews PASS and, where the checker binds one, the current-delta review PASS at the current contract revision; the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them",
     "vulcan_surface_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_0_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/cli/vulcan_surface_review_closure-178873d.md (sha256 f00692d0c7174e5e679af86d00eafc5d446250d01e6058a698a6eda5e6f30961) (transcript FIELD line reads vulcan_surface_review_closure). The row's transcript is REVIEW5 (`430r6r4-vulcan-surface.log`, pin 934eb3f, outside the repository), whose two P3s both anchor to `S20_430_THIN_CLI_CLOSEOUT.md:162`; that line is unchanged since c60bb620 and neither P3 was closed \u2014 the \"this commit\" self-reference has in fact rebound because 934eb3f is not in HEAD's ancestry. One new P3: the same closeout still declares the package incomplete at revision 3 while every pinned record says S20_430_COMPLETE at revision 8, and no checker reads the closeout. CLI checkers (both PASS, exit 0) and the 17+6 gate tests are green at this SHA; the open ite",
     "p3_open": [
       "vulcan_surface_review_closure_note: [record-integrity] docs/audits/S20_430_THIN_CLI_CLOSEOUT.md:162 - CARRIED, STILL OPEN (REVIEW5 P3 #1): the revision-6 validation record binds by \"this commit\" w",
@@ -1970,12 +1971,12 @@
   "protocol": {
     "status": "S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SMP1.md",
-    "contract_revision": 14,
+    "contract_revision": 15,
     "current_delta_review": {
-      "contract_revision": 14,
-      "ariadne": "PASS",
-      "nabu": "PASS",
-      "vulcan": "PASS"
+      "contract_revision": 15,
+      "ariadne": "PENDING",
+      "nabu": "PENDING",
+      "vulcan": "PENDING"
     },
     "adr": "docs/adr/ADR-0032-smp1-transport-boundary.md",
     "checker": "scripts/check_smp1_contract.py",
@@ -1996,6 +1997,7 @@
     "nabu_architecture_review": "PASS_0_P0_0_P1_0_P2_0_P3",
     "nabu_architecture_review_note": "PASS last set in 5e2f2b93 on 2026-09-10 (SMP1 revision 12 repair-review); it predates and does not review revision 13 or 14; kept byte-exact as history",
     "vulcan_surface_review": "PASS_0_P0_0_P1_0_P2_0_P3",
+    "current_delta_review_note": "history: the revision 14 current_delta_review PASS x3 on 2b0f1c9 (2026-09-23) is kept as the _revision_14 lane fields; replaced by the revision 15 record (PENDING).",
     "vulcan_surface_review_note": "PASS last set in 5e2f2b93 on 2026-09-10 (SMP1 revision 12 repair-review); it predates and does not review revision 13 or 14; kept byte-exact as history",
     "ariadne_contract_review_revision_13": "REVISE_0_P0_1_P1_0_P2_4_P3_3_P4",
     "ariadne_contract_review_revision_13_note": "Ariadne verdict dated 2026-09-23 on f073811914297505803f5b731cd4691e1623de84; transcript evidence/review/verdicts/protocol/ariadne_contract_review_revision_13-f073811.md; round index evidence/review/rounds/context-r6-f073811.json; findings answered on the work branch (bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md section 12)",
@@ -2231,7 +2233,7 @@
         602
       ]
     },
-    "status_note": "revision 14 current-delta review PASS x3 on 2b0f1c9 (2026-09-23, recorded as _revision_14 fields and in current_delta_review), with P3/P4 findings to close. Previous note: revision 14 (2026-09-23) answers the revision 13 round on f073811 (REVISE x3, recorded as _revision_13 fields): open_summary applies to version 2 and every later selection carrying row 201 (version 3 per NATIVE_TEST_ADMISSION appendix D, re-pinned to SMP1 revision 14), the version 1 statement is exact (a non-empty 201 body, previously ignored, is refused under every version), and the bridge (revision 11), CLI (revision 9), and session profile (revision 5) re-pin through their own revisions; current_delta_review is bound to revision 14 with every lane PENDING. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_400_COMPLETE, 2026-09-15; revision 12 new-delta review PASS): revision 13 defines the version 2 workspace.open response open_summary (the S20-390 revision_summary plus the optional S20-300 snapshot identity, field 9, REQ-10) and refuses a non-empty workspace.open body; version 1 bytes are unchanged. The base review fields keep their revision 11/12 PASS values as history; current_delta_review is bound to revision 13 with every lane PENDING, so the contract returns to S20_400_COMPLETE only after revision 13 PASS reviews. Consumer re-pins (S20-330, S20-420, S20-430) were made as pin-only edits in the same change. Previous note: moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING)"
+    "status_note": "revision 15 (2026-09-23) answers the revision 14 round's P3/P4 findings (PASS x3 on 2b0f1c9): section 2 states the explicit negotiation's per-selection filter exactly (v1 drops 306, 307, 605-607; v2 drops 605-607; v3 without the native-tests bit drops 601, 602, 605-607) and the version 1 compatibility statement counts the native-tag drop; the bridge (revision 12), CLI (revision 10), session profile (revision 6), NATIVE_TEST_ADMISSION (revision 7), and trial runner (revision 7) re-pin; current_delta_review is bound to revision 15 with every lane PENDING. Previous note: revision 14 current-delta review PASS x3 on 2b0f1c9 (2026-09-23, recorded as _revision_14 fields and in current_delta_review), with P3/P4 findings to close. Previous note: revision 14 (2026-09-23) answers the revision 13 round on f073811 (REVISE x3, recorded as _revision_13 fields): open_summary applies to version 2 and every later selection carrying row 201 (version 3 per NATIVE_TEST_ADMISSION appendix D, re-pinned to SMP1 revision 14), the version 1 statement is exact (a non-empty 201 body, previously ignored, is refused under every version), and the bridge (revision 11), CLI (revision 9), and session profile (revision 5) re-pin through their own revisions; current_delta_review is bound to revision 14 with every lane PENDING. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_400_COMPLETE, 2026-09-15; revision 12 new-delta review PASS): revision 13 defines the version 2 workspace.open response open_summary (the S20-390 revision_summary plus the optional S20-300 snapshot identity, field 9, REQ-10) and refuses a non-empty workspace.open body; version 1 bytes are unchanged. The base review fields keep their revision 11/12 PASS values as history; current_delta_review is bound to revision 13 with every lane PENDING, so the contract returns to S20_400_COMPLETE only after revision 13 PASS reviews. Consumer re-pins (S20-330, S20-420, S20-430) were made as pin-only edits in the same change. Previous note: moved to the terminal status on 2026-09-15 after every lane passed (three-lane reviews PASS in the base fields, the closed FAIL rounds retained as _initial fields, and the current-delta review PASS where the checker binds one); the WORK_PACKAGES row and closeout still read 'reviews pending' until the next attestation-bound commit refreshes them (previous status S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING)"
   },
   "identifiers": {
     "status": "S20_110_COMPLETE",
@@ -4381,7 +4383,7 @@
   "sley2_trial_runner": {
     "status": "S20_620_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
-    "contract_revision": 6,
+    "contract_revision": 7,
     "adr": "docs/adr/ADR-0036-sley2-trial-runner-boundary.md",
     "checker": "scripts/check_sley2_trial_runner.py",
     "arm": "sley_2_0",
@@ -4439,7 +4441,7 @@
       "S20-620 narrowed S20-610's shared run-level execution_mode and external_command_policy by its own prose while starting endpoint processes; both controls are now defined once in S20-610, which states that an arm's measured artifact is not an external command and attaches the conditions an arm running its artifact must satisfy, and S20-620 cites that definition instead of restating it"
     ],
     "p0_open": [],
-    "status_note": "the Ariadne revision 6 review on 2b0f1c9 PASS (2026-09-23), so every lane has a PASS _revision_6 field; the round-7 Vulcan review of the leak fix PASS (recorded as vulcan_surface_review_revision_7); P3/P4 findings to close. Previous note: contract revision 6 (2026-09-23) names the section 9 text that answered the revision 5 REVISE round (5b538f3); the revision 6 Nabu and Vulcan reviews on f073811 PASS (recorded as _revision_6 fields), the Ariadne revision 6 review returned no verdict (process artifact, not filed) and is pending re-dispatch, so the status stays S20_620_IMPLEMENTED_REVIEW_PENDING; completion needs three PASS _revision_6 fields. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_620_COMPLETE, 2026-09-15): contract revision 5 moves workspace.open from the denied methods to ARM_AFFORDANCES (nineteen names) as the accepted-head opener whose response carries the materialized head snapshot identity (REQ-10 context bounded discovery). The three base review fields keep their revision-4 PASS values byte-exact as historical evidence; those verdicts predate transcript capture, so no _revision_4 fields are written. Completion now also requires <lane>_revision_5 fields starting PASS (checker code completion-unbound-review), written with notes by the revision-5 Ariadne, Nabu, and Vulcan reviews, none of which has run; the base fields move to the revision-5 values only in the commit that returns the status to COMPLETE. The WORK_PACKAGES row and the closeout Revision 5 status paragraph both read revision 5 implemented with lane reviews pending; the closeout retains its revision 2 Status line (Council reviews pending) and its Revision 4 attestation as history"
+    "status_note": "revision 7 (2026-09-23) answers the revision 6 round's P3/P4 findings (every lane PASS): SMP1 revision 15 and S20-300 revision 6 pins read by the checker from those documents' status lines, and the absent-boundary sentence; bench fixes from the round-7 Vulcan review (serve child reaped on a failed Session construction, merge-prover stages registered as created, scratch permission scope, witness wording); completion needs PASS _revision_7 fields. Previous note: the Ariadne revision 6 review on 2b0f1c9 PASS (2026-09-23), so every lane has a PASS _revision_6 field; the round-7 Vulcan review of the leak fix PASS (recorded as vulcan_surface_review_revision_7); P3/P4 findings to close. Previous note: contract revision 6 (2026-09-23) names the section 9 text that answered the revision 5 REVISE round (5b538f3); the revision 6 Nabu and Vulcan reviews on f073811 PASS (recorded as _revision_6 fields), the Ariadne revision 6 review returned no verdict (process artifact, not filed) and is pending re-dispatch, so the status stays S20_620_IMPLEMENTED_REVIEW_PENDING; completion needs three PASS _revision_6 fields. Previous note: moved off the terminal status on 2026-09-23 (previous status S20_620_COMPLETE, 2026-09-15): contract revision 5 moves workspace.open from the denied methods to ARM_AFFORDANCES (nineteen names) as the accepted-head opener whose response carries the materialized head snapshot identity (REQ-10 context bounded discovery). The three base review fields keep their revision-4 PASS values byte-exact as historical evidence; those verdicts predate transcript capture, so no _revision_4 fields are written. Completion now also requires <lane>_revision_5 fields starting PASS (checker code completion-unbound-review), written with notes by the revision-5 Ariadne, Nabu, and Vulcan reviews, none of which has run; the base fields move to the revision-5 values only in the commit that returns the status to COMPLETE. The WORK_PACKAGES row and the closeout Revision 5 status paragraph both read revision 5 implemented with lane reviews pending; the closeout retains its revision 2 Status line (Council reviews pending) and its Revision 4 attestation as history"
   },
   "succession_accounting": {
     "status": "S20_630_COMPLETE",

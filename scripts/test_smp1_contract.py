@@ -298,6 +298,12 @@ class WorkspaceOpenAnchorCases(unittest.TestCase):
         ("[9: IndexSnapshotId])", "9: IndexSnapshotId)"),
         ("Field 9 is a pointer, not\nevidence", "Field 9 is"),
         ("admit only selections 1, 2, and 3,", "admit only selections 1 and 2,"),
+        ("under selected version 1 it removes the version-2 tags\n306 and 307 and the native tags 605, 606, and 607",
+         "under selected version 1 it removes the version-2 tags\n306 and 307"),
+        ("under selected version\n2 it removes 605, 606, and 607",
+         "under selected version\n2 it removes nothing"),
+        ("a version 1 selection drops the native tags 605, 606, and 607 from\nthe intersection as well as 306 and 307",
+         "a version 1 selection drops 306 and 307"),
     )
 
     def test_each_revert_is_refused(self):

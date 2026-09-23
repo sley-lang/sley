@@ -196,5 +196,50 @@ class FrozenReviewCases(unittest.TestCase):
         self.assertEqual(payload.get("result"), "PASS")
 
 
+
+class VersionThreeScopeCases(unittest.TestCase):
+    """Revision 6: the head-bound extension holds under version 3 too."""
+
+    def test_current_sources_pass_the_version_gate(self):
+        self.assertEqual(CHECKER.version_gate_problems(SERVER_TEXT, REGISTRY_TEXT), [])
+
+    def test_a_version_2_only_gate_is_refused(self):
+        gated = SERVER_TEXT.replace(
+            "let head_bound = if self.version_aware {",
+            "let head_bound = if self.version_aware && self.profile.protocol_version == PROTOCOL_VERSION_V2 {",
+            1,
+        )
+        self.assertNotEqual(gated, SERVER_TEXT)
+        problems = CHECKER.version_gate_problems(gated, REGISTRY_TEXT)
+        self.assertIn("classification:version-gate-shape", problems)
+        self.assertIn("classification:version-gate-single-version", problems)
+
+    def test_a_v3_table_without_a_native_row_is_refused(self):
+        trimmed = REGISTRY_TEXT.replace("        Self::TestsReplay,\n", "", 1)
+        self.assertNotEqual(trimmed, REGISTRY_TEXT)
+        problems = CHECKER.version_gate_problems(SERVER_TEXT, trimmed)
+        self.assertTrue(any(p.startswith("classification:v3-") for p in problems), problems)
+
+
+class AdrPinCases(unittest.TestCase):
+    ADR = (ROOT / "docs/adr/ADR-0033-negotiated-session-boundary.md").read_text(encoding="utf-8")
+
+    def test_current_adr_passes(self):
+        self.assertEqual(CHECKER.adr_pin_problems(self.ADR), [])
+
+    def test_stale_decision_7_pin_is_refused_despite_a_current_status_sentence(self):
+        stale = self.ADR.replace(
+            f"revision {CHECKER.SMP1_REVISION} and capsule revision {CHECKER.CAPSULE_REVISION} pins",
+            "revision 12 and capsule revision 3 pins", 1)
+        self.assertNotEqual(stale, self.ADR)
+        self.assertIn("adr-smp1-pin", CHECKER.adr_pin_problems(stale))
+
+    def test_stale_current_pin_is_refused(self):
+        current = f"the\ncontract draft is at revision {CHECKER.CONTRACT_REVISION}."
+        self.assertIn(current, self.ADR)
+        stale = self.ADR.replace(current, "the\ncontract draft is at revision 5.", 1)
+        self.assertTrue(any(p.startswith("adr-current-pin") for p in CHECKER.adr_pin_problems(stale)))
+
+
 if __name__ == "__main__":
     unittest.main()

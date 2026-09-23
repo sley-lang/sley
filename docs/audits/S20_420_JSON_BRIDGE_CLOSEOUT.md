@@ -1,6 +1,6 @@
 # S20-420 SMP1 JSON Bridge Closeout
 
-Status: **implemented under the draft SMP1 JSON Bridge v1 contract (revision 9); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
+Status: **implemented under the draft SMP1 JSON Bridge v1 contract; this closeout records the revision 9 implementation (the current contract revision and review state are in the machine summary `json_bridge` section; revisions 10 to 12 are recorded in the contract and ADR-0034); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
 Date: 2026-09-03; revised 2026-09-14 (revision 9: compiler-derived 4x text ceiling, allocation-free element ceiling with boundary tests, duplicate-key and hello-rendering declarations, envelope and fuzz-slice boundaries, all eighteen P1s closed or bounded)
 

@@ -104,7 +104,9 @@ quick:
 	python3 scripts/test_required_contract_index.py
 	python3 scripts/test_session_handle_profile.py
 	python3 scripts/test_smp1_contract.py
+	python3 scripts/test_smp1_json_bridge_contract.py
 	python3 scripts/test_smp1_json_bridge_table.py
+	python3 scripts/test_sley2_trial_runner.py
 	python3 -m unittest discover -s bench/invariant/tests -t .
 	python3 scripts/check_external_comparison_availability.py
 	python3 scripts/check_supply_chain_audit.py

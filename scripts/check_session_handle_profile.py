@@ -38,11 +38,11 @@ IMPLEMENTATION_STATUSES = (
     COMPLETE_STATUS,
 )
 
-CONTRACT_REVISION = 5
+CONTRACT_REVISION = 6
 # The composed authorities' current revisions. Each is cross-checked
 # against that document's own status line, so the pin fails the moment
 # the authority moves instead of matching a stale substring elsewhere.
-SMP1_REVISION = 14
+SMP1_REVISION = 15
 CAPSULE_REVISION = 4
 SMP1_PIN = f"`docs/spec/SMP1.md` at revision {SMP1_REVISION}"
 CAPSULE_PIN = (
@@ -87,6 +87,9 @@ SPEC_MARKERS = (
     "handles naming query cursors",
     "Protocol version 2 extension",
     "## 9. Revision history",
+    "are head-bound under every version-aware selection whose method table\ncarries them: version 2, and version 3",
+    "the frame's method decode refuses them before check 1",
+    "The entity reads and `workspace.open` are answered from\n   the very head load that check 5 compared",
     "threat T56",
     SMP1_PIN,
     CAPSULE_PIN,
@@ -123,6 +126,8 @@ SERVER_MARKERS = (
     "close(session, self.profile.limits.max_sessions)",
     "expected_root",
     ".bind_context_capsule(session, &outcome.request, &outcome.response)",
+    "self.session_check_mixed_retained(session, method)",
+    "Some(HeadRevision::V1(revision)) => *revision,",
 )
 REGISTRY_MARKERS = (
     "pub fn is_closed",
@@ -167,6 +172,62 @@ def spec_paragraph(spec: str, anchor: str) -> str:
         return ""
     end = spec.find("\n\n", start)
     return spec[start:end] if end > start else spec[start:]
+
+
+NATIVE_V3_ADDITIONS = {"TestsReportRead", "TestsReplay", "TestsAttemptStatus"}
+
+
+def version_gate_problems(server: str, registry: str) -> list[str]:
+    """The version 3 partition and the server's version gate (revision 6).
+
+    Version 3 is the version 2 table plus exactly the three native rows,
+    and the retained session check applies the versioned head-bound set on
+    every version-aware selection (version 2 and version 3), never gated to
+    a single version: a version-2-only gate would leave 306/307 outside
+    check 5 under version 3 while the profile classifies them head-bound.
+    """
+    problems: list[str] = []
+
+    def array(opener: str) -> set[str]:
+        start = registry.find(opener)
+        if start < 0:
+            return set()
+        end = registry.find("];", start)
+        return set(re.findall(r"Self::(\w+)", registry[start:end]))
+
+    v2 = array("pub const V2_ALL: [Self; 43] = [")
+    v3 = array("pub const V3_ALL: [Self; 46] = [")
+    if len(v3) != 46:
+        problems.append(f"classification:v3-all-count:{len(v3)}")
+    elif v3 - v2 != NATIVE_V3_ADDITIONS or not v2 <= v3:
+        problems.append(f"classification:v3-additions:{sorted(v3 - v2)}")
+    gate = rust_block(server, "fn session_check_retained(")
+    if not re.search(
+        r"let head_bound = if self\.version_aware \{\s*Self::head_bound_versioned\(method\)"
+        r"\s*\} else \{\s*Self::head_bound\(method\)\s*\};",
+        gate,
+    ):
+        problems.append("classification:version-gate-shape")
+    if "protocol_version" in gate or "PROTOCOL_VERSION" in gate:
+        problems.append("classification:version-gate-single-version")
+    return problems
+
+
+def adr_pin_problems(adr: str) -> list[str]:
+    """ADR-0033's current line and decision 7 name the current pins.
+
+    A substring anywhere in the ADR once let a stale decision-7 pin pass
+    behind a newer status sentence; both places are anchored now."""
+    flat = re.sub(r"\s+", " ", adr)
+    problems: list[str] = []
+    current = re.findall(r"Current pin \(2026-09-23\): the contract draft is at revision (\d+)", flat)
+    if current != [str(CONTRACT_REVISION)]:
+        problems.append(f"adr-current-pin:{current}")
+    staging = flat.split("7. **Staging.**", 1)[-1].split("## Consequences", 1)[0]
+    pin = re.search(r"cross-checks the SMP1 revision (\d+) and capsule revision (\d+) pins", staging)
+    if pin is None or (int(pin.group(1)), int(pin.group(2))) != (SMP1_REVISION, CAPSULE_REVISION):
+        problems.append("adr-smp1-pin")
+    return problems
 
 
 def check_method_classification(
@@ -256,6 +317,7 @@ def check_method_classification(
         if name not in tag_of:
             problems.append(f"classification:unresolved-versioned-variant:{name}")
     server_head_bound_versioned = server_head_bound | versioned_additions
+    problems.extend(version_gate_problems(server, registry))
     smp1_rows = dict(re.findall(r"^\| (\d{3}) \| `([a-z_.]+)` \|", smp1, flags=re.M))
     lists: dict[str, list[int]] = {}
     for anchor in CLASS_ANCHORS:
@@ -422,8 +484,9 @@ def main() -> int:
             problems.append(f"adr-marker:{marker}")
     if f"revision {CONTRACT_REVISION}" not in adr:
         problems.append("adr-revision")
-    if f"SMP1 revision {SMP1_REVISION}" not in re.sub(r"\s+", " ", adr):
-        problems.append("adr-smp1-pin")
+    problems.extend(adr_pin_problems(adr))
+    if f"- Revision {CONTRACT_REVISION} (" not in spec.split("## 9. Revision history", 1)[-1]:
+        problems.append("history-current-revision")
     packages = read(WORK_PACKAGES)
     for marker in WORK_PACKAGE_MARKERS:
         if marker not in packages:

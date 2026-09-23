@@ -1,6 +1,8 @@
 # Bounded entity and signature reads
 
-Status: REVIEWED_IMPLEMENTATION_CONTRACT, 2026-09-08.
+Status: REVIEWED_IMPLEMENTATION_CONTRACT, 2026-09-08. The dated
+2026-09-23 amendment in section 2 (SMP1 revisions 13 to 15) postdates that
+review; it is covered only by the SMP1 revision 14 and 15 review rounds.
 Owner: S20-310 query semantics, S20-410 protocol integration.
 Authority: retained Machine Genesis section 8.2; REWEAVE sections 6–9;
 architecture finding AT-MW-02. Independent architecture, semantic and surface
@@ -39,8 +41,9 @@ Add protocol version 2 with method 306 `entity.version` and method 307
 payloads, numeric errors, query-profile v1 classes, canonical object bytes,
 schema epochs, and digest preimages retain their version-1 definitions,
 with one later exception owned by SMP1 (amendment 2026-09-23, SMP1
-revisions 13 and 14): under version 2 the `workspace.open` (201) response
-is `open_summary` (the version 1 `revision_summary` plus an optional field
+revisions 13 to 15): under version 2 and every later selection whose
+method table includes version 2's row 201, the `workspace.open` (201)
+response is `open_summary` (the version 1 `revision_summary` plus an optional field
 9), and a non-empty 201 request body is refused under every version,
 where it was previously ignored contrary to SMP1 section 4. No method of
 this profile changes.

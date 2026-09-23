@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regressions for the S20-300 stage checker's revision-5 gates.
+"""Regressions for the S20-300 stage checker's revision-5 and revision-6 gates.
 
 Completion binding: a COMPLETE status backed only by the historical
 base-field PASS values (revision 3) is refused with
@@ -182,6 +182,82 @@ class ProbeGate(unittest.TestCase):
         problems = CHECKER.probe_gate_problems(self.root)
         self.assertIn("probe-consumer:not-non-waiting", problems)
         self.assertIn("probe-consumer:initializes-or-waits", problems)
+
+
+class TokenAwareGate(unittest.TestCase):
+    """Revision 6: literals and block comments never hide or fake a token,
+    and the consumer wrapper has exactly one caller."""
+
+    def setUp(self):
+        self.temporary, self.root = scratch_tree()
+        (self.root / "crates/sley-protocol/src/lib.rs").write_text(
+            "#[cfg(test)]\nmod server_tests;\n", encoding="utf-8")
+
+    def tearDown(self):
+        self.temporary.cleanup()
+
+    def consumer(self) -> Path:
+        return self.root / CHECKER.PROBE_CONSUMER
+
+    def test_real_tree_passes(self):
+        self.assertEqual(CHECKER.probe_gate_problems(self.root), [])
+
+    def test_a_url_string_does_not_hide_a_same_line_reference(self):
+        path = self.root / "crates/sley-cli/src/leak.rs"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('fn f() { let u = "http://x"; sley_repo::cached_complete_root_snapshot_id(a, b, c); }\n',
+                        encoding="utf-8")
+        self.assertIn("probe-caller:crates/sley-cli/src/leak.rs", CHECKER.probe_gate_problems(self.root))
+
+    def test_a_block_comment_does_not_hide_an_alias(self):
+        text = self.consumer().read_text(encoding="utf-8")
+        self.consumer().write_text(
+            "pub(crate) use sley_repo::cached_complete_root_snapshot_id/**/as peek;\n" + text,
+            encoding="utf-8")
+        self.assertIn("probe-caller:crates/sley-protocol/src/server.rs:aliased",
+                      CHECKER.probe_gate_problems(self.root))
+
+    def test_a_use_string_does_not_hide_a_second_reference(self):
+        text = self.consumer().read_text(encoding="utf-8")
+        self.consumer().write_text(
+            text + '\nfn leak() { let s = "use "; let _ = cached_complete_root_snapshot_id; let t = ";"; }\n',
+            encoding="utf-8")
+        problems = CHECKER.probe_gate_problems(self.root)
+        self.assertTrue(any(p.startswith("probe-caller:crates/sley-protocol/src/server.rs:references=2")
+                            for p in problems), problems)
+
+    def test_a_second_wrapper_caller_is_refused(self):
+        text = self.consumer().read_text(encoding="utf-8")
+        self.consumer().write_text(
+            text + "\nfn disclose(&self, head: &H) { let _ = self.materialized_head_snapshot(head); }\n",
+            encoding="utf-8")
+        problems = CHECKER.probe_gate_problems(self.root)
+        self.assertTrue(any(p.startswith("probe-wrapper-caller:crates/sley-protocol/src/server.rs")
+                            for p in problems), problems)
+
+    def test_the_wrapper_named_in_another_file_is_refused(self):
+        path = self.root / "crates/sley-protocol/src/other.rs"
+        path.write_text("fn f(s: &S) { s.materialized_head_snapshot(h); }\n", encoding="utf-8")
+        self.assertIn("probe-wrapper-caller:crates/sley-protocol/src/other.rs",
+                      CHECKER.probe_gate_problems(self.root))
+
+    def test_the_server_test_module_may_name_the_wrapper_only_while_cfg_test(self):
+        path = self.root / CHECKER.SERVER_TEST_MODULE
+        path.write_text("fn t(s: &S) { s.materialized_head_snapshot(h); }\n", encoding="utf-8")
+        self.assertEqual(CHECKER.probe_gate_problems(self.root), [])
+        (self.root / "crates/sley-protocol/src/lib.rs").write_text("mod server_tests;\n", encoding="utf-8")
+        self.assertIn(f"probe-wrapper-caller:{CHECKER.SERVER_TEST_MODULE}",
+                      CHECKER.probe_gate_problems(self.root))
+
+    def test_a_blocking_acquire_beside_the_non_waiting_one_is_refused(self):
+        text = self.consumer().read_text(encoding="utf-8").replace(
+            "let guard = acquire_shared_repository_maintenance_nonblocking(&self.repository).ok()?;",
+            "let _hold = acquire_shared_repository_maintenance(&self.repository).ok()?;\n"
+            "        let guard = acquire_shared_repository_maintenance_nonblocking(&self.repository).ok()?;",
+        )
+        self.assertIn("acquire_shared_repository_maintenance(&self.repository).ok()?;\n", text)
+        self.consumer().write_text(text, encoding="utf-8")
+        self.assertIn("probe-consumer:initializes-or-waits", CHECKER.probe_gate_problems(self.root))
 
 
 if __name__ == "__main__":

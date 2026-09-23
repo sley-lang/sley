@@ -9,11 +9,16 @@ extension: the two entity-read tags head-bound only in version 2; the
 version 1 partition, handle bytes, and capsule format unchanged). The
 revision 3 reviews above are retained as history and do not review
 revision 4; its new-delta review passed. Current pin (2026-09-23): the
-contract draft is at revision 5 (re-pin to SMP1 revision 14; no session
-clause changes); its new-delta review is pending.
+contract draft is at revision 6. Revision 5 re-pinned SMP1 revision 14 and
+its new-delta review returned REVISE x3 (the version 2 head-bound
+extension did not state its version 3 scope); revision 6 states the
+extension for version 2 and version 3, the reserved-tag decode precedence,
+and the single checked head load of `workspace.open`, and pins SMP1
+revision 15 and capsule revision 4; its new-delta review is pending.
 
 Date: 2026-09-03; revision 2 decision record 2026-09-05; revision 3
-decision record 2026-09-05; revision 4 decision record 2026-09-08
+decision record 2026-09-05; revision 4 decision record 2026-09-08;
+revision 5 and 6 records 2026-09-23
 
 ## Context
 
@@ -88,11 +93,12 @@ answer, submitted for re-review.
     contract, ADR, work-package row, summary section, ERROR_CODES rows,
     the server and registry implementation markers, the capsule module
     and the server's capsule binding call, cross-checks the SMP1
-    revision 12 and capsule revision 3 pins against those documents'
-    own status lines, binds each `SESSION_*` variant to its exact
+    revision 15 and capsule revision 4 pins against those documents'
+    own status lines (profile revision 6), binds each `SESSION_*` variant to its exact
     symbol and numeric pair, compares the five method lists plus the
     version 2 head-bound extension against the server dispatch table
-    and the SMP1 method table, requires every
+    and the SMP1 method table, reads the version 3 method table and the
+    server's version-aware head-bound gate, requires every
     threat-matrix test name to exist in the sources, applies the
     register-first lane rule to every FAIL round until a same-lane
     re-review PASS supersedes it, and fails closed on drift.
@@ -104,12 +110,10 @@ answer, submitted for re-review.
   their transport obligation (threat T56).
 - SMP1 revision 10 recorded the eighth limit field and the
   expected-root `handle.expand` request the S20-330 revision 2 freeze
-  owns; no other SMP1 body changes. This profile pins SMP1 revision 14,
-  the current revision (profile revision 5, 2026-09-23: SMP1 revision 14
-  defines the version 2 and later `workspace.open` response `open_summary`
-  and refuses a non-empty 201 body; no session clause changes), and the
-  stage checker fails when SMP1 moves.
+  owns; no other SMP1 body changes. This profile pins SMP1 revision 15,
+  the current revision (profile revision 6, 2026-09-23), and the stage
+  checker fails when SMP1 moves.
   Revision 4 adds the version 2 head-bound extension (306, 307) with the
-  version 1 partition unchanged.
+  version 1 partition unchanged; revision 6 states it for version 3 too.
 - The T15, T47, and T56 matrices are exact server tests with recorded
   evidence artifacts, not narrative gates.

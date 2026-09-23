@@ -1,6 +1,6 @@
 # Sley Machine Protocol v1 (SMP1)
 
-Status: S20-400 contract draft, revision 14 (2026-09-23; the revision
+Status: S20-400 contract draft, revision 15 (2026-09-23; the revision
 history is listed below after the authority rule); Council review pending
 (Ariadne contract review as the package owner, Nabu architecture review,
 Vulcan surface review). This revision supersedes the M0 constitutional
@@ -18,9 +18,9 @@ appendix B (closeout
 the JSON bridge from this contract (frozen-record revision 7, closeout
 `docs/audits/S20_420_JSON_BRIDGE_CLOSEOUT.md`), and S20-430 wraps the CLI
 (frozen-record revision 4, closeout `docs/audits/S20_430_THIN_CLI_CLOSEOUT.md`).
-Current composition (revision 14): the S20-420 bridge contract
-`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 11 and the S20-430 CLI contract
-`docs/spec/SLEY_CLI_V1.md` revision 9.
+Current composition (revision 15): the S20-420 bridge contract
+`docs/spec/SMP1_JSON_BRIDGE_V1.md` revision 12 and the S20-430 CLI contract
+`docs/spec/SLEY_CLI_V1.md` revision 10.
 Further implementation state is tracked in the machine summary.
 
 SMP1 is the primary programming interface of Sley 2. It transports the
@@ -66,13 +66,24 @@ the version 1 and version 2 tables by `docs/spec/NATIVE_TEST_ADMISSION_V1.md`
 appendix D), the version 1 compatibility statement is made exact, the
 omitted-optional-field convention and the pointer-not-evidence and
 determinism scope of field 9 are stated, and the negotiation text names
-version 3. Document revision (a draft number of this file) and negotiated
-protocol version (the wire selection 1, 2, or 3) are distinct. Revision 14
-serves every conforming version 1 request exactly as before, byte for
-byte, including an empty-body `workspace.open`; the one version 1
-observable change since revision 12 is that a non-empty 201 body,
-previously ignored contrary to section 4 and appendix A, is refused
-`PROTOCOL_PAYLOAD_INVALID` under every version. Revision 12
+version 3; 15 answers the revision 14 review round (2b0f1c9, PASS x3 with
+P3/P4 findings): section 2 states the per-selection filter of the explicit
+version-aware negotiation exactly (version 1 drops 306, 307, 605, 606, and
+607; version 2 drops 605, 606, and 607; version 3 without the native-tests
+bit drops 601, 602, 605, 606, and 607), which since 2026-09-16 the code had
+applied while this text named only 306 and 307, and the version 1
+compatibility statement counts it. Document revision (a draft number of this file) and negotiated
+protocol version (the wire selection 1, 2, or 3) are distinct. Revision 15
+serves every conforming version 1 request exactly as revision 12 did,
+byte for byte, including an empty-body `workspace.open`, with two version 1
+observable changes on record: a non-empty 201 body, previously ignored
+contrary to section 4 and appendix A, is refused `PROTOCOL_PAYLOAD_INVALID`
+under every version (revision 13); and on the explicit version-aware path
+only, a version 1 selection drops the native tags 605, 606, and 607 from
+the intersection as well as 306 and 307 (in the code since 2026-09-16,
+stated in revision 15), which changes the selected methods, the handshake
+identity, and the `session.capabilities` bytes for a hello that lists
+them. The legacy entrypoints keep them. Revision 12
 is a static delta only: the version 1
 implementations remain in place, capable bridge/CLI runtime is phase 3
 (implemented in CLI revision 6; phase names the rollout stage, not the
@@ -80,7 +91,9 @@ contract revision),
 and the revision 11 review history is retained as history. The revision
 12 new-delta review passed (2026-09-15); the revision 13 review round
 returned REVISE on the version scope of field 9 and is answered by
-revision 14, whose new-delta review is pending.
+revision 14, whose new-delta review passed on 2b0f1c9 (2026-09-23) with
+P3/P4 findings answered by revision 15, whose new-delta review is
+pending.
 
 ## 1. Framing
 
@@ -224,10 +237,18 @@ defined by `docs/spec/NATIVE_TEST_ADMISSION_V1.md` appendices C and D
 (the union of this contract's version 1 and version 2 tables plus the
 native rows; the owner of version 3 since 2026-09-16): any other
 greatest-common result is refused with `PROTOCOL_VERSION_UNSUPPORTED`
-before establishment, without selecting a lesser common version. Under
-selected version 1 the intersection filters exactly the two version-2
-tags 306 and 307; unrelated opaque unknown numeric tags keep their
-legacy treatment. Every hello frame travels as frame version 1, so a
+before establishment, without selecting a lesser common version. Before
+the profile hash the explicit path filters the selected intersection per
+selection, exactly: under selected version 1 it removes the version-2 tags
+306 and 307 and the native tags 605, 606, and 607; under selected version
+2 it removes 605, 606, and 607; under selected version 3 without the
+native-tests feature bit it removes 601, 602, 605, 606, and 607
+(`NATIVE_TEST_ADMISSION_V1.md` appendix C: 605 to 607 are unknown below
+version 3, and a selection lacking the bit removes the native methods).
+Every other opaque unknown numeric tag keeps its legacy treatment and
+stays in the intersection. A peer that re-derives the selection must apply
+the same filter, or its `SelectedProfile` preimage and handshake identity
+differ. Every hello frame travels as frame version 1, so a
 version-1 peer can read a version-2 offer. The legacy numeric hello and
 negotiation helpers retain their existing behavior, including retaining
 unknown numeric tags such as 306 and 307 in a version-1-only offer
@@ -719,7 +740,7 @@ open_summary     = record(1: TransactionId, 2: StateRoot, 3: PolicyRootId,
                           [9: IndexSnapshotId])
 ```
 
-`open_summary` (revisions 13 and 14) is the `workspace.open` response
+`open_summary` (revisions 13 to 15) is the `workspace.open` response
 under version 2 and under every later selection whose method table
 includes version 2's row 201 (version 3, the union of the version 1 and
 version 2 tables per `docs/spec/NATIVE_TEST_ADMISSION_V1.md` appendix D).
@@ -727,7 +748,7 @@ It is a composition of two owners' frozen values, not a new SMP1
 semantics. Fields 1 through 8 are the S20-390 `revision_summary` of the
 accepted head, byte for byte. Field 9 is optional by omission (the
 convention above): it is present exactly when the S20-300 read-only cache
-probe (`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md` section 5, revision 5)
+probe (`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md` section 5, revision 6)
 accepts a cached complete-root record for the accepted head's root, and
 carries that record's `IndexSnapshotId`. Field 9 is a pointer, not
 evidence: the cached record was accepted without re-deriving edges, and

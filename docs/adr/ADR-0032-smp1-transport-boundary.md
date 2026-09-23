@@ -15,9 +15,15 @@ field 9) and refuses a non-empty `workspace.open` body. Current pin
 row 201 (version 3 per NATIVE_TEST_ADMISSION appendix D) and states the
 version 1 change exactly: conforming empty-body version 1 requests keep
 their bytes, and a non-empty 201 body, previously ignored, is refused
-under every version. The revision 14 new-delta review is pending.
+under every version. The revision 14 new-delta review passed on 2b0f1c9
+(2026-09-23). Current pin (2026-09-23, after that round's P3/P4 findings):
+revision 15 states the explicit negotiation's per-selection filter exactly
+(version 1 drops 306, 307, 605, 606, and 607; version 2 drops 605, 606, and
+607; version 3 without the native-tests bit drops 601, 602, 605, 606, and
+607) and counts the version 1 native-tag drop in the compatibility
+statement. The revision 15 new-delta review is pending.
 
-Date: 2026-09-03
+Date: 2026-09-03; current pins 2026-09-08 (revision 12) and 2026-09-23 (revisions 13 to 15)
 
 ## Context
 

@@ -1,6 +1,6 @@
 # Complete-Root Index Snapshot Profile v1
 
-Status: S20-300 full contract draft, revision 5 (2026-09-23); implemented
+Status: S20-300 full contract draft, revision 6 (2026-09-23); implemented
 under this draft with Council review pending (Ariadne contract review, Nabu
 architecture review, Vulcan surface review), so the contract is not frozen
 and the package is not complete. Revision 3 closes the remaining
@@ -15,8 +15,15 @@ SMP1 revision 14's `open_summary` (version 2 and the version 3 union); the
 preamble and section 9 name the probe as the one non-query hit reader;
 guard coverage is canonical (`RepositoryMaintenanceGuard::covers`); the
 cache file is opened once with `O_NOFOLLOW | O_NONBLOCK`; and completion
-binds each lane to its revision-5 review. Implementation state is tracked
-in the machine summary.
+binds each lane to its revision-5 review. Revision 6 (2026-09-23) answers
+the revision 5 round on 2b0f1c9 (PASS x3 with P4 findings): the cache path
+is derived from the guard's canonical root and both cache directory
+components must be real directories; the coverage, gate, and evidence
+sentences say exactly what the code and tests do; the gate is literal- and
+comment-aware and also pins the consumer wrapper's one caller; the
+consumer is named against SMP1 revision 15; completion binds each lane to
+its revision-6 review. Implementation state is tracked in the machine
+summary.
 
 This profile completes S20-300. It adds the complete-root completeness arm
 to the frozen `SLEYIDX1` record, binds every complete-root snapshot to the
@@ -116,13 +123,21 @@ the `StateRoot`, suffix `.idx.scb1`, written by temp-and-rename (a unique
 synced) after a fresh build from a verified revision under shared
 repository maintenance. Every cache-touching call takes the caller's
 maintenance guard over the same repository and refuses a guard that does
-not cover it (compared canonically, `RepositoryMaintenanceGuard::covers`,
-so a relative or otherwise non-canonical spelling of the same repository is
-covered and another root is not); unguarded access is a contract violation
-the code does not admit. A cache file is opened once with `O_NOFOLLOW` and
-`O_NONBLOCK` and must be a regular file on the open handle: a symlink,
-FIFO, device, or directory at the cache path is never followed and cannot
-make a reader wait.
+not cover it (compared canonically, `RepositoryMaintenanceGuard::covers`:
+a relative spelling, a spelling through a symlinked parent directory, or
+one with a `..` component names the same repository and is covered, while
+a symlink as the repository's own final component, and another root, are
+refused); unguarded access is a contract violation the code does not
+admit. After the coverage check the cache path is derived from the guard's
+canonical root, never the caller's spelling, so a parent symlink changed
+after the check cannot aim a read or write elsewhere. The two cache
+directory components (`index/` and `index/v1/`) must be real directories
+when they exist: a symlinked or non-directory component makes a read
+absence and a write-back refused (the import purge refuses the same
+tamper). On Unix the cache file is opened once with `O_NOFOLLOW` and
+`O_NONBLOCK`; on every platform it must be a regular file on the open
+handle: a symlink, FIFO, device, or directory at the cache path is never
+followed, and on Unix cannot make a reader wait.
 `index` joins the frozen repository layout entries that an incomplete S20-540 clone may carry,
 and an S20-540 import **removes** that directory before it promotes anything.
 Every other entry such a clone holds is proved to belong to the exchange; a
@@ -188,7 +203,7 @@ rebuild (unlike the discard-rebuild-write rule of `complete_root_snapshot`);
 the only error is a guard that does not cover the repository
 (`INDEX_SNAPSHOT_IO`). The caller holds shared repository maintenance over
 the same repository, as for every cache-touching call. Its one sanctioned
-consumer is the `workspace.open` field 9 of SMP1 revision 14
+consumer is the `workspace.open` field 9 of SMP1 revision 15
 (`docs/spec/SMP1.md` appendix A `open_summary`), answered under a version 2
 selection and under every later selection whose table includes version
 2's row 201 (version 3, `NATIVE_TEST_ADMISSION_V1.md` appendix D). That
@@ -198,12 +213,20 @@ keeps the S20-390 blocking shared acquisition; only the probe adds no
 wait); the identity it discloses is a pointer, not evidence:
 queries that bind it still load or rebuild the snapshot through
 `complete_root_snapshot`, and exported evidence still builds fresh. The
-stage checker admits exactly one reference to the probe outside
-`crates/sley-repo/src/index_cache.rs`: the call inside
-`materialized_head_snapshot` in `crates/sley-protocol/src/server.rs`,
-paired there with the non-waiting shared acquisition. Any other reference
-to the identifier (a call, an import, an alias, a function pointer) in
-`crates/` or `fuzz/` fails the gate until it is deliberately listed.
+stage checker reads every Rust file in `crates/` and `fuzz/` with comments
+and string and char literals blanked. Outside
+`crates/sley-repo/src/index_cache.rs` and crate integration tests
+(`crates/<crate>/tests/`, which the gate exempts), it admits exactly one
+reference to the probe: the call inside `materialized_head_snapshot` in
+`crates/sley-protocol/src/server.rs`, paired there with the non-waiting
+shared acquisition and with no blocking or exclusive acquisition,
+initialization, or `maintenance()` call. That file may also import the
+probe by its own name (a `use` item, never an alias). The wrapper
+`materialized_head_snapshot` has exactly one caller, inside
+`workspace_open`; only the server's `#[cfg(test)]` module (and crate
+integration tests) may also name it. Any other reference to either
+identifier (a call, an import, an alias, a function pointer) fails the
+gate until it is deliberately listed.
 
 Cache files are derived and disposable: they are outside the object store,
 outside every retention root, never packed or exchanged, and safe to delete
@@ -258,8 +281,13 @@ Implementation acceptance requires at least:
   discarded record reported as absence without a rewrite; (revision 5) a
   symlink to a valid record and a FIFO at the cache path answered promptly
   as absence, a non-canonical repository spelling covered by its guard,
-  and, through `workspace.open`, absence while an exclusive maintenance
-  owner holds the boundary and an unchanged discarded record;
+  absence from the consumer wrapper `materialized_head_snapshot` (the
+  probe's non-waiting guard acquisition; `workspace.open` itself waits at
+  the S20-390 head load) while an exclusive maintenance owner holds the
+  boundary, and an unchanged discarded record through `workspace.open`;
+  (revision 6) a relative spelling covered with the cache read and
+  written under the guard's canonical root, and a symlinked `index/` or
+  `index/v1/` never read or written through;
 - an S20-700 persistent libFuzzer target over the arm-`2` decoder;
 - Tier 1 plus semantics-focused Tier 2 validation;
 - Ariadne contract review, Nabu architecture review, and Vulcan surface

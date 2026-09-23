@@ -1,13 +1,20 @@
 # Native Test Admission v1
 
-Status: N0 owner-contract proposal, revision 6 (2026-09-23). Independent
-architecture review passed; this precise contract still awaits owner review,
-vectors and implementation. Revision 6 re-pins the composed SMP1 tables to
+Status: N0 owner-contract proposal, revision 7 (2026-09-23). An independent
+architecture review passed on the contract as first committed (76cd3dc4,
+2026-09-16); it does not cover later revisions, and the SMP1 re-pins of
+revisions 6 and 7 are covered only by the SMP1 revision 14 and 15 review
+rounds. This precise contract still awaits owner review, vectors and
+implementation. Revision 6 re-pinned the composed SMP1 tables to
 `docs/spec/SMP1.md` revision 14 (appendix D): row 201 `workspace.open`
 answers the version 2 `open_summary` (optional field 9, the accepted head's
 materialized snapshot identity) under version 3 as well, because version 3
 is the union that includes version 2's row 201, and a non-empty 201 body is
-refused under every version; nothing else in this contract changes. Reserved wire formats are not currently admitted.
+refused under every version. Revision 7 re-pins SMP1 revision 15, which
+states the explicit negotiation's per-selection filter, including this
+contract's rule that a version 3 selection without the native-tests bit
+removes the native methods (appendix C); nothing else in this contract
+changes. Reserved wire formats are not currently admitted.
 No product completion, test execution or release claim follows from this file.
 
 ## 1. Authority and encoding
@@ -545,9 +552,10 @@ independent vectors; no current bridge method is implicitly activated by N0.
 ## Appendix D. SMP v3 additions table (machine-readable, revision 5)
 
 Protocol version 3 is the sorted union of the frozen SMP1 version 1 and
-version 2 tables (`docs/spec/SMP1.md` at revision 14; revision 6 of this
-contract re-pinned it from revision 12: the rows are unchanged and row 201
-carries the version 2 `open_summary` body here too) and exactly
+version 2 tables (`docs/spec/SMP1.md` at revision 15; revision 6 of this
+contract re-pinned it from revision 12 and revision 7 to revision 15: the
+rows are unchanged and row 201 carries the version 2 `open_summary` body
+here too) and exactly
 the rows below: 46 rows total, 44 dispatched methods. No second
 independently maintained 46-row table exists; consumers union the SMP1 tables
 with these rows in tag order. Reserved tags under version 3 are 305 and 503:

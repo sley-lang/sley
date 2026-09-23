@@ -1,6 +1,6 @@
 # Sley 2 Trial Runner v1
 
-Status: S20-620 contract draft, revision 6 (2026-09-23); Council review
+Status: S20-620 contract draft, revision 7 (2026-09-23); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 9). Revision 3 replaces the section 2 capability claim
@@ -18,6 +18,12 @@ answered in place: section 9 cites SMP1 for the `workspace.open` body
 (probe failure is absence, warm-up owner-code precedence, non-empty body
 refused) and adds the chain-bound continuation rule; the revision 5
 verdicts stay history under their own field names and bind nothing here.
+Revision 7 (2026-09-23) answers the revision 6 round (PASS in all three
+lanes with P3/P4 findings, 2b0f1c9): the composed pins move to SMP1
+revision 15 and S20-300 revision 6 (the stage checker now reads both
+from those documents' status lines), and section 9 says that an absent
+maintenance boundary fails the opener's head load instead of reaching the
+probe; no runner behavior changes.
 The implementation is `bench/sley2/runner.py` and `bench/sley2/handle.py`;
 implementation state is tracked in the machine summary.
 
@@ -34,7 +40,7 @@ run naming all three arms), the S20-610 canonical JSON and digest-chain
 mechanics, the S20-430 endpoint (`docs/spec/SLEY_CLI_V1.md`), the S20-420
 JSON form, and the S20-540 exchange fixture; it alters none of them (the
 revision 5 accepted-head opener relies on the `workspace.open` response
-that SMP1 revision 13 defines; this contract only admits the method). The
+that SMP1 revision 15 defines; this contract only admits the method). The
 master goal requires an agent that receives only an SMP1 context capsule
 and mutation affordances and completes its task without raw repository
 files, source syntax, an entire-store dump, or human intervention (master
@@ -315,13 +321,15 @@ provenance; publication; runtime, packaging, release, or GA.
   `SLEY2_TRIAL_HANDSHAKE_FAILED`, so drift in either direction stops the run.
 - `workspace.open` (revision 5) is the arm's accepted-head opener. Its
   request and response are SMP1's, not this contract's: `docs/spec/SMP1.md`
-  revision 13, appendix A row 201 and `open_summary`. Under the trial's
+  revision 15, appendix A row 201 and `open_summary`. Under the trial's
   version 2 selection it answers the accepted head's eight
   `revision_summary` fields plus, only when the S20-300 identity probe
-  (`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md` section 5, revision 4)
+  (`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md` section 5, revision 6)
   accepts a cached complete-root record for that root, field 9, that
   record's snapshot identity; any probe failure (no record, a discarded
-  one, an absent or contended maintenance boundary) is absence. The
+  one, a contended maintenance boundary) is absence. An absent
+  maintenance boundary never reaches the probe: the opener's head load
+  requires the boundary and fails the method first (SMP1 appendix A). The
   probe never builds or writes the cache, so the response counts one
   entity; the opener's head load takes the shared maintenance lock as
   every head-bound read does. Absence is structural (eight fields), never
