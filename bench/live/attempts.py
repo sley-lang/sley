@@ -144,7 +144,15 @@ def _parse_utc(value: Any, field: str) -> datetime:
         raise AttemptError(f"LIVE_ATTEMPT_INVALID: {field}") from error
 
 
-def _validate_metrics(metrics: Any, manifest: Mapping[str, Any], status: str) -> None:
+# The one outcome whose record legitimately carries over-budget
+# provider usage: the runner classified the completed provider run as a
+# budget breach. Its observed metrics are retained verbatim so the slot
+# stays in every denominator; every other outcome must fit the budgets.
+BUDGET_EXCEEDED_CODE = "LIVE_PROVIDER_BUDGET_EXCEEDED"
+
+
+def _validate_metrics(metrics: Any, manifest: Mapping[str, Any], status: str,
+                      failure_code: Any = None) -> None:
     if not isinstance(metrics, dict) or set(metrics) != _metric_names():
         _fail("LIVE_ATTEMPT_METRIC_INVALID", "field set")
     for name, value in metrics.items():
@@ -165,9 +173,11 @@ def _validate_metrics(metrics: Any, manifest: Mapping[str, Any], status: str) ->
         _fail("LIVE_ATTEMPT_METRIC_INVALID", "strict_accepted_correctness")
     if metrics["total_observable_tokens"] != metrics["model_input_tokens"] + metrics["model_output_tokens"]:
         _fail("LIVE_ATTEMPT_METRIC_INVALID", "total_observable_tokens")
-    if metrics["model_input_tokens"] > manifest["context_budget"]:
+    over_budget = (status == "harness_failure"
+                   and failure_code == BUDGET_EXCEEDED_CODE)
+    if metrics["model_input_tokens"] > manifest["context_budget"] and not over_budget:
         _fail("LIVE_ATTEMPT_CONTROL_MISMATCH", "context_budget")
-    if metrics["tool_calls"] > manifest["action_budget"]:
+    if metrics["tool_calls"] > manifest["action_budget"] and not over_budget:
         _fail("LIVE_ATTEMPT_CONTROL_MISMATCH", "action_budget")
     if status != "timeout" and metrics["wall_time"] > manifest["wall_time_budget"]:
         _fail("LIVE_ATTEMPT_CONTROL_MISMATCH", "wall_time_budget")
@@ -242,7 +252,7 @@ def validate_attempt(record: Mapping[str, Any], manifest: Mapping[str, Any]) -> 
     if record["capture_status"] != CAPTURE_STATUS:
         _fail("LIVE_ATTEMPT_INVALID", "capture_status")
     _validate_artifacts(record["artifacts"], status, record["arm_id"])
-    _validate_metrics(record["metrics"], manifest, status)
+    _validate_metrics(record["metrics"], manifest, status, failure)
 
 
 def build_attempt(

@@ -117,6 +117,14 @@ class CodexExecAdapter:
     executable: str
     model: str
     reasoning_effort: str
+    # Codex's own workspace-write sandbox forbids every socket connect,
+    # AF_UNIX included, unless network access is enabled for it; the
+    # mediated sley_2_0 tool reaches its gateway over a unix socket, so
+    # the live campaign enables it for every arm alike. It is safe only
+    # inside the outer provider sandbox (bench/live/provider_sandbox.py),
+    # whose network namespace has no route out except the allowlisting
+    # egress proxy that model commands are never pointed at.
+    command_network_access: bool = False
 
     def __post_init__(self) -> None:
         if not self.executable or "\x00" in self.executable:
@@ -129,6 +137,8 @@ class CodexExecAdapter:
             _fail("LIVE_PROVIDER_CONFIG_INVALID", "model")
         if not isinstance(self.reasoning_effort, str) or self.reasoning_effort not in EFFORTS:
             _fail("LIVE_PROVIDER_CONFIG_INVALID", "reasoning_effort")
+        if not isinstance(self.command_network_access, bool):
+            _fail("LIVE_PROVIDER_CONFIG_INVALID", "command_network_access")
 
     def command(self, workspace: str | Path) -> list[str]:
         location = str(workspace)
@@ -151,6 +161,11 @@ class CodexExecAdapter:
             f'model_reasoning_effort="{self.reasoning_effort}"',
             "--config",
             'shell_environment_policy.inherit="none"',
+            *(
+                ["--config", "sandbox_workspace_write.network_access=true"]
+                if self.command_network_access
+                else []
+            ),
             "--cd",
             location,
             "-",

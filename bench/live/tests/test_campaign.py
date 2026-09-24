@@ -122,6 +122,60 @@ class CampaignAttemptTests(unittest.TestCase):
         self.assertIsNone(record["artifacts"]["oracle_report_sha256"])
         self.assertEqual(len(verify_attempts(self.run, self.store)), 1)
 
+    def test_budget_exceeded_attempt_is_retained_with_observed_metrics(self) -> None:
+        # A completed provider run that overspent the frozen context
+        # budget is a harness failure that stays in the denominator with
+        # the tokens it actually used; it must never be dropped because
+        # the record validator rejects its honest metrics.
+        over = json.loads(provider_stream().splitlines()[-1])
+        over["usage"]["input_tokens"] = 131_073
+
+        def provider(argv, prompt, **kwargs):
+            lines = provider_stream().splitlines()[:-1]
+            stream = b"".join(item + b"\n" for item in lines)
+            stream += json.dumps(over, sort_keys=True).encode() + b"\n"
+            return ProcessCapture(stream, b"", 0, False, 25)
+
+        record = execute_attempt(
+            run_directory=self.run,
+            store=self.store,
+            adapter=self.adapter,
+            task_id="S2B-REPAIR-001",
+            arm_id="raw_files",
+            seed=17,
+            workspace_parent=self.root / "workspaces",
+            provider_runner=provider,
+            utc_now=lambda: next(self.times),
+        )
+        self.assertEqual(record["status"], "harness_failure")
+        self.assertEqual(record["failure_code"], "LIVE_PROVIDER_BUDGET_EXCEEDED")
+        self.assertEqual(record["metrics"]["model_input_tokens"], 131_073)
+        self.assertEqual(len(verify_attempts(self.run, self.store)), 1)
+
+    def test_over_budget_metrics_are_refused_on_any_other_outcome(self) -> None:
+        from bench.live.attempts import AttemptError, validate_attempt
+
+        def provider(argv, prompt, **kwargs):
+            return ProcessCapture(b'{"type":"turn.started"}\n', b"", 1, False, 25)
+
+        record = execute_attempt(
+            run_directory=self.run,
+            store=self.store,
+            adapter=self.adapter,
+            task_id="S2B-REPAIR-001",
+            arm_id="raw_files",
+            seed=17,
+            workspace_parent=self.root / "workspaces",
+            provider_runner=provider,
+            utc_now=lambda: next(self.times),
+        )
+        self.assertEqual(record["failure_code"], "LIVE_PROVIDER_EXIT_NONZERO")
+        forged = json.loads(json.dumps(record))
+        forged["metrics"]["model_input_tokens"] = 131_073
+        forged["metrics"]["total_observable_tokens"] = 131_073
+        with self.assertRaisesRegex(AttemptError, "context_budget"):
+            validate_attempt(forged, manifest())
+
 
 # NOTE: the sley_2_0 workspace-copy evidence route retired when the
 # arm moved to confined mediated attempts (bench/live/mediated_attempt.py):

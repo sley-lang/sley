@@ -30,11 +30,11 @@ from pathlib import Path
 
 BWRAP = "/usr/bin/bwrap"
 
-# Host paths every confined trial needs to execute Python. Everything
-# else from the host root stays visible read-only EXCEPT the masked
-# protected prefixes (overmounted with private tmpfs entries below).
-# Note: visibility is not authority — protected prefixes are masked
-# regardless of their host permissions.
+# Host paths every confined trial needs to execute Python. Nothing else
+# from the host exists inside the sandbox unless a spec binds it
+# explicitly (extra_ro_binds / extra_binds); protected prefixes are
+# additionally overmounted with private tmpfs entries below, so a later
+# bind can never expose them. Visibility is not authority either way.
 RO_BINDS = ("/usr", "/bin", "/lib", "/lib64", "/etc")
 
 
@@ -68,6 +68,14 @@ class SandboxSpec:
     mask_paths: tuple[Path, ...]
     share_net: bool = False
     extra_ro_binds: tuple[Path, ...] = ()
+    # Ordered (mode, host source, sandbox destination) binds applied
+    # after the scratch bind and before the masks; mode is "ro" or "rw".
+    # A later bind may overmount a file inside an earlier directory bind
+    # (the provider credential over its per-attempt home placeholder).
+    extra_binds: tuple[tuple[str, str, str], ...] = ()
+    # Ordered (name, value) environment entries set after the fixed
+    # PATH/HOME defaults (a later entry wins).
+    setenv: tuple[tuple[str, str], ...] = ()
 
 
 def confinement_argv(spec: SandboxSpec, agent_argv: list[str],
@@ -93,11 +101,27 @@ def confinement_argv(spec: SandboxSpec, agent_argv: list[str],
              "--setenv", "PATH", "/usr/bin:/bin",
              "--setenv", "HOME", "/scratch",
              "--setenv", "PYTHONDONTWRITEBYTECODE", "1"]
+    for name, value in spec.setenv:
+        if (not isinstance(name, str) or not name or "=" in name
+                or "\x00" in name or not isinstance(value, str)
+                or "\x00" in value):
+            _fail("CONFINEMENT_INVALID", "setenv")
+        argv += ["--setenv", name, value]
     for host in RO_BINDS:
         argv += ["--ro-bind-try", host, host]
     for host in spec.extra_ro_binds:
         argv += ["--ro-bind", str(host), str(host)]
     argv += ["--bind", str(scratch), "/scratch"]
+    for bind in spec.extra_binds:
+        if (not isinstance(bind, tuple) or len(bind) != 3
+                or bind[0] not in {"ro", "rw"}
+                or any(not isinstance(part, str) or not part
+                       or "\x00" in part for part in bind[1:])
+                or not bind[2].startswith("/")):
+            _fail("CONFINEMENT_INVALID", "extra bind")
+        mode, source, destination = bind
+        argv += ["--ro-bind" if mode == "ro" else "--bind",
+                 source, destination]
     # Mask every protected prefix AFTER the ro-binds so the private
     # tmpfs wins over any host visibility.
     for protected in spec.mask_paths:
