@@ -190,3 +190,27 @@ Findings (raw failures retained, nothing re-run into this run):
 - Accounting over this run: 9 attempts (raw 3 accepted; legacy 2 accepted,
   1 harness failure; sley_2_0 1 rejected, 2 harness failures), status
   PARTIAL, `counts_toward_succession` false.
+
+## PILOT 3 2026-09-24 (revision 3 check, CONTEXT only; does not count)
+
+Run `s20-640-pilot3-20260924-claude-small`, label `PILOT`, frozen at
+`9ae2bf4f` from `PREREGISTRATION-3-claude-code.json`. Raw run directory:
+`/home/gfarch/Work/checkpoints/sley2-campaign-runs/s20-640-pilot3-20260924-claude-small/`.
+
+| Slot | Status | Code | Wall s | Input tok | Output tok | Tools | Est. USD |
+|---|---|---|---|---|---|---|---|
+| CONTEXT raw | accepted | — | 23 | 93,932 | 1,860 | 7 | 0.05 |
+| CONTEXT legacy | rejected | ORACLE_UNBOUNDED_READ | 996 | 2,500,784 | 8,327 | 35 | 0.44 |
+| CONTEXT sley_2_0 | rejected | ORACLE_IMPACT_INCOMPLETE | 1,258 | 4,842,793 | 66,610 | 79 | 1.00 |
+
+Every stream ended on exactly one result with no backgrounded command;
+all three attempts were judged by their oracles (no harness failure).
+Provider-reported utilization after the run: five-hour 0.37, seven-day
+0.38 (these windows also carry the operator's other Claude use).
+Accounting: status PARTIAL, `counts_toward_succession` false.
+
+Validation at the pilot 3 fixes: `bench/live/tests` 365 tests OK (the
+real-`claude -p` launch test skipped in the full run; it passed separately
+with `SLEY2_LIVE_CLAUDE_ROOT` bound), `bench/accounting/tests` 19 tests OK,
+`scripts/check_succession_accounting.py` PASS, `make lint` PASS
+(`evidence/build/lint-report.json` restored).
