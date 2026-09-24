@@ -1,193 +1,244 @@
-# Sley 2 — Machine Genesis
+<p align="center">
+  <img src="assets/branding/canonical/sley_2_0_loom_graph_banner_1500x500.png" alt="Sley 2.0" width="100%">
+</p>
 
-Sley 2 is a new, incompatible programming-system lineage in which programs are
-created, stored, changed, executed, tested, versioned, and exchanged as typed
-semantic state. Its canonical program form is SSMC1, its canonical encoding is
-SCB1, and its machine interface is SMP1.
+<h3 align="center">Machine-native programming for AI agents.</h3>
 
-The governing doctrine is: **machines do not write source; they mutate verified
-program state**. This repository therefore contains no Sley source parser,
-canonical text format, formatter, conventional LSP, or compatibility promise
-for Sley 1.x.
+<p align="center">
+  Machines don't write source. They change verified program state.
+</p>
 
-## Current phase
+<p align="center">
+  <a href="https://sleylang.org"><img alt="Website" src="https://img.shields.io/badge/sleylang.org-website-22d3ee?style=flat-square"></a>
+  <img alt="Version 2.0.0" src="https://img.shields.io/badge/version-2.0.0-38c8e8?style=flat-square">
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-3b82f6?style=flat-square"></a>
+  <img alt="Rust 1.93" src="https://img.shields.io/badge/rust-1.93-f97316?style=flat-square&logo=rust&logoColor=white">
+  <img alt="Linux x86_64" src="https://img.shields.io/badge/platform-linux%20x86__64-64748b?style=flat-square&logo=linux&logoColor=white">
+  <a href="https://x.com/SleyLanguage"><img alt="Follow @SleyLanguage on X" src="https://img.shields.io/badge/@SleyLanguage-000000?style=flat-square&logo=x&logoColor=white"></a>
+</p>
 
-Phase M0 is complete. M1 packages S20-100 through S20-170 now provide SCB1,
-typed identifiers, an independent oracle, schema epochs, the immutable object
-store, deterministic state roots, and uncompressed root/object repository
-packs. S20-180 and the scoped M1 core/adversarial/fuzz-smoke profiles now pass.
-M2 is in progress: S20-200 freezes the SSMC1 entity/opcode schema and S20-210
-implements the deterministic core type system. S20-220 now provides bounded,
-deterministic CFG and value-use validation, and S20-230 adds exact least-fixed-
-point effect closure with static scope typing. S20-240 now enforces a restricted
-epoch-1 contract/test profile and deterministic policy-incomplete test planning;
-its full-GA schema gaps remain explicit. S20-250 now adds deterministic
-TypeDef/Function semantic fingerprints, a domain-separated canonical value
-hash, and exact impact relationships for the twelve modeled semantic-core
-kinds. Its six unmodeled entity bodies remain an explicit full-GA blocker.
-S20-260 now provides a restricted deterministic O0 lowering profile for all
-five terminators and the three validated Boolean opcodes, with exact derived
-bytes and a root/profile-bound cache key. The other 52 opcode signatures,
-generics, and adapters remain fail-closed gaps. S20-270 now executes that
-restricted bytecode deterministically with exact Boolean semantics, all five
-terminators, bounded fuel/value/output/cancellation behavior, and a canonical
-observation digest. S20-280 now adds eight restricted deterministic,
-request-owned reference adapter fixtures with exact identity, state, replay,
-limit, atomicity, and transcript rules. VM adapter opcodes, live host access,
-protected capabilities, live cancellation, and persistent report semantics
-remain explicit gaps. S20-290 now provides restricted derived execution/test
-report envelopes that verify VM observations and compare selected expectations
-without claiming canonical persistence, policy/resource finality, test pass,
-or the M2 exit. S20-300 now adds a restricted `SLEYIDX1` index-snapshot
-conformance profile whose candidate records can match only an already-fresh
-explicit modeled-request rebuild. It provides no trusted cache hydration,
-root-provenance proof, query authority, or full S20-300/M3 completion. S20-310
-now adds four restricted typed queries over opaque freshly derived
-snapshots, with exact QueryId/response records and hard failure when limits
-would omit facts. It does not claim the nineteen root-backed query classes,
-truncation/continuation, capsules, SMP1, full S20-310, or M3 completion. S20-320
-now adds a separately identified restricted evidence capsule for those complete
-responses, with exact raw-ID dictionaries and direct-edge tables but fixed
-no-omission, no-truncation, and no-continuation status. It is not the master
-context capsule and adds no workspace/root/session authority. Every next
-package must follow `docs/WORK_PACKAGES.md`. S20-330 (negotiated sessions)
-was deferred until verified workspace/root authority existed and closed on
-2026-09-05 (`docs/audits/S20_330_NEGOTIATED_SESSION_CLOSEOUT.md`). S20-340
-now generates immutable mutation descriptors for all eighteen SSMC1 entity
-kinds and all sixteen primitive classes from the exact frozen manifest. It
-provides no candidate construction, executable mutation, validation, policy,
-session, commit, or transaction authority. The first decomposed S20-350 slice
-now generates closed proposal-only host values for all eighteen entity bodies
-and all seventy-five body fields, with no runtime type-name dispatch. A second
-slice binds all 179 immutable descriptors to exact closed body/field
-discriminants and performs type-selection-only admission. A strict low-level
-SCB value cursor now exposes the already-frozen primitive decoder behavior for
-later private codec work, including lossless strict 128-bit integer primitives;
-it selects no schema or mutation type. A crate-private mutation layer now closes
-primitive values, IDs/roots, direct enums, ordered lists/options, canonical
-entity-ID sets, and the complete twenty-variant recursive `TypeExpr` family
-with depth and allocation budgets. Further private slices close `MemberId`,
-value/function references, immediates, CFG edges/cases, trap codes, the four
-non-Option terminator records, and the dependency-closed `TypeParameterDef`,
-`RecordField`, `BuiltinFailureValue`, `ContractSource`, `ContractBinding`, and
-`ResourceLimits` manifest helpers. A bounded body slice also closes the exact
-six-field `OperationBody` record. A second dependency-closed body slice covers
-`WorkspaceBody`, `PackageBody`, `FunctionBody`, `ParameterBody`,
-`GlobalValueBody`, `EffectDefBody`, `AdapterImportBody`, `EntryPointBody`,
-`PolicyBindingBody`, and `DependencyBindingBody`. The native S20-350 codec now
-closes the remaining seven bodies, all seventy-five descriptor-selected fields,
-generic `Option<T>`, both terminator layers, `ConstValue`, the contract/test
-families, aggregate entity values, bound preconditions, the exact validation
-profile, and the thirteen-field candidate record. Its public proposal API can
-build and import a digest-trailed `SLEYCAN1` candidate while checking contiguous
-ordinals, exact generated descriptor selection, same-ordinal preconditions,
-deterministic creation IDs, expiry shape, and the frozen validation-profile ID.
-It performs no semantic validation, authority judgment, state mutation, commit,
-I/O, or clock read.
+<p align="center">
+  <a href="docs/QUICKSTART.md"><b>Quickstart</b></a> ·
+  <a href="docs/CONCEPTS.md"><b>Concepts</b></a> ·
+  <a href="https://sleylang.org/tutorial"><b>Walkthrough</b></a> ·
+  <a href="docs/README.md"><b>Documentation</b></a> ·
+  <a href="docs/release/SLEY-2.0.0.md"><b>Release notes</b></a> ·
+  <a href="https://sleylang.org/faq"><b>FAQ</b></a>
+</p>
 
-Independent conformance now combines the retained 126-accepted/18-rejected
-mutation-value corpus with a supplemental 44-accepted/4-rejected value corpus
-and 1-accepted/14-rejected candidate corpus. Together they cover all eighteen
-bodies, all seventy-five fields, all sixteen `ConstData` variants, all five
-terminators, all sixteen mutation classes, preconditions, the candidate record,
-the envelope, and digest rejection. Rust consumes the Python-produced bytes and
-exact error codes. A two-lane production libFuzzer target independently drives
-raw record decode/re-encode and stored candidate import/rebuild. S20-350 is
-complete as a proposal-only construction boundary. S20-370 now
-adds a separately registry-authorized protected policy root with exact opaque
-principals, principal-specific grants, protected entity bindings, and mandatory
-test/contract finalization. It has no authenticated policy-transition,
-candidate, commit, or live runtime authority. S20-380 now adds a narrow
-local-only capability-token profile with exact root/effect/scope/adapter/budget
-binding, keyed BLAKE3 authentication, caller-owned replay/budget ledger
-judgment, and an authorized reference-adapter wrapper. VM adapter opcodes,
-candidate admission, commit, sessions, live host confinement, policy
-transitions, providers, deployment, and GA remain explicit gaps.
-S20-360 now provides the restricted fourteen-phase candidate validator and
-canonical result evidence for executable programs containing no semantic
-operation entities. S20-390 now adds fresh commit-time revalidation, canonical
-parent-bound transactions and complete receipts, durable immutable-object and
-receipt ordering, and one fixed accepted-head compare-and-swap primitive. Its
-independent oracle, forged-manifest rejection, stale-race tests, five-boundary
-fault matrix, and persistent importer fuzz target pass. Candidate mutation
-operations are supported inside this restricted semantic subset, but selected
-tests remain empty. S20-500 now provides immutable branch origins, atomic named
-refs, direct-parent fast-forward movement, bounded ancestry, and coordinated GC
-maintenance ownership. S20-530 has frozen its exact 100-row recovery contract,
-but production recursive recovery, complete semantic operation analysis,
-runtime authority, protocol, benchmark trials, release, and GA remain explicit
-gaps.
-S20-345 froze the candidate/value/precondition/capability-summary/validation-
-profile/expiry contracts as proposal-only specifications. The freeze itself
-added no builder or authority; S20-350 now implements the conforming builder
-and decoder. It still adds no semantic validation, root construction, state
-mutation, or commit path.
-S20-710 now has a deterministic offline pre-release dependency inventory and a
-bounded high-confidence secret scan. Those local checks do not complete the
-package: operator-approved proprietary root license text, a standards SBOM,
-release provenance, a release-candidate history re-anchor, and final Argus and
-Vulcan dispositions remain mandatory.
-S20-700 has one bounded incremental schema-import slice: 512 deterministic
-inputs and an exact registry no-fallback test. It is not a persistent fuzz
-harness. A second bounded regression proves authorized adapter state-root,
-effect, and adapter binding confusion fails before ledger charge or fixture
-mutation. A third Unix-only regression rejects symlinked object-store roots and
-fan-out directories across put, read, and recovery without writing outside the
-store. A fourth bounded mutation-value slice exercises all 126 currently
-supported accepted fixtures through 252 trailing-byte and 446 distinct proper-
-prefix mutations with panic containment and deterministic errors, while the 18
-committed rejection vectors retain exact codes. That older bounded slice stays
-as regression evidence; the independent supplemental corpus and candidate
-target cover the newly completed proposal surface. These slices do not complete
-the required cross-surface adversarial suite. Nine honest persistent targets
-now exercise ten required surfaces: SCB1, schema bootstrap, repository-pack
-import, typed S20-210, typed graph and CFG judgments, restricted queries,
-restricted VM inputs, restricted adapter responses, and mutation candidates.
-The pack target has a direct-input lane and a
-rehashed-trailer lane that reaches beyond the outer digest check while
-preserving failed-preflight no-write assertions. The typed semantic and query
-targets use bounded fuzz-only constructors, not parallel canonical decoders or
-the private mutation codec. Their 512-node type budget retains minimized
-harness-OOM input `S20-700-HARNESS-001` as a closed regression. The scoped
-`*-persistent-fuzz-smoke` Make targets use installed Clang/nightly runtimes,
-generate deterministic fixture-derived or synthetic corpora as documented,
-and record runtime evidence under `evidence/runtime/`. The matching runners
-document their manual indefinite-run form.
+---
 
-## Authority
+## What is Sley?
 
-- Product goal: `/home/greyforge/machineresearch/sley/in-progress/2.0/Sley2.0mastergoal.md`
-  (outside the repository; `SLEY2_MASTER_GOAL` overrides the location for
-  worktrees, clones, and remote review)
-- Local architecture: `ARCHITECTURE.md`
-- Security and threat register: `SECURITY.md`
-- Normative drafts: `docs/spec/`
-- Work-package DAG: `docs/WORK_PACKAGES.md`
-- Evidence dossier: `machineresearch/sley-2.0/`
-- Remotes: `origin` is the private working repository (browse it for the
-  latest validated commits); `mirror` is the public sanitized mirror, refreshed
-  only by its own pipeline under a publication decision
-- Remote-head locator: `docs/status/SLEY2-REMOTE-HEAD.md` (derived from the
-  machine summary's `locator` section by `scripts/check_remote_head.py`; git
-  stays authoritative for commit identity)
+Sley is a programming system built for AI agents rather than for people
+typing into text editors. Sley programs aren't source files. A program is a
+**typed, immutable semantic graph**: functions, types, blocks, operations,
+contracts, and tests stored as content-addressed objects. An agent reads that
+graph through bounded queries and changes it by proposing typed mutations. A
+deterministic kernel checks every proposal before anything is committed.
 
-The product goal controls when this repository disagrees with a local draft.
+```text
+verified state ─▶ bounded query ─▶ proposed change ─▶ validation ─▶ atomic commit ─▶ new verified state
+```
 
-## Authority boundaries
+There's no parser to confuse, no formatting to fight over, and no "it
+compiled on my machine". Every accepted state has an exact cryptographic
+root. Every change carries a receipt. Every failure comes back as a stable
+machine code instead of prose.
 
-This repository is local-only. No push, tag, upload, deployment, publication,
-provider spend, or public claim is authorized. Sley 1.2 deployment and release
-work belongs to a separate session and repository worktree.
+## Why Sley?
 
-## Validation
+| When an agent writes source text… | With Sley… |
+|---|---|
+| It emits characters and hopes they parse. | It proposes **typed mutations** over a closed schema. Malformed input is rejected at the boundary. |
+| Context means pasting whole files into a prompt. | Context is a **bounded, typed query** with explicit limits and no silent truncation. |
+| "Is this valid?" depends on toolchains and flags. | One **deterministic kernel** judges types, control flow, effects, contracts, and policy the same way every time. |
+| Identity is a file path and line number. | Identity is **content-addressed**: entities, objects, state roots, and transactions all have exact digests. |
+| A half-applied edit can corrupt a tree. | Commits are **atomic**. After a crash you have either the old state or the complete new one. |
+| Errors are paragraphs to interpret. | Errors are **stable numeric and symbolic codes** with exact contracts. |
 
-`make quick` and `make check-changed` validate the implemented M0/M1 and
-current M2 type-system/CFG/effect/restricted-contract/fingerprint/lowering/
-execution/reference-adapter/report-envelope/index-snapshot/restricted-query/
-restricted-capsule/mutation-schema/protected-policy-root/capability-token
-surface, the closed mutation proposal host model, plus the offline S20-610
-raw-baseline evidence contract and bounded
-S20-710 pre-release audit (`DEFERRED`, never release `PASS`). Later profiles
-are present but intentionally fail closed until their corresponding work
-packages land.
-`make v2` remains the eventual authoritative full gate.
+## Quickstart
+
+> **Requirements:** Linux x86_64. To build from source you also need the Rust
+> toolchain pinned in [`rust-toolchain.toml`](rust-toolchain.toml) (1.93.0)
+> and Python 3 for the demo.
+
+**1. Get the `sley` binary.** Download `sley-2.0.0-linux-x86_64.tar.gz` from
+[Releases](https://github.com/sley-lang/sley/releases), or build it from source:
+
+```sh
+git clone https://github.com/sley-lang/sley.git
+cd sley
+cargo build --release -p sley-cli        # → target/release/sley
+```
+
+**2. Say hello.** Every `sley` command prints machine-readable JSON:
+
+```console
+$ sley version
+{"cli":"1","contract":"sley2-cli-v1","protocol_version":1}
+
+$ sley hello --json
+{"adapters":[],"effects":[],"features":{"cancel":true,"checksum":false,"json_bridge":false,"stream":true},
+ "limits":{"max_depth":65535,"max_entities":65535,"max_frame_bytes":67108864,...},
+ "methods":["session.open","workspace.create","query.root","candidate.create","commit","execute",...],
+ "protocol_versions":[1],"schema_epochs":["a7fcf97a…"]}
+```
+
+**3. Run the end-to-end demo.** It imports a program into an empty repository,
+queries it, executes a function, stores the report, creates a branch, exports
+the repository, clones it into a second empty directory, and checks that the
+clone gives byte-identical answers:
+
+```console
+$ python3 bench/release/run_demo.py --sley target/release/sley \
+    --fixture conformance/release-demo/v1/demo.json
+{
+  "result": "PASS",
+  "steps": {
+    "query_root_matches_fixture": true,
+    "execute_response_matches_fixture": true,
+    "report_answers_stored_record": true,
+    "branch_created": true,
+    "exported_bytes": 9430,
+    "clone_query_root_matches_fixture": true,
+    "clone_execute_matches": true,
+    ...
+  }
+}
+```
+
+From the release archive, run `python3 demo/run_demo.py` inside the unpacked
+directory. No source tree is needed.
+
+➡️ **The [full Quickstart](docs/QUICKSTART.md)** covers verifying the
+download, driving `sley serve` by hand over JSON lines, exit codes, and the
+full test gates.
+
+## How it works
+
+```mermaid
+flowchart LR
+    A([Agent]) -- "SMP1 frames<br/>(binary or JSON lines)" --> P[sley serve]
+    P --> Q[Queries and capsules]
+    P --> M[Mutation candidates]
+    M --> C{Checker and policy<br/>14-phase validation}
+    C -- accepted --> T[Transaction engine]
+    C -- refused --> R[/Stable error code/]
+    T --> S[(Content-addressed<br/>object store)]
+    T --> RC[/Receipt + new state root/]
+    P --> V[Deterministic VM]
+    V --> S
+    Q --> S
+```
+
+Sley has three canonical layers:
+
+| Layer | What it is | Spec |
+|---|---|---|
+| **SSMC1**: Sley Semantic Machine Code | The only canonical program form: a typed, immutable graph of 18 entity kinds (`Function`, `Block`, `Operation`, `TypeDef`, `Contract`, `TestCase`, …). | [`docs/spec/SSMC1.md`](docs/spec/SSMC1.md) |
+| **SCB1**: Sley Canonical Binary | The only canonical byte encoding. Strict and minimal. Malformed input is rejected, never normalized. BLAKE3 with domain-separated hashes. | [`docs/spec/SCB1.md`](docs/spec/SCB1.md) |
+| **SMP1**: Sley Machine Protocol | The programming interface: versioned, bounded, cancellable request/response frames, with a JSON bridge for convenience. | [`docs/spec/SMP1.md`](docs/spec/SMP1.md) |
+
+Read **[Concepts](docs/CONCEPTS.md)** for the full model: identities, state
+roots, the change lifecycle, sessions, and the glossary.
+
+## What's in 2.0
+
+- **A deterministic semantic kernel.** Type system, control-flow and
+  value-use validation, exact effect closure, contracts and tests, semantic
+  fingerprints, and impact analysis.
+- **A content-addressed repository.** An immutable object store, deterministic
+  state roots, atomic transactions with receipts, native branches, semantic
+  compare and merge (ambiguity becomes explicit conflict objects), repository
+  exchange/clone, garbage collection, and crash recovery.
+- **Agent-shaped context.** Root-backed typed queries and context capsules with
+  hard limits. They fail loudly instead of truncating silently.
+- **Proposal-first mutation.** Generated mutation descriptors for every entity
+  kind and field. Candidates are validated in 14 ordered phases before any
+  state moves.
+- **A deterministic VM.** Bounded execution with fuel, output, and cancellation
+  limits. It produces canonical observation digests and stored execution
+  reports.
+- **Policy and capabilities.** Protected policy roots, scoped capability
+  tokens, and bounded adapters. There is no arbitrary shell.
+- **A reproducible release.** Two clean musl builds compared member by member,
+  a second-host attestation, CycloneDX and SPDX SBOMs, and recorded
+  provenance.
+- **Independent conformance.** A separate Python oracle reproduces the Rust
+  kernel's bytes exactly, backed by persistent fuzz targets across ten
+  surfaces.
+
+See the **[2.0.0 release notes](docs/release/SLEY-2.0.0.md)** for the complete
+list, including the known limits.
+
+## Project status
+
+**Sley 2.0.0** is the current release. It's a *release*, not a GA claim: the
+[release notes](docs/release/SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
+list every acceptance criterion that isn't met yet and every open finding.
+
+| Track | State |
+|---|---|
+| **Sley 2.0** | Released as 2.0.0. The kernel, repository, protocol, CLI, and reproducible packaging are in place. |
+| **Sley 2.1** | In progress. **Self-hosting**: the Sley toolchain built with Sley, under the REWEAVE plan ([ADR-0049](docs/adr/ADR-0049-reweave-scope-adoption.md), [Bootstrap Profile 2](docs/spec/BOOTSTRAP_PROFILE_2.md)). |
+| **Succession benchmark** | In progress. It measures agents working in Sley against raw source and Sley 1.x on a frozen 15-task corpus. Results will be published when the campaign finishes. |
+| **Sley 1.x** | Frozen at [v1.2.0](https://github.com/GreyforgeLabs/sley-legacy/releases/tag/v1.2.0) in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
+
+## Documentation
+
+| Guide | What it covers |
+|---|---|
+| 🚀 **[Quickstart](docs/QUICKSTART.md)** | Install, verify, run the demo, and talk to `sley serve` by hand |
+| 🧠 **[Concepts](docs/CONCEPTS.md)** | The mental model: SSMC1, SCB1, SMP1, identities, and the change lifecycle |
+| 🧭 **[Architecture walkthrough](https://sleylang.org/tutorial)** | Step by step from verified state to proposal, validation, transaction, and new state |
+| 📚 **[Documentation index](docs/README.md)** | Every specification, ADR, and reference, grouped by topic |
+| 🏗️ **[Architecture](ARCHITECTURE.md)** | Crate authority, the dependency law, and the durability order |
+| 📦 **[Release notes](docs/release/SLEY-2.0.0.md)** | What 2.0.0 contains, how to verify it, and what isn't claimed yet |
+| 🔐 **[Security](SECURITY.md)** | Threat model, reporting, and the [threat register](docs/THREAT_REGISTER.md) |
+| 🤝 **[Contributing](CONTRIBUTING.md)** | The slice contract, validation gates, and commit discipline |
+
+## Build and test from source
+
+```sh
+cargo build --release -p sley-cli     # the sley binary
+cargo test --workspace --locked       # every crate's tests
+make conformance                      # Rust vs. the independent Python oracle (needs uv)
+make adversarial                      # corruption, crash, and binding-confusion suites
+make fuzz-smoke                       # bounded fuzz smoke across the codecs and importers
+make lint                             # clippy with all + pedantic denied
+make release-candidate-smoke          # two clean musl builds + every release record, then verify
+```
+
+Maintainers run `make quick` as the routine gate. Two of its checkers read
+the Sley 2.0 master goal, which lives outside the repository; point
+`SLEY2_MASTER_GOAL` at it.
+
+The repository is a Cargo workspace of 20 crates under [`crates/`](crates/).
+Each crate owns exactly one authority, from `sley-scb1` (canonical bytes) to
+`sley-vm` (execution) and `sley-cli` (the thin wrapper). See
+[ARCHITECTURE.md](ARCHITECTURE.md) for the dependency law.
+
+## Community and links
+
+| Where | Link |
+|---|---|
+| 🌐 **Website** | [sleylang.org](https://sleylang.org) |
+| 📖 **Docs & walkthrough** | [sleylang.org/docs](https://sleylang.org/docs) · [sleylang.org/tutorial](https://sleylang.org/tutorial) · [sleylang.org/faq](https://sleylang.org/faq) |
+| 🤖 **For LLMs** | [sleylang.org/llms.txt](https://sleylang.org/llms.txt) |
+| 𝕏 **Sley on X** | [@SleyLanguage](https://x.com/SleyLanguage) |
+| 𝕏 **Greyforge on X** | [@GreyforgeLabs](https://x.com/GreyforgeLabs) |
+| 🔥 **Greyforge Labs** | [greyforge.tech](https://greyforge.tech) · [About](https://greyforge.tech/about) |
+| 📰 **Background** | [The machine-native break](https://greyforge.tech/chronicles/sley-120-machine-native-break), on why Sley left source code behind |
+| 🐙 **GitHub** | [sley-lang](https://github.com/sley-lang) · [GreyforgeLabs](https://github.com/GreyforgeLabs) |
+| 🏛️ **Sley 1.x (legacy)** | [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy) · [sleylang.org/legacy](https://sleylang.org/legacy) |
+
+## License
+
+Sley 2 is licensed under the [Apache License 2.0](LICENSE).
+Copyright © 2026 [Greyforge Labs](https://greyforge.tech). See [NOTICE](NOTICE)
+for details. Third-party dependency licenses are listed in the release SBOM.
+
+<p align="center">
+  <sub>Built by <a href="https://greyforge.tech">Greyforge Labs</a> · <a href="https://sleylang.org">sleylang.org</a> · <a href="https://x.com/SleyLanguage">@SleyLanguage</a></sub>
+</p>
