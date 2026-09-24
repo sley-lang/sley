@@ -1,0 +1,4 @@
+MODULE witness/pos: propose valid True
+MODULE witness/pos: finished True
+S2B-MODULE-001 witness/pos judge exit: 0
+workspace kept at: /tmp/sley2-module-witness-qkzeqzxx/ws

@@ -158,7 +158,7 @@
     },
     {
       "family": "smp1-json-bridge",
-      "rejections": 36,
+      "rejections": 37,
       "vectors": 46,
       "version": "v1"
     },
@@ -193,10 +193,10 @@
       "version": "v1"
     }
   ],
-  "conformance_rejections": 283,
+  "conformance_rejections": 284,
   "conformance_vectors": 537,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "9f9251afba43ddb83706b0f80b19650f4f2831378cd00d0c8e7d7ea2866027f4",
+  "inventory_digest": "1375073826d7b8d1ba30ff0bef051d16fc49c94b8f31ee7c83ffb4df5b0a2795",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -246,8 +246,8 @@
     },
     {
       "directory": "bench/live/tests",
-      "files": 14,
-      "tests": 47
+      "files": 30,
+      "tests": 336
     },
     {
       "directory": "bench/raw/tests",
@@ -257,7 +257,7 @@
     {
       "directory": "bench/release/tests",
       "files": 7,
-      "tests": 156
+      "tests": 162
     },
     {
       "directory": "bench/review/tests",
@@ -275,7 +275,7 @@
       "tests": 133
     }
   ],
-  "python_tests": 585,
+  "python_tests": 880,
   "rust_crates": [
     {
       "crate": "sley-adapter",
@@ -305,7 +305,7 @@
     {
       "crate": "sley-json-bridge",
       "ignored": 1,
-      "tests": 12
+      "tests": 13
     },
     {
       "crate": "sley-mutate",
@@ -320,7 +320,7 @@
     {
       "crate": "sley-protocol",
       "ignored": 4,
-      "tests": 121
+      "tests": 128
     },
     {
       "crate": "sley-query",
@@ -329,8 +329,8 @@
     },
     {
       "crate": "sley-repo",
-      "ignored": 20,
-      "tests": 486
+      "ignored": 21,
+      "tests": 508
     },
     {
       "crate": "sley-scb1",
@@ -360,7 +360,7 @@
     {
       "crate": "sley-test-runner",
       "ignored": 0,
-      "tests": 22
+      "tests": 24
     },
     {
       "crate": "sley-tests",
@@ -378,8 +378,8 @@
       "tests": 482
     }
   ],
-  "rust_ignored_emitters": 38,
-  "rust_unit_tests": 1965,
+  "rust_ignored_emitters": 39,
+  "rust_unit_tests": 1997,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

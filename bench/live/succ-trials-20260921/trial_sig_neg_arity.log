@@ -1,0 +1,10 @@
+SIG callee params ['5353535353535353535353535353535353535353535353535353535353535353', '5454545454545454545454545454545454545454545454545454545454545454']
+SIG caller_a: operands 1 params 1
+SIG caller_b: operands 1 params 1
+SIG caller_c: operands 1 params 1
+SIG witness/neg_arity: skeleton created True valid False
+SIG new params ['0109f716', 'a3195ed1', '26577dd1', '5fe4041f']
+SIG witness/neg_arity: compose valid True decision {'failed_phase': None, 'tag': 1}
+SIG witness/neg_arity: finished True
+S2B-SIG-001 witness/neg_arity judge exit: 1
+workspace kept at: /tmp/sley2-sig-witness-qknzymiz/ws

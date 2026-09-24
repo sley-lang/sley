@@ -1118,7 +1118,7 @@ class InvariantTests(unittest.TestCase):
         # reopened are recorded per claim with the refusing rule, and each is
         # closed again by an explicit binding.
         record = json.loads((register.ROOT / "evidence/review/rounds/revision-10-retirement-changes.json").read_text(encoding="utf-8"))
-        self.assertEqual(record["contract_revision"], register.CONTRACT_REVISION)
+        self.assertEqual(record["contract_revision"], 10)  # the revision-10 round's record
         reopened = record["reopened_by_revisions_8_9"]
         self.assertEqual(len(reopened), 8)
         for row in reopened:

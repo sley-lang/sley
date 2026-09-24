@@ -125,7 +125,11 @@ class AttemptLogTests(unittest.TestCase):
             "task_id": "S2B-REPAIR-001",
         }
         artifacts = {
+            "agent_transcript_sha256": None,
+            "agent_usage_sha256": None,
             "environment_snapshot_sha256": self.artifact(environment_snapshot_bytes(manifest())),
+            "evidence_completion_sha256": None,
+            "final_candidate_sha256": None,
             "final_message_sha256": self.artifact(b"complete"),
             "oracle_report_sha256": self.artifact(canonical_json_bytes(oracle) + b"\n"),
             "oracle_stderr_sha256": self.artifact(b""),

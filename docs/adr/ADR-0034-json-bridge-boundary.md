@@ -1,6 +1,6 @@
 # ADR-0034: JSON bridge as a generated, non-canonical representation
 
-Status: proposed; the S20-420 contract is a draft at revision 10 with
+Status: proposed; the S20-420 contract is a draft at revision 12 with
 Council review pending; implemented at `crates/sley-json-bridge`
 (2026-09-03) with a round-trip fixture, an independent oracle, and a
 persistent fuzz slice. Revision 8 record (2026-09-08): the version 1
@@ -14,8 +14,16 @@ are declared. Revision 10 record (2026-09-14): the hello protocol-version
 wording follows the codec's downgrade/unsupported split, the element
 ceiling is stated inclusive, and the additive versioned exports are
 declared (section 10).
+Revision 11 record (2026-09-23): composition pin move to SMP1 revision 14
+(`open_summary` for 201 under version 2 and every later selection whose
+table includes version 2's row 201); no bridge clause or encoding change.
+Revision 12 record (2026-09-23): the version 3 surface is declared
+(section 11: the version 3 table and its NATIVE appendix D authority, the
+version-selected exports, the render-only `native_tests` hello key), the
+independent oracle judges a hello's protocol version before its header
+(new rejected vector), and the SMP1 pin moves to revision 15.
 
-Date: 2026-09-03; revision 8 record 2026-09-08; revision 9 and 10 records 2026-09-14
+Date: 2026-09-03; revision 8 record 2026-09-08; revision 9 and 10 records 2026-09-14; revision 11 and 12 records 2026-09-23
 
 ## Context
 

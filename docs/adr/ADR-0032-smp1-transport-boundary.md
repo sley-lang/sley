@@ -6,9 +6,30 @@ and no new findings; implementation is S20-410. Current pin (2026-09-08):
 the contract draft is at revision 12 (static protocol version 2 successor
 metadata; version 1 rows, bytes, and helpers unchanged). The revision 11
 reviews above are retained as history and do not review revision 12; its
-new-delta review is pending.
+new-delta review passed on 2026-09-15. Current pin (2026-09-23): revision
+13 defines the version 2 `workspace.open` response `open_summary` (the
+S20-390 `revision_summary` plus the optional S20-300 snapshot identity,
+field 9) and refuses a non-empty `workspace.open` body. Current pin
+(2026-09-23, after the revision 13 round REVISE): revision 14 applies
+`open_summary` to version 2 and every later selection whose table carries
+row 201 (version 3 per NATIVE_TEST_ADMISSION appendix D) and states the
+version 1 change exactly: conforming empty-body version 1 requests keep
+their bytes, and a non-empty 201 body, previously ignored, is refused
+under every version. The revision 14 new-delta review passed on 2b0f1c9
+(2026-09-23). Current pin (2026-09-23, after that round's P3/P4 findings):
+revision 15 states the explicit negotiation's per-selection filter exactly
+(version 1 drops 306, 307, 605, 606, and 607; version 2 drops 605, 606, and
+607; version 3 without the native-tests bit drops 601, 602, 605, 606, and
+607) and counts the version 1 native-tag drop in the compatibility
+statement. The revision 15 new-delta review passed on 26d050e
+(2026-09-23). Current pin (2026-09-23, errata): revision 16 is errata-only
+over normative revision 15, a text correction with no behaviour change:
+appendix A now says the session check creates an absent maintenance
+boundary before the head load (it never fails the method, as revision 15
+said); consumers keep their revision 15 pins. The revision 16 review is
+pending.
 
-Date: 2026-09-03
+Date: 2026-09-03; current pins 2026-09-08 (revision 12) and 2026-09-23 (revisions 13 to 16)
 
 ## Context
 

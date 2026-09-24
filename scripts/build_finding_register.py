@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SUMMARY = ROOT / "machineresearch/sley-2.0/machine-summary.json"
 REGISTER = ROOT / "evidence/review/finding-register.json"
 CONTRACT = "sley2.finding-register.v1"
-CONTRACT_REVISION = 10
+CONTRACT_REVISION = 11
 # Field names that name a role, actor, session, instant, or free note rather
 # than a disposition (contract section 1). All suffix-anchored: a bare
 # substring match would silently drop a future field that merely contains
@@ -128,6 +128,12 @@ def field_core(field: str) -> frozenset[str]:
     )
 
 
+def contract_revision_round(field: str) -> int | None:
+    """The contract revision a `<lane>_..._revision_<N>` round names, or None."""
+    match = re.search(r"_revision_(\d+)$", field)
+    return int(match.group(1)) if match else None
+
+
 def field_early(field: str) -> bool:
     """Whether a field names an early review round."""
     return any(token in ROUND_EARLY or token.isdigit() for token in field.split("_"))
@@ -200,11 +206,32 @@ def supersedes(pass_field: str, fail_field: str) -> bool:
         return False
     pass_core = field_core(pass_field)
     fail_core = field_core(fail_field)
+    # Two numbered contract-revision rounds of one subject (`..._revision_9`
+    # REVISE, `..._revision_10` PASS): the later revision's PASS closes the
+    # earlier round, never the reverse. Both carry the early token
+    # `revision`, so the token rule below would leave every earlier
+    # revision round open forever and no revised package could complete.
+    # The caller still refuses a PASS dated or scoped before the round.
+    pass_round = contract_revision_round(pass_field)
+    fail_round = contract_revision_round(fail_field)
+    if pass_round is not None and fail_round is not None:
+        return pass_core == fail_core and pass_round > fail_round
     if not (pass_core <= fail_core or fail_core <= pass_core):
         return False
     if fail_core > pass_core:
         return field_early(fail_field) or field_late(pass_field)
     return field_early(fail_field) and not field_early(pass_field)
+
+
+def numbered_round_chronology(pass_field: str, fail_field: str, pass_scope: str | None, fail_scope: str | None) -> bool:
+    """A fold between two numbered contract-revision rounds needs positive
+    chronology: both notes record an `on <sha40>` scope and the PASS's is a
+    strict git descendant of the round's (fail closed — a missing or equal
+    scope, or an unresolvable commit, never folds by the number alone).
+    Every other fold keeps the existing guards unchanged."""
+    if contract_revision_round(pass_field) is None or contract_revision_round(fail_field) is None:
+        return True
+    return bool(pass_scope and fail_scope and strictly_later_scope(pass_scope, fail_scope))
 
 
 def strip_negations(text: str) -> str:
@@ -403,7 +430,10 @@ def collect(summary: dict) -> list[dict]:
                 for candidate in passes.get((item["section"], item["reviewer"]), []):
                     if supersedes(candidate, item["field"]) and not dated_before(
                         dates.get((item["section"], candidate)), item["round_date"]
-                    ) and not scoped_before(scopes.get((item["section"], candidate)), item["round_scope"]):
+                    ) and not scoped_before(scopes.get((item["section"], candidate)), item["round_scope"]) and (
+                        numbered_round_chronology(candidate, item["field"],
+                                                  scopes.get((item["section"], candidate)), item["round_scope"])
+                    ):
                         superseder = candidate
                         break
             if superseder is not None:
@@ -624,20 +654,36 @@ def _strip_carry(description: str) -> str:
     return re.sub(r"[\s\-–—,;:.()]+$", "", text).strip()
 
 
+def _finding_items(lines: list[str]) -> list[str]:
+    """The transcript's finding lines, then every later item of a multi-item
+    `FINDINGS: [Pn] …; [Pn] …` (or `| [Pn] …`) line as its own `[Pn] …` item (merge of
+    work/succession-sley20-arm: 19 tagged claims recorded from the second or
+    later item of such a line had no raising severity). Whole lines come
+    first, so an existing match is never displaced."""
+    items = list(lines)
+    for line in lines:
+        if line.startswith("FINDINGS:"):
+            parts = re.split(r"\s*[;|]\s*(?=\[P[0-4]\]\s*\[)", line[len("FINDINGS:"):].strip())
+            items.extend(part.strip() for part in parts[1:])
+    return items
+
+
 def _finding_line_match(lines: list[str], description: str) -> str | None:
     """The `[Pn]` severity of the finding line beginning with the claim's
     description: the full stored description first, the 80-character prefix
     only for older rounds that recorded truncated descriptions (Nabu P4 at
     b58ac1e0: prefix-only matching had collided two transcripts differing
     past character 80). Both sides are carry-stripped: the raising line of
-    a carried finding carries the same decorations."""
+    a carried finding carries the same decorations. Each item of a
+    multi-item `FINDINGS:` line is a finding line of its own."""
+    items = _finding_items(lines)
     full = _strip_carry(description.strip())
-    for line in lines:
+    for line in items:
         found = re.match(r"^(?:FINDINGS:\s*)?\[(P[0-4])\]\s*(.*)$", line)
         if found and _strip_carry(found.group(2).strip()).startswith(full):
             return found.group(1)
     prefix = description.strip()[:80]
-    for line in lines:
+    for line in items:
         found = re.match(r"^(?:FINDINGS:\s*)?\[(P[0-4])\]\s*(.*)$", line)
         if found and found.group(2).strip().startswith(prefix):
             return found.group(1)

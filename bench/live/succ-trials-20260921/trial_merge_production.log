@@ -1,0 +1,7 @@
+base head 5548efbb7107fa5f... objects 4
+ours head 375b435ef772dbcf... objects 5
+theirs head e36fceca229f9e49... objects 6
+branches ours/theirs forked at ancestor
+co-located 375b435ef772dbcf... +1 objects +1 tx records
+co-located e36fceca229f9e49... +1 objects +1 tx records
+merge inputs ancestor 5548efbb7107fa5f... ours 375b435ef772dbcf... theirs e36fceca229f9e49...

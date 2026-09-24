@@ -2952,6 +2952,223 @@ pub(crate) mod tests {
         expect(&mixed.stored_bytes, "EXCHANGE_WORKSPACE_MISMATCH");
     }
 
+    /// Pins every realized preflight early exit that the `REPOSITORY_EXCHANGE_V1`
+    /// revision 9 import-phase text places ahead of a later-numbered step,
+    /// one pair of simultaneous defects per row (Ariadne
+    /// `corrupt_surface_decision` revision 3, P2/P3): the returned code is the
+    /// first failing check in the spec's stated precedence, never the later one.
+    #[test]
+    #[allow(clippy::too_many_lines)]
+    fn preflight_precedence_early_exits_match_the_import_phase_text() {
+        let source = Source::new("precedence");
+        let exchange = source.export();
+        let verify = verifier(source.epoch);
+        let never = source.target("never");
+        let expect = |bytes: &[u8], code: &str| {
+            let error = import_repository_exchange(&never, bytes, &verify).unwrap_err();
+            assert_eq!(error.code(), code);
+            assert!(!never.exists(), "{code} wrote into the target");
+        };
+        assert!(!exchange.branches.is_empty(), "source exports a branch");
+
+        // Control: a nested exchange as the embedded pack is step 3.1.
+        let nested = build_exchange(
+            exchange.pack_id,
+            exchange.stored_bytes.clone(),
+            exchange.receipts.clone(),
+            exchange.accepted_head,
+            exchange.branches.clone(),
+        )
+        .unwrap();
+        expect(&nested.stored_bytes, "EXCHANGE_PACK_INVALID");
+
+        // Step 2: an empty receipt set is EXCHANGE_ANCESTRY_OPEN in the decode
+        // pass, ahead of step 3.1's EXCHANGE_PACK_INVALID.
+        let empty_receipts = rebuild_with_field(&nested, 3, &encode_list(&[]).unwrap());
+        expect(&empty_receipts, "EXCHANGE_ANCESTRY_OPEN");
+
+        // Step 2: a tree-record profile failure (algorithm tag) is
+        // EXCHANGE_DIGEST_TREE_MISMATCH in the decode pass, ahead of 3.1.
+        let tree = field_bytes(&nested, 7);
+        let mut tree_record = RecordReader::new(&tree).unwrap();
+        let _algorithm = tree_record.required(1).unwrap();
+        let count = tree_record.required(2).unwrap().to_vec();
+        let leaves = tree_record.required(3).unwrap().to_vec();
+        let root = tree_record.required(4).unwrap().to_vec();
+        let wrong_algorithm =
+            encode_record(&[(1, encode_uvar(2)), (2, count), (3, leaves), (4, root)]).unwrap();
+        expect(
+            &rebuild_with_field(&nested, 7, &wrong_algorithm),
+            "EXCHANGE_DIGEST_TREE_MISMATCH",
+        );
+
+        // Step 3.3: an ungrammatical branch name is EXCHANGE_BRANCH_INVALID
+        // while recomputing the section-3 leaf, ahead of step 4's head check.
+        let foreign_head = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            exchange.receipts.clone(),
+            ExchangeHeadEntry {
+                transaction_id: fixed(9, TransactionId::from_bytes),
+                receipt_id: exchange.accepted_head.receipt_id,
+            },
+            exchange.branches.clone(),
+        )
+        .unwrap();
+        expect(&foreign_head.stored_bytes, "EXCHANGE_HEAD_INVALID");
+        // Every exported branch is kept (the leaf count stays right); the first
+        // loses its name, which sorts it first in canonical element order.
+        let unnamed = encode_list(
+            &exchange
+                .branches
+                .iter()
+                .enumerate()
+                .map(|(index, branch)| {
+                    let name = if index == 0 {
+                        Vec::new()
+                    } else {
+                        branch.branch_name.clone()
+                    };
+                    encode_record(&[
+                        (1, name),
+                        (2, branch.stored_origin.clone()),
+                        (3, branch.stored_ref.clone()),
+                    ])
+                    .unwrap()
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        expect(
+            &rebuild_with_field(&foreign_head, 5, &unnamed),
+            "EXCHANGE_BRANCH_INVALID",
+        );
+
+        // Step 4: closure rule 1 precedes rule 5 (declared head identity).
+        let head_entry = exchange
+            .receipts
+            .iter()
+            .find(|entry| entry.transaction_id == source.head)
+            .cloned()
+            .unwrap();
+        let open_and_foreign_head = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            vec![head_entry],
+            ExchangeHeadEntry {
+                transaction_id: fixed(9, TransactionId::from_bytes),
+                receipt_id: exchange.accepted_head.receipt_id,
+            },
+            Vec::new(),
+        )
+        .unwrap();
+        expect(
+            &open_and_foreign_head.stored_bytes,
+            "EXCHANGE_ANCESTRY_OPEN",
+        );
+
+        // Step 4: closure rule 5 precedes rule 3.
+        let genesis_revision = TransactionRepository::new(&source.root)
+            .verified_revision(source.genesis)
+            .unwrap();
+        let narrow_pack = crate::export_conformance_pack(
+            &ObjectStore::new(&source.root),
+            core::slice::from_ref(genesis_revision.state_root()),
+            &verify,
+        )
+        .unwrap();
+        let narrow = |head: ExchangeHeadEntry| {
+            build_exchange(
+                narrow_pack.pack_id,
+                narrow_pack.stored_bytes.clone(),
+                exchange.receipts.clone(),
+                head,
+                Vec::new(),
+            )
+            .unwrap()
+            .stored_bytes
+        };
+        expect(&narrow(exchange.accepted_head), "EXCHANGE_ROOT_CLOSURE");
+        expect(
+            &narrow(ExchangeHeadEntry {
+                transaction_id: fixed(9, TransactionId::from_bytes),
+                receipt_id: exchange.accepted_head.receipt_id,
+            }),
+            "EXCHANGE_HEAD_INVALID",
+        );
+
+        // Step 5: rule 6 for origin and ref records is proved per branch in
+        // step 5, so an earlier branch's EXCHANGE_BRANCH_INVALID wins over a
+        // later branch's foreign WorkspaceId.
+        let head_revision = TransactionRepository::new(&source.root)
+            .verified_revision(source.head)
+            .unwrap();
+        let branch_pair = |name: &str, workspace: WorkspaceId, bind: bool| {
+            let name = BranchName::parse(name).unwrap();
+            let record = crate::refs::BranchRecord {
+                format_version: 1,
+                branch_name: name.clone(),
+                workspace_id: workspace,
+                origin_transaction_id: source.head,
+                origin_state_root: head_revision.state_root().root,
+                schema_epoch_id: head_revision.state_root().record.schema_epoch_id,
+                policy_root_id: head_revision.policy_root().root(),
+                dependency_roots: head_revision.state_root().record.dependency_roots.clone(),
+            };
+            let origin = crate::refs::build_branch_record(&record).unwrap();
+            let reference = crate::refs::build_branch_ref(&crate::refs::BranchRefRecord {
+                format_version: 1,
+                branch_name: name.clone(),
+                branch_record_digest: if bind {
+                    origin.digest
+                } else {
+                    crate::refs::BranchRecordDigest::from_bytes([7; 32])
+                },
+                workspace_id: workspace,
+                head_transaction_id: source.head,
+                head_state_root: head_revision.state_root().root,
+                schema_epoch_id: head_revision.state_root().record.schema_epoch_id,
+                policy_root_id: head_revision.policy_root().root(),
+                dependency_roots: head_revision.state_root().record.dependency_roots.clone(),
+            })
+            .unwrap();
+            ExchangeBranchEntry {
+                branch_name: name.as_bytes().to_vec(),
+                stored_origin: origin.stored_bytes,
+                stored_ref: reference.stored_bytes,
+            }
+        };
+        let home = head_revision.state_root().record.workspace_id;
+        let foreign = fixed(0xee, WorkspaceId::from_bytes);
+        assert_ne!(home, foreign);
+        let with_branches = |branches: Vec<ExchangeBranchEntry>| {
+            build_exchange(
+                exchange.pack_id,
+                exchange.object_pack.clone(),
+                exchange.receipts.clone(),
+                exchange.accepted_head,
+                branches,
+            )
+            .unwrap()
+            .stored_bytes
+        };
+        expect(
+            &with_branches(vec![branch_pair("bb", foreign, true)]),
+            "EXCHANGE_WORKSPACE_MISMATCH",
+        );
+        expect(
+            &with_branches(vec![branch_pair("aa", home, false)]),
+            "EXCHANGE_BRANCH_INVALID",
+        );
+        expect(
+            &with_branches(vec![
+                branch_pair("aa", home, false),
+                branch_pair("bb", foreign, true),
+            ]),
+            "EXCHANGE_BRANCH_INVALID",
+        );
+    }
+
     #[test]
     fn owned_re_classification_aborts_a_target_changed_after_the_advisory_pass() {
         let source = Source::new("owned-reclassify");

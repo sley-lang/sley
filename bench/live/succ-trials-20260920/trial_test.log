@@ -1,0 +1,6 @@
+TEST propose: {"body": "534c45594352533101b7030d01010102201b1f6b015ab637436a42609cf15b1e8e38bddc2be5363354f91622a308b2837a0302000004207d8ffff97a3fdafc49b4329d47b0b12f04759c3124274024016483a263265d540520706c902996e6ba43d99512b9703297716636596c7043edd569039f184e660b9a0601020782020e3004010101020102032201203d0be81227f57c1e063ec75efec0f7dffcf5ebbd26d0e260fddf7d4c5f27402204030101020f0401010202010303020000040200000f04
+TEST finish: {"command": ["finish"], "outcome": "completed", "report": {"finished": true, "sha256": "a5356567d1adad032181ac4c59eaa5ddf828fb6b99c1eee198edb5faed94b289"}, "return_code": 0, "stderr_bytes": "", "stder
+S2B-TEST-001 exit: 0
+{"arm": "sley2", "code": null, "detail": "all flows held", "status": "accepted", "task_id": "S2B-TEST-001"}
+
+workspace kept at: /tmp/tmpmr3394re

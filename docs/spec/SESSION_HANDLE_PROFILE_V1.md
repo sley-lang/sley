@@ -1,25 +1,37 @@
 # Negotiated Session and Handle Profile v1
 
-Status: S20-330 contract draft, revision 4 (2026-09-08); implemented under
+Status: S20-330 contract draft, revision 6 (2026-09-23); implemented under
 this draft with Council re-reviews pending (Nabu architecture review,
 Ariadne contract review, Vulcan surface review), so the contract is not
 frozen and the package is not complete. Revision 2 closed the six P0s and
 the freeze-blocking P1s of the 2026-09-04 review round; revision 3 answers
 every remaining P1, P2, and P3 item of that round (section 9); revision 4
 adds the protocol version 2 classification extension (the two S20-310
-entity-read methods, head-bound only in version 2) without changing the
-version 1 partition, handle bytes, or capsule format. The revision 3
-reviews are retained as history and do not review revision 4; its
-new-delta review is pending. Capable bridge/CLI runtime is phase 3.
+entity-read methods, head-bound in version 2) without changing the
+version 1 partition, handle bytes, or capsule format; revision 5
+(2026-09-23) re-pinned SMP1 revision 14, which defines the
+`workspace.open` (201) response under version 2 and under every later
+selection whose method table includes version 2's row 201 as
+`open_summary` (optional field 9) and refuses a non-empty 201 body under
+every version; 201 stays head-bound. Revision 6 (2026-09-23, section 9)
+answers the revision 5 round (REVISE x3 on 2b0f1c9): the version 2
+extension is stated for every version-aware selection that carries 306
+and 307 (version 2 and version 3), as the server has applied it since
+version 3 landed; the reserved-tag precedence names where 605 to 607 are
+refused; `workspace.open` answers from the head its check 5 loaded; and
+SMP1 is re-pinned to revision 15. The revision 4 reviews are retained as
+history; the revision 6 new-delta review is pending. Capable bridge/CLI
+runtime is phase 3.
 Implementation state is tracked in the machine summary.
 
 This profile defines the negotiated session authority that SMP1 (S20-400,
-revision 12) and the master context capsule (S20-320 full, revision 3)
-reserved: what a session binds, how it is issued and renewed, how every
+revision 15) and the master context capsule (S20-320 full,
+`CONTEXT_CAPSULE_PROFILE_V1.md` revision 4; the session arm is unchanged
+since its revision 3) reserved: what a session binds, how it is issued and renewed, how every
 request is checked against its binding, what a session-local handle is,
 and the `SESSION_*` codes. It composes, and never alters:
 
-- `docs/spec/SMP1.md` at revision 12: the handshake, `session.open`
+- `docs/spec/SMP1.md` at revision 15: the handshake, `session.open`
   (100), `session.renew` (101), `session.close` (102), the request-identity
   rules, and the reserved `handle.expand` (304) method whose bodies this
   profile freezes;
@@ -119,7 +131,11 @@ explicit `session.renew` per commit.
 
 `session.close` (102) ends the session. It is checked like every other
 method (existence, workspace, epoch); every later frame naming a
-remembered close is `PROTOCOL_SESSION_CLOSED` (section 8).
+remembered close is `PROTOCOL_SESSION_CLOSED` (section 8). Its request
+body is empty; the server ignores a non-empty body here, the recorded
+pre-existing deviation from SMP1 section 4 that SMP1 appendix A notes for
+the empty-request rows other than 201 (revision 6 records it; it does not
+change it).
 
 The two methods that create a head travel without a session only while
 no accepted head exists: on a headless repository `workspace.create`
@@ -147,7 +163,10 @@ these checks in this order; the first failure answers:
    (`SESSION_EPOCH_MISMATCH`);
 5. for head-bound methods only, the accepted head root equals the
    session's `bound_root` (`SESSION_ROOT_ADVANCED`); the caller renews
-   and retries;
+   and retries. The entity reads and `workspace.open` are answered from
+   the very head load that check 5 compared, so a head advanced between
+   the check and the answer is never served to a session bound to the
+   older root;
 6. the session's work budget is not exhausted
    (`PROTOCOL_LIMIT_EXCEEDED`, S20-440).
 
@@ -199,21 +218,32 @@ outside the head-bound set passes checks 1 through 4 and check 6 and
 skips check 5. A mutating method leaves the session bound to the previous root
 until an explicit renewal, which is the explicit signal that earlier
 handles and capsules describe an older root. The seven reserved tags
-(305, 503, 601, 602, 605, 606, 607) pass checks 1 through 4 and check 6
-and are then refused with
+(305, 503, 601, 602, 605, 606, 607) are refused with
 `PROTOCOL_METHOD_UNSUPPORTED` (SMP1 section 4) outside version 3 with the
-native-tests bit; under the native contract
+native-tests bit, at one of two points. A tag in the selection's method
+table (305, 503, 601, and 602 under every version; 605, 606, and 607 only
+under version 3) passes checks 1 through 4 and check 6 and is then
+refused. Below version 3, 605, 606, and 607 are not in the table at all:
+the frame's method decode refuses them before check 1, so even an unknown
+session answers `PROTOCOL_METHOD_UNSUPPORTED` for them, never
+`SESSION_UNKNOWN`. Under the native contract
 (`NATIVE_TEST_ADMISSION_V1.md` appendix D) 601, 602, 605, 606, and 607 go
-live at version 3 and answer through their owner records instead. A
-reserved tag joins a list above only when its owner claims it.
+live at version 3 with the native-tests bit and answer through their owner
+records instead. A reserved tag joins a list above only when its owner
+claims it.
 
-Protocol version 2 extension (S20-310 entity reads, revision 4):
-`entity.version` (306) and `entity.signature` (307) are head-bound only
-in protocol version 2. The version 1 partition above is complete and
-unchanged; the version 2 partition is that partition with exactly these
-two tags added to the head-bound list and no other list changed. Both
-methods are checked for the bound root under item 5 on version-2
-sessions; on version-1 sessions they are refused with
+Protocol version 2 extension (S20-310 entity reads, revision 4; version 3
+scope, revision 6): `entity.version` (306) and `entity.signature` (307)
+are head-bound under every version-aware selection whose method table
+carries them: version 2, and version 3 (the union of the version 1 and
+version 2 tables, `NATIVE_TEST_ADMISSION_V1.md` appendix D). The version 1
+partition above is complete and unchanged; the version 2 partition is
+that partition with exactly these two tags added to the head-bound list
+and no other list changed; the version 3 partition is the version 2
+partition plus the three native rows 605, 606, and 607, which the native
+contract owns and which skip check 5 like 601 and 602. Both entity
+methods are checked for the bound root under item 5 on version 2 and
+version 3 sessions; on version 1 sessions they are refused with
 `PROTOCOL_METHOD_UNSUPPORTED` before the check runs (SMP1 section 2 and
 `docs/spec/ENTITY_READ_PROFILE_V2.md` section 4).
 
@@ -258,8 +288,9 @@ cursors belong in `query.continue`'s `after`.
 ## 5. Capsule binding
 
 The master context capsule built under a session carries
-`SessionBinding = Negotiated(2) || SessionId[32]` (S20-320 full, revision
-3). The capsule's provenance must equal the session's binding: the
+`SessionBinding = Negotiated(2) || SessionId[32]` (S20-320 full,
+`CONTEXT_CAPSULE_PROFILE_V1.md` revision 4; the arm is unchanged since its
+revision 3). The capsule's provenance must equal the session's binding: the
 authority fails `CONTEXT_CAPSULE_SOURCE_INVALID` when the response's
 workspace, root, or epoch differs from the session's. The arm names the
 session, not the root: a verifier reads the root from the capsule's own
@@ -390,3 +421,25 @@ capped at close.
   arm, and code rows are unchanged. The SMP1 pin follows SMP1 to
   revision 12; the capsule pin stays at revision 3 because its format is
   unchanged.
+- Unrevisioned edits between revisions 4 and 5, recorded here: the
+  capsule pin moved to revision 4 on 2026-09-14 (bf5b7e78; format
+  unchanged); the reserved-tag sentence gained 605, 606, and 607 and the
+  version 3 native rows on 2026-09-16 (e0ff1371); and on 2026-09-23
+  (a8b4cddb) the SMP1 pin moved to revision 13 without a profile
+  revision, which was withdrawn under the SMP1 revision 13 Ariadne ruling
+  that consumer re-pins take their own revision.
+- Revision 5 (2026-09-23): re-pins SMP1 revision 14 (`open_summary` for
+  201 under version 2 and every later selection whose method table
+  includes version 2's row 201; a non-empty 201 body refused under every
+  version); 201 stays head-bound. The new-delta review on 2b0f1c9
+  returned REVISE x3 (the version 2 extension did not state its version 3
+  scope).
+- Revision 6 (2026-09-23): the version 2 extension is stated for version
+  2 and version 3, matching the server's version-aware helper; the
+  reserved-tag precedence says 605 to 607 are refused at decode below
+  version 3; the entity reads and `workspace.open` are answered from the
+  head check 5 compared (single head load, with a test);
+  `session.close` records its body deviation; the capsule revision is
+  named consistently; SMP1 is re-pinned to revision 15.
+  `scripts/check_session_handle_profile.py` reads the version 3 method
+  table and the server's version gate and anchors this history.

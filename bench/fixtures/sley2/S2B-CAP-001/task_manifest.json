@@ -1,0 +1,23 @@
+{
+  "contract": "sley2.live-task-base.v1",
+  "entities": {
+    "func": "7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d",
+    "namespace": "7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c7c",
+    "requirement": "8282828282828282828282828282828282828282828282828282828282828282"
+  },
+  "judge": {
+    "flow": "excluded-e7"
+  },
+  "pack_digest_blake3": "bb58f9296e7fe2b5855027ce1177ded1d5e399e3efb301ecce8e803d21ebce83",
+  "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
+  "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
+  "strict": {
+    "source": "corpus"
+  },
+  "targets": [
+    "8282828282828282828282828282828282828282828282828282828282828282"
+  ],
+  "task_id": "S2B-CAP-001",
+  "variant": "wildcard_scope",
+  "workspace": "0707070707070707070707070707070707070707070707070707070707070707"
+}

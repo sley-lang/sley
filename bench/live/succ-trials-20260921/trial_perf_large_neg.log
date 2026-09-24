@@ -1,0 +1,5 @@
+PERF witness/neg: skeleton valid False
+PERF witness/neg: compose valid True decision {'failed_phase': None, 'tag': 1}
+PERF witness/neg: finished True
+S2B-PERF-001 witness/neg judge exit: 1
+workspace kept at: /tmp/sley2-perf-witness-y252_kfz/ws

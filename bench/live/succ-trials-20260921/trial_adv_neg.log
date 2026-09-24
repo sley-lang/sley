@@ -1,0 +1,5 @@
+ADV witness/neg: opcode 98 kind 8
+ADV witness/neg: created True valid True decision {'failed_phase': None, 'tag': 1}
+ADV witness/neg: finished True
+S2B-ADVERSARY-001 witness/neg judge exit: 1
+workspace kept at: /tmp/sley2-adv-witness-qfqrxzc7/ws

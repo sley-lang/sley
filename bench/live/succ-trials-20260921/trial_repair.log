@@ -1,0 +1,5 @@
+REPAIR witness/pos: opcode 98 kind 8
+REPAIR witness/pos: created True valid True decision {'failed_phase': None, 'tag': 1}
+REPAIR witness/pos: finished True
+S2B-REPAIR-001 witness/pos judge exit: 0
+workspace kept at: /tmp/sley2-repair-witness-31nekr7m/ws

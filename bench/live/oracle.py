@@ -81,11 +81,16 @@ def run_fixture_oracle(
 ) -> tuple[dict[str, Any], bytes, bytes]:
     """Run one frozen oracle against the exact disposable candidate directory."""
 
-    if arm_id not in ARM_NAMES or arm_id == "sley_2_0":
+    if arm_id not in ARM_NAMES:
         _fail("fixture process arm")
     if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int) or not 1 <= timeout_seconds <= 300:
         _fail("timeout")
-    oracle = FIXTURES / ARM_NAMES[arm_id] / task_id / "oracle.py"
+    if arm_id == "sley_2_0":
+        # Live-trial judging lives beside (never inside) the frozen S3
+        # conformance oracles: per-task entry, shared judge module.
+        oracle = FIXTURES / ARM_NAMES[arm_id] / task_id / "live_oracle.py"
+    else:
+        oracle = FIXTURES / ARM_NAMES[arm_id] / task_id / "oracle.py"
     candidate = Path(candidate)
     try:
         oracle = oracle.resolve(strict=True)
@@ -102,6 +107,18 @@ def run_fixture_oracle(
         "SLEY2_LIVE_ORACLE_CANDIDATE": str(candidate),
         "TZ": "UTC",
     }
+    if arm_id == "sley_2_0" and os.environ.get("SLEY2_SLEY_BINARY"):
+        # The live judge drives scratch serve sessions with the bound
+        # binary; raw and legacy oracles never see this variable.
+        environment["SLEY2_SLEY_BINARY"] = os.environ["SLEY2_SLEY_BINARY"]
+    if arm_id == "sley_2_0" and os.environ.get("SUCC_JUDGE_TEST_BINARY"):
+        # Frozen Rust case-driver binary for value-level strict cases.
+        environment["SUCC_JUDGE_TEST_BINARY"] = os.environ["SUCC_JUDGE_TEST_BINARY"]
+    if arm_id == "sley_2_0" and os.environ.get("SLEY2_MEDIATED_CAPTURE_DIR"):
+        # Runner-controlled reconciled capture for this attempt: the
+        # judge derives mediated access/budget evidence from it.
+        environment["SLEY2_MEDIATED_CAPTURE_DIR"] = os.environ[
+            "SLEY2_MEDIATED_CAPTURE_DIR"]
     try:
         process = subprocess.Popen(
             [sys.executable, str(oracle), str(candidate)],

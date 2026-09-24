@@ -1,0 +1,8 @@
+TEST repaired positive (2026-09-20 repair pass, new judge): three-phase compose with submitted boundaries
+propose [success 7/2->Ok3] valid True
+compose [success, div0 Err2, overflow Err1] valid True
+finish sha256 e462af1fea98a16557e5711a2c2f83af022cce891214dfb808d420135cbae8dc
+S2B-TEST-001 exit: 0
+{"arm":"sley2","code":null,"detail":"all flows held","status":"accepted","task_id":"S2B-TEST-001"}
+workspace kept at: /tmp/sley2-test-repaired-wsaclckn/ws
+judge: repaired _judge_test_entity (submitted TestCase entities, driver-verified boundaries)

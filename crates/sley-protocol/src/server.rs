@@ -39,11 +39,12 @@ use sley_repo::{
     IndexCacheError, MAX_ANCESTRY_NODES, MergeCommitInput, MergeOutcome, MergeSide,
     NativeExchangeTrust, NativeReplayRequest, NativeReplayStatus, ReportStoreErrorCode,
     RepositoryObjectVerifier, RepositoryQueryError, RetentionAnchor, RetentionKind,
-    RetentionSnapshot, RetentionTarget, acquire_exclusive_gc, build_merge_plan, commit_merge,
-    compare_complete_roots, encode_verified_entity_read_response, export_repository_exchange,
-    gc_collect, gc_dry_run, import_repository_exchange, judge_merge_verified,
-    prepare_verified_entity_read, read_execution_report, replay_native_commit, run_root_query,
-    run_root_query_fresh, store_execution_report, transaction_ancestry,
+    RetentionSnapshot, RetentionTarget, acquire_exclusive_gc, build_merge_plan,
+    cached_complete_root_snapshot_id, commit_merge, compare_complete_roots,
+    encode_verified_entity_read_response, export_repository_exchange, gc_collect, gc_dry_run,
+    import_repository_exchange, judge_merge_verified, prepare_verified_entity_read,
+    read_execution_report, replay_native_commit, run_root_query, run_root_query_fresh,
+    store_execution_report, transaction_ancestry,
 };
 use sley_scb1::{
     encode_bytes, encode_list, encode_option_uvar, encode_record, encode_union, encode_uvar,
@@ -60,8 +61,8 @@ use sley_txn::{
     AttemptStatus, CommitInput, ImportedReceipt, NativeAcceptanceSigner, NativeAttemptId,
     NativeCommitInput, NativeDiagnosticAssembly, NativeTestExecutor, NativeVerifiedRevision,
     RepositoryMaintenanceGuard, TransactionRepository, TrustedGenesisInput, VerifiedRevision,
-    acquire_shared_repository_maintenance, assemble_diagnostic_report,
-    initialize_repository_maintenance,
+    acquire_shared_repository_maintenance, acquire_shared_repository_maintenance_nonblocking,
+    assemble_diagnostic_report, initialize_repository_maintenance,
 };
 use sley_vm::native_execution::{
     NativeImplementationLimits, profile_id as native_execution_profile,
@@ -1175,7 +1176,18 @@ impl Server {
         if self.version_aware && matches!(method, Method::EntityVersion | Method::EntitySignature) {
             return self.dispatch_entity_read(session, method, frame);
         }
-        let outcome = match self.session_check(session, method) {
+        // `workspace.open` answers from the very head its session check
+        // loaded (one head load, like the entity reads above), so a head
+        // advanced between the check and the answer can never be served to
+        // a session bound to the older root.
+        let mut retained = None;
+        let checked = if method == Method::WorkspaceOpen {
+            self.session_check_mixed_retained(session, method)
+                .map(|head| retained = Some(head))
+        } else {
+            self.session_check(session, method)
+        };
+        let outcome = match checked {
             Ok(()) => {
                 if self.budgets.get(&session).copied().unwrap_or(0) == 0 {
                     self.registry
@@ -1190,7 +1202,7 @@ impl Server {
                 if let Some(remaining) = self.budgets.get_mut(&session) {
                     *remaining = remaining.saturating_sub(1);
                 }
-                self.dispatch_admitted(session, method, frame)
+                self.dispatch_admitted(session, method, frame, retained)
             }
             Err(failure) => Err(failure),
         };
@@ -1216,6 +1228,7 @@ impl Server {
         session: SessionId,
         method: Method,
         frame: &ProtocolFrame,
+        retained: Option<HeadRevision>,
     ) -> Result<(Vec<u8>, BoundedContext)> {
         if method.is_native_test() && self.native_tests_live() && self.profile.admits(method) {
             return self.tests_native(session, method, &frame.body);
@@ -1279,7 +1292,7 @@ impl Server {
                 self.plain(Vec::new())
             }
             Method::WorkspaceCreate => self.workspace_create(body),
-            Method::WorkspaceOpen => self.workspace_open(),
+            Method::WorkspaceOpen => self.workspace_open(body, retained),
             Method::MergeCommit => self.merge_commit(body),
             Method::ExchangeImport => self.exchange_import(body),
             Method::CandidateCreate => self.candidate_create(body),
@@ -2392,6 +2405,20 @@ impl Server {
         }
     }
 
+    /// The session check for `workspace.open`, retaining the head it
+    /// loaded so the answer is built from that same revision.
+    fn session_check_mixed_retained(
+        &self,
+        session: SessionId,
+        method: Method,
+    ) -> Result<HeadRevision> {
+        let (head, binding) = self.head_binding_mixed()?;
+        self.authority
+            .check_session(session, &binding, Self::head_bound(method))
+            .map_err(session_failure)?;
+        Ok(head)
+    }
+
     fn session_check(&self, session: SessionId, method: Method) -> Result<()> {
         let (_, binding) = self.head_binding_mixed()?;
         self.authority
@@ -2886,10 +2913,63 @@ impl Server {
         )
     }
 
-    fn workspace_open(&self) -> Result<(Vec<u8>, BoundedContext)> {
-        let head = self.head()?;
-        let summary = revision_summary(&head)?;
+    /// The head-pinned opener (SMP1 revision 15, appendix A row 201): an
+    /// empty request answered with the accepted head's summary. Under a
+    /// version 1 selection the body is exactly `revision_summary`. Under a
+    /// version 2 selection, and under every later selection whose table
+    /// includes version 2's row 201 (version 3, `NATIVE_TEST_ADMISSION_V1`
+    /// appendix D), it is `open_summary`: the same eight
+    /// fields plus field 9, the accepted head's complete-root index snapshot
+    /// identity, present only when the S20-300 read-only probe finds an
+    /// accepted cache record for that root. The probe never builds or writes
+    /// the cache; any probe condition (no record, a discarded record, a
+    /// contended maintenance boundary) is structural absence of field 9,
+    /// never an `omitted` or `truncated` signal, and the response
+    /// counts one entity either way. `revision.read` keeps the eight-field
+    /// encoding byte for byte. The answer is built from the head the
+    /// session check retained; a native-format head still fails through
+    /// the version 1 loader exactly as before. An absent maintenance
+    /// boundary never reaches the probe: the session check that precedes
+    /// it loads the head through `maintenance()`, which creates the
+    /// boundary when it is absent (`initialize_repository_maintenance`)
+    /// and then takes it shared, blocking, so the probe always finds it.
+    fn workspace_open(
+        &self,
+        body: &[u8],
+        retained: Option<HeadRevision>,
+    ) -> Result<(Vec<u8>, BoundedContext)> {
+        if !body.is_empty() {
+            return protocol_failure(ProtocolErrorCode::PayloadInvalid);
+        }
+        let head = match retained {
+            Some(HeadRevision::V1(revision)) => *revision,
+            _ => self.head()?,
+        };
+        let snapshot = if self.profile.protocol_version >= PROTOCOL_VERSION_V2 {
+            self.materialized_head_snapshot(&head)
+        } else {
+            None
+        };
+        let summary = head_open_summary(&head, snapshot)?;
         self.counted(summary, 1)
+    }
+
+    /// The accepted head's cached snapshot identity (S20-300 revision 6
+    /// probe reader). The probe adds no wait and no write: the maintenance
+    /// boundary is taken shared without waiting and never initialized here,
+    /// so a contended boundary, or any probe failure, is absence. Its one
+    /// production caller is `workspace_open`; the S20-300 stage checker
+    /// gates that. (Loading the accepted head itself already takes the shared
+    /// maintenance lock, blocking, as every head-bound read does; that is
+    /// S20-390 behavior this probe does not change.)
+    pub(crate) fn materialized_head_snapshot(
+        &self,
+        head: &VerifiedRevision,
+    ) -> Option<sley_id::IndexSnapshotId> {
+        let guard = acquire_shared_repository_maintenance_nonblocking(&self.repository).ok()?;
+        cached_complete_root_snapshot_id(&self.repository, head, &guard)
+            .ok()
+            .flatten()
     }
 
     fn candidate_create(&self, body: &[u8]) -> Result<(Vec<u8>, BoundedContext)> {
@@ -3242,8 +3322,27 @@ fn branch_summary(branch: &sley_repo::ResolvedBranch) -> Result<Vec<u8>> {
 }
 
 fn revision_summary(revision: &VerifiedRevision) -> Result<Vec<u8>> {
+    scb(encode_record(&revision_summary_fields(revision)?))
+}
+
+/// `workspace.open` only (SMP1 revision 15 `open_summary`): the head
+/// summary plus field 9 when the caller passes the head's materialized
+/// snapshot. Kept apart from `revision_summary`, which has no knowledge of
+/// headness and serves arbitrary caller-named revisions.
+fn head_open_summary(
+    head: &VerifiedRevision,
+    snapshot: Option<sley_id::IndexSnapshotId>,
+) -> Result<Vec<u8>> {
+    let mut fields = revision_summary_fields(head)?;
+    if let Some(snapshot) = snapshot {
+        fields.push((9, snapshot.as_bytes().to_vec()));
+    }
+    scb(encode_record(&fields))
+}
+
+fn revision_summary_fields(revision: &VerifiedRevision) -> Result<Vec<(u32, Vec<u8>)>> {
     let record = &revision.state_root().record;
-    scb(encode_record(&[
+    Ok(vec![
         (1, revision.transaction_id().as_bytes().to_vec()),
         (2, revision.state_root().root.as_bytes().to_vec()),
         (3, revision.policy_root().root().as_bytes().to_vec()),
@@ -3255,7 +3354,7 @@ fn revision_summary(revision: &VerifiedRevision) -> Result<Vec<u8>> {
             encode_uvar(to_u64(revision.tombstoned_entities().len())?),
         ),
         (8, revision.receipt().receipt_id.as_bytes().to_vec()),
-    ]))
+    ])
 }
 
 fn encode_limits(limits: &LimitProfile) -> Result<Vec<u8>> {

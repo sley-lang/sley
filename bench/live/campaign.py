@@ -40,6 +40,83 @@ class CampaignError(ValueError):
     """A live attempt could not be staged or durably recorded."""
 
 
+EVIDENCE_COMPLETION_CONTRACT = "sley2.live-evidence-completion.v1"
+# Agent-boundary evidence files live inside the ephemeral trial
+# workspace (the agent's read/write authority covers them). The runner
+# retains independent copies in the content-addressed store before any
+# oracle verdict is acted on; an unreadable or missing sink stops the
+# attempt as harness_failure without releasing unrecorded success.
+EVIDENCE_FILES = (
+    ("agent_transcript_sha256", ".sley-live-transcript.jsonl", True),
+    ("final_candidate_sha256", "final_candidate.hex", False),
+    ("agent_usage_sha256", ".sley-live-usage", False),
+)
+
+
+def _read_evidence_file(workspace: Path, name: str) -> bytes | None:
+    path = workspace / name
+    try:
+        if path.is_symlink() or not path.is_file():
+            return None
+        data = path.read_bytes()
+    except OSError as error:
+        raise CampaignError(f"LIVE_EVIDENCE_SINK_INVALID: {name}: {error}") from error
+    if not data:
+        raise CampaignError(f"LIVE_EVIDENCE_SINK_INVALID: {name}: empty")
+    return data
+
+
+def _collect_trial_evidence(workspace: Path, *,
+                            require_transcript: bool = False) -> dict[str, bytes | None]:
+    """Runner-owned copies of agent-boundary evidence (bytes, not
+    interpretations). Transcript present but usage missing/malformed is
+    an evidence failure, never a silent zero: usage is derived across
+    all sessions and phases from complete evidence only. Arms whose
+    trial surface writes a transcript require it; other arms treat all
+    three files as optional."""
+
+    payloads: dict[str, bytes | None] = {}
+    for slot, name, _ in EVIDENCE_FILES:
+        payloads[slot] = _read_evidence_file(workspace, name)
+    transcript = payloads["agent_transcript_sha256"]
+    if transcript is None and require_transcript:
+        raise CampaignError("LIVE_EVIDENCE_SINK_INVALID: transcript absent")
+    usage = payloads["agent_usage_sha256"]
+    if transcript is not None:
+        if usage is None:
+            raise CampaignError("LIVE_EVIDENCE_SINK_INVALID: usage absent with transcript")
+        try:
+            ledger = json.loads(usage)
+        except (UnicodeError, json.JSONDecodeError) as error:
+            raise CampaignError(f"LIVE_EVIDENCE_SINK_INVALID: usage malformed: {error}") from error
+        if not isinstance(ledger, dict) or not isinstance(ledger.get("totals"), dict):
+            raise CampaignError("LIVE_EVIDENCE_SINK_INVALID: usage ledger shape")
+    return payloads
+
+
+def _completion_payload(*, attempt_id: str,
+                        evidence: Mapping[str, bytes | None],
+                        digests: Mapping[str, str | None],
+                        provider_events: bytes) -> bytes:
+    """Independently controlled completion binding: names the attempt
+    and the exact stored bytes (transcript, final, usage, provider
+    events) the verdict rests on. Verified later by reconciliation
+    against the record's artifact digests."""
+
+    import hashlib
+
+    binding = {
+        "agent_transcript_sha256": digests.get("agent_transcript_sha256"),
+        "agent_usage_sha256": digests.get("agent_usage_sha256"),
+        "attempt_id": attempt_id,
+        "contract": EVIDENCE_COMPLETION_CONTRACT,
+        "final_candidate_sha256": digests.get("final_candidate_sha256"),
+        "provider_events_sha256": hashlib.sha256(provider_events).hexdigest(),
+    }
+    _ = evidence
+    return canonical_json_bytes(binding) + b"\n"
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -107,9 +184,35 @@ def execute_attempt(
     provider_runner: Callable[..., ProcessCapture] = run_provider_process,
     oracle_runner: Callable[..., tuple[dict[str, Any], bytes, bytes]] = run_fixture_oracle,
     utc_now: Callable[[], str] = _utc_now,
+    mediated_share_net: bool = False,
 ) -> dict[str, Any]:
     """Execute and append one slot; completed provider calls are never retried."""
 
+    if arm_id == "sley_2_0":
+        # The trial arm runs confined through the mediated gateway:
+        # trusted capture, protected state, and the capture acceptance
+        # gate replace the workspace-copy route (which remains only as
+        # non-acceptance archival machinery for other arms).
+        from bench.live.mediated_attempt import execute_mediated_attempt
+
+        run = Path(run_directory)
+        manifest = read_manifest(run / "run_manifest.json")
+        if adapter.model != manifest["model_exact_version"] or adapter.reasoning_effort != manifest["model_configuration"]["reasoning_effort"]:
+            raise CampaignError("LIVE_CAMPAIGN_PROVIDER_MISMATCH")
+        return execute_mediated_attempt(
+            run_directory=run,
+            manifest=manifest,
+            store=store,
+            adapter=adapter,
+            task_id=task_id,
+            arm_id=arm_id,
+            seed=seed,
+            workspace_parent=workspace_parent,
+            provider_runner=provider_runner,
+            oracle_runner=oracle_runner,
+            utc_now=utc_now,
+            mediated_share_net=mediated_share_net,
+        )
     run = Path(run_directory)
     manifest = read_manifest(run / "run_manifest.json")
     if adapter.model != manifest["model_exact_version"] or adapter.reasoning_effort != manifest["model_configuration"]["reasoning_effort"]:
@@ -130,6 +233,31 @@ def execute_attempt(
     oracle_stdout: bytes | None = None
     oracle_stderr: bytes | None = None
     after_payload: bytes | None = None
+    evidence_digests: dict[str, str | None] = {
+        "agent_transcript_sha256": None,
+        "agent_usage_sha256": None,
+        "evidence_completion_sha256": None,
+        "final_candidate_sha256": None,
+    }
+
+    def _store_evidence(payloads: Mapping[str, bytes | None],
+                        provider_stdout: bytes, attempt: str) -> None:
+        """Put runner-owned evidence copies + completion binding into
+        the store (fsync file + directory per put). Raises
+        CampaignError when the sink is unavailable: the attempt must
+        stop without releasing unrecorded success."""
+
+        try:
+            digests: dict[str, str | None] = {}
+            for slot, data in payloads.items():
+                digests[slot] = _artifact(store, data)
+            completion = _completion_payload(
+                attempt_id=attempt, evidence=payloads, digests=digests,
+                provider_events=provider_stdout)
+            digests["evidence_completion_sha256"] = _artifact(store, completion)
+        except (OSError, ValueError) as error:
+            raise CampaignError(f"LIVE_EVIDENCE_SINK_INVALID: store: {error}") from error
+        evidence_digests.update(digests)
 
     with tempfile.TemporaryDirectory(prefix="attempt-", dir=parent) as temporary:
         workspace = Path(temporary) / "candidate"
@@ -137,6 +265,7 @@ def execute_attempt(
         stage_tooling(arm_id, workspace)
         before_snapshot = snapshot_directory(workspace)
         before_payload = encode_snapshot(before_snapshot)
+        attempt_id = f"{manifest['run_id']}.{arm_id}.{task_id.lower()}.{seed}"
         try:
             capture = provider_runner(
                 adapter.command(workspace),
@@ -156,10 +285,20 @@ def execute_attempt(
                 status = "timeout"
                 failure_code = "LIVE_PROVIDER_TIMEOUT"
                 metrics["wall_time"] = capture.wall_time_ms
+                try:
+                    _store_evidence(_collect_trial_evidence(workspace),
+                                    capture.stdout, attempt_id)
+                except CampaignError:
+                    pass
             elif capture.exit_code != 0:
                 status = "harness_failure"
                 failure_code = "LIVE_PROVIDER_EXIT_NONZERO"
                 metrics["wall_time"] = capture.wall_time_ms
+                try:
+                    _store_evidence(_collect_trial_evidence(workspace),
+                                    capture.stdout, attempt_id)
+                except CampaignError:
+                    pass
             else:
                 try:
                     events = parse_codex_jsonl(capture.stdout)
@@ -177,39 +316,61 @@ def execute_attempt(
                         status = "harness_failure"
                         failure_code = "LIVE_PROVIDER_BUDGET_EXCEEDED"
                     elif after_payload is not None:
-                        oracle_started = time.monotonic_ns()
                         try:
-                            verdict, oracle_stdout, oracle_stderr = oracle_runner(
-                                arm_id=arm_id,
-                                task_id=task_id,
-                                candidate=workspace,
-                            )
-                        except OracleError:
+                            _store_evidence(_collect_trial_evidence(
+                                workspace,
+                                require_transcript=(arm_id == "sley_2_0")),
+                                            capture.stdout, attempt_id)
+                        except CampaignError as error:
                             status = "harness_failure"
-                            failure_code = "LIVE_ORACLE_INVALID"
+                            failure_code = str(error)
                         else:
-                            metrics["execution_latency"] = max(
-                                0, (time.monotonic_ns() - oracle_started) // 1_000_000
-                            )
-                            report = _oracle_report(
-                                verdict,
-                                task_id=task_id,
-                                arm_id=arm_id,
-                                snapshots_complete=True,
-                            )
-                            oracle_report_payload = canonical_json_bytes(report) + b"\n"
-                            status = verdict["status"]
-                            failure_code = None if status == "accepted" else verdict["code"]
-                            metrics["accepted_correct_changes"] = 1 if status == "accepted" else 0
-                            metrics["strict_accepted_correctness"] = status == "accepted"
-                            metrics["invalid_candidates"] += 1 if status == "rejected" else 0
-                            for field in (
-                                "collateral_semantic_changes",
-                                "invalid_committed_states",
-                                "stale_candidates",
-                                "stale_candidates_incorrectly_accepted",
-                            ):
-                                metrics[field] = report[field]
+                            oracle_started = time.monotonic_ns()
+                            try:
+                                verdict, oracle_stdout, oracle_stderr = oracle_runner(
+                                    arm_id=arm_id,
+                                    task_id=task_id,
+                                    candidate=workspace,
+                                )
+                            except OracleError:
+                                status = "harness_failure"
+                                failure_code = "LIVE_ORACLE_INVALID"
+                            else:
+                                metrics["execution_latency"] = max(
+                                    0, (time.monotonic_ns() - oracle_started) // 1_000_000
+                                )
+                                report = _oracle_report(
+                                    verdict,
+                                    task_id=task_id,
+                                    arm_id=arm_id,
+                                    snapshots_complete=True,
+                                )
+                                oracle_report_payload = canonical_json_bytes(report) + b"\n"
+                                if arm_id == "sley_2_0" and any(
+                                        evidence_digests[slot] is None
+                                        for slot in ("agent_transcript_sha256",
+                                                     "agent_usage_sha256",
+                                                     "final_candidate_sha256",
+                                                     "evidence_completion_sha256")):
+                                    # Verdict without runner-owned
+                                    # evidence is not releasable: the
+                                    # ephemeral workspace alone never
+                                    # counts as retained evidence.
+                                    status = "harness_failure"
+                                    failure_code = "LIVE_EVIDENCE_SINK_INVALID"
+                                else:
+                                    status = verdict["status"]
+                                    failure_code = None if status == "accepted" else verdict["code"]
+                                    metrics["accepted_correct_changes"] = 1 if status == "accepted" else 0
+                                    metrics["strict_accepted_correctness"] = status == "accepted"
+                                    metrics["invalid_candidates"] += 1 if status == "rejected" else 0
+                                    for field in (
+                                        "collateral_semantic_changes",
+                                        "invalid_committed_states",
+                                        "stale_candidates",
+                                        "stale_candidates_incorrectly_accepted",
+                                    ):
+                                        metrics[field] = report[field]
         except Exception as error:
             # Staging errors occur before this boundary; after provider launch,
             # retain the attempt rather than losing the denominator slot.
@@ -218,7 +379,11 @@ def execute_attempt(
 
         ended = utc_now()
         artifacts = {
+            "agent_transcript_sha256": evidence_digests["agent_transcript_sha256"],
+            "agent_usage_sha256": evidence_digests["agent_usage_sha256"],
             "environment_snapshot_sha256": _artifact(store, environment_payload),
+            "evidence_completion_sha256": evidence_digests["evidence_completion_sha256"],
+            "final_candidate_sha256": evidence_digests["final_candidate_sha256"],
             "final_message_sha256": _artifact(store, final_message),
             "oracle_report_sha256": _artifact(store, oracle_report_payload),
             "oracle_stderr_sha256": _artifact(store, oracle_stderr),

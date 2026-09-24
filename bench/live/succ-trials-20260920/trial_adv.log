@@ -1,0 +1,5 @@
+ADV opcode: 98
+ADV propose valid: True
+S2B-ADVERSARY-001 exit: 0
+{"arm": "sley2", "code": null, "detail": "all flows held", "status": "accepted", "task_id": "S2B-ADVERSARY-001"}
+workspace kept at: /tmp/tmpj2m8xiqm

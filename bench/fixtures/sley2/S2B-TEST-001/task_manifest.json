@@ -1,0 +1,23 @@
+{
+  "contract": "sley2.live-task-base.v1",
+  "entities": {
+    "func": "9595959595959595959595959595959595959595959595959595959595959595",
+    "namespace": "9494949494949494949494949494949494949494949494949494949494949494"
+  },
+  "judge": {
+    "flow": "test-entity",
+    "target": "func"
+  },
+  "pack_digest_blake3": "d5adb2216fb22e17efba1e341e837f401d2e10b0de6583274bb9c2b77184b9e8",
+  "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
+  "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
+  "strict": {
+    "source": "corpus"
+  },
+  "targets": [
+    "9595959595959595959595959595959595959595959595959595959595959595"
+  ],
+  "task_id": "S2B-TEST-001",
+  "variant": "case_missing",
+  "workspace": "0707070707070707070707070707070707070707070707070707070707070707"
+}

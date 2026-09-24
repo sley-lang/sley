@@ -1,0 +1,8 @@
+running 4 tests
+test emit_s3_g3_adversary_fixture ... ignored, fixture emitter; run explicitly for refresh
+test s3_g3_adversary_neg_grant_honored ... ok
+test s3_g3_adversary_neg_wrong_repair ... ok
+test s3_g3_adversary_fixture_conformance ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,4 @@
+flipped probe: 01419b6269cb7d81
+wrong-repair valid: True {'failed_phase': None, 'tag': 1} 534c45594352533101c40c0d01010102203302820e2b8ea7f0a58976cf40e6693a1abaa24f3067fb77780251fa33d0cb9503220120c77dfaf17547b5
+S2B-PERF-001 exit: 1
+{"arm": "sley2", "code": "ORACLE_OUTPUT_MISMATCH", "detail": "{\"other\": \"Sequence([ConstValue { value_type: Bool, data: Bool(false) }, ConstValue { value_type: Bool, data: Bool(false", "status": "rejected", "task_id": "S2B-PERF-001"}

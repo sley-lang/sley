@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "bb6012e60bae98a8b50a761031f7c1b77962dea5be8505201856ac1f397805a8",
+  "report_digest": "5456585a12bb82559ee79b1c2a88ed54e63f96528b2cb93783e7cfe7d61d0511",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -36,13 +36,16 @@
       "exercised_source_count": 49,
       "expected_failure_code": "SCB_MALFORMED",
       "id": "T01",
-      "located_file_count": 50,
+      "located_file_count": 51,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
           "scripts/check_scb1_spec.py",
           "scripts/generate_candidate_result_fixtures.py",
           "scripts/generate_transaction_receipt_fixtures.py"
+        ],
+        "harness": [
+          "bench/live/succ_witness_dead.py"
         ],
         "implementation": [
           "crates/sley-mutate/src/codec/adversarial_tests.rs",
@@ -523,17 +526,26 @@
       "exercised_in": [
         "crates/sley-protocol/src/lib.rs#tests",
         "crates/sley-repo/tests/s3_g2_context.rs",
-        "conformance/root-backed-query/v1/rejected.json"
+        "bench/live/tests/test_acceptance_repairs.py",
+        "bench/live/tests/test_agent_access.py",
+        "bench/live/tests/test_mediated_access.py",
+        "bench/live/tests/test_mediated_context.py"
       ],
-      "exercised_source_count": 3,
+      "exercised_source_count": 7,
       "expected_failure_code": "QUERY_REQUIRED_FACT_OMITTED",
       "id": "T14",
-      "located_file_count": 9,
+      "located_file_count": 15,
       "located_in": {
         "checkers": [
           "scripts/check_restricted_query_profile.py",
           "scripts/check_root_backed_query_vector.py",
           "scripts/check_smp1_vector.py"
+        ],
+        "harness": [
+          "bench/fixtures/sley2_live_judge.py",
+          "bench/live/tests/test_acceptance_repairs.py",
+          "bench/live/tests/test_agent_access.py",
+          "bench/live/tests/test_mediated_access.py"
         ],
         "implementation": [
           "crates/sley-protocol/src/lib.rs",
@@ -659,7 +671,7 @@
       "exercised_source_count": 7,
       "expected_failure_code": "STALE_ROOT",
       "id": "T17",
-      "located_file_count": 14,
+      "located_file_count": 16,
       "located_in": {
         "checkers": [
           "scripts/check_candidate_result_contract.py",
@@ -1188,21 +1200,22 @@
     {
       "exercised_in": [
         "crates/sley-repo/tests/rw060_source_free_lifecycle.rs",
+        "crates/sley-repo/tests/succ_live_judge_cases.rs",
         "crates/sley-vm/tests/rw080_lower_scaffold.rs"
       ],
-      "exercised_source_count": 2,
+      "exercised_source_count": 3,
       "expected_failure_code": "VM_NONDETERMINISM_DETECTED",
       "id": "T33",
-      "located_file_count": 6,
+      "located_file_count": 7,
       "located_in": {
         "checkers": [
           "scripts/check_vm_lowering_profile.py"
         ],
         "implementation": [
           "crates/sley-repo/tests/rw060_source_free_lifecycle.rs",
+          "crates/sley-repo/tests/succ_live_judge_cases.rs",
           "crates/sley-vm/src/execute.rs",
-          "crates/sley-vm/src/extended.rs",
-          "crates/sley-vm/src/lib.rs"
+          "crates/sley-vm/src/extended.rs"
         ]
       },
       "owner": "sley-vm",
@@ -1482,12 +1495,12 @@
         "bench/fixtures/raw/S2B-CORRUPT-001/fixture/test_program.py",
         "bench/fixtures/raw/S2B-CORRUPT-001/negative/flip_elsewhere/test_program.py",
         "bench/fixtures/raw/S2B-CORRUPT-001/negative/unflipped/test_program.py",
-        "fuzz/targets/repository_pack_importer.rs"
+        "bench/live/tests/test_corrupt_resealed.py"
       ],
-      "exercised_source_count": 6,
+      "exercised_source_count": 7,
       "expected_failure_code": "PACK_INVALID",
       "id": "T41",
-      "located_file_count": 15,
+      "located_file_count": 18,
       "located_in": {
         "checkers": [
           "scripts/check_pack_persistent_fuzz_slice.py",
@@ -1794,13 +1807,16 @@
       "exercised_source_count": 18,
       "expected_failure_code": "SCB_MAGIC_INVALID",
       "id": "T49",
-      "located_file_count": 20,
+      "located_file_count": 21,
       "located_in": {
         "checkers": [
           "scripts/check_s20_530_crash_recovery.py",
           "scripts/check_scb1_spec.py",
           "scripts/generate_candidate_result_fixtures.py",
           "scripts/generate_transaction_receipt_fixtures.py"
+        ],
+        "harness": [
+          "bench/live/succ_witness_dead.py"
         ],
         "implementation": [
           "crates/sley-repo/src/native_exchange.rs",
@@ -1858,12 +1874,13 @@
         "crates/sley-repo/tests/s3_g2_corrupt.rs",
         "bench/fixtures/raw/S2B-CORRUPT-001/fixture/test_program.py",
         "bench/fixtures/raw/S2B-CORRUPT-001/negative/flip_elsewhere/test_program.py",
-        "bench/fixtures/raw/S2B-CORRUPT-001/negative/unflipped/test_program.py"
+        "bench/fixtures/raw/S2B-CORRUPT-001/negative/unflipped/test_program.py",
+        "bench/live/tests/test_corrupt_resealed.py"
       ],
-      "exercised_source_count": 5,
+      "exercised_source_count": 6,
       "expected_failure_code": "PACK_DIGEST_MISMATCH",
       "id": "T51",
-      "located_file_count": 10,
+      "located_file_count": 13,
       "located_in": {
         "harness": [
           "bench/fixtures/legacy/S2B-CORRUPT-001/oracle.py",

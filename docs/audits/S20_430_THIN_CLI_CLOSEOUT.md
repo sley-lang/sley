@@ -2,6 +2,8 @@
 
 Status: **implemented under the draft Thin Machine-Oriented CLI v1 contract (revision 3); Council reviews pending, so the package is not complete; the Sley 2 goal remains incomplete**
 
+Completion record (2026-09-23): contract revision 10 has PASS verdicts in all three Council lanes (scoped to 26d050e; see the machine summary lane fields and `bench/live/GATE-RECORD-20260923-CONTEXT-IMPLEMENTATION.md` section 15); status `S20_430_COMPLETE`. The open P3/P4 findings of the last rounds are recorded as `p3_open`/`p4_open` claims in the machine summary and do not block completion. The text below is retained as history.
+
 Date: 2026-09-03
 
 Validation tier: **Tier 1 plus protocol-focused Tier 2 handoff**

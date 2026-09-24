@@ -40,7 +40,11 @@ HEX_64 = re.compile(r"[0-9a-f]{64}\Z")
 UTC_SECOND = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\Z")
 ARTIFACT_FIELDS = frozenset(
     {
+        "agent_transcript_sha256",
+        "agent_usage_sha256",
         "environment_snapshot_sha256",
+        "evidence_completion_sha256",
+        "final_candidate_sha256",
         "final_message_sha256",
         "oracle_report_sha256",
         "oracle_stderr_sha256",
@@ -50,6 +54,20 @@ ARTIFACT_FIELDS = frozenset(
         "provider_stderr_sha256",
         "workspace_after_sha256",
         "workspace_before_sha256",
+    }
+)
+# Runner-owned trial-evidence slots (sley_2_0 arm): independent copies
+# of the agent-boundary transcript, the finished artifact, and the
+# usage ledger, plus the completion binding reconciling them. The
+# agent workspace is ephemeral; these copies in the content-addressed
+# store (fsync file + directory on put) are the retained evidence.
+EVIDENCE_COMPLETION_CONTRACT = "sley2.live-evidence-completion.v1"
+SLEY_EVIDENCE_FIELDS = frozenset(
+    {
+        "agent_transcript_sha256",
+        "agent_usage_sha256",
+        "evidence_completion_sha256",
+        "final_candidate_sha256",
     }
 )
 INPUT_FIELDS = frozenset(
@@ -155,7 +173,7 @@ def _validate_metrics(metrics: Any, manifest: Mapping[str, Any], status: str) ->
         _fail("LIVE_ATTEMPT_CONTROL_MISMATCH", "wall_time_budget")
 
 
-def _validate_artifacts(artifacts: Any, status: str) -> None:
+def _validate_artifacts(artifacts: Any, status: str, arm_id: str) -> None:
     if not isinstance(artifacts, dict) or set(artifacts) != ARTIFACT_FIELDS:
         _fail("LIVE_ATTEMPT_INVALID", "artifact field set")
     required = {
@@ -172,6 +190,11 @@ def _validate_artifacts(artifacts: Any, status: str) -> None:
             "oracle_stdout_sha256",
             "workspace_after_sha256",
         }
+        if arm_id == "sley_2_0":
+            # Full access acceptance for the trial arm additionally
+            # requires the runner-owned evidence copies + completion
+            # binding (never the agent workspace alone).
+            required |= set(SLEY_EVIDENCE_FIELDS)
     for field, value in artifacts.items():
         if value is None:
             if field in required:
@@ -218,7 +241,7 @@ def validate_attempt(record: Mapping[str, Any], manifest: Mapping[str, Any]) -> 
         _fail("LIVE_ATTEMPT_INVALID", "provider exit")
     if record["capture_status"] != CAPTURE_STATUS:
         _fail("LIVE_ATTEMPT_INVALID", "capture_status")
-    _validate_artifacts(record["artifacts"], status)
+    _validate_artifacts(record["artifacts"], status, record["arm_id"])
     _validate_metrics(record["metrics"], manifest, status)
 
 
@@ -356,6 +379,14 @@ def append_attempt(run_directory: Path, record: Mapping[str, Any]) -> str:
                 _fail("LIVE_ATTEMPT_APPEND_FAILED", "short write")
             written += count
         os.fsync(descriptor)
+        try:
+            dir_descriptor = os.open(run, os.O_RDONLY)
+        except OSError as error:
+            raise AttemptError(f"LIVE_ATTEMPT_STORAGE_INVALID: {error}") from error
+        try:
+            os.fsync(dir_descriptor)
+        finally:
+            os.close(dir_descriptor)
         return digest
     finally:
         fcntl.flock(descriptor, fcntl.LOCK_UN)
@@ -408,6 +439,43 @@ def _oracle_report(payload: bytes, attempt: Mapping[str, Any]) -> dict[str, Any]
     ):
         _fail("LIVE_ATTEMPT_ORACLE_INVALID", "accepted evidence")
     return report
+
+
+def _verify_evidence_completion(payloads: Mapping[str, bytes | None],
+                                attempt: Mapping[str, Any]) -> None:
+    """Reconcile the runner-owned completion binding with the recorded
+    evidence digests: the completion payload must name this attempt and
+    reference exactly the stored transcript/final/usage/provider-events
+    digests. A completion naming different bytes (or missing where the
+    arm requires it) fails closed."""
+
+    artifacts = attempt["artifacts"]
+    completion = payloads.get("evidence_completion_sha256")
+    if completion is None:
+        # Required for sley_2_0 verdicts by _validate_artifacts; other
+        # arms and non-verdict statuses carry no completion binding.
+        return
+    try:
+        binding = json.loads(completion)
+    except (UnicodeError, json.JSONDecodeError) as error:
+        raise AttemptError(f"LIVE_ATTEMPT_EVIDENCE_INVALID: JSON: {error}") from error
+    if not isinstance(binding, dict) or binding.get("contract") != EVIDENCE_COMPLETION_CONTRACT:
+        _fail("LIVE_ATTEMPT_EVIDENCE_INVALID", "contract")
+    if completion != canonical_json_bytes(binding) + b"\n":
+        _fail("LIVE_ATTEMPT_EVIDENCE_INVALID", "noncanonical")
+    if binding.get("attempt_id") != attempt["attempt_id"]:
+        _fail("LIVE_ATTEMPT_EVIDENCE_INVALID", "attempt binding")
+    for field in ("agent_transcript_sha256", "final_candidate_sha256",
+                  "agent_usage_sha256", "provider_events_sha256"):
+        if binding.get(field) != artifacts.get(field):
+            _fail("LIVE_ATTEMPT_EVIDENCE_INVALID", f"reconciliation {field}")
+    # Referenced bytes must actually be stored (digest re-verified on
+    # read): a completion naming absent bytes is not evidence. Fields
+    # bound as null name nothing and require nothing.
+    for field in ("agent_transcript_sha256", "final_candidate_sha256",
+                  "agent_usage_sha256"):
+        if binding.get(field) is not None and payloads.get(field) is None:
+            _fail("LIVE_ATTEMPT_EVIDENCE_INVALID", f"absent {field}")
 
 
 def verify_attempts(
@@ -491,6 +559,7 @@ def verify_attempts(
                 raise AttemptError(f"LIVE_ATTEMPT_ORACLE_INVALID: {error}") from error
             if verdict["status"] != report["status"] or verdict["code"] != report["code"]:
                 _fail("LIVE_ATTEMPT_ORACLE_INVALID", "stdout/report mismatch")
+            _verify_evidence_completion(payloads, attempt)
         promoted_record = dict(attempt)
         promoted_record["evidence_status"] = VERIFIED_STATUS
         promoted.append(promoted_record)

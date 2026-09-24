@@ -44,7 +44,12 @@ SUMMARY_TEXT = (ROOT / "machineresearch/sley-2.0/machine-summary.json").read_tex
 
 APPENDIX_A = "## Appendix A. Body records of the dispatched methods (S20-410)"
 APPENDIX_B = "## Appendix B. Cancellation, streaming, and budget records (S20-440)"
-CURRENT_COMPOSITION = "Current composition (revision 12):"
+# The current revision follows the anchored Status line, so a contract
+# revision move never leaves this suite asserting a stale literal.
+SMP1_REVISION = int(re.search(
+    r"^Status: S20-400 contract draft, revision (\d+)", SPEC_TEXT, flags=re.M
+).group(1))
+CURRENT_COMPOSITION = f"Current composition (revision {SMP1_REVISION}):"
 # The composed pins follow the bridge and CLI status lines, so a revision
 # move never leaves this suite asserting a stale literal.
 BRIDGE_REVISION = re.search(
@@ -204,7 +209,7 @@ class CompositionAnchorCases(unittest.TestCase):
     """A-ST-R2-02/N-STATIC-R2-03/VUL-P2S-R2-02: the current record and the
     Status it binds to are line-anchored, not substrings."""
 
-    STATUS_LINE = "Status: S20-400 contract draft, revision 12"
+    STATUS_LINE = f"Status: S20-400 contract draft, revision {SMP1_REVISION}"
 
     def test_historical_prefixed_composition_refused(self):
         self.assertEqual(SPEC_TEXT.count(CURRENT_COMPOSITION), 1)
@@ -263,20 +268,79 @@ class CurrentDeltaReviewCases(unittest.TestCase):
     def test_mismatched_current_revision_refused(self):
         summary = json.loads(SUMMARY_TEXT)
         review = summary["protocol"]["current_delta_review"]
-        self.assertEqual(review["contract_revision"], 12)
-        review["contract_revision"] = 11
+        self.assertEqual(review["contract_revision"], SMP1_REVISION)
+        review["contract_revision"] = SMP1_REVISION - 1
         code, payload = run_checker_with_spec(SPEC_TEXT, json.dumps(summary))
         assert_refused(self, code, payload, "review")
 
     def test_bound_all_pass_review_accepted(self):
         summary = json.loads(SUMMARY_TEXT)
         review = summary["protocol"]["current_delta_review"]
-        self.assertEqual(review["contract_revision"], 12)
+        self.assertEqual(review["contract_revision"], SMP1_REVISION)
         for lane in ("ariadne", "nabu", "vulcan"):
             review[lane] = "PASS"
         code, payload = run_checker_with_spec(SPEC_TEXT, json.dumps(summary))
         self.assertEqual(code, 0)
         self.assertEqual(payload.get("result"), "PASS")
+
+
+class WorkspaceOpenAnchorCases(unittest.TestCase):
+    """Revision 13/14 method 201 text and the version 3 owner pin are
+    anchored: reverting any of them is refused."""
+
+    REVERTS = (
+        ("| 201 | `workspace.open` | none | accepted head summary (appendix A) | S20-390 |",
+         "| 201 | `workspace.open` | repository path digest | accepted head | S20-390 |"),
+        ("empty; a non-empty body is `PROTOCOL_PAYLOAD_INVALID` under every version (revision 13)",
+         "empty"),
+        ("`open_summary` under version 2 and every later selection whose table carries row 201 (version 3)",
+         "`open_summary` under a version 2 selection"),
+        ("[9: IndexSnapshotId])", "9: IndexSnapshotId)"),
+        ("Field 9 is a pointer, not\nevidence", "Field 9 is"),
+        ("admit only selections 1, 2, and 3,", "admit only selections 1 and 2,"),
+        ("under selected version 1 it removes the version-2 tags\n306 and 307 and the native tags 605, 606, and 607",
+         "under selected version 1 it removes the version-2 tags\n306 and 307"),
+        ("under selected version\n2 it removes 605, 606, and 607",
+         "under selected version\n2 it removes nothing"),
+        ("a version 1 selection drops the native tags 605, 606, and 607 from\nthe intersection as well as 306 and 307",
+         "a version 1 selection drops 306 and 307"),
+    )
+
+    def test_each_revert_is_refused(self):
+        for original, reverted in self.REVERTS:
+            with self.subTest(original=original[:40]):
+                self.assertIn(original, SPEC_TEXT)
+                mutated = SPEC_TEXT.replace(original, reverted, 1)
+                code, payload = run_checker_with_spec(mutated)
+                assert_refused(self, code, payload, "spec-anchor")
+
+    def test_stale_version_3_owner_pin_is_refused(self):
+        native = (ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md").read_text(encoding="utf-8")
+        # The version 3 owner pins SMP1's normative revision (an errata-only
+        # SMP1 revision keeps it).
+        current = f"`docs/spec/SMP1.md` at revision {CHECKER.NORMATIVE_REVISION}"
+        self.assertIn(current, native)
+        stale = native.replace(current, "`docs/spec/SMP1.md` at revision 12", 1)
+        self.assertIn("v3-owner-pin", " ".join(
+            CHECKER.workspace_open_anchor_problems(SPEC_TEXT, stale)))
+        self.assertEqual(CHECKER.workspace_open_anchor_problems(SPEC_TEXT, native), [])
+
+
+
+class ErrataRevisionCases(unittest.TestCase):
+    """Revision 16 is errata-only over normative revision 15: the Status line
+    must declare it, or consumers' revision 15 pins would silently stand
+    against a normative change."""
+
+    DECLARATION = "errata-only over normative revision 15; "
+
+    def test_the_declaration_is_present(self):
+        self.assertIn(self.DECLARATION, SPEC_TEXT)
+
+    def test_dropping_the_errata_declaration_is_refused(self):
+        code, payload = run_checker_with_spec(SPEC_TEXT.replace(self.DECLARATION, "", 1))
+        self.assertNotEqual(code, 0)
+        self.assertIn(f"spec-normative-revision:16!={CHECKER.NORMATIVE_REVISION}", payload["problems"])
 
 
 if __name__ == "__main__":

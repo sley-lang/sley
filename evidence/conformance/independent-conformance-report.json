@@ -1269,7 +1269,7 @@
         {
           "bytes": 240,
           "name": "SHA256SUMS",
-          "sha256": "e853136dc81d5c4eafb012b3004f4ff31b0f491fa361f61275f0eafc56a74606"
+          "sha256": "24af89f1bc2735a5c99ecc2785cae8c08c8174ca995869777302dfe3d655cfb2"
         },
         {
           "bytes": 6019,
@@ -1277,9 +1277,9 @@
           "sha256": "cf7cb9fbc2925a485f811c0858255c65d61df812b79295b4407a7046a1c139cf"
         },
         {
-          "bytes": 26717,
+          "bytes": 28010,
           "name": "rejected.json",
-          "sha256": "5dcebc16289ac43e60869d80bbb2d08a33fdc11c5bda2081d1a1c308c73b1411"
+          "sha256": "910e10141a4a2f2f2d448abb60291b9662924e29f073c2e4c545e0cd75914c6c"
         },
         {
           "bytes": 8175,
@@ -1292,7 +1292,7 @@
           "methods": 41
         },
         "rejected.json": {
-          "mutations": 36
+          "mutations": 37
         },
         "roundtrip.json": {
           "vectors": 5
@@ -1505,7 +1505,7 @@
     "problems": [],
     "python_sources": 30
   },
-  "report_digest": "98e9bae6d52ae49d172e05361f296b0dc335d102992039526911893f1ecc848d",
+  "report_digest": "bf0e2ffad2c4b8a3c1aa33926b27112e99fb19a0e86cc0cdfec03637b9a86818",
   "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
   "tracked_corpus_directories": 32,
   "work_package": "S20-730"

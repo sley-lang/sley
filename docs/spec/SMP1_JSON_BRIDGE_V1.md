@@ -1,6 +1,6 @@
 # SMP1 JSON Bridge v1
 
-Status: S20-420 contract draft, revision 10 (2026-09-14); Council review
+Status: S20-420 contract draft, revision 12 (2026-09-23); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 8); revision 3 names method tag zero (section 9) for the
@@ -28,8 +28,24 @@ above 1 `PROTOCOL_VERSION_UNSUPPORTED`; `PROTOCOL_FRAME_INVALID` names the
 hello's session, request id, method, and flags), states the element
 ceiling as inclusive (1,048,576 positions is refused), and declares the
 additive versioned exports the crate already carries (section 10); no
-encoding or behavior changes. The revision 9 history is retained as
-history and does not review revision 10; its new-delta review is pending. The implementation is
+encoding or behavior changes. Revision 11 (2026-09-23) re-pinned the
+composed SMP1 revision 14, which defines the `workspace.open` (201)
+response under version 2 and under every later selection whose method
+table includes version 2's row 201 as `open_summary` (optional field 9)
+and refuses a non-empty 201 body under every version. The bridge carries
+201 bodies as opaque bytes, and the generated tables derive only name,
+tag, family, owner, and a `reserved` flag from SMP1's rows (the flag from
+the request and response cells, under the drift gate
+`scripts/generate_smp1_json_bridge_table.py --check`), so no bridge
+clause, encoding, or behavior changed; its new-delta review passed on
+2b0f1c9 (2026-09-23) with P3/P4 findings. Revision 12 (2026-09-23,
+section 11) answers them: it declares the version 3 surface the crate has
+carried since 2026-09-16 (the version 3 table and its owner, the
+version-selected exports, and the render-only `native_tests` feature key
+of the version 3 hello), fixes the independent oracle to judge a hello's
+protocol version before its header, with a vector, and re-pins SMP1
+revision 15. Its new-delta review is pending.
+The implementation is
 `crates/sley-json-bridge`; implementation state is tracked in the machine
 summary.
 
@@ -37,13 +53,14 @@ The bridge is a generated, non-canonical text representation of SMP1
 frames and of the records SMP1 itself owns. It exists so that a client
 without an SCB1 encoder can read and write frames; it owns no semantics,
 performs no validation beyond shape, and never participates in any program
-identity. It composes, and never alters, `docs/spec/SMP1.md` (revision 12):
+identity. It composes, and never alters, `docs/spec/SMP1.md` (revision 15):
 the frame, hello, selected profile, limit profile, bounded context,
 failure envelope, stream chunk, and method table are the bridge's only
 subjects. Owner bodies (queries, capsules, candidates, receipts, exchange
 bytes, and every other frozen record) cross the bridge as opaque bytes.
 
-The authority rule (SMP1 section 8) is:
+The authority rule, this contract's paraphrase of SMP1 section 8 (not a
+quotation of it), is:
 
 > JSON is non-canonical and cannot participate in any program identity.
 > The bridge preserves stable codes and unknown or omission states, uses a
@@ -248,7 +265,9 @@ benchmark, packaging, release, or GA.
   The codec judges the protocol version first, as a version claim: a
   hello naming a version below 1 is `PROTOCOL_DOWNGRADE` and one naming a
   version above 1 is `PROTOCOL_VERSION_UNSUPPORTED`; any other session,
-  request id, method, or flags value is `PROTOCOL_FRAME_INVALID`. The all-zero
+  request id, method, or flags value is `PROTOCOL_FRAME_INVALID`. The
+  independent oracle applies the same order (revision 12), and the
+  rejected vector `hello-version-above-with-request-id` pins it. The all-zero
   bounds are the bridge's own rule, judged before the codec runs, so any
   other bounds value is `JSON_BRIDGE_SHAPE_INVALID`. The `body` is the hello
   record, which the reader decodes and re-encodes through the codec
@@ -303,5 +322,41 @@ exports `frame_to_json_for_version`, `frame_from_json_for_version`,
 `hello_to_json_versioned`, and `METHOD_TABLE_V2_JSON`, which the S20-430
 capable CLI calls (`scripts/check_cli_contract.py` requires them); the
 unversioned entrypoints keep their frozen version 1 defaults, the vectors
-and oracle stay version 1-only, and no capable symbol is required by the
-stage checker.
+and oracle stay version 1-only. (Revision 12: the stage checker does
+require the version-selected exports and the version 2 and 3 tables;
+section 11.)
+
+## 11. Version 3 surface (revision 12)
+
+Protocol version 3 is owned by `docs/spec/NATIVE_TEST_ADMISSION_V1.md`
+(appendices C and D): the union of the SMP1 version 1 and version 2
+tables plus the native rows. The bridge renders it exactly as follows, and
+nothing more:
+
+- `conformance/smp1-json-bridge/v3/methods.json` is the generated version
+  3 table (46 rows: the version 2 table plus `tests.report_read` 605,
+  `tests.replay` 606, and `tests.attempt_status` 607, with `tests.selected`
+  601 and `tests.affected` 602 live instead of reserved). Its `contract`
+  header names this contract as the rendering's owner; the rows' authority
+  is NATIVE appendix D, read by the generator under the same drift gate.
+  The crate embeds it as `METHOD_TABLE_V3_JSON`, beside
+  `METHOD_TABLE_JSON` and `METHOD_TABLE_V2_JSON`.
+- The version-selected exports are `frame_to_json_for_version`,
+  `frame_from_json_for_version`, `frame_value_for_version`,
+  `frame_from_value_for_version`, `hello_to_json_versioned` (version 2),
+  and `hello_to_json_for_version` (versions 1, 2, and 3; any other version
+  is `JSON_BRIDGE_SHAPE_INVALID`). Under version 3 a frame names methods
+  from the version 3 table.
+- The version 3 hello rendering (`hello_to_json_for_version(_, 3)`) carries
+  a fifth `features` key, `native_tests` (feature mask 32, bit 5, the
+  native-tests bit of NATIVE appendix C), after the frozen four. It is
+  render-only: `hello_from_json` is the version 1 reader and reads exactly
+  the version 1 object, so a version 3 hello text is refused (at its first
+  name outside the version 1 table, `JSON_BRIDGE_METHOD_UNKNOWN`) and a
+  `native_tests` key in an otherwise valid object is an unknown field
+  (`JSON_BRIDGE_SHAPE_INVALID`); the section 1 and 2 exact shapes stay the
+  reader's contract. The version 1 and version 2 renderings are
+  unchanged byte for byte.
+- `scripts/check_smp1_json_bridge_contract.py` requires the three tables'
+  exports and these version-selected exports, and gates the version 3
+  table's counts, union, and source.

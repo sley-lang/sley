@@ -1,6 +1,6 @@
 {
   "blockers": [],
-  "cargo_lock_sha256": "d98a3235138633bd903a7d98d0ebb90ba4f7255f900b2e47d270114b07932794",
+  "cargo_lock_sha256": "107f4df8e2bc21c64b9527bc2ec7d4cf0963030f252564533efaa039a6f78d56",
   "contract": "s20-710-pre-release-inventory-v1",
   "full_release_sbom": false,
   "history_anchor_commit": "7804f665e0ee65de240c43fe3b56dc89cf7e9d80",
@@ -1347,6 +1347,10 @@
     {
       "from": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
       "to": "pkg:cargo/blake3@1.8.2"
+    },
+    {
+      "from": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+      "to": "pkg:cargo/libc@0.2.189"
     },
     {
       "from": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",

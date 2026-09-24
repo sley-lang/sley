@@ -1,0 +1,121 @@
+# cargo test --offline -p sley-policy at 2fd93d25523c87986b60f7168ed3ba289f3aafa1 (2026-09-23T04:47:06Z)
+   Compiling sley-policy v2.0.0-alpha.0 (/home/gfarch/Work/checkpoints/sley2-finish-20260915/resume-20260918/wt-succ-dead/crates/sley-policy)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.74s
+     Running unittests src/lib.rs (/home/gfarch/Work/checkpoints/target-succ-dead/debug/deps/sley_policy-b8d1877eea92f788)
+
+running 88 tests
+test candidate_result::tests::emit_candidate_result_vectors_for_fixture_refresh ... ignored, explicit conformance fixture refresh helper
+test candidate_program::tests::dependency_projection_tracks_external_roots_without_resolving_external_package ... ok
+test candidate_program::tests::projection_distinguishes_unresolved_wrong_kind_and_unknown_opcode ... ok
+test candidate_program::tests::typedef_claim_requirement_is_profile_selected ... ok
+test candidate_program::tests::function_claim_requirement_is_profile_selected ... ok
+test candidate_program::tests::projection_validates_all_local_references_and_builds_closure ... ok
+test candidate_result::tests::envelope_rejects_digest_trailing_and_unknown_nested_tags ... ok
+test candidate_result::tests::evidence_derivations_bind_full_bytes_and_lengths ... ok
+test candidate_result::tests::result_integrity_codes_are_exact_and_scb_stays_separate ... ok
+test candidate_result::tests::valid_result_round_trip_is_byte_identical_and_digest_bound ... ok
+test candidate_result::tests::monotonicity_identity_root_diagnostic_and_sets_fail_closed ... ok
+test candidate_validation::tests::context_digest_binds_effective_not_requested_ceilings ... ok
+test candidate_validation::tests::phase_seven_evidence_distinguishes_skipped_judgment_from_empty_judgment ... ok
+test candidate_validation::tests::phase_seven_overflow_guard_names_the_lowering_symbol ... ok
+test candidate_validation::tests::exhausted_graph_work_is_refused ... ok
+test candidate_validation::tests::canonical_frame_and_context_inventory_fail_monotonically ... ok
+test candidate_result::tests::every_terminal_decision_has_the_exact_first_failed_phase ... ok
+test candidate_validation::tests::authenticated_capabilities_are_verified_without_ledger_mutation ... ok
+test candidate_validation::tests::over_ceiling_test_resources_are_refused ... ok
+test candidate_validation::tests::analyzable_operations_validate_and_signature_mismatches_fail_at_phase_seven ... ok
+test candidate_validation::tests::t07_live_bound_target_identity_collides_on_the_live_binding_branch ... ok
+test candidate_validation::tests::stale_root_and_exact_entity_preimage_are_distinct ... ok
+test candidate_validation::tests::stale_semantic_fingerprint_claim_is_recomputed_and_rejected ... ok
+test candidate_validation::tests::expiry_summary_grants_isolation_and_mandatory_policy_are_enforced ... ok
+test candidate_validation::tests::unknown_profile_identity_stops_at_phase_one ... ok
+test capability_summary::tests::empty_summary_fixed_vector ... ok
+test capability_summary::tests::empty_summary_is_canonical_and_deterministic ... ok
+test candidate_validation::tests::production_profile_requires_absent_typedef_claim_at_phase_six ... ok
+test capability_summary::tests::grant_order_is_canonical_and_duplicate_digests_fail ... ok
+test candidate_validation::tests::tombstones_graph_errors_and_missing_references_are_distinct ... ok
+test capability_summary::tests::outer_bindings_are_checked_without_claiming_authentication ... ok
+test candidate_validation::tests::stale_phase_three_bindings_are_refused_with_their_owned_symbols ... ok
+test candidate_validation::tests::well_formed_contract_assert_reaches_the_phase_twelve_guard ... ok
+test candidate_validation::tests::type_cfg_and_effect_checkers_preserve_exact_source_codes ... ok
+test candidate_validation::tests::policy_contract_and_test_plan_fail_at_their_owned_phases ... ok
+test candidate_validation::tests::production_profile_requires_absent_function_claim_at_phase_eight ... ok
+test native_test_plan::deletion_tests::deleting_a_protected_required_test_preserves_the_static_refusal ... ok
+test native_test_plan::function_deletion_tests::baseline_fixture_validates_with_a_selected_survivor_test ... ok
+test native_test_plan::tests::checked_sums_refuse_overflow_instead_of_wrapping ... ok
+test native_test_plan::function_deletion_tests::a_live_test_targeting_the_deleted_helper_still_refuses ... ok
+test native_test_plan::function_deletion_tests::dead_code_removal_keeps_survivor_selection_and_tombstones_the_helper ... ok
+test candidate_validation::tests::valid_candidate_runs_all_phases_deterministically_without_mutating_base ... ok
+test native_test_plan::function_deletion_tests::orphaning_the_helper_block_still_refuses ... ok
+test candidate_validation::tests::well_formed_effect_operations_pass_the_phase_eight_owner ... ok
+test native_test_plan::tests::error_tags_and_symbols_are_frozen ... ok
+test candidate_validation::tests::t48_authority_like_labels_do_not_change_policy_grants ... ok
+test native_test_plan::function_deletion_tests::deleting_the_helper_with_its_optional_test_validates_and_records_the_test ... ok
+test native_test_plan::function_deletion_tests::deleting_an_unused_private_helper_validates_and_selects_nothing_for_it ... ok
+test native_test_plan::function_deletion_tests::deleting_the_helper_with_its_protected_required_test_still_refuses ... ok
+test native_test_plan::tests::empty_selection_plan_admits_test_free_candidate ... ok
+test native_test_plan::tests::depth_over_configured_implementation_cap_refuses ... ok
+test candidate_validation::tests::resource_and_unsupported_operation_analysis_fail_closed ... ok
+test native_test_plan::tests::explicit_root_adds_required_tests_to_an_empty_caller_set ... ok
+test native_test_plan::tests::created_test_is_selected_with_exact_objects_and_limits ... ok
+test tests::builder_rejects_duplicate_principals_sets_and_grant_tags ... ok
+test tests::capability_issuance_requires_policy_grant_and_bounded_budget ... ok
+test native_test_plan::tests::explicit_root_count_exceeded_refuses ... ok
+test native_test_plan::tests::explicit_root_refuses_unknown_and_unsorted_caller_tests ... ok
+test native_test_plan::tests::static_failure_is_preserved_before_native_selection ... ok
+test tests::closed_effect_and_mutation_tag_sets_are_exact ... ok
+test tests::accepted_vector_is_frozen_and_round_trips ... ok
+test tests::descriptor_and_registered_epoch_are_exact ... ok
+test tests::capability_issue_import_verify_and_canonical_bytes ... ok
+test tests::finalization_rejects_forged_or_omitted_contract_test_inputs ... ok
+test native_test_plan::tests::tightened_evidence_cap_refuses ... ok
+test tests::grant_denial_and_empty_grants_do_not_imply_authority ... ok
+test tests::descriptor_and_decoder_mismatch_fail_closed ... ok
+test tests::descriptor_hash_preimages_are_frozen ... ok
+test native_test_plan::tests::explicit_root_skips_grant_ceilings_but_checks_wall ... ok
+test tests::manual_hex_decode_helper_round_trips ... ok
+test native_test_plan::tests::explicit_root_derives_caller_selection_with_exact_objects ... ok
+test tests::stable_capability_error_codes_are_exact ... ok
+test tests::mandatory_test_contract_finalization_requires_policy_incomplete_report ... ok
+test tests::stable_policy_codes_are_frozen ... ok
+test tests::invalid_transition_tag_preserves_the_frozen_policy_error ... ok
+test tests::synthetic_zero_epoch_hashes_but_authorization_rejects ... ok
+test native_test_plan::tests::tightened_aggregate_fuel_ceiling_refuses ... ok
+test native_test_plan::tests::wall_over_native_cap_refuses_with_test_and_resource ... ok
+test native_test_plan::deletion_tests::deleted_nonrequired_test_is_recorded_but_not_executed ... ok
+test tests::strict_import_rejects_nonminimal_envelope_and_payload_epoch_mismatch ... ok
+test tests::every_policy_field_perturbation_changes_root ... ok
+test tests::t22_capability_forgery_fails_closed ... ok
+test tests::t24_capability_scope_workspace_effect_and_adapter_confusion_fail_closed ... ok
+test tests::t23_capability_replay_expiry_and_budget_fail_closed ... ok
+test tests::strict_import_rejects_unknown_duplicate_and_ordered_fields ... ok
+test tests::strict_import_rejects_corrupt_order_duplicate_resource_and_unknown_semantics ... ok
+test tests::policy_self_oracle_and_protected_entity_isolation_is_pure ... ok
+test tests::unordered_inputs_have_identical_root_for_128_repeats ... ok
+
+test result: ok. 87 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/rw080_construction_policy.rs (/home/gfarch/Work/checkpoints/target-succ-dead/debug/deps/rw080_construction_policy-92d1f4cdd64c897f)
+
+running 1 test
+test rw080_construction_policy_is_registry_accepted_and_stable ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/s3_g3_adversary.rs (/home/gfarch/Work/checkpoints/target-succ-dead/debug/deps/s3_g3_adversary-2698cb073bd7a098)
+
+running 4 tests
+test emit_s3_g3_adversary_fixture ... ignored, fixture emitter; run explicitly for refresh
+test s3_g3_adversary_neg_grant_honored ... ok
+test s3_g3_adversary_fixture_conformance ... ok
+test s3_g3_adversary_neg_wrong_repair ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests sley_policy
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+exit 0

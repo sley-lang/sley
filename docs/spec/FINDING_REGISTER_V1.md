@@ -1,6 +1,6 @@
 # Finding Register v1
 
-Status: S20-740 contract draft, revision 10 (2026-09-23); Council review
+Status: S20-740 contract draft, revision 11 (2026-09-23); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). The mechanics are `scripts/build_finding_register.py`;
 implementation state is tracked in the machine summary.
@@ -251,6 +251,22 @@ this paragraph governs.
   `evidence/review/rounds/revision-10-retirement-changes.json`; the eight
   reviewer-verified closures revisions 8 and 9 reopened are restored by
   exact-claim bindings there listed. This is contract revision 10.
+
+After the merge of `work/succession-sley20-arm` (2026-09-23), two rules.
+Numbered contract-revision rounds: a same-lane PASS of a
+`<lane>_…_revision_<M>` field supersedes a FAIL/REVISE round
+`<lane>_…_revision_<N>` of the same subject (equal field core) when
+`M > N` — never the reverse and never across subjects; the token rule
+alone had left every earlier numbered round open, since both carry the
+early token `revision`. The existing date and scope guards still apply,
+and such a fold additionally needs positive chronology: both round notes
+record an `on <sha40>` scope and the PASS's scope is a strict git
+descendant of the round's; a missing, equal or unresolvable scope never
+folds by the number alone. Multi-item finding lines: each item of a
+`FINDINGS: [Pn] …; [Pn] …` (or `| [Pn] …`) line after the first is a
+finding line of its own for the raising-severity binding; whole lines
+are matched first, so no existing binding moves. This is contract
+revision 11.
 Every closure recorded at 76ae15ab that revision 7 changed is listed per
 claim, with the refusing rule where it stays open, in
 `evidence/review/rounds/revision-7-retirement-changes.json` (the round's

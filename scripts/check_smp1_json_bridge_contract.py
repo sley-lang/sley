@@ -23,8 +23,8 @@ V2_TABLE = ROOT / "conformance/smp1-json-bridge/v2/methods.json"
 V3_TABLE = ROOT / "conformance/smp1-json-bridge/v3/methods.json"
 NATIVE_SPEC = ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md"
 V3_SECTION = "## Appendix D. SMP v3 additions table (machine-readable, revision 5)"
-SPEC_REVISION = 10
-SMP1_REVISION = 12
+SPEC_REVISION = 12
+SMP1_REVISION = 15
 
 DRAFT_STATUS = "S20_420_CONTRACT_DRAFT_REVIEW_PENDING"
 DRAFT_IN_PROGRESS_STATUS = "S20_420_CONTRACT_DRAFT_IMPLEMENTATION_IN_PROGRESS"
@@ -62,6 +62,11 @@ SPEC_MARKERS = (
     "declared field order",
     "never a bridge code",
     "which the reader normalizes",
+    "## 11. Version 3 surface (revision 12)",
+    "`METHOD_TABLE_V3_JSON`, beside",
+    "`frame_value_for_version`,",
+    "a fifth `features` key, `native_tests`",
+    "`hello-version-above-with-request-id` pins it",
 )
 ADR_MARKERS = (
     "# ADR-0034: JSON bridge as a generated, non-canonical representation",
@@ -106,9 +111,41 @@ CRATE_MARKERS = (
     "Self::ResourceLimit => 42_004,",
     "validate_header",
     "is_sign_negative",
+    "METHOD_TABLE_V2_JSON",
     "METHOD_TABLE_V3_JSON",
     "hello_to_json_for_version",
+    "pub fn frame_value_for_version",
+    "pub fn frame_from_value_for_version",
+    "pub fn frame_to_json_for_version",
+    "pub fn frame_from_json_for_version",
+    "pub fn hello_to_json_versioned",
+    '"native_tests"',
 )
+COMPOSITION_ANCHOR = re.compile(
+    r"It composes, and never alters, `docs/spec/SMP1\.md` \(revision (\d+)\):"
+)
+
+
+def pin_problems(spec: str, adr: str) -> list[str]:
+    """The composition sentence and ADR-0034's current line name the pins.
+
+    The SMP1 pin is read from the one normative composition sentence (a
+    history line carrying the current pin never satisfies it), and the
+    ADR's status line must name this contract's current revision."""
+    flat = re.sub(r"\s+", " ", spec)
+    problems: list[str] = []
+    hits = COMPOSITION_ANCHOR.findall(flat)
+    if len(hits) != 1:
+        problems.append(f"composition-sentence:{hits}")
+    elif int(hits[0]) != SMP1_REVISION:
+        problems.append(f"composition-sentence:smp1-revision-{hits[0]}")
+    adr_flat = re.sub(r"\s+", " ", adr)
+    current = re.search(r"the S20-420 contract is a draft at revision (\d+)", adr_flat)
+    if current is None or int(current.group(1)) != SPEC_REVISION:
+        problems.append("adr-current-revision")
+    if f"Revision {SPEC_REVISION} record (" not in adr_flat:
+        problems.append("adr-revision-record")
+    return problems
 
 
 def read(path: Path) -> str:
@@ -302,11 +339,20 @@ def main() -> int:
     if own is None or int(own.group(1)) != SPEC_REVISION:
         problems.append("spec-revision")
     smp1_text = (ROOT / "docs/spec/SMP1.md").read_text(encoding="utf-8")
-    smp1_status = re.search(r"^Status: S20-400 contract draft, revision (\d+)", smp1_text, flags=re.M)
-    if smp1_status is None or int(smp1_status.group(1)) != SMP1_REVISION:
+    # An errata-only SMP1 revision (no behaviour change) keeps the consumer
+    # pin at the normative revision it names; any other revision moves it.
+    smp1_status = re.search(
+        r"^Status: S20-400 contract draft, revision \d+ \((?:[^;)]*; )?errata-only over normative "
+        r"revision (\d+)|^Status: S20-400 contract draft, revision (\d+)",
+        smp1_text,
+        flags=re.M,
+    )
+    smp1_normative = (smp1_status.group(1) or smp1_status.group(2)) if smp1_status else None
+    if smp1_normative is None or int(smp1_normative) != SMP1_REVISION:
         problems.append("smp1-revision-pin")
     if f"`docs/spec/SMP1.md` (revision {SMP1_REVISION})" not in spec:
         problems.append("smp1-pin-text")
+    problems.extend(pin_problems(spec, read(ADR)))
     revision = re.search(r"revision (\d+)", spec)
     result = {
         "contract": "s20-420-smp1-json-bridge-v1",

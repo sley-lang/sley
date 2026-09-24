@@ -1,6 +1,6 @@
 # ADR-0042: the finding register is derived from recorded dispositions
 
-Status: proposed; the S20-740 contract is a draft at revision 10 with Council
+Status: proposed; the S20-740 contract is a draft at revision 11 with Council
 review pending; register mechanics implemented (2026-09-05, revised
 2026-09-11 with enforced round ordering, lane-core compatibility, and
 lane-leaf collection) with the
@@ -70,3 +70,5 @@ Note (revision 7, 2026-09-19): a closure line is a structural per-finding status
 Note (revisions 8 and 9, 2026-09-19 and 2026-09-23): a re-statement names its carried root with a sha outside quoted text and folds only into the claim at the round it names; an absent identifier is never an identity (shared vocabulary, exact-key inheritance, split status); exact-key inheritance into a retired claim needs a cited closing line that speaks about the inheriting claim; `pN_open_count` counts claims and the register reports distinct findings as `package_open_findings`.
 
 Note (revision 10, 2026-09-23): every ambiguity fails closed — a fold never transfers a closure (no exact-key inheritance, no fold into a retired root), the OPEN refusal reads the whole OPEN head, `--check` refuses named-carry/named-root splits whatever the identifiers, and a reviewer-verified closure a rule cannot see is restored only by an exact-claim binding (which may declare, line by line, another finding's OPEN line).
+
+Note (revision 11, 2026-09-23): a later-numbered same-subject revision-round PASS supersedes an earlier numbered round of its lane only with positive scope chronology (both `on <sha40>` scopes, the PASS a strict descendant); each item of a multi-item `FINDINGS:` line binds its own raising severity.

@@ -11,7 +11,7 @@ use sley_query::{
 use sley_repo::test_support::{
     complete_bodies, complete_dependency_root, executable_bodies, genesis,
 };
-use sley_repo::{CompleteRootRequest, run_root_query};
+use sley_repo::{CompleteRootRequest, run_root_query, run_root_query_fresh};
 use sley_scb1::{MAX_BYTE_PAYLOAD, encode_bytes, encode_record, encode_uvar};
 
 use crate::server::{
@@ -605,6 +605,39 @@ fn query_family_transports_the_frozen_engine_records() {
     // Garbage query bodies fail as payloads.
     let garbage = harness.fail(Method::QueryRoot, b"not a query".to_vec());
     assert_eq!(garbage.code, ProtocolErrorCode::PayloadInvalid.numeric());
+}
+
+/// SMP1 revision 15: under a version 1 selection `workspace.open` stays
+/// exactly `revision_summary` even with a materialized head snapshot (field
+/// 9 applies under version 2 and every later selection whose table carries
+/// version 2's row 201), and a non-empty request body is refused
+/// `PROTOCOL_PAYLOAD_INVALID`.
+#[test]
+fn workspace_open_under_version_1_never_carries_field_9() {
+    let mut harness = Harness::new("smp1-open-v1");
+    let genesis = harness.genesis;
+    let summary = harness.ok(Method::RevisionRead, tx(genesis)).body;
+    let revision = sley_txn::TransactionRepository::new(&harness.repository)
+        .verified_revision(genesis)
+        .unwrap();
+    // Materialize the head snapshot through the query path.
+    let outcome = run_root_query(
+        &harness.repository,
+        &revision,
+        &maintenance_guard(&harness.repository),
+        RootQuery::GetRootSummary,
+        QueryLimits::profile_maximum(),
+        false,
+        None,
+    )
+    .unwrap();
+    harness.ok(Method::QueryRoot, outcome.request.preimage().to_vec());
+    let cache = sley_repo::index_cache_path(&harness.repository, revision.state_root().root);
+    assert!(cache.is_file());
+    let opened = harness.ok(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(opened.body, summary, "version 1 bytes unchanged");
+    let refused = harness.fail(Method::WorkspaceOpen, vec![0]);
+    assert_eq!(refused.code, ProtocolErrorCode::PayloadInvalid.numeric());
 }
 
 #[test]
@@ -7348,4 +7381,306 @@ fn emit_native_test_vectors_for_fixture_refresh() {
         ])
         .unwrap(),
     );
+}
+
+/// REQ-10 accepted-head binding under a version 2 selection (SMP1 revision
+/// 14 `open_summary`): cold, field 9 is structurally absent (the body equals
+/// `revision.read` of the head, no omission signal, no cache file written);
+/// the query path, not the opener, materializes the snapshot while refusing
+/// an unbound preimage; warm, the eight fields are unchanged and field 9 is
+/// the identity `query.root` binds, so a preimage built from the disclosure
+/// is answered; `revision.read` stays eight fields; a body is refused.
+#[test]
+fn workspace_open_v2_discloses_only_the_materialized_head_snapshot() {
+    let mut server = VServer::with_bodies(
+        "v2-open-snapshot",
+        complete_bodies(),
+        &[complete_dependency_root()],
+    );
+    let transactions = sley_txn::TransactionRepository::new(&server.repository);
+    let revision = transactions
+        .accepted_head()
+        .unwrap()
+        .into_verified_revision();
+    let head_tx = revision.transaction_id();
+    let (failed, read) = server.call(Method::RevisionRead.tag(), tx(head_tx));
+    assert!(!failed);
+    let revision_before = read.body;
+    assert_eq!(revision_before[0], 8, "eight-field revision summary");
+    let (failed, cold) = server.call(Method::WorkspaceOpen.tag(), Vec::new());
+    assert!(!failed);
+    assert_eq!(cold.body, revision_before);
+    assert_eq!(cold.bounds.returned_entities, 1);
+    assert_eq!(cold.bounds.omitted, 0);
+    assert!(!cold.bounds.truncated && !cold.bounds.continuation);
+    let cache = sley_repo::index_cache_path(&server.repository, revision.state_root().root);
+    assert!(!cache.exists(), "workspace.open must never build");
+    let outcome = run_root_query_fresh(
+        &revision,
+        RootQuery::ListEntitiesByKind {
+            kind: ModeledEntityKind::Namespace,
+        },
+        QueryLimits::profile_maximum(),
+        true,
+        None,
+    )
+    .unwrap();
+    let mut unbound = outcome.request.preimage().to_vec();
+    unbound[16..48].fill(0);
+    let (failed, refused) = server.call(Method::QueryRoot.tag(), unbound.clone());
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&refused.body).unwrap().symbol,
+        "QUERY_SNAPSHOT_MISMATCH"
+    );
+    assert!(cache.is_file(), "the query path materializes the snapshot");
+    let (failed, warm) = server.call(Method::WorkspaceOpen.tag(), Vec::new());
+    assert!(!failed);
+    assert_eq!(warm.bounds.returned_entities, 1);
+    assert_eq!(warm.bounds.omitted, 0);
+    assert!(!warm.bounds.truncated);
+    assert_eq!(warm.body[0], 9, "nine-field open summary");
+    assert_eq!(&warm.body[1..revision_before.len()], &revision_before[1..]);
+    let tail = &warm.body[revision_before.len()..];
+    assert_eq!(&tail[..2], &[9, 32]);
+    let disclosed = &tail[2..];
+    assert_eq!(disclosed, outcome.request.snapshot_id().as_bytes());
+    let (failed, read) = server.call(Method::RevisionRead.tag(), tx(head_tx));
+    assert!(!failed);
+    assert_eq!(read.body, revision_before);
+    unbound[16..48].copy_from_slice(disclosed);
+    assert_eq!(unbound, outcome.request.preimage());
+    let (failed, answered) = server.call(Method::QueryRoot.tag(), unbound);
+    assert!(!failed);
+    assert_eq!(answered.body, outcome.response.record());
+    let (failed, bodied) = server.call(Method::WorkspaceOpen.tag(), vec![0]);
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&bodied.body).unwrap().code,
+        ProtocolErrorCode::PayloadInvalid.numeric()
+    );
+}
+
+/// SMP1 revision 15: version 3 is the union of the version 1 and version 2
+/// tables (`NATIVE_TEST_ADMISSION_V1` appendix D), so `workspace.open` under
+/// a version 3 selection answers exactly the version 2 `open_summary`:
+/// eight fields cold, field 9 (the identity `query.root` binds) warm.
+#[test]
+fn workspace_open_v3_answers_the_version_2_open_summary() {
+    let bit = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1;
+    let (temp, _, _) = genesis(
+        "v3-open-snapshot",
+        complete_bodies(),
+        &[complete_dependency_root()],
+    );
+    let repository = temp.child("repo");
+    let mut server = Server::new_versioned(
+        &repository,
+        &v3hello(v3_offered_methods(), bit),
+        &v3hello(v3_offered_methods(), bit),
+    )
+    .unwrap();
+    assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V3);
+    let session = open_v3_session(&mut server);
+    let call = |server: &mut Server, id: u64, tag: u32, body: Vec<u8>| {
+        let answer = server
+            .answer(&v3request_frame(Some(session), id, tag, body))
+            .unwrap();
+        let (DecodedFrame::Response(frame), _) =
+            decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3)
+                .unwrap()
+        else {
+            panic!("v3 response frame");
+        };
+        (answer.failed, frame)
+    };
+    let revision = sley_txn::TransactionRepository::new(&repository)
+        .accepted_head()
+        .unwrap()
+        .into_verified_revision();
+    let (failed, read) = call(
+        &mut server,
+        1,
+        Method::RevisionRead.tag(),
+        tx(revision.transaction_id()),
+    );
+    assert!(!failed);
+    let (failed, cold) = call(&mut server, 2, Method::WorkspaceOpen.tag(), Vec::new());
+    assert!(!failed);
+    assert_eq!(cold.body, read.body, "cold: eight fields, as revision.read");
+    // Warm the cache through the sanctioned query surface.
+    let warmed = run_root_query(
+        &repository,
+        &revision,
+        &maintenance_guard(&repository),
+        RootQuery::GetRootSummary,
+        QueryLimits::profile_maximum(),
+        false,
+        None,
+    )
+    .unwrap();
+    let (failed, warm) = call(&mut server, 3, Method::WorkspaceOpen.tag(), Vec::new());
+    assert!(!failed);
+    assert_eq!(warm.body[0], 9, "warm: open_summary");
+    assert_eq!(&warm.body[1..read.body.len()], &read.body[1..]);
+    assert_eq!(&warm.body[read.body.len()..read.body.len() + 2], &[9, 32]);
+    assert!(warm.body.ends_with(warmed.request.snapshot_id().as_bytes()));
+    assert_eq!(warm.bounds.returned_entities, 1);
+    assert_eq!(warm.bounds.omitted, 0);
+    let (failed, bodied) = call(&mut server, 4, Method::WorkspaceOpen.tag(), vec![0]);
+    assert!(failed);
+    assert_eq!(
+        ProtocolFailure::decode(&bodied.body).unwrap().code,
+        ProtocolErrorCode::PayloadInvalid.numeric()
+    );
+}
+
+/// The probe's consumer obligations (S20-300 section 5): with an exclusive
+/// maintenance owner holding the boundary, the probe answers absence at
+/// once instead of waiting; and a discarded (corrupted) cache record makes
+/// `workspace.open` answer eight fields while the file's bytes stay as they
+/// were (no rebuild, no write-back).
+#[test]
+fn workspace_open_probe_is_non_waiting_and_never_rewrites_a_discarded_record() {
+    let mut server = VServer::with_bodies(
+        "v2-open-probe-obligations",
+        complete_bodies(),
+        &[complete_dependency_root()],
+    );
+    let revision = sley_txn::TransactionRepository::new(&server.repository)
+        .accepted_head()
+        .unwrap()
+        .into_verified_revision();
+    let warmed = run_root_query(
+        &server.repository,
+        &revision,
+        &maintenance_guard(&server.repository),
+        RootQuery::GetRootSummary,
+        QueryLimits::profile_maximum(),
+        false,
+        None,
+    )
+    .unwrap();
+    assert_eq!(
+        server.server.materialized_head_snapshot(&revision),
+        Some(warmed.request.snapshot_id())
+    );
+    let exclusive = sley_txn::acquire_exclusive_repository_maintenance(&server.repository).unwrap();
+    let started = std::time::Instant::now();
+    assert_eq!(server.server.materialized_head_snapshot(&revision), None);
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    drop(exclusive);
+    let cache = sley_repo::index_cache_path(&server.repository, revision.state_root().root);
+    let mut corrupt = std::fs::read(&cache).unwrap();
+    let last = corrupt.len() - 1;
+    corrupt[last] ^= 1;
+    std::fs::write(&cache, &corrupt).unwrap();
+    let (failed, opened) = server.call(Method::WorkspaceOpen.tag(), Vec::new());
+    assert!(!failed);
+    assert_eq!(opened.body[0], 8, "a discarded record is absence");
+    assert_eq!(
+        std::fs::read(&cache).unwrap(),
+        corrupt,
+        "no rebuild, no write-back"
+    );
+}
+
+/// Session profile revision 6 (S20-330 section 3): `workspace.open` is
+/// answered from the head its session check loaded, so one answer loads the
+/// accepted head exactly once and a head advanced between the check and the
+/// answer can never be served to a session bound to the older root.
+#[test]
+fn workspace_open_answers_from_the_single_checked_head_load() {
+    let mut harness = Harness::new("s330-open-one-load");
+    harness.server.reset_head_load_count();
+    let opened = harness.ok(Method::WorkspaceOpen, Vec::new());
+    assert_eq!(
+        harness.server.head_load_count(),
+        1,
+        "one head load per answer"
+    );
+    let summary = harness.ok(Method::RevisionRead, tx(harness.genesis)).body;
+    assert_eq!(opened.body, summary);
+}
+
+/// Session profile revision 6 (S20-330 section 3): under a version 3
+/// selection the two entity-read methods are head-bound exactly as under
+/// version 2, so a stale bound root refuses both with
+/// `SESSION_ROOT_ADVANCED` before any body is read.
+#[test]
+fn entity_reads_are_head_bound_under_version_3() {
+    let bit = FEATURE_CANCEL | FEATURE_STREAM | FEATURE_NATIVE_TESTS_V1;
+    let (temp, _, _) = genesis(
+        "s330-v3-head-bound",
+        complete_bodies(),
+        &[complete_dependency_root()],
+    );
+    let repository = temp.child("repo");
+    let mut server = Server::new_versioned(
+        &repository,
+        &v3hello(v3_offered_methods(), bit),
+        &v3hello(v3_offered_methods(), bit),
+    )
+    .unwrap();
+    assert_eq!(server.profile().protocol_version, PROTOCOL_VERSION_V3);
+    let session = open_v3_session(&mut server);
+    // The head advances: another root under the same workspace replaces the
+    // repository on disk, which is what a commit would leave behind.
+    let (other, _, _) = sley_repo::test_support::genesis_in_workspace(
+        "s330-v3-advance",
+        dependency_free_bodies(),
+        &[],
+        1,
+    );
+    let parked = sley_repo::test_support::TempDir::new("s330-v3-parked");
+    std::fs::rename(&repository, parked.child("repo")).unwrap();
+    std::fs::rename(other.child("repo"), &repository).unwrap();
+    for (id, tag) in [(1, ENTITY_VERSION_TAG), (2, ENTITY_SIGNATURE_TAG)] {
+        let answer = server
+            .answer(&v3request_frame(Some(session), id, tag, b"junk".to_vec()))
+            .unwrap();
+        assert!(answer.failed);
+        let (DecodedFrame::Response(frame), _) =
+            decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V3)
+                .unwrap()
+        else {
+            panic!("v3 response frame");
+        };
+        let failure = ProtocolFailure::decode(&frame.body).unwrap();
+        assert_eq!(failure.symbol, "SESSION_ROOT_ADVANCED", "tag {tag}");
+    }
+}
+
+/// Session profile revision 6 (S20-330 section 3): below version 3 the
+/// native tags 605, 606, and 607 are outside the selection's table and are
+/// refused at decode, before check 1, so even an unknown session answers
+/// `PROTOCOL_METHOD_UNSUPPORTED`; a reserved tag inside the table (305)
+/// passes to check 1 and answers `SESSION_UNKNOWN`.
+#[test]
+fn native_tags_below_version_3_refuse_at_decode_before_the_session_check() {
+    let mut harness = VServer::new("s330-v2-native-precedence");
+    let stranger = SessionId::from_bytes([0x5a; 32]);
+    let refuse = |server: &mut Server, id: u64, tag: u32| {
+        let answer = server
+            .answer(&vrequest_frame(Some(stranger), id, tag, Vec::new()))
+            .unwrap();
+        assert!(answer.failed);
+        let (DecodedFrame::Response(frame), _) =
+            decode_frame_for_version(&answer.frame.bytes, MAX_FRAME_BYTES, PROTOCOL_VERSION_V2)
+                .unwrap()
+        else {
+            panic!("v2 response frame");
+        };
+        ProtocolFailure::decode(&frame.body).unwrap()
+    };
+    for (id, tag) in [(1, 605), (2, 606), (3, 607)] {
+        let failure = refuse(&mut harness.server, id, tag);
+        assert_eq!(
+            failure.code,
+            ProtocolErrorCode::MethodUnsupported.numeric(),
+            "tag {tag}"
+        );
+    }
+    let reserved = refuse(&mut harness.server, 4, 305);
+    assert_eq!(reserved.symbol, "SESSION_UNKNOWN");
 }

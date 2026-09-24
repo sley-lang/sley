@@ -1,0 +1,111 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "f073811914297505803f5b731cd4691e1623de84",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "ariadne",
+      "section": "complete_root_index_snapshot",
+      "field": "ariadne_contract_review_revision_4",
+      "verdict": "PASS_0_P0_0_P1_0_P2_2_P3_3_P4",
+      "scope_sha": "f073811914297505803f5b731cd4691e1623de84",
+      "path": "evidence/review/verdicts/complete_root_index_snapshot/ariadne_contract_review_revision_4-f073811.md",
+      "sha256": "4eff4f25eb7fc6bb3004c0127873f6ba6800a99d1840b6a26c47cd8c1d117eb9",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 368
+    },
+    {
+      "role": "nabu",
+      "section": "complete_root_index_snapshot",
+      "field": "nabu_architecture_review_revision_4",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_2_P3_2_P4",
+      "scope_sha": "f073811914297505803f5b731cd4691e1623de84",
+      "path": "evidence/review/verdicts/complete_root_index_snapshot/nabu_architecture_review_revision_4-f073811.md",
+      "sha256": "3e434c94efd287f663595628b28a0d81d8423760151c6cb821f9b046eb37199d",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 372
+    },
+    {
+      "role": "vulcan",
+      "section": "complete_root_index_snapshot",
+      "field": "vulcan_surface_review_revision_4",
+      "verdict": "REVISE_0_P0_0_P1_1_P2_2_P3_1_P4",
+      "scope_sha": "f073811914297505803f5b731cd4691e1623de84",
+      "path": "evidence/review/verdicts/complete_root_index_snapshot/vulcan_surface_review_revision_4-f073811.md",
+      "sha256": "0df869d49a2a0949e519ac079263eb136d25855794b338d9c8004e441313110e",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 390
+    },
+    {
+      "role": "ariadne",
+      "section": "protocol",
+      "field": "ariadne_contract_review_revision_13",
+      "verdict": "REVISE_0_P0_1_P1_0_P2_4_P3_3_P4",
+      "scope_sha": "f073811914297505803f5b731cd4691e1623de84",
+      "path": "evidence/review/verdicts/protocol/ariadne_contract_review_revision_13-f073811.md",
+      "sha256": "130d48e1b0670927d4f1d927a011ab30c85054dd76e8e8f3770368d12d0af298",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 779
+    },
+    {
+      "role": "nabu",
+      "section": "protocol",
+      "field": "nabu_architecture_review_revision_13",
+      "verdict": "REVISE_0_P0_1_P1_1_P2_4_P3_1_P4",
+      "scope_sha": "f073811914297505803f5b731cd4691e1623de84",
+      "path": "evidence/review/verdicts/protocol/nabu_architecture_review_revision_13-f073811.md",
+      "sha256": "82711fa6b04f048047133c5f763a6ccc8fd4e875c1f9195a354e75abcda81f4b",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 545
+    },
+    {
+      "role": "vulcan",
+      "section": "protocol",
+      "field": "vulcan_surface_review_revision_13",
+      "verdict": "REVISE_0_P0_0_P1_1_P2_3_P3_2_P4",
+      "scope_sha": "f073811914297505803f5b731cd4691e1623de84",
+      "path": "evidence/review/verdicts/protocol/vulcan_surface_review_revision_13-f073811.md",
+      "sha256": "fc2ecbb157ad5724794052943304a795e9781f9f4c5643b3fb4124f336efa350",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 801
+    },
+    {
+      "role": "nabu",
+      "section": "sley2_trial_runner",
+      "field": "nabu_architecture_review_revision_6",
+      "verdict": "PASS_0_P0_0_P1_0_P2_2_P3_3_P4",
+      "scope_sha": "f073811914297505803f5b731cd4691e1623de84",
+      "path": "evidence/review/verdicts/sley2_trial_runner/nabu_architecture_review_revision_6-f073811.md",
+      "sha256": "20a58114bb9cc4a5b1145f8c5b74ad12408fdd827dc727b2f924317a06523106",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 2049
+    },
+    {
+      "role": "vulcan",
+      "section": "sley2_trial_runner",
+      "field": "vulcan_surface_review_revision_6",
+      "verdict": "PASS_0_P0_0_P1_0_P2_0_P3_3_P4_PRIOR_P3_P4_CLOSED",
+      "scope_sha": "f073811914297505803f5b731cd4691e1623de84",
+      "path": "evidence/review/verdicts/sley2_trial_runner/vulcan_surface_review_revision_6-f073811.md",
+      "sha256": "bc849e50fc3ba7d68883c6e80934c208149e7a1d6a0e8799ba4a4e5d7ef98cce",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 1760
+    }
+  ],
+  "omitted_process_artifacts": [
+    {
+      "section": "sley2_trial_runner",
+      "field": "ariadne_contract_review_revision_6",
+      "verdict": "NO_VERDICT",
+      "reason": "reviewer final message was a background-task notice; stub moved to ../reviews/process-errors/ by the coordinator and not filed; re-dispatch pending"
+    }
+  ]
+}

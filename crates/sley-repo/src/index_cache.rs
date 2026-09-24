@@ -3,7 +3,9 @@
 //!
 //! The one place an index snapshot is reused without a rebuild. A cached
 //! record is accepted only under the four cheap rules of the contract and
-//! serves read-only derived query surfaces; validation, comparison, merge,
+//! serves read-only derived query surfaces, plus (profile revision 4 and
+//! later) the read-only identity probe whose one consumer is the SMP1
+//! `workspace.open` snapshot identity; validation, comparison, merge,
 //! commit, exchange, GC, and recovery never read it. Files are derived and
 //! disposable.
 
@@ -13,7 +15,7 @@ use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use sley_id::StateRoot;
+use sley_id::{IndexSnapshotId, StateRoot};
 use sley_query::{
     CacheDiscardReason, IndexSnapshot, IndexSnapshotBuildError, IndexSnapshotError,
     IndexSnapshotErrorCode, MAX_SNAPSHOT_RECORD_BYTES, SnapshotContext,
@@ -152,11 +154,41 @@ fn discard_reason_of(error: &IndexSnapshotError) -> CacheDiscardReason {
 
 static TEMPORARY_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// Whether each existing cache directory component (`index/`,
+/// `index/v1/`) above `path` is a real directory, never a symlink or a
+/// non-directory. An absent component is fine (the writer creates it).
+fn cache_directories_are_real(path: &Path) -> bool {
+    let Some(version) = path.parent() else {
+        return false;
+    };
+    let Some(index) = version.parent() else {
+        return false;
+    };
+    [index, version].iter().all(|component| {
+        fs::symlink_metadata(component).map_or_else(
+            |error| error.kind() == std::io::ErrorKind::NotFound,
+            |metadata| metadata.file_type().is_dir(),
+        )
+    })
+}
+
 fn write_record(path: &Path, record: &[u8]) -> Result<(), IndexCacheError> {
     let directory = path
         .parent()
         .ok_or_else(|| std::io::Error::other("index cache path has no parent"))?;
+    // A symlinked `index/` or `index/v1/` is tampering: never create
+    // through it or write through it (the import purge refuses the same).
+    if !cache_directories_are_real(path) {
+        return Err(IndexCacheError::Io(std::io::Error::other(
+            "index cache directory is not a real directory",
+        )));
+    }
     fs::create_dir_all(directory)?;
+    if !cache_directories_are_real(path) {
+        return Err(IndexCacheError::Io(std::io::Error::other(
+            "index cache directory is not a real directory",
+        )));
+    }
     // Unique temporary names with exclusive creation: a fixed `.tmp` name
     // lets a planted symlink redirect the write through to another file,
     // and lets concurrent writers tear each other. The process id plus a
@@ -205,12 +237,15 @@ pub fn complete_root_snapshot(
     revision: &VerifiedRevision,
     guard: &RepositoryMaintenanceGuard,
 ) -> Result<(IndexSnapshot, CacheOutcome), IndexCacheError> {
-    if guard.repository_root() != repository {
+    if !guard.covers(repository) {
         return Err(IndexCacheError::Io(std::io::Error::other(
             "index cache guard covers a different repository",
         )));
     }
-    let path = index_cache_path(repository, revision.state_root().root);
+    // Derived from the guard's canonical root, never the caller's spelling:
+    // a parent symlink retargeted after `covers` cannot aim the read or
+    // write-back outside the guarded repository.
+    let path = index_cache_path(guard.repository_root(), revision.state_root().root);
     let reason = match read_record(&path) {
         Some(record) => match accept_cached(revision, &record) {
             Ok(snapshot) => return Ok((snapshot, CacheOutcome::Hit)),
@@ -234,17 +269,68 @@ pub fn complete_root_snapshot(
     Ok((fresh, CacheOutcome::Rebuilt(reason)))
 }
 
-/// Reads the cache file when it is a regular file: refused (not failed)
-/// for a non-file, absent for anything unreadable. The open handle pins
-/// the inode, so a swap between the metadata check and the read cannot
-/// redirect into a planted symlink; the byte cap bounds what one read can
-/// materialize.
+/// Probes the cache for the verified revision's already-materialized
+/// complete-root snapshot and returns its identity, without ever building
+/// one (S20-300, owner Merlin; REQ-10 accepted-head disclosure).
+///
+/// Only the cheap path runs: at most one cache file is read (bounded by
+/// `MAX_SNAPSHOT_RECORD_BYTES`) and bounded-decoded under the same four
+/// acceptance rules as [`complete_root_snapshot`] (`accept_cached` reads no
+/// object and extracts no edge; the decode still verifies the record's
+/// digest and edge inversion). An absent, unreadable, non-file, or
+/// discarded record yields `None`; there is no `fresh_snapshot`
+/// fallthrough, no write-back, and no delete. Builds stay on the query
+/// paths ([`complete_root_snapshot`] under `query.root`/`query.continue`).
+///
+/// The caller MUST hold shared repository maintenance over
+/// `repository`, as for [`complete_root_snapshot`].
+///
+/// # Errors
+///
+/// Returns `INDEX_SNAPSHOT_IO` only for a guard that does not cover
+/// `repository` (compared canonically, as `RepositoryMaintenanceGuard::covers`
+/// does); every cache condition is an absence, not an error.
+pub fn cached_complete_root_snapshot_id(
+    repository: &Path,
+    revision: &VerifiedRevision,
+    guard: &RepositoryMaintenanceGuard,
+) -> Result<Option<IndexSnapshotId>, IndexCacheError> {
+    if !guard.covers(repository) {
+        return Err(IndexCacheError::Io(std::io::Error::other(
+            "index cache guard covers a different repository",
+        )));
+    }
+    // Derived from the guard's canonical root, never the caller's spelling:
+    // a parent symlink retargeted after `covers` cannot aim the read or
+    // write-back outside the guarded repository.
+    let path = index_cache_path(guard.repository_root(), revision.state_root().root);
+    Ok(read_record(&path)
+        .and_then(|record| accept_cached(revision, &record).ok())
+        .map(|snapshot| snapshot.snapshot_id()))
+}
+
+/// Reads the cache file when it is a regular file, absent for anything
+/// else. The `index/` and `index/v1/` components must be real directories
+/// (a symlinked component is absence). On Unix the file is then opened
+/// once with `O_NOFOLLOW` (a symlink at the cache path fails the open) and
+/// `O_NONBLOCK` (a FIFO or device cannot make the open wait); on every
+/// platform the open handle is then required to be a regular file, so a
+/// planted symlink, FIFO, or directory is absence. The byte cap bounds
+/// what one read can materialize.
 fn read_record(path: &Path) -> Option<Vec<u8>> {
-    let metadata = fs::symlink_metadata(path).ok()?;
-    if !metadata.is_file() {
+    // `O_NOFOLLOW` covers only the final component, so the two cache
+    // directory components are required to be real directories first.
+    if !cache_directories_are_real(path) {
         return None;
     }
-    let file = File::open(path).ok()?;
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    let file = options.open(path).ok()?;
     if !file.metadata().ok()?.is_file() {
         return None;
     }
@@ -280,13 +366,16 @@ pub fn verify_cached_snapshot(
     revision: &VerifiedRevision,
     guard: &RepositoryMaintenanceGuard,
 ) -> Result<CacheVerify, IndexCacheError> {
-    if guard.repository_root() != repository {
+    if !guard.covers(repository) {
         return Err(IndexCacheError::Io(std::io::Error::other(
             "index cache guard covers a different repository",
         )));
     }
     let fresh = fresh_snapshot(revision)?;
-    let path = index_cache_path(repository, revision.state_root().root);
+    // Derived from the guard's canonical root, never the caller's spelling:
+    // a parent symlink retargeted after `covers` cannot aim the read or
+    // write-back outside the guarded repository.
+    let path = index_cache_path(guard.repository_root(), revision.state_root().root);
     match read_record(&path) {
         Some(record) => Ok(if record == fresh.record() {
             CacheVerify::Match
@@ -523,6 +612,49 @@ mod tests {
             error.code().as_str(),
             IndexSnapshotErrorCode::RootIo.as_str()
         );
+        let error = cached_complete_root_snapshot_id(&other, &revision, &guard).unwrap_err();
+        assert_eq!(
+            error.code().as_str(),
+            IndexSnapshotErrorCode::RootIo.as_str()
+        );
+    }
+
+    #[test]
+    fn probe_reports_only_a_materialized_snapshot_and_never_builds() {
+        let (temp, transactions, genesis_id) =
+            genesis("index-probe", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        let path = index_cache_path(&repository, revision.state_root().root);
+        // Cold: absent, and the probe writes nothing back.
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            None
+        );
+        assert!(!path.exists(), "the probe must never build or write");
+        // Materialized by the query path: the probe names that snapshot.
+        let (built, _) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            Some(built.snapshot_id())
+        );
+        // A hit reads no object: removing the store does not change it.
+        fs::remove_dir_all(repository.join("objects")).unwrap();
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            Some(built.snapshot_id())
+        );
+        // A record the four rules discard is an absence, not a rebuild.
+        let mut corrupt = built.record().to_vec();
+        let last = corrupt.len() - 1;
+        corrupt[last] ^= 1;
+        fs::write(&path, &corrupt).unwrap();
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            None
+        );
+        assert_eq!(fs::read(&path).unwrap(), corrupt, "no write-back");
     }
 
     #[test]
@@ -547,6 +679,150 @@ mod tests {
         assert_eq!(
             verify_cached_snapshot(&repository, &revision, &guard).unwrap(),
             CacheVerify::Mismatch
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_symlink_to_a_valid_record_is_absence_for_the_probe() {
+        // O_NOFOLLOW: even a link to a byte-identical valid record is not
+        // followed; the probe answers absence, the query path fails closed.
+        use std::os::unix::fs::symlink;
+        let (temp, transactions, genesis_id) =
+            genesis("index-probe-link", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        let (built, _) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        let path = index_cache_path(&repository, revision.state_root().root);
+        let copy = temp.child("valid-copy");
+        fs::write(&copy, built.record()).unwrap();
+        fs::remove_file(&path).unwrap();
+        symlink(&copy, &path).unwrap();
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            None
+        );
+        assert!(complete_root_snapshot(&repository, &revision, &guard).is_err());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_fifo_at_the_cache_path_answers_at_once() {
+        // O_NONBLOCK: a FIFO with no writer cannot make the open wait; the
+        // probe reports absence and the query path fails closed, both
+        // promptly (a blocking open would hang this test).
+        let (temp, transactions, genesis_id) =
+            genesis("index-probe-fifo", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        let path = index_cache_path(&repository, revision.state_root().root);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let made = std::process::Command::new("mkfifo")
+            .arg(&path)
+            .status()
+            .unwrap();
+        assert!(made.success());
+        let started = std::time::Instant::now();
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            None
+        );
+        assert!(complete_root_snapshot(&repository, &revision, &guard).is_err());
+        assert!(started.elapsed() < std::time::Duration::from_secs(30));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_non_canonical_repository_spelling_is_covered_by_its_guard() {
+        // The guard holds the canonical root. A caller that names the same
+        // repository through a symlinked parent directory or a `..`
+        // component is covered (guard.covers, the S20-390 rule), so the
+        // probe and the query path work instead of refusing; a symlink as
+        // the repository's own final component stays refused by that rule.
+        use std::os::unix::fs::symlink;
+        let (temp, transactions, genesis_id) =
+            genesis("index-probe-alias", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let parent_alias = temp.child("parent-alias");
+        symlink(repository.parent().unwrap(), &parent_alias).unwrap();
+        let through_link = parent_alias.join("repo");
+        let dotted = repository.join("objects").join("..");
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        let (built, _) = complete_root_snapshot(&through_link, &revision, &guard).unwrap();
+        for spelling in [&through_link, &dotted] {
+            assert_eq!(
+                cached_complete_root_snapshot_id(spelling, &revision, &guard).unwrap(),
+                Some(built.snapshot_id())
+            );
+            assert_eq!(
+                verify_cached_snapshot(spelling, &revision, &guard).unwrap(),
+                CacheVerify::Match
+            );
+        }
+        // A relative spelling (walked up from the working directory, no
+        // chdir) is covered too, and every spelling reads and writes the
+        // cache under the guard's canonical root.
+        let cwd = std::env::current_dir().unwrap();
+        let mut relative = PathBuf::new();
+        for _ in cwd.components().skip(1) {
+            relative.push("..");
+        }
+        relative.push(repository.strip_prefix("/").unwrap());
+        assert!(relative.is_relative());
+        assert_eq!(
+            cached_complete_root_snapshot_id(&relative, &revision, &guard).unwrap(),
+            Some(built.snapshot_id())
+        );
+        assert!(index_cache_path(guard.repository_root(), revision.state_root().root).is_file());
+        let final_alias = temp.child("repo-alias");
+        symlink(&repository, &final_alias).unwrap();
+        assert!(cached_complete_root_snapshot_id(&final_alias, &revision, &guard).is_err());
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_symlinked_cache_directory_is_never_read_or_written_through() {
+        // `O_NOFOLLOW` covers only the final component: a symlinked
+        // `index/` (or `index/v1/`) is refused as a component instead, so
+        // the probe answers absence and the write-back never lands outside
+        // the repository.
+        use std::os::unix::fs::symlink;
+        let (temp, transactions, genesis_id) =
+            genesis("index-dir-link", complete_bodies(), &[root(9)]);
+        let repository = temp.child("repo");
+        let guard = hold(&repository);
+        let revision = transactions.verified_revision(genesis_id).unwrap();
+        // A valid record prepared elsewhere, reachable only through links.
+        let (built, _) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        let path = index_cache_path(&repository, revision.state_root().root);
+        let outside = temp.child("outside");
+        fs::rename(repository.join("index"), &outside).unwrap();
+        symlink(&outside, repository.join("index")).unwrap();
+        assert!(outside.join("v1").join(path.file_name().unwrap()).is_file());
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            None
+        );
+        fs::remove_file(outside.join("v1").join(path.file_name().unwrap())).unwrap();
+        let (fresh, outcome) = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        assert_eq!(fresh.snapshot_id(), built.snapshot_id());
+        assert!(matches!(outcome, CacheOutcome::Rebuilt(_)));
+        assert!(
+            !outside.join("v1").join(path.file_name().unwrap()).exists(),
+            "no write-back through a symlinked index directory"
+        );
+        // The same for a symlinked `index/v1/` under a real `index/`.
+        fs::remove_file(repository.join("index")).unwrap();
+        fs::create_dir(repository.join("index")).unwrap();
+        symlink(outside.join("v1"), repository.join("index").join("v1")).unwrap();
+        let _ = complete_root_snapshot(&repository, &revision, &guard).unwrap();
+        assert!(!outside.join("v1").join(path.file_name().unwrap()).exists());
+        assert_eq!(
+            cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),
+            None
         );
     }
 

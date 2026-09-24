@@ -50,7 +50,49 @@ METHOD_TAGS = (
 # second independently maintained 43-row table exists.
 V2_ADDITIONS = (306, 307)
 V2_METHOD_TAGS = tuple(sorted(METHOD_TAGS + list(V2_ADDITIONS)))
-CONTRACT_REVISION = 12
+CONTRACT_REVISION = 16
+# Revision 16 is errata-only (a text correction with no behaviour change),
+# so the normative revision consumers pin stays 15; the Status line must
+# declare that, and consumers' pins are checked against it.
+NORMATIVE_REVISION = 15
+# Revision 13/14 normative text for method 201 (anchored on whitespace-
+# flattened text, so reverting any of it fails the gate).
+WORKSPACE_OPEN_ANCHORS = (
+    ("v1-row-201", "| 201 | `workspace.open` | none | accepted head summary (appendix A) | S20-390 |"),
+    ("appendix-a-row-201-request",
+     "| 201 `workspace.open` | empty; a non-empty body is `PROTOCOL_PAYLOAD_INVALID` under every version (revision 13) |"),
+    ("appendix-a-row-201-response",
+     "`open_summary` under version 2 and every later selection whose table carries row 201 (version 3)"),
+    ("open-summary-grammar", "7: uvar(tombstones), 8: ReceiptId, [9: IndexSnapshotId])"),
+    ("optional-by-omission",
+     "An optional record field written `[n: T]` is optional by omission: when absent the field is not encoded at all"),
+    ("open-summary-scope",
+     "`open_summary` (revisions 13 to 15) is the `workspace.open` response under version 2 and under every later "
+     "selection whose method table includes version 2's row 201"),
+    ("field-9-pointer", "Field 9 is a pointer, not evidence"),
+    ("entrypoints-admit-version-3",
+     "`ProtocolFrame::validate_for_version`) admit only selections 1, 2, and 3, like `negotiate_versioned`"),
+    ("version-1-compat",
+     "with two version 1 observable changes on record: a non-empty 201 body, previously ignored"),
+    ("version-1-native-filter-compat",
+     "a version 1 selection drops the native tags 605, 606, and 607 from the intersection as well as 306 and 307"),
+    ("per-selection-filter",
+     "under selected version 1 it removes the version-2 tags 306 and 307 and the native tags 605, 606, and 607; "
+     "under selected version 2 it removes 605, 606, and 607; under selected version 3 without the native-tests "
+     "feature bit it removes 601, 602, 605, 606, and 607"),
+)
+NATIVE_SPEC = ROOT / "docs/spec/NATIVE_TEST_ADMISSION_V1.md"
+
+
+def workspace_open_anchor_problems(spec: str, native: str) -> list[str]:
+    """Anchors for the method 201 text and the version 3 owner's pin."""
+    flat = re.sub(r"\s+", " ", spec)
+    problems = [f"spec-anchor:{name}" for name, text in WORKSPACE_OPEN_ANCHORS if text not in flat]
+    native_flat = re.sub(r"\s+", " ", native)
+    pins = re.findall(r"`docs/spec/SMP1\.md` at revision (\d+)", native_flat)
+    if pins != [str(NORMATIVE_REVISION)]:
+        problems.append(f"v3-owner-pin:{pins}")
+    return problems
 V1_SECTION = "### Protocol version 1"
 V2_SECTION = "### Protocol version 2 additions"
 V2_SECTION_END = "## 5. Bounded context"
@@ -295,8 +337,9 @@ def main() -> int:
     for marker in ADR_MARKERS:
         if marker not in adr:
             problems.append(f"adr-marker:{marker}")
-    if "revision 12" not in adr:
-        problems.append("adr-revision:12")
+    problems.extend(workspace_open_anchor_problems(spec, read(NATIVE_SPEC)))
+    if f"revision {CONTRACT_REVISION}" not in adr:
+        problems.append(f"adr-revision:{CONTRACT_REVISION}")
     packages = read(WORK_PACKAGES)
     for marker in WORK_PACKAGE_MARKERS:
         if marker not in packages:
@@ -377,6 +420,15 @@ def main() -> int:
             problems.append(f"reverse-pin:{name}:status-line")
         elif len(pins) != 1 or pins[0] != found.group(1):
             problems.append(f"reverse-pin:{name}:revision-{found.group(1) if found else '?'}")
+    errata = re.search(
+        r"^Status: S20-400 contract draft, revision \d+ \((?:[^;)]*; )?errata-only over normative "
+        r"revision (\d+)",
+        spec,
+        flags=re.M,
+    )
+    declared_normative = int(errata.group(1)) if errata else CONTRACT_REVISION
+    if declared_normative != NORMATIVE_REVISION:
+        problems.append(f"spec-normative-revision:{declared_normative}!={NORMATIVE_REVISION}")
     status_hits = re.findall(
         r"^Status: S20-400 contract draft, revision (\d+)", spec, flags=re.M
     )

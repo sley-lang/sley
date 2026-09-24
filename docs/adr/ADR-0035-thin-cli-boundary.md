@@ -1,6 +1,6 @@
 # ADR-0035: the CLI as a transport endpoint with no semantics
 
-Status: proposed; the S20-430 contract is a draft at revision 8 with
+Status: proposed; the S20-430 contract is a draft at revision 10 with
 Council review pending; implemented at `crates/sley-cli` (2026-09-03)
 with endpoint tests over a trusted genesis repository and the mechanical
 rule audit in `make quick`. Revision 5 record (2026-09-08): command
@@ -18,8 +18,16 @@ Revision 8 record (2026-09-14): composition pin move to bridge revision 10;
 section 8 states the end-of-input rule for every bridge ceiling; the
 cited gate tests derive their revision from the checker and run under
 `make quick`.
+Revision 9 record (2026-09-23): composition pin move to SMP1 revision 14
+and bridge revision 11 (it replaced an in-place revision 8 note that had
+pinned SMP1 revision 13 without a CLI revision); through the composed
+server a legacy serve now fails a non-empty 201 body.
+Revision 10 record (2026-09-23): admits the shipped version 3 capable
+surface (`v3-capable`, `[1,2,3]`, `sley2-cli-v3`, `sley2-cli-report-v3`)
+and, as decision 8, the private native-test worker entry; re-pins SMP1
+revision 15 and bridge revision 12.
 
-Date: 2026-09-03; revision 5 record 2026-09-08; revision 6 record 2026-09-09; revision 7 and 8 records 2026-09-14
+Date: 2026-09-03; revision 5 record 2026-09-08; revision 6 record 2026-09-09; revision 7 and 8 records 2026-09-14; revision 9 and 10 records 2026-09-23
 
 ## Context
 
@@ -57,6 +65,16 @@ soon as a lane returns.
 7. **Staging.** `scripts/check_cli_contract.py` binds the contract, ADR,
    work-package row, and summary section, and fails closed if the CLI crate
    appears before the summary allows it.
+8. **One bounded exception: the native-test worker entry (revision 10).**
+   `sley __native-test-worker <input_path>` lets the native test
+   supervisor run its worker from the installed binary. It is not a user
+   command or a protocol method; it writes raw refusal words and exits with
+   the worker's own statuses (1, 6, 7, 8), disjoint from decision 5. It is
+   the only reason `sley-cli` depends on `sley-test-runner` (and so links
+   `sley-vm`); the rule audit admits exactly one worker call and one
+   command word. Moving the worker to its own binary would remove the
+   exception; revision 10 records the shipped arrangement instead of
+   moving it.
 
 ## Consequences
 

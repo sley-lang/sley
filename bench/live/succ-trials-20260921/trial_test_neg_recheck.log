@@ -1,0 +1,4 @@
+TEST witness/neg: propose valid True
+TEST witness/neg: finished True
+S2B-TEST-001 witness/neg judge exit: 1
+workspace kept at: /tmp/sley2-test-witness-g8epq6vt/ws

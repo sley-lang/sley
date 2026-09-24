@@ -1,6 +1,6 @@
 # Sley 2 Trial Runner v1
 
-Status: S20-620 contract draft, revision 4 (2026-09-09); Council review
+Status: S20-620 contract draft, revision 8 (2026-09-23); Council review
 pending (Ariadne contract review, Nabu architecture review, Vulcan surface
 review). Revision 2 records the clarifications found while implementing
 revision 1 (section 9). Revision 3 replaces the section 2 capability claim
@@ -8,6 +8,30 @@ with the cooperative-adapter trust boundary the round showed it to be.
 Revision 4 admits `entity.version` and `entity.signature` to
 `ARM_AFFORDANCES` (eighteen names) and binds the claim digest to the
 per-trial immutable snapshot; the two names require a version 2 offer.
+Revision 5 moves `workspace.open` from the denied methods to
+`ARM_AFFORDANCES` (nineteen names, appended last) as the arm's
+accepted-head opener: the response carries the accepted head's
+already-materialized index snapshot identity (REQ-10, section 9), so a
+bounded root query can be formed from an allowed route. Revision 6 names
+the text the revision 5 review round (5b538f3, REVISE) produced when
+answered in place: section 9 cites SMP1 for the `workspace.open` body
+(probe failure is absence, warm-up owner-code precedence, non-empty body
+refused) and adds the chain-bound continuation rule; the revision 5
+verdicts stay history under their own field names and bind nothing here.
+Revision 7 (2026-09-23) answered the revision 6 round (PASS in all three
+lanes: Nabu and Vulcan at f073811, Ariadne at 2b0f1c9, with P3/P4
+findings) and the round-7 Vulcan delta verdict on the leak fix
+(2b0f1c9, filed as `vulcan_surface_review_delta_2b0f1c9`): the composed
+pins moved to SMP1 revision 15 and S20-300 revision 6 (the stage checker
+reads both from those documents' status lines). Revision 8 (2026-09-23)
+answers the revision 7 round (26d050e: Vulcan PASS, Ariadne and Nabu
+REVISE): section 9's absent-boundary sentence is corrected (the session
+check creates an absent boundary before the head load, so it never
+reaches the probe; revision 7 wrongly said it fails the method), the SMP1
+pin moves to its errata-only revision 16, and completion now binds each
+lane's `_revision_<N>` verdict to a note naming the reviewed commit,
+whose copy of this contract must carry revision N. No runner behavior
+changes.
 The implementation is `bench/sley2/runner.py` and `bench/sley2/handle.py`;
 implementation state is tracked in the machine summary.
 
@@ -22,7 +46,9 @@ real trial, derives no ratio, and makes no succession claim. It composes
 the S20-610 run manifest (`sley2.raw-run-manifest.v1`, one manifest per
 run naming all three arms), the S20-610 canonical JSON and digest-chain
 mechanics, the S20-430 endpoint (`docs/spec/SLEY_CLI_V1.md`), the S20-420
-JSON form, and the S20-540 exchange fixture; it alters none of them. The
+JSON form, and the S20-540 exchange fixture; it alters none of them (the
+revision 5 accepted-head opener relies on the `workspace.open` response
+that SMP1 revision 16 defines; this contract only admits the method). The
 master goal requires an agent that receives only an SMP1 context capsule
 and mutation affordances and completes its task without raw repository
 files, source syntax, an entire-store dump, or human intervention (master
@@ -32,7 +58,7 @@ goal sections 20.10, 21.3, 21.4, 21.6, 21.7).
 
 - One trial is one `sley serve --repository <disposable> --json --report
   <path> --protocol-profile v2-capable` process in per-frame mode. The
-  frozen eighteen-name allowlist requires a version 2 offer, so version 1
+  frozen nineteen-name allowlist requires a version 2 offer, so version 1
   trials do not run under this contract. The runner writes one
   `Frame` line per request and reads event and response lines until the
   response naming that request identifier arrives. The runner never speaks
@@ -265,7 +291,7 @@ the raw and legacy arms; Accepted Change Tokens and accounting (S20-630);
 statistics and trial sets (S20-640); succession thresholds; artifact
 provenance; publication; runtime, packaging, release, or GA.
 
-## 9. Revision 2 clarifications
+## 9. Clarifications (revision 2 onward)
 
 - The shared S20-610 manifest's `execution_mode: offline_injected` and
   `external_command_policy: forbidden` are **S20-610 shared run-level
@@ -288,18 +314,57 @@ provenance; publication; runtime, packaging, release, or GA.
   its snapshot to the frozen allowlist before execution (any other list is
   `SLEY2_TRIAL_HANDSHAKE_FAILED`) and claim validation requires the digest to
   equal it, so a widened claim never verifies. The allowlist
-  holds eighteen names in this frozen order, and the claim digest is
+  holds nineteen names in this frozen order, and the claim digest is
   order-sensitive: `candidate.append`, `candidate.create`,
   `candidate.discard`, `candidate.inspect`, `candidate.validate`, `capsule`,
   `compare`, `entity.signature`, `entity.version`, `handle.expand`,
   `query.continue`, `query.restricted`, `query.root`, `refs.list`,
   `refs.resolve`, `revision.read`, `session.budgets`,
-  `session.capabilities`. Those two entity names require a version 2
-  endpoint offer
+  `session.capabilities`, `workspace.open`. Those two entity names (the
+  revision 4 entity reads above, not the revision 5 opener) require a
+  version 2 endpoint offer
   (SLEY_CLI_V1 section 9 profile): under a version 1 offer the handshake
   fails exactly as for any unoffered name. A name the
   allowlist claims that the endpoint does not offer is
   `SLEY2_TRIAL_HANDSHAKE_FAILED`, so drift in either direction stops the run.
+- `workspace.open` (revision 5) is the arm's accepted-head opener. Its
+  request and response are SMP1's, not this contract's: `docs/spec/SMP1.md`
+  revision 16, appendix A row 201 and `open_summary`. Under the trial's
+  version 2 selection it answers the accepted head's eight
+  `revision_summary` fields plus, only when the S20-300 identity probe
+  (`COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md` section 5, revision 6)
+  accepts a cached complete-root record for that root, field 9, that
+  record's snapshot identity; any probe failure (no record, a discarded
+  one, a contended maintenance boundary) is absence. An absent
+  maintenance boundary never reaches the probe: the session check that
+  precedes the answer loads the head through the shared maintenance
+  acquisition, which creates the boundary when it is absent, so the probe
+  always finds it (SMP1 appendix A, revision 16). The
+  probe never builds or writes the cache, so the response counts one
+  entity; the opener's head load takes the shared maintenance lock as
+  every head-bound read does. Absence is structural (eight fields), never
+  `bounds.omitted` or `bounds.truncated`: `workspace.open` is not a bounded
+  paging route, so an omission there is hidden truncation to the judge. A
+  non-empty request body is refused `PROTOCOL_PAYLOAD_INVALID`. A
+  cold-snapshot trial opens, observes no field 9, sends one bounded root
+  query with an unbound snapshot, and opens again. That query is refused:
+  `QUERY_SNAPSHOT_MISMATCH` when the engine can answer it, in which case
+  the snapshot is materialized on the query path if the cache write
+  succeeds; otherwise the owner's code (for example
+  `INDEX_SNAPSHOT_ROOT_INCOMPLETE` on a root the complete-root judgment
+  rejects), in which case nothing materializes and field 9 never appears.
+  Either refusal is a counted, recorded response. Disclosure and discovery
+  pin one revision by construction; a head that advances in between keeps
+  the existing mismatch symbol and session-staleness handling.
+- Continuation (revision 5 live-judge rule, `bench/fixtures/sley2_live_judge.py`):
+  in the live trial evidence (the tool transcript, or the runner-owned
+  capture on the mediated route) each answered root-query page carries its
+  continuation binding (query key, request cursor,
+  truncation, next cursor), derived on the trusted side from the exact
+  bodies; a truncated page is discharged only by a successful
+  `query.continue` of the same query at that page's next cursor, from any
+  invocation, and a page left open, or a continue matching no open page,
+  rejects the trial.
 - `tool_calls` counts the agent's session-scoped requests and excludes the
   runner's `session.close`; seeding and opening carry no session and are
   not counted either.

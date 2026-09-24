@@ -1,0 +1,84 @@
+{
+  "contract": "sley2.live-task-base.v1",
+  "entities": {},
+  "judge": {
+    "cases": [
+      {
+        "expect": {
+          "Ok": {
+            "cents": 0
+          }
+        },
+        "lines": [],
+        "name": "empty",
+        "tax_bp": 725
+      },
+      {
+        "expect": {
+          "Ok": {
+            "cents": 2681
+          }
+        },
+        "lines": [
+          {
+            "quantity": 2,
+            "unit_cents": 1250
+          }
+        ],
+        "name": "one-line",
+        "tax_bp": 725
+      },
+      {
+        "expect": {
+          "Err": {
+            "code": 1,
+            "kind": "Arithmetic"
+          }
+        },
+        "lines": [
+          {
+            "quantity": 9223372036854775807,
+            "unit_cents": 2
+          }
+        ],
+        "name": "overflow",
+        "tax_bp": 725
+      }
+    ],
+    "entry": {
+      "params": [
+        "Vector(LineItem)",
+        "SInt64"
+      ],
+      "result": "Result(Money,ArithmeticError)"
+    },
+    "flow": "create",
+    "tests": {
+      "cover": [
+        "empty",
+        "one-line",
+        "overflow"
+      ]
+    },
+    "types": {
+      "line_item": {
+        "field": "SInt64",
+        "record_fields": 2
+      },
+      "money": {
+        "field": "SInt64",
+        "record_fields": 1
+      }
+    }
+  },
+  "pack_digest_blake3": "1d8c69aed8e2e33ee6f07e4f7308283acf34e653039baa7e981b6e2eb19303a3",
+  "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
+  "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
+  "strict": {
+    "source": "corpus"
+  },
+  "targets": [],
+  "task_id": "S2B-CREATE-001",
+  "variant": "genesis",
+  "workspace": "0707070707070707070707070707070707070707070707070707070707070707"
+}

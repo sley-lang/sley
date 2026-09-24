@@ -1,0 +1,45 @@
+== capture_demo/access: confined open/read/write probes ==
+probe read /tmp/sley2-capture-access-qxdfwc93/protected: ok=False error=FileNotFoundError errno=2
+probe read /tmp/sley2-capture-access-qxdfwc93/capture: ok=False error=FileNotFoundError errno=2
+probe scratch writable: True
+host secret unchanged: True
+client access_probe: {"reads": {"/tmp/sley2-capture-access-qxdfwc93/capture": {"errno": 2, "error": "FileNotFoundError", "ok": false}, "/tmp/sley2-capture-access-qxdfwc93/protected": {"errno": 2, "error": "FileNotFoundError", "ok": false}}, "writes": {"/tmp/sley2-capture-access-qxdfwc93/capture": {"errno": 2, "error": "FileNotFoundError", "ok": false}, "/tmp/sley2-capture-access-qxdfwc93/protected": {"errno": 2, "error": "FileNotFoundError", "ok": false}}}
+access: PASS (protected unreadable; host unchanged; scratch works)
+step access: PASS
+== capture_demo/refusal: allowed read + denied command ==
+pump frames=2 returncode=0
+client summary: {"frames": 2, "ok": true}
+forged scratch files present: True True
+protected final present: False (expect None)
+reconcile: CAPTURE_RECONCILED exchanges=2 totals={"continuations": 0, "exchanges": 2, "failed": 1, "omitted": 0, "refused": 0, "response_bytes": 547, "truncated": 0, "wall_ms": 94}
+adjudicate (no final): harness_failure CAPTURE_GATE_NO_FINAL
+refusal: PASS (denial captured+counted; forgeries ignored; no final, no acceptance)
+step refusal: PASS
+== capture_demo/inject: failure injections fail closed ==
+baseline: CAPTURE_RECONCILED exchanges=2
+inject missing_records: reconciled=False code=CAPTURE_ORPHAN_REQUEST evidence_exchanges=1
+inject incomplete_completion: reconciled=False code=CAPTURE_COMPLETION_MISSING evidence_exchanges=2
+inject storage_ledger_corrupt: reconciled=False code=CAPTURE_BUDGET_CORRUPT evidence_exchanges=None
+inject interrupted_collection: reconciled=False code=CAPTURE_TORN_SUFFIX evidence_exchanges=2
+inject final_mismatch: reconciled=False code=CAPTURE_FINAL_MISMATCH
+corrupt ledger preserved bytes: b'not json{'
+inject: PASS (all variants fail closed; evidence preserved)
+step inject: PASS
+== capture_demo/storage: unavailable storage fails closed ==
+exchange refused as expected: CAPTURE_STORAGE_INVALID: open: [Errno 13] Permission denied: '/tmp/sley2-capture-storage-6f7zgkkw/ca
+exchange refused as expected: CAPTURE_STORAGE_INVALID: open: [Errno 21] Is a directory: '/tmp/sley2-capture-storage-6f7zgkkw/cap/e
+reconcile refused on broken storage: CAPTURE_STORAGE_INVALID: not a regular file
+storage: PASS (unavailable storage fails closed)
+step storage: PASS
+== capture_demo/type_pos: confined full migration ==
+run root kept at: /tmp/sley2-capture-typepos-fmar1upz
+pump frames=13 returncode=0
+client summary: {"decision": {"failed_phase": null, "tag": 1}, "finished": true, "frames": 13, "ok": true, "valid": true}
+protected final bytes: 8305
+completion exchanges=13 sessions=['agent-2'] phases=['compose', 'finish', 'read']
+reconcile: CAPTURE_RECONCILED exchanges=13
+judge exit: 0 {"arm": "sley2", "code": null, "detail": "all flows held", "status": "accepted", "task_id": "S2B-TYPE-001"}
+
+adjudicate: accepted None
+type_pos: PASS (confined migration reconciled; judge accepted; adjudicated accepted)
+step type_pos: PASS

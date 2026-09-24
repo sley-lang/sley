@@ -1,0 +1,14 @@
+provenance utc=2026-09-23T03:59:59Z git_head=04fa14e6d66f02120f35250d62954695d39d15ce dirty=[ M bench/live/SUCCESSION-COVERAGE.md;?? bench/live/succ-trials-20260923/;] python=3.14.7 cargo=1.93.0 CARGO_TARGET_DIR=/home/gfarch/Work/checkpoints/target-succ-type SLEY2_SLEY_BINARY=/home/gfarch/Work/checkpoints/target-succ-type/debug/sley sley_sha256=700ce8a8d354ddce45f9e1be073580f9f285d365e9cfb9978659d5163a8d916f SUCC_JUDGE_TEST_BINARY=/home/gfarch/Work/checkpoints/target-succ-type/debug/deps/succ_live_judge_cases-42d77a02eb446c77 driver_sha256=2f5865438d7f2e651d1ed9911db4dc3767be69244ba4e091a74b0ce843f4afa8 manifest_sha256=d61216a910837eddd852eeb0e28df33f926f4a99f746aeaad4e5e03104dd308f judge_sha256=f56fad736d622b32d7da3c2a6e098cbf249453cd8c3bb814b99951871a3da43e
+command: cargo test --offline -p sley-repo --test s3_g1_type -- --nocapture
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running tests/s3_g1_type.rs (/home/gfarch/Work/checkpoints/target-succ-type/debug/deps/s3_g1_type-29d2c0b5a93b75d2)
+
+running 4 tests
+test emit_s3_type_fixture ... ignored, fixture emitter; run explicitly for refresh
+test s3_type_neg_missing_case ... ok
+test s3_type_neg_bool_compat_field ... ok
+test s3_type_fixture_conformance ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+cargo exit: 0

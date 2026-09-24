@@ -1,0 +1,6 @@
+STALE propose: {"body": "534c45594352533101b7030d010101022096159a85d7d009dd54c358aea4952370ad8329ffe0f4232ba79e8e89ddfbe9780302000004207d8ffff97a3fdafc49b4329d47b0b12f04759c3124274024016483a263265d540520e3f3de39242f1d04ea5c63741ed4612cbdf35ad1811aec1a8aa1b8c5e30911d00601020782020e3004010101020102032201204c1368efe6
+STALE finish: {"command": ["finish"], "outcome": "completed", "report": {"finished": true, "sha256": "af4c770b22abe5964608a38cb832946abfb1c58886ec71bcb6d01a93a93d113b"}, "return_code": 0, "stderr_bytes": "", "stder
+S2B-STALE-001 exit: 0
+{"arm": "sley2", "code": null, "detail": "all flows held", "status": "accepted", "task_id": "S2B-STALE-001"}
+
+workspace kept at: /tmp/tmpcbl7hour

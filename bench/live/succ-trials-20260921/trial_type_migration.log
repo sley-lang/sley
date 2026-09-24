@@ -1,0 +1,5 @@
+TYPE witness/mig: skeleton valid True
+TYPE witness/mig: compose valid True decision {'failed_phase': None, 'tag': 1}
+TYPE witness/mig: finished True
+S2B-TYPE-001 witness/mig judge exit: 1
+workspace kept at: /tmp/sley2-type-witness-6otalecd/ws

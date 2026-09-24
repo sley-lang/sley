@@ -1,0 +1,43 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "5b538f36eaee0574027539e512760a05e6d3ae29",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "ariadne",
+      "section": "sley2_trial_runner",
+      "field": "ariadne_contract_review_revision_5",
+      "verdict": "REVISE_0_P0_1_P1_1_P2_3_P3_2_P4",
+      "scope_sha": "5b538f36eaee0574027539e512760a05e6d3ae29",
+      "path": "evidence/review/verdicts/sley2_trial_runner/ariadne_contract_review_revision_5-5b538f3.md",
+      "sha256": "6c70865524edef945afc0377eae232198f19f517d93cd860b88ccff1297ce970",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 725
+    },
+    {
+      "role": "nabu",
+      "section": "sley2_trial_runner",
+      "field": "nabu_architecture_review_revision_5",
+      "verdict": "REVISE_0_P0_0_P1_1_P2_4_P3_4_P4",
+      "scope_sha": "5b538f36eaee0574027539e512760a05e6d3ae29",
+      "path": "evidence/review/verdicts/sley2_trial_runner/nabu_architecture_review_revision_5-5b538f3.md",
+      "sha256": "5de991a8881d339031959b0b43d8bcf53923b78b670627f742033699ee26f4c9",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 1473
+    },
+    {
+      "role": "vulcan",
+      "section": "sley2_trial_runner",
+      "field": "vulcan_surface_review_revision_5",
+      "verdict": "REVISE_0_P0_0_P1_1_P2_3_P3_2_P4",
+      "scope_sha": "5b538f36eaee0574027539e512760a05e6d3ae29",
+      "path": "evidence/review/verdicts/sley2_trial_runner/vulcan_surface_review_revision_5-5b538f3.md",
+      "sha256": "a0bb48d16cd2d39647d3b54c7e9123c6826391950f4cdb954dbb97f25f183c1d",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 694
+    }
+  ]
+}

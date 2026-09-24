@@ -123,5 +123,15 @@ class CampaignAttemptTests(unittest.TestCase):
         self.assertEqual(len(verify_attempts(self.run, self.store)), 1)
 
 
+# NOTE: the sley_2_0 workspace-copy evidence route retired when the
+# arm moved to confined mediated attempts (bench/live/mediated_attempt.py):
+# candidate-side files can never be acceptance evidence. The sley_2_0
+# campaign-path proofs (legitimate acceptance, capture/oracle gate
+# ordering, forgery resistance, ingress invalidation, timeouts,
+# cumulative budgets, access restrictions) live in
+# bench/live/tests/test_mediated_attempt.py and enter through
+# execute_attempt like every other test here.
+
+
 if __name__ == "__main__":
     unittest.main()
