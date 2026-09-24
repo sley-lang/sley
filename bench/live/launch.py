@@ -46,7 +46,12 @@ CORPUS = ROOT / "bench" / "corpus" / "v1" / "tasks.json"
 PREREG_CONTRACT = "sley2.s20-640-preregistration.v1"
 ARM_ORDER = ("raw_files", "sley_1_2_0", "sley_2_0")
 LABELS = frozenset({"CAMPAIGN", "PILOT"})
-PROVIDER_FILES = ("bin/codex", "bin/codex-code-mode-host")
+# Per sandbox profile: the release-directory files a run binds by digest,
+# the first being the provider executable.
+PROVIDER_FILES = {
+    "codex": ("bin/codex", "bin/codex-code-mode-host"),
+    "claude-code": ("claude",),
+}
 # Judge-side inputs whose bytes decide acceptance (git-tracked files).
 ORACLE_ROOTS = ("bench/fixtures", "oracle")
 ORACLE_FILES = (
@@ -62,8 +67,12 @@ ORACLE_FILES = (
 )
 UNAVAILABLE_MARKERS = (
     "hit your usage limit",
+    "hit your limit",
+    "usage limit",
     "usage_limit_reached",
     "rate limit",
+    "rate_limit",
+    "overloaded",
 )
 
 
@@ -153,6 +162,16 @@ def load_preregistration(path: Path) -> dict[str, Any]:
     value = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(value, dict) or value.get("contract") != PREREG_CONTRACT:
         _fail("LIVE_LAUNCH_PREREG_INVALID", "contract")
+    # A preregistration another committed preregistration supersedes can
+    # never be frozen again (it stays as history).
+    digest = _sha_file(Path(path))
+    for other in sorted(Path(path).resolve().parent.glob("PREREGISTRATION*.json")):
+        try:
+            superseding = json.loads(other.read_text(encoding="utf-8")).get("supersedes") or {}
+        except (OSError, ValueError):
+            continue
+        if isinstance(superseding, dict) and superseding.get("sha256") == digest:
+            _fail("LIVE_LAUNCH_PREREG_SUPERSEDED", other.name)
     return value
 
 
@@ -164,20 +183,27 @@ def _binary(env_name: str) -> Path:
     return path
 
 
-def provider_identity(provider_root: Path) -> dict[str, Any]:
-    files = {name: _sha_file(provider_root / name) for name in PROVIDER_FILES}
-    version = subprocess.run([str(provider_root / "bin" / "codex"), "--version"],
-                             capture_output=True, text=True, check=False,
-                             env={"PATH": "/usr/bin:/bin", "HOME": "/nonexistent"})
-    return {"files": files, "version": version.stdout.strip()}
+def provider_executable(provider_root: Path, profile: str) -> Path:
+    return Path(provider_root) / PROVIDER_FILES[profile][0]
 
 
-def derive_bindings(provider_root: Path) -> dict[str, Any]:
+def provider_identity(provider_root: Path, profile: str = "codex") -> dict[str, Any]:
+    files = {name: _sha_file(provider_root / name) for name in PROVIDER_FILES[profile]}
+    with tempfile.TemporaryDirectory(prefix="provider-version-") as home:
+        version = subprocess.run([str(provider_executable(provider_root, profile)), "--version"],
+                                 capture_output=True, text=True, check=False,
+                                 env={"PATH": "/usr/bin:/bin", "HOME": home,
+                                      "CLAUDE_CONFIG_DIR": home, "CODEX_HOME": home})
+    return {"executable_sha256": files[PROVIDER_FILES[profile][0]], "files": files,
+            "version": version.stdout.strip()}
+
+
+def derive_bindings(provider_root: Path, profile: str = "codex") -> dict[str, Any]:
     """Every checkout-determined value a run binds (recomputed per slot)."""
 
     from bench.live.tooling import prompt_template_digest
 
-    identity = provider_identity(provider_root)
+    identity = provider_identity(provider_root, profile)
     sley = _binary("SLEY2_SLEY_BINARY")
     judge = _binary("SUCC_JUDGE_TEST_BINARY")
     return {
@@ -188,7 +214,7 @@ def derive_bindings(provider_root: Path) -> dict[str, Any]:
         },
         "oracle_digest": oracle_digest(),
         "prompt_template_digest": prompt_template_digest(),
-        "provider_executable_sha256": identity["files"]["bin/codex"],
+        "provider_executable_sha256": identity["executable_sha256"],
         "provider_files": identity["files"],
         "provider_version": identity["version"],
         "tool_description_digests": tool_description_digests(),
@@ -222,9 +248,13 @@ def freeze(args: argparse.Namespace) -> int:
     sandbox_inputs = provider["sandbox"]
     from bench.live.provider_sandbox import ProviderSandbox
 
+    profile = sandbox_inputs.get("profile", "codex")
     sandbox = ProviderSandbox(provider_root=Path(sandbox_inputs["provider_root"]),
                               auth_source=Path(sandbox_inputs["auth_source"]),
-                              allowed_hosts=tuple(sandbox_inputs["allowed_hosts"]))
+                              allowed_hosts=tuple(sandbox_inputs["allowed_hosts"]),
+                              profile=profile)
+    if provider["model_provider"] != sandbox.spec.model_provider:
+        _fail("LIVE_LAUNCH_PREREG_MISMATCH", "model_provider")
     from bench.live.manifest import CORPUS as _CORPUS, PLAN as _PLAN
     from bench.raw.runner import task_statement_digest
 
@@ -235,7 +265,14 @@ def freeze(args: argparse.Namespace) -> int:
             _fail("LIVE_LAUNCH_PREREG_MISMATCH", field)
     if prereg["scheduled_attempts_per_tier"] != 15 * 3 * prereg["trial_count_per_tier"]:
         _fail("LIVE_LAUNCH_PREREG_MISMATCH", "scheduled_attempts_per_tier")
-    bindings = derive_bindings(Path(sandbox_inputs["provider_root"]))
+    bindings = derive_bindings(Path(sandbox_inputs["provider_root"]), profile)
+    command: dict[str, Any] = {
+        "executable": str(provider_executable(Path(sandbox_inputs["provider_root"]), profile)),
+        "flags_source": ("bench/live/provider.py ClaudeCodeAdapter.command" if profile == "claude-code"
+                         else "bench/live/provider.py CodexExecAdapter.command"),
+    }
+    if profile == "codex":
+        command["command_network_access"] = True
     environment = {
         "binaries": bindings["binaries"],
         "label": args.label,
@@ -243,11 +280,8 @@ def freeze(args: argparse.Namespace) -> int:
             "path": str(prereg_path.relative_to(ROOT)),
             "sha256": _sha_file(prereg_path),
         },
-        "provider_command": {
-            "command_network_access": True,
-            "executable": str(Path(sandbox_inputs["provider_root"]) / "bin" / "codex"),
-            "flags_source": "bench/live/provider.py CodexExecAdapter.command",
-        },
+        "halt_rule": prereg["halt_rule"],
+        "provider_command": command,
         "provider_environment": dict(prereg["provider_environment"]),
         "provider_files": bindings["provider_files"],
         "provider_sandbox": sandbox.describe(),
@@ -275,6 +309,7 @@ def freeze(args: argparse.Namespace) -> int:
         prompt_template_digest=bindings["prompt_template_digest"],
         provider_executable_sha256=bindings["provider_executable_sha256"],
         provider_version=bindings["provider_version"],
+        model_provider=sandbox.spec.model_provider,
     )
     run_dir = Path(args.run_dir)
     write_manifest_once(run_dir / "run_manifest.json", manifest)
@@ -293,7 +328,7 @@ def verify_binding(manifest: dict[str, Any]) -> None:
         _fail("LIVE_LAUNCH_BINDING_DRIFT", "tree dirty")
     environment = manifest["environment_manifest"]
     provider_root = Path(environment["provider_sandbox"]["provider_root"])
-    bindings = derive_bindings(provider_root)
+    bindings = derive_bindings(provider_root, environment["provider_sandbox"].get("profile", "codex"))
     for field in ("arm_fixture_digests", "tool_description_digests", "oracle_digest",
                   "prompt_template_digest", "provider_executable_sha256",
                   "provider_version"):
@@ -311,25 +346,59 @@ def _recorded(run_dir: Path, store: Any) -> set[tuple[str, str, int]]:
             for record in verify_attempts(run_dir, store)}
 
 
-def provider_unavailable(store: Any, record: dict[str, Any]) -> bool:
-    """True when the provider itself (an ``error`` or ``turn.failed``
-    event, never model text) reported the account unavailable."""
-
+def _provider_events(store: Any, record: dict[str, Any]) -> list[dict[str, Any]]:
     digest = record["artifacts"].get("provider_events_sha256")
     if not digest:
-        return False
+        return []
+    events = []
     for line in store.read(digest).splitlines():
         try:
             event = json.loads(line)
         except (UnicodeError, ValueError):
             continue
-        if not isinstance(event, dict) or event.get("type") not in {"error", "turn.failed"}:
+        if isinstance(event, dict):
+            events.append(event)
+    return events
+
+
+def provider_unavailable(store: Any, record: dict[str, Any]) -> bool:
+    """True when the provider itself (an ``error``/``turn.failed`` event,
+    an error ``result``, or a rejected ``rate_limit_event``; never model
+    text) reported the account unavailable."""
+
+    for event in _provider_events(store, record):
+        kind = event.get("type")
+        if kind == "rate_limit_event":
+            info = event.get("rate_limit_info")
+            if isinstance(info, dict) and info.get("status") not in (None, "allowed", "allowed_warning"):
+                return True
             continue
-        message = json.dumps(event.get("message", event.get("error", "")),
-                             ensure_ascii=False).lower()
+        if kind == "result" and event.get("is_error") is True:
+            message = json.dumps(event.get("result", ""), ensure_ascii=False).lower()
+        elif kind in {"error", "turn.failed"}:
+            message = json.dumps(event.get("message", event.get("error", "")), ensure_ascii=False).lower()
+        else:
+            continue
         if any(marker in message for marker in UNAVAILABLE_MARKERS):
             return True
     return False
+
+
+def usage_pressure(store: Any, record: dict[str, Any]) -> float | None:
+    """Highest provider-reported usage-window utilization (0..1) in the
+    attempt's stream, or None when the provider reports none."""
+
+    highest = None
+    for event in _provider_events(store, record):
+        info = event.get("rate_limit_info") if event.get("type") == "rate_limit_event" else None
+        windows = info.get("unifiedWindows") if isinstance(info, dict) else None
+        if not isinstance(windows, dict):
+            continue
+        for window in windows.values():
+            value = window.get("utilization") if isinstance(window, dict) else None
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                highest = value if highest is None else max(highest, value)
+    return highest
 
 
 def _parse_slots(text: str, manifest: dict[str, Any]) -> list[tuple[str, str, int]]:
@@ -350,8 +419,8 @@ def _parse_slots(text: str, manifest: dict[str, Any]) -> list[tuple[str, str, in
 def run(args: argparse.Namespace) -> int:
     from bench.live.artifacts import ArtifactStore
     from bench.live.campaign import execute_attempt
-    from bench.live.provider import CodexExecAdapter
-    from bench.live.provider_sandbox import ProviderSandbox
+    from bench.live.provider import ClaudeCodeAdapter, CodexExecAdapter
+    from bench.live.provider_sandbox import ProviderSandbox, ProviderSandboxError
 
     run_dir = Path(args.run_dir)
     manifest = read_manifest(run_dir / "run_manifest.json")
@@ -360,15 +429,25 @@ def run(args: argparse.Namespace) -> int:
     os.environ["SLEY2_SLEY_BINARY"] = binaries["sley"]["path"]
     os.environ["SUCC_JUDGE_TEST_BINARY"] = binaries["judge_driver"]["path"]
     sandbox_description = environment["provider_sandbox"]
+    profile = sandbox_description.get("profile", "codex")
     sandbox = ProviderSandbox(
         provider_root=Path(sandbox_description["provider_root"]),
         auth_source=Path(sandbox_description["auth_source"]),
-        allowed_hosts=tuple(sandbox_description["allowed_hosts"]))
-    adapter = CodexExecAdapter(
-        executable=environment["provider_command"]["executable"],
-        model=manifest["model_exact_version"],
-        reasoning_effort=manifest["model_configuration"]["reasoning_effort"],
-        command_network_access=bool(environment["provider_command"]["command_network_access"]))
+        allowed_hosts=tuple(sandbox_description["allowed_hosts"]),
+        profile=profile)
+    halt_rule = environment.get("halt_rule") or {}
+    utilization_limit = halt_rule.get("usage_utilization_halt_percent") if isinstance(halt_rule, dict) else None
+    if profile == "claude-code":
+        adapter: Any = ClaudeCodeAdapter(
+            executable=environment["provider_command"]["executable"],
+            model=manifest["model_exact_version"],
+            reasoning_effort=manifest["model_configuration"]["reasoning_effort"])
+    else:
+        adapter = CodexExecAdapter(
+            executable=environment["provider_command"]["executable"],
+            model=manifest["model_exact_version"],
+            reasoning_effort=manifest["model_configuration"]["reasoning_effort"],
+            command_network_access=bool(environment["provider_command"]["command_network_access"]))
     store = ArtifactStore(run_dir / "artifacts")
     workspace_parent = Path(args.workspace_parent)
     for task, arm, seed in _parse_slots(args.slots, manifest):
@@ -376,10 +455,16 @@ def run(args: argparse.Namespace) -> int:
             print(json.dumps({"slot": [task, arm, seed], "skipped": "already recorded"}))
             continue
         verify_binding(manifest)
-        record = execute_attempt(
-            run_directory=run_dir, store=store, adapter=adapter,
-            task_id=task, arm_id=arm, seed=seed,
-            workspace_parent=workspace_parent, provider_sandbox=sandbox)
+        try:
+            record = execute_attempt(
+                run_directory=run_dir, store=store, adapter=adapter,
+                task_id=task, arm_id=arm, seed=seed,
+                workspace_parent=workspace_parent, provider_sandbox=sandbox)
+        except ProviderSandboxError as error:
+            # Raised before launch (no slot consumed): e.g. the credential
+            # copy would expire inside the attempt.
+            print(json.dumps({"halt": str(error), "slot": [task, arm, seed]}), flush=True)
+            return 4
         metrics = record["metrics"]
         print(json.dumps({
             "slot": [task, arm, seed], "status": record["status"],
@@ -393,6 +478,13 @@ def run(args: argparse.Namespace) -> int:
             print(json.dumps({"halt": "provider unavailable",
                               "slot": [task, arm, seed]}), flush=True)
             return 3
+        pressure = usage_pressure(store, record)
+        if (isinstance(utilization_limit, int) and pressure is not None
+                and pressure * 100 >= utilization_limit):
+            # Stop before the next slot rather than burn it on a limit.
+            print(json.dumps({"halt": "provider usage window near its limit",
+                              "slot": [task, arm, seed], "utilization": pressure}), flush=True)
+            return 5
     return 0
 
 

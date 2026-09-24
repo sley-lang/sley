@@ -357,8 +357,106 @@ def _action_budget(manifest: Mapping[str, Any]) -> int:
     return budget
 
 
-def evaluate_thresholds(arms: Mapping[str, Any], plan: Mapping[str, Any], manifest: Mapping[str, Any], evidence_status: str) -> dict[str, dict[str, Any]]:
-    """Each plan threshold as PASS, FAIL, or UNDETERMINED with its exact facts."""
+def evaluate_section_22_rows(arms: Mapping[str, Any], sley2_claims: list[Mapping[str, Any]], evidence_status: str) -> dict[str, dict[str, Any]]:
+    """The three section 22 conditions the plan does not encode, evaluated
+    from claim-level evidence (live input, contract section 11).
+
+    Each row applies its master-goal condition exactly and invents no
+    threshold: "no ... bypassed" and "every ... reconstructable" need every
+    accepted Sley 2 mutation to carry a measured value (a claim value of
+    null is unmeasured and leaves the row UNDETERMINED, never compliant; a
+    measured violation fails the row); "no worse than Sley 1.2.0 and
+    strictly lower in at least one multi-entity task class" compares the
+    arms' collateral sums, and because the frozen corpus names no
+    multi-entity classes the strict leg is decided only where no class
+    selection could change the answer.
+    """
+
+    legacy = arms.get(LEGACY_ARM)
+    sley2 = arms.get(SLEY2_ARM)
+    rows: dict[str, dict[str, Any]] = {}
+
+    def row(name: str, result: str, key: str, body: Mapping[str, Any]) -> None:
+        payload = dict(body)
+        payload["evidence_status"] = evidence_status
+        rows[name] = {"evidence_status": evidence_status, key: payload, "result": result}
+
+    accepted = [claim for claim in sley2_claims if claim.get("status") == "accepted"]
+    for name, field, violation in (
+        ("section_22_1_no_required_check_bypassed", "required_check_bypassed", True),
+        ("section_22_4_mutation_reconstructability", "mutation_reconstructable", False),
+    ):
+        if not _complete(sley2):
+            row(name, "UNDETERMINED", "reason", {SLEY2_ARM: sley2["status"] if isinstance(sley2, dict) else sley2})
+            continue
+        if not accepted:
+            row(name, "UNDETERMINED", "reason", {"accepted_mutations": 0, "reason": "no_accepted_mutation"})
+            continue
+        values = []
+        bases = set()
+        for claim in accepted:
+            evidence = claim.get("section_22")
+            if not isinstance(evidence, Mapping) or field not in evidence:
+                _fail(AccountingErrorCode.METRIC_INVALID, f"section_22.{field}")
+            value = evidence[field]
+            if value is not None and not isinstance(value, bool):
+                _fail(AccountingErrorCode.METRIC_INVALID, f"section_22.{field}")
+            values.append(value)
+            bases.add(str(evidence.get("basis")))
+        facts = {
+            "accepted_mutations": len(values),
+            "measured": sum(1 for value in values if value is not None),
+            "measurement_bases": sorted(bases),
+            "violations": sum(1 for value in values if value is violation),
+        }
+        if facts["violations"]:
+            row(name, "FAIL", "facts", facts)
+        elif facts["measured"] != len(values):
+            row(name, "UNDETERMINED", "reason", {**facts, "reason": "not_measured"})
+        else:
+            row(name, "PASS", "facts", facts)
+
+    name = "section_22_4_collateral_semantic_comparison"
+    if not (_complete(legacy) and _complete(sley2)):
+        row(name, "UNDETERMINED", "reason", {
+            LEGACY_ARM: legacy["status"] if isinstance(legacy, dict) else legacy,
+            SLEY2_ARM: sley2["status"] if isinstance(sley2, dict) else sley2,
+        })
+        return rows
+    classes = sorted(set(legacy["by_class"]) | set(sley2["by_class"]))
+    per_class = {
+        klass: {
+            LEGACY_ARM: legacy["by_class"].get(klass, {}).get("collateral_semantic_changes", 0),
+            SLEY2_ARM: sley2["by_class"].get(klass, {}).get("collateral_semantic_changes", 0),
+        }
+        for klass in classes
+    }
+    strictly_lower = [klass for klass, pair in per_class.items() if pair[SLEY2_ARM] < pair[LEGACY_ARM]]
+    facts = {
+        "by_class": per_class,
+        "classes_strictly_lower": strictly_lower,
+        "multi_entity_class_selection": "NOT_FROZEN",
+        "no_worse": sley2["collateral_semantic_changes"] <= legacy["collateral_semantic_changes"],
+        "total": {LEGACY_ARM: legacy["collateral_semantic_changes"], SLEY2_ARM: sley2["collateral_semantic_changes"]},
+    }
+    if not facts["no_worse"]:
+        row(name, "FAIL", "facts", {**facts, "failed_leg": "no_worse"})
+    elif not strictly_lower:
+        # No class is strictly lower, so no multi-entity selection can
+        # satisfy the strict leg: the row fails whatever selection is frozen.
+        row(name, "FAIL", "facts", {**facts, "failed_leg": "strictly_lower_in_no_class"})
+    else:
+        row(name, "UNDETERMINED", "reason", {**facts, "reason": "multi_entity_class_selection_not_frozen"})
+    return rows
+
+
+def evaluate_thresholds(arms: Mapping[str, Any], plan: Mapping[str, Any], manifest: Mapping[str, Any], evidence_status: str, section_22_rows: Mapping[str, dict[str, Any]] | None = None) -> dict[str, dict[str, Any]]:
+    """Each plan threshold as PASS, FAIL, or UNDETERMINED with its exact facts.
+
+    Without ``section_22_rows`` (offline claim chains) the three conditions
+    the plan does not encode stay NOT_EVALUATED; the live input supplies
+    them from ``evaluate_section_22_rows``.
+    """
 
     thresholds = plan["thresholds"]
     legacy = arms.get(LEGACY_ARM)
@@ -366,6 +464,10 @@ def evaluate_thresholds(arms: Mapping[str, Any], plan: Mapping[str, Any], manife
     results: dict[str, dict[str, Any]] = {}
     for name, condition, owner in NOT_EVALUATED_CONDITIONS:
         results[name] = {"evidence_status": evidence_status, "reason": {"owner": owner, "section_22_condition": condition}, "result": "NOT_EVALUATED"}
+    if section_22_rows is not None:
+        if set(section_22_rows) != NOT_EVALUATED_NAMES:
+            _fail(AccountingErrorCode.METRIC_INVALID, "section 22 row coverage")
+        results.update({name: dict(value) for name, value in section_22_rows.items()})
     if not (_complete(legacy) and _complete(sley2)):
         reason = {
             LEGACY_ARM: legacy["status"] if isinstance(legacy, dict) else legacy,

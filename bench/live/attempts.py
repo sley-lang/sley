@@ -21,7 +21,7 @@ from bench.live.manifest import (
     read_manifest,
 )
 from bench.live.oracle import OracleError, parse_fixture_oracle
-from bench.live.provider import ProviderError, parse_codex_jsonl
+from bench.live.provider import ProviderError, parse_provider_events
 from bench.live.snapshot import SnapshotError, decode_snapshot
 
 
@@ -535,7 +535,7 @@ def verify_attempts(
             _fail("LIVE_ATTEMPT_ARTIFACT_INVALID", "provider_events_sha256")
         if attempt["status"] in {"accepted", "rejected"}:
             try:
-                events = parse_codex_jsonl(events_payload)
+                events = parse_provider_events(manifest["model_provider"], events_payload)
             except ProviderError as error:
                 raise AttemptError(f"LIVE_ATTEMPT_PROVIDER_INVALID: {error}") from error
             metrics = attempt["metrics"]

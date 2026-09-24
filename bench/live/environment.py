@@ -27,7 +27,12 @@ FIELDS = frozenset(
 )
 PROVIDER_ENVIRONMENT_FIELDS = frozenset(
     {
+        "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+        "CLAUDE_CONFIG_DIR",
         "CODEX_HOME",
+        "DISABLE_AUTOUPDATER",
+        "DISABLE_ERROR_REPORTING",
+        "DISABLE_TELEMETRY",
         "HOME",
         "HTTP_PROXY",
         "HTTPS_PROXY",

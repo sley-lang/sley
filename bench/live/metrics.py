@@ -23,6 +23,8 @@ _SHELL_SEPARATORS = frozenset({"&&", "||", ";", "|"})
 
 
 def _commands(events: CodexEvents) -> list[dict[str, Any]]:
+    if events.commands is not None:
+        return [dict(item) for item in events.commands]
     return [
         event["item"]
         for event in events.events
@@ -92,6 +94,8 @@ def derive_provider_observation(events: CodexEvents, prompt: bytes) -> dict[str,
         command = item.get("command")
         if isinstance(command, str):
             read_paths.update(_explicit_read_paths(command))
+        # A dedicated read tool's explicit file operand (Claude Code Read).
+        read_paths.update(path for path in item.get("read_paths") or [] if isinstance(path, str))
     context_bytes = len(prompt) + sum(_output_bytes(item) for item in commands)
     return {
         "compile_or_check_attempts": len(checks),

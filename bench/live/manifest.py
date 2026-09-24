@@ -20,6 +20,10 @@ CONTRACT = "sley2.live-campaign-manifest.v1"
 DOMAIN = b"sley2.live-campaign-manifest.v1\0"
 ARMS = frozenset({"raw_files", "sley_1_2_0", "sley_2_0"})
 MODEL_TIERS = frozenset({"small", "large"})
+# Each admitted provider has a pinned CLI driver and stream parser
+# (bench/live/provider.py PARSERS) and a sandbox profile
+# (bench/live/provider_sandbox.py PROFILES).
+MODEL_PROVIDERS = frozenset({"openai-chatgpt-oauth", "anthropic-claude-code-oauth"})
 REASONING_EFFORTS = frozenset({"low", "medium", "high", "xhigh", "max", "ultra"})
 HEX_40 = re.compile(r"[0-9a-f]{40}\Z")
 HEX_64 = re.compile(r"[0-9a-f]{64}\Z")
@@ -142,7 +146,7 @@ def validate_manifest(manifest: Mapping[str, Any]) -> None:
     for field, expected in expected_digests.items():
         if manifest[field] != expected:
             _fail("LIVE_MANIFEST_INVALID", field)
-    if manifest["model_provider"] != "openai-chatgpt-oauth":
+    if manifest["model_provider"] not in MODEL_PROVIDERS:
         _fail("LIVE_MANIFEST_INVALID", "model_provider")
     version = manifest["model_exact_version"]
     if not isinstance(version, str) or not version or "latest" in version.lower():
@@ -212,6 +216,7 @@ def build_manifest(
     prompt_template_digest: str,
     provider_executable_sha256: str,
     provider_version: str,
+    model_provider: str = "openai-chatgpt-oauth",
 ) -> dict[str, Any]:
     manifest = {
         "action_budget": action_budget,
@@ -226,7 +231,7 @@ def build_manifest(
         "hardware_manifest": dict(hardware_manifest),
         "model_configuration": {"reasoning_effort": reasoning_effort},
         "model_exact_version": model_exact_version,
-        "model_provider": "openai-chatgpt-oauth",
+        "model_provider": model_provider,
         "model_tier": model_tier,
         "oracle_digest": oracle_digest,
         "prompt_template_digest": prompt_template_digest,

@@ -77,7 +77,7 @@ from bench.live.mediated_sley import (
 from bench.live.sley2_tool import TOOL_VERSION as _TOOL_VERSION
 from bench.live.oracle import OracleError
 from bench.live.process import ProcessCapture
-from bench.live.provider import ProviderError, parse_codex_jsonl
+from bench.live.provider import ProviderError, parse_provider_events
 from bench.live.snapshot import encode_snapshot, snapshot_directory
 from bench.live.taskpacks import stage_initial
 from bench.live.trusted_capture import (
@@ -649,7 +649,8 @@ def execute_mediated_attempt(
 
             sandbox_root = Path(temporary) / "sandbox"
             sandbox_root.mkdir(mode=0o700)
-            layout = prepare_layout(sandbox_root)
+            layout = prepare_layout(sandbox_root, provider_sandbox,
+                                    wall_time_budget_ms=int(manifest["wall_time_budget"]))
             spec = arm_spec(
                 arm_id=arm_id, sandbox=provider_sandbox, layout=layout,
                 environment=frozen_provider_environment,
@@ -718,7 +719,7 @@ def execute_mediated_attempt(
                     pass
             else:
                 try:
-                    events = parse_codex_jsonl(capture.stdout)
+                    events = parse_provider_events(manifest["model_provider"], capture.stdout)
                     _apply_observation(metrics, events, prompt, capture)
                     if events.final_message is not None:
                         final_message = events.final_message.encode("utf-8")

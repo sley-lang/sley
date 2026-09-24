@@ -60,6 +60,33 @@ class UnavailableTests(unittest.TestCase):
         self.assertFalse(launch.provider_unavailable(self.store, record))
 
 
+    def test_claude_limit_signals_halt_and_pressure_is_read(self) -> None:
+        rejected = self._record([
+            {"type": "rate_limit_event", "rate_limit_info": {"status": "rejected"}},
+            {"type": "result", "subtype": "success", "is_error": True,
+             "result": "Claude AI usage limit reached"},
+        ])
+        self.assertTrue(launch.provider_unavailable(self.store, rejected))
+        busy = self._record([
+            {"type": "rate_limit_event", "rate_limit_info": {"status": "allowed", "unifiedWindows": {
+                "five_hour": {"utilization": 0.4}, "seven_day": {"utilization": 0.93}}}},
+            {"type": "result", "subtype": "success", "is_error": False, "result": "rate limit handled"},
+        ])
+        self.assertFalse(launch.provider_unavailable(self.store, busy))
+        self.assertEqual(launch.usage_pressure(self.store, busy), 0.93)
+        self.assertIsNone(launch.usage_pressure(self.store, rejected))
+
+
+class PreregistrationTests(unittest.TestCase):
+    def test_superseded_preregistration_cannot_be_frozen(self) -> None:
+        directory = launch.ROOT / "bench" / "live" / "s20-640"
+        with self.assertRaisesRegex(launch.LaunchError, "LIVE_LAUNCH_PREREG_SUPERSEDED"):
+            launch.load_preregistration(directory / "PREREGISTRATION.json")
+        current = launch.load_preregistration(directory / "PREREGISTRATION-2-claude-code.json")
+        self.assertEqual(current["provider"]["sandbox"]["profile"], "claude-code")
+        self.assertEqual(current["scheduled_attempts_total"], 90)
+
+
 class BindingTests(unittest.TestCase):
     def test_any_drift_refuses_the_slot(self) -> None:
         value = manifest()

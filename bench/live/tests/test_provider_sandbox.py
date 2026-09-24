@@ -80,12 +80,23 @@ def sandbox_manifest() -> dict:
     )
 
 
+def fake_codex_auth(path: Path, *, expires_in_s: int = 86_400) -> Path:
+    """A codex-shaped auth file with a fake, unsigned JWT (test only)."""
+
+    import base64
+    import time
+
+    claims = base64.urlsafe_b64encode(json.dumps({"exp": int(time.time()) + expires_in_s}).encode()).decode().rstrip("=")
+    path.write_text(json.dumps({"OPENAI_API_KEY": None, "last_refresh": "2026-09-24T00:00:00Z",
+                                "tokens": {"access_token": f"e30.{claims}.sig", "account_id": "acct",
+                                           "id_token": "e30.e30.sig", "refresh_token": "REFRESH-SECRET"}}))
+    return path
+
+
 def fake_sandbox(root: Path) -> ProviderSandbox:
     provider = root / "provider"
     (provider / "bin").mkdir(parents=True)
-    auth = root / "auth.json"
-    auth.write_text("{}")
-    return ProviderSandbox(provider_root=provider, auth_source=auth)
+    return ProviderSandbox(provider_root=provider, auth_source=fake_codex_auth(root / "auth.json"))
 
 
 class LayoutTests(unittest.TestCase):
@@ -283,8 +294,7 @@ class ProviderSurfaceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR"))
         self.root = Path(self.temporary.name)
-        auth = self.root / "auth.json"
-        auth.write_text("{}")
+        auth = fake_codex_auth(self.root / "auth.json")
         self.sandbox = ProviderSandbox(provider_root=Path(PROVIDER_ROOT), auth_source=auth)
 
     def tearDown(self) -> None:
@@ -352,8 +362,7 @@ class MediatedProviderSandboxTests(unittest.TestCase):
         self.run.mkdir()
         write_manifest_once(self.run / "run_manifest.json", sandbox_manifest())
         self.store = ArtifactStore(self.run / "artifacts")
-        auth = self.root / "auth.json"
-        auth.write_text("{}")
+        auth = fake_codex_auth(self.root / "auth.json")
         self.sandbox = ProviderSandbox(provider_root=Path(PROVIDER_ROOT), auth_source=auth)
 
     def tearDown(self) -> None:

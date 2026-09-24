@@ -17,14 +17,25 @@ campaign as the earlier harness launched it:
   network access is enabled, so the mediated tool could not reach its
   gateway from a model-issued command.
 
-This module is the one launch shape for all three arms. Each attempt gets
-a fresh sandbox home, a fresh provider home (only the credential file is
-bound in from the host), and a network namespace with no route out: the
-provider reaches its API through a loopback forwarder to a runner-side
-CONNECT proxy that admits only the frozen provider hosts on port 443.
-Model-issued commands inherit no proxy variables, so they have no
-network at all; the unix-socket gateway is a filesystem object and stays
-reachable for the sley_2_0 tool.
+This module is the one launch shape for all three arms and every provider
+profile (``PROFILES``: Codex, Claude Code). Each attempt gets a fresh
+sandbox home and a fresh provider home holding only a private copy of the
+credential stripped of every refresh token (the provider can use but never
+rotate the operator's login; an attempt whose copied access token would
+expire inside it is refused before launch), and a network namespace with
+no route out: the provider reaches its API through a loopback forwarder to
+a runner-side CONNECT proxy that admits only the profile's provider hosts
+on port 443. The forwarder admits only connections held by the provider
+process itself, so a model-issued command (which inherits the proxy
+variables) is refused and the refusal is logged by the proxy; the
+unix-socket gateway is a filesystem object and stays reachable for the
+sley_2_0 tool.
+
+Residual exposure (stated, not denied): the access-token copy is readable
+by model-issued commands inside the sandbox (same user, same namespace).
+It is short-lived, carries no refresh token, never leaves the sandbox over
+the network (commands have no egress), and is deleted with the attempt; a
+command could still print it into the retained provider transcript.
 """
 
 from __future__ import annotations
@@ -33,37 +44,29 @@ import json
 import os
 import socket
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from bench.live.confined import SandboxSpec
 
 
 ROOT = Path(__file__).resolve().parents[2]
 FORWARDER_SOURCE = ROOT / "bench" / "live" / "egress_forwarder.py"
-PROVIDER_HOSTS = ("auth.openai.com", "chatgpt.com")
 PROVIDER_PORT = 443
 LOOPBACK_PORT = 18080
 SANDBOX_HOME = "/scratch"
 SANDBOX_PATH = "/usr/bin:/bin"
-SANDBOX_PROVIDER_HOME = "/codex-home"
 SANDBOX_WORKSPACE = "/workspace"
 SANDBOX_FORWARDER = "/opt/sley-live/egress_forwarder.py"
 SANDBOX_EGRESS_DIR = "/opt/sley-live-egress"
 EGRESS_SOCKET_NAME = "egress.sock"
 PROXY_URL = f"http://127.0.0.1:{LOOPBACK_PORT}"
-# Host-side name resolution inside the namespace is never needed (the
-# proxy resolves), but the stub resolver path is bound so a provider
-# that resolves before proxying fails the same way in every arm.
-RESOLVER_DIR = "/run/systemd/resolve"
-# Sandbox-layout environment every provider launch must carry exactly.
-FIXED_ENVIRONMENT = {
-    "CODEX_HOME": SANDBOX_PROVIDER_HOME,
-    "HOME": SANDBOX_HOME,
-    "HTTPS_PROXY": PROXY_URL,
-    "HTTP_PROXY": PROXY_URL,
-    "PATH": SANDBOX_PATH,
-}
+# A credential copy must outlive the attempt by this margin beyond the
+# wall budget, so the provider never needs to refresh inside the sandbox
+# (the copy carries no refresh token, so it could not).
+CREDENTIAL_MARGIN_MS = 30 * 60 * 1000
 
 
 class ProviderSandboxError(ValueError):
@@ -74,19 +77,100 @@ def _fail(symbol: str, detail: str = "") -> None:
     raise ProviderSandboxError(symbol if not detail else f"{symbol}: {detail}")
 
 
+def _jwt_exp_ms(token: str) -> int | None:
+    import base64
+
+    try:
+        payload = token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        return int(json.loads(base64.urlsafe_b64decode(payload))["exp"]) * 1000
+    except (IndexError, ValueError, KeyError, TypeError):
+        return None
+
+
+def _codex_credential(data: dict) -> tuple[dict, int | None]:
+    tokens = data.get("tokens")
+    if not isinstance(tokens, dict) or not isinstance(tokens.get("access_token"), str):
+        _fail("LIVE_PROVIDER_CREDENTIAL_INVALID", "codex tokens")
+    kept = {key: tokens[key] for key in ("access_token", "account_id", "id_token") if key in tokens}
+    copy = {"OPENAI_API_KEY": None, "tokens": kept}
+    if "last_refresh" in data:
+        copy["last_refresh"] = data["last_refresh"]
+    return copy, _jwt_exp_ms(tokens["access_token"])
+
+
+def _claude_credential(data: dict) -> tuple[dict, int | None]:
+    oauth = data.get("claudeAiOauth")
+    if not isinstance(oauth, dict) or not isinstance(oauth.get("accessToken"), str):
+        _fail("LIVE_PROVIDER_CREDENTIAL_INVALID", "claudeAiOauth")
+    kept = {key: oauth[key] for key in ("accessToken", "expiresAt", "scopes",
+                                        "subscriptionType", "rateLimitTier") if key in oauth}
+    expires = oauth.get("expiresAt")
+    return {"claudeAiOauth": kept}, expires if isinstance(expires, int) else None
+
+
+@dataclass(frozen=True)
+class ProviderProfile:
+    """Everything provider-specific about the outer sandbox."""
+
+    name: str
+    model_provider: str
+    home_env: str                 # the variable naming the provider home
+    sandbox_home: str             # its path inside the sandbox
+    credential_name: str          # file name inside the provider home
+    allowed_hosts: tuple[str, ...]
+    fixed_extra: tuple[tuple[str, str], ...]
+    strip: Callable[[dict], tuple[dict, int | None]]
+
+    def fixed_environment(self) -> dict[str, str]:
+        fixed = {
+            self.home_env: self.sandbox_home,
+            "HOME": SANDBOX_HOME,
+            "HTTPS_PROXY": PROXY_URL,
+            "HTTP_PROXY": PROXY_URL,
+            "PATH": SANDBOX_PATH,
+        }
+        fixed.update(dict(self.fixed_extra))
+        return fixed
+
+
+PROFILES = {
+    "codex": ProviderProfile(
+        name="codex", model_provider="openai-chatgpt-oauth", home_env="CODEX_HOME",
+        sandbox_home="/codex-home", credential_name="auth.json",
+        allowed_hosts=("auth.openai.com", "chatgpt.com"), fixed_extra=(),
+        strip=_codex_credential),
+    "claude-code": ProviderProfile(
+        name="claude-code", model_provider="anthropic-claude-code-oauth",
+        home_env="CLAUDE_CONFIG_DIR", sandbox_home="/claude-config",
+        credential_name=".credentials.json", allowed_hosts=("api.anthropic.com",),
+        fixed_extra=(("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1"),
+                     ("DISABLE_AUTOUPDATER", "1"),
+                     ("DISABLE_ERROR_REPORTING", "1"),
+                     ("DISABLE_TELEMETRY", "1")),
+        strip=_claude_credential),
+}
+PROVIDER_HOSTS = PROFILES["codex"].allowed_hosts
+FIXED_ENVIRONMENT = PROFILES["codex"].fixed_environment()
+
+
 @dataclass(frozen=True)
 class ProviderSandbox:
     """Frozen host inputs of the provider launch.
 
     ``provider_root`` is the provider's installed release directory, bound
     read-only at its own path (the executable and its sibling helpers);
-    ``auth_source`` is the host credential file bound over the fresh
-    per-attempt provider home's placeholder.
+    ``auth_source`` is the host credential file. It is never bound: each
+    attempt gets a private copy stripped of every refresh token (the
+    provider can use, but never rotate, the operator's login) and the
+    attempt is refused before launch unless the copied access token
+    outlives the wall budget by ``CREDENTIAL_MARGIN_MS``.
     """
 
     provider_root: Path
     auth_source: Path
     allowed_hosts: tuple[str, ...] = PROVIDER_HOSTS
+    profile: str = "codex"
 
     def __post_init__(self) -> None:
         root = Path(self.provider_root)
@@ -99,10 +183,16 @@ class ProviderSandbox:
         except OSError as error:
             raise ProviderSandboxError(
                 f"LIVE_PROVIDER_SANDBOX_INVALID: {error}") from error
+        if self.profile not in PROFILES:
+            _fail("LIVE_PROVIDER_SANDBOX_INVALID", "profile")
         if (not self.allowed_hosts
                 or any(not isinstance(host, str) or not host or ":" in host
                        for host in self.allowed_hosts)):
             _fail("LIVE_PROVIDER_SANDBOX_INVALID", "allowed_hosts")
+
+    @property
+    def spec(self) -> ProviderProfile:
+        return PROFILES[self.profile]
 
     def describe(self) -> dict[str, object]:
         """Run-manifest description (paths and policy, never secrets)."""
@@ -112,7 +202,10 @@ class ProviderSandbox:
             "allowed_port": PROVIDER_PORT,
             "auth_source": str(self.auth_source),
             "contract": "sley2.live-provider-sandbox.v1",
-            "fixed_environment": dict(sorted(FIXED_ENVIRONMENT.items())),
+            "credential": "per-attempt copy without refresh tokens",
+            "egress": "provider process only (model-issued commands refused)",
+            "fixed_environment": dict(sorted(self.spec.fixed_environment().items())),
+            "profile": self.profile,
             "provider_root": str(self.provider_root),
             "sandbox_workspace": SANDBOX_WORKSPACE,
         }
@@ -131,8 +224,22 @@ class SandboxLayout:
         return self.egress_dir / EGRESS_SOCKET_NAME
 
 
-def prepare_layout(attempt_root: Path) -> SandboxLayout:
-    """Create the cold per-attempt home, provider home, and egress dir."""
+def _write_private(path: Path, payload: bytes) -> None:
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        os.write(descriptor, payload)
+    finally:
+        os.close(descriptor)
+
+
+def prepare_layout(attempt_root: Path, sandbox: "ProviderSandbox | None" = None, *,
+                   wall_time_budget_ms: int = 0, now_ms: int | None = None) -> SandboxLayout:
+    """Create the cold per-attempt home, provider home, and egress dir.
+
+    With ``sandbox`` the provider home receives the stripped credential
+    copy; a copy that would expire within the attempt raises
+    ``LIVE_PROVIDER_CREDENTIAL_EXPIRING`` before anything is launched.
+    """
 
     root = Path(attempt_root)
     layout = SandboxLayout(home=root / "sandbox-home",
@@ -140,16 +247,30 @@ def prepare_layout(attempt_root: Path) -> SandboxLayout:
                            egress_dir=root / "egress")
     for directory in (layout.home, layout.provider_home, layout.egress_dir):
         directory.mkdir(mode=0o700)
-    placeholder = layout.provider_home / "auth.json"
-    descriptor = os.open(placeholder, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    os.close(descriptor)
+    if sandbox is None:
+        _write_private(layout.provider_home / "auth.json", b"")
+        return layout
+    try:
+        data = json.loads(Path(sandbox.auth_source).read_bytes())
+    except (OSError, ValueError) as error:
+        raise ProviderSandboxError(f"LIVE_PROVIDER_CREDENTIAL_INVALID: {error}") from error
+    if not isinstance(data, dict):
+        _fail("LIVE_PROVIDER_CREDENTIAL_INVALID", "shape")
+    copy, expires_ms = sandbox.spec.strip(data)
+    current = int(time.time() * 1000) if now_ms is None else now_ms
+    if expires_ms is None or expires_ms - current < wall_time_budget_ms + CREDENTIAL_MARGIN_MS:
+        _fail("LIVE_PROVIDER_CREDENTIAL_EXPIRING",
+              "access token does not outlive the attempt; refresh the host login and resume")
+    _write_private(layout.provider_home / sandbox.spec.credential_name,
+                   json.dumps(copy, sort_keys=True).encode("utf-8"))
     return layout
 
 
-def check_provider_environment(environment: dict[str, str]) -> None:
+def check_provider_environment(environment: dict[str, str],
+                               profile: str = "codex") -> None:
     """The manifest's provider environment must name the sandbox layout."""
 
-    for name, expected in FIXED_ENVIRONMENT.items():
+    for name, expected in PROFILES[profile].fixed_environment().items():
         if environment.get(name) != expected:
             _fail("LIVE_PROVIDER_SANDBOX_MISMATCH", name)
 
@@ -159,16 +280,15 @@ def provider_binds(sandbox: ProviderSandbox,
     root = str(Path(sandbox.provider_root))
     return (
         ("ro", root, root),
-        ("rw", str(layout.provider_home), SANDBOX_PROVIDER_HOME),
-        ("rw", str(Path(sandbox.auth_source)),
-         f"{SANDBOX_PROVIDER_HOME}/auth.json"),
+        ("rw", str(layout.provider_home), sandbox.spec.sandbox_home),
         ("rw", str(layout.egress_dir), SANDBOX_EGRESS_DIR),
         ("ro", str(FORWARDER_SOURCE), SANDBOX_FORWARDER),
     )
 
 
-def provider_setenv(environment: dict[str, str]) -> tuple[tuple[str, str], ...]:
-    check_provider_environment(environment)
+def provider_setenv(environment: dict[str, str],
+                    profile: str = "codex") -> tuple[tuple[str, str], ...]:
+    check_provider_environment(environment, profile)
     return tuple(sorted(environment.items()))
 
 
@@ -232,7 +352,7 @@ def arm_spec(*, arm_id: str, sandbox: ProviderSandbox, layout: SandboxLayout,
         mask_paths=tuple(mask_paths),
         share_net=False,
         extra_binds=tuple(binds),
-        setenv=provider_setenv(environment) + tuple(extra_setenv),
+        setenv=provider_setenv(environment, sandbox.profile) + tuple(extra_setenv),
     )
 
 
@@ -324,6 +444,12 @@ class EgressProxy:
             return
         line = head.split(b"\r\n", 1)[0].decode("latin-1")
         parts = line.split()
+        if parts[:1] == ["LOCAL-DENY"]:
+            # The in-sandbox relay refused a connection held by a process
+            # other than the provider (a model-issued command).
+            self._record("deny_local_process", line)
+            self._reply_close(client, b"HTTP/1.1 204 No Content\r\n\r\n")
+            return
         if len(parts) < 2 or parts[0] != "CONNECT":
             self._record("deny_method", line)
             self._reply_close(client, b"HTTP/1.1 405 Method Not Allowed\r\n\r\n")

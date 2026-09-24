@@ -105,3 +105,33 @@ Validation at `5b8b1d35`: `python3 -m unittest discover -s bench/live/tests`
 with `SLEY2_SLEY_BINARY`, `SUCC_JUDGE_TEST_BINARY`, and
 `SLEY2_LIVE_PROVIDER_ROOT` bound and bwrap present: 353 tests OK, none
 skipped (335 OK at `ba9ebf49` before the fixes).
+
+## 2026-09-24: accounting over live runs, Claude Code provider, corrections
+
+- Correction to fix 2 above: "model commands get no proxy variables and so
+  no network" was imprecise. Under Codex (`network_access=true`) and
+  Claude Code (whose Bash inherits `HTTPS_PROXY`), a model-issued command
+  could connect to the loopback forwarder and reach the allowlisted
+  provider hosts. Fixed: the in-sandbox forwarder now admits only
+  connections held by the provider process itself (socket inode ownership
+  in `/proc`); anything else is refused and the runner-side proxy logs
+  `deny_local_process` (`test_claude_provider.py`).
+- Credential exposure mitigated: no host credential is bound any more.
+  Each attempt gets a private copy with only the access token (no refresh
+  token, no MCP OAuth entries), so nothing in the sandbox can rotate the
+  operator's login; an attempt is refused before launch unless the token
+  outlives the wall budget by 30 minutes. Residual: a model command can
+  read that short-lived access token (no egress; it could appear in the
+  retained transcript). Documented in `bench/live/provider_sandbox.py`.
+- Operator decision (relayed 2026-09-24): "ignore the codex, proceed with
+  your own usage instead". `PREREGISTRATION-2-claude-code.json` supersedes
+  `PREREGISTRATION.json` (sha256 `d9418d97…`, kept unchanged as history;
+  the launcher refuses to freeze a superseded preregistration). Tiers
+  `claude-haiku-4-5-20251001` / `claude-opus-5-5`, effort medium; seed,
+  budgets, order, and attempt count unchanged; halt rule extended to halt
+  before the next slot at 90% provider-reported usage-window utilization.
+- Live accounting: `bench/accounting/live.py` + `bench/live/live_claims.py`
+  (legacy verifier included) + the three section 22 rows; contract text in
+  `docs/spec/SUCCESSION_ACCOUNTING_V1.md` section 11. Over the 2026-09-24
+  Codex PILOT run: nine harness failures (3 per arm), status PARTIAL,
+  `counts_toward_succession` false, every row UNDETERMINED.
