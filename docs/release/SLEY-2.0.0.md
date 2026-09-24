@@ -126,10 +126,12 @@ stay `AWAITS_REVIEW`. They are listed in `release_decision.unmet_ga_criteria_at_
 
 **Open P1/P2 findings:**
 
-- **rw075 correction (4 P1, 4 P2):** AR-02 needs a large-preimage design
-  (a streaming primitive or an enforced identity-preimage ceiling). The AR-06
-  review transcripts are not bound. Both belong to the self-hosting work in
-  2.1.
+- **rw075 correction (4 P1, 4 P2):** AR-02 is the self-hosted path's
+  large-preimage hashing gap. It is being closed in 2.1 with an exact
+  streaming BLAKE3 primitive (branch `work/reweave-r2`); no identity-preimage
+  ceiling is imposed, and native identity semantics and limits are unchanged in
+  2.0. The AR-06 review transcripts are not bound. Both belong to the
+  self-hosting work in 2.1. Neither is reachable from the 2.0 `sley` binary.
 - **Finding-ledger mechanism P2s:** `release_candidate_packaging` (4),
   `reproducibility_and_independent_conformance` (3) and
   `standards_sbom_and_provenance` (2). They concern the claim-identity and
