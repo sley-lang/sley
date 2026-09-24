@@ -708,22 +708,26 @@ mod tests {
 
     #[test]
     #[cfg(unix)]
-    fn a_fifo_at_the_cache_path_answers_at_once() {
-        // O_NONBLOCK: a FIFO with no writer cannot make the open wait; the
-        // probe reports absence and the query path fails closed, both
-        // promptly (a blocking open would hang this test).
+    fn a_special_file_at_the_cache_path_answers_at_once() {
+        // A non-regular file at the cache path (here a Unix socket, which
+        // std can create without spawning a process or `unsafe`) is
+        // reported absent and the query path fails closed, promptly. The
+        // probe also opens with O_NONBLOCK so a writer-less FIFO cannot make
+        // the open wait; std offers no FIFO constructor, so that case is
+        // held by the open flags rather than by this test.
         let (temp, transactions, genesis_id) =
-            genesis("index-probe-fifo", complete_bodies(), &[root(9)]);
+            genesis("index-probe-special", complete_bodies(), &[root(9)]);
         let repository = temp.child("repo");
         let guard = hold(&repository);
         let revision = transactions.verified_revision(genesis_id).unwrap();
         let path = index_cache_path(&repository, revision.state_root().root);
         fs::create_dir_all(path.parent().unwrap()).unwrap();
-        let made = std::process::Command::new("mkfifo")
-            .arg(&path)
-            .status()
-            .unwrap();
-        assert!(made.success());
+        // Socket paths are limited to SUN_LEN bytes: bind at a short path
+        // in the temp root, then rename the socket file into place.
+        let short = std::env::temp_dir().join(format!("sock-{}", std::process::id()));
+        let _ = fs::remove_file(&short);
+        let _listener = std::os::unix::net::UnixListener::bind(&short).unwrap();
+        fs::rename(&short, &path).unwrap();
         let started = std::time::Instant::now();
         assert_eq!(
             cached_complete_root_snapshot_id(&repository, &revision, &guard).unwrap(),

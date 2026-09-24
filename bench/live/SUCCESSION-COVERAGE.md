@@ -167,7 +167,7 @@ provenance). Witness: `bench/live/succ_witness_dead.py`. Logs:
 
 Remaining for DEAD: live-model trial; REQ-11's landing condition
 (records-only mint, `make quick` exit 0 at the landing tip) is owned by
-the REQ-11 line. `succ_debug_commit.rs` may now be retired separately.
+the REQ-11 line. `succ_debug_commit.rs` was retired on 2026-09-24 (release preparation).
 
 ## Pack-equivalence notes (this slice)
 
