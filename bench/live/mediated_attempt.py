@@ -726,6 +726,10 @@ def execute_mediated_attempt(
                 except ProviderError:
                     status = "harness_failure"
                     failure_code = "LIVE_PROVIDER_EVENT_INVALID"
+                    # The run happened: its wall time and memory are
+                    # measured even when its stream does not parse.
+                    metrics["wall_time"] = capture.wall_time_ms
+                    metrics["peak_memory"] = capture.peak_memory_bytes
                 else:
                     if (
                         metrics["model_input_tokens"] > manifest["context_budget"]

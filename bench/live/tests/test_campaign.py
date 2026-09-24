@@ -152,6 +152,27 @@ class CampaignAttemptTests(unittest.TestCase):
         self.assertEqual(record["metrics"]["model_input_tokens"], 131_073)
         self.assertEqual(len(verify_attempts(self.run, self.store)), 1)
 
+    def test_unparseable_stream_keeps_its_measured_wall_time(self) -> None:
+        def provider(argv, prompt, **kwargs):
+            # Exit 0 but no terminal usage record: the stream cannot parse.
+            return ProcessCapture(b'{"type":"turn.started"}\n', b"", 0, False, 4321, 777)
+
+        record = execute_attempt(
+            run_directory=self.run,
+            store=self.store,
+            adapter=self.adapter,
+            task_id="S2B-REPAIR-001",
+            arm_id="raw_files",
+            seed=17,
+            workspace_parent=self.root / "workspaces",
+            provider_runner=provider,
+            utc_now=lambda: next(self.times),
+        )
+        self.assertEqual(record["failure_code"], "LIVE_PROVIDER_EVENT_INVALID")
+        self.assertEqual(record["metrics"]["wall_time"], 4321)
+        self.assertEqual(record["metrics"]["peak_memory"], 777)
+        self.assertEqual(record["metrics"]["model_input_tokens"], 0)
+
     def test_over_budget_metrics_are_refused_on_any_other_outcome(self) -> None:
         from bench.live.attempts import AttemptError, validate_attempt
 

@@ -94,6 +94,25 @@ class StreamAccountingTests(unittest.TestCase):
         self.assertEqual(observed["repair_loops"], 1)
         self.assertEqual(observed["context_bytes"], 5 + len("def f():\n") + len("FAILED (failures=1)"))
 
+    def test_session_usage_spans_every_query(self) -> None:
+        first = json.loads(stream().splitlines()[-1])
+        first["modelUsage"] = {"m": {"inputTokens": 10, "cacheCreationInputTokens": 200,
+                                     "cacheReadInputTokens": 3000, "outputTokens": 40}}
+        second = {"type": "result", "subtype": "success", "is_error": False, "result": "again",
+                  "usage": {"input_tokens": 1, "cache_creation_input_tokens": 0,
+                            "cache_read_input_tokens": 500, "output_tokens": 5},
+                  "modelUsage": {"m": {"inputTokens": 11, "cacheCreationInputTokens": 200,
+                                       "cacheReadInputTokens": 3500, "outputTokens": 45},
+                                 "n": {"inputTokens": 4, "outputTokens": 2}}}
+        payload = b"".join(stream().splitlines(keepends=True)[:-1]) + line(first) + line(second)
+        events = parse_claude_stream_json(payload)
+        self.assertEqual(events.input_tokens, 11 + 200 + 3500 + 4)
+        self.assertEqual(events.output_tokens, 47)
+        self.assertEqual(events.final_message, "again")
+        second["modelUsage"] = {"m": {"inputTokens": 0, "outputTokens": 0}}
+        with self.assertRaisesRegex(ProviderError, "modelUsage"):
+            parse_claude_stream_json(payload.rsplit(b"\n", 2)[0] + b"\n" + line(second))
+
     def test_error_result_and_truncated_streams_fail(self) -> None:
         with self.assertRaisesRegex(ProviderError, "LIVE_PROVIDER_TURN_FAILED"):
             parse_claude_stream_json(stream(error=True))

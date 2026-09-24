@@ -135,3 +135,58 @@ skipped (335 OK at `ba9ebf49` before the fixes).
   `docs/spec/SUCCESSION_ACCOUNTING_V1.md` section 11. Over the 2026-09-24
   Codex PILOT run: nine harness failures (3 per arm), status PARTIAL,
   `counts_toward_succession` false, every row UNDETERMINED.
+
+## PILOT 2 2026-09-24 (Claude Code, small tier; does not count)
+
+Run `s20-640-pilot2-20260924-claude-small`, label `PILOT`, frozen at
+`b3259a22` from `PREREGISTRATION-2-claude-code.json`
+(`claude-haiku-4-5-20251001`, effort medium, Claude Code 2.1.280). Raw run
+directory (retained, untracked):
+`/home/gfarch/Work/checkpoints/sley2-campaign-runs/s20-640-pilot2-20260924-claude-small/`.
+Real model turns in all three arms. Tokens are provider-reported
+(input = uncached + cache creation + cache reads); cost is the provider's
+`total_cost_usd` estimate (subscription usage, not billed).
+
+| Slot | Status | Code | Wall s | Input tok | Output tok | Tools | Est. USD |
+|---|---|---|---|---|---|---|---|
+| REPAIR legacy | accepted | — | 229 | 132,853 | 2,079 | 8 | 0.03 |
+| REPAIR sley_2_0 | rejected | ORACLE_COLLATERAL_TOUCHED | 467 | 4,216,976 | 37,358 | 84 | 0.75 |
+| REPAIR raw | accepted | — | 16 | 83,169 | 1,291 | 6 | 0.02 |
+| TEST sley_2_0 | harness_failure | CAPTURE_GATE_NO_FINAL | 585 | 5,249,565 | 49,577 | 107 | 0.92 |
+| TEST raw | accepted | — | 29 | 118,949 | 2,469 | 8 | 0.03 |
+| TEST legacy | accepted | — | 1,833 | 1,460,216 | 18,173 | 50 | 0.31 |
+| CONTEXT raw | accepted | — | 23 | 121,441 | 2,375 | 8 | 0.04 |
+| CONTEXT legacy | harness_failure | LIVE_PROVIDER_EVENT_INVALID | 0 (not recorded) | 0 (not recorded) | 0 | 0 | 0.29 (stream) |
+| CONTEXT sley_2_0 | harness_failure | LIVE_PROVIDER_EXIT_NONZERO | 1,725 | 0 (not recorded) | 0 | 0 | 0.41 (stream) |
+
+Findings (raw failures retained, nothing re-run into this run):
+
+- Harness defect: Claude Code auto-backgrounded slow tool commands
+  (`task_updated is_backgrounded`), then ran another query after the
+  result. CONTEXT legacy's stream therefore carried two `result` records
+  and failed the parser; CONTEXT sley_2_0 ended with exit 1 after the
+  model killed hung background shells. Fixed:
+  `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1` (plus a 300 s default / 600 s
+  maximum Bash timeout, auto-memory and CLAUDE.md loading off), and the
+  parser now reads the session-cumulative `modelUsage` of the terminal
+  result (tests). Preregistration revision 3 supersedes revision 2 for
+  these changes, before any counted attempt.
+- Harness defect: an attempt whose stream failed to parse recorded wall
+  time 0; wall time and peak memory are now kept (test). The retained
+  pilot record stays as written.
+- Agent behavior, not harness: REPAIR sley_2_0 finished an early wrong
+  candidate (the tool's `finish` writes once; later finishes were refused
+  "finish exists"), then passed `stored` bytes where `finish` takes the
+  record. TEST sley_2_0 never finished and then claimed it had.
+- Observation for the operator: a sley_2_0 attempt that submits no final
+  candidate is classified `harness_failure` (`CAPTURE_GATE_NO_FINAL`),
+  while a raw or legacy agent that leaves the workspace unfixed is judged
+  `rejected`. Both are failures in every denominator, but the sley_2_0 case
+  is excluded from the non-harness-failure median companions. This is the
+  reviewed mediated adjudication and is not changed here.
+- Observation: the sley_2_0 tool surface is expensive for the small model
+  (4.2–5.2M input tokens, 84–107 tool calls per attempt versus 0.08–0.12M
+  and 6–8 for raw files); the legacy tool is slow (about 25–35 s per call).
+- Accounting over this run: 9 attempts (raw 3 accepted; legacy 2 accepted,
+  1 harness failure; sley_2_0 1 rejected, 2 harness failures), status
+  PARTIAL, `counts_toward_succession` false.

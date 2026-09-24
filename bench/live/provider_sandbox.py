@@ -144,7 +144,17 @@ PROFILES = {
         name="claude-code", model_provider="anthropic-claude-code-oauth",
         home_env="CLAUDE_CONFIG_DIR", sandbox_home="/claude-config",
         credential_name=".credentials.json", allowed_hosts=("api.anthropic.com",),
-        fixed_extra=(("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1"),
+        # Background tasks off: the 2026-09-24 pilot showed Claude Code
+        # auto-backgrounding slow tool commands (legacy tool calls take tens
+        # of seconds), which forked extra queries after the result and ended
+        # one attempt with exit 1; Codex has no such mode. The Bash timeout
+        # is raised so a slow documented tool call is not cut at 2 minutes.
+        fixed_extra=(("BASH_DEFAULT_TIMEOUT_MS", "300000"),
+                     ("BASH_MAX_TIMEOUT_MS", "600000"),
+                     ("CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1"),
+                     ("CLAUDE_CODE_DISABLE_BACKGROUND_TASKS", "1"),
+                     ("CLAUDE_CODE_DISABLE_CLAUDE_MDS", "1"),
+                     ("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1"),
                      ("DISABLE_AUTOUPDATER", "1"),
                      ("DISABLE_ERROR_REPORTING", "1"),
                      ("DISABLE_TELEMETRY", "1")),

@@ -217,10 +217,13 @@ def parse_claude_stream_json(payload: bytes) -> CodexEvents:
         if not isinstance(event, dict) or not isinstance(event.get("type"), str):
             _fail("LIVE_PROVIDER_EVENT_INVALID", f"shape {number}")
         events.append(event)
-    results = [event for event in events if event["type"] == "result"]
-    if len(results) != 1 or results[0] is not events[-1]:
+    # The session may continue past a result (for example a queued
+    # notification starts another query); the stream must still end on a
+    # result record, whose session-cumulative ``modelUsage`` covers every
+    # query of the session (``usage`` covers only the last query).
+    if not events or events[-1]["type"] != "result":
         _fail("LIVE_PROVIDER_EVENT_INVALID", "terminal")
-    result = results[0]
+    result = events[-1]
     if result.get("is_error") is not False or result.get("subtype") != "success":
         _fail("LIVE_PROVIDER_TURN_FAILED", str(result.get("result", result.get("subtype", "")))[:200])
     usage = result.get("usage")
@@ -228,6 +231,22 @@ def parse_claude_stream_json(payload: bytes) -> CodexEvents:
     if not isinstance(usage, dict) or not set(fields) <= set(usage):
         _fail("LIVE_PROVIDER_EVENT_INVALID", "usage")
     values = {field: _nonnegative_int(usage[field], field) for field in fields}
+    by_model = result.get("modelUsage")
+    if by_model is not None:
+        if not isinstance(by_model, dict) or not by_model:
+            _fail("LIVE_PROVIDER_EVENT_INVALID", "modelUsage")
+        totals = dict.fromkeys(fields, 0)
+        for entry in by_model.values():
+            if not isinstance(entry, dict):
+                _fail("LIVE_PROVIDER_EVENT_INVALID", "modelUsage entry")
+            for field, key in (("input_tokens", "inputTokens"),
+                               ("cache_creation_input_tokens", "cacheCreationInputTokens"),
+                               ("cache_read_input_tokens", "cacheReadInputTokens"),
+                               ("output_tokens", "outputTokens")):
+                totals[field] += _nonnegative_int(entry.get(key, 0), key)
+        if any(totals[field] < values[field] for field in fields):
+            _fail("LIVE_PROVIDER_EVENT_INVALID", "modelUsage below last-query usage")
+        values = totals
     details = usage.get("output_tokens_details")
     reasoning = details.get("thinking_tokens", 0) if isinstance(details, dict) else 0
     reasoning = _nonnegative_int(reasoning, "thinking_tokens")

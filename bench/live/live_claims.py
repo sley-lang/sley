@@ -80,6 +80,11 @@ def _initial_snapshot(arm_id: str, task_id: str) -> bytes:
 def _reconcile_unjudged(record: Mapping[str, Any], events: bytes, model_provider: str) -> str:
     metrics = record["metrics"]
     try:
+        if record["failure_code"] == "LIVE_PROVIDER_EVENT_INVALID":
+            # The runner could not parse this stream, so it claimed no
+            # usage; the claim is held to that even if a later parser
+            # revision reads more of the retained stream.
+            raise ProviderError("LIVE_PROVIDER_EVENT_INVALID: recorded")
         observed = parse_provider_events(model_provider, events)
     except ProviderError:
         if (metrics["model_input_tokens"], metrics["model_output_tokens"],

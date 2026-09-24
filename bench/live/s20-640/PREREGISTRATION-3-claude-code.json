@@ -1,0 +1,159 @@
+{
+  "contract": "sley2.s20-640-preregistration.v1",
+  "status": "PREREGISTERED_BEFORE_ANY_COUNTED_ATTEMPT",
+  "created_at_utc": "2026-09-24T06:42:23Z",
+  "work_package": "S20-640",
+  "benchmark_plan": "bench/benchmark-plan.json",
+  "benchmark_plan_digest": "e0549d51306bcdbb0caf9f2cb5a9362bb403a87fce2c0ffddf58fd84734aef24",
+  "corpus_version": 1,
+  "corpus_digest": "7370b6ccb8ccd3f58fa2a90e316edf4bc5a1319b41a55253a2ee14bb5d73988d",
+  "task_statement_digest": "737c0c8ba618f527816df84a38e7b28b1e975284ef28c1a9a250189808275c2a",
+  "tasks": [
+    "S2B-CREATE-001",
+    "S2B-REPAIR-001",
+    "S2B-SIG-001",
+    "S2B-MODULE-001",
+    "S2B-TYPE-001",
+    "S2B-EFFECT-001",
+    "S2B-CAP-001",
+    "S2B-DEAD-001",
+    "S2B-TEST-001",
+    "S2B-STALE-001",
+    "S2B-MERGE-001",
+    "S2B-PERF-001",
+    "S2B-CONTEXT-001",
+    "S2B-ADVERSARY-001",
+    "S2B-CORRUPT-001"
+  ],
+  "task_selection": "all 15 frozen corpus v1 tasks in every arm and tier; none added, removed, or reweighted",
+  "arms": [
+    "raw_files",
+    "sley_1_2_0",
+    "sley_2_0"
+  ],
+  "optional_arms": {
+    "zerolang": "not run: fixture_status UNESTABLISHED in the frozen plan; reported as unavailable, no broad best-overall claim"
+  },
+  "tiers": {
+    "small": {
+      "model_exact_version": "claude-haiku-4-5-20251001",
+      "reasoning_effort": "medium"
+    },
+    "large": {
+      "model_exact_version": "claude-opus-5-5",
+      "reasoning_effort": "medium"
+    }
+  },
+  "tier_rationale": "Master goal 16.6 requires small-model and large-model runs. Operator-named pair (relayed by the coordinator, 2026-09-24): claude-haiku-4-5-20251001 (small) and claude-opus-5-5 (large), both answered a trivial prompt through the provider sandbox at 2026-09-24T04:45Z. medium effort for both (the Codex preregistration's effort; both models accept --effort medium). Chosen before any counted attempt.",
+  "provider": {
+    "model_provider": "anthropic-claude-code-oauth",
+    "driver": "claude -p --output-format stream-json --verbose (bench/live/provider.py ClaudeCodeAdapter: pinned --model and --effort, --tools Bash,Read,Edit,Write,Glob,Grep, --permission-mode bypassPermissions inside the outer sandbox, --setting-sources= --strict-mcp-config --disable-slash-commands --no-session-persistence)",
+    "provider_version_at_preregistration": "2.1.280 (Claude Code)",
+    "provider_executable_sha256_at_preregistration": "1e08503dbdf3c2cb0d706d32f3408277388d1c76ef108673e8fe42c1b322925b",
+    "version_rule": "Each run manifest records the exact provider version and executable digest. A provider version change between preregistration and the release-candidate freeze is recorded in the campaign record; a change after the first counted attempt of a tier ends that run (its attempts stay recorded) and the remainder needs a new preregistration commit.",
+    "usage_accounting": "model_input_tokens = inputTokens + cacheCreationInputTokens + cacheReadInputTokens summed over the terminal result record's session-cumulative modelUsage (every input token processed in the session; Codex's input count likewise includes its cached tokens); model_output_tokens = outputTokens likewise; tool_calls = tool_use blocks. Provider-side prompt caching is shared across attempts and arms and is not controlled.",
+    "sandbox": {
+      "profile": "claude-code",
+      "provider_root": "/home/gfarch/.local/share/mise/installs/claude/2.1.280",
+      "auth_source": "/home/gfarch/.claude/.credentials.json",
+      "allowed_hosts": [
+        "api.anthropic.com"
+      ],
+      "module": "bench/live/provider_sandbox.py",
+      "credential": "per-attempt copy holding only the claudeAiOauth access token and its metadata (no refresh token, no MCP OAuth entries); an attempt is refused before launch unless the token outlives wall_time_budget + 30 min",
+      "egress": "only the provider process may use the loopback egress route; connections held by any other process (model-issued commands) are refused in the sandbox and logged by the runner-side proxy"
+    }
+  },
+  "provider_environment": {
+    "BASH_DEFAULT_TIMEOUT_MS": "300000",
+    "BASH_MAX_TIMEOUT_MS": "600000",
+    "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
+    "CLAUDE_CODE_DISABLE_BACKGROUND_TASKS": "1",
+    "CLAUDE_CODE_DISABLE_CLAUDE_MDS": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_CONFIG_DIR": "/claude-config",
+    "DISABLE_AUTOUPDATER": "1",
+    "DISABLE_ERROR_REPORTING": "1",
+    "DISABLE_TELEMETRY": "1",
+    "HOME": "/scratch",
+    "HTTPS_PROXY": "http://127.0.0.1:18080",
+    "HTTP_PROXY": "http://127.0.0.1:18080",
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    "PATH": "/usr/bin:/bin",
+    "TZ": "UTC"
+  },
+  "trial_count_per_tier": 1,
+  "random_seeds": [
+    640
+  ],
+  "seed_semantics": "The provider exposes no sampling seed. The seed is rendered into the arm-neutral prompt only ('Trial seed: 640'); repetitions are not deterministic replays.",
+  "scheduled_attempts_per_tier": 45,
+  "scheduled_attempts_total": 90,
+  "sample_size_rule": "90 attempts (15 tasks x 3 arms x 1 seed x 2 tiers) is the frozen plan's arithmetic minimum. It is fixed now and is not extended or shortened on the basis of any result. A larger count may only be adopted by a new preregistration commit made before the first counted attempt.",
+  "budgets": {
+    "context_budget": 8000000,
+    "action_budget": 200,
+    "wall_time_budget": 3600000,
+    "units": "context_budget: cumulative provider-reported input tokens per attempt (turn.completed usage); action_budget: provider tool items per attempt, and for sley_2_0 also the mediated gateway exchange cap; wall_time_budget: milliseconds, enforced by killing the provider process group",
+    "enforcement": "Wall time is enforced live for every arm (timeout). The sley_2_0 gateway refuses exchanges beyond action_budget live; token and tool-item overruns are classified after the provider exits (harness_failure LIVE_PROVIDER_BUDGET_EXCEEDED). Every such attempt stays in every denominator with its observed metrics.",
+    "same_for_every_arm": true
+  },
+  "retry_policy": {
+    "provider_attempts": 1,
+    "retryable_failures": []
+  },
+  "cache_state": "cold-per-attempt locally: fresh workspace or mediated scratch, fresh sandbox HOME, fresh CLAUDE_CONFIG_DIR holding only the credential copy, --no-session-persistence, no settings sources, MCP servers, skills, plugins, CLAUDE.md, or memories; provider-side prompt cache shared across attempts and arms (not controllable); host page cache not controlled",
+  "schedule_order": "seed-major, corpus task order, arms rotated by task index (raw_files, sley_1_2_0, sley_2_0 shifted by task_index mod 3); the small tier runs to completion before the large tier starts; one attempt at a time; no other builds or campaigns on the host during attempts",
+  "halt_rule": {
+    "text": "After any attempt whose provider stream reports the account unavailable (a rejected rate_limit_event, an error result or error event naming a usage or rate limit, or overload), the launcher halts; that attempt stays recorded as the harness failure it is and remains in every denominator. To avoid burning slots on a limit, the launcher also halts before the next slot when the provider-reported utilization of any usage window reaches usage_utilization_halt_percent, and refuses to launch (no slot consumed) when the credential copy would expire inside the attempt. Unrun slots resume later in the same order under the same manifest. A recorded slot is never re-run.",
+    "usage_utilization_halt_percent": 90
+  },
+  "failure_retention": "Every attempted slot is appended (accepted, rejected, timeout, harness_failure) with prompt, provider events and stderr, workspace before/after, oracle report/stdout/stderr, and for sley_2_0 the runner-owned capture transcript, usage ledger, final candidate, and completion binding. No attempt is deleted, replaced, or hand-repaired.",
+  "binding_rule": "Counted runs are frozen with `python3 -m bench.live.launch freeze --label CAMPAIGN` at the release-candidate commit on a clean tree, one run per tier. Every value in this file is copied unchanged. Only these are filled at freeze: repo_commit, created_at_utc, provider_version and provider file digests, the sley and judge-driver binary paths and digests (bound to the release-candidate build), the hardware manifest, and the recomputed arm fixture, tool description, oracle, and prompt template digests (the campaign record states how they differ from the values below and why). The launcher re-derives every binding before each slot and refuses on drift.",
+  "frozen_digests_at_preregistration": {
+    "repo_state": "tree of the Claude Code preregistration commit",
+    "arm_fixture_digests": {
+      "raw_files": "93329c4f6684bfc8bea9655c04766339335c00119ae6e60a226e4e82e3ad538b",
+      "sley_1_2_0": "43d38eefe10f0a0fa7715599e96975c0482dd3a0e876c1a21ccd81f23e5e691b",
+      "sley_2_0": "e9d00a635c082a29005da58edf00a69cccaa915c73add954e1f664bd129b693b"
+    },
+    "tool_description_digests": {
+      "raw_files": "d45e8c88672f9e496f345f10530330c2b55f87b9858fbb015a53baa282944bc8",
+      "sley_1_2_0": "c768a4197d7a0e44b6b529a1ea560b3e3be59df4e1fc8342ed0be4195f76a81b",
+      "sley_2_0": "6af566657cc5af23c883b6ad9fad56f96a48ba9080aca4d70a52fd612ef94221"
+    },
+    "tool_description_digest_note": "raw_files and sley_1_2_0 tool digests include the checkout path baked into the staged launcher, so a release-candidate freeze in another checkout records different values for byte-identical tooling.",
+    "oracle_digest": "a9e597f7d1b85963cf0ea8bc0cd690f01e9246cd2d8f3605d0c518b4f3d242a2",
+    "oracle_digest_scope": "git-tracked bench/fixtures/** and oracle/** plus bench/live/{oracle,mediated_sley,trusted_capture,sley2_tool,sley2_codecs,scratch,snapshot}.py, bench/sley2/runner.py, crates/sley-repo/tests/succ_live_judge_cases.rs (bench/live/launch.py ORACLE_ROOTS/ORACLE_FILES)",
+    "prompt_template_digest": "6910a9d2372bb468f93f72c289f0d6f5a39c7ed0e811cf2972ccf12fd3f51700"
+  },
+  "analysis_plan": {
+    "derivation": "Exact integer/ratio accounting per docs/spec/SUCCESSION_ACCOUNTING_V1.md over the verified attempt records of each tier separately; every attempt in every denominator; medians over all attempts with non-harness-failure companions reported beside them.",
+    "thresholds": "Section 22 thresholds exactly as frozen in bench/benchmark-plan.json 'thresholds', evaluated sley_2_0 against sley_1_2_0 per tier; raw_files reported alongside, never compared by a threshold. No threshold, oracle, or task is changed after preregistration.",
+    "interim_looks": "No threshold is computed before both tiers' scheduled slots are all recorded (or the campaign is ended and reported as incomplete).",
+    "negative_results": "Reported in full, including tasks the Sley 2.0 arm cannot complete by construction (for example EFFECT and CAP, whose native paths refuse deterministically at this commit)."
+  },
+  "operator_decisions": [
+    {
+      "recorded_at_utc": "2026-09-24T03:32:38Z",
+      "decision": "Council-transcript prerequisites waived for the S20-640 campaign.",
+      "verbatim": "Council reviews \"no longer required\" — 2026-09-24"
+    },
+    {
+      "recorded_at_utc": "2026-09-24T03:32:38Z",
+      "decision": "Campaign and provider spend authorized; the full campaign starts only after the operator binds it to the release-candidate commit and says go.",
+      "verbatim": "you always have my permission"
+    },
+    {
+      "recorded_at_utc": "2026-09-24T04:51:29Z",
+      "decision": "Run the campaign on Claude Code with the operator's own Claude usage instead of Codex; supersede the Codex preregistration before any counted attempt (relayed by the coordinating agent).",
+      "verbatim": "ignore the codex, proceed with your own usage instead"
+    }
+  ],
+  "supersedes": {
+    "path": "bench/live/s20-640/PREREGISTRATION-2-claude-code.json",
+    "sha256": "ec803a3f6c49a61bce8794dae7fe42ad960df55cdbcd3fca66894a85b5b169a7",
+    "reason": "PILOT 2 (2026-09-24, not counted) findings: Claude Code auto-backgrounded slow tool commands, which forked extra queries after the result, broke the single-result stream contract of one attempt, and ended another with exit 1. Background tasks are disabled, the Bash tool timeout is raised for slow documented tool calls, and auto-memory and CLAUDE.md loading are disabled; the parser reads session-cumulative usage. No counted attempt ran under the superseded preregistration."
+  }
+}
