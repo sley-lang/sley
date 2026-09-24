@@ -362,10 +362,12 @@ def adjudicate(capture_dir: Path, protected_final: bytes | None,
     if not isinstance(oracle_verdict, Mapping):
         return ("harness_failure", "CAPTURE_GATE_ORACLE_INVALID")
     if not isinstance(protected_final, bytes):
-        # No runner-held final: nothing is releasable. The capture
-        # directory itself stays preserved failure evidence; callers
-        # reconcile it separately when auditing the attempt.
-        return ("harness_failure", "CAPTURE_GATE_NO_FINAL")
+        # No runner-held final: nothing is releasable. The agent ended
+        # without submitting a candidate, an agent failure recorded like
+        # a rejection in every arm (preregistration revision 4); the
+        # capture directory stays preserved evidence. Capture and
+        # storage faults below stay harness_failure.
+        return ("rejected", "AGENT_NO_FINAL")
     try:
         result = reconcile(capture_dir, protected_final)
     except CaptureError as error:

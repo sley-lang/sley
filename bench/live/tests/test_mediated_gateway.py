@@ -235,13 +235,17 @@ class MediatedGatewayTests(unittest.TestCase):
         self.assertEqual(status, "harness_failure")
         self.assertEqual(code, "CAPTURE_COMPLETION_MISSING")
 
-    def test_adjudicate_no_final_never_accepts(self) -> None:
+    def test_adjudicate_no_final_is_an_agent_rejection(self) -> None:
         self.endpoint.handle("read", "s1", "open", [])
         self.cap.complete(b"no-final-bytes")
         status, code = gw.adjudicate(self.capture_dir, None,
                                      {"status": "accepted", "code": None})
-        self.assertEqual(status, "harness_failure")
-        self.assertEqual(code, "CAPTURE_GATE_NO_FINAL")
+        self.assertEqual((status, code), ("rejected", "AGENT_NO_FINAL"))
+
+    def test_adjudicate_invalid_oracle_without_final_stays_harness(self) -> None:
+        status, code = gw.adjudicate(self.capture_dir, None, None)
+        self.assertEqual((status, code),
+                         ("harness_failure", "CAPTURE_GATE_ORACLE_INVALID"))
 
     def test_adjudicate_final_mismatch(self) -> None:
         self.endpoint.handle("read", "s1", "open", [])

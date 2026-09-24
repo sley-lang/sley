@@ -61,7 +61,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from bench.live import tooling as _tooling
-from bench.live.attempts import append_attempt, build_attempt
+from bench.live.attempts import AGENT_NO_FINAL, append_attempt, build_attempt
 from bench.live.confined import (
     SandboxSpec,
     confinement_argv,
@@ -753,9 +753,26 @@ def execute_mediated_attempt(
                         else:
                             final_bytes = endpoint.protected_final()
                             if not isinstance(final_bytes, bytes):
-                                status = "harness_failure"
-                                failure_code = "CAPTURE_GATE_NO_FINAL"
+                                # The provider exited 0 over a valid
+                                # capture without submitting a final
+                                # candidate: an agent failure, recorded
+                                # like a rejection in every arm (a raw or
+                                # legacy agent that leaves the files
+                                # unfixed is the oracle's rejection).
+                                # Preregistration revision 4.
                                 _retain_evidence()
+                                if evidence_digests[
+                                        "evidence_completion_sha256"] is None:
+                                    # The evidence sink failed: a harness
+                                    # fault, not an agent outcome.
+                                    status = "harness_failure"
+                                    failure_code = "LIVE_EVIDENCE_SINK_INVALID"
+                                else:
+                                    status = "rejected"
+                                    failure_code = AGENT_NO_FINAL
+                                    metrics["accepted_correct_changes"] = 0
+                                    metrics["strict_accepted_correctness"] = False
+                                    metrics["invalid_candidates"] += 1
                             else:
                                 try:
                                     trusted.complete(final_bytes)

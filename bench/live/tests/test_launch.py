@@ -84,7 +84,9 @@ class PreregistrationTests(unittest.TestCase):
             launch.load_preregistration(directory / "PREREGISTRATION.json")
         with self.assertRaisesRegex(launch.LaunchError, "LIVE_LAUNCH_PREREG_SUPERSEDED"):
             launch.load_preregistration(directory / "PREREGISTRATION-2-claude-code.json")
-        current = launch.load_preregistration(directory / "PREREGISTRATION-3-claude-code.json")
+        with self.assertRaisesRegex(launch.LaunchError, "LIVE_LAUNCH_PREREG_SUPERSEDED"):
+            launch.load_preregistration(directory / "PREREGISTRATION-3-claude-code.json")
+        current = launch.load_preregistration(directory / "PREREGISTRATION-4-claude-code.json")
         self.assertEqual(current["provider"]["sandbox"]["profile"], "claude-code")
         self.assertEqual(current["scheduled_attempts_total"], 90)
 

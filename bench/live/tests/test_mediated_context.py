@@ -186,12 +186,12 @@ class MediatedContextTests(unittest.TestCase):
     def test_context_incomplete_impact_cannot_finish(self) -> None:
         """Complete discovery, typedef-only repair: production validation
         refuses the incomplete closure, so no finishable candidate forms
-        and the attempt fails closed with no final."""
+        and the attempt is an agent rejection with no final."""
 
         record = self.attempt("incomplete")
         self.assertFalse(self.summary(record).get("finished"))
-        self.assertEqual(record["status"], "harness_failure")
-        self.assertEqual(record["failure_code"], "CAPTURE_GATE_NO_FINAL")
+        self.assertEqual(record["status"], "rejected")
+        self.assertEqual(record["failure_code"], "AGENT_NO_FINAL")
 
     @GATED
     def test_context_inconsistent_continuation_rejects(self) -> None:

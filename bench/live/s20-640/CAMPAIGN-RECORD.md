@@ -214,3 +214,17 @@ real-`claude -p` launch test skipped in the full run; it passed separately
 with `SLEY2_LIVE_CLAUDE_ROOT` bound), `bench/accounting/tests` 19 tests OK,
 `scripts/check_succession_accounting.py` PASS, `make lint` PASS
 (`evidence/build/lint-report.json` restored).
+
+## Preregistration revision 4 2026-09-24 (before any counted attempt)
+
+The pilot 2 observation above is corrected under operator-authorized scope:
+an attempt whose provider exits 0 over an otherwise valid capture but ends
+without submitting a final candidate is now an agent failure recorded like a
+rejection (`rejected`, `AGENT_NO_FINAL`, no oracle run, no final candidate),
+in the non-harness-failure median companions like a raw or legacy agent that
+leaves the files unfixed. Genuine capture and harness faults stay
+`harness_failure`. `PREREGISTRATION-4-claude-code.json` supersedes revision 3
+and records the change (oracle digest `a9e597f7…` → `434e808d…`, from the
+capture gate in `bench/live/mediated_sley.py`; no other frozen digest moved).
+The pilot records above stay as written: they were classified under their
+own revision and do not count.

@@ -70,6 +70,16 @@ SLEY_EVIDENCE_FIELDS = frozenset(
         "final_candidate_sha256",
     }
 )
+# An agent that ends without submitting a final candidate (provider exit
+# 0, capture otherwise valid) is an agent failure recorded like a
+# rejection, symmetric with a raw or legacy agent that leaves the files
+# unfixed (preregistration revision 4). No oracle ran and no final
+# candidate exists, so the record carries neither; genuine capture and
+# harness faults stay harness_failure.
+AGENT_NO_FINAL = "AGENT_NO_FINAL"
+ORACLE_ARTIFACT_FIELDS = frozenset(
+    {"oracle_report_sha256", "oracle_stderr_sha256", "oracle_stdout_sha256"}
+)
 INPUT_FIELDS = frozenset(
     {
         "arm_id",
@@ -183,7 +193,8 @@ def _validate_metrics(metrics: Any, manifest: Mapping[str, Any], status: str,
         _fail("LIVE_ATTEMPT_CONTROL_MISMATCH", "wall_time_budget")
 
 
-def _validate_artifacts(artifacts: Any, status: str, arm_id: str) -> None:
+def _validate_artifacts(artifacts: Any, status: str, arm_id: str,
+                        failure: str | None = None) -> None:
     if not isinstance(artifacts, dict) or set(artifacts) != ARTIFACT_FIELDS:
         _fail("LIVE_ATTEMPT_INVALID", "artifact field set")
     required = {
@@ -205,6 +216,18 @@ def _validate_artifacts(artifacts: Any, status: str, arm_id: str) -> None:
             # requires the runner-owned evidence copies + completion
             # binding (never the agent workspace alone).
             required |= set(SLEY_EVIDENCE_FIELDS)
+        if failure == AGENT_NO_FINAL:
+            # No final candidate and no oracle run: both must be absent.
+            # The completion binding is required; the transcript and
+            # usage ledger are bound when observed (an agent that made no
+            # exchange has none; missing observations stay missing).
+            if status != "rejected" or arm_id != "sley_2_0":
+                _fail("LIVE_ATTEMPT_INVALID", "agent-no-final scope")
+            for field in ORACLE_ARTIFACT_FIELDS | {"final_candidate_sha256"}:
+                if artifacts.get(field) is not None:
+                    _fail("LIVE_ATTEMPT_INVALID", f"agent-no-final carries {field}")
+            required -= ORACLE_ARTIFACT_FIELDS | {
+                "final_candidate_sha256", "agent_transcript_sha256", "agent_usage_sha256"}
     for field, value in artifacts.items():
         if value is None:
             if field in required:
@@ -251,7 +274,7 @@ def validate_attempt(record: Mapping[str, Any], manifest: Mapping[str, Any]) -> 
         _fail("LIVE_ATTEMPT_INVALID", "provider exit")
     if record["capture_status"] != CAPTURE_STATUS:
         _fail("LIVE_ATTEMPT_INVALID", "capture_status")
-    _validate_artifacts(record["artifacts"], status, record["arm_id"])
+    _validate_artifacts(record["artifacts"], status, record["arm_id"], failure)
     _validate_metrics(record["metrics"], manifest, status, failure)
 
 
@@ -551,6 +574,14 @@ def verify_attempts(
                     _fail("LIVE_ATTEMPT_PROVIDER_INVALID", "unexpected final message")
             elif final != events.final_message.encode("utf-8"):
                 _fail("LIVE_ATTEMPT_PROVIDER_INVALID", "final message")
+            if attempt["failure_code"] == AGENT_NO_FINAL:
+                # No oracle ran: provider usage is reconciled above and
+                # the completion binding below; nothing else to verify.
+                _verify_evidence_completion(payloads, attempt)
+                promoted_record = dict(attempt)
+                promoted_record["evidence_status"] = VERIFIED_STATUS
+                promoted.append(promoted_record)
+                continue
             oracle_payload = payloads["oracle_report_sha256"]
             if not isinstance(oracle_payload, bytes):
                 _fail("LIVE_ATTEMPT_ORACLE_INVALID", "missing")

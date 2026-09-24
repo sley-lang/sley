@@ -198,11 +198,22 @@ class MediatedAttemptTests(unittest.TestCase):
 
     @unittest.skipUnless(NEEDS_BINARY and NEEDS_CONFINEMENT,
                          "needs SLEY2_SLEY_BINARY + bwrap")
-    def test_missing_final_blocks_acceptance(self) -> None:
+    def test_missing_final_is_an_agent_rejection(self) -> None:
+        # Provider exit 0 over a valid capture with no submitted final:
+        # an agent failure recorded like a rejection (preregistration
+        # revision 4), never an acceptance, never an oracle run.
         record = self.attempt("no_finish")
-        self.assertEqual(record["status"], "harness_failure")
-        self.assertEqual(record["failure_code"], "CAPTURE_GATE_NO_FINAL")
+        self.assertEqual(record["status"], "rejected")
+        self.assertEqual(record["failure_code"], "AGENT_NO_FINAL")
         self.assertEqual(self.oracle_calls, [])
+        self.assertEqual(record["metrics"]["accepted_correct_changes"], 0)
+        self.assertEqual(record["metrics"]["invalid_candidates"], 1)
+        artifacts = record["artifacts"]
+        self.assertIsNone(artifacts["final_candidate_sha256"])
+        self.assertIsNone(artifacts["oracle_report_sha256"])
+        self.assertIsNotNone(artifacts["agent_transcript_sha256"])
+        self.assertIsNotNone(artifacts["evidence_completion_sha256"])
+        self.assertEqual(len(verify_attempts(self.run, self.store)), 1)
 
     @unittest.skipUnless(NEEDS_BINARY and NEEDS_CONFINEMENT,
                          "needs SLEY2_SLEY_BINARY + bwrap")
@@ -234,9 +245,11 @@ class MediatedAttemptTests(unittest.TestCase):
                          "needs SLEY2_SLEY_BINARY + bwrap")
     def test_budgets_cumulative_across_sessions(self) -> None:
         record = self.attempt("two_phase")
-        # No finish was produced, so no acceptance is possible; the
-        # cumulative ledger is still retained runner-side.
-        self.assertEqual(record["status"], "harness_failure")
+        # No finish was produced, so no acceptance is possible (an agent
+        # rejection, preregistration revision 4); the cumulative ledger
+        # is still retained runner-side.
+        self.assertEqual((record["status"], record["failure_code"]),
+                         ("rejected", "AGENT_NO_FINAL"))
         ledger = json.loads(
             (self.capture_dir(record) / "budgets.json").read_bytes())
         # open + revision <tx> (first session) + caps (second session).

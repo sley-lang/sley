@@ -15,7 +15,7 @@
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
   "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "5456585a12bb82559ee79b1c2a88ed54e63f96528b2cb93783e7cfe7d61d0511",
+  "report_digest": "0e7e543185e6b908ded1fcdce4d9657c2c3e9fe912be9ad382ec2f7d68cab0a5",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -1989,17 +1989,20 @@
       "threat": "secret committed in fixtures"
     },
     {
-      "exercised_in": [],
-      "exercised_source_count": 0,
+      "exercised_in": [
+        "bench/accounting/tests/test_live.py"
+      ],
+      "exercised_source_count": 1,
       "expected_failure_code": "BENCH_CONTROL_VIOLATION",
       "id": "T55",
-      "located_file_count": 2,
+      "located_file_count": 3,
       "located_in": {
         "checkers": [
           "scripts/check_succession_accounting.py"
         ],
         "harness": [
-          "bench/accounting/report.py"
+          "bench/accounting/report.py",
+          "bench/accounting/tests/test_live.py"
         ]
       },
       "owner": "sley-bench",

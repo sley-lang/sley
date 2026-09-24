@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from bench.live.artifacts import ArtifactStore
-from bench.live.attempts import AttemptError, verify_attempts
+from bench.live.attempts import AGENT_NO_FINAL, AttemptError, verify_attempts
 from bench.live.manifest import read_manifest
 from bench.live.provider import ProviderError, parse_provider_events
 from bench.live.snapshot import encode_snapshot, snapshot_directory
@@ -102,13 +102,16 @@ def _claim(record: Mapping[str, Any], store: ArtifactStore, model_provider: str)
     judged = record["status"] in {"accepted", "rejected"}
     events = store.read(record["artifacts"]["provider_events_sha256"])
     usage = USAGE_RECONCILED if judged else _reconcile_unjudged(record, events, model_provider)
+    # An agent that ended without a final candidate is recorded like a
+    # rejection, but no oracle ran on it (preregistration revision 4).
+    oracle_ran = judged and record["failure_code"] != AGENT_NO_FINAL
     return {
         "accounting_verification_status": usage,
         "arm_id": record["arm_id"],
         "evidence_status": record["evidence_status"],
         "failure_code": record["failure_code"],
         "metrics": dict(record["metrics"]),
-        "oracle_verification_status": ORACLE_JUDGED if judged else ORACLE_UNJUDGED,
+        "oracle_verification_status": ORACLE_JUDGED if oracle_ran else ORACLE_UNJUDGED,
         "record_digest": record["record_digest"],
         "section_22": {
             "basis": SECTION_22_BASIS,

@@ -164,6 +164,27 @@ class AttemptLogTests(unittest.TestCase):
         self.assertEqual(verified[0]["record_digest"], digest)
         self.assertEqual(verified[0]["evidence_status"], "VERIFIED_LIVE_EVIDENCE")
 
+    def test_agent_no_final_is_scoped_and_carries_no_verdict(self) -> None:
+        # Preregistration revision 4: AGENT_NO_FINAL is a sley_2_0
+        # rejection with no oracle run and no final candidate.
+        base = self.accepted_attempt()
+        with self.assertRaisesRegex(AttemptError, "agent-no-final scope"):
+            build_attempt(
+                manifest=manifest(), attempt_id="raw-repair-17",
+                task_id="S2B-REPAIR-001", arm_id="raw_files", seed=17,
+                started_at_utc="2026-09-17T12:01:00Z",
+                ended_at_utc="2026-09-17T12:01:01Z", status="rejected",
+                failure_code="AGENT_NO_FINAL", provider_exit_code=0,
+                artifacts=dict(base["artifacts"]), metrics=metrics())
+        with self.assertRaisesRegex(AttemptError, "agent-no-final carries oracle_"):
+            build_attempt(
+                manifest=manifest(), attempt_id="sley-repair-17",
+                task_id="S2B-REPAIR-001", arm_id="sley_2_0", seed=17,
+                started_at_utc="2026-09-17T12:01:00Z",
+                ended_at_utc="2026-09-17T12:01:01Z", status="rejected",
+                failure_code="AGENT_NO_FINAL", provider_exit_code=0,
+                artifacts=dict(base["artifacts"]), metrics=metrics())
+
     def test_duplicate_slot_refuses(self) -> None:
         record = self.accepted_attempt()
         append_attempt(self.run, record)

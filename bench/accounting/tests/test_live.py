@@ -228,9 +228,31 @@ class LiveAccountingTests(unittest.TestCase):
             derive_live_report(run, require_campaign=True)
 
 
+def _pilot_recorded_from_this_checkout() -> bool:
+    """The staged legacy launcher carries the absolute checkout path, so a
+    retained run's frozen starting state verifies only from the checkout
+    that recorded it (another checkout, such as a release-candidate mint
+    worktree, stages different launcher bytes for identical tooling)."""
+
+    from bench.live.live_claims import _initial_snapshot
+
+    for line in (PILOT_RUN / "attempts.jsonl").read_text(encoding="utf-8").splitlines():
+        record = json.loads(line)
+        if record["arm_id"] == "sley_1_2_0":
+            store = ArtifactStore(PILOT_RUN / "artifacts")
+            recorded = store.read(record["artifacts"]["workspace_before_sha256"])
+            return recorded == _initial_snapshot("sley_1_2_0", record["task_id"])
+    return True
+
+
 @unittest.skipUnless((PILOT_RUN / "attempts.jsonl").is_file(), "retained PILOT run not on this host")
 class RetainedPilotTests(unittest.TestCase):
     """The nine real PILOT records of 2026-09-24, read-only."""
+
+    def setUp(self) -> None:
+        if not _pilot_recorded_from_this_checkout():
+            self.skipTest("retained PILOT run was recorded from another checkout "
+                          "(the staged legacy launcher carries the checkout path)")
 
     def test_pilot_records_are_harness_failures_that_never_count(self) -> None:
         before = (PILOT_RUN / "attempts.jsonl").read_bytes()
