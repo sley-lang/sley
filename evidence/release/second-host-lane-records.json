@@ -112,6 +112,20 @@
       "bundle_commit": "8d063f00133f369599032191708fa7efabb3e2fa",
       "merge_commit": "700d4da9f0e5061e5d24f435104730590238a017",
       "note": "Runbook deviation, recorded as observed: the tracked scripts/second_host_attest.sh --phase build passed the lease gate (free), the candidate binding and the reachability probe, then failed at the bundle step (`git bundle create <file> <bare-sha>` -> \"fatal: Refusing to create empty bundle.\"; git bundle needs a ref, not a bare object id). The build phase was then run by a manual mirror of the tracked phase (checkpoint-local second_host_build_ref.sh, outside the repository) that differs only in bundling the candidate through a temporary ref refs/heads/attest/8d063f0 (created, bundled, deleted; bundle verified) and in sourcing ~/.cargo/env for the non-login lab shell; every lab step (fresh clone from the bundle, detached checkout, HEAD equality, clean-tree test, cargo fetch --locked, make release-candidate-build, --emit-attestation, sha256sum) is the tracked runbook's. The lab build reported REPRODUCIBLE / PASS with artifact ecf51188…, 2,508,082 B, 15 members, manifest f0bd4072…, the same as the primary mint; the attestation was transferred by scp and merged by the tracked script's --phase merge. The bundle-step fix to the tracked script rides the next source change (a script edit now would move the candidate)."
+    },
+    {
+      "candidate_commit": "515cc4a3d9875b46273712367a2f77e355522906",
+      "date": "2026-09-24",
+      "transport_lane": "USB 10.10.10.1 to 10.10.10.2 via forge-lab-connect; SSH_CONNECTION verified by the tracked runbook at the build and merge phases",
+      "lab_checkout": "/home/greyforgelab/sley2-attest-515cc4a",
+      "lab_commit": "515cc4a3d9875b46273712367a2f77e355522906",
+      "lab_evidence_sha256": "d45be567fe5603058bb05c9faf25026355af6c8844b6d933c95bc76973fe6188",
+      "artifact_sha256": "414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15",
+      "attestation_path": "evidence/release/attestations/515cc4a-secondary.json",
+      "attestation_file_sha256": "c811a7301df214ab3d6bd08cdc34143ceb99bf73ddc5afc35d87ead809dd3da5",
+      "bundle_commit": "515cc4a3d9875b46273712367a2f77e355522906",
+      "merge_commit": "ecf453cea068fb11f28f8ad0a3046f5803a4704c",
+      "note": "The Sley 2.0.0 release candidate. All three phases (check, build, merge) ran through the tracked scripts/second_host_attest.sh with no deviation (its bundle step bundles through a temporary ref since the 8d063f00 lane); the lab build reported REPRODUCIBLE / PASS with the primary's artifact digest, 2,513,163 B, 15 members, manifest e6963e14…. The secondary host's re-attestation of the current commit retires the superseded 8d063f00 secondary from the report's superseded_attestations listing (contract revision 11); its receipt stays above."
     }
   ]
 }

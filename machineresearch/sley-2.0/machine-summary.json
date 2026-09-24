@@ -4926,14 +4926,14 @@
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
     "candidate_evidence_commit": "515cc4a3d9875b46273712367a2f77e355522906",
-    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the Sley 2.0.0 release candidate, minted in a detached linked worktree of that commit (two clean musl builds, REPRODUCIBLE); its secondary attestation is pending until the greyforgelab build under scripts/second_host_attest.sh (phases check, build and merge; the bundle step bundles through a temporary ref since the 8d063f00 lane). The superseded 8d063f00 secondary attestation is not carried: the re-mint lists it under the tracked report's superseded_attestations (contract revisions 10 and 11), and its custody receipt stays in evidence/release/second-host-lane-records.json. The superseded 45b2cd98 secondary attestation predates that listing (removed at 75ad17aa, the c75277b6 mint; 9316df19 inherited the primary-only state); its supersession is recorded in git history, the second-host lane ledger and the reproducibility section's attestation_supersedes chain.",
+    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the Sley 2.0.0 release candidate, minted in a detached linked worktree of that commit (two clean musl builds, REPRODUCIBLE) and independently rebuilt on greyforgelab on 2026-09-24 from a transferred Git bundle (detached clean clone /home/greyforgelab/sley2-attest-515cc4a, make release-candidate-build, REPRODUCIBLE, the same artifact digest) through the tracked scripts/second_host_attest.sh (check, build and merge; no deviation). The secondary attestation is merged into the tracked report (MULTI_HOST_REPRODUCIBLE, merge commit ecf453ce) and retained as evidence/release/attestations/515cc4a-secondary.json, with its custody receipt in evidence/release/second-host-lane-records.json; its re-attestation retires the superseded 8d063f00 secondary from the report's superseded_attestations listing (contract revision 11), whose receipt stays in the ledger. The superseded 45b2cd98 secondary attestation predates that listing (removed at 75ad17aa, the c75277b6 mint; 9316df19 inherited the primary-only state); its supersession is recorded in git history, the second-host lane ledger and the reproducibility section's attestation_supersedes chain.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
-    "mint_method": "primary clean-tree mint via make release-candidate-smoke in a detached linked worktree of the candidate commit (two clean musl builds, REPRODUCIBLE); independent second-host repetition pending (greyforgelab, S20-730 second-host runbook)",
+    "mint_method": "primary clean-tree mint via make release-candidate-smoke in a detached linked worktree of the candidate commit (two clean musl builds, REPRODUCIBLE); independently repeated on greyforgelab from the transferred Git bundle under the S20-730 second-host runbook (make release-candidate-build, REPRODUCIBLE, same artifact digest; tracked runbook, no deviation)",
     "p1_open_count": 0,
     "p1_open": [],
-    "mint_worktree": "primary: detached linked worktree of the candidate commit under /home/gfarch/Work/checkpoints (clean by construction); secondary: pending (the superseded 8d063f00 lane used /home/greyforgelab/sley2-attest-8d063f0, the 45b2cd98 mint /home/greyforgelab/sley2-repair-45b2cd9-v1)",
+    "mint_worktree": "primary: detached linked worktree of the candidate commit under /home/gfarch/Work/checkpoints (clean by construction); secondary: detached clean clone /home/greyforgelab/sley2-attest-515cc4a of the transferred bundle (the superseded 8d063f00 lane used /home/greyforgelab/sley2-attest-8d063f0, the 45b2cd98 mint /home/greyforgelab/sley2-repair-45b2cd9-v1)",
     "offline_tests_note": "test methods in bench/release/tests/test_packaging.py; scripts/check_release_candidate_packaging.py pins the count against the def test_ census",
     "ariadne_contract_review_revision_2": "REVISE_0_P0_0_P1_2_P2_2_P3",
     "nabu_architecture_review_revision_2": "PASS_0_P0_0_P1_0_P2_3_P3_CLOSED",
@@ -6215,10 +6215,10 @@
     "checker": "scripts/check_reproducibility_and_independent_conformance.py",
     "reproducibility_report": "evidence/release/reproducibility-report.json",
     "independent_conformance_report": "evidence/conformance/independent-conformance-report.json",
-    "reproducibility_result": "SINGLE_HOST_REPRODUCIBLE",
-    "second_host_status": "GATED_OPERATOR_LANE",
+    "reproducibility_result": "MULTI_HOST_REPRODUCIBLE",
+    "second_host_status": "ATTESTED",
     "required_hosts": 2,
-    "attested_hosts": 1,
+    "attested_hosts": 2,
     "second_host_lane_record": "evidence/release/second-host-lane-records.json",
     "fixture_directories": 27,
     "tracked_corpus_directories": 32,
@@ -6230,7 +6230,6 @@
     "ga_claimed": false,
     "publication_authorized": false,
     "blockers": [
-      "second_host_attestation_operator_lane",
       "standards_sbom_and_provenance_s20_710_full",
       "succession_thresholds_s20_640",
       "council_reviews"
@@ -6296,7 +6295,7 @@
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
-    "attestation_supersedes": "derived: attestation_chain (sync_evidence_counters.py, every tracked version of evidence/release/reproducibility-report.json, oldest first, consecutive same-commit versions collapsed to the widest host set) \u2014 the last entry is the current candidate (see release_candidate_packaging.candidate_commit) and the two-host entries run through 45b2cd98 and again at 8d063f00 (secondary merged at 700d4da9, lane receipt in evidence/release/second-host-lane-records.json, superseded by the 515cc4a3 release mint and listed in the report's superseded_attestations); the earlier prose chain (1023a31 -> 43f2f5b -> 5313437 -> 45b2cd98 -> c75277b6 -> a7852028 -> 7426bc0b -> 5bba01b3 -> 867009de -> 25d6d0ba) used pre-rewrite ids for the first two and is superseded by the derived list. Since contract revision 10 a re-mint lists attestations of a superseded commit under the report's superseded_attestations (persisting until the host re-attests, revision 11) and never carries them; the 45b2cd98 secondary predates the rule (removed at 75ad17aa, the c75277b6 mint; 9316df19 inherited the primary-only state) and its supersession is recorded in the lane ledger.",
+    "attestation_supersedes": "derived: attestation_chain (sync_evidence_counters.py, every tracked version of evidence/release/reproducibility-report.json, oldest first, consecutive same-commit versions collapsed to the widest host set) \u2014 the last entry is the current candidate (see release_candidate_packaging.candidate_commit) and the two-host entries run through 45b2cd98 again at 8d063f00 (secondary merged at 700d4da9, superseded by the 515cc4a3 release mint) and at the current candidate 515cc4a3 (secondary merged at ecf453ce; lane receipts in evidence/release/second-host-lane-records.json); the earlier prose chain (1023a31 -> 43f2f5b -> 5313437 -> 45b2cd98 -> c75277b6 -> a7852028 -> 7426bc0b -> 5bba01b3 -> 867009de -> 25d6d0ba) used pre-rewrite ids for the first two and is superseded by the derived list. Since contract revision 10 a re-mint lists attestations of a superseded commit under the report's superseded_attestations (persisting until the host re-attests, revision 11) and never carries them; the 45b2cd98 secondary predates the rule (removed at 75ad17aa, the c75277b6 mint; 9316df19 inherited the primary-only state) and its supersession is recorded in the lane ledger.",
     "candidate_consumers_note": "The dossier and GA report import the shared S20-730 selector; candidate-content evidence uses the explicit current-build binding during host handoff.",
     "current_delta_review": {
       "ariadne": "PASS_0_P0_0_P1_0_P2_1_P3_9_P4",
@@ -7041,7 +7040,8 @@
       {
         "commit": "515cc4a3d9875b46273712367a2f77e355522906",
         "hosts": [
-          "primary"
+          "primary",
+          "secondary"
         ]
       }
     ],
@@ -7488,8 +7488,7 @@
     "blockers": [
       "signing_key_and_transparency_log_unauthorized",
       "final_argus_and_vulcan_dispositions",
-      "council_reviews",
-      "second_host_attestation_operator_lane"
+      "council_reviews"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
     "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3_4_P4",
@@ -7981,10 +7980,9 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "20 GA acceptance criteria are not evidenced",
+      "19 GA acceptance criteria are not evidenced",
       "27 review obligations are open",
       "no succession trial has been executed",
-      "only one host has attested the candidate",
       "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
       "the release-check and v2 product gates are fail-closed"
     ],
@@ -8057,7 +8055,7 @@
     "schema_epoch_decision": "narrowed 2026-09-03 by the S20-760 revision 2 determinations: an epoch is required only for the four unsupported contract kinds, test_observe execution, and adapter replay and configuration. The production-epoch fingerprint requirement, contract_assert execution, and effect_request and capability_narrow execution are profile work under epoch 1, and contract_assert execution is unblocked today. The decision itself remains the schema owner's",
     "succession_trials": "Operator authorized all steps and spending on 2026-09-15. Live execution is not implemented: raw runner is offline-only, legacy adapter only runs version smoke, Sley2 has injected model/oracle protocols and a restricted proposal surface, selected-test commit is unsupported, and three accounting thresholds are unimplemented. Both small- and large-model campaigns over all 15 tasks and 3 required arms are required. See evidence/review/completion-succession-readiness-2026-09-15.md; no real trials have run.",
     "root_license_text": "RESOLVED: operator-approved on 2026-09-14; LICENSE and NOTICE are installed and inventoried, and the SBOM documents report zero blocked licenses. Remaining S20-710 audit dispositions and the full candidate-history re-anchor decision are separate held items.",
-    "second_host_attestation": "PENDING for the release candidate 515cc4a3d9875b46273712367a2f77e355522906 (single-host, SINGLE_HOST_REPRODUCIBLE until the greyforgelab attestation is merged). Historical: RESOLVED for 8d063f00133f369599032191708fa7efabb3e2fa (2026-09-23; artifact ecf51188\u2026, lane receipt with the bundle-step deviation), for 5313437afb5df66b5fa48b82c374746467d0a1ca (artifact 7da77f1b\u2026) and for 45b2cd98; all superseded by later product source.",
+    "second_host_attestation": "RESOLVED for the release candidate 515cc4a3d9875b46273712367a2f77e355522906 (2026-09-24): primary and greyforgelab builds match artifact 414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json; tracked runbook, no deviation). Historical: RESOLVED for 8d063f00133f369599032191708fa7efabb3e2fa (2026-09-23; artifact ecf51188\u2026, lane receipt with the bundle-step deviation), for 5313437afb5df66b5fa48b82c374746467d0a1ca (artifact 7da77f1b\u2026) and for 45b2cd98; all superseded by later product source.",
     "release_decision": "Operator authorized all gates, steps, spending, and completion on 2026-09-15. Technical gates remain unsatisfied; authorization is not empirical PASS or a final candidate identity. No release has been published.",
     "independent_conformance": "closed 2026-09-03: every one of the nineteen fixture families is now checked by an independent Python oracle, including the extended bytecode container and cache identity and the release demo identities; only the human independent review remains",
     "similarity_audit": "PERFORMED 2026-09-07, local implementation-session evidence (s20-780-similarity-audit-2026-09-07.md): no wholesale copying found; authorized touchpoint inventory unchanged. Independent (Argus/Council) review of the audit is still pending; the GA clean-room claim stays gated on that review. The boundary checker mechanizes sentinel, dependency, touchpoint, and register-hygiene facts only."
@@ -8363,13 +8361,12 @@
     "criterion_count": 52,
     "states": {
       "AWAITS_REVIEW": 17,
-      "EVIDENCED": 32,
-      "GATED": 3
+      "EVIDENCED": 33,
+      "GATED": 2
     },
     "gated": [
       "no P0/P1/P2 finding remains open",
-      "every section 22 threshold passes",
-      "second clean build establishes reproducibility"
+      "every section 22 threshold passes"
     ],
     "ga_claimed": false,
     "interpretation": "neither AWAITS_REVIEW nor GATED is a pass, and no combination of states is a GA claim; every state is derived from the fact its evidence names, package completion and lane clearance are the finding register's predicates, and the report is digest-bound to the register",
