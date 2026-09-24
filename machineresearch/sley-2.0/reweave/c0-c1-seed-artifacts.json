@@ -232,7 +232,7 @@
   "seed_constructor_sources": "canonical-s-manifest.json seed_constructor_sources (the #[path] closure of crates/sley-vm/tests/rw120_toolchain_integration.rs)",
   "checker": "scripts/check_reweave_canonical_s.py",
   "store_layout": "C0/<first 8 hex of the C0 SHA-256>/ and C1/<first 8 hex of the C1 SHA-256>/ (self-describing; earlier generations used the source commit id)",
-  "rebuild_verification": "C0 built 2026-09-18 from a fresh detached worktree of 9d1ba8f1 (SHA-256 a94580d7e96eda2bd0b4c59e72391758e8470ed856f6bde6a1fb4f8521cf1378), rebuilt byte for byte from a second worktree of 9d1ba8f1 and from fresh detached worktrees of fbb02573, 320ea8aa, 7995e057, 6d752779, f3d4f450, 7527d82a, 4e128def, 02756fb1, 69907ddf, 7c51710b and 8d063f00 (seed sources unchanged)"
+  "rebuild_verification": "C0 built 2026-09-18 from a fresh detached worktree of 9d1ba8f1 (SHA-256 a94580d7e96eda2bd0b4c59e72391758e8470ed856f6bde6a1fb4f8521cf1378), rebuilt byte for byte from a second worktree of 9d1ba8f1 and from fresh detached worktrees of fbb02573, 320ea8aa, 7995e057, 6d752779, f3d4f450, 7527d82a, 4e128def, 02756fb1, 69907ddf, 7c51710b and 8d063f00 (seed sources unchanged). At the 2.0.0 release candidate 515cc4a3 the #[path] closure is unchanged (97841aaf…) but a fresh rebuild yields 3b0b3547777e5111210565ef1bf8eee4322359e25557d91b2a510e5930f39304 because the 2.0.0 version bump changes rustc crate-metadata hashes; a94580d7… remains the bound C0 and re-binding the seed lane is deferred to 2.1 (REWEAVE)"
  },
  "same_generation_c0_rebuilds": [
   {

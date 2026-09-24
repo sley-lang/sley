@@ -8,15 +8,15 @@
     ]
   },
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "urn:sley2:spdx:3be5e5547fe0ae8d1b290aaac3ab03eee509657278af21c14b983ece6a0355de:ecf51188d52bd673800c7b91068f2ad58d93068a23e1f37e60320c58a398c1f7",
-  "name": "sley-2.0.0-alpha.0-linux-x86_64",
+  "documentNamespace": "urn:sley2:spdx:aaf3c129f5d0d3c3798096f6bb7f8e24a0b0c79542279e8c6c7ccc7b0fa9974b:414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15",
+  "name": "sley-2.0.0-linux-x86_64",
   "packages": [
     {
       "SPDXID": "SPDXRef-Package-sley-candidate",
       "checksums": [
         {
           "algorithm": "SHA256",
-          "checksumValue": "ecf51188d52bd673800c7b91068f2ad58d93068a23e1f37e60320c58a398c1f7"
+          "checksumValue": "414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15"
         }
       ],
       "comment": "the local Sley 2 release candidate; unsigned, unpublished, and not a GA claim (S20-720, S20-730)",
@@ -26,7 +26,7 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
       "SPDXID": "SPDXRef-cargo-arrayref-0.3.9",
@@ -797,14 +797,14 @@
       "versionInfo": "3.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-adapter-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-adapter-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-adapter@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -812,17 +812,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-adapter",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-check-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-check-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-check@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -830,17 +830,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-check",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-cli-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-cli-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-cli@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-cli@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -848,17 +848,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-cli",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-conformance-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-conformance-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-conformance@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -866,17 +866,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-conformance",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-id-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-id@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -884,17 +884,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-id",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-json-bridge-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-json-bridge-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-json-bridge@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -902,17 +902,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-json-bridge",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-mutate-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-mutate@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -920,17 +920,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-mutate",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-policy-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-policy@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -938,17 +938,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-policy",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-protocol-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-protocol@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -956,17 +956,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-protocol",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-query-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-query-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-query@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -974,17 +974,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-query",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-repo-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-repo@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -992,17 +992,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-repo",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-scb1-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-scb1@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -1010,17 +1010,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-scb1",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-schema-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-schema-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-schema@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -1028,17 +1028,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-schema",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-ssmc-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -1046,17 +1046,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-ssmc",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-state-root-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-state-root@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -1064,17 +1064,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-state-root",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-store-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-store-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-store@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -1082,17 +1082,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-store",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-test-runner-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-test-runner-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-test-runner@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-test-runner@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -1100,17 +1100,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-test-runner",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-tests-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-tests@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -1118,17 +1118,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-tests",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-txn-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-txn@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -1136,17 +1136,17 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-txn",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
-      "SPDXID": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0",
+      "SPDXID": "SPDXRef-cargo-sley-vm-2.0.0",
       "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
       "copyrightText": "NOASSERTION",
       "downloadLocation": "NOASSERTION",
       "externalRefs": [
         {
           "referenceCategory": "PACKAGE-MANAGER",
-          "referenceLocator": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
+          "referenceLocator": "pkg:cargo/sley-vm@2.0.0?workspace=true",
           "referenceType": "purl"
         }
       ],
@@ -1154,7 +1154,7 @@
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
       "name": "sley-vm",
-      "versionInfo": "2.0.0-alpha.0"
+      "versionInfo": "2.0.0"
     },
     {
       "SPDXID": "SPDXRef-cargo-subtle-2.6.1",
@@ -1647,617 +1647,622 @@
     {
       "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-check-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-check-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-check-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-json-bridge-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-test-runner-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-id-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-check-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-json-bridge-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-json-bridge-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-json-bridge-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-json-bridge-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-protocol-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-repo-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-test-runner-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-id-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-json-bridge-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-json-bridge-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-protocol-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-json-bridge-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-serde-1.0.228",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-conformance-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-conformance-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-query-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-query-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-repo-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-store-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-store-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-txn-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-query-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-store-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
-    },
-    {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0",
-      "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-libc-0.2.189",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-query-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-store-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-txn-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-serde-1.0.228",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-unicode-normalization-0.1.24",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-schema-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-schema-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-schema-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-schema-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-schema-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-schema-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-ssmc-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-state-root-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-state-root-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-state-root-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-store-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-store-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-store-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-store-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-ed25519-dalek-3.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-sha2-0.11.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-ed25519-dalek-3.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-store-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-store-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-sha2-0.11.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
     },
     {
-      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0-alpha.0",
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
       "relationshipType": "DEPENDS_ON",
-      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0-alpha.0"
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
     },
     {
       "relatedSpdxElement": "SPDXRef-cargo-proc-macro2-1.0.107",

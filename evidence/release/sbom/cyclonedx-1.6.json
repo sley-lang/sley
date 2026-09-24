@@ -1219,7 +1219,7 @@
       "version": "3.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-adapter@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1240,12 +1240,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-adapter@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-check@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1266,12 +1266,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-check@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-cli@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-cli@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1292,12 +1292,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-cli@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-cli@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-conformance@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1318,12 +1318,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-conformance@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-id@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1344,12 +1344,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-id@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-json-bridge@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1370,12 +1370,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-json-bridge@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-mutate@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1396,12 +1396,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-mutate@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-policy@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1422,12 +1422,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-policy@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-protocol@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1448,12 +1448,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-protocol@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-query@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1474,12 +1474,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-query@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-repo@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1500,12 +1500,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-repo@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-scb1@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1526,12 +1526,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-scb1@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-schema@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1552,12 +1552,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-schema@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1578,12 +1578,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-state-root@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1604,12 +1604,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-state-root@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-store@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1630,12 +1630,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-store@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-test-runner@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-test-runner@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1656,12 +1656,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-test-runner@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-test-runner@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-tests@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1682,12 +1682,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-tests@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-txn@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1708,12 +1708,12 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-txn@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
-      "bom-ref": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
+      "bom-ref": "pkg:cargo/sley-vm@2.0.0?workspace=true",
       "licenses": [
         {
           "expression": "Apache-2.0"
@@ -1734,9 +1734,9 @@
           "value": "workspace"
         }
       ],
-      "purl": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
+      "purl": "pkg:cargo/sley-vm@2.0.0?workspace=true",
       "type": "library",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     {
       "bom-ref": "pkg:cargo/subtle@2.6.1",
@@ -2144,29 +2144,29 @@
   "dependencies": [
     {
       "dependsOn": [
-        "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-cli@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-test-runner@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-adapter@2.0.0?workspace=true",
+        "pkg:cargo/sley-check@2.0.0?workspace=true",
+        "pkg:cargo/sley-cli@2.0.0?workspace=true",
+        "pkg:cargo/sley-conformance@2.0.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-json-bridge@2.0.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0?workspace=true",
+        "pkg:cargo/sley-policy@2.0.0?workspace=true",
+        "pkg:cargo/sley-protocol@2.0.0?workspace=true",
+        "pkg:cargo/sley-query@2.0.0?workspace=true",
+        "pkg:cargo/sley-repo@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0?workspace=true",
+        "pkg:cargo/sley-store@2.0.0?workspace=true",
+        "pkg:cargo/sley-test-runner@2.0.0?workspace=true",
+        "pkg:cargo/sley-tests@2.0.0?workspace=true",
+        "pkg:cargo/sley-txn@2.0.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0?workspace=true",
         "pkg:pypi/sley2-scb1-oracle@0.1.0?workspace=true"
       ],
-      "ref": "pkg:generic/sley@2.0.0-alpha.0"
+      "ref": "pkg:generic/sley@2.0.0"
     },
     {
       "dependsOn": [],
@@ -2365,225 +2365,226 @@
     {
       "dependsOn": [
         "pkg:cargo/blake3@1.8.2",
-        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-check@2.0.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-policy@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-adapter@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-adapter@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-check@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/serde_json@1.0.145",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-test-runner@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-json-bridge@2.0.0?workspace=true",
+        "pkg:cargo/sley-protocol@2.0.0?workspace=true",
+        "pkg:cargo/sley-repo@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-test-runner@2.0.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-cli@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-cli@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
-        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-check@2.0.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
+        "pkg:cargo/sley-tests@2.0.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-conformance@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/blake3@1.8.2"
       ],
-      "ref": "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-id@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/serde_json@1.0.145",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-protocol@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-json-bridge@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-json-bridge@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/blake3@1.8.2",
         "pkg:cargo/serde@1.0.228",
         "pkg:cargo/serde_json@1.0.145",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-mutate@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/blake3@1.8.2",
-        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-check@2.0.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0?workspace=true",
+        "pkg:cargo/sley-tests@2.0.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true"
-    },
-    {
-      "dependsOn": [
-        "pkg:cargo/blake3@1.8.2",
-        "pkg:cargo/serde_json@1.0.145",
-        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-conformance@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
-      ],
-      "ref": "pkg:cargo/sley-protocol@2.0.0-alpha.0?workspace=true"
-    },
-    {
-      "dependsOn": [
-        "pkg:cargo/serde_json@1.0.145",
-        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true"
-      ],
-      "ref": "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-policy@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/blake3@1.8.2",
         "pkg:cargo/serde_json@1.0.145",
-        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-query@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-check@2.0.0?workspace=true",
+        "pkg:cargo/sley-conformance@2.0.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0?workspace=true",
+        "pkg:cargo/sley-policy@2.0.0?workspace=true",
+        "pkg:cargo/sley-query@2.0.0?workspace=true",
+        "pkg:cargo/sley-repo@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0?workspace=true",
+        "pkg:cargo/sley-store@2.0.0?workspace=true",
+        "pkg:cargo/sley-tests@2.0.0?workspace=true",
+        "pkg:cargo/sley-txn@2.0.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-repo@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-protocol@2.0.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/serde_json@1.0.145",
+        "pkg:cargo/sley-check@2.0.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-query@2.0.0?workspace=true"
+    },
+    {
+      "dependsOn": [
+        "pkg:cargo/blake3@1.8.2",
+        "pkg:cargo/libc@0.2.189",
+        "pkg:cargo/serde_json@1.0.145",
+        "pkg:cargo/sley-check@2.0.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0?workspace=true",
+        "pkg:cargo/sley-policy@2.0.0?workspace=true",
+        "pkg:cargo/sley-query@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0?workspace=true",
+        "pkg:cargo/sley-store@2.0.0?workspace=true",
+        "pkg:cargo/sley-tests@2.0.0?workspace=true",
+        "pkg:cargo/sley-txn@2.0.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0?workspace=true"
+      ],
+      "ref": "pkg:cargo/sley-repo@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/blake3@1.8.2",
         "pkg:cargo/serde@1.0.228",
         "pkg:cargo/serde_json@1.0.145",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
         "pkg:cargo/unicode-normalization@0.1.24"
       ],
-      "ref": "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-scb1@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/blake3@1.8.2",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-schema@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-id@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-ssmc@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-state-root@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-store@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/ed25519-dalek@3.0.0",
         "pkg:cargo/sha2@0.11.0",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-tests@2.0.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-test-runner@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-test-runner@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
-        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-check@2.0.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
+        "pkg:cargo/sley-vm@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-tests@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/blake3@1.8.2",
         "pkg:cargo/ed25519-dalek@3.0.0",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-policy@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-store@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-tests@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0?workspace=true",
+        "pkg:cargo/sley-policy@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0?workspace=true",
+        "pkg:cargo/sley-store@2.0.0?workspace=true",
+        "pkg:cargo/sley-tests@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-txn@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-txn@2.0.0?workspace=true"
     },
     {
       "dependsOn": [
         "pkg:cargo/blake3@1.8.2",
         "pkg:cargo/sha2@0.11.0",
-        "pkg:cargo/sley-check@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-id@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-mutate@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-scb1@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-schema@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-ssmc@2.0.0-alpha.0?workspace=true",
-        "pkg:cargo/sley-state-root@2.0.0-alpha.0?workspace=true"
+        "pkg:cargo/sley-check@2.0.0?workspace=true",
+        "pkg:cargo/sley-id@2.0.0?workspace=true",
+        "pkg:cargo/sley-mutate@2.0.0?workspace=true",
+        "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+        "pkg:cargo/sley-schema@2.0.0?workspace=true",
+        "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
+        "pkg:cargo/sley-state-root@2.0.0?workspace=true"
       ],
-      "ref": "pkg:cargo/sley-vm@2.0.0-alpha.0?workspace=true"
+      "ref": "pkg:cargo/sley-vm@2.0.0?workspace=true"
     },
     {
       "dependsOn": [],
@@ -2643,11 +2644,11 @@
   ],
   "metadata": {
     "component": {
-      "bom-ref": "pkg:generic/sley@2.0.0-alpha.0",
+      "bom-ref": "pkg:generic/sley@2.0.0",
       "hashes": [
         {
           "alg": "SHA-256",
-          "content": "ecf51188d52bd673800c7b91068f2ad58d93068a23e1f37e60320c58a398c1f7"
+          "content": "414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15"
         }
       ],
       "licenses": [
@@ -2657,16 +2658,16 @@
       ],
       "name": "sley-2.0.0-linux-x86_64.tar.gz",
       "type": "application",
-      "version": "2.0.0-alpha.0"
+      "version": "2.0.0"
     },
     "properties": [
       {
         "name": "sley2:commit",
-        "value": "8d063f00133f369599032191708fa7efabb3e2fa"
+        "value": "515cc4a3d9875b46273712367a2f77e355522906"
       },
       {
         "name": "sley2:inventory-digest",
-        "value": "3be5e5547fe0ae8d1b290aaac3ab03eee509657278af21c14b983ece6a0355de"
+        "value": "aaf3c129f5d0d3c3798096f6bb7f8e24a0b0c79542279e8c6c7ccc7b0fa9974b"
       },
       {
         "name": "sley2:license-disposition-blocked",
@@ -2674,7 +2675,7 @@
       },
       {
         "name": "sley2:manifest-digest",
-        "value": "f0bd407219f08ba8d131ef1529b91f21409932dc86e729dfcf6fe8b728e7e800"
+        "value": "e6963e140e20b37654c2fad1b248d0fbf9e6d8000e387de364ad79177a59156c"
       },
       {
         "name": "sley2:publication-authorized",
@@ -2695,7 +2696,7 @@
       ]
     }
   },
-  "serialNumber": "urn:uuid:8197ee56-8cec-8a2e-8a5d-7cc48af5ecf3",
+  "serialNumber": "urn:uuid:59da491b-cc96-8a5d-8365-ac83b09c05c4",
   "specVersion": "1.6",
   "version": 1
 }

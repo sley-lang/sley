@@ -268,9 +268,9 @@
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit 8d063f00133f369599032191708fa7efabb3e2fa; the final commit is fixed by a recorded release decision (machine summary release_decision), state RELEASE_APPROVED",
+      "evidence": "attested commit 515cc4a3d9875b46273712367a2f77e355522906; the final commit is fixed by a recorded release decision (machine summary release_decision), state RELEASE_APPROVED",
       "group": "26.8 packaging",
-      "state": "GATED"
+      "state": "EVIDENCED"
     },
     {
       "criterion": "artifact runs with no source-tree access",
@@ -286,15 +286,15 @@
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "attested manifest digest f0bd407219f0, artifact digest ecf51188d52b, 2508082 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
+      "evidence": "attested manifest digest e6963e140e20, artifact digest 414f87eaa337, 2513163 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
     {
       "criterion": "second clean build establishes reproducibility",
-      "evidence": "reproducibility report result MULTI_HOST_REPRODUCIBLE across 2 of 2 required hosts, 2 attestations",
+      "evidence": "reproducibility report result SINGLE_HOST_REPRODUCIBLE across 1 of 2 required hosts, 1 attestations",
       "group": "26.8 packaging",
-      "state": "EVIDENCED"
+      "state": "GATED"
     },
     {
       "criterion": "the source working tree is clean",
@@ -338,12 +338,12 @@
   "gated": [
     "no P0/P1/P2 finding remains open",
     "every section 22 threshold passes",
-    "artifact is built from the final candidate commit"
+    "second clean build establishes reproducibility"
   ],
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "517a972593be52c2078d0893cd917b38a5796618cb2f350189026b119d0c5df3",
   "register_digest": "d315bbb614c8f07193a6ed5b3ced48749fb9b37a6fce320a37ebd99e45545640",
-  "report_digest": "de71dc180c6977a55c5cf6dd3cb882d6ccae003e07a8183c7b4eb2e94db28a97",
+  "report_digest": "529fb323217e7400bfdad8e2065e8a9ad3703c24a7a5c69c22349fe18032eac5",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

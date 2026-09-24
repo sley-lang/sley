@@ -4,7 +4,7 @@ Status: PRESERVED SEED ARTIFACTS (re-minted 2026-09-18 with the arbitrary
 RW-090 codec, again after the 178873d7 Council repairs, a third time after
 the 92fa6646 round, a fourth after the c04539b9 round, and a fifth after the
 db53894e round). The exact release-built native seed executable from
-commit `8d063f00` (seed sources unchanged since `9d1ba8f1`; the canonical `S` and C1 candidate were first
+commit `8d063f00` (seed sources unchanged since `9d1ba8f1`; at the 2.0.0 release candidate `515cc4a3` the `#[path]` closure is still unchanged, but a fresh rebuild yields `3b0b3547…` because the 2.0.0 version bump changes rustc crate-metadata hashes, so this C0 stays bound as preserved and re-binding the seed lane is deferred to 2.1; the canonical `S` and C1 candidate were first
 constructed at `25d6d0ba`; built in a detached clean worktree of that
 commit's tree with a fresh target directory and reproduced byte for byte
 from a second fresh detached worktree of the same commit) is preserved read-only outside the repository at the machine

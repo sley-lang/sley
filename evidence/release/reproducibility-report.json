@@ -2,30 +2,13 @@
   "attestations": [
     {
       "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "artifact_sha256": "ecf51188d52bd673800c7b91068f2ad58d93068a23e1f37e60320c58a398c1f7",
-      "artifact_size_bytes": 2508082,
-      "commit": "8d063f00133f369599032191708fa7efabb3e2fa",
+      "artifact_sha256": "414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15",
+      "artifact_size_bytes": 2513163,
+      "commit": "515cc4a3d9875b46273712367a2f77e355522906",
       "contract": "sley2.reproducibility-attestation.v1",
       "differing_members": [],
       "host_label": "primary",
-      "manifest_digest": "f0bd407219f08ba8d131ef1529b91f21409932dc86e729dfcf6fe8b728e7e800",
-      "member_count": 15,
-      "reproducibility": "REPRODUCIBLE",
-      "toolchain": {
-        "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
-        "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
-      },
-      "working_tree_clean": true
-    },
-    {
-      "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "artifact_sha256": "ecf51188d52bd673800c7b91068f2ad58d93068a23e1f37e60320c58a398c1f7",
-      "artifact_size_bytes": 2508082,
-      "commit": "8d063f00133f369599032191708fa7efabb3e2fa",
-      "contract": "sley2.reproducibility-attestation.v1",
-      "differing_members": [],
-      "host_label": "secondary",
-      "manifest_digest": "f0bd407219f08ba8d131ef1529b91f21409932dc86e729dfcf6fe8b728e7e800",
+      "manifest_digest": "e6963e140e20b37654c2fad1b248d0fbf9e6d8000e387de364ad79177a59156c",
       "member_count": 15,
       "reproducibility": "REPRODUCIBLE",
       "toolchain": {
@@ -36,30 +19,37 @@
     }
   ],
   "blockers": [
+    "second_host_attestation_operator_lane",
     "standards_sbom_and_provenance_s20_710_full",
     "succession_thresholds_s20_640",
     "council_reviews"
   ],
   "commits": {
-    "8d063f00133f369599032191708fa7efabb3e2fa": {
-      "artifact_sha256": "ecf51188d52bd673800c7b91068f2ad58d93068a23e1f37e60320c58a398c1f7",
+    "515cc4a3d9875b46273712367a2f77e355522906": {
+      "artifact_sha256": "414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15",
       "hosts": [
-        "primary",
-        "secondary"
+        "primary"
       ]
     }
   },
   "contract": "sley2.reproducibility-report.v1",
-  "distinct_hosts": 2,
+  "distinct_hosts": 1,
   "ga_claimed": false,
   "publication_authorized": false,
-  "report_digest": "a0974edac573a2e24fa89770005a258174d80284f66cfeb12bb73d49544c5d46",
+  "report_digest": "6df9c95ecddf5252997e1a4ab5f1529ed7ffe73ee3d614b97290caae83cc17bc",
   "required_hosts": 2,
-  "result": "MULTI_HOST_REPRODUCIBLE",
+  "result": "SINGLE_HOST_REPRODUCIBLE",
   "second_host": {
-    "note": "at least two hosts attested the same commit and artifact digest",
-    "status": "ATTESTED"
+    "note": "the second host build is an operator-gated lane; only the primary host attested",
+    "status": "GATED_OPERATOR_LANE"
   },
-  "superseded_attestations": [],
+  "superseded_attestations": [
+    {
+      "artifact_sha256": "ecf51188d52bd673800c7b91068f2ad58d93068a23e1f37e60320c58a398c1f7",
+      "commit": "8d063f00133f369599032191708fa7efabb3e2fa",
+      "host_label": "secondary",
+      "reason": "attests a commit the re-mint superseded"
+    }
+  ],
   "work_package": "S20-730"
 }
