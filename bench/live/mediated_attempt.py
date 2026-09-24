@@ -77,7 +77,7 @@ from bench.live.mediated_sley import (
 from bench.live.sley2_tool import TOOL_VERSION as _TOOL_VERSION
 from bench.live.oracle import OracleError
 from bench.live.process import ProcessCapture
-from bench.live.provider import ProviderError, parse_codex_jsonl
+from bench.live.provider import ProviderError, parse_provider_events
 from bench.live.snapshot import encode_snapshot, snapshot_directory
 from bench.live.taskpacks import stage_initial
 from bench.live.trusted_capture import (
@@ -490,9 +490,16 @@ def execute_mediated_attempt(
     oracle_runner: Callable[..., tuple[dict[str, Any], bytes, bytes]],
     utc_now: Callable[[], str],
     mediated_share_net: bool = False,
+    provider_sandbox: Any = None,
 ) -> dict[str, Any]:
     """Execute one confined mediated sley_2_0 attempt and append the
-    record. See the module docstring for the path contract."""
+    record. See the module docstring for the path contract.
+
+    ``provider_sandbox`` adds the real provider's launch inputs to the
+    same confinement (provider release directory, a fresh provider home
+    with only the credential bound in, the allowlisting egress route, and
+    the frozen provider environment); raw_files and sley_1_2_0 launch
+    through the identical shape (bench/live/provider_sandbox.py)."""
 
     # Reused declared campaign machinery (no second system): prompt,
     # environment, metrics, observation, oracle report, completion
@@ -626,22 +633,51 @@ def execute_mediated_attempt(
         # runner-side only). The agent's sole channel is the socket.
         masks = (protected_root, run,
                  ROOT / "bench", ROOT / "oracle", ROOT / "crates")
-        spec = SandboxSpec(scratch_dir=scratch, mask_paths=masks,
-                           share_net=bool(mediated_share_net))
-        agent_argv = adapter.command(Path("/scratch"))
-        confined_argv = confinement_argv(spec, agent_argv)
         # Confinement environment mapping (explicit): HOME is the
         # sandbox scratch; host PATH/LANG are carried through; the
         # gateway socket reaches the agent ONLY as $SLEY2_GATEWAY_SOCK
         # naming the in-sandbox socket path.
         lang = str(frozen_provider_environment.get("LANG", "C.UTF-8"))
-        marker = confined_argv.index("--")
-        confined_argv = (
-            confined_argv[:marker]
-            + ["--setenv", "LANG", lang,
-               "--setenv", SHIM_ENV, "/scratch/" + SOCK_NAME]
-            + confined_argv[marker:]
-        )
+        egress = None
+        if provider_sandbox is not None:
+            from bench.live.provider_sandbox import (
+                EgressProxy,
+                arm_spec,
+                prepare_layout,
+                wrap_agent,
+            )
+
+            sandbox_root = Path(temporary) / "sandbox"
+            sandbox_root.mkdir(mode=0o700)
+            layout = prepare_layout(sandbox_root, provider_sandbox,
+                                    wall_time_budget_ms=int(manifest["wall_time_budget"]))
+            spec = arm_spec(
+                arm_id=arm_id, sandbox=provider_sandbox, layout=layout,
+                environment=frozen_provider_environment,
+                scratch_dir=scratch, mask_paths=masks,
+                extra_setenv=(("LANG", lang),
+                              (SHIM_ENV, "/scratch/" + SOCK_NAME)))
+            confined_argv = confinement_argv(
+                spec, wrap_agent(adapter.command(Path("/scratch"))))
+            egress = EgressProxy(layout.egress_socket,
+                                 run / "egress" / f"{attempt_id}.jsonl",
+                                 tuple(provider_sandbox.allowed_hosts))
+        else:
+            spec = SandboxSpec(scratch_dir=scratch, mask_paths=masks,
+                               share_net=bool(mediated_share_net))
+            agent_argv = adapter.command(Path("/scratch"))
+            confined_argv = confinement_argv(spec, agent_argv)
+            marker = confined_argv.index("--")
+            confined_argv = (
+                confined_argv[:marker]
+                + ["--setenv", "LANG", lang,
+                   "--setenv", SHIM_ENV, "/scratch/" + SOCK_NAME]
+                + confined_argv[marker:]
+            )
+        if egress is not None:
+            # Pre-launch: a proxy that cannot start raises before the
+            # provider runs, so no slot is consumed by it.
+            egress.start()
         try:
             server.start()
             try:
@@ -654,6 +690,8 @@ def execute_mediated_attempt(
                 )
             finally:
                 server.stop()
+                if egress is not None:
+                    egress.stop()
             try:
                 after_snapshot = snapshot_directory(protected_ws)
                 after_payload = encode_snapshot(after_snapshot)
@@ -681,13 +719,17 @@ def execute_mediated_attempt(
                     pass
             else:
                 try:
-                    events = parse_codex_jsonl(capture.stdout)
+                    events = parse_provider_events(manifest["model_provider"], capture.stdout)
                     _apply_observation(metrics, events, prompt, capture)
                     if events.final_message is not None:
                         final_message = events.final_message.encode("utf-8")
                 except ProviderError:
                     status = "harness_failure"
                     failure_code = "LIVE_PROVIDER_EVENT_INVALID"
+                    # The run happened: its wall time and memory are
+                    # measured even when its stream does not parse.
+                    metrics["wall_time"] = capture.wall_time_ms
+                    metrics["peak_memory"] = capture.peak_memory_bytes
                 else:
                     if (
                         metrics["model_input_tokens"] > manifest["context_budget"]

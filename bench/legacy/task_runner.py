@@ -39,6 +39,11 @@ DEFAULT_OUTPUT_LIMIT_BYTES = 1024 * 1024
 DRAIN_GRACE_SECONDS = 5.0
 
 
+# Pinned user node toolchain `sley machine` shells out to (see
+# _scrubbed_env); the live provider sandbox binds it read-only.
+NODE_DIR = "/home/gfarch/.local/share/mise/installs/node/26.8.1/bin"
+
+
 class TaskRunnerError(ValueError):
     """Harness-level failure (never an oracle verdict)."""
 
@@ -55,7 +60,7 @@ def _scrubbed_env(scratch_home: Path, scratch_tmp: Path, source_cache: Path) -> 
     # host; elsewhere PATH stays at the system directories and machine
     # invocations fail closed with FileNotFoundError (harness error, never a
     # verdict), so a missing node toolchain can never silently pass.
-    node_dir = "/home/gfarch/.local/share/mise/installs/node/26.8.1/bin"
+    node_dir = NODE_DIR
     path = "/usr/bin:/bin"
     if Path(node_dir).is_dir():
         path += ":" + node_dir

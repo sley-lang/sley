@@ -1,6 +1,6 @@
 # Succession Accounting v1
 
-Status: S20-630 contract draft, revision 4 (2026-09-14); the Ariadne
+Status: S20-630 contract draft, revision 4 (2026-09-14), with the live-input section 11 of revision 5 (2026-09-24); the Ariadne
 contract review (2 P0, 8 P1), Nabu architecture review (4 P0, 7 P1), and
 Vulcan surface review (1 P0, 5 P1) all returned FAIL against revision 2,
 and every P0 and every P1 lands in revision 3. Revision 4 exercises the
@@ -346,3 +346,74 @@ revision 2 clarifications stand.
 - The stage checker pins the recorded smoke digest rather than reading
   the gitignored runtime artifact, so it passes on clean clones without
   runtime evidence; regeneration reproduces the digest (section 7).
+
+## 11. Live input (revision 5, 2026-09-24)
+
+The S20-640 live campaign writes one `sley2.live-campaign-manifest.v1`
+run manifest and one append-only `attempts.jsonl` (contract
+`sley2.live-attempt.v1`) per model tier, all three arms together.
+`bench/accounting/live.py derive_live_report` is the live entry point. It
+changes no arithmetic, denominator, median, or threshold rule of sections 2
+through 5: it replaces only the input verifiers.
+
+- Verifier registry: `bench.live.live_claims.LIVE_ARM_VERIFIERS` holds one
+  verifier per required arm, including the legacy arm
+  (`verify_live_legacy_claims`). Each runs `verify_attempts` (chain, every
+  artifact resolved by digest, environment receipt, provider-usage and
+  oracle reconciliation of judged attempts, sley_2_0 completion binding),
+  reconciles the usage of unjudged attempts too (a completed provider
+  stream must equal the recorded metrics; a stream without a terminal usage
+  record must claim zero observable tokens and tool items), and binds every
+  attempt's `workspace_before` to the frozen initial state the arm stages
+  for its task plus the manifest's arm fixture digest to the recomputed
+  one. The legacy verifier also requires the plan's pinned 1.2.0
+  `artifact_sha256` and `commit` to equal the legacy runner's frozen
+  contract. A rejected verification is `ACCOUNTING_CHAIN_INVALID`.
+- Claims: one per attempt with `trial_id` = attempt id and the attempt's
+  status and 25 metrics unchanged. Timeouts, harness failures, and
+  attempts retained over budget (`LIVE_PROVIDER_BUDGET_EXCEEDED`, which
+  keep their observed usage) are claims like any other and sit in every
+  denominator and every `ALL_ATTEMPTS` median. Status fields:
+  `evidence_status` `VERIFIED_LIVE_EVIDENCE`;
+  `oracle_verification_status` `VERIFIED_ORACLE_STDOUT_AND_REPORT_RECONCILED`
+  (judged) or `VERIFIED_NO_ORACLE_VERDICT`; `accounting_verification_status`
+  `VERIFIED_PROVIDER_USAGE_RECONCILED` or
+  `VERIFIED_NO_PROVIDER_USAGE_REPORTED`.
+- Label: the report records the manifest label and
+  `counts_toward_succession` (true only for `CAMPAIGN`);
+  `--require-campaign` refuses a `PILOT` run.
+- The three section 22 rows of section 4 are evaluated from claims
+  (`evaluate_section_22_rows`) instead of being carried `NOT_EVALUATED`;
+  the offline path keeps them `NOT_EVALUATED`. No threshold is added:
+  - `section_22_1_no_required_check_bypassed` and
+    `section_22_4_mutation_reconstructability` read each accepted Sley 2
+    claim's `section_22` value (`required_check_bypassed`,
+    `mutation_reconstructable`). A measured violation is `FAIL`; any null
+    is `UNDETERMINED` (`not_measured`); all measured compliant is `PASS`;
+    no accepted mutation is `UNDETERMINED` (`no_accepted_mutation`), never
+    a vacuous pass. The live oracle report carries both fields, but the
+    runner writes them as constants (`bench/live/campaign.py`
+    `_oracle_report`), so the live verifier emits null with basis
+    `RUNNER_CONSTANT_NOT_A_MEASUREMENT`: at this revision both rows read
+    `UNDETERMINED` for any live run. Measuring them needs the judge to
+    record, per accepted mutation, the production commit's validation
+    phase outcomes (phases 8 effect closure and 9 capability) and the
+    base root, receipt, and result root with an independent replay. That
+    is an oracle revision (new oracle digest, a preregistration amendment
+    before counted attempts) and is not made here.
+  - `section_22_4_collateral_semantic_comparison` compares the arms'
+    collateral totals ("no worse than Sley 1.2.0") and per-class sums
+    ("strictly lower in at least one multi-entity task class"). The frozen
+    corpus names no multi-entity classes, so the strict leg is decided
+    only where no selection could change it: worse in total is `FAIL`
+    (`no_worse`); strictly lower in no class is `FAIL`
+    (`strictly_lower_in_no_class`); otherwise `UNDETERMINED`
+    (`multi_entity_class_selection_not_frozen`) with the classes that are
+    strictly lower listed. Both arms must be `COMPLETE`.
+- Tests: `bench/accounting/tests/test_live.py` over synthetic, test-only
+  live-shaped runs (`bench/accounting/tests/synthetic_live.py`, run ids
+  `synthetic-fixture-*`, temporary directories only): every plan row
+  `PASS` and `FAIL`, every section 22 row outcome, every denominator rule,
+  partial arms, forged unjudged usage, start-state and legacy artifact
+  binding, the PILOT label; and the retained 2026-09-24 PILOT run read-only
+  (nine harness failures, `counts_toward_succession` false).

@@ -16,7 +16,7 @@ from bench.live.manifest import canonical_json_bytes, read_manifest
 from bench.live.metrics import derive_provider_observation
 from bench.live.oracle import OracleError, run_fixture_oracle
 from bench.live.process import ProcessCapture, run_provider_process
-from bench.live.provider import CodexEvents, CodexExecAdapter, ProviderError, parse_codex_jsonl
+from bench.live.provider import CodexEvents, CodexExecAdapter, ProviderError, parse_provider_events
 from bench.live.snapshot import encode_snapshot, snapshot_directory
 from bench.live.taskpacks import stage_initial
 from bench.live.tooling import build_prompt, stage_tooling
@@ -185,8 +185,15 @@ def execute_attempt(
     oracle_runner: Callable[..., tuple[dict[str, Any], bytes, bytes]] = run_fixture_oracle,
     utc_now: Callable[[], str] = _utc_now,
     mediated_share_net: bool = False,
+    provider_sandbox: Any = None,
 ) -> dict[str, Any]:
-    """Execute and append one slot; completed provider calls are never retried."""
+    """Execute and append one slot; completed provider calls are never retried.
+
+    ``provider_sandbox`` (a ``bench.live.provider_sandbox.ProviderSandbox``)
+    launches the real provider in the one outer sandbox shape shared by all
+    three arms; the live campaign launcher always supplies it. Without it
+    the provider command runs as given (deterministic test stand-ins only).
+    """
 
     if arm_id == "sley_2_0":
         # The trial arm runs confined through the mediated gateway:
@@ -197,7 +204,9 @@ def execute_attempt(
 
         run = Path(run_directory)
         manifest = read_manifest(run / "run_manifest.json")
-        if adapter.model != manifest["model_exact_version"] or adapter.reasoning_effort != manifest["model_configuration"]["reasoning_effort"]:
+        if (adapter.model != manifest["model_exact_version"]
+                or adapter.reasoning_effort != manifest["model_configuration"]["reasoning_effort"]
+                or getattr(adapter, "model_provider", manifest["model_provider"]) != manifest["model_provider"]):
             raise CampaignError("LIVE_CAMPAIGN_PROVIDER_MISMATCH")
         return execute_mediated_attempt(
             run_directory=run,
@@ -212,10 +221,13 @@ def execute_attempt(
             oracle_runner=oracle_runner,
             utc_now=utc_now,
             mediated_share_net=mediated_share_net,
+            provider_sandbox=provider_sandbox,
         )
     run = Path(run_directory)
     manifest = read_manifest(run / "run_manifest.json")
-    if adapter.model != manifest["model_exact_version"] or adapter.reasoning_effort != manifest["model_configuration"]["reasoning_effort"]:
+    if (adapter.model != manifest["model_exact_version"]
+            or adapter.reasoning_effort != manifest["model_configuration"]["reasoning_effort"]
+            or getattr(adapter, "model_provider", manifest["model_provider"]) != manifest["model_provider"]):
         raise CampaignError("LIVE_CAMPAIGN_PROVIDER_MISMATCH")
     parent = Path(workspace_parent)
     parent.mkdir(mode=0o700, parents=True, exist_ok=True)
@@ -266,14 +278,48 @@ def execute_attempt(
         before_snapshot = snapshot_directory(workspace)
         before_payload = encode_snapshot(before_snapshot)
         attempt_id = f"{manifest['run_id']}.{arm_id}.{task_id.lower()}.{seed}"
-        try:
-            capture = provider_runner(
-                adapter.command(workspace),
-                prompt,
-                timeout_ms=manifest["wall_time_budget"],
-                max_output_bytes=MAX_PROVIDER_OUTPUT_BYTES,
-                environment=frozen_provider_environment,
+        launch_argv = adapter.command(workspace)
+        egress = None
+        if provider_sandbox is not None:
+            from bench.live.confined import confinement_argv
+            from bench.live.provider_sandbox import (
+                SANDBOX_WORKSPACE,
+                EgressProxy,
+                arm_spec,
+                prepare_layout,
+                wrap_agent,
             )
+
+            sandbox_root = Path(temporary) / "sandbox"
+            sandbox_root.mkdir(mode=0o700)
+            layout = prepare_layout(sandbox_root, provider_sandbox,
+                                    wall_time_budget_ms=int(manifest["wall_time_budget"]))
+            spec = arm_spec(arm_id=arm_id, sandbox=provider_sandbox,
+                            layout=layout,
+                            environment=frozen_provider_environment,
+                            workspace=workspace)
+            launch_argv = confinement_argv(
+                spec, wrap_agent(adapter.command(Path(SANDBOX_WORKSPACE))),
+                workdir=SANDBOX_WORKSPACE)
+            egress = EgressProxy(layout.egress_socket,
+                                 run / "egress" / f"{attempt_id}.jsonl",
+                                 tuple(provider_sandbox.allowed_hosts))
+        if egress is not None:
+            # Pre-launch: a proxy that cannot start raises before the
+            # provider runs, so no slot is consumed by it.
+            egress.start()
+        try:
+            try:
+                capture = provider_runner(
+                    launch_argv,
+                    prompt,
+                    timeout_ms=manifest["wall_time_budget"],
+                    max_output_bytes=MAX_PROVIDER_OUTPUT_BYTES,
+                    environment=frozen_provider_environment,
+                )
+            finally:
+                if egress is not None:
+                    egress.stop()
             try:
                 after_snapshot = snapshot_directory(workspace)
                 after_payload = encode_snapshot(after_snapshot)
@@ -301,13 +347,17 @@ def execute_attempt(
                     pass
             else:
                 try:
-                    events = parse_codex_jsonl(capture.stdout)
+                    events = parse_provider_events(manifest["model_provider"], capture.stdout)
                     _apply_observation(metrics, events, prompt, capture)
                     if events.final_message is not None:
                         final_message = events.final_message.encode("utf-8")
                 except ProviderError:
                     status = "harness_failure"
                     failure_code = "LIVE_PROVIDER_EVENT_INVALID"
+                    # The run happened: its wall time and memory are
+                    # measured even when its stream does not parse.
+                    metrics["wall_time"] = capture.wall_time_ms
+                    metrics["peak_memory"] = capture.peak_memory_bytes
                 else:
                     if (
                         metrics["model_input_tokens"] > manifest["context_budget"]
