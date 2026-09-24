@@ -268,7 +268,7 @@
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit 8d063f00133f369599032191708fa7efabb3e2fa; the final commit is fixed by a recorded release decision (machine summary release_decision), state none",
+      "evidence": "attested commit 8d063f00133f369599032191708fa7efabb3e2fa; the final commit is fixed by a recorded release decision (machine summary release_decision), state RELEASE_APPROVED",
       "group": "26.8 packaging",
       "state": "GATED"
     },
@@ -343,7 +343,7 @@
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "517a972593be52c2078d0893cd917b38a5796618cb2f350189026b119d0c5df3",
   "register_digest": "d315bbb614c8f07193a6ed5b3ced48749fb9b37a6fce320a37ebd99e45545640",
-  "report_digest": "be3f0f6ccd94e9620e9f3a36b132858cd3ba55c30f5ef94e4babbdcd33597bcf",
+  "report_digest": "de71dc180c6977a55c5cf6dd3cb882d6ccae003e07a8183c7b4eb2e94db28a97",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

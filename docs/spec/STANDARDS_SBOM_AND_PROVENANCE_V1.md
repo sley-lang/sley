@@ -70,7 +70,7 @@ grammar.
   the variant nibble to 8, so the document is deterministic and carries no
   random state;
 - `metadata.component` is the candidate: `type` `application`, the artifact
-  name, version `2.0.0-alpha.0`, the artifact SHA-256, and `licenses` as the
+  name, version `2.0.0`, the artifact SHA-256, and `licenses` as the
   single expression of the operator-approved root license;
 - `metadata.tools.components` names `sley2-standards-sbom` version 1;
 - `metadata.properties` records `sley2:commit`, `sley2:inventory-digest`,

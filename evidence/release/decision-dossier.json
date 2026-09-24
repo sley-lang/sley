@@ -9,7 +9,7 @@
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "077f5bc3d1226fe0c8f3b118fa5430b33e0f62087e850373b9b1e600274ab768",
+  "dossier_digest": "bdca800c59e52c186e62fc6de05d8522c71fe22b28f91cc043c154f0b5cad2b0",
   "entries": [
     {
       "evidence": [
@@ -23,7 +23,7 @@
     {
       "evidence": [],
       "item": "final branch",
-      "note": "the release branch is fixed at the release decision, which has not been made",
+      "note": "the operator's release decision does not name a release branch",
       "state": "GATED",
       "value": null
     },
@@ -431,7 +431,7 @@
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the decision itself is the operator's and has not been made. The master goal's section 26 criteria stand at 32 evidenced, 17 awaiting review, and 3 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0 2.0.0 on 2026-09-24 (machine summary release_decision; ga_claimed false, final commit not yet fixed); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 32 evidenced, 17 awaiting review, and 3 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -455,7 +455,7 @@
       }
     }
   ],
-  "entries_digest": "43b5bb222c403aacd880b839d0dd7081f87521b6f86dc02e2af1c2fd02a2de00",
+  "entries_digest": "544f0926e078f0f1397fd6035da0da3f10855994d41b1969e07a2b0f81f419d3",
   "evidenced": 24,
   "gated": 10,
   "gates": {

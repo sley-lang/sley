@@ -183,6 +183,21 @@ def build_entries(sources: dict) -> list[dict]:
     # whose result is CLEAR, the same definition GA criterion 26.9.3 reads.
     independent_review = summary.get("finding_register", {}).get("independent_review")
     register_result = register.get("result")
+    # The operator's release decision is recorded in the summary; the dossier
+    # reports it beside the derived state and never re-grades an item by it.
+    release = summary.get("release_decision")
+    release = release if isinstance(release, dict) else {}
+    if release.get("state"):
+        release_note = (
+            f"the operator recorded release decision {release.get('state')} for "
+            f"{release.get('release_name', 'Sley')} {release.get('release', '')} on "
+            f"{release.get('decided', 'an unrecorded date')} (machine summary release_decision; "
+            f"ga_claimed {str(release.get('ga_claimed')).lower()}, final commit "
+            f"{release.get('final_commit') or 'not yet fixed'}); it is not a GA claim and the "
+            "state derived below from the entries and sources is reported unchanged"
+        )
+    else:
+        release_note = "the decision itself is the operator's and has not been made"
     independent_pass = (
         shared.complete_pass_form(independent_review) and register_result == "FINDING_REGISTER_CLEAR"
     )
@@ -196,7 +211,11 @@ def build_entries(sources: dict) -> list[dict]:
         ),
         entry(
             "final branch",
-            note="the release branch is fixed at the release decision, which has not been made",
+            note=(
+                "the release branch is fixed at the release decision, which has not been made"
+                if not release.get("state")
+                else "the operator's release decision does not name a release branch"
+            ),
         ),
         entry(
             "final commit",
@@ -479,8 +498,8 @@ def build_entries(sources: dict) -> list[dict]:
         entry(
             "release decision state",
             value=None,
-            note="derived below from the entries and sources; the decision itself is the "
-            "operator's and has not been made. The master goal's section 26 criteria stand at "
+            note=f"derived below from the entries and sources; {release_note}. "
+            "The master goal's section 26 criteria stand at "
             f"{acceptance['states'].get('EVIDENCED', 0)} evidenced, "
             f"{acceptance['states'].get('AWAITS_REVIEW', 0)} awaiting review, and "
             f"{acceptance['states'].get('GATED', 0)} gated of {acceptance['criterion_count']} "
