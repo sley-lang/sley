@@ -16,10 +16,26 @@
         "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
       },
       "working_tree_clean": true
+    },
+    {
+      "artifact_name": "sley-2.0.1-linux-x86_64.tar.gz",
+      "artifact_sha256": "34b3b56957a9ddf9a4edc35c2a961c89928d8e78dc74c76b23f1f5378e975e44",
+      "artifact_size_bytes": 2559049,
+      "commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
+      "contract": "sley2.reproducibility-attestation.v1",
+      "differing_members": [],
+      "host_label": "secondary",
+      "manifest_digest": "4a449c2d3a382aa9b51aa1033fb895777ee138523f68108e39b03cfb126a7b03",
+      "member_count": 16,
+      "reproducibility": "REPRODUCIBLE",
+      "toolchain": {
+        "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
+        "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
+      },
+      "working_tree_clean": true
     }
   ],
   "blockers": [
-    "second_host_attestation_operator_lane",
     "standards_sbom_and_provenance_s20_710_full",
     "succession_thresholds_s20_640",
     "council_reviews"
@@ -28,28 +44,22 @@
     "c748dda18c1276687cc3b0d1ef9b7f257eb09b24": {
       "artifact_sha256": "34b3b56957a9ddf9a4edc35c2a961c89928d8e78dc74c76b23f1f5378e975e44",
       "hosts": [
-        "primary"
+        "primary",
+        "secondary"
       ]
     }
   },
   "contract": "sley2.reproducibility-report.v1",
-  "distinct_hosts": 1,
+  "distinct_hosts": 2,
   "ga_claimed": false,
   "publication_authorized": true,
-  "report_digest": "04f513c6dba21fcee271f67627e1823c0909451e3a431172f81780094ee732b0",
+  "report_digest": "a5be8bdaacd1d1e9c5287f652bfeba10a4a7b77e87a390a70aab006f05cd6df0",
   "required_hosts": 2,
-  "result": "SINGLE_HOST_REPRODUCIBLE",
+  "result": "MULTI_HOST_REPRODUCIBLE",
   "second_host": {
-    "note": "the second host build is an operator-gated lane; only the primary host attested",
-    "status": "GATED_OPERATOR_LANE"
+    "note": "at least two hosts attested the same commit and artifact digest",
+    "status": "ATTESTED"
   },
-  "superseded_attestations": [
-    {
-      "artifact_sha256": "21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696",
-      "commit": "1fea02faace9503060425fa565757c0c29af9d93",
-      "host_label": "secondary",
-      "reason": "attests the previous release artifact sley-2.0.0-linux-x86_64.tar.gz"
-    }
-  ],
+  "superseded_attestations": [],
   "work_package": "S20-730"
 }
