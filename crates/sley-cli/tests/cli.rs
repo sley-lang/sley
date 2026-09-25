@@ -3,15 +3,15 @@
 //! repository, and every CLI failure must carry its exit status.
 
 use std::fmt::Write as _;
-use std::io::Write as _;
+use std::io::{Read as _, Write as _};
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 use serde_json::Value;
 use sley_id::SessionId;
 use sley_json_bridge::{
-    MAX_JSON_ELEMENTS, METHOD_TABLE_JSON, METHOD_TABLE_V2_JSON, METHOD_TABLE_V3_JSON,
-    frame_from_json, frame_to_json, hello_to_json,
+    MAX_JSON_ELEMENTS, MAX_JSON_TEXT_BYTES, METHOD_TABLE_JSON, METHOD_TABLE_V2_JSON,
+    METHOD_TABLE_V3_JSON, frame_from_json, frame_to_json, hello_to_json,
 };
 use sley_protocol::{
     BoundedContext, DecodedFrame, FrameKind, Hello, MAX_FRAME_BYTES, Method, PROTOCOL_VERSION,
@@ -547,6 +547,100 @@ fn a_json_line_at_the_element_ceiling_is_refused_and_ends_the_input() {
     assert_eq!(report["frames_read"], 2);
     assert_eq!(report["failed_answers"], 1);
     assert_eq!(report["codes"]["42004"], 1);
+}
+
+#[test]
+fn a_json_line_above_the_text_ceiling_that_is_not_utf8_is_refused_and_ends_the_input() {
+    // S20-430 section 8: a line the bridge refuses with
+    // JSON_BRIDGE_RESOURCE_LIMIT for any ceiling ends the input. The text
+    // ceiling is judged on the bytes read, so a line above it whose read
+    // part is not valid UTF-8 is refused by the ceiling, never answered
+    // JSON_BRIDGE_SHAPE_INVALID with the rest of the line taken as the
+    // next one. The input is streamed so the test never holds the line.
+    let (temp, path) = repository("cli-text-ceiling-bytes");
+    let direct = direct(&path);
+    let mut head = String::new();
+    head.push_str(&frame_to_json(&encode_hello_frame(&offered()).unwrap().bytes).unwrap());
+    head.push('\n');
+    let mut tail = String::from("\n");
+    tail.push_str(&frame_to_json(&direct.frames[0]).unwrap());
+    tail.push('\n');
+    let ceiling = u64::try_from(MAX_JSON_TEXT_BYTES).unwrap();
+    let mut input = head
+        .as_bytes()
+        .chain(&b"{\"a\xff"[..])
+        .chain(std::io::repeat(b'x').take(ceiling))
+        .chain(tail.as_bytes());
+    let report = temp.child("report.json");
+    let args: Vec<String> = [
+        "serve",
+        "--repository",
+        path.to_str().unwrap(),
+        "--json",
+        "--report",
+        report.to_str().unwrap(),
+    ]
+    .iter()
+    .map(ToString::to_string)
+    .collect();
+    let mut stdout = Vec::new();
+    let mut stderr = Vec::new();
+    let status = sley_cli::run(&args, &mut input, &mut stdout, &mut stderr);
+    assert_eq!(
+        (status, String::from_utf8(stderr).unwrap().as_str()),
+        (0, "")
+    );
+    let text = String::from_utf8(stdout).unwrap();
+    let outputs: Vec<Vec<u8>> = text
+        .lines()
+        .map(|line| frame_from_json(line).unwrap().bytes)
+        .collect();
+    // The hello answer, then the in-place refusal; the frame after the
+    // oversize line is never answered because the refusal ended the input.
+    assert_eq!(outputs.len(), 2);
+    let rejected = response(&outputs[1]);
+    assert_eq!(
+        (rejected.session, rejected.request_id, rejected.method),
+        (None, 0, 0)
+    );
+    let failure = ProtocolFailure::decode(&rejected.body).unwrap();
+    assert_eq!(
+        (failure.code, failure.symbol.as_str()),
+        (42_004, "JSON_BRIDGE_RESOURCE_LIMIT")
+    );
+    let report: Value = serde_json::from_str(&std::fs::read_to_string(&report).unwrap()).unwrap();
+    assert_eq!(report["frames_read"], 2);
+    assert_eq!(report["failed_answers"], 1);
+    assert_eq!(report["codes"]["42004"], 1);
+    assert_eq!(report["codes"]["42000"], Value::Null);
+}
+
+#[test]
+fn an_argument_that_is_not_unicode_is_a_usage_failure_not_a_panic() {
+    // S20-430 sections 3 and 4: every deviation on the command line is
+    // CLI_USAGE_INVALID with exit status 2 and one JSON object on standard
+    // error. A path argument is raw bytes on Linux, so a word that is not
+    // valid Unicode takes that exit, never the runtime's panic status 101.
+    use std::os::unix::ffi::OsStrExt as _;
+    let word = std::ffi::OsStr::from_bytes(b"/repo/\xff");
+    let output = Command::new(env!("CARGO_BIN_EXE_sley"))
+        .arg("serve")
+        .arg("--repository")
+        .arg(word)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    let lines: Vec<&str> = stderr.lines().collect();
+    assert_eq!(lines.len(), 1);
+    let failure: Value = serde_json::from_str(lines[0]).unwrap();
+    assert_eq!(failure["code"], 43_000);
+    assert_eq!(failure["symbol"], "CLI_USAGE_INVALID");
+    assert_eq!(failure["cause"], "/repo/\u{FFFD}");
 }
 
 #[test]
