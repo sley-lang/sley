@@ -1460,6 +1460,25 @@ fn native_verify_branch_entry(
     })
 }
 
+/// Two entries for one branch name are one duplicate entry: the list is
+/// deduplicated over encoded elements, so two records for the same name
+/// with different origin or ref bytes are distinct elements that each
+/// verify on their own, yet only one origin and one ref can be installed
+/// under that name. Refusing at preflight keeps the import failing closed
+/// before any write instead of colliding mid-install and leaving a marked
+/// clone no retry can complete.
+fn native_verify_branch_names_distinct(branches: &[NativeVerifiedBranch]) -> Result<()> {
+    let mut keys: BTreeSet<[u8; ID_LEN]> = BTreeSet::new();
+    for branch in branches {
+        if !keys.insert(branch.name.path_key()) {
+            return Err(NativeExchangeError::exchange(
+                ExchangeErrorCode::DuplicateEntry,
+            ));
+        }
+    }
+    Ok(())
+}
+
 fn native_verify_no_surplus(
     receipts: &BTreeMap<TransactionId, ImportedReceipt>,
     head: TransactionId,
@@ -1752,6 +1771,7 @@ fn native_preflight<V: CanonicalVerifier>(
     for entry in &decoded.branches {
         branches.push(native_verify_branch_entry(entry, &receipts, workspace)?);
     }
+    native_verify_branch_names_distinct(&branches)?;
     native_verify_no_surplus(&receipts, decoded.accepted_head.transaction_id, &branches)?;
     let mut counters = NativePreflightCounters::default();
     verify_native_receipt_trust(
@@ -2673,7 +2693,7 @@ pub fn replay_native_commit<V: CanonicalVerifier>(
 mod tests {
     use super::*;
     use crate::exchange::tests::{TempDir, candidate_for, fixed, namespace_body, verifier};
-    use crate::refs::BranchRepository;
+    use crate::refs::{BranchRepository, build_branch_record, build_branch_ref};
 
     use std::cell::Cell;
     use std::fs;
@@ -4047,6 +4067,95 @@ mod tests {
         )
         .unwrap();
         encode_native_envelope(&payload, profile.id()).unwrap().0
+    }
+
+    fn rebuild_with_branches(
+        exchange: &AcceptedNativeExchange,
+        branches: &[ExchangeBranchEntry],
+    ) -> Vec<u8> {
+        let (_, _, payload) = decode_native_envelope(&exchange.stored_bytes).unwrap();
+        let decoded = decode_native_payload(&payload).unwrap();
+        let profile = NativeExchangeProfileV1::fixed();
+        let trust = decoded.required_trust_policy_ids.clone();
+        let leaves = compute_native_leaves(
+            exchange.pack_id,
+            &decoded.object_pack,
+            &decoded.receipts,
+            decoded.accepted_head,
+            branches,
+            profile.id(),
+            &trust,
+        )
+        .unwrap();
+        let root = merkle_root(&leaves, MAX_NATIVE_EXCHANGE_LEAVES).unwrap();
+        let payload = encode_native_payload(
+            &decoded.object_pack,
+            &decoded.receipts,
+            decoded.accepted_head,
+            branches,
+            &leaves,
+            root,
+            &trust,
+            profile.id(),
+        )
+        .unwrap();
+        encode_native_envelope(&payload, profile.id()).unwrap().0
+    }
+
+    #[test]
+    fn two_entries_for_one_branch_name_are_a_duplicate_before_any_write() {
+        // Same rule as the v1 importer: a second entry for `main` carrying
+        // aux's origin and ref re-encoded under the name `main` is a
+        // distinct canonical element that verifies on its own, and must be
+        // EXCHANGE_DUPLICATE_ENTRY at preflight, never a mid-install
+        // collision after the marker and objects were written.
+        let source = NativeSource::new("native-dup-name");
+        let exchange = export_native_exchange(&source.root, &verifier(source.epoch)).unwrap();
+        let main = exchange
+            .branches
+            .iter()
+            .find(|entry| entry.branch_name == b"main")
+            .cloned()
+            .unwrap();
+        let aux = exchange
+            .branches
+            .iter()
+            .find(|entry| entry.branch_name == b"aux")
+            .unwrap();
+        let mut origin = import_branch_record(&aux.stored_origin).unwrap().record;
+        origin.branch_name = BranchName::parse("main").unwrap();
+        let origin = build_branch_record(&origin).unwrap();
+        let mut reference = import_branch_ref(&aux.stored_ref).unwrap().record;
+        reference.branch_name = BranchName::parse("main").unwrap();
+        reference.branch_record_digest = origin.digest;
+        let reference = build_branch_ref(&reference).unwrap();
+        let twin = ExchangeBranchEntry {
+            branch_name: b"main".to_vec(),
+            stored_origin: origin.stored_bytes,
+            stored_ref: reference.stored_bytes,
+        };
+        let mut entries = [main, twin]
+            .into_iter()
+            .map(|entry| (encode_branch_element(&entry).unwrap(), entry))
+            .collect::<Vec<_>>();
+        entries.sort_by(|left, right| left.0.cmp(&right.0));
+        assert_ne!(entries[0].0, entries[1].0);
+        let twins: Vec<ExchangeBranchEntry> = entries.into_iter().map(|(_, entry)| entry).collect();
+        let rebuilt = rebuild_with_branches(&exchange, &twins);
+        assert_eq!(
+            preflight_native_exchange(&rebuilt, &verifier(source.epoch), &source.trust())
+                .unwrap_err()
+                .code(),
+            "EXCHANGE_DUPLICATE_ENTRY"
+        );
+        let target = source.target("native-dup-name-target");
+        assert_eq!(
+            import_native_exchange(&target, &rebuilt, &verifier(source.epoch), &source.trust())
+                .unwrap_err()
+                .code(),
+            "EXCHANGE_DUPLICATE_ENTRY"
+        );
+        assert!(!target.exists(), "the refusal wrote into the target");
     }
 
     #[test]
