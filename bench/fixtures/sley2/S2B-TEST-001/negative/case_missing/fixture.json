@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-TEST-001",
+  "arm": "sley2",
+  "negative": "case_missing",
+  "expected_code": "ORACLE_CASE_MISSING",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

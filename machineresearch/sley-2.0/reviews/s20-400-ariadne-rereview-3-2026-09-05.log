@@ -1,0 +1,27 @@
+S20-400 SMP1 Ariadne contract third re-review — 2026-09-05
+Pinned repository: /home/dev/sley2
+Pinned commit: a4f9fb9b3e261537b8d23c19925301f864be2cdf
+Prior review: machineresearch/sley-2.0/reviews/s20-400-ariadne-rereview-2-2026-09-05.log
+Reviewed range: a4f9fb9~1..a4f9fb9
+Mode: bounded read-only triage; this log is the sole write. No cargo or make.
+
+status: PASS
+
+findings:
+- The sole second-re-review P1 is closed. SMP1 section 1 now assigns format-version and envelope-epoch mismatches exclusively to PROTOCOL_VERSION_UNSUPPORTED, while length, magic, tag, digest, and trailing-byte defects remain PROTOCOL_FRAME_INVALID (with the separate frame-size ceiling code). This matches decode_frame's existing FORMAT_VERSION branch.
+- The new envelope_format_version_mismatch_is_unsupported test independently assembles and digests an envelope carrying FORMAT_VERSION + 1, then asserts ProtocolErrorCode::VersionUnsupported. It pins the observable wire classification requested by the prior review.
+- No new P0, P1, P2, or P3 finding was identified in the bounded target diff.
+
+validation:
+- git rev-parse HEAD: a4f9fb9b3e261537b8d23c19925301f864be2cdf.
+- git status --short before this required write showed only an unrelated untracked machineresearch/sley-2.0/reviews/s20-400-vulcan-rereview-3-2026-09-05.log; it was not touched.
+- Read the prior Ariadne second re-review, the target commit metadata and changed-path list, the section 1 contract patch, the focused decode test, and decode_frame's FORMAT_VERSION mapping.
+- git diff --check a4f9fb9~1..a4f9fb9: clean.
+- Supplied Tier 2 result (44 sley-protocol tests green at a4f9fb9) was accepted as evidence and not re-executed, per validation_needed: none. No cargo, make, deploy, merge, external action, or repository mutation other than this required log.
+
+blockers:
+- None.
+
+return_to: orchestrator
+
+S20_400CONTRACT_REREVIEW3_JSON={"reviewer":"ariadne","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[]}

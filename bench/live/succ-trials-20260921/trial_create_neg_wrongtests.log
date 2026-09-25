@@ -1,0 +1,10 @@
+CREATE witness/neg_wrongtests: skeleton valid False
+CREATE witness/neg_wrongtests: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/neg_wrongtests: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': '0b8f3e978ff2da30f8d32f47fc49504e013b9a272effed8e103b6469312e8872'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': 'cb2e794cf0340e652a4fcc1e79d94d3411a95f348857193165c99994943c4bad', 'truncated': False}
+S2B-CREATE-001 witness/neg_wrongtests judge round-1 exit: 1 code: ORACLE_CASE_MISSING status: rejected
+S2B-CREATE-001 witness/neg_wrongtests harness commit round-1: fa4c1c7f27af33fd
+CREATE witness/neg_wrongtests: skeleton valid False
+CREATE witness/neg_wrongtests: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/neg_wrongtests: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': '70bdebbc7764fc16fb0dfc0cbf3b667054c0abcee7fc3a819de84c88cf597bef'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': 'a86b9ea3921c92d3f5c8bcc831e0fa1408d04218f2242d2b7ffb22a3fa42e266', 'truncated': False}
+S2B-CREATE-001 witness/neg_wrongtests judge round-2 exit: 1 code: ORACLE_TEST_MISMATCH status: rejected
+workspace kept at: /tmp/sley2-create-witness-qfiilg50/ws

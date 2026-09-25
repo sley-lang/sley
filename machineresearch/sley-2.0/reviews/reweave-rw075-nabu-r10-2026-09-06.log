@@ -1,0 +1,29 @@
+RW-075 architecture/boundary delta re-review, round 10 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta,
+explicit checkout root `/home/dev/sley2`).
+Commit reviewed: 69475e5 (RW-075 correction round-9 repairs).
+
+status: complete
+
+VERDICT: FAIL. Confidence: high.
+
+findings:
+- Single-bundle authority repair is sound: gate and lowering derive from one `V2Closure`; graph-A/image-B regression refuses.
+- **BLOCKER — exclusive minting remains unenforced.** `admit_package_v2` is only `pub(crate)`, while `AdmissionReceipt` and all fields remain public. External callers can construct valid-looking v2 receipts directly; any crate module can call the constructor. Removing the re-export and adding marker-string checks does not create an exclusive authority.
+- Executed four-step B2V1→PSH1→V2B1→RHW1 assembly is present with `Result` unwrapping. However, the “dual tamper” assertions compare the honest execution against altered reference hashes; they do not execute altered domain/field inputs. Strengthen them to call `run_assembly` with each altered input.
+- The `SLEYCHNK1` `17 + 32*N` correction passes.
+
+validation:
+- Confirmed HEAD `69475e54fa73245098947eb2f8ec6c7a6e95ab28`.
+- Read round-9 verdict, correction sections 7–9, authority/package/export surfaces, marker checker, and targeted regression fixture.
+- No tests or git diff executed because allowed actions were read-only.
+
+blockers:
+- Make `AdmissionReceipt` unforgeable outside the authority—private fields plus controlled accessors, and an authority-only minting mechanism/token.
+- Execute both altered-input cases in the assembly regression.
+- Full-delta cleanliness/test claims remain unverified under the read-only constraint.
+
+return_to: RW-075 orchestrator
+
+Disposition: Nabu lane FAIL round 10. Preserved unedited; repairs above
+are a separate delta verified in round 11.

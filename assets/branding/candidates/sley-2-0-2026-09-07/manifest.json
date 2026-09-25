@@ -1,0 +1,47 @@
+{
+  "schema": "greyforge.chatgpt-image-batch.v1",
+  "job": "sley-2-0-brand-2026-09-07",
+  "generated_at": "2026-09-07T20:14:38.084Z",
+  "review_state": "pending_operator_review",
+  "public_use": "not approved",
+  "reference_images": [
+    "/home/dev/sley/assets/branding/canonical/sley_loom_graph_post_1200x675.png"
+  ],
+  "base_prompt": "Create a landscape 16:9 brand image in the same theme as the attached reference, which is the canonical Sley 'Loom Graph': a structural graph of nodes on the left is woven through a loom in the centre and emerges as ordered horizontal lines on the right. This new image is for Sley 2.0, a machine-native language, so make it clearly darker and more mechanical than the reference: near-black background, the loom is dark machined steel with gunmetal and brass fittings, the threads are fine steel wire and carbon fibre carrying a restrained teal and green signal glow, the graph nodes are machined metal joints, and the output lines are precise etched grooves in a dark plate. Keep the composition clean and poster-like. Render the wordmark \"Sley\" in the same typographic treatment as the reference and the version \"2.0\" directly beneath it, spelled exactly, in cool white. No other words, no watermarks, no purple, no beige, no cyberpunk clutter, no humans.",
+  "items": [
+    {
+      "slug": "post-a",
+      "meta": {
+        "variant": "A layout match"
+      },
+      "started": "2026-09-07T20:13:09.623Z",
+      "file": "/home/dev/sley2/assets/branding/candidates/sley-2-0-2026-09-07/sley2_post-a.png",
+      "prompt": "Create a landscape 16:9 brand image in the same theme as the attached reference, which is the canonical Sley 'Loom Graph': a structural graph of nodes on the left is woven through a loom in the centre and emerges as ordered horizontal lines on the right. This new image is for Sley 2.0, a machine-native language, so make it clearly darker and more mechanical than the reference: near-black background, the loom is dark machined steel with gunmetal and brass fittings, the threads are fine steel wire and carbon fibre carrying a restrained teal and green signal glow, the graph nodes are machined metal joints, and the output lines are precise etched grooves in a dark plate. Keep the composition clean and poster-like. Render the wordmark \"Sley\" in the same typographic treatment as the reference and the version \"2.0\" directly beneath it, spelled exactly, in cool white. No other words, no watermarks, no purple, no beige, no cyberpunk clutter, no humans.\n\nComposition: match the reference layout exactly (wordmark top left, graph left, loom centre, etched lines right), with the mechanical loom as the dominant element.",
+      "tool_selected": true,
+      "conversation": "https://chatgpt.com/c/6a9f1ae9-e034-83e9-82a5-7bd2b6659f17",
+      "result": "saved",
+      "bytes": 2183094,
+      "dimensions": "1672x941",
+      "sha256": "44c6c644c902cbc34f38bd2c84cd69954fe177e65500337bdb8e8d3df3f1c472",
+      "source_url": "https://chatgpt.com/backend-api/estuary/content?id=file_000000000cf881f5a169967b960a29c2&ts=496892&p=fs&cid=1&sig=9006a6b842d60a34560847725f872d18489f86224298723f4afb8fd17e46a8d5&v=0",
+      "finished": "2026-09-07T20:14:26.866Z"
+    },
+    {
+      "slug": "post-b",
+      "meta": {
+        "variant": "B heavier machinery"
+      },
+      "started": "2026-09-07T20:13:09.623Z",
+      "file": "/home/dev/sley2/assets/branding/candidates/sley-2-0-2026-09-07/sley2_post-b.png",
+      "prompt": "Create a landscape 16:9 brand image in the same theme as the attached reference, which is the canonical Sley 'Loom Graph': a structural graph of nodes on the left is woven through a loom in the centre and emerges as ordered horizontal lines on the right. This new image is for Sley 2.0, a machine-native language, so make it clearly darker and more mechanical than the reference: near-black background, the loom is dark machined steel with gunmetal and brass fittings, the threads are fine steel wire and carbon fibre carrying a restrained teal and green signal glow, the graph nodes are machined metal joints, and the output lines are precise etched grooves in a dark plate. Keep the composition clean and poster-like. Render the wordmark \"Sley\" in the same typographic treatment as the reference and the version \"2.0\" directly beneath it, spelled exactly, in cool white. No other words, no watermarks, no purple, no beige, no cyberpunk clutter, no humans.\n\nComposition: the mechanical loom fills the centre at a slight three-quarter angle with heavier machinery, brass gear trains visible below the weave, the graph joints tighter on the left and the etched output plate on the right; wordmark and version top left.",
+      "tool_selected": true,
+      "conversation": "https://chatgpt.com/c/6a9f1ae5-0d14-83ea-9a13-d65755d1298e",
+      "result": "saved",
+      "bytes": 2312514,
+      "dimensions": "1672x941",
+      "sha256": "2874d7643aaf3d78c6f0b472e1e72a9d0249c654435d419dfa741fd6bb67e366",
+      "source_url": "https://chatgpt.com/backend-api/estuary/content?id=file_00000000921481f5a8b10f55190ddab7&ts=496892&p=fs&cid=1&sig=ed8476d4d8ec1951198ea045fedd8b4f78a626ee509672796eb7d3121a7ab2f2&v=0",
+      "finished": "2026-09-07T20:14:38.060Z"
+    }
+  ]
+}

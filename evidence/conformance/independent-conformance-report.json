@@ -1,0 +1,1512 @@
+{
+  "contract": "sley2.independent-conformance-report.v1",
+  "coverage_depths": {
+    "codec_and_identity": [
+      "conformance/bootstrap-capability/v1",
+      "conformance/bootstrap-profile/v1",
+      "conformance/candidate-result/v1",
+      "conformance/complete-root-index-snapshot/v1",
+      "conformance/context-capsule/v1",
+      "conformance/exec-package-envelope/v2",
+      "conformance/exec-package/v1",
+      "conformance/host-abi/v1",
+      "conformance/mutation-candidate/v1",
+      "conformance/mutation-value/v1",
+      "conformance/native-test/v1",
+      "conformance/raw-hash/v1",
+      "conformance/release-demo/v1",
+      "conformance/repository-exchange/v1",
+      "conformance/repository-pack/v1",
+      "conformance/scb1/v1",
+      "conformance/schema-epoch/v1",
+      "conformance/smp1-json-bridge/v1",
+      "conformance/smp1/v1",
+      "conformance/state-root/v1",
+      "conformance/transaction-receipt/v1",
+      "conformance/vm-extended/v1"
+    ],
+    "semantic": [
+      "conformance/complete-entity-impact/v1",
+      "conformance/entity-read/v2",
+      "conformance/merge/v1",
+      "conformance/root-backed-query/v1",
+      "conformance/semantic-comparison/v1"
+    ]
+  },
+  "fixture_directories": 27,
+  "fixtures": [
+    {
+      "claim": null,
+      "contract": null,
+      "coverage": {
+        "command": "python3 scripts/check_bootstrap_capability.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/bootstrap-capability/v1",
+      "files": [
+        {
+          "bytes": 1044,
+          "name": "SHA256SUMS",
+          "sha256": "821ca52077cd67bddc67fbddd7664d289181e9e7df09f19bfc364539df9f3cc6"
+        },
+        {
+          "bytes": 352,
+          "name": "exercises-bad-binding.json",
+          "sha256": "3164d879bba69f8cbeb13f41890876b2e7412b6df771de034fcc5e200b66e74f"
+        },
+        {
+          "bytes": 599,
+          "name": "exercises-partial-routed.json",
+          "sha256": "3bcb1b3e1b00c0905c71ad7a68d843e10c0df1669fd6c8b58e6734c56848ed00"
+        },
+        {
+          "bytes": 243,
+          "name": "gaps-unowned.json",
+          "sha256": "bed97229d0750e285d39545b072686a170e171e56289c202f7b29143abc4baa8"
+        },
+        {
+          "bytes": 652,
+          "name": "manifest-h-digest-without-charter.json",
+          "sha256": "9882d9f51628501b56f77c29c6994c97ef4132cd71dd3a0465f6d9cdaa354f0b"
+        },
+        {
+          "bytes": 530,
+          "name": "manifest-incomplete.json",
+          "sha256": "09cfb05985e645991f94fcf0ef198fdf26e8f47689116ed469731877ceef9932"
+        },
+        {
+          "bytes": 591,
+          "name": "manifest-invented-hash.json",
+          "sha256": "34353c101a4c5a8a40bc056902b80ca99a1f89c4c86f9f8c969daf08b0a8590e"
+        },
+        {
+          "bytes": 812,
+          "name": "manifest-stages-without-source.json",
+          "sha256": "e1b743cfa7336ec48e8d52eafaf7265624fbb157e00d299b66f99443c563b673"
+        },
+        {
+          "bytes": 1486,
+          "name": "readiness-h-unpinned.json",
+          "sha256": "0a8ecd0d75c85e4cd38a09c6c07289453f3bd3cf45a4f5450fe468fcf672d284"
+        },
+        {
+          "bytes": 2525,
+          "name": "readiness-later-bound.json",
+          "sha256": "2814b35be9d181d6341a130fc1ef2c6390a1875df21c27594cbf2309253ab1a9"
+        },
+        {
+          "bytes": 1887,
+          "name": "readiness-later-without-r2.json",
+          "sha256": "92a26a0b7a22df6c74b21cc171e05431c641784bc1dc6a2c37dd9a6f44929971"
+        },
+        {
+          "bytes": 1831,
+          "name": "readiness-logic-positive.json",
+          "sha256": "35a9ac09114272b0ac978feacab5143c1982319e72a8b6c3a3ea0048e571a3ad"
+        }
+      ],
+      "shape": {
+        "exercises-bad-binding.json": {
+          "exercises": 1,
+          "expect": 1
+        },
+        "exercises-partial-routed.json": {
+          "exercises": 1,
+          "expect": 1,
+          "vectors_present": 1
+        },
+        "gaps-unowned.json": {
+          "expect": 1,
+          "gaps": 1
+        },
+        "manifest-h-digest-without-charter.json": {
+          "expect": 2,
+          "stages": 7
+        },
+        "manifest-incomplete.json": {
+          "expect": 2,
+          "stages": 7
+        },
+        "manifest-invented-hash.json": {
+          "expect": 2,
+          "stages": 7
+        },
+        "manifest-stages-without-source.json": {
+          "expect": 2,
+          "stages": 7
+        },
+        "readiness-h-unpinned.json": {
+          "exercises": 1,
+          "expect": 2,
+          "gaps": 1,
+          "vectors_present": 1
+        },
+        "readiness-later-bound.json": {
+          "exercises": 1,
+          "expect": 4,
+          "gaps": 1,
+          "vectors_present": 1
+        },
+        "readiness-later-without-r2.json": {
+          "exercises": 1,
+          "expect": 4,
+          "gaps": 1,
+          "vectors_present": 1
+        },
+        "readiness-logic-positive.json": {
+          "exercises": 1,
+          "expect": 1,
+          "gaps": 1,
+          "vectors_present": 1
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "bootstrap-profile-1-closure-conformance",
+      "contract": "sley2-bootstrap-profile-1",
+      "coverage": {
+        "command": "python3 scripts/check_bootstrap_profile_1.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/bootstrap-profile/v1",
+      "files": [
+        {
+          "bytes": 159,
+          "name": "SHA256SUMS",
+          "sha256": "b5b742faf0bb5860a91525c0d50617e9ccbcc562ef011e111aa772d1ad6621f7"
+        },
+        {
+          "bytes": 41621,
+          "name": "accepted.json",
+          "sha256": "878f3009690af8a14223667e497d4579a74e1345eea39cf8e75870fdbc7735ad"
+        },
+        {
+          "bytes": 8774,
+          "name": "profile.json",
+          "sha256": "4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "reference_budgets": 5,
+          "vectors": 20
+        },
+        "profile.json": {
+          "boundaries": 3,
+          "budgets": 4,
+          "cache_key_inputs": 12,
+          "call_rules": 5,
+          "ceilings": 13,
+          "closure_vectors": 3,
+          "effect_policy": 3,
+          "excluded_opcodes": 5,
+          "failure_registry": 5,
+          "gate": 6,
+          "iteration": 2,
+          "permitted_imports": 3,
+          "permitted_opcodes": 42,
+          "terminators": 4,
+          "types": 3,
+          "vm": 5
+        }
+      },
+      "siblings": {
+        "v2": {
+          "claim": "bootstrap-profile-1-closure-conformance",
+          "contract": "sley2-bootstrap-profile-1",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/bootstrap-profile/v2",
+          "files": [
+            {
+              "bytes": 159,
+              "name": "SHA256SUMS",
+              "sha256": "6d7d443fe498cdcabfb3f0732b6823d146cbed5b902bb6bd31e7a0ca1df17db4"
+            },
+            {
+              "bytes": 41621,
+              "name": "accepted.json",
+              "sha256": "878f3009690af8a14223667e497d4579a74e1345eea39cf8e75870fdbc7735ad"
+            },
+            {
+              "bytes": 10614,
+              "name": "profile.json",
+              "sha256": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459"
+            }
+          ],
+          "shape": {
+            "accepted.json": {
+              "reference_budgets": 5,
+              "vectors": 20
+            },
+            "profile.json": {
+              "boundaries": 3,
+              "budgets": 4,
+              "cache_key_inputs": 12,
+              "call_rules": 5,
+              "ceilings": 13,
+              "closure_vectors": 3,
+              "effect_policy": 3,
+              "excluded_opcodes": 5,
+              "failure_registry": 5,
+              "gate": 6,
+              "iteration": 2,
+              "permitted_imports": 3,
+              "permitted_opcodes": 42,
+              "supersedes": 6,
+              "terminators": 4,
+              "types": 3,
+              "vm": 5
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
+        }
+      },
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1",
+        "v2"
+      ]
+    },
+    {
+      "claim": null,
+      "contract": "s20-360-candidate-result-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-candidate-result",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
+      },
+      "directory": "conformance/candidate-result/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "c3ffc69831b25bf63e9201a7f14c479c2f978b06d29348d05249cea3a91798d6"
+        },
+        {
+          "bytes": 30315,
+          "name": "accepted.json",
+          "sha256": "020676f6ffd1e2ef2de7c23db72382a1849ddd693d84d4fc725492cc741aec0a"
+        },
+        {
+          "bytes": 535,
+          "name": "rejected.json",
+          "sha256": "3b920f7638e6b6ee847bcec18ad4061cf6072ad572364172a4a33483c5001410"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 16
+        },
+        "rejected.json": {
+          "mutations": 4
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-250-full-complete-entity-impact-v1-conformance",
+      "contract": "sley2-complete-entity-impact-v1",
+      "coverage": {
+        "command": "python3 scripts/check_complete_entity_impact_vector.py",
+        "depth": "semantic",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/complete-entity-impact/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "738edb576aa35fdb8d224b38658bc38aec596061744ac854d170c2936ace3f9d"
+        },
+        {
+          "bytes": 45808,
+          "name": "accepted.json",
+          "sha256": "4da3877f1c7e369655f54686d5910061c864febca36329925a8e52c24fea0c6c"
+        },
+        {
+          "bytes": 194435,
+          "name": "rejected.json",
+          "sha256": "6079764791851c3e424d7fc0d03a077616f8fece51aef92f77130599215229f5"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 2
+        },
+        "rejected.json": {
+          "mutations": 19
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-300-full-complete-root-index-snapshot-v1-conformance",
+      "contract": "sley2-complete-root-index-snapshot-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_complete_root_index_snapshot_vector.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/complete-root-index-snapshot/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "0ae7c23b88be7e68e112b4d35ee27e3867b0bd2604ae8b243a6ab28fc8f46e18"
+        },
+        {
+          "bytes": 12717,
+          "name": "accepted.json",
+          "sha256": "c9d2f901a839b5488f884d4ce836d4058fecc2e70e15a0307264945515e0bd1b"
+        },
+        {
+          "bytes": 71916,
+          "name": "rejected.json",
+          "sha256": "ed73d8e10d48bdfc321eeaaddca39a8ac1d2873a7eebb08c8900e0c4e32b04e8"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 1
+        },
+        "rejected.json": {
+          "mutations": 6
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-320-full-context-capsule-v1-conformance",
+      "contract": "sley2-context-capsule-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_context_capsule_vector.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/context-capsule/v1",
+      "files": [
+        {
+          "bytes": 80,
+          "name": "SHA256SUMS",
+          "sha256": "d7eaaa2701406e729b2a79496cdc40f2510578f7a9b975b459c1106fee986091"
+        },
+        {
+          "bytes": 56466,
+          "name": "accepted.json",
+          "sha256": "642b5d5092c8ea26a67bd599d4b0eb039396994a09c39eca8838297c49c565de"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 24
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "independent-expected",
+      "contract": "sley2-entity-read-v2",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_entity_read_vectors.py",
+        "depth": "semantic",
+        "kind": "independent_oracle",
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
+      },
+      "directory": "conformance/entity-read/v2",
+      "files": [
+        {
+          "bytes": 238,
+          "name": "SHA256SUMS",
+          "sha256": "51577deaf287ad2b2b5d8dc88dc5b82f8273f801abdf0328465a4663fd1f8706"
+        },
+        {
+          "bytes": 190716,
+          "name": "accepted.json",
+          "sha256": "6a23fe63ddaa179003222c2084162918079acd78d4aa6721e39627cb146875b3"
+        },
+        {
+          "bytes": 59007,
+          "name": "inputs.json",
+          "sha256": "395456f215eb588f4dc672c844db8dcce345bad6fb3fde2cafd02844f529decf"
+        },
+        {
+          "bytes": 125828,
+          "name": "rejected.json",
+          "sha256": "6cc6186c4fd087cab1e0fd146847943865fe6aec9a73b50c08d4a5b48fbcb97c"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "cases": 23,
+          "frame_scenarios": 4,
+          "hellos": 5,
+          "selections": 3
+        },
+        "inputs.json": {
+          "bindings": 3,
+          "cases": 23,
+          "context": 6,
+          "entities": 25,
+          "frame_scenarios": 4,
+          "hellos": 5,
+          "provenance": 14,
+          "rejected": 91,
+          "selected_limits": 8,
+          "selection_scenarios": 3,
+          "signature_types": 2
+        },
+        "rejected.json": {
+          "cases": 91
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v2"
+      ]
+    },
+    {
+      "claim": null,
+      "contract": "sley2-exec-package-1",
+      "coverage": {
+        "command": "python3 scripts/check_exec_package_v1.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/exec-package/v1",
+      "files": [
+        {
+          "bytes": 84,
+          "name": "SHA256SUMS",
+          "sha256": "44d4606ee208ddec6bde8d7504f703a9ebec575a22fb73cdf3ffb18381ec2020"
+        },
+        {
+          "bytes": 5626,
+          "name": "exec-package.json",
+          "sha256": "9e20da24a3b3647d15d052ce759ed9b1ca7682d950421baf48978ad59a5795d4"
+        }
+      ],
+      "shape": {
+        "exec-package.json": {
+          "admission": 5,
+          "approved_binding": 5,
+          "bounds": 12,
+          "envelope": 5,
+          "frozen_references": 6,
+          "hydration": 3,
+          "negative_corpus": 18
+        }
+      },
+      "siblings": {
+        "v2": {
+          "claim": null,
+          "contract": "sley2-exec-package-2",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/exec-package/v2",
+          "files": [
+            {
+              "bytes": 84,
+              "name": "SHA256SUMS",
+              "sha256": "e0992c324f64959fabc6e5a332166bbe23cc57efa218372b9f4c41091ffd2b9d"
+            },
+            {
+              "bytes": 6570,
+              "name": "exec-package.json",
+              "sha256": "f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94"
+            }
+          ],
+          "shape": {
+            "exec-package.json": {
+              "admission": 5,
+              "approved_binding": 5,
+              "bounds": 12,
+              "envelope": 5,
+              "frozen_references": 9,
+              "hydration": 3,
+              "negative_corpus": 18,
+              "supersedes": 6
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
+        }
+      },
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1",
+        "v2"
+      ]
+    },
+    {
+      "claim": null,
+      "contract": "sley2-exec-package-2",
+      "coverage": {
+        "command": "python3 scripts/check_exec_package_envelope_v2.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/exec-package-envelope/v2",
+      "files": [
+        {
+          "bytes": 80,
+          "name": "SHA256SUMS",
+          "sha256": "5d6c4d391eb32d6af8cf84fa1a14cfb4787b266ed2bedb9eeba3515d0fa9b7fb"
+        },
+        {
+          "bytes": 1211,
+          "name": "accepted.hex",
+          "sha256": "5e3befd320687e0d3c1ca646646d6c8a2cef78d4f94d5ecac3fccdcda271ed60"
+        },
+        {
+          "bytes": 1352,
+          "name": "envelope.json",
+          "sha256": "5a5be4bd33b9aafb55e356197bdda798fa9626f38b831dfb6375751e53347829"
+        }
+      ],
+      "shape": {
+        "envelope.json": {
+          "header": 3,
+          "vector": 10
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v2"
+      ]
+    },
+    {
+      "claim": null,
+      "contract": "sley2-host-abi-1",
+      "coverage": {
+        "command": "python3 scripts/check_host_abi_v1.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/host-abi/v1",
+      "files": [
+        {
+          "bytes": 80,
+          "name": "SHA256SUMS",
+          "sha256": "3814ca5722701ab1321ea9960b02ff22a7b4e57ee03dc10bf18967a2de33e265"
+        },
+        {
+          "bytes": 19702,
+          "name": "host-abi.json",
+          "sha256": "e6de00b820a094ec2abc7a6ae43263d7340c2bf1a38a6231e7426fda0f04ecc2"
+        }
+      ],
+      "shape": {
+        "host-abi.json": {
+          "abi": 14,
+          "bindings": 16,
+          "cancellation": 3,
+          "fixture_index": 5,
+          "image": 29,
+          "imports": 3,
+          "portability": 4,
+          "prohibited": 7,
+          "seed_absence": 4,
+          "value_encoding": 6
+        }
+      },
+      "siblings": {
+        "v2": {
+          "claim": null,
+          "contract": "sley2-host-abi-2",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/host-abi/v2",
+          "files": [
+            {
+              "bytes": 80,
+              "name": "SHA256SUMS",
+              "sha256": "1ffbe999c789d3cc1e3ee2627b49c2d57d6e7f1cda62c446510312d04ceeaa29"
+            },
+            {
+              "bytes": 22182,
+              "name": "host-abi.json",
+              "sha256": "bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5"
+            }
+          ],
+          "shape": {
+            "host-abi.json": {
+              "abi": 14,
+              "bindings": 16,
+              "cancellation": 3,
+              "fixture_index": 5,
+              "image": 29,
+              "imports": 3,
+              "portability": 4,
+              "prohibited": 7,
+              "seed_absence": 4,
+              "supersedes": 6,
+              "value_encoding": 6
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
+        }
+      },
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1",
+        "v2"
+      ]
+    },
+    {
+      "claim": "s20-520-merge-v1-conformance",
+      "contract": "sley2-merge-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_merge_vector.py",
+        "depth": "semantic",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/merge/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "a187c1385bd871554fb8fe14488435b7fd4c7daac3b4934342fc28b552a1b6f9"
+        },
+        {
+          "bytes": 344476,
+          "name": "accepted.json",
+          "sha256": "d3a541cc5bb2e2788c4b8b5285ec283033461e610c67529f513053ca9293d730"
+        },
+        {
+          "bytes": 4171,
+          "name": "rejected.json",
+          "sha256": "fa6688f125034d8a5119f8758b80b15806a59c9c62f913de0453f114180df822"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 19
+        },
+        "rejected.json": {
+          "mutations": 4
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "complete-s20-350-conformance",
+      "contract": "sley2-mutation-candidate-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-mutation-candidate",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
+      },
+      "directory": "conformance/mutation-candidate/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "b16463b60c09a228a94a32dd5368d18178180854b8b68f48c5498fa507040cef"
+        },
+        {
+          "bytes": 70831,
+          "name": "accepted.json",
+          "sha256": "736668bae748a0d7c5aae16c6ed6e745cce66a7b829e009ac93171eec619b360"
+        },
+        {
+          "bytes": 99482,
+          "name": "rejected.json",
+          "sha256": "526f275816b6fbf2b58c08a899909356350da3e12fb6abafc0ea8fed50f65f07"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "candidate_vectors": 1,
+          "coverage": 8,
+          "value_vectors": 44
+        },
+        "rejected.json": {
+          "candidate_vectors": 14,
+          "value_vectors": 4
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "partial",
+      "contract": "sley2-mutation-value-v1-partial",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-mutation-value",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
+      },
+      "directory": "conformance/mutation-value/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "de3325a07d64a6da01c298195433a50a916410e4858d8ad781045d3830aa34a2"
+        },
+        {
+          "bytes": 56171,
+          "name": "accepted.json",
+          "sha256": "98024278156d66c5d8d94579f9ec09a5691bff876929226822aed78f178330de"
+        },
+        {
+          "bytes": 5926,
+          "name": "rejected.json",
+          "sha256": "509b1b921d54d5e8e53d1a9fed8c7bf66ce0e7253f4b37d9dc2927be601a4291"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "excluded": 4,
+          "vectors": 126
+        },
+        "rejected.json": {
+          "vectors": 18
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "sley2-native-test-wire-shape-v1",
+      "contract": "docs/spec/NATIVE_TEST_ADMISSION_V1.md appendix C revision 5",
+      "coverage": {
+        "command": "python3 scripts/check_native_test_vectors.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/native-test/v1",
+      "files": [
+        {
+          "bytes": 241,
+          "name": "SHA256SUMS",
+          "sha256": "8bfed54d3c0497575c97b174e03cc74ed9ed406083442b0149a6c06fb6ae0cf2"
+        },
+        {
+          "bytes": 2811,
+          "name": "rejected.json",
+          "sha256": "76d8cfcd616165989f84b0253b49646e03cdf83b14125647a9fe20464d3dbd86"
+        },
+        {
+          "bytes": 4376,
+          "name": "requests.json",
+          "sha256": "8c56243c96a07e35b7b4f892e2ff919ee29e60b60d19f9be69a83a8df5ae5b98"
+        },
+        {
+          "bytes": 5496,
+          "name": "responses.json",
+          "sha256": "cfc3cb004c81acbc44692cd9d3b14e5b0441b42c9ebcbf019f1bbd208bfcc8e5"
+        }
+      ],
+      "shape": {
+        "rejected.json": {
+          "vectors": 7
+        },
+        "requests.json": {
+          "vectors": 6
+        },
+        "responses.json": {
+          "token_fields": 4,
+          "vectors": 6
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": null,
+      "contract": "sley2-raw-hash-1",
+      "coverage": {
+        "command": "python3 scripts/check_exec_package_v1.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/raw-hash/v1",
+      "files": [
+        {
+          "bytes": 80,
+          "name": "SHA256SUMS",
+          "sha256": "3aa2ded17e76b5cc479387a96175ef7638340c51124752f6a54486f3c7c2f3e7"
+        },
+        {
+          "bytes": 2629,
+          "name": "raw-hash.json",
+          "sha256": "785205fb49490237cbec7ffe2fc4c2b0f98014b9aae76cc54795921e5d969f72"
+        }
+      ],
+      "shape": {
+        "raw-hash.json": {
+          "admission": 3,
+          "algorithm": 3,
+          "failure": 2,
+          "forbidden_natives": 5,
+          "fuel": 2,
+          "input": 3,
+          "output": 2,
+          "test_vectors": 6
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-720-release-demo-v1",
+      "contract": "sley2-release-demo-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_release_demo_vector.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/release-demo/v1",
+      "files": [
+        {
+          "bytes": 76,
+          "name": "SHA256SUMS",
+          "sha256": "caebc5bac982e5c5d0850ce53723c9cf24227df00c26c3255b644177b0541cd4"
+        },
+        {
+          "bytes": 21326,
+          "name": "demo.json",
+          "sha256": "5b1d23f1fb9530f5a2ad7d97c23d4be18889459b14d9b9e09ec3db1530ddfa31"
+        }
+      ],
+      "shape": {
+        "demo.json": {
+          "vectors": 9
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-540-repository-exchange-v1-clone-equivalent-conformance",
+      "contract": "sley2-repository-exchange-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_repository_exchange_vector.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/repository-exchange/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "74028ef9dba8fe75cb02456b5258a2f07f76ccd6a6d884d6f4379c39b85f9ead"
+        },
+        {
+          "bytes": 16407,
+          "name": "accepted.json",
+          "sha256": "a0674fb84078c1a8147b04bab106f79b60c4ac78918f5692b487c4871561e31a"
+        },
+        {
+          "bytes": 100802,
+          "name": "rejected.json",
+          "sha256": "bbf8129763592aea926384f7c94276da9327e57ee087bb3ac5891d48c02ddbe0"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 1
+        },
+        "rejected.json": {
+          "mutations": 6
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-170-repository-pack-rejection-conformance",
+      "contract": "sley2-repository-pack-accepted-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_repository_pack_vector.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/repository-pack/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "6ebab09a9dd4601370bf84ce39a6387c93d7084b141c1d2f917c3f9d7b99a0d1"
+        },
+        {
+          "bytes": 3394,
+          "name": "accepted.json",
+          "sha256": "35685f782e160e64d2fe10cda38010f3451ae809fa2a573bb9e8f8a6e60b6963"
+        },
+        {
+          "bytes": 30729,
+          "name": "rejected.json",
+          "sha256": "9a08dc598ee383c93844d849bcda1c0c779ab861409137e9417cff9347978b60"
+        }
+      ],
+      "shape": {
+        "accepted.json": {},
+        "rejected.json": {
+          "mutations": 10
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-310-full-root-backed-query-v1-conformance",
+      "contract": "sley2-root-backed-query-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_root_backed_query_vector.py",
+        "depth": "semantic",
+        "kind": "independent_oracle",
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
+      },
+      "directory": "conformance/root-backed-query/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "427e33a34fa9dd070dfe0f519b977e2c51a8a9186133c490fed898d26df4f332"
+        },
+        {
+          "bytes": 43564,
+          "name": "accepted.json",
+          "sha256": "6cb756ebd96cb6d501656c6ca0f70bce57d8a4671bddd4c887286413e752ac05"
+        },
+        {
+          "bytes": 22099,
+          "name": "rejected.json",
+          "sha256": "59291ac4be72c9eb289e3b13de9df2c95b4368d5262649f7d4afd12e2cc2f691"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "context": 13,
+          "vectors": 27
+        },
+        "rejected.json": {
+          "mutations": 10
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": null,
+      "contract": "sley2-scb1-accepted-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
+      },
+      "directory": "conformance/scb1/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "d5aa2f994d2070b9e02ec86f0b1b0a9ef7f883b51286afff148cdb70d1803c29"
+        },
+        {
+          "bytes": 2887,
+          "name": "accepted.json",
+          "sha256": "c6b7097b4f03d82c0181b473c3f3d90e028fe53c0ec8ff640c715954b5151e93"
+        },
+        {
+          "bytes": 4836,
+          "name": "rejected.json",
+          "sha256": "aaf7f3b2db7c26d79ad212c01858857e145e3ace3547390a53617811ad77f278"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 23
+        },
+        "rejected.json": {
+          "vectors": 26
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": null,
+      "contract": "sley2-schema-epoch-bootstrap-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_schema_epoch_vector.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/schema-epoch/v1",
+      "files": [
+        {
+          "bytes": 81,
+          "name": "SHA256SUMS",
+          "sha256": "1ddb48c7560a042f8dea4799a7902cc1def3355ad5b577eef3d25ac2a97b6ac8"
+        },
+        {
+          "bytes": 776,
+          "name": "bootstrap.json",
+          "sha256": "6c1c4396b99bb57f3d646fe5938f5393e606c8a5323f609d48c0bfaad4e1223a"
+        }
+      ],
+      "shape": {
+        "bootstrap.json": {
+          "contracts": 0,
+          "extensions": 0,
+          "limits": 7,
+          "migration_contracts": 0,
+          "unicode_nfc_version": 3
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-510-semantic-comparison-v1-conformance",
+      "contract": "sley2-semantic-comparison-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_semantic_comparison_vector.py",
+        "depth": "semantic",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/semantic-comparison/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "c3f5a8ec8b6335537bcba8094d249a5a12cceb6c168a31fd047ad238b1b2fe21"
+        },
+        {
+          "bytes": 243388,
+          "name": "accepted.json",
+          "sha256": "3561c370ac370e703f4cec0390992c70f3e9d0ed08144b9d638ee41f17d5607a"
+        },
+        {
+          "bytes": 14206,
+          "name": "rejected.json",
+          "sha256": "5845980e74963c7af85b11b9e5984d9ddf64f296d213d97a70a70c8fb2507ae2"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 9
+        },
+        "rejected.json": {
+          "mutations": 9
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-410-smp1-v1-conformance",
+      "contract": "sley2-smp1-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_smp1_vector.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/smp1/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "dd06ae7932ee9bc540037d6b9dad94dfda4f359b1efb6050eee23c09ee964e10"
+        },
+        {
+          "bytes": 6175,
+          "name": "accepted.json",
+          "sha256": "ea25ac2a6b7926343f4dc93150990e7e00d7615e56eee20e0c7e94be4ce9f0eb"
+        },
+        {
+          "bytes": 2326,
+          "name": "rejected.json",
+          "sha256": "db6fb84ddeb5c86bec1a7a20ca177fd6ce73c420d492c488bb08c634a9791db9"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "frames": 3,
+          "hellos": 2,
+          "selected": 7
+        },
+        "rejected.json": {
+          "mutations": 4
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-420-smp1-json-bridge-v1-conformance",
+      "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_smp1_json_bridge_vector.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/smp1-json-bridge/v1",
+      "files": [
+        {
+          "bytes": 240,
+          "name": "SHA256SUMS",
+          "sha256": "24af89f1bc2735a5c99ecc2785cae8c08c8174ca995869777302dfe3d655cfb2"
+        },
+        {
+          "bytes": 6019,
+          "name": "methods.json",
+          "sha256": "cf7cb9fbc2925a485f811c0858255c65d61df812b79295b4407a7046a1c139cf"
+        },
+        {
+          "bytes": 28010,
+          "name": "rejected.json",
+          "sha256": "910e10141a4a2f2f2d448abb60291b9662924e29f073c2e4c545e0cd75914c6c"
+        },
+        {
+          "bytes": 8175,
+          "name": "roundtrip.json",
+          "sha256": "971d810d368f66c2a172e4dcbd32adcbb3724b0649431b68e50827ca12431c67"
+        }
+      ],
+      "shape": {
+        "methods.json": {
+          "methods": 41
+        },
+        "rejected.json": {
+          "mutations": 37
+        },
+        "roundtrip.json": {
+          "vectors": 5
+        }
+      },
+      "siblings": {
+        "v2": {
+          "claim": null,
+          "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/smp1-json-bridge/v2",
+          "files": [
+            {
+              "bytes": 79,
+              "name": "SHA256SUMS",
+              "sha256": "fe804ec0aedd17c7a924233671804303a57d58897b2624ae4c1fb9f6068eff8e"
+            },
+            {
+              "bytes": 6297,
+              "name": "methods.json",
+              "sha256": "ae4746da26e3cf8d7e934177e611fb587858588f10a56475640e068604db5d7d"
+            }
+          ],
+          "shape": {
+            "methods.json": {
+              "methods": 43
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
+        },
+        "v3": {
+          "claim": null,
+          "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
+          "coverage": {
+            "kind": "tracked_sibling",
+            "note": "digested, summed, and declared; depth is claimed only for the pinned version",
+            "pinned_version": "v1"
+          },
+          "directory": "conformance/smp1-json-bridge/v3",
+          "files": [
+            {
+              "bytes": 79,
+              "name": "SHA256SUMS",
+              "sha256": "b2190f7f17f8ee310a711637aeab2135c11d003de221635dab542080c00d22b0"
+            },
+            {
+              "bytes": 6782,
+              "name": "methods.json",
+              "sha256": "5f124ab25a1758233997df8974dd33236af5c306e01d7f81d35eb5a9129e1b0a"
+            }
+          ],
+          "shape": {
+            "methods.json": {
+              "methods": 46
+            }
+          },
+          "sums_consistent": true,
+          "sums_file": true
+        }
+      },
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1",
+        "v2",
+        "v3"
+      ]
+    },
+    {
+      "claim": null,
+      "contract": "sley-state-root-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen python scripts/check_state_root_vector.py",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "scripts/ (Python, S20-130 independent)"
+      },
+      "directory": "conformance/state-root/v1",
+      "files": [
+        {
+          "bytes": 80,
+          "name": "SHA256SUMS",
+          "sha256": "b5d4e7630df0407e2b89e6558527475ae0f6a487b588c493c55e57cfe6387961"
+        },
+        {
+          "bytes": 1416,
+          "name": "accepted.json",
+          "sha256": "848044e1f6e51d38368bda3bbcc95a8e04f6ad22928e49fd35f9ef772b3ba832"
+        }
+      ],
+      "shape": {
+        "accepted.json": {}
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "restricted-executable-program-test-free-s20-390-conformance-with-extended-operation-profile",
+      "contract": "sley2-transaction-receipt-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-transaction-receipt",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
+      },
+      "directory": "conformance/transaction-receipt/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "f11d716895c318c77485a6405b34565213152fb61743120699d32af79ddf3442"
+        },
+        {
+          "bytes": 22094,
+          "name": "accepted.json",
+          "sha256": "f8983b02e693e44e21ed12171136fd79bd19796efe160eec302d4429da039a9e"
+        },
+        {
+          "bytes": 8518,
+          "name": "rejected.json",
+          "sha256": "4401bceabd1dda5fb2e3b4649147252c9eae42b336d722ce8c65acde20c6828e"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 3
+        },
+        "rejected.json": {
+          "mutations": 10
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    },
+    {
+      "claim": "s20-260-270-vm-extended-e1-e6-e7a-and-e8-conformance",
+      "contract": "sley2-vm-extended-opcode-profile-v1",
+      "coverage": {
+        "command": "uv run --project oracle/scb1 --frozen sley2-scb1-oracle check-vm-extended --accepted conformance/vm-extended/v1/accepted.json --rejected conformance/vm-extended/v1/rejected.json",
+        "depth": "codec_and_identity",
+        "kind": "independent_oracle",
+        "runner": "oracle/scb1 (Python, S20-130 independent)"
+      },
+      "directory": "conformance/vm-extended/v1",
+      "files": [
+        {
+          "bytes": 160,
+          "name": "SHA256SUMS",
+          "sha256": "31d66ce16b4d82ec988a6e8ffa326b0becb1cfe6cd821d2f5a2053478aa6e1b0"
+        },
+        {
+          "bytes": 234543,
+          "name": "accepted.json",
+          "sha256": "bf9ca182c72c0b13f2cccd7c67a0aef2bbed65d2874ec50e1bfacdf1063a81aa"
+        },
+        {
+          "bytes": 3584,
+          "name": "rejected.json",
+          "sha256": "b2a9af1d1b4d1cb1b79dc14660df43e365d6d8b1fc1c56b2066e0b3b45d0ea43"
+        }
+      ],
+      "shape": {
+        "accepted.json": {
+          "vectors": 31
+        },
+        "rejected.json": {
+          "mutations": 5
+        }
+      },
+      "siblings": {},
+      "sums_consistent": true,
+      "sums_file": true,
+      "tracked_versions": [
+        "v1"
+      ]
+    }
+  ],
+  "independently_checked": 27,
+  "make_target": "conformance",
+  "native_only": [],
+  "oracle_independence": {
+    "forbidden_markers": [
+      "subprocess",
+      "cargo",
+      "sley-id",
+      "sley_id",
+      "sley-mutate",
+      "sley_mutate",
+      "crates/",
+      "value_generated.rs",
+      "target/",
+      "ctypes",
+      "cffi",
+      "os.system",
+      "popen"
+    ],
+    "problems": [],
+    "python_sources": 30
+  },
+  "report_digest": "bf0e2ffad2c4b8a3c1aa33926b27112e99fb19a0e86cc0cdfec03637b9a86818",
+  "result": "INDEPENDENT_CONFORMANCE_COMPLETE",
+  "tracked_corpus_directories": 32,
+  "work_package": "S20-730"
+}

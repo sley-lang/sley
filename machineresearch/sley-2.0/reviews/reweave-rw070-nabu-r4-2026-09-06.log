@@ -1,0 +1,25 @@
+RW-070 round-4 delta review (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded round-4 delta;
+self-contained brief after two infra timeouts).
+
+VERDICT: PASS — high confidence; bounded round-4 delta review.
+
+- Round-2 identity/row-closure blockers are repaired. Duplicate import
+  identities now fail closed, and only referenced, resolver-approved rows
+  enter the gate report (`crates/sley-vm/src/bootstrap.rs:234-271`; test
+  `crates/sley-vm/tests/rw070_host_abi_freeze.rs:1169-1200`).
+- Gate validation now uses shared `resolve_bridge_entry` plus bootstrap
+  membership checks (`crates/sley-vm/src/bootstrap.rs:395-419`; resolver
+  `crates/sley-vm/src/extended.rs:272-325`).
+- Loader and approved-image binding remain correctly enforced before the
+  shared runner (`crates/sley-vm/src/execute.rs:529-570`).
+- No remaining P1/P2 finding in the reviewed delta.
+
+Validation performed by reviewer: `cargo test -p sley-vm --lib` PASS (69/2
+ignored); `cargo test -p sley-vm --test rw070_host_abi_freeze` PASS (37);
+both host-ABI checkers PASS; digest `e6de00b8…04ecc2`; bootstrap fixtures
+PASS (20 vectors); `git diff --check` PASS.
+
+Blockers: none.
+
+Disposition: Nabu lane CLOSED. Preserved unedited as the passing round.

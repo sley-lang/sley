@@ -1,0 +1,74 @@
+DISPATCH 730-ariadne-contract forge-ariadne-730-ariadne-contract-20260904T075523 2026-09-04T07:55:23Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and campaign records, then work through the implementation and evidence.
+
+Found an immediate internal contradiction (§9 vs §3/§5). Let me read the ADR, campaign records, and implementation in parallel.
+
+ADR-0040 is stale relative to contract revision 2. Now the main campaign record and the implementation.
+
+Now the conformance generator, the staged checker, and the tracked evidence.
+
+Now the evidence files, the extended oracle, and the rejection corpus.
+
+Key signal: the tracked report attests commit `ebd40dc`, not the review commit. Checking ancestry and the extended oracle's actual verification depth.
+
+Confirmed the oracle never touches `success_value_hash_hex` or `observation_id_hex`. Final batch: demo checker depth, independence scan scope, and test coverage.
+
+## S20-730 contract review — Ariadne
+
+**status:** complete, verdict FAIL (one P0). Read-only; no repo mutation, no cargo, no make target. All findings verified against the pinned worktree at `9dc78fe`.
+
+### findings
+
+**P0 — the reproducibility report is neither bound nor verified**
+
+Nothing checks the report against anything. `check_reproducibility_and_independent_conformance.py:233-240` verifies only that it exists, carries its contract tag, has a non-empty `attestations` array, and claims neither GA nor publication. The conformance report gets a `--check` drift run (line 242); the reproducibility report gets none. `report_digest` is written at `build_reproducibility_report.py:221` and read by no code path in the repository.
+
+Consequence, observable now: the tracked report attests commit `ebd40dc`, which is **65 commits behind** the review commit, and `make quick` passes it. A hand-edited report asserting `MULTI_HOST_REPRODUCIBLE` with two fabricated attestations also passes. This is the artifact backing master goal 6.5's "reproducibility report", and it has no integrity check and no binding to the tree it is filed in.
+
+Fix: recompute `report_digest` on read, rebuild the report from its own embedded `attestations` array under `--check` (they are all stored, so this works without re-presenting files), and record the attested commit's relation to the filing tree.
+
+**P1**
+
+1. **A real second host is reported as a gated lane.** Reproduced against the tracked attestation: two hosts at different commits yields `distinct_hosts: 2`, `result: SINGLE_HOST_REPRODUCIBLE`, and `second_host.note` reading *"only the primary host attested"* — a false sentence in GA evidence. `build_report` derives `second_host.status` solely from `multi_host` (line 206). Needs a third result state and a status that cannot contradict `distinct_hosts`.
+2. **The multi-host claim rests on a label that binds nothing** (answers open question 1). `host_label` is operator-chosen free text, and §9 forbids host identity in the attestation. Because a genuinely reproducible build makes two hosts' attestations byte-identical apart from the label, the report *cannot in principle* distinguish two hosts from one host run twice under two labels. The granularity is right; the contract must say plainly that host distinctness is an operator assertion, not an attested fact.
+3. **Toolchain identity is recorded but never bound** (answers open question 1b). My recommendation is *record, do not require*: identical-toolchain agreement is the weaker result and cross-toolchain agreement the stronger one, so requiring agreement would forbid the better outcome. But today both produce the same `MULTI_HOST_REPRODUCIBLE` token. Add `toolchains` to each `commits` entry and a derived `toolchain_agreement: IDENTICAL | DIVERGENT` so the reader knows which claim was earned.
+4. **`INDEPENDENT_CONFORMANCE_COMPLETE` attests declared, not achieved, coverage.** `family_record` accepts a family when its declared command is a *substring of the Makefile recipe* (line 213). No exit code, no oracle result count, no execution evidence enters the report. Against "final independent PASS", the token overclaims.
+5. **Per-family coverage records no verification depth.** `vm-extended` is tagged `independent_oracle` unqualified, yet `success_value_hash_hex` and `observation_id_hex` appear nowhere in `vm_extended.py` — the fixture carries two identity claims no independent oracle checks. Add a depth field (`container_and_identity` vs `full`) naming checked and carried-unchecked claims.
+6. **§9 contradicts §3 and §5.** "No independent VM oracle: the extended VM vectors stay native-only" survives from revision 1 while §5 says "No family is native-only at revision 2."
+7. **ADR-0040 is stale** — "proposed", "draft at revision 1", and a consequence recording both families as native-only. `ADR_MARKERS` in the staged checker does not catch it.
+8. **§3 spec/impl mismatch on SHA256SUMS.** The contract says a family without a manifest records `sums_consistent: null`; the implementation raises `CONFORMANCE_FIXTURE_UNREADABLE` (line 194). Both `sums_consistent: null` and `sums_file: false` are unreachable, and the guard at line 198 is dead.
+
+<details>
+<summary>P2 and P3 detail</summary>
+
+**P2**
+- `build_reproducibility_report.py --check` rebuilds from local evidence plus re-supplied `--attest` paths, so a merged multi-host report always reports drift unless every attestation file is re-presented. Nothing calls it.
+- Oracle independence is enforced only by source-text markers over `.py` files; neither the report generator nor `check_oracle_independence.py` reads `oracle/scb1/pyproject.toml`, so a declared dependency wrapping the Rust implementation passes §4.
+- SHA256SUMS coverage is JSON-only (`actual` filters `.endswith(".json")`), leaving any non-JSON corpus member digested in the report but unprotected by the manifest.
+- `vm_extended.py` ignores each mutation's `expected` field and requires every entry to be refused; rejection vectors carry no reason or code, so "refused for the right reason" is unverified (5 mutations, against 26 for `scb1`).
+- `SPEC_MARKERS` pins the contract to `"Status: S20-730 contract draft"`; freezing the document fails the staged checker until the marker changes.
+- `differing_members` is validated to be `[]` unconditionally, so it is a constant field carrying no information.
+
+**P3**
+- §10 reads "Revision 1 carries none" in a revision-2 document.
+- The campaign record claims "16 offline tests"; `test_reproducibility.py` defines 12.
+- The forbidden-marker scan is case-sensitive; a bare `Popen` misses `popen` (though `subprocess` catches the usual import).
+</details>
+
+### open questions answered
+
+**Should the extended fixture record its program graph?** No — and the question dissolves on inspection. The lowered program is *already* fully recorded as `bytecode_hex`, and `_decode_body` already recovers instructions, type expressions, immediates, and terminators from it. A separate graph field would duplicate the container and create a second source of truth free to drift from it. What re-deriving the observation identity actually requires is the inputs plus evaluation semantics — that is precisely the second kernel master goal 6.5 forbids. Keep the boundary; make it explicit per family (P1-5) instead of widening the fixture.
+
+**Is the codec-and-identity boundary the right line?** Yes, the line is correctly placed. The defect is that it is undeclared: the report presents container-and-identity verification in the same vocabulary as full verification. Declare the depth and the boundary holds.
+
+**Should the demo checker move into the oracle package?** Nabu's call, and not freeze-blocking — 12 of 19 checkers already live under `scripts/` and the independence scan covers both locations.
+
+**validation:** read-only inspection of the contract, ADR, both campaign records, three scripts, `vm_extended.py`, `check_release_demo_vector.py`, both tracked reports, and the vm-extended fixtures. Two findings reproduced by executing `build_report` in-process against the tracked attestation (no writes). No cargo, no make target, no repository mutation. Tier: review-only, no validation tier consumed; V1 not applicable.
+
+**blockers:** none for this review. P0 must be closed before freeze.
+
+**return_to:** orchestrator, then Nabu (checker placement, P1-4 report semantics) and Vulcan (P2 rejection-corpus depth).
+
+S20_730_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["reproducibility report has no integrity or freshness check: report_digest is never verified, no drift check runs, and no binding ties the attested commit to the filing tree; tracked report attests ebd40dc, 65 commits stale, and make quick passes it"],"p1":["two hosts at different commits yields distinct_hosts 2 but second_host.status GATED_OPERATOR_LANE with note 'only the primary host attested', a false statement in GA evidence","host_label binds nothing and no-identity rule makes two hosts indistinguishable from one host under two labels; contract must state host distinctness is an operator assertion not an attested fact","toolchain identity recorded but never bound into the agreement rule; record toolchains per commit and derive toolchain_agreement IDENTICAL|DIVERGENT rather than requiring agreement","INDEPENDENT_CONFORMANCE_COMPLETE attests declared coverage via Makefile substring match, not achieved coverage; no exit code or oracle result enters the report","per-family coverage records no verification depth: vm-extended tagged independent_oracle while success_value_hash_hex and observation_id_hex are unchecked by vm_extended.py","section 9 exclusion 'extended VM vectors stay native-only' contradicts sections 3 and 5 at revision 2","ADR-0040 stale: proposed, revision 1, and records both families as native-only; ADR_MARKERS does not catch it","section 3 says a family without SHA256SUMS records sums_consistent null but implementation raises CONFORMANCE_FIXTURE_UNREADABLE; null and sums_file false are unreachable"],"p2":["build_reproducibility_report.py --check rebuilds from local evidence and re-supplied --attest paths so merged reports always drift; nothing calls it","oracle independence scans only .py source text, never oracle/scb1/pyproject.toml, so a declared dependency wrapping the Rust implementation passes section 4","SHA256SUMS coverage is JSON-only, leaving non-JSON corpus members unprotected by the manifest","vm_extended.py ignores each mutation's expected field and rejection vectors carry no reason code, so refusal-for-the-right-reason is unverified","SPEC_MARKERS pins the contract to 'Status: S20-730 contract draft' so freezing the document fails the staged checker","differing_members is validated to [] unconditionally and carries no information"],"p3":["section 10 reads 'Revision 1 carries none' in a revision-2 document","campaign record claims 16 offline tests; test_reproducibility.py defines 12","forbidden-marker scan is case-sensitive so a bare Popen misses the popen marker"],"notes":"Codec-and-identity oracle boundary is correctly placed but undeclared. Program graph should NOT be added: bytecode_hex already carries the lowered program and the decoder recovers it; re-deriving observation identity needs inputs plus semantics, i.e. the forbidden second kernel. Host-label granularity is the right shape but cannot carry the multi-host claim."}
+EXIT=0 2026-09-04T07:59:26Z

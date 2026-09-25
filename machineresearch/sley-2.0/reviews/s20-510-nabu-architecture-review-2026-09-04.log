@@ -1,0 +1,78 @@
+DISPATCH 510-nabu-architecture forge-nabu-510-nabu-architecture-20260904T055714 2026-09-04T05:57:14Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its supporting artifacts.
+
+Now the frozen authorities and implementation. Targeted reads:
+
+## S20-510 architecture review — verdict
+
+**status:** FAIL (freeze-blocking findings; all land as contract revisions, none require redesign)
+
+---
+
+### The composition is right; the freeze is not ready
+
+**Is S20-510 the right shape over the frozen packages?** Yes. One canonical record with five sections, and the Repository Model's eleven delta classes defined as *views* over those sections rather than as separate encodings, is the correct boundary. It introduces no second semantic model, no matching heuristic, and no thirteenth edge kind. I verified the field table (`SEMANTIC_COMPARISON_V1.md:107-144`) row-by-row against `docs/spec/SSMC1_EPOCH1_SCHEMA.txt:26-43`: all eighteen kinds, every field, no gaps, no invented tags. Limit composition is also correct and non-obvious — `seeds_base ⊆ base`, `seeds_target ⊆ target`, each ≤ the frozen 65,535 entity-binding ceiling, so the inherited `transitive-impact seeds` bound is never exceeded, and `MAX_IDENTITY_SET = 131,070 = 2 × 65,535` is exactly the two-sided union. That is deliberate work.
+
+**Does authority leak?** Two places, both fixable without moving the boundary. No cache leak (`compare.rs` memoizes nothing), no candidate bytes, and the payload's exclusion list holds — identities, tags, counts, fingerprints only.
+
+**Do the staged checker and machine-summary gates make drift impossible?** No. They make *four* distinct drift classes invisible. This is the weakest part of the package and the reason the verdict is FAIL.
+
+---
+
+### P0 — blocks freeze
+
+**P0-1. The contract's collateral seed rule does not describe the bytes the implementation emits.**
+Contract §5 states `seeds = Removed/Added ∪ Changed ∪ Retyped ∪ MetadataOnly-with-body-delta`. `compare.rs:690-692` inserts **every** entity in `body_seeds` — which `compare.rs:633` populates for every function whose fingerprint differs, *including a function that is unchanged in section 1* (same `ObjectId`, owned `Block`/`Operation` changed). §3 explicitly names that case ("`MetadataOnly` **or unchanged** in section 1 and still appears here"), and `compare.rs:2088` tests it. The oracle (`check_semantic_comparison_vector.py:317-323`) reproduces the *implementation's* rule, so it cannot catch this. `collateral` is normative and hashed into `SemanticDeltaId`: an independent implementation of the frozen text emits a different identity for the same root pair. Fix: `… ∪ {every entity carrying a body delta}`.
+
+**P0-2. Nothing binds the contract's derivation semantics to a digest.**
+`field_schema_hash` covers only the wire grammar; `decoder_limits_hash` only the counts. The change-class table, the field table, the relation rule, the collateral formula, the ordering rules, and the `COMPARE_*` table — everything that determines the emitted bytes — are guarded solely by ~19 substring markers in `check_semantic_comparison_spec.py:60-80`. Its own docstring claims it "binds the frozen identity of the contract text." It does not. Post-freeze, the collateral formula or any field-table row can be edited and every gate stays green. Fix: pin a digest of the normative body in the contract, the checker, and the machine summary.
+
+**P0-3. `DeltaSchemaEpochId` is unpinned and inherits a foreign authority.**
+It is hashed into `delta_preimage`, hence into every `SemanticDeltaId`. `delta_epoch_record()` (`compare.rs:387-408`) derives it from `EpochLimits::EPOCH_1`, `UnicodeVersion::EPOCH_1`, `hash_algorithm_tag`, `predecessor`, and `migration_contracts` — none of which the contract's envelope section enumerates. Delta identity therefore moves silently if shared epoch-1 constants move. The oracle does not close this: `check_semantic_comparison_vector.py:515` reads the epoch out of the artifact under test (`stored[11:43]`) and only checks it is uniform. Fix: pin the literal 32-byte hex as a third frozen constant, assert it in the checker, and have the oracle compare against it.
+
+---
+
+### P1 — must fix before freeze
+
+1. **Undeclared dependency edge.** `sley-ssmc` became a direct production dependency of `sley-repo` at `6ecfe89` (`crates/sley-repo/Cargo.toml`). The contract asserts "The dependency direction `sley-repo -> sley-query -> sley-check -> sley-ssmc` is unchanged" — and `check_semantic_comparison_spec.py:79` pins that exact sentence as a marker, so the gate now *certifies a false boundary claim*. The dependency itself is fine; the statement and ADR-0027 decision 3 are not.
+2. **`CompleteRootRequest::from_parts` is an unverified authority path.** `complete_root.rs:128-147` accepts a caller-supplied `StateRoot`, `WorkspaceId`, `SchemaEpochId`, and `(EntityId, ObjectId)` bindings with no recomputation. `base_root`/`target_root` are hashed into `SemanticDeltaId`, and `MetadataOnly` vs. unchanged is decided *purely* by the supplied `ObjectId`s — so a delta can assert a root pair it never verified, and S20-520 will consume it. The "verified revisions" precondition in §Inputs is prose only. Fix: recompute the root inside `compare_complete_roots`, or declare `from_parts` deltas non-authoritative and gate merge on the verified path.
+3. **Reviews are not bound to the revision they reviewed.** The checker parses the spec's `revision` (`:214`) but never compares it to `machine-summary.contract_revision`, and the three review keys are checked only for a `PASS` prefix (`:210-212`). Since these findings land as revision 2, a revision-2 contract can reach `S20_510_COMPLETE` carrying revision-1 verdicts. Fix: require `PASS@r<N>` matching the parsed revision, and fail on revision mismatch.
+4. **The independent oracle is not independent on three identity-bearing inputs**: body-delta membership (inventory-projection proxy, not the S20-250 fingerprint), the fingerprint bytes themselves, and `DeltaSchemaEpochId` — all taken from the corpus. The §Required-evidence bullet claiming an independent reproduction of "the canonical bytes, and `SemanticDeltaId`" overclaims and must be narrowed or the oracle strengthened.
+5. **SCB1 `CanonicalSet` order is ambiguous and S20-510 resolves it by assertion.** `SCB1.md:124-129` requires "strictly increasing order by their complete canonical encoded bytes" while the adjacent map clause *explicitly* excludes the element length prefix — leaving open whether the set rule includes the list element's `len` frame. `field_delta` elements are variable-length, so the two readings give different orders. Both encoder and oracle sort by the logical key `(entity_id, kind, field)` (`compare.rs:1147`, `:1448`) and never check byte order. The readings coincide only because `kind ≤ 18`, `field ≤ 8`, `flags ≤ 15` are all one-byte varints — a bound the contract never states. Fix: state the rule normatively, state the bound, and validate encoded-byte order.
+
+---
+
+### P2 — fix before completion
+
+1. `field` is not validated against its kind's row (`compare.rs:1436` checks only `1..=8`), so `(kind=Constant, field=8)` decodes. The table is closed; require the pair.
+2. The contract calls `COMPARE_INTERNAL_INVARIANT` "reserved", but it is reachable — the `(None, None)` union arm and `delta_epoch_id()` drift both return it. Correct the code table.
+3. Section 2 emits nothing for `Retyped`, and reference-bearing fields (`TypeExpr`/`ConstValue`/`ValueRef`/`Immediate`) carry no identity sets. Section 2 is therefore **not self-sufficient for S20-520 disjointness**; merge must join sections 2 and 4. Say so.
+4. `relation_deltas` (`compare.rs:1083-1108`) merge-joins `direct_edges()` assuming sorted, deduplicated input from `sley-query`, asserting nothing. A violation yields a silently wrong symmetric difference, not a failure. Assert at the crate boundary.
+5. The collateral formula's `\ (seeds_base ∪ seeds_target) restricted to unchanged entities` admits three readings of "unchanged." The implementation uses "has no entity delta." Write it as one set-builder.
+6. The checker's `implementation_complete` expectation is `status == COMPLETE_STATUS` — a consistency check between two fields of the *same file*, not a cross-check against the repo. It also never verifies the oracle, `rejected.json`, or the fuzz target exist.
+7. **Campaign open question 2 (flag granularity):** `TypeDef 2 form` bit 2 and `Function 2 parameters` bit 1 are whole-field booleans over shared members, so two branches editing *different* members of one record type produce an identical delta key with empty add/remove sets — merge cannot prove disjointness and must conflict. My recommendation: **do not add member-level entries to v1**; that changes `field_schema_hash` at the freeze boundary. State the conservative limitation and defer member granularity to a v2 field-delta variant.
+8. No fuzz coverage of `compare_complete_roots` — only the decoder. The derivation rules are what produce the identity.
+
+---
+
+### P3 — editorial
+
+`zero32` sentinel has no reserved-value rule (a real all-zero `ObjectId` is inexpressible) · `flags` bit 0 "always set" carries no information and the decoder's real rule (`bit0 set, ≤ 15`) lives only in code · dead `let _ = &changed_or_retyped;` at `compare.rs:694` marks a dropped spec concept · the contract never says how optional fields (`Contract 5`, `Namespace 1`) compare present-vs-absent · record the open-question answers and their reasons in the contract text.
+
+### Answers to the two remaining campaign open questions
+
+**Q1 — should `MetadataOnly` without a body delta seed collateral? No, the draft is right** — but the contract must carry the *reason*, not the ruling: `MetadataOnly` means the normative body is equal, hence every impact edge and every fingerprint is equal, hence no dependent's semantics can shift. Seeding it would inflate collateral without evidence and weaken merge's disjointness test. Confidence: high.
+
+**Q3 — does the record need base/target transaction identities? No, and adding them would be an authority leak.** Transactions are ancestry, which the contract excludes. Binding them into `SemanticDeltaId` would make a purely semantic derivation's identity depend on repository history — the same two roots compared in two repositories would yield different bytes, destroying the I7 property merge relies on. Keep roots only. Confidence: high.
+
+---
+
+**validation:** read-only inspection at `9dc78fe`; no cargo, no repo mutation. Verified: contract, ADR, checker, campaign, closeout; `compare.rs` classification/body-seed/collateral/encode/decode paths; `complete_root.rs:from_parts`; oracle derivation and epoch handling; fuzz target; field table against `SSMC1_EPOCH1_SCHEMA.txt` (all 18 kinds); edge kinds and limits against `FINGERPRINT_IMPACT_PROFILE_V1.md` and `COMPLETE_ENTITY_IMPACT_PROFILE_V1.md`; `SCB1.md` §4-5 encoding rules; `ERROR_CODES_V1.md:145-151`; live `machine-summary.json`; `git show 6ecfe89 -- crates/sley-repo/Cargo.toml`.
+
+**blockers:** none for this review. P0-1 needs an owner decision on direction (fix the text to match code — recommended — versus fix the code); P1-2 needs an owner decision on whether `from_parts` stays public.
+
+**return_to:** orchestrator. Findings are contract revisions; Merlin owns any `compare.rs`/checker/oracle edits, Ariadne owns the contract-text wording of P0-1/P0-2/P1-5.
+
+S20_510_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["collateral seed rule in contract §5 excludes unchanged-with-body-delta functions that compare.rs:690 and the oracle both seed; collateral is hashed into SemanticDeltaId so conforming implementations diverge","no frozen digest binds the contract's derivation semantics (change classes, field table, relation rule, collateral formula, ordering, code table); the stage checker binds ~19 substrings, not content","DeltaSchemaEpochId is unpinned and inherits EpochLimits::EPOCH_1/UnicodeVersion::EPOCH_1; the oracle reads it from the artifact under test at stored[11:43]"],"p1":["sley-repo gained a direct production dependency on sley-ssmc at 6ecfe89 while the contract asserts the dependency direction is unchanged, and the checker pins that exact false sentence","CompleteRootRequest::from_parts accepts unverified StateRoot and ObjectId bindings that are hashed into SemanticDeltaId and decide MetadataOnly vs unchanged","the checker never binds review verdicts or machine-summary contract_revision to the spec's parsed revision, so revision-1 PASS verdicts survive into revision 2","the Python oracle takes body-delta membership, fingerprint bytes, and the delta epoch id from the corpus, so the required-evidence claim of an independent SemanticDeltaId reproduction overclaims","SCB1 CanonicalSet order is ambiguous about the element length prefix; variable-length field_delta elements make the readings differ, and both encoder and oracle sort by logical key without checking encoded-byte order"],"p2":["decoder validates field only as 1..=8, never against the kind's row in the closed field table","contract calls COMPARE_INTERNAL_INVARIANT reserved but it is reachable from the union arm and delta_epoch_id drift","section 2 emits nothing for Retyped and no identity sets for reference-bearing fields, so it is not self-sufficient for S20-520 disjointness","relation_deltas merge-joins direct_edges assuming sorted deduplicated input without asserting it; a violation silently produces a wrong symmetric difference","collateral formula's 'restricted to unchanged entities' admits three readings; implementation uses 'has no entity delta'","checker's implementation_complete is a self-consistency check within one file and never verifies the oracle, rejected.json, or fuzz target exist","TypeDef form bit 2 and Function parameters bit 1 are whole-field booleans so concurrent edits to different members are indistinguishable; keep v1 granularity and state the conservative limitation rather than changing field_schema_hash at freeze","no fuzz coverage of compare_complete_roots; only the decoder is fuzzed"],"p3":["zero32 ObjectId sentinel has no reserved-value rule","flags bit 0 carries no information and its real decoder rule lives only in code","dead let _ = &changed_or_retyped at compare.rs:694","contract does not state how optional fields compare present versus absent","record the answers to campaign open questions 1 and 3 with their reasons in the contract"],"notes":"Boundary and section decomposition are correct; field table matches SSMC1 exactly for all 18 kinds and limit composition against the frozen 65535 seed ceiling is sound. FAIL is driven by identity-bearing drift holes, not by design: contract text does not specify the collateral bytes the implementation emits, and the freeze binds no digest over the derivation semantics or the delta epoch id. Recommend fixing text to match code for P0-1. MetadataOnly-not-a-seed and roots-without-transactions are both correct; record the reasons."}
+EXIT=0 2026-09-04T06:05:59Z

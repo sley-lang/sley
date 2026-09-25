@@ -1,0 +1,46 @@
+S20-400 SMP1 revision 11 — Vulcan read-only surface re-review
+Date: 2026-09-05
+Pinned repository: /home/dev/sley2
+Pinned HEAD: edb0a50ab80ae6e9596ffedeea43b916764bc6fb
+Reviewed range: edb0a50~5..edb0a50
+Mode: bounded triage; stopped once FAIL was decided
+
+status: complete
+
+verdict:
+Fractured — revision 11 closes many prior surface defects, but one prior P1 remains open and one new P1 contract/codec contradiction is report-grade. Freeze cannot pass.
+
+findings:
+P0: none found in this bounded pass.
+
+P1-1 — Prior stage-gate finding remains only partially fixed.
+The contract now states that no status “at or past freeze” may pass without Ariadne, Nabu, and Vulcan PASS reviews (docs/spec/SMP1.md:509-513). The checker, however, enforces review fields only for FROZEN_STATUS and COMPLETE_STATUS (scripts/check_smp1_contract.py:230-233). It explicitly admits DRAFT_IN_PROGRESS_STATUS and IMPLEMENTED_STATUS as valid implementation statuses (lines 20-24, 217-218), and neither is review-gated. Therefore S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING can still pass the checker without the three required PASS reviews. The prior P1-8 is not closed.
+
+P1-2 — The new below/above negotiated-version rule is unreachable on decode.
+Revision 11 says a later frame below the selected version answers PROTOCOL_DOWNGRADE and one above answers PROTOCOL_VERSION_UNSUPPORTED (docs/spec/SMP1.md:188-192). ProtocolFrame::validate rejects every protocol_version unequal to the compile-time PROTOCOL_VERSION as VERSION_UNSUPPORTED (crates/sley-protocol/src/lib.rs:996-999), and decode_frame invokes that validation before Server::dispatch (lib.rs:1185). Consequently a version-0 frame under selected version 1 is answered VERSION_UNSUPPORTED, not DOWNGRADE. Server::dispatch contains the intended SelectedProfile::check_claim branch (crates/sley-protocol/src/server.rs:532-540), but malformed-version frames cannot reach it. The added test also encodes only through the rejecting codec and expects VERSION_UNSUPPORTED for both 0 and 2, so it pins the contradiction rather than the contract rule. This is a stable wire-code/T45 mismatch.
+
+P2: none added; investigation stopped after the P1 verdict was decisive.
+P3: none added; investigation stopped after the P1 verdict was decisive.
+
+Observed closures before stopping:
+- Both-hello transcript binding and per-peer derivation are present.
+- Batch cancellation is scoped through answer_batch.
+- Per-live-session GC SessionPin retention and the exclusive collect guard are present.
+- Retryability is explicitly enumerated; reserved-method capability retry is represented.
+- Response/count ceilings, dispatch-unit charging, extended_execute negotiation, identifier-zero admission rejection, reserved-method hello rejection, failed-stream bit agreement, registry rows, appendix ordering, ADR revision, and campaign revision were present in the inspected diff.
+These observations are not a substitute for a full re-audit after the two P1s are repaired.
+
+validation:
+- Verified HEAD exactly edb0a50ab80ae6e9596ffedeea43b916764bc6fb.
+- Read the prior Vulcan review log and inspected the targeted revision-11 diff across SMP1.md, ADR-0032, ERROR_CODES_V1.md, the campaign, protocol codec/server/tests, and check_smp1_contract.py.
+- git show --check edb0a50 and git diff --check edb0a50~5..edb0a50 returned clean.
+- No cargo, make, provider action, deployment, merge, or canon mutation performed.
+- Worktree already contained unrelated untracked Ariadne and Nabu rereview logs; they were not modified.
+
+blockers:
+none; verdict decided from static evidence.
+
+return_to:
+orchestrator
+
+S20_400SURFACE_REREVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":[],"p1":["Stage gate still checks review PASS only for FROZEN and COMPLETE; the admitted S20_400_CONTRACT_DRAFT_S20_410_IMPLEMENTED_REVIEW_PENDING status can pass without all three reviews, so prior P1-8 remains open","Revision 11 requires a frame below the selected version to answer PROTOCOL_DOWNGRADE, but ProtocolFrame::validate rejects every non-current version as PROTOCOL_VERSION_UNSUPPORTED before Server::dispatch can run check_claim; the new test pins the contradictory behavior"],"p2":[],"p3":[]}

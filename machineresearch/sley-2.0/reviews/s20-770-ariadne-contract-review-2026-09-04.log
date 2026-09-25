@@ -1,0 +1,51 @@
+DISPATCH 770-ariadne-contract forge-ariadne-770-ariadne-contract-20260904T084238 2026-09-04T08:42:38Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the primary artifacts.
+
+## Ariadne contract review: S20-770 required contract index (rev 1) @ 9dc78fe
+
+**status: FAIL** (three P1s; no P0). The design is right and the gate is real. Two of the twelve rows point at the wrong defining artifact, and the registry change this work made is not recorded by the ADR that the registry cites for it.
+
+### Findings
+
+**P1-1 — 17.1 mis-attributes the entity body kinds.** `MUTATION_SCHEMA_V1.md` is S20-340, a schema *generation* spec. It parses "the eighteen `entity` declarations and their named body `record` declarations" out of `docs/spec/SSMC1_EPOCH1_SCHEMA.txt` (BLAKE3 pinned `1983bc8d…`), and says of itself that it "describes what later candidate construction may express" and cannot construct a mutation. The phrase "entity body kinds" does not occur in it. The definer is the epoch-1 manifest; MUTATION_SCHEMA_V1.md is the generated descriptor layer over it. The SCB1 §2 and OBJECT_STORE_V1.md citations in that row are exact (SCB1:50 carries `sley2.object.v1`; OBJECT_STORE_V1.md has "Stored object record").
+
+**P1-2 — 17.12 cites sections that do not define its listed domains.** `sley2.protocol-frame.v1 -> ProtocolFrameId` is defined at `SMP1.md:41`, inside **section 1, Framing** — not sections 2 or 3. Section 2 is the handshake (`SMP1.md:95` gives the preimage). Section 3, "Sessions and request identity", explicitly defers session identity to S20-330 and freezes only scoping rules; the `sley2.session.v1` preimage lives in Appendix A (`SMP1.md:345`). So the row cites a section defining none of its listed domains and omits the section defining one that is listed. Either "sections 1 and 2", or "sections 1, 2, and 3" with `sley2.session.v1` added.
+
+**P1-3 — ADR-0047 does not record the registry change attributed to it.** `IDENTIFIERS_V1.md:72` reads "Four rows were added on 2026-09-03 (ADR-0047)", and that same document rules that "adding a domain requires an ADR, fixtures, and registry drift validation". ADR-0047 has no decision item on the four domains, never names them, and records no fixtures. Meanwhile the index Boundary and the ADR status both say the work "changes no identity", while `machine-summary.json` records `domains_added_to_registry` with those four entries. ADR-0048 does this correctly and is the model. Fix by adding the decision item plus fixtures reference, and restating the boundary as deriving no new identifier while registering four already-derived domains.
+
+**P2-4 — registry completeness is half-checked.** The drift loop (checker lines 94-104) flags derived-but-unregistered only; a registry row no crate derives never fails. ADR-0048 decision 5 claims the claim and the check "cannot drift apart again", and the registry asserts a count, but neither the reverse direction nor the count is checked. I compared both directions at this commit: 50 registry rows, 50 domains derived under `crates/`, zero difference either way. So the registry does match the implementation exactly today; the gap is durability, not accuracy.
+
+**P2-5 — the count prose has already drifted.** `IDENTIFIERS_V1.md:72` says "sixteen more later the same day (ADR-0048)". ADR-0048 says fifteen, commit `0d57ec5` added exactly fifteen rows, and 31 + 4 + 15 = 50. Read "fifteen".
+
+**P2-6 — section 5 under-describes its own checker.** It lists four behaviours; the checker also runs the identifier-registry drift over every crate, validates machine-summary status and fields, checks the ERROR_CODES symbols, and requires the WORK_PACKAGES reference. The drift behaviour is the one an S20-110 reader most needs to find here.
+
+**P2-7 — 77000/77001 are reserved but never emitted.** The checker verifies both symbols exist in `ERROR_CODES_V1.md`, then classifies nothing: every failure is an untyped `problems` string, so `identifier-registry-drift:*` maps to neither code.
+
+**P2-8 — defining artifacts are checked only as `.md` under `docs/spec`** (lines 66-71); a non-`.md` definer is silently skipped. This is what blocks P1-1 as written: `SSMC1_EPOCH1_SCHEMA.txt` cannot currently be named and checked.
+
+**P2-9 — section citations are unverified prose.** File existence is checked; "section 2", "sections 2 and 3", "section on the execution envelope" are not. That is how P1-2 reached review.
+
+**P3-10 —** 17.9 and 17.10 say "section on the execution envelope" / "section on the test envelope" where the document is numbered (§2 and §5; §6 and §7). **P3-11 —** in `REPORT_ENVELOPE_PROFILE_V1.md`, `### 9.1` sits at line 283, after `## 10` at line 261; 17.10 depends on that pointer.
+
+### Answers to the four posed questions
+
+- **Do the four new domains belong in IDENTIFIERS_V1.md?** Yes, and the call is correct. Domain separation is a registry-level property: a reviewer confirms no two preimages share a domain by reading one table. A domain living only in its owning contract cannot be checked for collision. ADR-0048 states this reasoning; ADR-0047 should have.
+- **Does the registry now match the implementation exactly?** Yes at 9dc78fe, verified both directions. But only one direction is enforced (P2-4), and the prose count is already wrong (P2-5).
+- **Is index-not-restate the right relationship?** Yes, with the "document wins" tiebreak. Restating frozen rules creates a second source that drifts; the index accepts pointer error as the cheaper failure mode. P1-1 and P1-2 are exactly that failure mode, so the mitigation is checking the pointers (P2-9), not restating.
+- **Do all twelve rows name the actual definer?** Ten do. 17.1 and 17.12 do not. Separately, the twelve required names appear nowhere in the repository except this index and ADR-0047, and the master goal is not in-tree or cited by path, so fidelity of the twelve names to section 17 is unverifiable from the worktree and unchecked by the gate. Noting it as a scope boundary rather than a finding, since the composed authority is external by construction.
+
+### validation
+
+Read-only inspection at pinned worktree 9dc78fe; no `make` target, no cargo. Ran the staged checker directly (`python3 scripts/check_required_contract_index.py`): `result: PASS`, `problems: []`, exit 0, status `S20_770_CONTRACT_DRAFT_REVIEW_PENDING`, 12 rows / 19 documents / 18 checkers / 14 domains / 50 derived domains. `git status --porcelain` empty after. Confirmed all 18 named checkers exist and are invoked by the Makefile, the index checker runs under `quick` (Makefile:72), and all 19 named documents exist. Confirmed 17.10's "checkable reason" is genuine: `check_report_envelope_profile.py:92-100` fails if `crates/sley-vm/src/execute.rs` gains any of the four TestCase resource-unit markers. V1 not run and not required for a read-only document review.
+
+### blockers
+
+None. No repository mutation, no spend, no deploy.
+
+### return_to
+
+Orchestrator. P1-1 and P1-2 are bounded Sley documentation edits; P1-3 is an ADR amendment. P2-4 and P2-8 are checker changes and touch the S20-110 registry gate, so the placement of registry-drift enforcement inside an S20-770 checker is worth a line from Nabu before Merlin executes.
+
+S20_770_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":[],"p1":["17.1 names MUTATION_SCHEMA_V1.md as defining the entity body kinds; that document is the S20-340 generator over docs/spec/SSMC1_EPOCH1_SCHEMA.txt, which is the actual definer, and the phrase does not appear in it","17.12 cites SMP1 sections 2 and 3, but sley2.protocol-frame.v1 is defined in section 1 (Framing, SMP1:41) and section 3 defers session identity to S20-330 with the sley2.session.v1 preimage in Appendix A (SMP1:345); cite sections 1 and 2, or add sley2.session.v1 and cite 1 through 3","IDENTIFIERS_V1.md:72 cites ADR-0047 as authority for four added domains, but ADR-0047 records no such decision, names none of the four, and lists no fixtures, while the index boundary and ADR status both claim the work changes no identity and machine-summary.json records domains_added_to_registry"],"p2":["registry drift is checked in one direction only (derived not in registry); a registry row no crate derives never fails, and the fifty-domain count is unchecked, so ADR-0048 decision 5 overclaims; sets are exact today, verified both ways","IDENTIFIERS_V1.md:72 says sixteen rows were added by ADR-0048; ADR-0048 and commit 0d57ec5 both say fifteen, and 31 plus 4 plus 15 equals 50","index section 5 omits four checker behaviours, notably the cross-crate identifier registry drift check that S20-110 readers most need to locate","codes 77000 and 77001 are reserved and verified present in ERROR_CODES_V1.md but never emitted; all failures are untyped problem strings","defining artifacts are validated only when they end in .md under docs/spec, so a non-md definer such as SSMC1_EPOCH1_SCHEMA.txt cannot be named and checked","section citations inside cells are unverified prose; only file existence is checked, which is how the 17.12 section error survived"],"p3":["17.9 and 17.10 cite unnumbered sections of REPORT_ENVELOPE_PROFILE_V1.md which has numbered sections 2, 5, 6, and 7","REPORT_ENVELOPE_PROFILE_V1.md subsection 9.1 is placed at line 283, after section 10 at line 261, and 17.10 relies on that pointer"],"notes":"Index-not-restate is the right relationship and the four domain registrations are correct. Staged checker passes with zero problems at 9dc78fe and the registry matches the implementation exactly in both directions today. FAIL is driven by two wrong defining-artifact citations and an ADR that does not record the registry change the registry attributes to it. Read-only; no make, no cargo, tree unmodified."}
+EXIT=0 2026-09-04T08:47:29Z

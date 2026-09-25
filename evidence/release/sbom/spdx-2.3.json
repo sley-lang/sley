@@ -1,0 +1,2304 @@
+{
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "creationInfo": {
+    "comment": "derived from the S20-710 locked offline inventory and the S20-720 candidate evidence; the fixed creation instant keeps the document deterministic, and the document is a local draft with no license conclusion and no publication",
+    "created": "1970-01-01T00:00:00Z",
+    "creators": [
+      "Tool: sley2-standards-sbom-1"
+    ]
+  },
+  "dataLicense": "CC0-1.0",
+  "documentNamespace": "urn:sley2:spdx:aaf3c129f5d0d3c3798096f6bb7f8e24a0b0c79542279e8c6c7ccc7b0fa9974b:fc28c772817fd79a5ae3817bd4c64ddfffd3a726fb37a6d751c1cf06f6db7d00",
+  "name": "sley-2.0.0-linux-x86_64",
+  "packages": [
+    {
+      "SPDXID": "SPDXRef-Package-sley-candidate",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "fc28c772817fd79a5ae3817bd4c64ddfffd3a726fb37a6d751c1cf06f6db7d00"
+        }
+      ],
+      "comment": "the local Sley 2 release candidate; unsigned, unpublished, and not a GA claim (S20-720, S20-730)",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-2.0.0-linux-x86_64.tar.gz",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-arrayref-0.3.9",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/arrayref@0.3.9",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "BSD-2-Clause",
+      "name": "arrayref",
+      "versionInfo": "0.3.9"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-arrayvec-0.7.8",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/arrayvec@0.7.8",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "arrayvec",
+      "versionInfo": "0.7.8"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-blake3-1.8.2",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "3888aaa89e4b2a40fca9848e400f6a658a5a3978de7be858e209cafa8be9a4a0"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/blake3@1.8.2",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception",
+      "name": "blake3",
+      "versionInfo": "1.8.2"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-block-buffer-0.12.1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/block-buffer@0.12.1",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "block-buffer",
+      "versionInfo": "0.12.1"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-cc-1.4.4",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "0ad534f4357a5264cce5019c989cf66a4f0dc4e0d1b1d15f8aacec0ff7360273"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/cc@1.4.4",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "cc",
+      "versionInfo": "1.4.4"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-cfg-if-1.0.4",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/cfg-if@1.0.4",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "cfg-if",
+      "versionInfo": "1.0.4"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-constant-time-eq-0.3.1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/constant_time_eq@0.3.1",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "CC0-1.0 OR MIT-0 OR Apache-2.0",
+      "name": "constant_time_eq",
+      "versionInfo": "0.3.1"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-cpufeatures-0.3.1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/cpufeatures@0.3.1",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "cpufeatures",
+      "versionInfo": "0.3.1"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-crypto-common-0.2.2",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/crypto-common@0.2.2",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "crypto-common",
+      "versionInfo": "0.2.2"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-curve25519-dalek-derive-0.1.1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/curve25519-dalek-derive@0.1.1",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "curve25519-dalek-derive",
+      "versionInfo": "0.1.1"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-curve25519-dalek-5.0.0",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "b5eed333089e2e1c1ac8c6c0398e5e2497b4c9926ca6d0365ed1e099afa5bc23"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/curve25519-dalek@5.0.0",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "BSD-3-Clause",
+      "name": "curve25519-dalek",
+      "versionInfo": "5.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-digest-0.11.3",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/digest@0.11.3",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "digest",
+      "versionInfo": "0.11.3"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-ed25519-dalek-3.0.0",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/ed25519-dalek@3.0.0",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "BSD-3-Clause",
+      "name": "ed25519-dalek",
+      "versionInfo": "3.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-ed25519-3.0.0",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "29fcf32e6c73d1079f83ab4d782de2d81620346a5f38c6237a86a22f8368980a"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/ed25519@3.0.0",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0 OR MIT",
+      "name": "ed25519",
+      "versionInfo": "3.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-fiat-crypto-0.3.0",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/fiat-crypto@0.3.0",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0 OR BSD-1-Clause",
+      "name": "fiat-crypto",
+      "versionInfo": "0.3.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-find-msvc-tools-0.1.11",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "d45db016d36b838f563236e9193d0ee6ce38f3f68b6c94e914b4929c96bbb890"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/find-msvc-tools@0.1.11",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "find-msvc-tools",
+      "versionInfo": "0.1.11"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-hybrid-array-0.4.14",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "707114b52a152fa7bdb290cd7cd5912d9467273b6d74e21b8d81aca1f8533f6b"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/hybrid-array@0.4.14",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "hybrid-array",
+      "versionInfo": "0.4.14"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-itoa-1.0.18",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/itoa@1.0.18",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "itoa",
+      "versionInfo": "1.0.18"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-libc-0.2.189",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/libc@0.2.189",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "libc",
+      "versionInfo": "0.2.189"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-memchr-2.8.3",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/memchr@2.8.3",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Unlicense OR MIT",
+      "name": "memchr",
+      "versionInfo": "2.8.3"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-proc-macro2-1.0.107",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/proc-macro2@1.0.107",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "proc-macro2",
+      "versionInfo": "1.0.107"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-quote-1.0.47",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/quote@1.0.47",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "quote",
+      "versionInfo": "1.0.47"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-rustc-version-0.4.1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/rustc_version@0.4.1",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "rustc_version",
+      "versionInfo": "0.4.1"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-ryu-1.0.23",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/ryu@1.0.23",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0 OR BSL-1.0",
+      "name": "ryu",
+      "versionInfo": "1.0.23"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-semver-1.0.28",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "8a7852d02fc848982e0c167ef163aaff9cd91dc640ba85e263cb1ce46fae51cd"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/semver@1.0.28",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "semver",
+      "versionInfo": "1.0.28"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-serde-1.0.228",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/serde@1.0.228",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "serde",
+      "versionInfo": "1.0.228"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-serde-core-1.0.228",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/serde_core@1.0.228",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "serde_core",
+      "versionInfo": "1.0.228"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-serde-derive-1.0.228",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/serde_derive@1.0.228",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "serde_derive",
+      "versionInfo": "1.0.228"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-serde-json-1.0.145",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/serde_json@1.0.145",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "serde_json",
+      "versionInfo": "1.0.145"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sha2-0.11.0",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sha2@0.11.0",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "sha2",
+      "versionInfo": "0.11.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-shlex-2.0.1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/shlex@2.0.1",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "shlex",
+      "versionInfo": "2.0.1"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-signature-3.0.0",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "28d567dcbaf0049cb8ac2608a76cd95ff9e4412e1899d389ee400918ca7537f5"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/signature@3.0.0",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0 OR MIT",
+      "name": "signature",
+      "versionInfo": "3.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-adapter-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-adapter@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-adapter",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-check-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-check@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-check",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-cli-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-cli@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-cli",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-conformance-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-conformance@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-conformance",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-id-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-id@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-id",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-json-bridge-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-json-bridge@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-json-bridge",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-mutate-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-mutate@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-mutate",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-policy-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-policy@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-policy",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-protocol-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-protocol@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-protocol",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-query-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-query@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-query",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-repo-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-repo@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-repo",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-scb1@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-scb1",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-schema-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-schema@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-schema",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-ssmc@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-ssmc",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-state-root-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-state-root@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-state-root",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-store-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-store@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-store",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-test-runner-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-test-runner@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-test-runner",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-tests-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-tests@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-tests",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-txn-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-txn@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-txn",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-sley-vm-2.0.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/sley-vm@2.0.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley-vm",
+      "versionInfo": "2.0.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-subtle-2.6.1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/subtle@2.6.1",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "BSD-3-Clause",
+      "name": "subtle",
+      "versionInfo": "2.6.1"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-syn-2.0.119",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/syn@2.0.119",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "syn",
+      "versionInfo": "2.0.119"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-tinyvec-1.12.0",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "bb4ebadaa0af04fab11ae01eb5f9fdb5f9c5b875506e210e71c07873528baa7f"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/tinyvec@1.12.0",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Zlib OR Apache-2.0 OR MIT",
+      "name": "tinyvec",
+      "versionInfo": "1.12.0"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-tinyvec-macros-0.1.1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/tinyvec_macros@0.1.1",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0 OR Zlib",
+      "name": "tinyvec_macros",
+      "versionInfo": "0.1.1"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-typenum-1.20.1",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/typenum@1.20.1",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "typenum",
+      "versionInfo": "1.20.1"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-unicode-ident-1.0.24",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/unicode-ident@1.0.24",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "(MIT OR Apache-2.0) AND Unicode-3.0",
+      "name": "unicode-ident",
+      "versionInfo": "1.0.24"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-unicode-normalization-0.1.24",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "5033c97c4262335cded6d6fc3e5c18ab755e1a3dc96376350f3d8e9f009ad956"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/unicode-normalization@0.1.24",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "MIT OR Apache-2.0",
+      "name": "unicode-normalization",
+      "versionInfo": "0.1.24"
+    },
+    {
+      "SPDXID": "SPDXRef-cargo-zeroize-1.9.0",
+      "checksums": [
+        {
+          "algorithm": "SHA256",
+          "checksumValue": "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
+        }
+      ],
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://github.com/rust-lang/crates.io-index",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:cargo/zeroize@1.9.0",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0 OR MIT",
+      "name": "zeroize",
+      "versionInfo": "1.9.0"
+    },
+    {
+      "SPDXID": "SPDXRef-pypi-blake3-1.0.9",
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW; 53 locked platform artifacts, so no single artifact digest identifies this package",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://pypi.org/simple",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:pypi/blake3@1.0.9",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "CC0-1.0 OR Apache-2.0",
+      "name": "blake3",
+      "versionInfo": "1.0.9"
+    },
+    {
+      "SPDXID": "SPDXRef-pypi-sley2-scb1-oracle-0.1.0",
+      "comment": "license disposition APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:pypi/sley2-scb1-oracle@0.1.0?workspace=true",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "sley2-scb1-oracle",
+      "versionInfo": "0.1.0"
+    },
+    {
+      "SPDXID": "SPDXRef-pypi-unicodedata2-16.0.0",
+      "comment": "license disposition DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW; 13 locked platform artifacts, so no single artifact digest identifies this package",
+      "copyrightText": "NOASSERTION",
+      "downloadLocation": "https://pypi.org/simple",
+      "externalRefs": [
+        {
+          "referenceCategory": "PACKAGE-MANAGER",
+          "referenceLocator": "pkg:pypi/unicodedata2@16.0.0",
+          "referenceType": "purl"
+        }
+      ],
+      "filesAnalyzed": false,
+      "licenseConcluded": "NOASSERTION",
+      "licenseDeclared": "Apache-2.0",
+      "name": "unicodedata2",
+      "versionInfo": "16.0.0"
+    }
+  ],
+  "relationships": [
+    {
+      "relatedSpdxElement": "SPDXRef-Package-sley-candidate",
+      "relationshipType": "DESCRIBES",
+      "spdxElementId": "SPDXRef-DOCUMENT"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-arrayref-0.3.9",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-blake3-1.8.2"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-arrayvec-0.7.8",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-blake3-1.8.2"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-cc-1.4.4",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-blake3-1.8.2"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-cfg-if-1.0.4",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-blake3-1.8.2"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-constant-time-eq-0.3.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-blake3-1.8.2"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-hybrid-array-0.4.14",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-block-buffer-0.12.1"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-find-msvc-tools-0.1.11",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-cc-1.4.4"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-shlex-2.0.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-cc-1.4.4"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-libc-0.2.189",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-cpufeatures-0.3.1"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-hybrid-array-0.4.14",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-crypto-common-0.2.2"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-cfg-if-1.0.4",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-5.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-cpufeatures-0.3.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-5.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-curve25519-dalek-derive-0.1.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-5.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-digest-0.11.3",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-5.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-fiat-crypto-0.3.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-5.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-rustc-version-0.4.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-5.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-subtle-2.6.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-5.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-zeroize-1.9.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-5.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-proc-macro2-1.0.107",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-derive-0.1.1"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-quote-1.0.47",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-derive-0.1.1"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-syn-2.0.119",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-curve25519-dalek-derive-0.1.1"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-block-buffer-0.12.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-digest-0.11.3"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-crypto-common-0.2.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-digest-0.11.3"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-signature-3.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-ed25519-3.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-curve25519-dalek-5.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-ed25519-dalek-3.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-ed25519-3.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-ed25519-dalek-3.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sha2-0.11.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-ed25519-dalek-3.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-subtle-2.6.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-ed25519-dalek-3.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-zeroize-1.9.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-ed25519-dalek-3.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-typenum-1.20.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-hybrid-array-0.4.14"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-unicode-ident-1.0.24",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-proc-macro2-1.0.107"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-proc-macro2-1.0.107",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-quote-1.0.47"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-semver-1.0.28",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-rustc-version-0.4.1"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-core-1.0.228",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-1.0.228"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-derive-1.0.228",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-1.0.228"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-derive-1.0.228",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-core-1.0.228"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-proc-macro2-1.0.107",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-derive-1.0.228"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-quote-1.0.47",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-derive-1.0.228"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-syn-2.0.119",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-derive-1.0.228"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-itoa-1.0.18",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-json-1.0.145"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-memchr-2.8.3",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-json-1.0.145"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-ryu-1.0.23",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-json-1.0.145"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-1.0.228",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-json-1.0.145"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-core-1.0.228",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-serde-json-1.0.145"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-cfg-if-1.0.4",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sha2-0.11.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-cpufeatures-0.3.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sha2-0.11.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-digest-0.11.3",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sha2-0.11.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-adapter-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-check-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-check-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-json-bridge-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-protocol-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-repo-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-test-runner-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-cli-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-conformance-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-id-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-json-bridge-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-json-bridge-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-protocol-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-json-bridge-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-1.0.228",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-mutate-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-policy-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-conformance-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-query-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-repo-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-store-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-txn-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-protocol-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-query-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-libc-0.2.189",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-query-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-store-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-txn-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-repo-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-1.0.228",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-serde-json-1.0.145",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-unicode-normalization-0.1.24",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-scb1-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-schema-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-schema-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-schema-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-ssmc-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-state-root-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-state-root-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-state-root-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-store-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-store-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-ed25519-dalek-3.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sha2-0.11.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-test-runner-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-vm-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-tests-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-ed25519-dalek-3.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-policy-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-store-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-tests-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-txn-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-blake3-1.8.2",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sha2-0.11.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-check-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-id-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-mutate-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-scb1-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-schema-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-ssmc-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-sley-state-root-2.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-sley-vm-2.0.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-proc-macro2-1.0.107",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-syn-2.0.119"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-quote-1.0.47",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-syn-2.0.119"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-unicode-ident-1.0.24",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-syn-2.0.119"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-tinyvec-macros-0.1.1",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-tinyvec-1.12.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-cargo-tinyvec-1.12.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-cargo-unicode-normalization-0.1.24"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-pypi-blake3-1.0.9",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-pypi-sley2-scb1-oracle-0.1.0"
+    },
+    {
+      "relatedSpdxElement": "SPDXRef-pypi-unicodedata2-16.0.0",
+      "relationshipType": "DEPENDS_ON",
+      "spdxElementId": "SPDXRef-pypi-sley2-scb1-oracle-0.1.0"
+    }
+  ],
+  "spdxVersion": "SPDX-2.3"
+}

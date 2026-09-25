@@ -1,0 +1,10 @@
+module app.carry
+
+export task carry -> Int {
+  take value: Int
+  return value + 1
+}
+
+task main -> Int {
+  return call carry(43)
+}

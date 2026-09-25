@@ -1,0 +1,137 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "ariadne",
+      "section": "root_backed_query_profile",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_1_P3_0_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/root_backed_query_profile/ariadne-e050fe7.md",
+      "sha256": "f59e8f1af81d18d5fb13aef62455c48709dabdc65e59d68df1c8e847094c424a",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "reproducibility_and_independent_conformance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_1_P3_3_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne-e050fe7.md",
+      "sha256": "9c649094ea7e157672464eac62e8c1fd3ea8c31bda37dee7062efb2e256efa74",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "standards_sbom_and_provenance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_1_P3_3_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne-e050fe7.md",
+      "sha256": "372b5289c731a0f17c4e7c3f7279ec63fa6fbba8aa7e5b9908067054074b700f",
+      "process_exit_code": 0
+    },
+    {
+      "role": "ariadne",
+      "section": "decision_dossier",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_1_P3_2_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/decision_dossier/ariadne-e050fe7.md",
+      "sha256": "5eebbe1b3f132f220e54486127ead1ab9a635167787994f9e51a838a06ba65ff",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "root_backed_query_profile",
+      "verdict": "PASS",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/root_backed_query_profile/nabu-e050fe7.md",
+      "sha256": "0c3983a1ceb54e842a9dcdd1c6462a0f9fcd0150f181460b395966ddd841cbf9",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "reproducibility_and_independent_conformance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_1_P3_2_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu-e050fe7.md",
+      "sha256": "9514dd5106ae5d1cc28d75a535f6fa3a86df758f8fe6421791683feaca6704bf",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "standards_sbom_and_provenance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_4_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/standards_sbom_and_provenance/nabu-e050fe7.md",
+      "sha256": "552ab9489c82a92bd91694387f7dfea40a5ce152a466ca678226751d564223fa",
+      "process_exit_code": 0
+    },
+    {
+      "role": "nabu",
+      "section": "decision_dossier",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/decision_dossier/nabu-e050fe7.md",
+      "sha256": "d4fdd16cac41c869bd270440bd840edd12e21d12c9e1187ade78f989b9e6ceb2",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "root_backed_query_profile",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_2_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/root_backed_query_profile/vulcan-e050fe7.md",
+      "sha256": "b79df4ea403f81a907fe40e8b02f24098c697adacd71a06e5e16788dc8b9259d",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "reproducibility_and_independent_conformance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_1_P3_4_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan-e050fe7.md",
+      "sha256": "fa86c8cd08db5bf2cf43134f5fb74f52809d490abbd07eb2e3373f5874ff46b9",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "standards_sbom_and_provenance",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_1_P3_5_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan-e050fe7.md",
+      "sha256": "135f0456403e906e97aa94006165525fd0ae2d718a5bd9bdf9f3a4cae8f9fa4e",
+      "process_exit_code": 0
+    },
+    {
+      "role": "vulcan",
+      "section": "decision_dossier",
+      "verdict": "REVISE_0_P0_0_P1_0_P2_0_P3_3_P4",
+      "scope_sha": "e050fe75a86c1b2f0bf779561ac2bc70bce34289",
+      "path": "evidence/review/verdicts/decision_dossier/vulcan-e050fe7.md",
+      "sha256": "8ea29b8f7526e2149cd4441e7385de703f0a85899c29e750d9f66e5de762c1db",
+      "process_exit_code": 0
+    }
+  ],
+  "note": "Exact independent verdicts recorded in current_delta_review leaves. Historical verdicts preserved. No package status promoted; findings have not been repaired by this review round. Severity counts are per-lane mentions and include overlapping findings.",
+  "date": "2026-09-15",
+  "model": "claude-fable-5-1",
+  "source_candidate": "9b4f0648c9e226b0852d7a83b10ac6f550ecf45b",
+  "verdict_counts": {
+    "PASS": 1,
+    "REVISE": 11
+  },
+  "finding_mentions": {
+    "P3": 7,
+    "P4": 30
+  },
+  "validation_limit": "Static independent reviews; Python, checker and test execution denied within reviewer harness sessions. Prior executed validation is separately recorded in evidence/validation/qualification-recovery-2026-09-15.json.",
+  "registration_validation": {
+    "evidence_refresh_exit": 0,
+    "release_candidate_verify_exit": 0,
+    "root_query_checker_exit": 0,
+    "transcript_hashes_verified": 12,
+    "changed_paths_records_only": true,
+    "source_candidate_unchanged": true,
+    "scope": "Orchestrator checks after filing the reviews; these do not repair or close reviewer findings."
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-TEST-001",
+  "arm": "sley2",
+  "negative": "impl_touched",
+  "expected_code": "ORACLE_IMPL_TOUCHED",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

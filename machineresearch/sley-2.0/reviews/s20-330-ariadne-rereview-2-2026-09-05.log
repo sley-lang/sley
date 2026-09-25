@@ -1,0 +1,38 @@
+DISPATCH S20-330 Ariadne contract second re-review
+handoff_id: handoff_1788665836705_e6c532107629ff1ab05b
+attempt_id: attempt_1788665836705_1e7d32a7f668def93bdb
+reviewed_at: 2026-09-05 EDT
+repo: /home/dev/sley2
+pinned_head: bec446886d18441b35cfa48bcadb6f3a96ad6f9b
+mode: bounded read-only triage; this log is the sole permitted write
+
+Repository preflight
+- HEAD matched bec446886d18441b35cfa48bcadb6f3a96ad6f9b.
+- Commit bec4468 has parent bf715f9c33d0a3235e01af8c670ce5b3ae46977d and subject "fix: close the first-round re-review residuals on the 330 package".
+- Branch reported main...origin/main [ahead 541, behind 90].
+- Pre-existing unrelated untracked path: machineresearch/sley-2.0/reviews/s20-330-vulcan-rereview-2-2026-09-05.log.
+- No cargo, make, deploy, merge, service activation, provider action, or external action was run.
+
+S20_330_CONTRACT_REREVIEW2_JSON={"reviewer":"ariadne","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[],"notes":"The first re-review P1 is closed at bec4468: contract, ADR, regression assertion, T15 evidence, precedence matrix, and revision history now agree with implemented root-before-budget precedence; no new findings in the bounded target diff."}
+
+Human verdict
+PASS. The first re-review residual is closed on the pinned commit, with no new P0, P1, P2, or P3 finding in the bounded target diff.
+
+Residual closure evidence
+- docs/spec/SESSION_HANDLE_PROFILE_V1.md section 3 now orders the head-bound root check as item 5 and budget as item 6, explicitly stating that a stale bound root on an exhausted head-bound request wins over the budget failure.
+- The same section updates head-bound references from item 6 to item 5 and states that non-head-bound and reserved methods skip item 5 but still pass item 6.
+- ADR-0033 decision 3 now states workspace, epoch, bound root for the closed head-bound set, then budget, and explicitly says the budget never masks a stale bound-root failure.
+- crates/sley-protocol/src/server.rs remains consistent: after liveness and request-id admission, dispatch invokes session_check before inspecting the work budget. SessionAuthority::check_session checks workspace, epoch, and, for head-bound methods, bound root in that order.
+- crates/sley-protocol/src/server_tests.rs::binding_failures_precede_budget_exhaustion now constructs an exhausted session whose repository head has advanced and asserts SESSION_ROOT_ADVANCED for WorkspaceOpen before restoring the valid binding and asserting PROTOCOL_LIMIT_EXCEEDED.
+- evidence/security/T15/matrix.json records the exhausted-budget/stale-root assertion and names binding_failures_precede_budget_exhaustion.
+- SESSION_HANDLE_PROFILE_V1 section 7 names both workspace mismatch and stale bound root in the precedence matrix; section 9 records the correction.
+- scripts/check_session_handle_profile.py updates the head-bound anchor to item 5. Its additional code-pair strengthening is internally coherent and introduces no bounded finding.
+
+Validation
+- Tier: none, by explicit instruction.
+- Read-only checks: git status, rev-parse, show/log metadata, target diff, diff --check, and targeted reads/rg of the prior review, profile sections 3/7/9, ADR decision 3, checker anchors, server dispatch/session_check, regression test, and T15 matrix.
+- git diff --check bec4468~1..bec4468: PASS (no whitespace errors).
+- cargo/make/V1: skipped by instruction.
+
+blockers: none.
+return_to: orchestrator.

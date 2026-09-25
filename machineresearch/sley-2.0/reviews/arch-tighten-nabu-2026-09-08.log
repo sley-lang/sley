@@ -1,0 +1,29 @@
+[33m[state/agent-db][39m [33mslow OpenClaw agent database open[39m
+status: FAIL
+
+findings:
+- **P1, canonical identity:** `BOOTSTRAP_PROFILE_1_DIGEST` was changed in place although its comment promises frozen, byte-identical history. This changes v1 package, receipt, and observation identities without a new version. Evidence: `crates/sley-vm/src/exec_package.rs:110-114`; governing rule: `SLEY-2.0-ARCHITECTURE-TIGHTENING.md:86-101`. Required repair: restore the historical literal and declare v1 non-evidence, or introduce an explicit successor identity and migration record. Absence of persisted vectors does not authorize redefining v1.
+- **P1, native/self-host evidence:** AT-NA-04 claims `build_anti_goal_conformance.py --check` passes, but it fails because the tracked report differs from derivation. The tracked report still records 12 commits outside `origin/main` at `evidence/validation/anti-goal-conformance.json:173-175`. Required repair: regenerate the derived report at the final candidate, commit it, and rerun `--check`.
+- **P1, remote inspectability:** the reviewed SHA `8ff792e9...` is one commit behind `origin/arch/tighten-r1` at `cb6b65f5...`. `check_remote_head.py` passes without binding the candidate SHA to the upstream branch tip, while the locator only names the branch and the older main integration SHA at `docs/status/SLEY2-REMOTE-HEAD.md:7-10,27-28`. Required repair: record an exact candidate SHA per active lane and verify it against the intended upstream ref, or create a stable review ref pointing exactly at `8ff792e9...`.
+- **P3, bookkeeping:** the audit contains 80 `FINDING_ID` records, not the stated 79. Every one has exactly one disposition. Required repair: reconcile the campaign count and any dependent summaries.
+
+ProgramRoot rejection and the executable-closure conclusion were supported by the inspected repository paths. The native-foundation stage reasoning is structurally sound for SH0/C0, but cannot pass while its required derived evidence is stale.
+
+validation:
+- Candidate HEAD verified: `8ff792e9f9a5f26e6556b3204887c3f6d4e26b6d`, clean detached worktree.
+- Disposition parser: 80 findings, zero missing or duplicate dispositions.
+- PASS: bootstrap profile v1/v2, bootstrap capability, execution-package markers, SMP1 bridge, CLI, candidate-result, transaction, remote-head checker.
+- PASS: exact frozen-v2-vector Cargo test, 1 test.
+- FAIL: `python3 scripts/build_anti_goal_conformance.py --check`.
+- Repository-exchange Python checker was not runnable because local `blake3` is unavailable.
+- Stopped after P1 findings decided the verdict, per bounded-triage instruction.
+
+blockers:
+- None to issuing the verdict.
+
+return_to:
+- Orchestrator, for a bounded repair slice and fresh immutable candidate.
+
+```json
+{"ARCHITECTURE_TIGHTENING_PASS": false, "CANONICAL_IDENTITY_PASS": false, "NATIVE_AUTHORITY_PASS": false, "SELFHOST_BOUNDARY_PASS": false, "SPEC_SYNC_PASS": false, "REMOTE_INSPECTABILITY_PASS": false, "verdict": "FAIL", "p0": 0, "p1": 3, "p2": 0, "p3": 1}
+```

@@ -1,0 +1,30 @@
+RW-075 architecture/boundary delta re-review, round 9 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta,
+explicit checkout root `/home/dev/sley2`).
+Commit reviewed: 275bcb0 (RW-075 correction round-8 repairs).
+
+status: complete
+
+VERDICT: FAIL. Confidence: high.
+
+findings:
+- **BLOCKER R8-B1 remains:** `admit_v2_package` accepts independent `BootstrapProfileInput` and `LoweringInput` values without proving they describe the same closure. An admissible graph A can supply the gate report while a different graph B is re-lowered into the package image. Matching entry/import summaries and A-derived package claims allow approval of B, including potentially non-bootstrap content.
+- **Exclusive minting is not enforced:** `admit_package_v2` remains public and re-exported from `lib.rs`. The marker script confirms the preferred call path exists but cannot make it exclusive.
+- **BLOCKER R8-B2 remains:** the fixture now genuinely lowers and executes, but it does not assemble the semantic preimage in Sley. Rust supplies the complete `SLEYSFP1type-fields` octet vector; Sley only converts that preassembled vector to `Bytes` and hashes it.
+- The `SLEYCHNK1` `17 + 32*N` correction passes.
+
+validation:
+- Reviewed commit `275bcb00e4645dd340aee8684a3318e6b0533d0e`.
+- Targeted review of the round-8 findings, complete commit delta, authority/package/lowering interfaces, marker script, specifications, and rewritten fixture.
+- Worktree clean; `git diff --check 275bcb0^ 275bcb0` passed.
+- No tests executed because the handoff permitted read-only actions.
+
+blockers:
+- Use one canonical closure request from which the authority internally derives both gate and lowering inputs; add an adversarial graph-A/gate versus graph-B/lowering regression.
+- Make the v2 receipt constructor private to the authority and remove its public re-export.
+- Execute an internally assembled preimage path—for example, separate domain and field inputs threaded through conversion/push/conversion/hash with `Result` unwrapping—not a caller-preassembled byte vector.
+
+return_to: RW-075 orchestrator
+
+Disposition: Nabu lane FAIL round 9. Preserved unedited; repairs above
+are a separate delta verified in round 10.

@@ -1,0 +1,54 @@
+{
+ "admission": {
+  "mechanism": "existing bootstrap feature-admission (S20-230 owner amendment path); SH2 primitive-crypto permission, not general FFI",
+  "reachability": "admitted contract plus implementation and vectors in RW-075; host-import wiring belongs to the RW-080 construction manifest (BOOTSTRAP_PROFILE_1 NOT broadened here)",
+  "status": "admitted-not-yet-reachable"
+ },
+ "algorithm": {
+  "name": "BLAKE3-256",
+  "reference": "audited blake3 =1.8.2 crate (the exact pin already carried by sley-id); no Sley-side reimplementation exists or is permitted",
+  "variant_selector": "u32 exact match on 1; every other variant refuses with UnknownVariant without hashing (default deny; no fallback, no negotiation)"
+ },
+ "contract": "sley2-raw-hash-1",
+ "design_principle": "Sley constructs the exact semantic and domain-separated preimage as Bytes; the host performs a narrow audited primitive hash over those bytes and adds no domain, prefix, canonicalization, or judgment",
+ "failure": {
+  "over_bound": "deterministic ResourceLimit past 1_048_576 bytes (never truncation)",
+  "unknown_variant": "UnknownVariant for any algorithm tag other than 1"
+ },
+ "forbidden_natives": [
+  "fingerprint(program)",
+  "object_id(program)",
+  "validate_and_hash_object(program)",
+  "candidate_digest(high_level_candidate)",
+  "any other native semantic digest service"
+ ],
+ "fuel": {
+  "charged_by": "the caller through the existing charge_action mechanism when invoked as a host import (RW-080 wiring)",
+  "schedule": "1 plus ceil(len divided by 1024), minimum 1"
+ },
+ "identity": "RAW_BLAKE3_V1",
+ "input": {
+  "max_bytes": 1048576,
+  "max_note": "the frozen 1 MiB bridge ceiling, NOT the 64 MiB image ceiling; larger compiler preimages are chunked by the Sley driver",
+  "shape": "exact Bytes (Sley Bytes value bytes)"
+ },
+ "inventory_note": "full obligation inventory lives in machineresearch/sley-2.0/reweave/rw-075-hash-inventory.md; host-only SHA-256 artifact hashes (image, package sections) remain host mechanics outside this primitive",
+ "output": {
+  "bytes": 32,
+  "shape": "exact 32-byte digest (Bytes of length 32 on the Sley side)"
+ },
+ "test_vectors": {
+  "abc_blake3": "6437b3ac38465133ffb63b75273a8db548c558465d79db03fd359c6cd5bd9d85",
+  "abc_note": "pinned bytes, verified against the reference call in raw_hash tests",
+  "boundary": [
+   0,
+   1,
+   1024,
+   1048576
+  ],
+  "empty_blake3": "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262",
+  "over_bound_plus_one": "refuses with ResourceLimit",
+  "tamper": "one flipped byte changes the digest; same preimage is deterministic"
+ },
+ "version": 1
+}

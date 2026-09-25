@@ -1,0 +1,31 @@
+S20-360 FULL OPERATION-ANALYSIS ARCHITECTURE SECOND RE-REVIEW
+Reviewer: Nabu
+Date: 2026-09-05
+Pinned repository: /home/dev/sley2
+Pinned HEAD: 84e02cd499eb8d77ca7b782f68bc1f8f5c675adf
+Mode: bounded read-only source re-review; this transcript is the sole permitted write
+
+Scope and evidence read
+- First Nabu re-review transcript at d1d6530: machineresearch/sley-2.0/reviews/s20-360full-nabu-rereview-2026-09-05.log
+- Residual-fix lineage: 497c5eab825415e95bacc2c209a81b6ba760ea9a and d1d653063eec0487bee881b491521d8f860fee36
+- Evidence-only re-attestation tip: 84e02cd499eb8d77ca7b782f68bc1f8f5c675adf
+- crates/sley-vm/src/extended_tests.rs, judgment_acceptance_matches_lowering_acceptance and lowering_code_of
+- crates/sley-vm/src/lower.rs, judgment/lowering entries plus lower_callees, emit_function, and encode_function
+- docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md section 3.1
+- scripts/check_vm_extended_opcode_profile.py, judgment structure guards
+
+Review reasoning
+1. The prior P1-2 residual is closed. The differential match no longer accepts every judgment-Ok/lowering-Err pair. A CFG failure is admitted only through the graph-validation error variant; a lower error is admitted only for ProfileUnsupported or CacheKeyUnsupported; and any judgment/lowering shared failure must carry the same LowerErrorCode.
+2. The current code makes those admitted classes correspond to the enumerated lower-only stages: graph validation, cache-key derivation, and the type-parameter/effect/contract refusal. The shared operation-analysis stages remain preflight_resources, Maps::build, judge_extended, and require_canonical_referenced_constants in the same order.
+3. The repository checker now structurally requires those four shared calls in judgment order and rejects the named graph/cache/refusal/emission/callee/encoding steps from the judgment entry. This closes the missing-shared-check path that motivated the first review rather than relying only on the finite fixture set.
+4. The effects asymmetry is pinned as judgment Ok versus lowering ProfileUnsupported. The ABI entry case is pinned with judgment ProfileUnsupported versus lowering CacheKeyUnsupported. Common refusals are pinned to exact same-code agreement.
+5. The unconditional prose claim was corrected: lowerability is now qualified to Functions with no type parameters, effects, or contracts. No new architecture-level P0, P1, P2, or P3 issue was found in the bounded residual-fix scope.
+
+Validation
+- Confirmed repository HEAD exactly 84e02cd499eb8d77ca7b782f68bc1f8f5c675adf and inspected the 497c5ea/d1d6530 source diffs and current relevant bodies.
+- No cargo, make, test, or executable validation was run, per instruction.
+
+Verdict
+PASS (high confidence). The wildcard acceptance hole identified in the first re-review is replaced by typed/code-bounded asymmetry handling, same-code agreement for shared failures, and a structural guard over the judgment entry. No new report-grade finding was introduced by the residual fix.
+
+S20_360FULL_ARCHITECTURE_REREVIEW2_JSON={"reviewer":"nabu","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[]}

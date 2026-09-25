@@ -1,0 +1,7 @@
+TYPE-FULL witness/pos: source c21ff9457ea79758df5cfd320b8a836c462b87b2 (clean apart from witness outputs)
+TYPE-FULL witness/pos: skeleton valid True
+TYPE-FULL typedef 79d3fd78bb0efffd newA c153c16b newB 6b4b916b newC 17a3c8bd
+TYPE-FULL witness/pos: compose valid True decision {'failed_phase': None, 'tag': 1}
+TYPE-FULL witness/pos: finished True
+S2B-TYPE-001 witness/pos judge exit: 0
+workspace kept at: /home/dev/Work/checkpoints/succ-context-tmp/sley2-type-full-_lotprrm/ws

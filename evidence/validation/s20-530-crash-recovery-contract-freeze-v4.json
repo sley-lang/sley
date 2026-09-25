@@ -1,0 +1,88 @@
+{
+  "contract": "s20-530-crash-recovery-contract-freeze-v4",
+  "result": "PASS_CONTRACT_FROZEN",
+  "validation_tier": "TIER_2_CONTRACT_REFREEZE",
+  "refreeze_reason": "Resolve the stable-Rust helper-identity collision between two-argument ANC-06 probes and three-argument COR-07 probes, refresh two CROSS-05 test-fixture body anchors, bind the existing transaction and ref const-generic error-source helpers, and correct the frozen local Git origin literal without changing recovery semantics, matrix rows, limit events, production APIs, or repository remote state.",
+  "design": "machineresearch/sley-2.0/s20-530-v4-semantic-amendment-design.md",
+  "deterministic_inputs": {
+    "matrix_rows": 100,
+    "matrix_rows_sha256": "675afdad226e5e32ad4c5f4161a0802ae516355cf7e7b88e8d7510de5aae7698",
+    "spec_sha256": "d96dd7f9c63b1948ad086ee17d2e8423f0e3db38870c680b9b31d7739dbb17c1",
+    "adr_sha256": "38da5dcc49c7c0955b65c6b7148cba773d6fbe7bfbf5a2db41d68e8d382e97a7",
+    "checker_sha256": "44b7d77bd010ae0d82bc5c32de3870133373776913d92418b5af7590cf9e377d",
+    "checker_contract_sha256": "4941f73a60f1e80807d517cd49ffe53109edc845e24c6933ebdd58ad9e010752",
+    "runner_sha256": "56015507e45970ef07945aad05c093e771b0b798a98d9351cafd78fca9f5caec"
+  },
+  "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
+  "commands": {
+    "python3 -m py_compile scripts/check_s20_530_crash_recovery.py": "PASS",
+    "ruff format --check scripts/check_s20_530_crash_recovery.py": "PASS",
+    "ruff check scripts/check_s20_530_crash_recovery.py": "PASS",
+    "git diff --check": "PASS",
+    "frozen test-authority inventory": "PASS",
+    "Git local authority exact bytes": "PASS_262_BYTES_SHA256_60A6634E7D762DB7E6234808360610FADECB39653DC4729DA19C2E87EB5053EA",
+    "Git former sley2.git origin negative control": "PASS_REJECTED",
+    "multifault registry metadata and specification binding": "PASS",
+    "multifault direct fixture renderers": "PASS_43_SIDE_FACTS",
+    "frozen contract self-integrity": "PASS",
+    "repository exact snapshot helpers": "PASS",
+    "CROSS-05 production contract and fixture body anchors": "PASS",
+    "error-source helper owner split": "PASS_STORE_GC_VEC_TXN_REFS_CONST_GENERIC",
+    "ANC-06 exact mapped body bindings": "PASS_CODEC_88_STATEMENTS_STORE_128_STATEMENTS",
+    "cargo test -p sley-repo anc06_ref_nested_ -q": "PASS_2",
+    "cargo test -p sley-repo -q": "PASS_120"
+  },
+  "review_obligations": {
+    "implementation_helper_body_manifests": "FINAL_REVIEW_REQUIRED",
+    "dual_site_proof_manifests": "FINAL_REVIEW_REQUIRED_5_FIELDS",
+    "limit_event_owner_body_control_ancestries": "FINAL_REVIEW_REQUIRED_30_EVENTS",
+    "limit_event_entry_call_paths": "FINAL_REVIEW_REQUIRED_ALL_PUBLIC_ROOTS",
+    "test_to_production_shared_state_authority": "FINAL_REVIEW_REQUIRED_COMPLETE_LOCAL_DEPENDENCY_CLOSURE"
+  },
+  "resolved_findings": [
+    "anc06_fixture_feasibility",
+    "anc06_cor07_probe_helper_identity_collision",
+    "cross05_test_fixture_body_anchors",
+    "error_source_helper_owner_signature_split",
+    "git_local_authority_stale_origin_literal"
+  ],
+  "deferred_semantic_findings": [
+    "receipt_scb_code_variant_conjunctions",
+    "dead_mutation_candidate_error_leaves",
+    "owned_entry_semantic_binding",
+    "grouped_multifault_result_binding",
+    "cor07_host_ref_io_boundary",
+    "limit_canary_and_non_unit_peak_semantics"
+  ],
+  "full_gate": {
+    "make_v1": "SKIPPED_CONTRACT_REFREEZE_NOT_RELEASE_BOUNDARY"
+  },
+  "authority": {
+    "mode": "WRITE_LOCAL",
+    "deploy": false,
+    "external_runtime_mutation": false,
+    "provider_call": false,
+    "publication": false,
+    "push": false,
+    "spend": false,
+    "trading": false
+  },
+  "implementation_complete": false,
+  "reviews": {
+    "nabu": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
+      "evidence_payload_sha256": "cf8491ff4928679554b138f2b2391f3bb4f67699c8aec366e6843e05e9306467"
+    },
+    "ariadne": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
+      "evidence_payload_sha256": "cf8491ff4928679554b138f2b2391f3bb4f67699c8aec366e6843e05e9306467"
+    },
+    "vulcan": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "4c6b0e12836f6601df4cfc67e36fdf754b7bd1a60c7df2ca21c2b6e037ca93fa",
+      "evidence_payload_sha256": "cf8491ff4928679554b138f2b2391f3bb4f67699c8aec366e6843e05e9306467"
+    }
+  }
+}

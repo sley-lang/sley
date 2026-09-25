@@ -1,0 +1,17 @@
+status: FAIL
+
+findings:
+- **MEDIUM / blocking:** `rw-040-audit-slice-2.md:49-53` still says no gap blocks §10.2 and enumerates only G-1…G-9. This contradicts G-10’s explicit `bootstrap_blocks: true` and routing note. The closeout record must state that G-10 remains the sole bootstrap-closure blocker.
+- **PASS:** Exercise 1 now truthfully separates demonstrated whole-value ordering from unsupported byte access/construction. No bridge is invented.
+- **PASS:** G-10 provides a complete admission route: RW-050 owns profile choice/freeze and §18 admission; RW-030 supplies the host-boundary inventory for any bridge alternative. Acceptance correctly bars `BOOTSTRAP_READY`.
+- **INFO:** No additional issue in exercises 2–11 breaks the §10.2 closure.
+
+validation:
+- Read-only review of clean `main@7c518e7c217b4558f817ee186c593bd6b0779348`, the three requested artifacts, prior Ariadne verdict, adoption ownership record, and audit summary.
+- No runtime validation requested or performed.
+
+blockers:
+- Correct the stale closure claim in `rw-040-audit-slice-2.md` to acknowledge G-10 as the sole open §10.2 blocker.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).

@@ -1,0 +1,38 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/sley-adapter",
+    "crates/sley-check",
+    "crates/sley-cli",
+    "crates/sley-conformance",
+    "crates/sley-id",
+    "crates/sley-json-bridge",
+    "crates/sley-mutate",
+    "crates/sley-policy",
+    "crates/sley-protocol",
+    "crates/sley-repo",
+    "crates/sley-query",
+    "crates/sley-scb1",
+    "crates/sley-schema",
+    "crates/sley-ssmc",
+    "crates/sley-state-root",
+    "crates/sley-store",
+    "crates/sley-test-runner",
+    "crates/sley-tests",
+    "crates/sley-txn",
+    "crates/sley-vm",
+]
+
+[workspace.package]
+version = "2.0.0"
+edition = "2024"
+rust-version = "1.93"
+license = "Apache-2.0"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"

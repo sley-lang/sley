@@ -1,0 +1,27 @@
+[package]
+name = "sley-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Sley 2 thin machine-oriented CLI: a transport endpoint over the SMP1 server."
+
+[[bin]]
+name = "sley"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "=1.0.145"
+sley-json-bridge = { path = "../sley-json-bridge" }
+sley-protocol = { path = "../sley-protocol" }
+sley-test-runner = { path = "../sley-test-runner" }
+
+[dev-dependencies]
+sley-id = { path = "../sley-id" }
+sley-repo = { path = "../sley-repo", features = ["test-support"] }
+sley-scb1 = { path = "../sley-scb1" }
+sley-test-runner = { path = "../sley-test-runner" }
+sley-vm = { path = "../sley-vm" }
+
+[lints]
+workspace = true

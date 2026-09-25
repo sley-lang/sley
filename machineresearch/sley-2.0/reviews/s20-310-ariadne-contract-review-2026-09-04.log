@@ -1,0 +1,68 @@
+DISPATCH 310-ariadne-contract forge-ariadne-310-ariadne-contract-20260904T031516 2026-09-04T03:15:16Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+DISPATCH 310-ariadne-contract forge-ariadne-310-ariadne-contract-20260904T033225 2026-09-04T03:32:25Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its surrounding artifacts.
+
+## status
+
+**FAIL** — two P0s block freeze. Read-only pass at `9dc78fe`; no writes, no cargo.
+
+---
+
+## findings
+
+### P0 — blocks freeze
+
+**P0-1. `charged_work` is a normative frozen field the contract cannot derive.**
+§4 charges "one unit per inventory lookup, body field visited, expanded entity, examined edge, and emitted response byte." The engine charges `3` for `GetEntity` (`root_query.rs:940`), `2` for `GetSemanticFingerprint` (`:951`), `len(exports)` for class 6 (`:978`), `len(dependency_roots)` for class 11 (`:1069`), one per inventory entry, one per scanned edge, one per BFS pop plus one per incident edge. None of those constants follows from the §4 sentence. The "independent" oracle reproduces the *implementation's* constants, not the contract (`check_root_backed_query_vector.py:225,229,251,295`), so it is a regression harness, not a second reading of the spec. `charged_work` sits inside the frozen `SLEYRQR1` bytes, and at this very commit `sley-repo/src/root_query.rs:141` already wraps those bytes in an S20-320 `ContextCapsule`. Two conforming implementations would produce different records and different capsules.
+*Fix:* freeze a per-class charge table in §4, or move `charged_work` out of the normative record.
+
+**P0-2. The class-kind applicability table does not exist.**
+ADR-0030 decision 1 and §9 both require it; §2 gives only the `ListDeclaredEffects` rule plus "`ListPackageExports` on a non-package, and so on". The de facto authority is `class_applies_to` (`root_query.rs:1648`), which constrains **only** classes 6, 7, 8, 18. Classes 16, 17 and 19 apply to every kind, so `ListContractsFor` on a `Block` is a successful empty answer, not `QUERY_CLASS_NOT_APPLICABLE` — an answer a reader of the contract would not predict. Freeze the full 19 × 18 table before freeze.
+
+### P1 — must fix before freeze
+
+1. **§1 rule 1 contradicts §8 precedence 2.** An arm-1 snapshot is simultaneously a binding failure (`31008`) and an unsupported arm (`31000`). `execute_root_query:851` returns `31000`; `RootQueryInput::verify:217` would return `31008`; §9 demands `31000`. Split rule 1: arm → `QUERY_PROFILE_UNSUPPORTED` at precedence 2, epoch/root context → `QUERY_ROOT_MISMATCH` at precedence 5.
+2. **§8 precedence 3 lumps two checks that run at different points.** Implementation order is shape/noncanonical (`:854`) → cursor type (`:855`) → request-identity drift (`:866`). A request with both a wrong-type cursor and identity drift returns `31009`; the contract demands `31001`. Split into 3 noncanonical filters/seeds, 4 cursor key type, 5 identity drift.
+3. **§3 "ordered by its key" contradicts §2's `ListOwningNamespaces`.** The chain is inner-to-outer and the engine preserves that order (`:1038-1051`); §3 says every list class is reordered by raw key. Carve class 9 out explicitly.
+4. **Paging keys unnamed for classes 8 and 10.** §2 names the key only for class 7. The engine uses `entry.entity` (`:1326`) and `row.entry_point` (`:1352`). Also state that every paging key is strictly increasing and unique — `key > after` is only complete because `entry_points`/`dependency_roots` are `CanonicalSet` (STATE_ROOT_V1 rows 4-5) and bodies are canonicalized; that dependency is currently unwritten.
+5. **No consumer rule for unioning pages.** Answering the campaign's third open question: a chained cursor identity is **not** needed — exact `total_count` plus canonical key order makes each page independently exact. But the contract must say pages compose only when their request identities differ *solely* in `after`; otherwise a caller may union pages taken across two roots, snapshots or limit sets and call the union complete. That is the T14 gate at the S20-320 boundary and it is currently unstated.
+6. **§9's "continuation walk for every paged class" is not met.** The corpus walks class 4 (entity key) and class 12 (edge key) only. `Cursor::Root` (tag 3) appears in *no* accepted vector — its single occurrence is the wrong-type rejection — so class 11's lawful page encoding is frozen by nothing. Add a class-11 walk, or weaken §9 to one walk per cursor key type.
+7. **Enumeration: one slot is spent on a projection while a structural query is missing.** Class 3 `GetSemanticFingerprint` is a strict projection of class 2, which already returns `fingerprint?`. Meanwhile no class returns the complete inventory — the legacy `all` — and `ListEntitiesByKind` needs eighteen queries whose union is not itself an answerable fact, which the S20-320/S20-400 consumers will want. If 19 is a hard count from the master goal, spend class 3's slot on a paged `ListEntities`; otherwise state the exclusion in §10. Otherwise the nineteen are a defensible enumeration: they cover the legacy six structural kinds and add the root-backed facts the legacy lacked.
+
+### P2 — fix before completion
+
+1. **§7 overstates cache safety.** On a hit the inventory is re-checked against the record, but edges are trusted, and `IndexSnapshotId` — bound into `RootQueryId` and into every response — is a digest of the *cached* record. A forged cache silently changes both identity and answer. S20-300 §5 names this residual; §7 should restate it and point at `verify_cached_snapshot`. **On the check you asked:** consuming an S20-300 hit for edges only *is* within the cache-consumer rule (S20-300 §5 admits read-only derived query surfaces), so the composition is lawful — only the wording is too strong. Note also that "the first and **only** consumer" is already false in this tree (`run_context_capsule`, same file) and narrower than S20-300, which admits S20-320 and successors.
+2. **`max_response_bytes` is never a paging trigger.** A page that fits the entity/edge limit but overflows the byte limit hard-fails `31006` even with continuation on (`:1494`). Say so; the caller's remedy is a smaller entity/edge limit.
+3. **`reached_depth` undefined for `ForwardDependencyClosure`.** The restricted profile defines only reverse distance. Define: max shortest forward distance from the seed set, seeds at 0, never re-expanded (`:1184-1205`).
+4. **Enumeration asymmetries.** Class 19 walks `PolicyBinding` bodies and discards their identities, so "which bindings name this subject" is unanswerable; and no class answers "which package owns this entity" (only namespaces). Add or exclude explicitly in §10.
+5. **Precedence 8 can be preempted by 9.** Body lookup charges work before resolving applicability (`:975`, `:985`, `:1132`), so a tiny `max_work` yields `31005` where the table promises `31010`.
+6. **`ListWorkspacePackages`** is specified over "the workspace body" but the engine unions every `Workspace` entity in the inventory (`:964-972`). State that exactly one exists per root.
+7. **No corpus vector for `31008` or the arm-1 `31000` rejection** — the profile's headline binding code lives only in native tests, so the independent oracle never reproduces it.
+
+### P3 — editorial
+
+1. The closeout's "No consumer of a root-backed response exists yet" is stale at `9dc78fe` (`build_context_capsule` is imported and used).
+2. §2's "Kinds 1, 2, 6, 7, 8, and 18 never have an owner" — name them (Workspace, Package, Parameter, Block, Operation, DependencyBinding).
+3. §5's "thirty-third identifier domain" is an ordinal that ages badly; the domain string is the normative part.
+4. §3's `truncated = returned < items after the cursor` — state it as the implemented predicate `remaining > limit` for exactness.
+
+**Also answering the campaign's second open question:** neither `ListOwningNamespaces` nor closure *depth* should page. The chain's meaning is its order, so key-paging destroys it and position-paging needs a fourth cursor type; and a depth-cut closure is a different exact set with no cursor that could resume it, so paging it would hide facts by construction. Closure *size* paging, already implemented, is correct.
+
+---
+
+## validation
+
+Read-only at `9dc78fe` in the pinned worktree. Targeted reads of the contract, ADR-0030, campaign record, closeout, restricted and S20-300 profiles, STATE_ROOT_V1 field table, `sley-query/src/root_query.rs`, `sley-repo/src/root_query.rs`, the oracle, and both fixture files. Ran `python3 scripts/check_root_backed_query_profile.py` → `PASS`, status `S20_310_FULL_IMPLEMENTED_REVIEW_PENDING`, revision 1. No cargo, no writes, no repository mutation. Tier: read-only review, no build tier exercised.
+
+## blockers
+
+None — review completed. The P0s are contract defects, not access problems.
+
+## return_to
+
+Orchestrator, as input to ROOT_BACKED_QUERY_PROFILE_V1 revision 2. P0-2 and P1-1..4 are contract-text fixes only; P0-1 and P1-6 also require vector or corpus refresh.
+
+S20_310_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["charged_work is normative in the frozen SLEYRQR1 record but the section 4 charging rule cannot derive the implemented per-class constants (GetEntity 3, GetSemanticFingerprint 2, len(exports), len(dependency_roots)); the oracle reproduces the implementation, not the contract, and S20-320 already binds these bytes","class-kind applicability table required by ADR-0030 decision 1 and section 9 is absent from the contract; class_applies_to constrains only classes 6,7,8,18 so classes 16,17,19 silently accept every kind"],"p1":["section 1 rule 1 makes an arm-1 snapshot QUERY_ROOT_MISMATCH while precedence 2 and section 9 require QUERY_PROFILE_UNSUPPORTED; split the rule","precedence 3 lumps noncanonical filters with request-identity drift but the engine orders shape then cursor then drift, so a wrong-type cursor plus drift returns 31009 not 31001","section 3 key ordering contradicts section 2 inner-to-outer ListOwningNamespaces chain order; carve out class 9","paging key field unnamed for classes 8 and 10 and key uniqueness/strict increase never stated although key>after completeness depends on it","no consumer rule for unioning pages: state that pages compose only when request identities differ solely in after (chained cursor identity is not needed)","section 9 requires a continuation walk for every paged class but the corpus walks only classes 4 and 12; Cursor::Root tag 3 is frozen by no accepted vector","enumeration: class 3 GetSemanticFingerprint is a strict projection of class 2 while no class returns the complete inventory (legacy all); reallocate the slot to a paged ListEntities or exclude it explicitly"],"p2":["section 7 overstates cache safety: edges and IndexSnapshotId are trusted from a hit and that identity is bound into RootQueryId; consuming a hit for edges only is however within the S20-300 cache consumer rule","max_response_bytes is never a paging trigger and hard-fails 31006 even under allow_continuation","reached_depth undefined for ForwardDependencyClosure","no class exposes PolicyBinding identities or package ownership; add or exclude in section 10","precedence 8 class-not-applicable can be preempted by 9 because body lookup charges work first","ListWorkspacePackages defined over the workspace body but implemented as a union over every Workspace entity","no corpus vector for 31008 QUERY_ROOT_MISMATCH or the arm-1 31000 rejection"],"p3":["closeout claim that no consumer exists is stale at 9dc78fe (run_context_capsule exists)","name the kinds 1,2,6,7,8,18 in the owning-namespace rule","thirty-third identifier domain ordinal ages badly","state truncated as the implemented remaining>limit predicate"],"notes":"Read-only at 9dc78fe; stage checker PASS; no cargo, no writes. Nineteen classes are a defensible enumeration but the table is not freezable while applicability and work accounting are unspecified."}
+EXIT=0 2026-09-04T03:39:52Z

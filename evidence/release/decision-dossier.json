@@ -1,0 +1,477 @@
+{
+  "contract": "sley2.decision-dossier.v1",
+  "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
+  "decision_reasons": [
+    "19 GA acceptance criteria are not evidenced",
+    "27 review obligations are open",
+    "no succession trial has been executed",
+    "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
+    "the release-check and v2 product gates are fail-closed"
+  ],
+  "decision_state": "BLOCKED",
+  "dossier_digest": "08c57f36e40421cbf8bf8bcbd164d1d17f659061ccc6f2294ffdddcb65a74dc0",
+  "entries": [
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "final repository",
+      "note": "the master goal names the repository; the final identity is fixed at the decision",
+      "state": "EVIDENCED",
+      "value": "sley2"
+    },
+    {
+      "evidence": [],
+      "item": "final branch",
+      "note": "the operator's release decision does not name a release branch",
+      "state": "GATED",
+      "value": null
+    },
+    {
+      "evidence": [
+        "evidence/release/reproducibility-report.json"
+      ],
+      "item": "final commit",
+      "note": "the commit the local candidate was built and attested from",
+      "state": "EVIDENCED",
+      "value": "ef2a39f659bd0caeaa92dbc546d0342dc7f43d57"
+    },
+    {
+      "evidence": [
+        "evidence/release/reproducibility-report.json"
+      ],
+      "item": "clean-working-tree status",
+      "note": "the attested build refuses a dirty tree (S20-730)",
+      "state": "EVIDENCED",
+      "value": true
+    },
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "frozen legacy artifact verification",
+      "note": "the frozen Sley 1.2.0 commit, artifact digest, size, and source snapshot digest",
+      "state": "EVIDENCED",
+      "value": {
+        "artifact_sha256": "b24f19c6a348751c93c9cf63f6f4154f6132796112c26f9d8c0e71324080dbc7",
+        "artifact_size_bytes": 4611024,
+        "commit": "397fa28ded15ddbeca5404ee00a3f5bd5546b296",
+        "source_snapshot_sha256": "1c866d360305d0b511dc2c33c4907b33544fc73bc6cb6fa4c0e1687df48eb90e",
+        "version": "1.2.0"
+      }
+    },
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "final schema epoch",
+      "note": "the S20-140 bootstrap schema epoch identity",
+      "state": "EVIDENCED",
+      "value": "ae5b235713b46c04f73c1decd0fb0bb57c5557d0fe89dae7ddac4a7dba25564e"
+    },
+    {
+      "evidence": [
+        "conformance/state-root/v1/accepted.json",
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "final state-root demo identifiers",
+      "note": "the accepted state-root vector identities; the release demo exercises them through the packaged binary",
+      "state": "EVIDENCED",
+      "value": {
+        "conformance_epoch_id": "a7fcf97a85d41ef9b1c89394a324f2dc7ec875b9ded48a783104314857dc870e",
+        "conformance_state_root": "d3914cbffcde449959d6a35eddb16293c3424f4980e64e687a4f47358ad2770a"
+      }
+    },
+    {
+      "evidence": [
+        "evidence/conformance/independent-conformance-report.json",
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "SCB1 conformance result",
+      "note": "S20-130 agreement plus the S20-730 family coverage",
+      "state": "EVIDENCED",
+      "value": {
+        "cross_implementation_agreement": "PASS",
+        "independently_checked_families": 27,
+        "native_only_families": [],
+        "status": "S20_130_COMPLETE"
+      }
+    },
+    {
+      "evidence": [
+        "evidence/conformance/independent-conformance-report.json",
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "independent encoder result",
+      "note": "the independent Python oracle and its S20-130 independence scan",
+      "state": "EVIDENCED",
+      "value": {
+        "language": "Python",
+        "oracle": "oracle/scb1",
+        "python_sources": 30,
+        "rust_dependency_check": "PASS"
+      }
+    },
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "SSMC1 corpus counts",
+      "note": "the frozen SSMC1 epoch-1 counts and the frozen succession corpus size",
+      "state": "EVIDENCED",
+      "value": {
+        "entity_kinds": 18,
+        "opcodes": 55,
+        "succession_corpus_tasks": 15,
+        "terminators": 5,
+        "type_tags": 20
+      }
+    },
+    {
+      "evidence": [
+        "evidence/validation/test-inventory.json"
+      ],
+      "item": "property-test counts",
+      "note": "the property-test count is a counted zero: the inventory scanned the workspace and crate manifests, the lockfile, and every Rust and Python test source and found no proptest, quickcheck, or hypothesis harness. The unit-test, fuzz-target, and vector counts are adjacent corpus facts, not property tests. The inventory describes the corpus and runs nothing, so a passing run is separate evidence",
+      "state": "EVIDENCED",
+      "value": {
+        "conformance_rejections": 284,
+        "conformance_vectors": 537,
+        "persistent_fuzz_targets": 21,
+        "property_test_detail": {
+          "manifest_harness_deps": [],
+          "python_use_sites": 0,
+          "rust_use_sites": 0,
+          "scanned_manifests": 22
+        },
+        "property_tests": 0,
+        "python_tests": 923,
+        "rust_ignored_emitters": 39,
+        "rust_unit_tests": 1996
+      }
+    },
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "fuzz duration and findings",
+      "note": "bounded smoke coverage is recorded; no timed release fuzz campaign has been run, so the duration stays null inside an otherwise evidenced item",
+      "state": "EVIDENCED",
+      "value": {
+        "bounded_inputs": 512,
+        "campaign_duration": null,
+        "persistent_landed_surface_count": 12,
+        "persistent_target_count": 11
+      }
+    },
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "adversarial result",
+      "note": "the S20-700 bounded slice state",
+      "state": "EVIDENCED",
+      "value": {
+        "status": "S20_700_BOUNDED_SLICES"
+      }
+    },
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "crash-injection result",
+      "note": "the S20-530 crash recovery matrix and its frozen contract",
+      "state": "EVIDENCED",
+      "value": {
+        "matrix_rows": 100,
+        "status": "CONTRACT_FROZEN_IMPLEMENTATION_COMPLETE"
+      }
+    },
+    {
+      "evidence": [
+        "evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md"
+      ],
+      "item": "security review result",
+      "note": "the independent security review is Vulcan's; the machine summary records it as PASS_P3_P4_CLOSED and the finding register classifies it: threat_coverage.independent_security_review reads PASS_P3_P4_CLOSED, which is not a complete PASS form. The item is evidenced only by a complete PASS (the bare PASS token or an all-zero enumerated count form the register classifies PASS, with no unclaimed finding); the transcript the summary note names (evidence/review/verdicts/threat_coverage/independent_security_review-43f2f5b.md) is cited as evidence and must exist. Its input is measured: of the 56 registered threats, 44 have a located control whose symbol a test region, test file, corpus, fuzz target, or oracle names, 9 carry their planned evidence directory, and 0 P0 or P1 threats have no located symbol and form the review's work list (evidence/security/threat-coverage-report.json; a located symbol proves the named control exists, not that the threat is mitigated)",
+      "state": "GATED",
+      "value": null
+    },
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "succession benchmark methodology",
+      "note": "the frozen methodology, corpus, and the S20-630 accounting contract",
+      "state": "EVIDENCED",
+      "value": {
+        "accounting_contract": "sley2.succession-accounting-report.v1",
+        "corpus_sha256": "7370b6ccb8ccd3f58fa2a90e316edf4bc5a1319b41a55253a2ee14bb5d73988d",
+        "corpus_version": 1,
+        "design_status": "FROZEN",
+        "metrics": 25,
+        "run_freeze_controls": 17,
+        "tasks": 15
+      }
+    },
+    {
+      "evidence": [],
+      "item": "strict correctness by arm",
+      "note": "no succession trial has been executed: the legacy and Sley 2 arms are recorded as runners only, so every per-arm metric is unresolved",
+      "state": "GATED",
+      "value": null
+    },
+    {
+      "evidence": [],
+      "item": "ACT by arm",
+      "note": "no succession trial has been executed: the legacy and Sley 2 arms are recorded as runners only, so every per-arm metric is unresolved",
+      "state": "GATED",
+      "value": null
+    },
+    {
+      "evidence": [],
+      "item": "context bytes and model tokens by arm",
+      "note": "no succession trial has been executed: the legacy and Sley 2 arms are recorded as runners only, so every per-arm metric is unresolved",
+      "state": "GATED",
+      "value": null
+    },
+    {
+      "evidence": [],
+      "item": "repair loops by arm",
+      "note": "no succession trial has been executed: the legacy and Sley 2 arms are recorded as runners only, so every per-arm metric is unresolved",
+      "state": "GATED",
+      "value": null
+    },
+    {
+      "evidence": [],
+      "item": "invalid committed states",
+      "note": "no succession trial has been executed: the legacy and Sley 2 arms are recorded as runners only, so every per-arm metric is unresolved",
+      "state": "GATED",
+      "value": null
+    },
+    {
+      "evidence": [],
+      "item": "stale candidates incorrectly accepted",
+      "note": "no succession trial has been executed: the legacy and Sley 2 arms are recorded as runners only, so every per-arm metric is unresolved",
+      "state": "GATED",
+      "value": null
+    },
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "optional Zerolang comparison",
+      "note": "the optional external arm is explicitly unavailable, which is a recorded state rather than a gap",
+      "state": "EVIDENCED",
+      "value": {
+        "status": "EXPLICIT_UNAVAILABLE"
+      }
+    },
+    {
+      "evidence": [
+        "evidence/release/reproducibility-report.json"
+      ],
+      "item": "artifact path",
+      "note": "the local candidate artifact name; no published path exists",
+      "state": "EVIDENCED",
+      "value": "sley-2.0.0-linux-x86_64.tar.gz"
+    },
+    {
+      "evidence": [
+        "evidence/release/provenance.json",
+        "evidence/release/reproducibility-report.json"
+      ],
+      "item": "SHA-256",
+      "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
+      "state": "EVIDENCED",
+      "value": "fc28c772817fd79a5ae3817bd4c64ddfffd3a726fb37a6d751c1cf06f6db7d00"
+    },
+    {
+      "evidence": [
+        "evidence/release/reproducibility-report.json"
+      ],
+      "item": "byte size",
+      "note": "the attested artifact size",
+      "state": "EVIDENCED",
+      "value": 2513155
+    },
+    {
+      "evidence": [
+        "evidence/release/reproducibility-report.json"
+      ],
+      "item": "reproducibility result",
+      "note": "multi-host reproducibility across distinct attested hosts",
+      "state": "EVIDENCED",
+      "value": {
+        "distinct_hosts": 2,
+        "result": "MULTI_HOST_REPRODUCIBLE",
+        "second_host": "ATTESTED"
+      }
+    },
+    {
+      "evidence": [
+        "evidence/release/sbom/cyclonedx-1.6.json",
+        "evidence/release/sbom/spdx-2.3.json",
+        "evidence/security/T52/pre-release-inventory.json"
+      ],
+      "item": "SBOM and license inventory",
+      "note": "both standards documents exist as drafts; the root license text is operator-approved, which the documents state in band",
+      "state": "EVIDENCED",
+      "value": {
+        "components": 63,
+        "cyclonedx_spec_version": "1.6",
+        "license_disposition_blocked": 0,
+        "root_license_text_approved": true,
+        "spdx_version": "SPDX-2.3"
+      }
+    },
+    {
+      "evidence": [
+        "evidence/review/finding-register.json"
+      ],
+      "item": "findings by severity and disposition",
+      "note": "the S20-740 register of every recorded review obligation: pending, deferred, unclassified (OTHER), and unclaimed-carried rows are counted, and the register's own result is carried so the decision rule reads it",
+      "state": "EVIDENCED",
+      "value": {
+        "declared_open_findings": {
+          "p0": 0,
+          "p1": 0,
+          "p2": 0,
+          "p3": 0,
+          "p4": 0
+        },
+        "deferred_reviews": 0,
+        "obligations": 548,
+        "open_reviews": 27,
+        "result": "FINDING_REGISTER_OPEN",
+        "severity_mentions": {
+          "P0": 126,
+          "P1": 181,
+          "P2": 244,
+          "P3": 333,
+          "P4": 189
+        },
+        "states": {
+          "HISTORICAL_ROUND": 184,
+          "PASS": 337,
+          "PENDING": 27
+        },
+        "unclaimed_carried_findings": 3,
+        "unclassified": 0
+      }
+    },
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "residual risks",
+      "note": "the recorded open risks",
+      "state": "EVIDENCED",
+      "value": [
+        "SSMC descriptor inputs are frozen, but complete production-epoch assembly awaits remaining descriptor-owning packages",
+        "The StateRoot row remains a conformance epoch until complete production-epoch assembly",
+        "The S20-170 pack profile is root/object-only; refs, transactions, compression, signatures, and clone equivalence await S20-540 or a new profile",
+        "The S20-180 exclusive GC guard is a local witness; restricted S20-390 fixed-head transactions and S20-500 named refs now share the maintenance ownership boundary, and S20-530 exclusive recovery over the exact crash matrix is complete under ADR-0024 aging; clone equivalence remains absent",
+        "S20-240 is a restricted epoch-1 profile; full-GA TypeDef invariants, effect/capability/resource contracts, effectful tests, adapter replay/configuration, observations, and policy-final selection require a later schema epoch",
+        "S20-250 is a restricted epoch-1 profile; Workspace, Package, Namespace, EntryPoint, PolicyBinding, and DependencyBinding bodies plus complete-root impact extraction remain required before S20-300/S20-510 or GA",
+        "S20-260/S20-270 are restricted lowering/execution profiles; the other 52 opcode signatures, generics, floating/call/constant/global/cell semantics, adapter ABIs, effects/capabilities, replay, live cancellation, root/module loading, decoding, and persistent reports remain required before full S20-260/S20-270 or GA",
+        "S20-280 is a request-owned fixture profile with no VM integration, protected capability authority, or live host confinement",
+        "S20-290 emits derived in-memory envelopes only; canonical report bodies, persistence, policy/resource finality, TestCase pass, and the M2 exit remain blocked",
+        "S20-300 is a restricted modeled-request conformance cache only; six entity bodies, strict root/object extraction, complete-root indexes, useful safe reuse, and root-backed S20-310 remain blocked",
+        "S20-310 implements nineteen root-backed query classes with governed truncation and continuation. The revision-7 wording amendments and current delta have three-lane Council PASS at 97b9117; broader M3 and GA acceptance remain subject to their own package and release gates.",
+        "S20-320 is only a complete restricted-query evidence envelope with a distinct ID; master context capsules, verified workspace/root/session facts, lawful omission/continuation, downstream S20-330/S20-400/S20-620, M3, M5, and GA remain blocked",
+        "S20-330 is deliberately unimplemented until negotiated session, verified workspace/root, and epoch authority exist; claimed roots and capsule IDs are forbidden substitutes",
+        "S20-340 is immutable descriptor codegen only; later restricted packages now provide candidate construction, validation, and one fixed-head commit boundary, while full executable semantic operations, policy transitions, M3/M4, and GA remain blocked",
+        "S20-350 is complete as a proposal-only construction boundary with all 18 body codecs, 75 field codecs, independent candidate/envelope conformance, and a production persistent fuzz target; construction itself grants no semantic or commit authority",
+        "S20-360 is complete for the restricted subset plus programs carrying semantic Operation entities of the extended families E1 through E6 judged by the full operation analysis (ADR-0045, contract revision 2); E7 opcodes stay refused at phase 12, and mandatory production-epoch semantic fingerprints, runtime authority, M3/M4, and GA remain blocked",
+        "S20-390 is complete only for restricted fixed-head atomic commit with no selected tests; named refs, branches, recursive recovery, clone-equivalent transaction exchange, full semantics, runtime authority, M3/M4, and GA remain blocked",
+        "S20-370 protects policy, oracle roots, and named entity bindings; S20-380 adds narrow local authenticated tokens plus exact scope/expiry/replay/budget enforcement for the in-memory reference wrapper, but policy-transition authentication, candidate/VM integration, live-host confinement, commit, and production-epoch assembly remain blocked",
+        "S20-610 preserves offline injected digest claims only; no raw fixture, executable adapter, external head anchor, artifact/oracle/accounting verification, or benchmark trial exists",
+        "S20-710 root licensing is operator-approved; the standards SBOM and unsigned provenance are derived, and the current candidate is reproduced on one host (the second host is pending the lab lease; the superseded 5313437 and 45b2cd98 candidates were reproduced on two hosts). Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and final release Council approval remain held. The reachable-anchor mapping did not advance the scan boundary.",
+        "The succession corpus is frozen but no benchmark trial has executed"
+      ]
+    },
+    {
+      "evidence": [
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "evidence gaps",
+      "note": "the recorded gaps; this dossier's own gated items enumerate the rest",
+      "state": "EVIDENCED",
+      "value": {
+        "gated_dossier_items": [
+          "ACT by arm",
+          "context bytes and model tokens by arm",
+          "final branch",
+          "independent review result",
+          "invalid committed states",
+          "release decision state",
+          "repair loops by arm",
+          "security review result",
+          "stale candidates incorrectly accepted",
+          "strict correctness by arm"
+        ],
+        "recorded": [
+          "M2 exit: canonical report entity bodies, protected S20-370 test selection, expected-observation semantics, and effect, capability, adapter, and replay evidence. The report entity bodies need a schema epoch (S20-760 revision 2, agenda item 1)",
+          "M3/M4 effectful runtime: S20-280 full host access and S20-380 full token authority own the semantics of effect_request, adapter_invoke, and capability_narrow. Slice E7a landed contract_assert, which needed neither",
+          "M4 test execution: no TestCase has been executed under any authority, so sley-test-report-v1 has no corpus of produced reports",
+          "M5 succession: the harness passes its three smokes and no trial has run; the six per-arm metrics need executed trials, which need model access and spend authorization",
+          "M6 release: the evidence chain is built and drift-checked (SBOM, unsigned provenance, single-host reproducibility at the current candidate (the second host is pending the lab lease; two-host reproducibility was last attested for 5313437 and 45b2cd98), finding register, GA acceptance, decision dossier). Root licensing is approved and the second-host lane has been exercised with retained custody receipts. Final independent dispositions, the full candidate-history re-anchor decision, signing/transparency, and the release decision remain held.",
+          "Independent review: the user-authorized Council qualification rounds are available and recorded under evidence/review/rounds. Current-delta verdicts are distinct from the remaining final independent release and security dispositions; broader pending review obligations remain in their owner records.",
+          "Provenance/similarity audit of the Sley 1.2 source: PERFORMED 2026-09-07 (s20-780-similarity-audit-2026-09-07.md, local evidence, independent review pending). Blocks GA acceptance of the clean-room claim until independently reviewed; recorded here and in remaining_gates. GA acceptance criteria themselves are release-package owned and unchanged."
+        ]
+      }
+    },
+    {
+      "evidence": [],
+      "item": "independent review result",
+      "note": "S20-740 records the independent review as PENDING over a register whose result is FINDING_REGISTER_OPEN; the item is evidenced only by a recorded complete PASS (the bare PASS token or an all-zero enumerated count form the register's classifier reads PASS) from the independent reviewer while the register result is FINDING_REGISTER_CLEAR, the definition GA criterion 26.9.3 shares",
+      "state": "GATED",
+      "value": null
+    },
+    {
+      "evidence": [],
+      "item": "release decision state",
+      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0 2.0.0 on 2026-09-24 (machine summary release_decision; ga_claimed false, final commit ef2a39f659bd0caeaa92dbc546d0342dc7f43d57); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 33 evidenced, 17 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "state": "GATED",
+      "value": null
+    },
+    {
+      "evidence": [
+        "evidence/release/provenance.json",
+        "machineresearch/sley-2.0/machine-summary.json"
+      ],
+      "item": "confirmation that no push, tag, upload, deployment, publication, or public announcement occurred without separate authorization",
+      "note": "every tracked publication flag is false and the dossier records no published artifact",
+      "state": "EVIDENCED",
+      "value": {
+        "artifact_published": {
+          "path": null,
+          "reproducibility": null,
+          "sha256": null,
+          "size_bytes": null
+        },
+        "provenance_publication_authorized": true,
+        "publication_authorized": true
+      }
+    }
+  ],
+  "entries_digest": "119a0e73f7bdf565e97dd091d48a99e1f62be246b33cc2addfb434884aac89fb",
+  "evidenced": 24,
+  "gated": 10,
+  "gates": {
+    "release-check": "NOT_IMPLEMENTED",
+    "v2": "NOT_IMPLEMENTED"
+  },
+  "phase": "M2",
+  "project": "Sley",
+  "publication": {
+    "announcement": false,
+    "authorized": false,
+    "deployment": false,
+    "push": false,
+    "tag": false,
+    "upload": false
+  },
+  "target_version": "2.0.0",
+  "work_package": "S20-750"
+}

@@ -1,0 +1,50 @@
+DISPATCH 390extended-nabu-architecture forge-nabu-390extended-nabu-architecture-20260904T044742 2026-09-04T04:47:42Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+## Bounded architecture review — S20-390 extended semantic profile
+
+**Subject:** `/home/dev/cache/worktrees/sley2-review-2026-09-04` @ `9dc78fe` (read-only worktree, verified).
+
+### status
+`FAIL` — not freezable as drafted. Two P0s are contract-internal contradictions, both cheap to fix; the design direction (a second value rather than a redefinition) is sound.
+
+### findings
+
+**P0-1 — the Authority boundary paragraph contradicts revision 2.**
+`docs/spec/TRANSACTION_MODEL_V1.md:13-15` still reads "The current conformance profile accepts only executable programs containing no semantic operation entities." Revision 2 (same file, `:159-171`) and `repository.rs:1901-1902` accept operation-carrying programs. The section that defines *what may commit* now disagrees with the section that defines *what the receipt says about it*. Freezing a self-contradictory normative document is the defect; delete or amend the stale sentence, keeping the empty-selected-test clause.
+
+**P0-2 — the decoder rule is kind-agnostic, so ADR decision 4 is unenforceable after freeze.**
+`codec.rs:702-706` accepts `[1,1,1]` or `[1,2,1]` without consulting `transaction_kind`; the oracle does the same (`transaction_receipt.py:353`). A trusted-genesis record asserting semantic profile `2` therefore decodes and imports cleanly, even though ADR-0045 decision 4 states genesis performs no analysis at all. "A trusted genesis always records `1`" is currently a writer convention, not a wire rule — and the wire rule is what freezes. In a kernel whose stated principle is that unknown or ambiguous states never become accepted, admitting a semantically impossible combination at the trust boundary is the wrong thing to freeze. Correct rule: `TrustedGenesis ⇒ semantic_profile == 1`; `OrdinaryCandidate ⇒ semantic_profile ∈ {1,2}`; anything else `TXN_FIELD_SHAPE`. Mirror it in the oracle.
+
+**P1-1 — `sley-txn` performs semantic entity classification it does not own.**
+`repository.rs:16-24` hardcodes `OPERATION_ENTITY_KIND_TAG: u16 = 8` and re-scans the proposed entity set. That duplicates the selection `CandidateProgram::project` already performs (`candidate_validation.rs:736`) inside the crate that owns semantics. The two predicates agree today — confirmed, both read the same `proposed.entities()` slice — but the durability/identity layer now depends on an SSMC1 kind-tag number. A future kind-tag renumber silently mislabels permanent receipts, with no test that would fail. The commit path must consume a validator-supplied fact, not re-derive one.
+
+**P1-2 — `semantic_profile` is the one receipt field an importer cannot re-derive, and the contract does not admit it.**
+`TRANSACTION_MODEL_V1.md:203-210` claims strict import verifies "every binding that is self-contained in the receipt", and closure verification recomputes changed bindings and tombstones. `semantic_profile` is derived from the *full* proposed entity state, which closure verification never materialises — it only recomputes the changed subset. So the profile is an unverifiable assertion sitting inside an otherwise self-verifying envelope. Either state that exception explicitly in the contract, or make it re-derivable (see Q2 answer).
+
+**P2-1 — state the normative predicate, not the rationale.**
+ADR-0045 justifies the field as "names the analysis that validated the program", but the implemented rule is "the proposed entity state contains an `Operation` entity". These coincide only under an unstated invariant: for a `VALID` candidate the extended analysis always runs (`validate_phase_twelve` refuses any program with an E7 opcode, `candidate_validation.rs:1537-1545`), so what actually varies is *how many operations it judged*, not *which analysis ran*. Profile 1 on an ordinary commit means "the analysis judged zero operations", not "no analysis ran". Freeze the exact predicate as normative; keep the analysis wording as rationale.
+
+**P2-2 — the commit-metadata table is structurally broken.** `TRANSACTION_MODEL_V1.md:152-172`: the revision-2 prose is inserted between rows, orphaning the `| 3 | durability_profile |` row after two paragraphs. Tag 3 does not render as part of the normative table.
+
+**P3-1** — ADR-0045 header carries `Status: proposed` and `implemented 2026-09-03` in one line; separate decision status from landing state.
+**P3-2** — `codec.rs:31` still names the constant `SEMANTIC_PROFILE_OPERATION_FREE_V1` while its own doc comment (`:35-37`) says the value means "no operation analysis ran". The name preserves the wording the revision retired.
+
+### answers to the campaign's open questions
+
+**Q2 — derive the profile from the candidate result record rather than the proposed entity set?** Right instinct, wrong source *today*. `CandidateResultRecord` (`candidate_result.rs:326-353`) carries no field naming what was judged: the phase-7 counts (`owned_units, cfg_edges, cfg_work, judged_operations, operation_work`) are sealed inside `evidence_digest`, and `validation_profile_id` is single-valued. Deriving from it now is impossible without a candidate-result format change, which would move every existing vector's identity — out of scope for this revision.
+
+Two-step answer: (a) **before freeze**, take the fact from the in-process validation output via a `sley-policy` accessor (`judged_operations > 0`, or `program.operation_count()`), and delete `carries_operations`/`OPERATION_ENTITY_KIND_TAG` from `sley-txn` — same value, no format change, semantic authority stays where it belongs, P1-1 closed; (b) **later**, when the candidate result record next moves for selected-test evidence, add an explicit judged-operations field so a receipt importer can re-derive the profile from durable bytes, closing P1-2. Do not open the record for this revision alone.
+
+**Q3 (decoder rule, as asked of me)** — "exactly two triples" is necessary but not sufficient; it must be conditioned on `transaction_kind` (P0-2). And the rejection vector Vulcan asks about is worth adding for one specific case unit `TXN_FIELD_SHAPE` coverage does not reach: a genesis record carrying `[1,2,1]`.
+
+### validation
+Read-only at `9dc78fe`. Targeted reads of the contract, ADR-0045, campaign record, `codec.rs`, `repository.rs`, `candidate_program.rs`, `candidate_validation.rs`, `candidate_result.rs`, `transaction_receipt.py`, closeout addendum. No cargo, no make target, no writes, no repository mutation. Predicate equivalence between `carries_operations` and `CandidateProgram::project` was established by reading both call sites, not executed.
+
+### blockers
+None. Every finding is a pre-freeze edit to the contract, the decoder, or the commit-path source of the flag.
+
+### return_to
+Orchestrator. Contract/ADR edits → Merlin (`docs/spec/TRANSACTION_MODEL_V1.md`, `docs/adr/ADR-0045-*`, `crates/sley-txn/src/codec.rs`, `crates/sley-txn/src/repository.rs`, `oracle/scb1/.../transaction_receipt.py`). Rejection-vector question → Vulcan. Genesis-wording question (Q1) → Ariadne; my P2-1 constrains it: whatever wording lands must match the implemented predicate.
+
+S20_390EXTENDED_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["Authority boundary paragraph (TRANSACTION_MODEL_V1.md:13-15) still says only operation-free programs commit, contradicting revision 2 and repository.rs:1901-1902","Decoder rule is kind-agnostic (codec.rs:702-706, transaction_receipt.py:353): a trusted genesis asserting semantic profile 2 decodes and imports, so ADR-0045 decision 4 is unenforceable once frozen"],"p1":["sley-txn re-derives semantic classification with a hardcoded SSMC1 kind tag (repository.rs:16-24), duplicating CandidateProgram::project and coupling permanent receipts to kind-tag numbering","semantic_profile is derived from the full proposed entity state and is not re-derivable by receipt import or closure verification, contradicting the self-verification claim at TRANSACTION_MODEL_V1.md:203-210"],"p2":["Contract states the rationale (names the analysis) rather than the implemented predicate (proposed state contains an Operation entity); for a VALID candidate the extended analysis always runs, so profile 1 means zero operations judged, not no analysis","Commit-metadata table at TRANSACTION_MODEL_V1.md:152-172 is broken: the durability_profile row is orphaned after the revision-2 prose"],"p3":["ADR-0045 header mixes Status: proposed with implemented 2026-09-03","Constant name SEMANTIC_PROFILE_OPERATION_FREE_V1 preserves the wording the revision retired"],"notes":"Design direction (second value, not redefinition) is sound; all findings are pre-freeze edits. Q2: derive from validation output via a sley-policy accessor now, from the candidate result record only when that record next moves. Q3: two-triple rule must be conditioned on transaction_kind."}
+EXIT=0 2026-09-04T04:51:37Z

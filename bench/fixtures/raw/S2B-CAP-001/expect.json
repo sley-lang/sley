@@ -1,0 +1,1 @@
+{"arm": "raw", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"sibling_allowed": "CAP_SCOPE_MISMATCH", "wildcard_scope": "ORACLE_SCOPE_WIDENED"}, "positive": "accepted", "task_id": "S2B-CAP-001"}

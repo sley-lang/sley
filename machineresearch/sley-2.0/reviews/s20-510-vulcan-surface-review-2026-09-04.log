@@ -1,0 +1,55 @@
+DISPATCH 510-vulcan-surface forge-vulcan-510-vulcan-surface-20260904T060559 2026-09-04T06:05:59Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and implementation in parallel.
+
+Verdict: **Fractured — freeze-blocking at P1, but nothing fails open catastrophically.** The byte-exact re-encode check at `compare.rs:1550-1553` is a genuine backstop and output is all-or-nothing, so no partial-delta path exists. The damage is in the contract's normative formulas and in what decode is allowed to imply.
+
+## status
+FAIL — three contract/implementation divergences and one authority gap must land as revisions before freeze.
+
+## findings
+
+### P1 — must fix before freeze
+
+**1. §5 seed formula contradicts §3 and the implementation.** Contract: `seeds = ... ∪ MetadataOnly-with-body-delta`. But §3 states a body delta may attach to a function that is **unchanged** in section 1 (same `ObjectId`, owned Operation changed). `compare.rs:690-693` seeds *every* body delta regardless of class, and `compare.rs:2070` depends on that. Under the contract as written, a body change reachable only through an owned entity seeds nothing and that function's dependents drop out of `collateral` — precisely the miss the package exists to prevent. Restate as "every entity with a body delta, plus Added ∪ Removed ∪ Changed ∪ Retyped".
+
+**2. `collateral` contains entities that are not unchanged.** `ImpactIndex::transitive_impact` returns its own seeds (`sley-query/src/lib.rs:530,545`). `compare.rs:712-719` filters on `!has_entity_delta` plus bound-in-both and **never subtracts `seeds_base ∪ seeds_target`** as I6 requires. A function with a body delta but no entity delta therefore appears in section 3 *and* in `collateral` — a set the contract describes as "bound by both roots and unchanged" and declares normative output. S20-520 reading `collateral` as "unchanged but impacted" will mis-handle a function whose CFG changed. The existing test asserts `!collateral.contains(&id(9))` and never checks `id(7)`, so nothing covers this.
+
+**3. Precondition 4 is not a precondition and cannot fire for one-sided functions.** §Inputs requires every `Function` of *either* root to have a complete owned inventory, before any delta is derived, failing `COMPARE_INVENTORY_INVALID` with the exact `FINGERPRINT_*` code. The only `fingerprint_function` call site (`compare.rs:600-631`) requires `Function` in **both** roots and runs *after* classification and all field deltas. An `Added`/`Removed` function's inventory is never checked; 51008 is unreachable for it. Either declare the complete-root judgment discharges this (and drop the separate code) or hoist a real inventory pass.
+
+**4. Decode confers self-consistency, not truth — and the contract never says so.** `decode_semantic_delta` establishes canonical bytes, a self-consistent `SemanticDeltaId`, ordering/uniqueness, and per-element shape. It validates **none** of I1–I6, and `base_root`/`target_root`/`workspace_id`/`root_schema_epoch` are unauthenticated payload fields. A forged delta naming arbitrary roots, with arbitrary `collateral` and `fields`, and with `base_root == target_root` on a non-empty body (§Payload field 5 restricts that to the empty delta; nothing enforces it) decodes `Ok` with a well-formed identity. Combined with "collateral is normative output, not advice", that is the path by which a stale or forged delta becomes authority in S20-520. Add an explicit clause: a decoded delta is derived evidence with no authority absent re-derivation against the two named roots.
+
+### P2 — fix before completion
+
+5. **Field-tag domain is not per-kind.** `compare.rs:1436` accepts any `field` in 1..=8 and any `flags` in 1..=15 for every kind. A forged `(TypeDef, field 7, flags 15)` round-trips and gains an identity. Enforce the §2 table.
+6. **Mid-derivation `ImpactError` is miscoded as `COMPARE_ROOT_INCOMPLETE`.** `compare.rs:702-708` maps non-resource impact failures from `transitive_impact` to 51007 *after* both roots passed the judgment at line 445. `SetNotCanonical`/`UnresolvedEntity` there is a comparator bug, not bad input; correct code is 51010, which is otherwise reachable only from unreachable arms.
+7. **Encoder enforces only `MAX_DELTA_BYTES`,** not the per-section counts. `compare_complete_roots` checks them; the `pub` encoder does not, so a caller can mint a delta that `decode_semantic_delta` rejects with 51009.
+8. **`relation_deltas` materializes the full vector before the count check** (`compare.rs:654-661`), and the contract's 134,217,728-byte "top-down allocation budget" is enforced nowhere in the crate. Enforce it or delete it from the table.
+9. **Fuzz slice under-covers the declared bounds.** `MAX_FUZZ_INPUT_BYTES = 65_536` vs `MAX_DELTA_BYTES = 67_108_864` — resource-limit branches and every large-list allocation path are unreachable from the fuzzer. `assert!(CompareErrorCode::ALL.contains(&error.code()))` is vacuous since `code()` returns the enum; there is no wrapped-code-preservation assertion.
+10. **No disjointness checks:** a `field_delta` may list one identity in both `added` and `removed`; the added/removed root-set pairs may overlap. Both encoder and decoder accept it.
+
+### P3 — editorial
+
+11. Dead markers: `let _ = &changed_or_retyped;` (`compare.rs:694`) and `let _ = FIELD_COUNT;` (`compare.rs:1533`) — abandoned rules; remove or wire.
+12. Closeout overclaims "the decoder rejection matrix reaching every frozen code": decode cannot emit 51005-51008 or 51010. Split into decode-path and compare-path matrices.
+13. §5's `\ (seeds ∪ seeds)` and "restricted to unchanged entities" are redundant and — per P1-2 — not equivalent. State one rule.
+
+### Campaign open questions
+- **Q1 (MetadataOnly as seed):** keep "no", but the formula is wrong for a different reason — see P1-1.
+- **Q2 (flag granularity):** **not sufficient.** TypeDef form bit 2 collapses every member into one bit, so two S20-520 merges touching disjoint members of one record are indistinguishable from a conflict. Member-level entries are needed, or S20-520 must re-derive. This changes the record grammar, so decide before freeze.
+- **Q3 (transaction identities):** agree to keep ancestry out — but that is exactly what makes P1-4 mandatory. With no ancestry and no authentication, the record cannot be verified standalone; the contract must say so.
+
+## validation
+- `cargo test -p sley-repo --lib compare` → **12 passed, 0 failed, 1 ignored** (fixture emitter). Default `cargo` on PATH is 1.88 and cannot parse the workspace manifest (`resolver = "3"`); ran under `~/.rustup/toolchains/1.93.0-x86_64-unknown-linux-gnu/bin`.
+- `scripts/check_semantic_comparison_spec.py` → PASS, 11 stable error codes, 0 problems.
+- `scripts/check_semantic_comparison_vector.py` under `uv run --project oracle/scb1 --frozen` → PASS, 9 vectors, 5 mutations, 0 problems.
+- Read-only throughout; no repository modification.
+
+## blockers
+Persistent fuzz slice and `make quick`/Tier 2 not re-run inside budget — relied on the closeout's recorded runs for those. P1-2 is confirmed by construction (`visited.insert(*seed)` → returned) rather than by an executed repro, since writing one would modify the repo.
+
+## return_to
+orchestrator — P1-1 through P1-4 are contract revisions; P1-2 additionally needs a code change or an I6 restatement.
+
+S20_510_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":[],"p1":["Section 5 seed formula omits unchanged-with-body-delta functions, contradicting section 3 and the implementation at compare.rs:690-693; collateral would be under-derived for the flagship owned-entity case","collateral includes its own body-delta seeds because transitive_impact returns seeds (sley-query/src/lib.rs:530,545) and compare.rs:712-719 never subtracts seeds_base union seeds_target, violating I6 and the 'unchanged entities' characterization","Precondition 4 (complete owned inventory for every Function of either root, COMPARE_INVENTORY_INVALID with FINGERPRINT_* preserved) is unreachable for Added/Removed functions and runs after classification, not before any delta (compare.rs:600-631)","Decode establishes only canonical bytes and self-consistent identity; it validates none of I1-I6, base_root/target_root/workspace_id are unauthenticated, and base_root==target_root on a non-empty delta is unenforced, so a forged or stale delta can become S20-520 authority; contract needs an explicit no-authority-without-re-derivation clause"],"p2":["Decoder accepts any field tag 1..8 and any flags 1..15 for every kind (compare.rs:1436) instead of the per-kind domain in the section 2 table","Non-resource ImpactError from transitive_impact is reported as COMPARE_ROOT_INCOMPLETE after the roots already passed the judgment (compare.rs:702-708); should be COMPARE_INTERNAL_INVARIANT","encode_semantic_delta enforces only MAX_DELTA_BYTES, not the per-section counts, so the pub encoder can mint a delta the decoder rejects with COMPARE_RESOURCE_LIMIT","relation_deltas materializes the full symmetric difference before the MAX_RELATION_DELTAS check, and the 134217728-byte allocation budget is enforced nowhere in the crate","Fuzz slice caps input at 65536 bytes vs MAX_DELTA_BYTES 67108864, so resource-limit and large-list paths are unreachable; the CompareErrorCode::ALL assertion is vacuous and no wrapped-code preservation is asserted","No disjointness checks between a field delta's added and removed sets or between the added and removed root sets"],"p3":["Dead markers let _ = &changed_or_retyped (compare.rs:694) and let _ = FIELD_COUNT (compare.rs:1533) signal abandoned rules","Closeout overclaims a decoder rejection matrix reaching every frozen code; decode cannot emit 51005-51008 or 51010","Section 5's seed subtraction and 'restricted to unchanged entities' are redundant and not equivalent; state one rule"],"notes":"Pipeline is fail-closed: byte-exact re-encode backstop and all-or-nothing output, no partial delta observed. Validation: cargo test -p sley-repo --lib compare 12 passed 1 ignored under 1.93.0 toolchain; spec checker PASS; oracle PASS 9 vectors 5 mutations. Campaign Q2 answered NO: flag bits are too coarse for S20-520 disjointness and this changes the record grammar, decide before freeze."}
+EXIT=0 2026-09-04T06:12:52Z

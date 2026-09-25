@@ -1,0 +1,156 @@
+{
+  "blocked_without_operator_approval": [
+    "merge",
+    "deploy",
+    "public_posting",
+    "provider_spend",
+    "runtime_mutation",
+    "trading",
+    "locked_canon_mutation"
+  ],
+  "created_at": "2026-09-09T13:51:14+00:00",
+  "evidence": [
+    {
+      "artifact": "",
+      "command": "",
+      "id": "targeted-tests",
+      "status": "not_run",
+      "summary": "Targeted validation for the changed surface."
+    },
+    {
+      "artifact": "",
+      "command": "forge handoff ariadne/nabu/vulcan P0 design review rounds 1-5",
+      "id": "offer-review",
+      "status": "pass",
+      "summary": "Ariadne PASS round 5, Vulcan PASS round 4, Nabu PASS round 2; 12 findings across 5 rounds all incorporated; design REVIEWED_DESIGN",
+      "updated_at": "2026-09-09T14:52:29+00:00"
+    },
+    {
+      "artifact": "evidence/runtime/s20-620-sley2-smoke/evidence.json",
+      "command": "cargo test -p sley-cli -p sley-json-bridge; pytest bench/sley2/tests/test_runner.py bench/accounting/tests/test_report.py; bench.sley2.runner smoke (make sley2-runner-smoke)",
+      "id": "runtime-targeted",
+      "status": "pass",
+      "summary": "P1: cli 16 pass, bridge 11 pass. P2: runner 15 + accounting 8 pass. P3: cli 17 + bridge 11 pass, clippy/fmt clean; smoke 7/8: v2 round trip green (306 dispatched 40008, v1 gated 42003), trials complete, claims verify; only no_failed_answers red on pre-existing scripted expand body 00 (version-independent, fails identically on v1)",
+      "updated_at": "2026-09-09T15:05:43+00:00"
+    },
+    {
+      "artifact": "",
+      "command": "check_cli_contract + check_cli_rules + check_smp1_contract + test_smp1_contract + test_current_contract_review + bridge tables v1/v2 --check + required index + check_sley2_trial_runner",
+      "id": "static-targeted",
+      "status": "pass",
+      "summary": "all PASS (P1 and P2 incl. runner rev-4 checker); note: check_error_symbol_registration FAILs identically on pristine base (pre-existing drift, out of scope)",
+      "updated_at": "2026-09-09T15:05:43+00:00"
+    }
+  ],
+  "owner": "opencode-integrator",
+  "path_checks": [
+    {
+      "pattern": "crates/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "scripts/**",
+      "required_evidence": [
+        "runtime-targeted",
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "conformance/**",
+      "required_evidence": [
+        "runtime-targeted",
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "bench/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "docs/spec/**",
+      "required_evidence": [
+        "offer-review",
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "docs/audits/**",
+      "required_evidence": [
+        "offer-review"
+      ]
+    },
+    {
+      "pattern": "machineresearch/sley-2.0/machine-summary.json",
+      "required_evidence": [
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "Makefile",
+      "required_evidence": [
+        "static-targeted"
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "source": {
+    "import_posture": "capability-only; no third-party code copied",
+    "origin": "Greyforge thin-slice pilot inspired by external Code Factory patterns"
+  },
+  "summary": "ENTITY_READ_PROFILE_V2 reviewed contract 48070373; SMP1 rev 12 declares 306/307 unoffered; ARM_AFFORDANCES v1-pinned; unblocks AT-MW-02 I4b demos",
+  "tasks": [
+    {
+      "evidence_refs": [
+        "offer-review"
+      ],
+      "id": "P0",
+      "status": "done",
+      "title": "P0: offer design + independent review (Ariadne/Nabu/Vulcan) before runtime changes",
+      "updated_at": "2026-09-09T14:52:29+00:00"
+    },
+    {
+      "evidence_refs": [
+        "static-targeted",
+        "runtime-targeted"
+      ],
+      "id": "P1",
+      "status": "done",
+      "title": "P1: implement SLEY_CLI_V1 section 9 profile surface (rev 6) with version-aware serve; SMP1 stays rev 12 with composition-only CLI pin move",
+      "updated_at": "2026-09-09T15:05:43+00:00"
+    },
+    {
+      "evidence_refs": [
+        "runtime-targeted",
+        "static-targeted"
+      ],
+      "id": "P2",
+      "status": "done",
+      "title": "P2: admit 306/307 in SLEY2_TRIAL_RUNNER_V1 ARM_AFFORDANCES allowlist, v1 pin behavior preserved",
+      "updated_at": "2026-09-09T15:08:10+00:00"
+    },
+    {
+      "evidence_refs": [
+        "runtime-targeted",
+        "static-targeted"
+      ],
+      "id": "P3",
+      "status": "done",
+      "title": "P3: runner v2 path (profile serve + selected-version stamping), positive-admission coverage, live 306/307 round trip, table re-verification",
+      "updated_at": "2026-09-09T17:31:43+00:00"
+    },
+    {
+      "evidence_refs": [
+        "offer-review"
+      ],
+      "id": "P4",
+      "status": "done",
+      "title": "P4: unblock note to AT-MW-02 I4b demos; no I4b implementation in this slice",
+      "updated_at": "2026-09-09T17:32:12+00:00"
+    }
+  ],
+  "title": "Phase-3: v2 endpoint offer (306/307) + ARM allowlist/runner admission"
+}

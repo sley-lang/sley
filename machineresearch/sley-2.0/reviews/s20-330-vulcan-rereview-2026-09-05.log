@@ -1,0 +1,39 @@
+S20-330 VULCAN SURFACE RE-REVIEW — 2026-09-05
+Pinned repository: /home/dev/sley2
+Pinned HEAD: bf715f9c33d0a3235e01af8c670ce5b3ae46977d
+Scope: read-only triage of commits 34ea7f0 and d26b686 against the 2026-09-04 Vulcan review. This log is the sole permitted write. No cargo, make, deployment, merge, or external action.
+
+VERDICT
+FAIL: every prior Vulcan P0/P1/P2/P3 item is closed, but revision 3 introduces one report-grade P3 documentation inconsistency: the implemented/checker-enforced classification has five lists, while the ADR and profile revision history call it four-list/four-way.
+
+PRIOR ITEM CLOSEOUT
+P0-1 CLOSED — handle.expand now decodes the caller's expected StateRoot and passes it to the authority (crates/sley-protocol/src/server.rs:1100-1126); expand_handle rejects expected-root/bound-root/head-root disagreement as SESSION_STALE_HANDLE (crates/sley-protocol/src/session.rs:443-465). The contract states old-root handles remain stale after renewal (docs/spec/SESSION_HANDLE_PROFILE_V1.md:198-218).
+P0-2 CLOSED — SessionId derivation includes a per-instance ServerNonce (crates/sley-protocol/src/session.rs:166-206), and each server constructs its authority with fresh_server_nonce (crates/sley-protocol/src/server.rs:220-232). The contract now states that the identity is not peer ownership and assigns peer isolation to transport/T56 (docs/spec/SESSION_HANDLE_PROFILE_V1.md:35-38), while documenting twin inequality, restart forgetting, and issuance-identity retention across renewal (docs/spec/SESSION_HANDLE_PROFILE_V1.md:51-69). THREAT_REGISTER records the transport obligation (docs/THREAT_REGISTER.md:70).
+
+P1-1 CLOSED — dispatch checks authority liveness/remembered close before RequestRegistry::admit, making SESSION_UNKNOWN reachable before request-id admission (crates/sley-protocol/src/server.rs:594-608).
+P1-2 CLOSED — sessionless workspace.create/exchange.import is rejected with SESSION_BINDING_INVALID once head_binding succeeds (crates/sley-protocol/src/server.rs:569-589); the contract states the exemption ends at the first accepted head (docs/spec/SESSION_HANDLE_PROFILE_V1.md:119-127).
+P1-3 CLOSED — open_session caps live sessions at negotiated max_sessions (crates/sley-protocol/src/session.rs:304-345), and RequestRegistry::close retains at most max_sessions closed names FIFO (crates/sley-protocol/src/lib.rs:1418-1449). The bounded-state contract is explicit (docs/spec/SESSION_HANDLE_PROFILE_V1.md:325-331).
+P1-4 CLOSED — PASS matrices exist at evidence/security/T15/matrix.json:1-21 and evidence/security/T47/matrix.json:1-19; T56 is also recorded at evidence/security/T56/matrix.json:1-20. Every matrix test name was found in session.rs or server_tests.rs, matching checker enforcement at scripts/check_session_handle_profile.py:314-332.
+
+P2-1 CLOSED — the server's closed head_bound set includes refs.list, refs.resolve, refs.recover, recovery, exchange.export, gc.dry_run, and report (crates/sley-protocol/src/server.rs:758-782). checkout is correctly caller-named because its body is decoded as TransactionId (crates/sley-protocol/src/server.rs:1031-1032), matching the contract classification (docs/spec/SESSION_HANDLE_PROFILE_V1.md:168-175).
+P2-2 CLOSED — the T47 requirement now states the achievable one-server repository-workspace-change shape and authority-level epoch check (docs/spec/SESSION_HANDLE_PROFILE_V1.md:286-291), backed by evidence/security/T47/matrix.json:1-19.
+P2-3 CLOSED — the contract explicitly says SessionId names the session, retains the issuance identity across renewal, and current provenance comes from the authority-held record (docs/spec/SESSION_HANDLE_PROFILE_V1.md:64-69). renew_session changes bound_root while retaining session_id and uses checked u16 renewal increment (crates/sley-protocol/src/session.rs:356-387).
+
+P3-1 CLOSED — the profile pins SMP1 revision 11 (docs/spec/SESSION_HANDLE_PROFILE_V1.md:11-19); SMP1's status line is revision 11 (docs/spec/SMP1.md:3-4), and the checker reads that status line (scripts/check_session_handle_profile.py:41-47,271-276).
+P3-2 CLOSED — T15 owner is now sley-protocol (docs/THREAT_REGISTER.md:29).
+P3-3 CLOSED AS AN EXPLICIT CONTRACT CHOICE — the contract now defines bindings/kinds misalignment as an internal well-formed-root invariant surfaced as SESSION_BINDING_INVALID (docs/spec/SESSION_HANDLE_PROFILE_V1.md:224-228) and enumerates it in that bucket (docs/spec/SESSION_HANDLE_PROFILE_V1.md:265-270); implementation matches (crates/sley-protocol/src/session.rs:473-476).
+
+NEW FINDING
+P3-NEW-1 — Classification cardinality contradicts itself. The normative profile body has five classifications: head-bound, handle expansion, caller-named, mutating, and session/transport (docs/spec/SESSION_HANDLE_PROFILE_V1.md:157-185). The checker likewise has five CLASS_ANCHORS (scripts/check_session_handle_profile.py:62-71), and the campaign lists all five (machineresearch/sley-2.0/s20-330-negotiated-session-campaign-2026-09-03.md:113-124). But ADR-0033 says “exactly one of four lists” (docs/adr/ADR-0033-negotiated-session-boundary.md:57-61), and the profile revision history calls it a “four-way method classification” (docs/spec/SESSION_HANDLE_PROFILE_V1.md:343-349). This is editorial but report-grade because revision 3 specifically claims to close method-classification drift. Fix both “four” references to “five”; no code change is indicated.
+
+VALIDATION
+- git status/log/rev-parse only: HEAD exactly bf715f9c33d0a3235e01af8c670ce5b3ae46977d; no pre-existing working-tree changes were reported.
+- Targeted file/rg/jq inspection only, as ordered. No cargo, make, checker execution, or broad audit.
+- Evidence matrix test names resolve to definitions: session.rs:572,624,680 and server_tests.rs:330,1173,1382,1448.
+
+BLOCKERS
+None. Verdict decided by the new P3 documentation contradiction.
+
+S20_330_SURFACE_REREVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":[],"p1":[],"p2":[],"p3":["The revision-3 method classification is five-way in the normative body and checker, but ADR-0033:57 and SESSION_HANDLE_PROFILE_V1.md:345 call it four-list/four-way; correct both stale cardinalities to five."],"notes":"All 12 prior Vulcan findings are closed at bf715f9; one new P3 documentation inconsistency prevents PASS."}
+
+return_to: orchestrator

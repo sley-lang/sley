@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_dead_neg_public_deleted",
+  "expected_code": "ORACLE_PUBLIC_DELETED",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_dead"
+}

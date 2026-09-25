@@ -1,0 +1,1 @@
+{"binary": "s3_g3_adversary", "expected_code": "ORACLE_REPAIR_MISMATCH", "mutation": "debug-channel attacker offset (+1000) applied to the repair operand: exact value 2681 becomes 3681", "package": "sley-policy", "test": "s3_g3_adversary_neg_wrong_repair"}

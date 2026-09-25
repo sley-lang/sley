@@ -1,0 +1,17 @@
+status: FAIL
+
+findings:
+- **HIGH:** Round-1 import-resolution finding remains open. E8 describes epoch-1 `AdapterImport`s with empty effects, but epoch-1 requires exactly one `AdapterCall` effect and derives scope from that effect. The VM instead resolves hardcoded IDs through a private `BridgeImport` lacking `adapter_id`, failure type, and effects; `PSH1` is outside even that table. `LoweringInput` supplies no adapter/effect inventory, so the immediate never resolves to an actual `sley_ssmc::AdapterImport`.
+- **INFO:** Two-operand `[scope, request]` arity is repaired. Per-element charging now occurs before `bridge_execute`; cap checks precede output conversion/allocation, preserving the 102-fuel total.
+
+validation:
+- Inspected round-1 transcript, RW-050 §§1–7, profile revision 13 E8, RW-030 admission, `host-boundary.json`, frozen SSMC opcode/import rules, `sley-check` adapter validation, VM lowering inputs, implementation, tests, and focused diff from `main@c6e4269eef78`.
+- Tree remains dirty as expected. No runtime validation performed, per request.
+
+blockers:
+- Model all three entries as valid epoch-1 `AdapterImports` resolved from a supplied inventory with the required sole `AdapterCall` effect, or obtain an explicit reviewed contract/epoch change permitting profile-local effectless imports and their resolution semantics.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+repair_note (implementation workflow, post-verdict): HIGH accepted in its resolvable core, declined in its unimplementable demand: effectful lowering is refused for every Function under EXTENDED_V1, so `AdapterCall`-carrying imports are uncallable without S20-230-full effectful lowering (R4 scope) — instead, genuine inventory resolution (LoweringInput/Contexts carry adapters; judgment/execution/fuel resolve carried AdapterImport values pinning every frozen field; tamper rows refused) plus the explicitly-priced profile-local permission for pure effectless imports (S20-230 §1.4 rationale non-attachment, E7a precedent, effectful refusal untouched). Push rows pin identity/purity with per-use generic types. 18-case matrix pins the tamper rows. Round 3 requested.

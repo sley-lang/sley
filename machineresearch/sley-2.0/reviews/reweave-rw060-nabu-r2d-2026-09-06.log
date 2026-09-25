@@ -1,0 +1,21 @@
+Nabu transitive-scan review — RW-060 (2026-09-06, handoff round 2d)
+status: P2-2 STILL OPEN
+
+findings:
+- Concrete transitive-scan evasion: `lockfile_graph` silently ignores valid inline TOML arrays such as `dependencies = ["neutral-helper"]` because it only enters dependency parsing when the line ends with `[`.
+- Formatting both `root -> neutral-helper` and `neutral-helper -> sley-cli` inline yields no recorded edges. Root-presence assertions still pass, while `lockfile_reachable` misses `sley-cli`.
+- The implementation parses lockfile text itself; it is not “decoded by Cargo” and does not fail closed on unsupported dependency-array shapes.
+- Current committed `Cargo.lock` uses multiline arrays and appears clean, but that does not satisfy the claimed full-format/transitive guarantee.
+- Confidence: high.
+
+validation:
+- Static inspection of `rw060_source_free_lifecycle.rs` and the complete committed `Cargo.lock`.
+- Cargo test not run because this handoff permits read actions only.
+- A passing 9-test run would not cover the inline-array evasion.
+
+blockers:
+- Repair `lockfile_graph` using a TOML/package-graph authority or explicitly reject unsupported dependency syntax; add an inline-array two-hop regression.
+
+return_to: orchestrator
+
+[Orchestrator note: repaired — inline arrays parsed (empty/single/multi-item with versions/sources), unknown array shapes fail closed with panic, inline-array two-hop + fail-closed regressions added. Re-verified locally: 11 passed, clippy -D clean, fmt clean.]

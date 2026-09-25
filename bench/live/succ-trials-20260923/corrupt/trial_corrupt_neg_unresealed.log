@@ -1,0 +1,8 @@
+CORRUPT witness/neg-unresealed: propose valid True
+CORRUPT witness/neg-unresealed: finished True
+S2B-CORRUPT-001 witness/neg-unresealed judge exit: 1
+S2B-CORRUPT-001 witness/neg-unresealed verdict: {"arm": "sley2", "code": "ORACLE_CORRUPT_UNREFUSED", "detail": "unresealed-standin: EXCHANGE_DIGEST_MISMATCH", "status": "rejected", "task_id": "S2B-CORRUPT-001"}
+S2B-CORRUPT-001 witness/neg-unresealed stand-in vectors: ["unresealed-standin"]
+S2B-CORRUPT-001 witness/neg-unresealed exchange-trailer regression: returned without rejection (requires exact EXCHANGE_DIGEST_MISMATCH on both unresealed flips, head tx and live object count unchanged)
+S2B-CORRUPT-001 witness/neg-unresealed provenance: {"base_pack_sha256": "d3cc8643294ef669a5bc849bf5c14ee1e39c0f28b5d5f6e542f6f04a584b5f53", "driver_binary": "succ_live_judge_cases-42d77a02eb446c77", "driver_sha256": "73f0e15266df0b30b438a057642f1d50839056da7bb50db1b6500773931773c4", "git_dirty_paths": 0, "git_head": "72036a4e9b71cf8460542900121c686f71e80a08", "python": "3.14.7", "sley_binary": "/home/dev/Work/checkpoints/target-succ-corrupt/debug/sley", "sley_sha256": "8f5729b2340b291bdae0cc6d82154a7c7d8ed5e1f24be167a3ab4e1a25455e32", "utc": "2026-09-23T03:43:50+00:00"}
+workspace kept at: /tmp/sley2-corrupt-witness-jopek6bw/ws

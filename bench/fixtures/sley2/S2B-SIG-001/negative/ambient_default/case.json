@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_sig_neg_ambient_default",
+  "expected_code": "ORACLE_AMBIENT_DEFAULT",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_sig"
+}

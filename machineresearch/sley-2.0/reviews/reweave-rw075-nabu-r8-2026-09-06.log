@@ -1,0 +1,28 @@
+RW-075 architecture/boundary delta re-review, round 8 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta,
+explicit checkout root `/home/dev/sley2`).
+Commit reviewed: d628283 (RW-075 correction round-7 repairs).
+
+status: complete
+
+VERDICT: FAIL. Confidence: high.
+
+findings:
+- **BLOCKER R7-B2 remains:** `stage_v2_admission` exists only as a private integration-test helper. Production `admit_package_v2` still mints receipts unconditionally, while `approve_package_v2` performs no reference re-lowering. The caller-supplied image/graph substitution path identified in round 7 therefore remains enforceably open; demonstrating the intended future driver pattern is not an admission authority.
+- **BLOCKER R7 observation:** `raw_sley_built_preimage_end_to_end` is not end-to-end. It feeds fallible `Result` outputs directly into operations expecting payloads, never lowers or executes that four-operation graph, then constructs the preimage in Rust and hashes it separately. Gate membership alone does not prove executable Sley-owned assembly.
+- **R7-B1 passes structurally:** `SLEYCHNK1` freezes deterministic chunking, framing, ordering, and final hashing through stateless `RHW1`, without primitive or import expansion. Non-blocking documentation arithmetic typo: the frame is `17 + 32*N` bytes, not `16 + 32*N`.
+- Successor identity/package bindings, preimage ownership boundary, and SLEYBC02 native-service exclusion show no new blocker in the reviewed delta, but full-delta confirmation fails because graph-to-image authority remains unresolved.
+
+validation:
+- Read-only static review at HEAD `d6282831ba221703efe774f3adbb4a8a87509613`.
+- Reviewed round-7 findings, correction sections 7-8, profile/ABI/package v2 specifications and records, `exec_package.rs`, and `rw075_raw_callable.rs`.
+- No tests executed because the handoff allowed reads only.
+
+blockers:
+- Implement an actual staged admission authority that exclusively mints v2 receipts after gate judgment and exact reference re-lowering.
+- Replace the claimed end-to-end fixture with a well-typed, lowered, executed Sley assembly path.
+
+return_to: RW-075 orchestrator
+
+Disposition: Nabu lane FAIL round 8. Preserved unedited; repairs above
+are a separate delta verified in round 9.

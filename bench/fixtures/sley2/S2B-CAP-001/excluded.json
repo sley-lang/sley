@@ -1,0 +1,1 @@
+{"denominator": "excluded", "reason": "E7 adapter execution refused pending schema-epoch decision; see rev16 handle-model design", "refusal_code": "VM_LOWER_OPCODE_UNSUPPORTED"}

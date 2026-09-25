@@ -1,0 +1,193 @@
+{
+  "contract": "sley2.s20-530-acceptance-anchor.pre-public.v1",
+  "note": "The S20-530 acceptance commit exists only in the pre-public archive (evidence/history/pre-public-history.json), so the public repository cannot read its tree. This record freezes, once, what scripts/check_s20_530_acceptance_anchor.py read there: the retained log set and the Git blob id and tree mode of every frozen authority and log path at the acceptance commit. Each blob is also the blob at the archived tip, so none changed before the cut. The public root is the sanitized export of the archived tip; where the sanitizer rewrote a path's text (home directories only), sanitized_public_blob names the exported blob, and the anchor requires that blob at HEAD instead of acceptance_blob. Anyone holding the archive bundle can reproduce every acceptance_blob and mode with git ls-tree at the acceptance commit and every sanitized_public_blob with git rev-parse at the public root.",
+  "acceptance_commit": "034cc75abb59d743ea30b2f2a410205a018cb25f",
+  "archived_tip": "c1a2c4b7c8ede0e516991c26a0e039886d23cb31",
+  "log_dir": "evidence/validation/s20-530-crash-recovery-logs-v1",
+  "logs": [
+    "evidence/validation/s20-530-crash-recovery-logs-v1/test-list-01-cargo-test-p-sley-store-lib-locked-list-format-terse.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/test-list-02-cargo-test-p-sley-txn-lib-locked-list-format-terse.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/test-list-03-cargo-test-p-sley-repo-lib-locked-list-format-terse.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-01-cargo-test-p-sley-store-lib-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-02-cargo-test-p-sley-txn-lib-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-03-cargo-test-p-sley-repo-lib-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-04-cargo-test-workspace-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-05-python3-scripts-check-scb1-spec-py.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-06-python3-scripts-check-oracle-independence-py.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-07-cargo-test-p-sley-scb1-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-08-cargo-test-p-sley-schema-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-09-cargo-test-p-sley-store-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-10-cargo-test-p-sley-state-root-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-11-cargo-test-p-sley-repo-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-12-cargo-test-p-sley-txn-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-13-uv-run-project-oracle-scb1-frozen-python-m-unittest-discover-s-oracle-sc.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-14-uv-run-project-oracle-scb1-frozen-sley2-scb1-oracle-check-accepted-confo.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-15-uv-run-project-oracle-scb1-frozen-sley2-scb1-oracle-check-mutation-value.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-16-uv-run-project-oracle-scb1-frozen-sley2-scb1-oracle-check-mutation-candi.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-17-uv-run-project-oracle-scb1-frozen-sley2-scb1-oracle-check-candidate-resu.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-18-uv-run-project-oracle-scb1-frozen-sley2-scb1-oracle-check-transaction-re.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-19-uv-run-project-oracle-scb1-frozen-python-scripts-check-schema-epoch-vect.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-20-uv-run-project-oracle-scb1-frozen-python-scripts-check-state-root-vector.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-21-uv-run-project-oracle-scb1-frozen-python-scripts-check-repository-pack-v.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-22-cargo-test-p-sley-mutate-mutation-value-codec-adversarial-locked.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-23-cargo-test-p-sley-adapter-authorized-adapter-request-binding-confusion-f.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-24-python3-scripts-reconcile-s20-530-exception-ledgers-py-evidence-validati.log",
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-25-cargo-fmt-all-check.log"
+  ],
+  "paths": {
+    "docs/spec/CRASH_RECOVERY_MATRIX_V1.md": {
+      "mode": "100644",
+      "acceptance_blob": "5d90ddc1caf7f88811eb0201c1fd4f8c41405b17"
+    },
+    "docs/adr/ADR-0023-crash-recovery-boundary.md": {
+      "mode": "100644",
+      "acceptance_blob": "8d5c5e072e608e1eaa5ccb3e4e3b6c8ff554556c"
+    },
+    "scripts/check_s20_530_crash_recovery.py": {
+      "mode": "100644",
+      "acceptance_blob": "194dbbc3f8e066abe25dc336f942e717533c9c7b"
+    },
+    "scripts/run_s20_530_validation.py": {
+      "mode": "100644",
+      "acceptance_blob": "83234ef18e0d3e5852a2a056e92d1c8ce0db9db6",
+      "sanitized_public_blob": "3b6acce594b6f0827613f1be0ae7f39078ea085d"
+    },
+    "scripts/reconcile_s20_530_exception_ledgers.py": {
+      "mode": "100644",
+      "acceptance_blob": "27823305c24bf0b2c548300ab05c4cbbb45f4343"
+    },
+    "scripts/build_s20_530_test_plan.py": {
+      "mode": "100644",
+      "acceptance_blob": "179359d742de3a30602717a1b84876a85770a95c"
+    },
+    "scripts/render_s20_530_grouped_m2.py": {
+      "mode": "100644",
+      "acceptance_blob": "5b489bdf0558d33c1e7dbc4fa4df91fa075c7275"
+    },
+    "evidence/validation/s20-530-crash-recovery-contract-freeze-v13.json": {
+      "mode": "100644",
+      "acceptance_blob": "a3ded2eb05f023690eb16419ad7db6f6a6f60ca4"
+    },
+    "evidence/validation/s20-530-crash-recovery-closeout-v1.json": {
+      "mode": "100644",
+      "acceptance_blob": "fc655b9775771fcd0ecdb8a99a8dd81245dc43b7",
+      "sanitized_public_blob": "ab1ea87246685fffd804929d8798de2325d89171"
+    },
+    "evidence/validation/s20-530-crash-recovery-test-plan-v1.json": {
+      "mode": "100644",
+      "acceptance_blob": "6b332914188637eba0e2ece0c26204a23663f4fb"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/test-list-01-cargo-test-p-sley-store-lib-locked-list-format-terse.log": {
+      "mode": "100644",
+      "acceptance_blob": "ec7ea8109487c2202071f870f54ef8e1f89c5e4a"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/test-list-02-cargo-test-p-sley-txn-lib-locked-list-format-terse.log": {
+      "mode": "100644",
+      "acceptance_blob": "45c1df26e25f26a851e3750e390a9254d83dfad9"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/test-list-03-cargo-test-p-sley-repo-lib-locked-list-format-terse.log": {
+      "mode": "100644",
+      "acceptance_blob": "249dc4b6d22223fc7e88c2ba65b9c40eb27ec222"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-01-cargo-test-p-sley-store-lib-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "82823d82cfb8b6b91591e1ae7a4df856b81fd98b"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-02-cargo-test-p-sley-txn-lib-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "bd2e5966193a27f90e133b1ad23fd92e7aeb2f9c"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-03-cargo-test-p-sley-repo-lib-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "4b9efa19259553f60219e347d79fd5a917d4831f"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-04-cargo-test-workspace-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "b742b4ebc137b27c2544bc7ec9165c3c958503a5"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-05-python3-scripts-check-scb1-spec-py.log": {
+      "mode": "100644",
+      "acceptance_blob": "a2b72115303ab01ba99a988b1cc182ded9a82860"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-06-python3-scripts-check-oracle-independence-py.log": {
+      "mode": "100644",
+      "acceptance_blob": "850e068b0553347ece400ff8c506eda44ae19d5c"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-07-cargo-test-p-sley-scb1-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "a3865829b26172c1378bd90c39e21df1c787c035"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-08-cargo-test-p-sley-schema-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "85270f7acefece891577365c8e50e6e26f1ae80a"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-09-cargo-test-p-sley-store-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "c7cd28e8708a93ebab27b68a977745fb23f1ba09"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-10-cargo-test-p-sley-state-root-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "af5ac2bb5e53c9ea0e263c79280149d4f8293163"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-11-cargo-test-p-sley-repo-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "7acddc157d41563f495ede4dc0a3c145835cb4eb"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-12-cargo-test-p-sley-txn-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "310a03f44db17ff3f24662cdc5ab0bef55ce1a6e"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-13-uv-run-project-oracle-scb1-frozen-python-m-unittest-discover-s-oracle-sc.log": {
+      "mode": "100644",
+      "acceptance_blob": "a1d99380f7c56ccf9d2971c5e7b206c1a0346d08"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-14-uv-run-project-oracle-scb1-frozen-sley2-scb1-oracle-check-accepted-confo.log": {
+      "mode": "100644",
+      "acceptance_blob": "df03781f435f1573731e5882c2de2daad5c1102a"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-15-uv-run-project-oracle-scb1-frozen-sley2-scb1-oracle-check-mutation-value.log": {
+      "mode": "100644",
+      "acceptance_blob": "349a2202cd18d6f4bdeb44aca2dc8a7651b642dc"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-16-uv-run-project-oracle-scb1-frozen-sley2-scb1-oracle-check-mutation-candi.log": {
+      "mode": "100644",
+      "acceptance_blob": "bc417cc89acd3d5eb79e1c19e23f44cfc6c0b957"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-17-uv-run-project-oracle-scb1-frozen-sley2-scb1-oracle-check-candidate-resu.log": {
+      "mode": "100644",
+      "acceptance_blob": "9e0de069a151bad18b0b114c6272de4c222e988b"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-18-uv-run-project-oracle-scb1-frozen-sley2-scb1-oracle-check-transaction-re.log": {
+      "mode": "100644",
+      "acceptance_blob": "ce2bc3e2495f8e435964f68af281870ffba81b56"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-19-uv-run-project-oracle-scb1-frozen-python-scripts-check-schema-epoch-vect.log": {
+      "mode": "100644",
+      "acceptance_blob": "8c26205355d638169b67eefd7069a8a70a63e560"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-20-uv-run-project-oracle-scb1-frozen-python-scripts-check-state-root-vector.log": {
+      "mode": "100644",
+      "acceptance_blob": "3605f721f272f8846e9637f0377af2214cad6758"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-21-uv-run-project-oracle-scb1-frozen-python-scripts-check-repository-pack-v.log": {
+      "mode": "100644",
+      "acceptance_blob": "a03a4678074cae428c5e202f56671431d75a6a0a"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-22-cargo-test-p-sley-mutate-mutation-value-codec-adversarial-locked.log": {
+      "mode": "100644",
+      "acceptance_blob": "9a3d30886303ce3c581813f00344c618cb7dfc64"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-23-cargo-test-p-sley-adapter-authorized-adapter-request-binding-confusion-f.log": {
+      "mode": "100644",
+      "acceptance_blob": "47e40642a1efac4a488b9ce1a81a9c70242208b3"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-24-python3-scripts-reconcile-s20-530-exception-ledgers-py-evidence-validati.log": {
+      "mode": "100644",
+      "acceptance_blob": "3c91e2c1ccc22cb5018450e5ad8a28c632399c47"
+    },
+    "evidence/validation/s20-530-crash-recovery-logs-v1/tier2-25-cargo-fmt-all-check.log": {
+      "mode": "100644",
+      "acceptance_blob": "00a28c7fefd368c85e92527b8bda664cedef9513"
+    }
+  }
+}

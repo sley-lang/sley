@@ -1,0 +1,28 @@
+status:
+- **PASS — high confidence** for the amendment-A1 delta. This is not authorization to re-land the prototype; the existing Phase-2 gate remains.
+
+findings:
+- **(1) PASS:** The split reconciles both reviews. Closed-type and pure-row triple judgment occur in step 4 (`effects.rs:538-564`); scope/request/result binding occurs during step 6 (`effects.rs:843-869`). The specification now states the same order (`EFFECT_SYSTEM_V1.md:105-118,362-380`). Unused malformed rows are covered (`effects.rs:1936-1966`).
+- **(2) PASS:** First-failure determinism comes from sequencing, not merely the shared code. Step 4 precedes capability and operation validation (`effects.rs:295-301`), so malformed rows fail first; conforming rows with bad invocation binding fail at step 6. Both correctly return `ADAPTER_INVOKE_TYPE`.
+- **Prior (1) PASS:** Negative-result → review → reconciled re-land sequencing remains explicit (`rw-030-g10-admission.md:215-219`).
+- **Prior (2) PASS, still qualified:** Current lowering rejects `adapter_invoke` as unsupported (`lower.rs:624-637`), while the public extended execution helper remains relevant to the future bypass proof (`extended.rs:1179-1193`).
+- **Prior (3) PASS, narrow:** Existing markers still track the pure specification, invocation validator, and positive fixture (`check_effect_system.py:17-43`). The new declaration helper/fixture is not independently marker-pinned; that is optional hardening, not an architecture blocker.
+- **Prior (4) PASS:** No new gate framework or ownership boundary was introduced.
+- **Prior (5) PASS:** Authority, amendment status, exact registration ownership, and unchanged anti-shortcut constraints remain explicit (`rw-030-g10-admission.md:171-213`).
+- **Prior (6) PASS as phased allocation:** Phase-1 coverage now includes declaration enforcement, invocation shapes, closure behavior, open schemas, and effectful controls (`effects.rs:1820-2091`). Registration/runtime negatives remain Phase 2.
+- **LOW, nonblocking:** Comments at `effects.rs:541-545` and `:1793-1796` still say malformed pure shapes fail only “at invocation”; behavior now fails them at declaration.
+
+validation:
+- Compared `effects.rs` and `EFFECT_SYSTEM_V1.md` against `50f17c9`.
+- `python3 scripts/check_effect_system.py`: PASS, 23 tests detected, zero problems.
+- `git diff --check 50f17c9 --`: PASS.
+- Cargo tests not run because the handoff is read-only and compilation would create artifacts.
+
+blockers:
+- No architecture blocker in this delta.
+- Before prototype re-landing: prove exact identity/ABI registration cannot be bypassed through public execution helpers and add missing/unknown/wrong-version pipeline negatives.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+disposition (implementation workflow, post-verdict): transcript above is the reviewer's returned delta re-review verdict, transcribed verbatim (only this disposition section added). The LOW was repaired in-tree (both comments now state declaration enforcement). Amendment A1 ACCEPTED on the architecture lane. Phase-2 gate stands: public-helper bypass proof + identity/ABI pipeline negatives + fresh review before re-landing.

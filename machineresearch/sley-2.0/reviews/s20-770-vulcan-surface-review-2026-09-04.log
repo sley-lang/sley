@@ -1,0 +1,58 @@
+DISPATCH 770-vulcan-surface forge-vulcan-770-vulcan-surface-20260904T085105 2026-09-04T08:51:05Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract index and its supporting artifacts.
+
+Read-only triage complete on worktree `sley2-review-2026-09-04` @ `9dc78fe`. I did not modify the repository, did not run cargo, and did not invoke any make target.
+
+## Verdict
+
+**FAIL — narrow.** No P0. One P1 that sits exactly at the acceptance flip; the rest is P2/P3. The index's factual content holds up: every document, checker, domain, and corpus path I spot-checked resolves, the three named checkers are wired into the Makefile (lines 16, 53, 72), and the derived-domain set and the registry are currently identical at 50 each.
+
+## What I checked and what held
+
+**`sley-test-report-v1` with no corpus — acceptable, and the reason is genuinely checkable.** I went in expecting this to be the soft spot and it is not. `REPORT_ENVELOPE_PROFILE_V1.md` §9.1 gives the exact six-unit table, and `scripts/check_report_envelope_profile.py:92-100` really does read `crates/sley-vm/src/execute.rs` and fail with `execution-limits-gained:<unit>; section 9.1 is stale` if the VM gains `max_memory_bytes`, `max_output_bytes`, `max_call_depth`, or `wall_timeout`. Rule 3's claim is substantiated. Absence is stated, bounded, and self-invalidating. Keep it.
+
+**The premise about "four" understates it.** `IDENTIFIERS_V1.md:72-76` records that twenty domains reached production unregistered on 2026-09-03: four under ADR-0047, then sixteen more under ADR-0048 because the first drift check read only `crates/sley-id` while any hashing crate may derive a domain. So the answer to "does this indicate a process gap beyond the four" is yes, empirically — the gap was rediscovered once already, at 4× the original scale, by widening the same check.
+
+## Findings
+
+**P1 — the acceptance token has no machine-readable qualifier.** §3 of the index and decision 4 of the ADR both disclaim completeness and acceptance, but neither disclaimer survives into the machine surface. `machine-summary.json → required_contract_index` carries `master_goal_section: 17`, `required_contracts: 12`, and a status that flips to `S20_770_INDEX_ACCEPTED` once the three reviews read PASS. A downstream GA consumer reading those three fields together can reasonably render "section 17's twelve required contracts: accepted." `implementation_complete: false` is the only brake and it is ambiguous — it reads as the index's implementation, not the contracts'. This is P1 rather than P2 because my PASS is one of the three inputs that flips the token; returning PASS with it open would be incoherent. Fix is small: add an explicit negative field (e.g. `asserts_contract_acceptance: false` / `asserts_completeness: false`, mirroring the existing `defines_no_contract: true`), or rename the terminal status to something like `S20_770_INDEX_TRACEABILITY_ACCEPTED`.
+
+**P2 — the drift check is one-directional; a registry entry that is never derived passes.** `check_required_contract_index.py:102` computes `unregistered = derived − registry` only. The reverse set is never computed. Combined with the domain-column check at line 75, which tests only that the domain string appears somewhere in `IDENTIFIERS_V1.md`, the index's "Digest domain" column proves registry *presence*, never that any code derives that domain for that contract. A row could name a plausible, registered, entirely dead domain and the gate stays green. Currently latent — the two sets match today — but it is the exact failure mode the check exists to prevent, inverted. Fix: also emit `registered-but-underived:<domain>`, with an explicit allowlist for any domain legitimately compiled out (`sley2.s20-530.recovery-ancestry-test-plan.v1` is the obvious candidate and should be named, not silently tolerated).
+
+**P2 — Rule 3 is unenforced by the index's own checker.** §2 requires that a "no corpus" cell state a reason and that the reason be checkable. The corpus loop at lines 84-88 only validates cells whose backticked contents start with `conformance/` or `crates/`. The free-text cell in row 17.10 is never parsed. A future row reading "no corpus, because reasons" passes unchanged. The rule is currently satisfied by authorial care, not by the gate.
+
+**P2 — the detection surface is still narrower than the namespace.** The scan is literal `"sley2.…"` string matches in `crates/**/*.rs`. Twenty-two further `sley2.*.v1` identifiers live in the Python evidence tooling and are in no registry — `sley2.finding-register.v1`, `sley2.decision-dossier.v1`, `sley2.ga-acceptance-report.v1`, `sley2.release-provenance.v1`, `sley2.raw-trial-digest-claim.v1`, and others. These appear to be artifact *contract labels*, not digest domains — `scripts/build_finding_register.py:55-56` hashes canonical JSON with bare SHA-256 and no domain prefix — so they are arguably outside `IDENTIFIERS_V1.md` scope as written. That is the finding: a second `sley2.*.v1` namespace, adjacent to the one the registry governs, with no registry, no ADR requirement, and no drift gate, using undomain-separated digests. The 4→16 escalation says this class of gap gets found late. Either bring these under a stated scope boundary or state explicitly in `IDENTIFIERS_V1.md` that they are out of scope and why. Scope-adjacent to S20-770; flagging rather than owning.
+
+**P2 — `IDENTIFIERS_V1.md` cites ADR-0047 for a change ADR-0047 does not record.** Line 72 attributes four registry rows to ADR-0047. ADR-0047 has four decisions and none of them is "register four domains"; the index does not mention it either. The only artifact recording the registry mutation is `domains_added_to_registry` in the machine summary. For a registry whose own rule (line 83-84) is that adding a domain requires an ADR, the ADR should say so.
+
+**P3 — inconsistent match strictness inside one checker.** Line 75 tests `domain not in identifiers` (bare substring); line 102 tests `` f"`{domain}`" not in identifiers `` (backticked). A domain named in prose — including in a future "these are not domains" paragraph — satisfies line 75 and fails line 102. Use the backticked form in both.
+
+**P3 — the §9.1 guard is fail-open on rename.** `check_report_envelope_profile.py` matches four literal markers in one hardcoded file path. Renaming a field or moving limits out of `execute.rs` voids the guard silently while the corpus stays legitimately empty. Upstream of S20-770, but the index leans on it as its only checkable-reason precedent.
+
+**P3 — §5 describes the checker as verifying "each checker is invoked by the Makefile" via `f"scripts/{checker}" not in makefile`,** a raw substring test over the whole file with no target association. A checker mentioned in a comment or in an unrelated target satisfies it.
+
+<details>
+<summary>Validation actually run</summary>
+
+- `git log --oneline -1` → confirmed `9dc78fe`
+- `rg` extraction of derived domains from `crates/**/*.rs` vs backticked registry entries in `IDENTIFIERS_V1.md` — both sets 50, identical
+- `rg` for dynamic/composed domain construction in crates — one unrelated hit (`sley2-gc-` temp path), so the literal-string assumption holds today
+- `rg` for `sley2.*.v1` outside `crates/**/*.rs` and `docs/`, then a per-identifier registry membership loop — 22 unregistered
+- `rg` of `Makefile` for the three checkers named in rows 17.9/17.10 and the index checker itself — all present
+- targeted reads of `REPORT_ENVELOPE_PROFILE_V1.md` §9.1, `check_report_envelope_profile.py:88-104`, `IDENTIFIERS_V1.md:60-99`
+- `machine-summary.json → required_contract_index` read via `json.load`
+
+Not run: `scripts/check_required_contract_index.py` itself, and no cargo/make. Path-existence claims for the twelve rows are therefore verified by inspection of the checker's logic and spot checks, not by executing the gate. If you want the gate's own output, that is one `python3 scripts/check_required_contract_index.py` away and I did not take it, since the brief said read-only and the checker writes nothing but was not explicitly authorized.
+</details>
+
+## Blockers
+
+None. Every finding is repo-local and fixable without a run.
+
+## Handoff
+
+Fixes are Merlin's (checker changes to `scripts/check_required_contract_index.py`, machine-summary field, ADR-0047 amendment). The P2 on the Python-side `sley2.*` namespace is a scope question for Ariadne or Maat before anyone writes code against it — do not widen the drift check to `scripts/` without first deciding whether those labels are in the registry's scope at all.
+
+S20_770_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":[],"p1":["S20_770_INDEX_ACCEPTED flips with no machine-readable disclaimer; machine-summary carries master_goal_section 17, required_contracts 12, and an ACCEPTED status together, which reads as contract acceptance. Prose disclaimers in index section 3 and ADR decision 4 do not reach the machine surface. Add asserts_contract_acceptance false / asserts_completeness false, or qualify the status name."],"p2":["Drift check is one-directional at check_required_contract_index.py:102; a registry domain that no crate derives is never flagged, and the index domain column proves registry presence rather than derivation. Add registered-but-underived detection with a named allowlist for compiled-out domains.","Rule 3 (no corpus requires a stated checkable reason) is unenforced by the index checker; the corpus loop at lines 84-88 only validates conformance/ and crates/ paths and never parses free-text cells.","Detection surface is literal sley2. strings in crates/**/*.rs only; 22 further sley2.*.v1 identifiers exist in Python evidence tooling with no registry, no ADR requirement, no drift gate, and undomain-separated SHA-256 digests. Scope boundary must be stated explicitly.","IDENTIFIERS_V1.md line 72 attributes four registry rows to ADR-0047, but ADR-0047 records no such decision and the index does not mention it; the registry's own rule requires an ADR for adding a domain."],"p3":["Inconsistent match strictness in one checker: line 75 uses a bare substring test, line 102 uses the backticked form.","The section 9.1 guard matches four literal markers in one hardcoded path and fails open on rename or relocation.","Makefile invocation check is a raw whole-file substring test with no target association."],"notes":"No P0 and no false claim found. sley-test-report-v1 with no corpus is acceptable: section 9.1 states the reason and check_report_envelope_profile.py lines 92-100 genuinely fails if the VM gains any of the four units. Derived and registered domain sets are identical at 50. Process gap beyond the four is confirmed and larger than stated: IDENTIFIERS_V1.md lines 72-76 record twenty domains reaching production unregistered, four under ADR-0047 and sixteen under ADR-0048. The single P1 is a small machine-surface fix; re-review is cheap."}
+EXIT=0 2026-09-04T08:54:28Z

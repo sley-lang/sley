@@ -1,0 +1,14 @@
+# Ariadne Council review — decision_dossier
+
+Harness: claude-code
+Observed model: claude-fable-5-1
+Reviewed checkpoint: 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb
+
+Checks/evidence actually inspected and limitations. Boundary: `scripts/build_ga_acceptance_report.py:688-695` wraps only `build_report()` in `except ValueError`, prints canonical `{mode, result: FAIL, code: 76001, name: DOSSIER_SOURCE_INVALID, detail}` and returns 1 before any write, so a refused write mode never touches the tracked report and check mode fails closed. The only intentional raise is `:642-645` (missing or non-hex-64 `register_digest`/`obligations_digest`); `load_sources()` is invoked inside `build_report` when sources is None (:640-641), so the boundary covers the real load path. `json.JSONDecodeError` from a malformed required source is a `ValueError` subclass and now also maps to 76001, which is the governed structural-source meaning; a missing required file still raises `OSError` outside the boundary, unchanged from before and outside the "invalid-source ValueError" scope (observation only). Test `bench/review/tests/test_ga_acceptance_report.py:93-106`: `Fixture.setUpClass` loads the live sources through `ga.load_sources()`, the test deep-copies them, pops `register_digest` from the real register, patches `ga.load_sources` to return that malformed mapping, and runs `ga.main([])` and `ga.main(["--check"])` asserting exit 1, code 76001, name, mode write/check, result FAIL, and "register_digest" in detail; stdout is captured so no traceback or file write occurs. Alignment: spec Status revision 9, section 2.1 (:217-220) and section 10 (:403-409) describe the CLI refusal; ADR-0043 "draft at revision 9" plus note; `SPEC_REVISION = 9` anchored to the Status header (:320-322); summary `contract_revision: 9`; WORK_PACKAGES.md:68 revision 9. Old derivation unchanged: the diff to the script is the nine-line boundary only. Counts consistent: review tests 89 to 90, python_tests 418 to 421, dossier `python_tests` mirror 421, `open_reviews` 12 across dossier, GA report, and summary. The dossier's "residual risks" entry carries the stale summary text noted in section 3; that is a faithful derivation, not a dossier defect. Limitations: the test, `check_decision_dossier.py`, and both `--check` runs were not executed (denied); the orchestrator's red-then-green claim for the new test is unverified.
+VERDICT: PASS
+SECTION: decision_dossier
+FIELD: current_delta_review.ariadne
+SCOPE_SHA: 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb
+FINDINGS:
+NONE
+SUMMARY: The GA CLI now converts the register-digest ValueError into the owner's coded 76001 refusal with exit 1 in both modes without writing, the regression test drives it through the real load_sources path with an actually malformed register, and contract, checker, ADR, summary, and work-package row agree on revision 9. Derivation is unchanged; no regression found.

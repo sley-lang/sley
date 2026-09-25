@@ -1,0 +1,21 @@
+status: FAIL
+
+findings:
+- **Blocking — profile type closure is unsound.** `BOOTSTRAP_PROFILE_1` excludes floats and other forms (`docs/spec/BOOTSTRAP_PROFILE_1.md:65-71`), but `bootstrap_type_ok` checks only a `Named` type’s arguments, not its record fields or variant payloads (`crates/sley-vm/src/bootstrap.rs:123-136`). `BootstrapProfileInput` carries no `TypeEnvironment`, so the gate cannot inspect those definitions (`bootstrap.rs:64-80`). A valid named record containing `F64` can therefore cross a function boundary and execute despite the frozen exclusion.
+- The same recursive check accepts `LocalCell<F64>` internally because `LocalCell(_)` ignores its element type (`bootstrap.rs:122`). Additionally, the `AdapterInvoke` branch continues after registry resolution (`bootstrap.rs:308-324`), bypassing result-type membership checks at lines 333-339; `PSH1` resolution accepts any structurally related request/response type (`crates/sley-vm/src/extended.rs:297-303`), not specifically a bootstrap type.
+- **Other reviewed axes appear sound:** import identity/version/schema/effect matching is exact and default-deny (`extended.rs:255-325`); lowering, surcharge, execution, and gate use the shared resolver (`extended.rs:350,1172,1946`; `bootstrap.rs:317`); bridge execution is representation conversion/push only (`extended.rs:385-485`); pure rows manufacture no `AdapterCall` closure (`crates/sley-check/src/effects.rs:538-638,844-888`); the eleven SH2 questions are substantively mapped (`rw-050-sufficiency.md:97-133`); RW-070 remains explicitly unfrozen (`BOOTSTRAP_PROFILE_1.md:27-30`).
+
+validation:
+- Read the requested worktree artifacts plus the production bridge resolver/execution implementation.
+- Read-only checks confirmed profile/accepted SHA-256 values, 42-opcode gate/profile equality, 20 vector IDs, and recorded maxima of 34 instructions/124 fuel.
+- No tests were run because the handoff permits read-only, non-mutating actions.
+
+blockers:
+- Make bootstrap membership recursively inspect named-definition fields/variant payloads and `LocalCell` element types.
+- Apply bootstrap-type membership to resolved bridge row types and `AdapterInvoke` result types.
+- Add negative tests for named definitions containing excluded forms, `LocalCell<F64>`, and `PSH1`/adapter results carrying non-bootstrap types.
+
+return_to:
+REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+disposition (implementation workflow, post-verdict): transcript above is the reviewer's returned verdict, transcribed verbatim (only this disposition section added). All three findings accepted as binding — each verified against the cited code before repair. Repairs in `crates/sley-vm/src/bootstrap.rs`: (1) `BootstrapProfileInput` carries `types: &TypeEnvironment`; `bootstrap_type_ok` walks named definitions (record fields + variant payloads, unknown definitions fail closed, cycle-safe coinductive accept) and checks `LocalCell` element types; (2) `AdapterInvoke` admission extracted to `admit_bridge_use`, which enforces bootstrap-type membership on the resolved row schemas (relationship-holding float/handle rows are not permitted imports) and falls through to the shared declared-result membership check (no more `continue` bypass); (3) new tests: named-definition inspection (tainted/clean/unknown), cell element types, bridge row + result types. Gate suite 10/0 green (6 prior + 3 finding-driven + 1 coverage rule; an earlier draft of this disposition miscounted as 12 — corrected here, reviewer verdict untouched), clippy `-D warnings` and fmt clean, all 20 closure vectors re-admitted. Delta re-review requested.

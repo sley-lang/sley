@@ -1,0 +1,1 @@
+{"expect":{"routing":"FAIL"},"gaps":[{"disposition":"synthetic gap with no owner and no classification","evidence":"none","id":"G-X"}],"note":"synthetic corpus case: a gap row without owner/classification. Routing must FAIL.","synthetic":true}

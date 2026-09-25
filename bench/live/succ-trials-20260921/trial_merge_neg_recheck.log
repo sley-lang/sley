@@ -1,0 +1,4 @@
+MERGE witness/neg: propose valid True
+MERGE witness/neg: finished True
+S2B-MERGE-001 witness/neg judge exit: 1
+workspace kept at: /tmp/sley2-merge-witness-ir5o76wi/ws

@@ -1,0 +1,29 @@
+{
+  "contract": "sley2.live-task-base.v1",
+  "entities": {
+    "above_func": "4646464646464646464646464646464646464646464646464646464646464646",
+    "above_op": "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a",
+    "below_func": "4141414141414141414141414141414141414141414141414141414141414141",
+    "namespace": "4040404040404040404040404040404040404040404040404040404040404040"
+  },
+  "judge": {
+    "combine": "clamp",
+    "flow": "execute-cases",
+    "functions": {
+      "above": "above_func",
+      "below": "below_func"
+    }
+  },
+  "pack_digest_blake3": "237be3f1904ccfa6062d5d757f1a876379d82363613072aade7a6db8a05d24a8",
+  "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
+  "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
+  "strict": {
+    "source": "corpus"
+  },
+  "targets": [
+    "4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a"
+  ],
+  "task_id": "S2B-REPAIR-001",
+  "variant": "upper_returns_low",
+  "workspace": "0707070707070707070707070707070707070707070707070707070707070707"
+}

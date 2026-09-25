@@ -1,0 +1,13 @@
+{
+  "classification": "HARNESS_ONLY_FIXED",
+  "contract": "s20-700-fuzz-harness-regression-v1",
+  "disposition": "Narrowing arm 0 exposed a harness false-positive: the template-2 input pushing block-param 25 onto function.parameters reports GRAPH_OWNER_MISMATCH, a correct engine refusal the oracle had not listed for arm 1; arm 1 gained GRAPH_OWNER_MISMATCH (docs/audits/S20_700_SEMANTIC_CHECKERS_PERSISTENT_SLICE.md, fourth set change). The minimized stub 010202 did not crash (failed minimization) and is retested with the original.",
+  "expected": "The ssmc_graph_cfg_checker target completes with GRAPH_OWNER_MISMATCH accepted for arm 1; both inputs execute without a crash artifact on every run (permanent retest seeds).",
+  "finding_id": "S20-700-GRAPH-CFG-001",
+  "input_hex": "02ef0110ffef00000000000000000000",
+  "minimized_input_hex": "010202",
+  "original_crash_hex": "02ef0110ffef00000000000000000000",
+  "production_checker_defect": false,
+  "root_cause": "Over-narrow harness oracle: arm 1 omitted a correct failure class (GRAPH_OWNER_MISMATCH) the engine reports for a block parameter pushed onto function.parameters.",
+  "target": "ssmc_graph_cfg_checker"
+}

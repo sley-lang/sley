@@ -1,0 +1,24 @@
+{
+  "contract": "sley2-exec-package-2",
+  "header": {
+    "bytes": 316,
+    "identity_rule": "the exact package-digest preimage",
+    "layout": "SLEYPKG1 || u32(2) || profile_digest || u32(host_abi_version) || vm_version[3] || five section digests || entry || epoch || root"
+  },
+  "identity": "EXEC_PACKAGE_V2_ENVELOPE",
+  "section_framing": "five sections in image/constants/layouts/imports/dependency order; each u64 big-endian byte length followed by exact section bytes",
+  "status": "PROVISIONAL_RW_080_CONSTRUCTION_REVIEW_PENDING",
+  "vector": {
+    "dependency_digest": "dd0847cc00e8b1b431977d85d8328134d1e00c9709a31f613049b925d35822aa",
+    "empty_section_digest": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+    "entry_hex": "0101010101010101010101010101010101010101010101010101010101010101",
+    "envelope_bytes": 605,
+    "envelope_sha256": "e20514de303de25d4585cae3923a03187b37baa2c6043cddbd4bfff11208715b",
+    "epoch_hex": "0808080808080808080808080808080808080808080808080808080808080808",
+    "image_digest": "1c1e01cd2f714c50d63688a93b372a4690a042ccb930e9fcdb8be0a6568a881a",
+    "image_hex": "534c45594243303200",
+    "package_digest": "48ab17b04ebb95b37ed2cd6bd93f2e7c6ce295f9e07110e34b26c8c68c614fa8",
+    "root_hex": "0909090909090909090909090909090909090909090909090909090909090909"
+  },
+  "version": 2
+}

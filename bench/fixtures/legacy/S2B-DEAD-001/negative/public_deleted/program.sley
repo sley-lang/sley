@@ -1,0 +1,6 @@
+module app.prune
+
+task main -> Int {
+  bind result = 42
+  return result
+}

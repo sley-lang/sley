@@ -1,0 +1,4 @@
+$ python3 scripts/check_scb1_spec.py
+execution_profile_sha256: 2dd500d114ce37f530ff4a2fa4807f6b808a88a9839c31d2e9da3f1c3a746631
+exit_status: 0
+{"accepted_vectors": 23, "codec_implemented": true, "contract": "s20-100-check-v1", "oracle_implemented": true, "rejected_vectors": 26, "rejection_codes": 22, "result": "PASS", "u128_source_markers": 5, "u128_unit_test_markers": 4}

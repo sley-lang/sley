@@ -1,0 +1,38 @@
+S20-400 SMP1 revision 11 — Vulcan read-only third surface re-review
+Date: 2026-09-05
+Pinned repository: /home/dev/sley2
+Pinned HEAD: a4f9fb9b3e261537b8d23c19925301f864be2cdf
+Mode: bounded residual triage; no cargo, make, test execution, deployment, merge, or canon mutation
+
+status: complete
+
+verdict:
+Fractured — the empty-list shape is closed, but the review-tracking invariant remains bypassable. Result: FAIL (high confidence).
+
+findings:
+P0: none.
+
+P1-1 — FAIL review tracking is still not reconciled to the failing lane or to itemized register entries.
+scripts/check_smp1_contract.py:270-281 recomputes one global total across protocol.p1_open/p2_open/p3_open for every failing review lane. Any non-empty entry for any other lane therefore marks every FAIL lane as tracked, even when the failing lane has no itemized finding and no same-lane PASS. The code also applies len() without requiring arrays of item strings and does not inspect the derived finding register. This contradicts SMP1 section 10's per-review requirement that review rounds be same-lane-PASS-superseded or itemized as open findings in both the machine summary and finding register. Commit a4f9fb9 closes the exact all-empty/no-PASS case, but not the underlying silent-pending bypass identified in rereview 2.
+
+P2: none.
+P3: none.
+
+Residual disposition:
+- R1 (IMPLEMENTED review tracking): NOT CLOSED. Empty p1_open/p2_open/p3_open with no same-lane PASS now fails, but unrelated non-empty entries still satisfy tracked for every failing lane; no lane association or register reconciliation is enforced.
+- R2 (below-selection unreachable): remains CLOSED from rereview 2; no contrary change identified in this bounded diff.
+
+validation:
+- Verified repository HEAD is exactly a4f9fb9b3e261537b8d23c19925301f864be2cdf and the worktree was clean before the permitted review-log write.
+- Read the rereview-2 finding, a4f9fb9~1..a4f9fb9 diff, SMP1 section 10, the current protocol summary, and the relevant checker/register-builder blocks.
+- Targeted search found no checker test covering lane association or malformed/non-itemized open-list values.
+- git diff --check a4f9fb9~1..a4f9fb9 passed.
+- Static review only, as required. No cargo, make, provider action, deployment, merge, or locked-canon mutation performed.
+
+blockers:
+none; verdict decided from static evidence.
+
+return_to:
+orchestrator
+
+S20_400SURFACE_REREVIEW3_JSON={"reviewer":"vulcan","result":"FAIL","p0":[],"p1":["FAIL review tracking remains globally rather than lane-reconciled: any unrelated non-empty p1_open/p2_open/p3_open entry satisfies tracked for every failing lane, without requiring an item for that lane or verifying the derived finding register, so a silently pending review can still pass"],"p2":[],"p3":[]}

@@ -1,0 +1,1 @@
+{"arm": "legacy", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"round_up_tax": "ORACLE_ROUND_UP_TAX", "unchecked_add_variant": "ORACLE_UNCHECKED_ADD"}, "positive": "accepted", "task_id": "S2B-CREATE-001"}

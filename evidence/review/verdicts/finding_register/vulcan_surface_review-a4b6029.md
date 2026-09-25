@@ -1,0 +1,29 @@
+Baseline verified: `git rev-parse HEAD` = `a4b60294e4dd75133fa08f92bf16022fb05bb807`. Read-only except this verdict file. This re-review supersedes `vulcan_surface_review-cb841a6.md`.
+
+## What I verified (independently, own re-implementation, plus script outputs)
+
+- **Scripts**: `python3 scripts/build_finding_register.py --check` → PASS, obligations 290, open_reviews 77, result FINDING_REGISTER_OPEN, exit 0. `python3 scripts/check_finding_register.py` → result PASS, problems [], exit 0. `python3 -m unittest discover -s bench/review/tests -t .` → 44 tests, OK.
+- **Independent collection**: re-implemented contract §1 (review/disposition name match, lane-leaf rule, anchored skips, instant/session exclusion, own-verdict exclusion) without importing the builder → identical 290-obligation set: zero key diffs, zero disposition diffs vs `evidence/review/finding-register.json`.
+- **Independent classification**: first-token heads over the closed head set + alias table → all PASS/PENDING/DEFERRED/OTHER states agree (0 mismatches); all 43 HISTORICAL_ROUND carry a non-null `superseded_by` that resolves to a same-section, same-lane PASS (0 superseder problems).
+- **Independent severities**: negation-strip + zero-count-absence re-implementation → 0 mismatches; tally P0=61/P1=108/P2=119/P3=135/P4=15 exactly matches.
+- **Digests**: `obligations_digest` and `register_digest` recompute exactly. Summary cross-checks agree: finding_register.obligations=290, open_reviews=77, register_result=FINDING_REGISTER_OPEN, contract_revision=3, independent_review=PENDING.
+- **Repair 1 (temporal fold) CLOSED on live data**: all six ex-folded rows read PENDING with no superseder — s20_360_candidate_validation.{ariadne,nabu,vulcan}_operation_analysis_review and s20_390_atomic_commit.{ariadne,nabu,vulcan}_extended_profile_review. All 43 live superseded_rounds show genuine round evidence (initial/revision-N → final/unmarked); no bare unmarked cross-core fold remains. `test_supersession_runs_early_or_qualified_toward_late_or_general` pins the new rule (unmarked general PASS no longer folds a qualified FAIL).
+- **Repair 2 (lane-keyed collection) CLOSED on live data**: 15 `current_delta_review` lane leaves collected (9 PENDING: json_bridge, required_contract_index, session_handle_profile ×3 lanes; 6 PASS: cli, protocol ×3 lanes). session_handle_profile no longer reads closed-with-pending-deltas.
+- **Repair 3 (zero-count absence) CLOSED on live data**: `FAIL_0_P0_…` names no P0, all-zero `PASS_0_P0_0_P1_0_P2_0_P3` carry none; contract §2 and `severities_of()` agree; `test_zero_counts_carry_no_severity` pins it.
+- **Prior P2 (s20_360 zero counters) CLOSED as a contradiction**: the lower-severity rounds are now honestly tracked as 6 PENDING open_reviews with severities; the register reads OPEN and names them. Counters at zero no longer mislead because the open rounds themselves block clearance.
+- **Prior P4 (S20_700FUZZ head) CLOSED**: no FUZZ-headed disposition remains; s20_700_vm_persistent_fuzz_slice.vulcan_review is now `PASS_0_P0_0_P1_0_P2_0_P3_5_P4` with a qualifying re-review note. It falls under the surviving WITH_FOLLOWUPS family below (carried P4, no OPEN token).
+- **Prior P4 (reviewer_role skip) CLOSED**: skip is now `(^|_)reviewer_role$`, anchored as §1 states; no live effect either way.
+- **OTHER rows (3) are the mechanism working, not findings**: merlin TIMED_OUT head, rw075 SELF-REVIEW head, s20_600 `review_lane=legacy_artifact_adapter` head — all genuinely unclassifiable, all block CLEAR honestly.
+
+## Remaining live issues (2 × P3, neither silent, both precision)
+
+1. A PASS that carries severities still reads PASS and cannot block clearance: `PASS_WITH_P1_P3_P4_FOLLOWUPS_NO_P0_P2` (reproducibility nabu, carried P1) plus the same family in reproducibility ariadne ×2, mutation_value_profile vulcan, root_backed_query_profile ×3, s20_700_scb1 vulcan, and the new fuzz-slice `PASS_…_5_P4`. The carried tokens are visible in severity_mentions but no OPEN_CLAIM token fires and the sections' p1_open lists/counts read 0/empty, so this shape could survive into a CLEAR read.
+2. Three mid-string-COMPLETE sections carry open obligations without tripping the suffix-tested completion invariant: s20_360 (3 PENDING — the honest cost of the temporal fix), s20_390 (3 PENDING), mutation_value_profile (1 OTHER). Disclosed in §7 as precision; the result stays OPEN so nothing clears silently, but the status strings say COMPLETE while reviews are open.
+
+VERDICT: REVISE_0_P0_0_P1_0_P2_2_P3
+SECTION: finding_register
+FIELD: vulcan_surface_review
+SCOPE_SHA: a4b60294e4dd75133fa08f92bf16022fb05bb807
+FINDINGS:
+P3 [contract] docs/spec/FINDING_REGISTER_V1.md:84-86 open-claim set; scripts/build_finding_register.py:57,189-193 - PASS-with-carried-severity still classifies PASS: reproducibility_and_independent_conformance.nabu_architecture_review PASS_WITH_P1_P3_P4_FOLLOWUPS_NO_P0_P2 (carried P1) plus same family in reproducibility ariadne_contract_review/ariadne_review, mutation_value_profile vulcan_review, root_backed_query_profile ×3 entity-read reviews, s20_700_scb1 vulcan_review, s20_700_vm_persistent_fuzz_slice vulcan_review PASS_0_P0_0_P1_0_P2_0_P3_5_P4; no P1_OPEN/OPEN_P1 token fires and section p1_open=[]/p1_open_count=0, so carried findings cannot block clearance.
+P3 [contract] docs/spec/FINDING_REGISTER_V1.md:170-176,245-250 completion test; scripts/build_finding_register.py:227-233 - mid-string COMPLETE statuses bypass REGISTER_COMPLETION_VIOLATION while carrying open reviews: s20_360_candidate_validation COMPLETE_RESTRICTED_..._BOUNDARY (3 PENDING operation_analysis FAILs), s20_390_atomic_commit COMPLETE_RESTRICTED_..._WITH_EXTENDED_OPERATION_PROFILE (3 PENDING extended_profile FAILs), mutation_value_profile S20_350_COMPLETE_PROPOSAL_ONLY (1 OTHER merlin_review); result stays FINDING_REGISTER_OPEN so the gap is reporting precision, not a silent pass.

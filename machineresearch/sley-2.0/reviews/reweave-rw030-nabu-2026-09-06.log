@@ -1,0 +1,20 @@
+status: FAIL — high confidence
+
+findings:
+- **[MEDIUM]** `rw-030-g10-admission.md` §3 incorrectly says the RW-070 positive import manifest gains a `vector-push` entry “in whichever carrier is frozen.” If RW-050 selects an E-profile opcode, it is not a host import and must not enter that manifest. This makes the required dependency-impact routing inexact.
+- **[INFO]** Otherwise, the §18 admission is sound: C1/C2 are concrete; existing-semantics alternatives are compared; type, bounds, failure, encoding, effects, and anti-shortcut constraints are covered; no excluded effect or compiler service is admitted.
+- **[INFO]** Remedy sequencing is otherwise correct: RW-050 implements and freezes profile details, RW-070 freezes host-ABI/import details, and RW-090 proves byte/error parity.
+- **[INFO]** The staged-checker repair is correctly scoped: only repo-root `host-boundary.json` is recognized; S/C0–C3 remain later-stage information; readiness is explicitly an informational R2 proxy; RW-040 evidence remains intact.
+- **[INFO]** `gate_set` directly names existing §19 phases, §20 packages, and §21 targets; it creates no new gate framework.
+
+validation:
+- Inspected `host-boundary.json`, RW-030 charter/admission, both Ariadne rounds, RW-040 closeout/G-10 routing, prior Nabu review, the staged checker and bootstrap manifest, and REWEAVE §§10–11 and §§18–21.
+- Read-only review; no runtime validation performed or required.
+
+blockers:
+- Amend admission §3 to state: the two conversions always become RW-070 import-manifest entries; `vector-push` becomes either an RW-050 E-profile opcode **or**, if selected as a host import, an RW-070 import-manifest entry.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+repair_note (implementation workflow, post-verdict): admission §3 dependency-impact sentence amended exactly as directed — conversions always enter the RW-070 manifest; push enters it only if selected as a host import. Admission doc only; `host-boundary.json` bytes (and its SHA-256) untouched.

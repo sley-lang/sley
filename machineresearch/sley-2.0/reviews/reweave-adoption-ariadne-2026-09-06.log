@@ -1,0 +1,41 @@
+Council contract-lane review, round 1 (2026-09-06): Ariadne PASS.
+Scope: REWEAVE scope-adoption governance patch (ADOPT-REWEAVE-2026-09-06),
+uncommitted diff on sley2 main@9b7054c.
+Task: verify CONTRIBUTING scoping sentence, ANTI_GOALS row re-scope,
+checker verdict-key consistency, and that no other prohibition weakened.
+
+Result returned by the lane:
+
+status: PASS
+
+findings:
+  - severity: none
+    file: CONTRIBUTING.md:36-44
+    expected: Narrow only self-hosting under adopted REWEAVE SH2 to `host-boundary.json`, `BOOTSTRAP_PROFILE_1`, and staged gates.
+    actual: Exact proposed scoping sentence appended; original prohibition remains byte-identical.
+  - severity: none
+    file: docs/ANTI_GOALS.md:30
+    expected: Authorized-campaign wording and specified acceptance text.
+    actual: Exact requested row text present.
+  - severity: none
+    file: scripts/build_anti_goal_conformance.py:163-168
+    expected: Verdict key exactly matches the Markdown row; native-codegen denylist remains unconditional.
+    actual: Key matches exactly; verdict requires both `not native` and valid campaign declarations.
+  - severity: none
+    file: CONTRIBUTING.md:36-39; docs/ANTI_GOALS.md:24-34
+    expected: No other prohibition weakened.
+    actual: Targeted diff shows no other prohibition-text changes.
+
+validation:
+  - Read-only triage against HEAD `9b7054c`.
+  - Confirmed generated conformance report contains the re-keyed anti-goal.
+  - No executable validation requested or run.
+
+blockers: none
+
+return_to: originating OpenCode implementation session
+
+Recording note: read-only handoff; the lane changed no files. The later
+checker hardening (OSError guard, strict gate type) touched only
+scripts/build_anti_goal_conformance.py internals, not the reviewed prose;
+Ariadne round 1 stands unaffected.

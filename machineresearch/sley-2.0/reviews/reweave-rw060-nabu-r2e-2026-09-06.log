@@ -1,0 +1,24 @@
+Nabu string-decoding confirmation — RW-060 (2026-09-06, handoff round 2e)
+status: P2-2 STILL OPEN
+
+findings:
+- String decoding covers the stated escapes, rejects surrogates/invalid scalars, preserves literal strings, and rejects unknown escapes.
+- Concrete evasion: `lockfile_graph` assumes `name` precedes `dependencies` within each `[[package]]`. TOML key order is insignificant, so this valid reordering silently drops edges:
+  ```toml
+  [[package]]
+  dependencies = ["sley-cli"]
+  name = "sley-repo"
+  ```
+  Because `current` is `None`, the dependency is skipped; `sley-repo` is later inserted with no edges, making `sley-cli` unreachable in the census.
+- Fix by buffering package fields until the next `[[package]]`/EOF, then add a reordered-fields regression test.
+
+validation:
+- Target file reviewed completely.
+- Cargo test not executed because the handoff permits read actions only.
+
+blockers:
+- RW-060 closure remains blocked on the order-independent lockfile parser fix.
+
+return_to: orchestrator
+
+[Orchestrator note: repaired exactly as specified — per-package Pending buffer (name + edges) flushed at the next [[package]]/EOF, nameless blocks with edges fail closed, plus a reordered-fields regression. Re-verified locally: 14 passed, clippy -D clean, fmt clean.]

@@ -1,0 +1,1 @@
+{"arm": "raw", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"duplicate_impl": "ORACLE_DUPLICATE_IMPL", "stale_import": "ORACLE_STALE_IMPORT"}, "positive": "accepted", "task_id": "S2B-MODULE-001"}

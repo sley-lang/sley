@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-SIG-001",
+  "arm": "sley2",
+  "negative": "missing_caller",
+  "expected_code": "TYPE_ERROR",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

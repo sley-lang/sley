@@ -1,0 +1,33 @@
+{
+  "conflict": "adadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadad",
+  "contract": "sley2.live-task-base.v1",
+  "entities": {
+    "constant": "adadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadad",
+    "namespace": "acacacacacacacacacacacacacacacacacacacacacacacacacacacacacacacac"
+  },
+  "judge": {
+    "branches": [
+      "main",
+      "theirs"
+    ],
+    "conflict": "constant",
+    "flow": "merge"
+  },
+  "pack_digest_blake3": "31bb030aca206135438883682e9aa7c924a0d0d305a65dcce217907ccee0959b",
+  "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
+  "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
+  "sides": {
+    "ours": "ours.pack",
+    "theirs": "theirs.pack"
+  },
+  "strict": {
+    "source": "corpus"
+  },
+  "targets": [
+    "adadadadadadadadadadadadadadadadadadadadadadadadadadadadadadadad"
+  ],
+  "task_id": "S2B-MERGE-001",
+  "theirs_nonce": 51,
+  "variant": "overlapping_change",
+  "workspace": "0707070707070707070707070707070707070707070707070707070707070707"
+}

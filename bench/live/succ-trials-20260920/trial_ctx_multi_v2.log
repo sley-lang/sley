@@ -1,0 +1,5 @@
+phase1 valid: False
+phase2 valid: False 534c45594352533101c4070d01010102208eeb306ee2b5daaa60014dd2512575ccd6b74a73e0d026d1935462079da2a80b03220120113ca3d64047585570bf158e29ca807a9a3f39d5d0a60331042b0b
+phase3 valid: True 534c45594352533101b8090d0101010220fe3182f0cf4f311edcef5ed699c5a10bca054e360428be9ee1cea0fe693ba0cf03220120b3cd6fc5bfc15efb6e3c67edba47a7c460d87c5ac547392916e85e
+S2B-CONTEXT-001 exit: 0
+{"arm": "sley2", "code": null, "detail": "all flows held; whole_store_reads=0 targeted_reads=4 operations=4 continuations=0 refusals=0 max_response_bytes=9222", "status": "accepted", "task_id": "S2B-CONTEXT-001"}

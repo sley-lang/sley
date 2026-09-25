@@ -1,0 +1,43 @@
+**Baseline:** `git rev-parse HEAD` = `cb841a60d04773fd6ff04181b12bdb9bf7cfac44` (match). Tree clean apart from two untracked `.forge/slices/*.json`. No files written.
+
+## Evidence gathered (read-only)
+
+| Check | Result |
+|---|---|
+| `sha256sum Cargo.lock` / `uv.lock` | `4b6af7f0…4eacc` / `cb9621b8…5cf446`; equal to T52, provenance `resolvedDependencies`, and checker pins |
+| T52 inventory | 51 `bom_ref`, 138 relationships, 19 workspace (`BLOCKED_MISSING_APPROVED_PROPRIETARY_LICENSE_TEXT`), single blocker `workspace-license-text:…`, `license_text_files: []` |
+| T54 scan | 8 patterns, 0 findings, `matched_secret_values_emitted: false`, 1059 candidate files, 499 history blobs, anchor `51863f7` |
+| Provenance-referenced digests | T52, both SBOMs, reproducibility report, conformance report all match `sha256sum` |
+| Anchor distance | `51863f7` = 2026-08-27; `git rev-list --count 51863f7..HEAD` = 678; `git log --name-only 51863f7..HEAD \| wc -l` = 4445 file-versions |
+| Candidate scope | `git ls-files --cached` = 1059; minus 2 excluded T52/T54 outputs = 1057; `--cached --others --exclude-standard` = 1061 → scannable 1059, i.e. the recorded 1059 includes the two untracked `.forge/slices` files (mtimes 2026-09-07, before the 2026-09-11 02:26 generation) |
+| Provenance subject | artifact `8ee23a8…` at `5b70052` (6 commits behind HEAD); runtime `evidence.json` says `working_tree_clean: false` |
+| Reproducibility report (embedded as byproduct) | attests artifact `f5c48a3…` at `84bfa9c`, `working_tree_clean: true` |
+| Decision dossier / GA report | "final commit" `84bfa9c`, "clean tree: true" - describe the repro-report build, not the provenance subject |
+
+Assumptions: the sandbox refused `python3` and `generate_supply_chain_evidence.py --check`, so the candidate-manifest drift is inferred from the file arithmetic above rather than an executed regeneration; SBOM document bodies were verified by digest and structural grep only.
+
+## Assessment
+
+What holds up: T52 is fail-closed on every axis that matters (`cargo metadata --offline --locked`, `uv lock --check --offline`, registry-source pin, 64-hex lock checksum, curated Python license map keyed by exact version, checker `EXPECTED_COUNTS`/`EXPECTED_BLOCKERS` exact-match, summary-to-inventory reconciliation). T54 emits pattern/path/oid only; no values. History scan reads objects through `cat-file --batch` with strict framing. The `.gitignore` boundary guard exists. The audit's own outcome is honestly `DEFERRED`.
+
+What does not: the candidate provenance path has no guard against describing a dirty-tree, un-attested build, and that is exactly what the tracked `provenance.json` does at this SHA. The T54 candidate manifest is not reproducible from the commit alone.
+
+VERDICT: REVISE
+SECTION: s20_710_pre_release_audit
+FIELD: final_vulcan_disposition
+SCOPE_SHA: cb841a60d04773fd6ff04181b12bdb9bf7cfac44
+FINDINGS:
+P1 [contract|implementation] scripts/build_release_provenance.py:98-130, docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md §1 - `load_candidate` neither requires `working_tree_clean: true` nor reconciles the candidate commit/digest with the reproducibility report it embeds as a byproduct; a provenance statement can bind a bare commit to an artifact built from a modified tree, which RELEASE_CANDIDATE_PACKAGING_V1 §77-78 says must never happen.
+P1 [record] evidence/release/provenance.json - subject `8ee23a8…@5b70052` was built with `working_tree_clean: false` outside `make release-candidate-smoke` (which passes `--require-clean`); the embedded byproduct reproducibility-report attests a different artifact `f5c48a3…@84bfa9c`; dossier "final commit" and GA "working tree clean" criteria describe that other build. Acknowledged in the cb841a6 message as "stale attestation" but not carried as a blocker in the provenance, summary, or audit contract.
+P2 [implementation|record] scripts/generate_supply_chain_evidence.py:243 - candidate scan includes untracked files (`--others`); the tracked T54 manifest at cb841a6 (1059 files, sha `a118c9d1…`) includes two untracked `.forge/slices` files, so a clean checkout regenerates 1057 files, `--check` reports drift, and `check_supply_chain_audit.py` under `make quick` fails; the "deterministic regeneration" claim holds only on this host with this untracked state. Scan untracked, but bind the recorded manifest to the tracked set (or HEAD tree) and report untracked separately.
+P2 [implementation] scripts/generate_supply_chain_evidence.py:49 - `OPENAI_KEY` `sk-[A-Za-z0-9]{20,}` cannot match current `sk-proj-…` OpenAI keys or Anthropic `sk-ant-…` keys (hyphen terminates the class); no xAI `xai-`, Hugging Face `hf_`, PyPI `pypi-AgEI…`, npm `npm_`, Discord bot, GCP service-account `"private_key"`, or JWT patterns. The two frontier-provider key formats in daily Greyforge use are outside the scan.
+P2 [contract|implementation] scripts/build_release_provenance.py:269-282, scripts/build_standards_sbom.py:492, spec §5 - `--check` returns `result: PASS` in `LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS` without validating the tracked document at all; any local candidate build neutralizes the drift gate on tracked provenance/SBOM. A skipped verification should be a distinct non-PASS state, or the tracked document should still be validated for internal consistency.
+P3 [record] evidence/security/T54/secret-scan.json, docs/audits/S20_710_PRE_RELEASE_AUDIT.md:7-9 - history anchor is 678 commits and ~4445 file-versions behind the scope SHA; superseded blobs from those commits are in neither scan scope. Disclosed as a limitation and `release_candidate_history_reanchored: false`, but the magnitude is unrecorded and the summary's `t54_high_confidence_scan: PASS` reads broader than its coverage.
+P3 [implementation] (no tests reference generate_supply_chain_evidence.py) - no positive-control test that each `SECRET_PATTERNS` entry fires on a synthetic token, that `scan_blob` finds it in a history blob, or that findings carry no value; the guard has only ever produced zero findings, so a broken regex is indistinguishable from a clean tree.
+P3 [implementation] scripts/generate_supply_chain_evidence.py:255 - byte-regex only; compressed or encoded content (tar.gz, zjx, base64) in the 45 MB candidate set and history blobs is opaque to the scan and this is not in `limitations`.
+P3 [implementation] scripts/check_standards_sbom_and_provenance.py:245 - SPDX `documentNamespace` candidate binding is silently skipped when the untracked runtime evidence is absent rather than reported.
+P3 [record] docs/audits/S20_710_PRE_RELEASE_AUDIT.md:13-18 - "14 workspace crates and 22 registry crates" and "All 15 local packages" are stale against T52 (18/30 cargo, 19 local); the doc's own "nineteen components" at line 59 is correct.
+P4 [implementation] scripts/generate_supply_chain_evidence.py:353-359, scripts/check_supply_chain_audit.py:163-169 - ignore guard is an exact-line subset test on the root `.gitignore` only; a later `!.env`, a nested `.gitignore` negation, or `.git/info/exclude` would pass. Only `!.env.example` exists today (benign).
+P4 [implementation] scripts/check_supply_chain_audit.py:157 - checker trusts the `matched_secret_values_emitted` flag instead of asserting finding entries carry only `pattern`/`path`/`scope`/`blob_oid` keys.
+P4 [record] docs/audits/S20_710_PRE_RELEASE_AUDIT.md:3, docs/spec/STANDARDS_SBOM_AND_PROVENANCE_V1.md:170 - em-dashes (writing rule).
+SUMMARY: The T52 lock inventory and its checker are sound and fail closed on source, checksum, license-map, count, and summary drift, and the T54 scan correctly emits no secret values; those prior verdicts stand. The audit as landed at cb841a6 does not yet earn a final PASS on the security surface for two reasons that are implementation and record defects, not the disclosed license blocker: the candidate provenance builder has no clean-tree or attestation-agreement guard and the tracked statement consequently binds a dirty-tree build whose embedded reproducibility byproduct attests a different artifact; and the T54 candidate manifest was computed over untracked local files, so the tracked evidence cannot be regenerated from the commit and the drift gate fails on any clean checkout. The secret-pattern set also misses the current OpenAI and Anthropic key formats. Fix the provenance guard (require `working_tree_clean`, reconcile candidate with the reproducibility report or drop it as a byproduct), rebuild the candidate through `make release-candidate-smoke` from a clean tree, bind the T54 manifest to the tracked set, extend the patterns with positive-control tests, and re-dispatch; the remaining P3/P4 items can ride the same revision.

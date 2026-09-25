@@ -1,0 +1,70 @@
+S20-260/270 vm_extended_opcode_profile contract re-review
+Reviewer: Ariadne
+Date: 2026-09-05
+Handoff: handoff_1788638175600_a1073c41aad926fefaca
+Mode: bounded read-only triage; this review log is the sole permitted write
+
+Scope and repository state
+- Repository: /home/dev/sley2
+- Required and observed HEAD: b2aff7d
+- Worktree before review-log creation: clean
+- Review range: 0d8553d^..b2aff7d (0d8553d freeze-findings fix, 4fe194e oracle report, b92357e inventory, a6868b8 oracle bump, b2aff7d Tier 2 handoff record)
+- Prior review: machineresearch/sley-2.0/reviews/s20-260-ariadne-contract-review-2026-09-04.log
+- Constraints observed: no cargo, make, deployment, service activation, merge, public action, provider spend, or locked-canon mutation
+
+Evidence inspected
+- docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md
+- docs/adr/ADR-0039-vm-extended-opcode-boundary.md
+- docs/spec/CONTRACT_TEST_PROFILE_V1.md and the manifest references named by the contract
+- crates/sley-vm/src/{lib.rs,lower.rs,execute.rs,extended.rs,extended_tests.rs}
+- fuzz/targets/vm_canonical_inputs.rs
+- scripts/check_vm_extended_opcode_profile.py
+- conformance/vm-extended/v1/accepted.json and SHA256SUMS
+- oracle/scb1/src/sley2_scb1_oracle/vm_extended.py
+- evidence/conformance/independent-conformance-report.json
+- evidence/validation/test-inventory.json
+- machineresearch/sley-2.0/s20-260-270-vm-extended-opcode-campaign-2026-09-03.md
+- Diff 0d8553d^..b2aff7d, narrowed to the package files above
+
+Prior-finding closure
+
+P0 (both previously reported blockers remain closed)
+1. Map canonicality/identity: external inputs pass require_canonical_form; referenced constant_ref/global_get values pass require_canonical_referenced_constants; constructed maps sort by canonical key bytes; duplicate detection and all probes now compare canonical key bytes through keyed_entries. This removes representation-dependent map equality/value-hash behavior within admitted executions.
+2. Signed width-128 int_shl_checked: implementation now checks shifted-down signed bounds instead of multiplying by 1_i128 << amount. e2_left_shift_is_exact_at_every_width_boundary pins both signed directions and unsigned behavior for widths 8, 16, 32, 64, and 128.
+
+P1 (all six closed)
+1. E1 equality table now states two operands, hashability, no contained float, bare F32/F64 admission with IEEE meaning, aggregate-float exclusion, and the NaN==NaN structural rationale. E1/E3 clarification text makes the bare-versus-nested split explicit; code matches via contains_float && !is_float.
+2. E6 normatively fixes 256 live frames and ignores manifest ResourceLimits field 5; it states that no request path carries depth, SMP1 carries no depth, and honoring one requires a protocol change and new lowering_profile.
+3. prepare_frame now refuses only the frame that would make 257 live; e6_call_depth_ceiling_is_256_live_frames_with_the_entry_included and call-direct-depth-ceiling pin 256-live success and the boundary.
+4. E4 names canonical-byte lexicographic order as encoding order, explicitly pins the UInt(255)/UInt(256) inversion, and defines key identity by canonical bytes. e4_map_order_is_the_encoding_order_not_numeric_key_order pins the choice; byte-identity dedup and probes match it.
+5. E3 names negative-zero to positive-zero as a deviation and states the composed float_div consequence; other result-bit and floating-environment claims are narrowed accordingly.
+6. Section 1 now gives the complete SLEYBC02 layout: magic, u32 version, entry body, u64 callee count, and callee bodies in ascending function-id order. The profile lowerer_version is [2,0,0], with a future-layout bump rule; crate and independent oracle agree.
+
+P2 (all five closed)
+1. Campaign record is revision 12, records 22 vectors, includes E7a and the revision-12 Tier 2 handoff.
+2. ADR-0039 header is revision 11 and says E1-E6 plus E7a implemented, rest of E7 excluded. Its proposed status is consistent with the still-draft, review-pending contract rather than claiming a completed freeze.
+3. E4 states map_remove absent-key behavior and the operand arities for map_get/map_contains (and insert/remove).
+4. E3 states float_neg has one operand, float_fma three, and the remaining float operations two.
+5. E7a derives five fuel as assertion dispatch + frame + predicate operation + two terminators.
+
+P3 (all five closed)
+1. Equality and order rows say two T operands rather than the ambiguous T,T,T wording.
+2. The boundary maps manifest wire spellings ArithmeticError/IndexError/DuplicateKeyError to the contract's BuiltinFailureKind names.
+3. E7 cites CONTRACT_TEST_PROFILE_V1 section 3.4 for epoch-1 test_observe rejection and correctly distinguishes the manifest table.
+4. The fuzz comment now includes E7a.
+5. The E1 order row admits F32/F64 and points to E3 IEEE behavior.
+
+Additional revision-12 triage
+- Current accepted fixture inventory has 22 vectors, including call-direct-depth-ceiling.
+- The independent report records 22 vectors and INDEPENDENT_CONFORMANCE_COMPLETE; the oracle independently pins lowerer_version (2,0,0).
+- The campaign records the Tier 2 gates as previously run and explicitly records V1 skipped. This re-review did not rerun them, per handoff.
+- No new P0/P1/P2/P3 contract finding was found in the bounded changed surface.
+
+Validation
+- Tier 0 inspection only: exact revision check, clean-status check, targeted file reads/searches, and narrowed commit diff.
+- No cargo, make, or executable validation was run; validation was neither requested nor permitted.
+
+Human verdict
+PASS. Every P1/P2/P3 from the 2026-09-04 Ariadne review is closed, both prior P0s remain closed and pinned, and this bounded re-review found no new severity finding.
+
+S20_260FULL_CONTRACT_REREVIEW_JSON={"reviewer":"ariadne","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[]}

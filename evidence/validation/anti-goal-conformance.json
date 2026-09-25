@@ -1,0 +1,189 @@
+{
+  "anti_goal_count": 25,
+  "anti_goals": [
+    {
+      "acceptance_evidence": "no production parser crate/grammar/`.sley`; inert benchmark fixture sources never enter the product graph; source-like protocol input rejected",
+      "anti_goal": "Sley source syntax or parser",
+      "detail": "0 production .sley files; parser crates in the lock: none; benchmark fixture sources are inert corpus inputs",
+      "state": "HOLDS",
+      "surface": "dependency/file inventory; protocol input corpus"
+    },
+    {
+      "acceptance_evidence": "SCB1 only; debug notation rejected as input",
+      "anti_goal": "canonical text or human projection",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "format and release inventory"
+    },
+    {
+      "acceptance_evidence": "release-check denylist is empty",
+      "anti_goal": "formatter, REPL, Tree-sitter, conventional LSP",
+      "detail": "language-service crates: none; CLI command literals: none",
+      "state": "HOLDS",
+      "surface": "package and command inventory"
+    },
+    {
+      "acceptance_evidence": "no legacy crate/source dependency; importer absent from GA graph",
+      "anti_goal": "Sley 1.x compatibility",
+      "detail": "legacy crates in the lock: none",
+      "state": "HOLDS",
+      "surface": "dependency and fixture review"
+    },
+    {
+      "acceptance_evidence": "disposition ADR for every reused concept; clean-room review",
+      "anti_goal": "wholesale legacy copy",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "provenance and similarity review"
+    },
+    {
+      "acceptance_evidence": "identity unchanged by derived labels/debug facts",
+      "anti_goal": "source/file/line/comment identity",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "schema review and hash properties"
+    },
+    {
+      "acceptance_evidence": "no readability metric or textual review gate",
+      "anti_goal": "human readability optimization",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "schema/benchmark review"
+    },
+    {
+      "acceptance_evidence": "public specs/oracle still satisfy all security tests",
+      "anti_goal": "opacity as security",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "threat model and independent decoder"
+    },
+    {
+      "acceptance_evidence": "deterministic kernel alone decides validity",
+      "anti_goal": "model/reviewer as semantic oracle",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "dependency and candidate tests"
+    },
+    {
+      "acceptance_evidence": "candidate cannot change its judging roots",
+      "anti_goal": "self-authorizing candidate",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "policy/epoch/oracle isolation tests"
+    },
+    {
+      "acceptance_evidence": "every non-canonical vector rejected, not rewritten",
+      "anti_goal": "normalize malformed bytes",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "SCB1 rejection corpus"
+    },
+    {
+      "acceptance_evidence": "unknown/internal/incomparable never commits",
+      "anti_goal": "weak/unknown success",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "error contract and fault injection"
+    },
+    {
+      "acceptance_evidence": "no process opcode, unrestricted adapter, or shell interpreter; the host-readiness probe may execute only its mechanically closed `systemctl --version` and `getconf PAGESIZE` commands",
+      "anti_goal": "arbitrary shell",
+      "detail": "unapproved process surfaces: none; the host-readiness probe is limited to systemctl --version and getconf PAGESIZE without a shell",
+      "state": "HOLDS",
+      "surface": "opcode/adapter inventory and runtime denial"
+    },
+    {
+      "acceptance_evidence": "core builds/tests offline without ZJX/Siglum/Forge products",
+      "anti_goal": "mandatory Greyforge dependency",
+      "detail": "Greyforge product crates in the lock: none",
+      "state": "HOLDS",
+      "surface": "Cargo graph and clean-room release"
+    },
+    {
+      "acceptance_evidence": "identical packs/roots outside Git; no Git metadata in hashes",
+      "anti_goal": "Git-defined semantics",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "repository conformance"
+    },
+    {
+      "acceptance_evidence": "absent from GA dependency graph unless declared in the authorized campaign boundary record (host-boundary.json) and gated by staged SH2 proofs",
+      "anti_goal": "native/JIT/AOT/marketplace/self-hosting outside an authorized campaign",
+      "detail": "codegen or runtime crates in the lock: none; 7 declared SH2 work items cite the authorized boundary record and a staged gate",
+      "state": "HOLDS",
+      "surface": "workspace/package denylist + campaign-declaration record"
+    },
+    {
+      "acceptance_evidence": "core/conformance pass with network disabled",
+      "anti_goal": "network-dependent core tests",
+      "detail": "networking crates in the lock: none; the lock holds 60 crates in total",
+      "state": "HOLDS",
+      "surface": "network-isolated gate"
+    },
+    {
+      "acceptance_evidence": "`unsafe_code=forbid`; any exception isolated by ADR/review",
+      "anti_goal": "unsafe code hidden in kernel",
+      "detail": "workspace lint forbids unsafe: True; kernel sources with unsafe or an allow: none",
+      "state": "HOLDS",
+      "surface": "workspace lints and source scan"
+    },
+    {
+      "acceptance_evidence": "all effect/capability requirements structurally visible",
+      "anti_goal": "untyped or ambient effects",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "checker and adapter negative corpus"
+    },
+    {
+      "acceptance_evidence": "exact typed failure and conversion rejection",
+      "anti_goal": "hidden exceptions/null/implicit numeric conversion",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "type/VM corpus"
+    },
+    {
+      "acceptance_evidence": "machine policy/capability is sufficient; UI policy external",
+      "anti_goal": "human approval as language semantics",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "schema and capability review"
+    },
+    {
+      "acceptance_evidence": "typed delta/conflict objects; no text markers",
+      "anti_goal": "source-based merge",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "merge contracts"
+    },
+    {
+      "acceptance_evidence": "every attempted trial present in denominator",
+      "anti_goal": "failed-trial erasure",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "benchmark manifest accounting"
+    },
+    {
+      "acceptance_evidence": "Section 22 evidence complete before PASS",
+      "anti_goal": "premature superiority or GA claim",
+      "detail": "no mechanical evaluation; the Council review owns it",
+      "state": "REVIEW_ONLY",
+      "surface": "dossier decision gate"
+    },
+    {
+      "acceptance_evidence": "no tag, upload, or deploy action outside the operator's recorded publication decision (`scripts/publication_authority.py`)",
+      "anti_goal": "unauthorized publication/deploy/spend",
+      "detail": "git tags: 0; outside the operator publication decision: none; unpushed commits are reported by scripts/check_remote_consistency.py",
+      "state": "HOLDS",
+      "surface": "repo metadata and operator gate"
+    }
+  ],
+  "contract": "sley2.anti-goal-conformance.v1",
+  "interpretation": "HOLDS means the named mechanical evidence was evaluated and passed; REVIEW_ONLY means the anti-goal's evidence needs a human judgment and is not a pass. A VIOLATED entry is a constitutional breach and fails the gate.",
+  "report_digest": "8a71afec47fac21d775363043e8ec5798a18c398ca618ac1b8bfb9bff13d63ab",
+  "source": "docs/ANTI_GOALS.md",
+  "states": {
+    "HOLDS": 9,
+    "REVIEW_ONLY": 16
+  },
+  "violations": []
+}

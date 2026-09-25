@@ -1,0 +1,12 @@
+module app.prune
+
+export task scale -> Int {
+  take value: Int
+  bind doubled = value + value + 1
+  return doubled
+}
+
+task main -> Int {
+  bind result = call scale(21)
+  return result
+}

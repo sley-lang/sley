@@ -1,0 +1,21 @@
+rustc: rustc 1.93.0 (254b59607 2026-01-19)
+cargo: cargo 1.93.0 (083ac5135 2025-12-15)
+toolchain file: [toolchain] channel = "1.93.0" profile = "minimal" components = ["clippy", "rustfmt"] 
+HEAD: 4168332f34ba4ff4567fd60df8f2adc42083b1e1
+branch: main
+origin/main: 4168332f34ba4ff4567fd60df8f2adc42083b1e1
+4b6af7f0f01b23db0bb44f23385ab82e1ed979c80bd57873243dd3e391d4eacc  Cargo.lock
+1e249e61c28c7e4e321e45f767ec697c6d97a4b1dd117edec98bf8fcfd1da594  docs/spec/REPOSITORY_PACK_V1.md
+42f312464731dcf7f37321cda667ea287aefdb80b22719cefe205a9245b5f359  docs/spec/REPOSITORY_EXCHANGE_V1.md
+a1422d63461dec9f2aa0432e0570efe860443675d2bd0c5b178ccd3bd700c86f  docs/spec/SCB1.md
+0a5bff84c946ec574075add021e8a2b2e32749ef7d5c25a01837b3b93a537dd9  docs/spec/ERROR_CODES_V1.md
+35685f782e160e64d2fe10cda38010f3451ae809fa2a573bb9e8f8a6e60b6963  conformance/repository-pack/v1/accepted.json
+9a08dc598ee383c93844d849bcda1c0c779ab861409137e9417cff9347978b60  conformance/repository-pack/v1/rejected.json
+a0674fb84078c1a8147b04bab106f79b60c4ac78918f5692b487c4871561e31a  conformance/repository-exchange/v1/accepted.json
+bbf8129763592aea926384f7c94276da9327e57ee087bb3ac5891d48c02ddbe0  conformance/repository-exchange/v1/rejected.json
+dde3ec640bb7eec76409d44e6aea2ed362135d797126b24c57641aee03178af0  <downloads>/Sley-ZJX-Readiness.md
+git diff --stat HEAD -- crates/*/src Cargo.toml Cargo.lock crates/*/Cargo.toml:
+(end)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.69s
+18b2aad4f7643075c78c0f2c27134df7b2bcc166464f7d3201af05b1983fbb0b  target/debug/sley
+{'candidate_artifact_sha256': '6d970bf4d5da78b034a837109348e3d1e373c6566cfae67a4fd84b447160e159', 'candidate_artifact_size_bytes': 2190465, 'candidate_member_count': 15, 'candidate_reproducibility': 'REPRODUCIBLE', 'candidate_demo': 'PASS_12_STEPS', 'candidate_manifest_digest': 'aea8182d7d20258ee98e2ab7df26fa8845ec577f72d2d78d51610a5435b0fa3b', 'candidate_commit': '7a94a4a31272a6dc7588aff902dcde81f7d10a4e', 'candidate_working_tree_clean': True, 'candidate_toolchain': {'cargo': 'cargo 1.93.0 (083ac5135 2025-12-15)', 'rustc': 'rustc 1.93.0 (254b59607 2026-01-19)'}, 'candidate_evidence_commit': '7a94a4a31272a6dc7588aff902dcde81f7d10a4e'}

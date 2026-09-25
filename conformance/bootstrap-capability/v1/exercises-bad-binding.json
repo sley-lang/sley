@@ -1,0 +1,1 @@
+{"exercises":[{"disposition":"PASS-exists","evidence":"synthetic row citing a vector id that related accepted.json must not contain","id":1,"name":"synthetic byte processing","vectors":["no-such-vector-id"]}],"expect":{"binding":"FAIL"},"note":"synthetic corpus case: an exercise row bound to a nonexistent vector. Binding must FAIL.","synthetic":true}

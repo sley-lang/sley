@@ -1,0 +1,21 @@
+status: FAIL
+
+findings:
+- **[HIGH]** The selected bridge closes byte access but does not establish byte construction for C2. `host-u8vector-to-bytes` presupposes that Sley can build a variable-length octet vector. Existing `vector_new` length is fixed by static operand arity, while `vector_set` cannot grow a vector; no append, resize, concat, or equivalent construction path is identified. G-10 therefore remains unresolved for deterministic image assembly.
+- **[MEDIUM]** The bridge type is not exact: `Vector<SInt>` omits integer width and conflicts with the `u8vector` naming. The active profile distinguishes `SInt(w)` and `UInt(w)`; §18 admission requires an exact type implication.
+- **[MEDIUM]** `native_remainder` marks allocation/accounting/cancellation/process containment collectively `existing`, while its responsibility states that cancellation and process containment have no established in-tree mechanism. Split existing mechanisms from `later-qualified` responsibilities.
+- **[INFO]** Otherwise, all six §10.2 responsibilities have intended Sley owners; every §10.3 remainder is mapped; §10.4 exclusions, the §10.2(6) discharge carve-out, RW-070 ABI freeze, and proposed-versus-implemented import distinction are retained. The converter's program-awareness prohibitions are appropriately explicit.
+
+validation:
+- Inspected all requested RW-030/RW-040 artifacts, prior Ariadne/Nabu transcripts, REWEAVE §§7.2, 10.2–10.4, 11, and 18, plus the R1 SH2 proposal.
+- Confirmed repository HEAD `040f3d17796f` and the dirty RW-030 slice.
+- Checked the referenced vector semantics in `VM_EXTENDED_OPCODE_PROFILE_V1.md` and `crates/sley-vm/src/extended.rs`.
+- Read-only review only; no runtime validation performed.
+
+blockers:
+- Supply a bounded existing-semantics path for constructing arbitrary-length output octet vectors, or admit a minimal construction capability without moving image assembly into the converter.
+- Specify the exact vector element type and range/failure schema.
+- Correct the native-remainder lifecycle classification for absent cancellation/process-containment mechanisms.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).

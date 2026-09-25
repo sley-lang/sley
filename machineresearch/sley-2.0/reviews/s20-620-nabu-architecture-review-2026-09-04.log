@@ -1,0 +1,99 @@
+DISPATCH 620-nabu-architecture forge-nabu-620-nabu-architecture-20260904T064020 2026-09-04T06:40:20Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and core artifacts.
+
+## status
+
+**FAIL** — 3 P0, 12 P1. Read-only review at `9dc78fe`; nothing modified, no cargo, no smoke.
+
+## findings
+
+### Direct answers to the six questions
+
+| Question | Verdict |
+|---|---|
+| Two-op handle + request-field guard ⇒ trace is the only context? | **No.** Defeated by ordinary Python attribute access (P0-1). |
+| Handshake identity from a probe invocation? | **Not acceptable as primary.** SMP1 §2 derives it per-connection from the server hello, which the trial receives and discards (P1-4). |
+| Ten trace-derived metrics correct? `context_bytes` right? | **No** on four of ten; `context_bytes` scope is wrong and biases the arm under test (P0-2, P1-6/7/12). |
+| Reusing S20-610 `offline_injected` / `forbidden` honest? | **No** — S20-620 rescopes a frozen shared control by prose (P0-3). |
+| Claim field set and nullability complete? | **No** — never enumerated normatively; unbounded `failure_code` space; truthiness nulls (P1-10/11). |
+| SMP1 rev 6 `failed` flag the right fix? | **Yes as a protocol fix** (pure framing metadata, adds no semantics, fails closed on request/hello). **Wrong signal** to hang `invalid_candidates` on (P1-6). |
+
+### P0 — blocks freeze
+
+**P0-1. The two-operation handle is not a capability boundary; §2's central invariant is false.**
+`EndpointHandle.exchange` is a normal bound method, so the agent reaches `handle.exchange.__func__.__globals__` → the whole runner module (`EXCHANGE_FIXTURE`, `CORPUS_PATH`, `PLAN_PATH`, `ROOT`, `Endpoint`) using public attributes only. `handle._exchange.__closure__` (runner.py:213) then yields `state["session"]` (the live session id), `transact` → the `Endpoint` object with an **ungated** `send`, and `record` → the `Trace` object and its write descriptor; `run_scripted_trial`'s locals expose `repository`, `report_path`, `exchange_hex`. `handle_surface()` (runner.py:220) filters `_`-prefixed names and audits nothing else. So §2's "The context the agent saw is exactly the recorded responses; nothing else existed" and ADR-0036's "mechanically audited rather than asserted" are false as frozen invariants. Tampering with the trace *is* still detected (chain verification), but privileged **reading** is not. Read-derived from the source, not executed (no-run constraint); confidence high.
+*Fix:* either move the adapter out of process (pipe-only, the only construction that makes the sentence true), or restate the boundary honestly as a trusted in-process adapter convention and add a run-level `agent_isolation` declaration that S20-630 must carry into every ratio.
+
+**P0-2. `context_bytes` understates the arm under test and violates master goal §21.6.**
+`CONTEXT_METHODS` is `{capsule, query.root, query.continue, query.restricted}` (runner.py:67). But `refs.list` (202 → `list(ResolvedBranch)`), `handle.expand` (304 → handle facts), `candidate.inspect`, `compare`, `revision.read`, `receipt.read`, `checkout`, `execute`, `report` all deliver repository context to the agent and count zero. The smoke's own scripted agent spends 4 of 4 tool calls on methods that contribute **no** context bytes. §21.6 forbids granting extra context to one arm without reporting it; this is the headline efficiency metric feeding S20-630's ACT comparison. §20.10 says "capsule bytes", §21.4 says "context bytes" — the contract silently resolves that ambiguity in the arm's favour.
+*Fix:* count every response/event body the agent received, preferably from the endpoint's own `bounds.returned_bytes` with the body hex as cross-check; if the capsule figure is wanted separately, add `capsule_bytes` and report both.
+
+**P0-3. Rescoping S20-610's shared controls is outside S20-620's authority.**
+`RAW_BASELINE_RUNNER_V1.md` puts `execution_mode`/`external_command_policy` at run level precisely "so an arm cannot silently receive different values," and `bench/raw/runner.py:311-314` admits exactly one value each. §9 redefines their scope in prose while the arm actually starts, per run, `sley hello`, `sley frame decode`, `sley hello --json`, `sley version`, one probe `sley serve`, and one `sley serve` per trial. A consumer reading `forbidden` cannot distinguish the arms. `endpoint_sha256` records *which* binary, never *that processes ran*.
+*Fix:* amend S20-610 with the S20-610 owner — a per-arm process policy plus a declared invocation surface — or add a distinct `execution_mode` value. Not a §9 clarification.
+
+### P1 — must fix before freeze
+
+<details>
+<summary>P1-4 through P1-15 (expand)</summary>
+
+**P1-4. Handshake identity should come from the trial's own hello.** SMP1 §2: the selection is encoded as `SelectedProfile` in the *server hello* and identified by `ProtocolHandshakeId`, "which both peers must compute identically," with `PROTOCOL_DOWNGRADE` (T45) for mismatch. `run_scripted_trial` receives that hello (`greeting = transact(hello)`) and checks only `kind`, then opens with the probe's id. Determinism is asserted, never cross-checked. It fails closed, so this is P1 not P0. *Fix:* derive/verify from the trial's own server hello or `session.capabilities`; keep the probe only as an optional cross-check. If the JSON bridge does not surface the id, that is an S20-430 gap to close — printing it is preferable to a second `serve` invocation.
+
+**P1-5. `status: "timeout"` is unreachable.** A `TIMEOUT` raises `Sley2RunnerError` → caught at runner.py:841 → `outcome = harness_failure`, `status = "harness_failure"`, `timeout: false`, `failure_code: SLEY2_TRIAL_TIMEOUT`. `_validate_claim`'s timeout rules (runner.py:575, 583) are dead. §21.6 forbids omitting model timeouts; `no_removed_timeout_or_failure` is a frozen fairness invariant. S20-630 will see zero timeouts by construction.
+
+**P1-6. `invalid_candidates` is derived from the wrong signal.** SMP1 §6: bit 2 marks a *failure envelope* — a protocol/owner failure of the call. An invalid candidate is a normal `candidate.validate` response whose S20-360 "candidate result" body says invalid. Current derivation misses real invalid candidates and counts `PROTOCOL_LIMIT_EXCEEDED`, `SESSION_STALE_HANDLE`, etc. as invalid candidates. Rev 6 is the right protocol change; it is not a candidate verdict.
+
+**P1-7. `repair_loops` and `invalid_candidates` share one derivation** (runner.py:521-523), collapsing two frozen plan metrics into one quantity and making a single failed validate with no repair count as a repair loop.
+
+**P1-8. Metric sourcing inverts the measurement.** runner.py:894 — `observation.get(name, judgement.get(name, 0))` gives the **agent under test** first claim on oracle-owned correctness metrics (`stale_candidates`, `stale_candidates_incorrectly_accepted`, `collateral_semantic_changes`, `invalid_committed_states`) and endpoint-owned metrics (`peak_memory`, `canonical_storage_bytes`, `pack_bytes`, `execution_latency`) that the report or the runner can measure. Compounded: `_validate_metric_controls` enforces the shared `context_budget` against agent-reported `model_input_tokens`. *Fix:* precedence oracle > runner/report > agent; agent never sources correctness or endpoint-side quantities.
+
+**P1-9. Contract/implementation divergence in frozen schemas.** §3's footer omits `endpoint_exit_status` (written at runner.py:855) and types `failure_code` as `integer|null` while the implementation writes the symbol string and `_validate_claim` *requires* a string. §3 says entity/edge/context sums are over "responses"; the implementation and `test_metrics_derive_only_from_frame_records` also sum **event** frames (`context_bytes == 16` counts an event body). A frozen chain schema must be byte-exact in the contract.
+
+**P1-10. The claim field set is never enumerated normatively.** `_validate_claim` enforces `set(record) == CLAIM_FIELDS` (24 fields, exact) while §4 is prose omitting `prompt_digest`, `model_output_digest`, `oracle_report_digest`, `trace_record_count`, `timeout`, `failure_code`, `endpoint_sha256`, and the three status fields. S20-630 cannot implement against that. Separately, `failure_code`'s value space is unbounded: runtime-invented symbols (`ORACLE_REJECTED` at runner.py:874, `SLEY2_SMOKE_NO_TASK_ATTEMPTED`) pass validation but are governed by no table.
+
+**P1-11. A claim-write failure silently drops the trial from the denominator.** `derive_trace_metrics` and `append_trial_claim` run after `trace.close()` and outside every handler; anything raised there escapes `run_scripted_trial` with the trace written and no claim appended. Reachable today: `if observation else None` / `if judgement else None` (runner.py:913-914) turn a legitimately empty `{}` into null on an accepted trial, which `_validate_claim` then rejects as "missing model_output_digest". §21.6 requires every failed trial to stay in the denominator.
+
+**P1-12. Bounds are coerced, not validated.** `int(bounds.get("returned_entities", 0))` accepts strings — the offline test asserts on `returned_edges: "7"` and expects 7. A non-numeric string raises an uncaught `ValueError` on the P1-11 lossy path. Malformed bounds must be `SLEY2_TRIAL_TRACE_INVALID`.
+
+**P1-13. Required evidence is not retainable.** `/evidence/runtime/` is in `.gitignore`; `evidence/runtime/s20-620-sley2-smoke/evidence.json` does not exist at `9dc78fe`. The §7-required smoke evidence and the closeout's cited numbers (18 trace records, 4 tool calls, 2 claims) cannot be verified by any reviewer at the pinned commit. §21.7 requires preserved raw evidence.
+
+**P1-14. §21.7 preservation gap.** Prompts and model outputs survive only as digests of objects the runner never stores (`prompt_digest` is an injected parameter; `model_output_digest` digests an adapter-owned mapping). A digest without a preimage preserves nothing. Name where prompts, model outputs, candidates, roots, receipts, and execution/test reports are stored, or assign it explicitly to a named downstream package.
+
+**P1-15. §5 overstates the stage checker.** It is a marker/token grep — `FORBIDDEN_RUNNER_TOKENS` is 7 literals — and asserts nothing about the handle surface (`"def exchange(self"` is a substring test) or file access; the runner does read plan, corpus, fixture, `.git/HEAD`, and the endpoint report. Either restate §5 or make the checker assert `handle_surface(EndpointHandle(...)) == {"exchange","affordances"}` and audit imports by AST.
+
+</details>
+
+### P2 / P3
+
+<details>
+<summary>P2 (7) and P3 (4)</summary>
+
+- **P2-16.** §1 says "one trial is one `sley serve` process"; enumerate the full per-run invocation set (`hello`, `frame decode`, `hello --json`, `version`, probe `serve`, trial `serve`) and record it with `endpoint_sha256`.
+- **P2-17.** The disposable repository and probe scratch are created *inside* the evidence run directory (`tempfile.mkdtemp(dir=arm_directory)`, `dir=run_directory`), next to `claims.jsonl` and the traces, and are never removed. Place them outside or state retention.
+- **P2-18.** Vocabulary collision: trace `outcome` ∈ {completed, harness_failure} vs claim `status` ∈ {accepted, rejected, timeout, harness_failure}; §4 calls the claim field "outcome".
+- **P2-19.** `guarded_exchange` returns `dict(reply)` — shallow, sharing nested `flags`/`bounds` with runner state — and every reply hands the agent the live `session` and `request_id`, which reads against §1's "the agent never sees an identity". Project the reply to the fields the agent is entitled to.
+- **P2-20.** `human_interventions` and `files_inspected` are hardcoded constants, hence unfalsifiable. State them as arm invariants, not "derived" metrics.
+- **P2-21.** An agent-issued `session.close` escapes `tool_calls` by method name, and a `cancel` frame counts as one. State the rule against the shared `action_budget` and cross-arm comparability.
+- **P2-22.** The smoke manifest carries `environment_manifest: {"network": "not-isolated"}` alongside `execution_mode: offline_injected`; require isolation (or explicit reporting) for real runs.
+- **P3-23.** `_parse_claims` revalidates the whole chain per append and re-reads plan+corpus per claim (O(n²) with disk I/O).
+- **P3-24.** `request_frame` materializes `"failed": false` in request flags, which enters the canonical digest, while SMP1 §6 makes bit 2 responses-only. An S20-420 JSON-form question, not a defect here.
+- **P3-25.** `docs/spec/SMP1.md` is at revision 8; the contract, campaign, and this review request cite revision 6. Refresh the cross-references.
+- **P3-26.** ADR-0036's status line mixes "proposed" with an implementation log ("five offline tests", a date); separate the decision from the build record.
+
+</details>
+
+## validation
+
+Read-only, Tier 0. Read: contract rev 2, ADR-0036, campaign record (all three open questions answered above), `bench/sley2/runner.py` (1179 lines), `bench/sley2/tests/test_runner.py`, `scripts/check_sley2_trial_runner.py`, `docs/spec/SMP1.md` §§1–6 and the method table, `docs/spec/RAW_BASELINE_RUNNER_V1.md`, `bench/raw/runner.py` validators, `bench/benchmark-plan.json` (25 metrics / 12 fairness invariants / 17 controls), master goal §§20.10, 21.3–21.7. Confirmed `git log -1` = `9dc78fe`. No cargo, no smoke, no writes. **Not verified:** the smoke evidence — the file is absent at this commit (P1-13); the closeout's numbers are unconfirmed. P0-1 is derived from source semantics, not executed.
+
+## blockers
+
+Three P0s need decisions outside S20-620's authority before freeze: the agent-isolation trust model (P0-1, likely Vulcan), the `context_bytes` definition against §21.6 (P0-2, benchmark-plan owner + S20-630), and the S20-610 shared-control amendment (P0-3, S20-610 owner). The stage checker gates completion on `nabu_architecture_review` starting with `PASS`, so this verdict holds that gate closed.
+
+## return_to
+
+Orchestrator. Suggested next: Vulcan for the handle/isolation surface (P0-1, P2-19); Ariadne for the schema and nullability enumeration (P1-9, P1-10, P2-18); Merlin for P1-5, P1-6, P1-7, P1-8, P1-11, P1-12 after the contract revisions land.
+
+S20_620_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["Two-operation handle is not a capability boundary: handle.exchange.__func__.__globals__ and handle._exchange.__closure__ expose module globals, the ungated Endpoint, the Trace descriptor and the live session id, so section 2's 'nothing else existed' and ADR-0036's 'mechanically audited' are false frozen invariants","context_bytes counts only capsule and query.* responses, omitting refs.list, handle.expand, candidate.inspect, compare, revision.read, execute and report bodies, understating the arm under test and breaching master goal 21.6 on unreported extra context","S20-620 rescopes S20-610's run-level execution_mode offline_injected and external_command_policy forbidden by prose in section 9 while starting six or more endpoint processes per run; requires an S20-610 amendment by its owner, not a clarification"],"p1":["Handshake identity is taken from a probe invocation while the trial's own server hello, which SMP1 section 2 makes authoritative, is received and discarded with no cross-check","status timeout is unreachable: TIMEOUT is folded into harness_failure with timeout false, so the no_removed_timeout_or_failure fairness invariant and master goal 21.6 are violated by construction","invalid_candidates is derived from SMP1 flag bit 2, which marks a failure envelope rather than a candidate verdict, so real invalid candidates are missed and unrelated protocol failures are counted","repair_loops and invalid_candidates share one derivation, collapsing two frozen plan metrics into one quantity","Metric sourcing precedence lets the agent under test supply oracle-owned correctness metrics and endpoint-owned resource metrics ahead of the oracle and the endpoint report","Contract section 3 omits endpoint_exit_status from the footer, types failure_code as integer while the implementation writes a symbol string, and says responses where implementation and test also sum event frames","The 24-field claim set enforced by _validate_claim is never enumerated normatively in section 4, and failure_code accepts runtime-invented symbols governed by no table","Metric derivation and claim append run after trace close outside any handler, so a failure there drops the trial from the denominator; the truthiness null guards on empty observation or judgement reach that path","Frame bounds are coerced with bare int() rather than validated, silently accepting string counts and crashing on non-numeric ones","Required smoke evidence under evidence/runtime is gitignored and absent at the pinned commit, so section 7 evidence and the closeout numbers cannot be verified","Master goal 21.7 preservation is unmet: prompts and model outputs exist only as digests of objects the runner never stores","Contract section 5 overstates the stage checker, which is a marker and literal-token grep that asserts nothing about the handle surface or file access"],"p2":["Contract understates the per-run endpoint invocation set (hello, frame decode, hello --json, version, probe serve, trial serve)","Disposable repository and probe scratch are created inside the evidence run directory beside claims and traces and are never removed","Trace outcome and claim status vocabularies collide while section 4 calls the claim field outcome","guarded_exchange returns shallow reply copies and hands the agent the live session and request identifiers","human_interventions and files_inspected are hardcoded constants and therefore unfalsifiable","Agent-issued session.close escapes tool_calls while cancel frames count; cross-arm comparability against action_budget is unstated","Smoke manifest declares network not-isolated alongside execution_mode offline_injected"],"p3":["_parse_claims revalidates the whole chain per append and re-reads plan and corpus per claim","request_frame materializes a responses-only failed flag on request frames inside the canonical digest","SMP1 is at revision 8 while the contract and campaign cite revision 6","ADR-0036 mixes a proposed decision status with an implementation log"],"notes":"Read-only at 9dc78fe; no cargo, no smoke. Chain and trace mechanics are sound and the S20-610 reuse is the right structure. Freeze is blocked by an unenforceable isolation invariant, a context_bytes definition that biases the arm under test, and an unauthorized rescoping of S20-610 shared controls. SMP1 revision 6 is endorsed as a protocol fix but is the wrong signal for invalid_candidates. Smoke evidence unverifiable: the path is gitignored."}
+EXIT=0 2026-09-04T06:47:31Z

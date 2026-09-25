@@ -1,0 +1,19 @@
+{
+  "kind": "COUNCIL_REVIEW_OUTPUT_INDEX",
+  "scope_sha": "f7f9af906dc0e585975cbc7addee75999889a3d2",
+  "engine": "claude-code",
+  "reviews": [
+    {
+      "role": "nabu",
+      "section": "dead_function_deletion_selection",
+      "field": "nabu_architecture_review_revision_2",
+      "verdict": "PASS_0_P0_0_P1_0_P2_0_P3_2_P4",
+      "scope_sha": "f7f9af906dc0e585975cbc7addee75999889a3d2",
+      "path": "evidence/review/verdicts/dead_function_deletion_selection/nabu_architecture_review_revision_2-f7f9af9.md",
+      "sha256": "9af3d961483493e1fe46cece9a2a2129c9130924ad76138b5a2c0f943e98d649",
+      "process_exit_code": 0,
+      "observed_model": "claude-opus-5-5",
+      "duration_s": 830
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+[package]
+name = "sley-json-bridge"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Sley 2 SMP1 JSON bridge: a generated, non-canonical text form of protocol frames."
+
+[dependencies]
+serde_json = "=1.0.145"
+sley-id = { path = "../sley-id" }
+sley-protocol = { path = "../sley-protocol" }
+
+[lints]
+workspace = true

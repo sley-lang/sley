@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-REPAIR-001",
+  "arm": "sley2",
+  "negative": "upper_returns_low",
+  "expected_code": "ORACLE_CLAMP_MISMATCH",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

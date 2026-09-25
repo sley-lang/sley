@@ -1,0 +1,32 @@
+   Compiling sley-repo v2.0.0-alpha.0 (<repo>/crates/sley-repo)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.49s
+     Running tests/zjx_readiness_witness.rs (target/debug/deps/zjx_readiness_witness-68a0c4a5c6bf565f)
+
+running 10 tests
+test late_outer_failure_after_a_complete_inner_pack_payload_persists_nothing ... ok
+test outer_annotations_change_the_frame_but_not_the_inner_identity ... ok
+ZT-03 pack rejection magic: SCB_MAGIC_INVALID
+ZT-03 pack rejection contract-tag: SCB_CONTRACT_UNKNOWN
+ZT-03 pack rejection truncated: SCB_LENGTH_OVERFLOW
+test test_frame_reader_bounds_output_and_fails_closed_on_every_outer_defect ... ok
+test production_pack_exporter_bytes_survive_reconstruction_and_reimport_exactly ... ok
+ZT-03 pack rejection trailing-byte: SCB_TRAILING_BYTES
+test pinned_pack_direct_and_reconstructed_inputs_converge_through_the_production_importer ... ok
+ZT-03 pack rejection flip-trailer: PACK_DIGEST_MISMATCH
+ZT-03 pack rejection flip-epoch: PACK_DIGEST_MISMATCH
+ZT-03 pack rejection flip-payload: PACK_DIGEST_MISMATCH
+ZT-03 pack rejection resealed-payload-bit: PACK_SCHEMA_UNSUPPORTED
+ZT-03 pack rejection resealed-late-bit: PACK_DIGEST_TREE_MISMATCH
+test late_outer_failure_after_a_complete_inner_exchange_payload_persists_nothing ... ok
+ZT-03 pack rejection resealed-epoch: SCHEMA_EPOCH_MISMATCH
+test pinned_pack_rejections_keep_their_owning_symbol_after_reconstruction ... ok
+test pinned_exchange_rejections_keep_their_owning_code_after_reconstruction ... ok
+test production_exchange_exporter_bytes_survive_reconstruction_and_reimport_exactly ... ok
+test pinned_exchange_direct_and_reconstructed_inputs_converge_through_the_production_importer ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+
+real	0m0.605s
+user	0m0.803s
+sys	0m0.516s

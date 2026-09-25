@@ -1,0 +1,13 @@
+{
+ "classification": "HARNESS_ONLY_FIXED",
+ "contract": "s20-700-fuzz-harness-regression-v1",
+ "disposition": "The E3 float-canonicality sub-draw initially asserted Exec(InputNotCanonical) for all non-canonical F64 bits; constructed values are refused one layer earlier by the type checker (TYPE_FLOAT_NON_CANONICAL). The oracle now accepts exactly the two canonicality-layer refusals.",
+ "expected": "The vm_canonical_inputs target completes with the corrected two-layer refusal oracle; the minimized input executes without a new crash artifact.",
+ "finding_id": "S20-700-VM-001",
+ "input_hex": "ffff02",
+ "minimized_input_hex": "ffff02",
+ "original_crash_hex": "00000200010103ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+ "production_checker_defect": false,
+ "root_cause": "Over-strict harness oracle: a single-layer refusal expectation for a two-layer (type then execution) canonicality refusal path.",
+ "target": "vm_canonical_inputs"
+}

@@ -1,0 +1,206 @@
+{
+  "abi_freeze": {
+    "note": "Nothing here freezes the host ABI. Operation tags, value/result schemas, image version/loading rules, resource/failure semantics, effects, the authorized import set, deterministic arithmetic/collection behavior, and portable-vs-platform behavior freeze at RW-070 with independent boundary fixtures. This record only reserves the mechanism (versioned host-ABI imports under a positive import manifest).",
+    "owner": "RW-070",
+    "status": "later-qualified"
+  },
+  "bridge_g10": {
+    "admitted_growth": {
+      "carrier": "TBD at RW-050 profile freeze / RW-070 ABI freeze (E-profile opcode or versioned host-ABI import); this charter does not pre-freeze it",
+      "failure": "Result with a Limit failure refusing over the frozen profile length cap; never truncation",
+      "genericity": "generic over T; byte-unaware (no byte, schema, or image awareness in typing, failure, or fuel rules)",
+      "name": "vector-push",
+      "status": "admitted-not-implemented",
+      "typing": "(Vector<T>, T) -> Result<Vector<T>, Limit>, fuel-charged per push"
+    },
+    "conversions": [
+      "host-bytes-to-u8vector",
+      "host-u8vector-to-bytes"
+    ],
+    "element_type": "Vector<UInt(8)> (exact: 8-bit width exists in the landed profile, E1/E2; octet range enforced by the element type itself, converter enforces only the profile length cap)",
+    "mechanism": "versioned host-ABI imports under the positive import manifest (RW-070 freeze); permitted-import entries in BOOTSTRAP_PROFILE_1 (RW-050 freeze). The two conversions are imports, not new E-profile semantic opcodes, not compiler-service calls. The one admitted growth primitive is generic and byte-unaware; its carrier freezes at RW-050/RW-070.",
+    "must_not": [
+      "parse tags or dispatch on schema",
+      "enforce canonical form or strict-rejection policy",
+      "typecheck, lower, validate programs, or discharge",
+      "assemble compiler images or judge Witness trust",
+      "return verdicts of any kind (u8 vectors only)",
+      "carry byte, schema, or image awareness in vector-push typing, failure, or fuel rules"
+    ],
+    "note": "Full admission record: machineresearch/sley-2.0/reweave/rw-030-g10-admission.md. Production implementation belongs to RW-050 after prerequisites close; contract proof (byte/error parity) belongs to RW-090.",
+    "selected": "bounded lossless representation bridge (native Bytes<->Vector<UInt(8)> conversion only; all program/schema-aware judgment in Sley over existing total ops) plus one admitted minimal bounded generic growth op (vector-push) for output construction",
+    "status": "proposed"
+  },
+  "carveout_10_2_6": {
+    "note": "Cryptographic primitives and optional bounded solver engines may remain explicit bounded native dependencies with exact imports/owners/versions/semantics/limits/tests at RW-070. They never receive language-owned discharge judgment: no imported discharge service decides promotion; the Sley semantic implementation of approved deterministic discharge profiles owns the judgment. Hand-rolling cryptography in Sley to reduce a dependency count is prohibited.",
+    "retained": [
+      "primitive hashing/authentication",
+      "audited cryptographic libraries (none pinned yet; selection is RW-070/RW-270 supply-chain scope)",
+      "optional bounded solver engines (none adopted; adoption needs operator scope amendment)"
+    ]
+  },
+  "charter": "RW-030 MPI-0 controls and self-hosting/host-boundary charter (2026-09-06). Depends on RW-020 COMPLETE. Chartered record consumed by scripts/build_anti_goal_conformance.py evaluate_campaign_declarations at this path (repo root) by exact path plus raw-byte SHA-256 digest cited from evidence/reweave/sh2-work-items.json items. This file is byte-stable by design: it carries no commit hash (citations bind commit at the citing site per REWEAVE 21.2).",
+  "contract": "sley2.host-boundary.v1",
+  "distinctions_10_4": {
+    "compiler_service_ban": "No listed Sley-owned responsibility may delegate its judgment to an imported compile, typecheck, lower, validate_program, or discharge service. RW-070 ships tests denying compiler-service imports.",
+    "giant_opcode_ban": "No native primitive may validate SSMC, resolve types, compute Witness trust, choose mandatory tests, or emit the compiler image. A primitive doing so invalidates SH2.",
+    "verifier_vs_checker": "A native bytecode verifier may reject malformed execution images for memory safety only. It must not replace language-level checking; language-level verdicts bind the approved toolchain image, receipt, candidate, base root, policy, epoch, and evidence (never a caller-supplied VALID field)."
+  },
+  "gate_set": {
+    "note": "Staged SH2 gate namespace a declared work item may cite. This charters the namespace from existing authority (REWEAVE 19 phases, 21 validation targets, 20 package gates); it creates no new gate framework and no new process.",
+    "phase_gates": [
+      "R2-bootstrap-ready",
+      "R3-first-toolchain",
+      "R4-closure",
+      "R5-qualification",
+      "R6-lock"
+    ],
+    "package_gates": [
+      "RW-050",
+      "RW-060",
+      "RW-070",
+      "RW-080",
+      "RW-090",
+      "RW-100",
+      "RW-110",
+      "RW-120",
+      "RW-130"
+    ],
+    "validation_targets": [
+      "bootstrap-profile",
+      "selfhost-contracts",
+      "selfhost-build",
+      "selfhost-seed-absent",
+      "selfhost-change",
+      "selfhost-host-boundary",
+      "selfhost-adversarial",
+      "witness-full",
+      "reweave-full",
+      "reweave-release-check"
+    ]
+  },
+  "native_remainder": [
+    {
+      "crates": [
+        "sley-vm"
+      ],
+      "responsibility": "bounded execution of the pinned low-level derived image/bytecode (fuel-bounded via charge_action; 256-frame ceiling, 1048576-cell cap carried as profile constraints)",
+      "remainder_10_3": "bounded execution of the pinned low-level derived image/bytecode",
+      "status": "existing"
+    },
+    {
+      "crates": [
+        "sley-vm"
+      ],
+      "remainder_10_3": "memory allocation, resource accounting, primitive value operations",
+      "responsibility": "allocation with profile caps; fuel accounting via charge_action; whole-value primitive ops (order/equality/value_hash over Bytes); G-10 bridge conversions plus admitted vector-push (chartered, not implemented)",
+      "status": "existing"
+    },
+    {
+      "crates": [],
+      "remainder_10_3": "cancellation, process containment (second half of the same 10.3 bullet)",
+      "responsibility": "no mechanism established in-tree; cancellation and containment rules are RW-070 confinement scope",
+      "status": "later-qualified"
+    },
+    {
+      "crates": [],
+      "remainder_10_3": "primitive hashing/authentication and audited cryptographic libraries",
+      "responsibility": "primitive hashing/authentication; audited library selection open (see carveout_10_2_6)",
+      "status": "proposed"
+    },
+    {
+      "crates": [
+        "sley-vm"
+      ],
+      "remainder_10_3": "low-level image loading and structural memory-safety validation",
+      "responsibility": "SLEYBC02 image loading plus memory-safety rejection only (see verifier_vs_checker; language-level checking stays Sley-owned)",
+      "status": "existing"
+    },
+    {
+      "crates": [
+        "sley-store",
+        "sley-txn",
+        "sley-state-root",
+        "sley-repo"
+      ],
+      "remainder_10_3": "confined byte I/O, persistence, filesystem durability, locking, ref CAS, credential custody, policy-token authenticity/freshness",
+      "responsibility": "reference implementations (seed); exact confinement scope and custody rules at RW-070",
+      "status": "existing"
+    },
+    {
+      "crates": [
+        "sley-protocol",
+        "sley-adapter"
+      ],
+      "remainder_10_3": "thin protocol framing/transport and approved host adapters",
+      "responsibility": "reference framing/transport (seed); approved adapter set frozen at RW-070",
+      "status": "existing"
+    },
+    {
+      "crates": [
+        "sley-repo",
+        "sley-query",
+        "sley-mutate"
+      ],
+      "remainder_10_3": "repository mechanisms outside the designated compiler closure, ownership/delegation explicit",
+      "responsibility": "reference repository machinery (seed); exact compiler-closure designation at RW-080 graph root",
+      "status": "existing"
+    },
+    {
+      "crates": [
+        "sley-conformance"
+      ],
+      "remainder_10_3": "independent oracles, test drivers, packaging tools, emergency bootstrap assets outside the clean self-build closure",
+      "responsibility": "oracles, drivers, conformance tooling (scripts/, conformance/); permanently outside the clean self-build closure",
+      "status": "existing"
+    }
+  ],
+  "prohibited": [
+    "general FFI / broad C ABI (host ABI is a versioned execution boundary, not an escape hatch)",
+    "native compiler services (compile/typecheck/lower/validate_program/discharge) reachable from the toolchain closure",
+    "source DSLs, parsers, LSP/REPL/formatter work on the 2.0 GA path (C-01/C-02)",
+    "self-hosting work outside declared, digest-cited, stage-gated items (C-01/C-02 campaign-declaration rule)"
+  ],
+  "sley_owned": [
+    {
+      "intended_owner": "program-codec Sley program (RW-090)",
+      "reference_seed": "crates/sley-scb1 (native; behavior reference for byte/error parity, not the final owner)",
+      "responsibility_10_2": "canonical program/schema-aware SCB decoding and encoding with strict rejection and bounded traversal",
+      "status": "proposed"
+    },
+    {
+      "intended_owner": "semantic-checker Sley program (RW-100)",
+      "reference_seed": "crates/sley-ssmc, crates/sley-check (native; algorithm/contract source, not the final owner)",
+      "responsibility_10_2": "SSMC semantic formation, reference/identity checks, type and CFG checking, effect/contract judgments, mandatory test planning",
+      "status": "proposed"
+    },
+    {
+      "intended_owner": "witness-checker Sley program (RW-170; contracts RW-150)",
+      "reference_seed": "none (WA inactive; no unimplemented Witness semantics may be claimed protective)",
+      "responsibility_10_2": "Witness type rules, data/control-flow integrity analysis, verifier admissibility, sink-integrity after WA integration",
+      "status": "later-qualified"
+    },
+    {
+      "intended_owner": "lowerer + image-builder Sley programs (RW-110)",
+      "reference_seed": "crates/sley-vm lower/execute paths (native; algorithm/contract source, not the final owner)",
+      "responsibility_10_2": "SSMC-to-executable lowering and deterministic assembly of the declared derived execution image",
+      "status": "proposed"
+    },
+    {
+      "intended_owner": "build-driver Sley program (RW-120)",
+      "reference_seed": "Makefile/scripts/native driver (outside the clean self-build closure, permanently)",
+      "responsibility_10_2": "build driver resolving the exact toolchain input closure, invoking checker/lowerer, assembling outputs, reproducing its own executable toolchain",
+      "status": "proposed"
+    },
+    {
+      "intended_owner": "Sley semantic implementation of approved deterministic discharge profiles (RW-180)",
+      "reference_seed": "none adopted",
+      "responsibility_10_2": "semantic implementation of approved deterministic discharge profiles belonging to the language (see carveout_10_2_6)",
+      "status": "later-qualified"
+    }
+  ],
+  "toolchain_pin": {
+    "build": "cargo --locked (Cargo.lock pinned)",
+    "rust": "1.93.0 minimal + clippy + rustfmt (rust-toolchain.toml)"
+  }
+}

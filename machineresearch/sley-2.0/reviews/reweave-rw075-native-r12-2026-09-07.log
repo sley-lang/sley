@@ -1,0 +1,39 @@
+Native architecture/boundary review: RW-075 round-12 delta (SELF-REVIEW, provisional)
+Date: 2026-09-07
+Reviewer: native Muse session (model muse-spark, OpenCode harness), same author line that produced the round-12 deltas and f5fd457.
+Status: SELF-REVIEW. It supports provisional development decisions under the 2026-09-07 operator override only. It is NOT independent acceptance, NOT a Nabu verdict, NOT premium round 2, and MUST NOT be consumed by check_r2_exit.py (filename deliberately outside all gate globs; no VERDICT token in this file).
+
+Candidate: f5fd457566fe0a4108962ebded87d0ab601d2b3d (round-12 repairs over Nabu-r11 base 3a72c91). Later commits 83fe94a (S20-780 audit) and e47b733 (deferral note) touch machineresearch only — verified by name-only diff; not attributed to the candidate. Review-driven repairs committed separately as df89a062b352a74ab943d8b507bfe51b878bf505; production (non-test) code there is byte-identical to f5fd457 (sole src hunk inside `mod tests`, verified by hunk-header audit).
+
+Scope: AR-02..AR-08 repairs against the premium-r1 required-correction criteria, plus AR-01 regression. The author's disposition table and historical Tier-2 totals were NOT accepted as proof; every finding below was re-inspected in code with focused checks actually run (see validation).
+
+Finding dispositions
+
+AR-01: CLOSED (no change). Round-12 delta touches no execution-path file (diff file list: bootstrap/admission/approval/lib/tests/docs/scripts only; execute.rs, extended.rs, host_abi.rs, raw_hash.rs, sley-id, sley-ssmc untouched). Regression suites green (see validation).
+
+AR-02: CLOSED for the R2 bootstrap scope, with stated residual. Verified: v2 admission refuses carried Bytes over RAW_HASH_MAX_BYTES with ResourceLimit (bootstrap.rs constant loop, read); V1 exempt (no RHW1; sound — gate denies RHW1 rows under V1); typed execution refusal backstop intact (raw_boundaries test green); SLEYCHNK1 retired — remaining mentions are retirement notes plus the framing-inertia negative (grep); canonical digest() single-shot BLAKE3 unchanged. The guarantee does not depend on inventory exhaustiveness: any over-bound preimage, foreseen or not, refuses typed instead of hashing non-canonically. Residual: compiler obligations needing >1 MiB preimages cannot route through RHW1 (declared streaming gap; nothing R2-required needs it per the measured inventory, reviewed as documented).
+
+AR-03: CLOSED. Verified verify_structural_correspondence compares entry/epoch/root, constants, type definitions (full structural PartialEq via type_tables_match, read), full import rows order-insensitive, globals, contracts, plus admitted-image-digest binding — before minting. Honest package admits; 8 substitution legs (constants, import row, global, epoch pre-existing; typedef, contract, entry, state root added by this review) all refuse exactly ClaimsMismatch, executed green.
+
+AR-04: CLOSED on the contract deliverable. Verified: all three v2 digests + raw + v1 records recomputed from file bytes, matching the contract cites and the premium table exactly; §1.4 stages C0-seed vs post-C1 with no mixing and matches the code split; §1.6 byte handoffs, retired-chunk rule, exact 4-row registry split, and reserved verify_witness interface all present as specified. Limitation: clean-stage exclusion of the seed path is declarative until C1 exists (not code-verifiable today). Premium §86 limits-prose conflict repaired to the implemented exact-match approval semantics (exec_package.rs approval checks read; v2 checker PASS).
+
+AR-05: CLOSED as evidence risk (premium: risk, not semantic blocker). Verified: in-crate v2 replay executes 5 Sley-owned-traversal workloads through admit/approve/execute-v2 asserting v2==direct termination plus expected values (read in full; executed green); per-metric attribution stated in-test; Rust-driven queue deliberately excluded with reason; hydration file narrowed to stated ownership with the double-execution miscount fixed (diff read). Limitation: printed metric figures witnessed via passing assertions, not independently re-measured.
+
+AR-06: PARTIALLY_CLOSED. Repaired portion verified independently with 6/6 scratch probes (later PASS supersedes, later FAIL re-blocks, longer tokens parse PENDING, within-file FAIL precedence, trailing notes parse, infra files excluded; scratch removed). Remainder OPEN: no revision binding of review evidence to implementation; RW-060 still summary-status plus hardcoded IDs. Deliberately NOT repaired: gate-script stability for formal acceptance; not a substantive architecture defect. check_r2_exit.py untouched by this review.
+
+AR-07: CLOSED as designed. Verified: semantic legs isolated in named C0-seed functions; structural legs read in full, judgment-free (pure equality); SleyAdmissionEvidence sealed with zero constructors repo-wide (grep) and a new behavioral test proving always-refuses (executed green — the correction's "pin" claim previously covered only the code string); staged authority judges V2 only. Residual: same C1-exclusion caveat as AR-04; native seed remains the only minting route today (declared, not hidden).
+
+AR-08: CLOSED. Verified: version enum on the gate input as a required (non-Default) field; all construction sites versioned (grep, zero zero-arg); resolver binds BridgeKind::RawHash to frozen row identity plus frozen fields (read); RHW1 denies under V1; report carries version; both approvals pin version (read); three version negatives executed green. Version-specific admission allowlists implemented, so the legacy-boundary alternative was not needed.
+
+Incidental defect found and repaired: S20-780 audit package (83fe94a) omitted its record from the boundary checker's sentinel inventory, failing check_clean_room_boundary at clean HEAD (reproduced via stash; pre-existing, not caused by this review). Fixed via the checker's documented inventory mechanism (one line, no logic change); checker PASS, exit 0.
+
+Validation actually run (Tier 2 focused, CARGO_TARGET_DIR=/tmp throwaway, --offline --locked)
+- cargo test -p sley-vm: 85 lib + 37 freeze + 30 exec_closure + 8 hydration + 18 raw_callable passed, 0 failed (2 pre-existing ignored). Post-repair full re-run green.
+- cargo test -p sley-repo --test rw060_source_free_lifecycle: 15 passed.
+- Freeze/marker scripts (profile1/2, abi1/2+markers, package1/2+markers, gate markers, legacy runner, clean-room boundary): all PASS.
+- AR-06 parse probes: 6/6 (scratch, removed).
+- cargo fmt --check (sley-vm, sley-repo): clean. cargo clippy --all-targets (sley-vm, sley-repo): zero warnings (one introduced too_many_lines warning refactored table-driven, re-verified).
+- git diff --check: clean. check_r2_exit.py: NOT_READY, exit 3 (expected; retained premium FAIL).
+- Full `make quick` packaging gate NOT reached (known release-lane stop, reported, not claimed).
+
+Limitations: self-review (same author line) — provisional only. No gateway/Nabu/premium consultation (route refused with API rate limit; single bounded `forge agent` attempt returned no review; not retried). Printed AR-05 metric figures not independently re-measured. C1-exclusion properties declarative pending C1. AR-06 evidence-binding remainder open. Formal acceptance debt unchanged: qualifying Nabu round-12 + premium round 2 with exact VERDICT: R2_ARCHITECTURE_PASS still required; R2 gate NOT_READY preserved.

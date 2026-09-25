@@ -1,0 +1,27 @@
+module app.slowmem
+
+export task slow_count -> Int {
+  take hay: List<Int>
+  take needles: List<Int>
+  state i = 0
+  state found = 0
+  while i < len(needles) {
+    state j = 0
+    state matched = 0
+    while j < len(hay) {
+      if needles[i] == hay[j] {
+        set matched = 1
+      }
+      set j = j + 1
+    }
+    set found = found + matched
+    set i = i + 1
+  }
+  return found
+}
+
+task main -> Int {
+  bind hay = [10, 11]
+  bind needles = [11, 99]
+  return call slow_count(hay, needles)
+}

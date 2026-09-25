@@ -1,0 +1,10 @@
+module app.capparam
+
+export task read_other -> Text uses FileRead {
+  take gate files: Gate<FileRead>
+  return call fs.read_text("config/other.bin")
+}
+
+task main -> Text uses FileRead {
+  return call read_other()
+}

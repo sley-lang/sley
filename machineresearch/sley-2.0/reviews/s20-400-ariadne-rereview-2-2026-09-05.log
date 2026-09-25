@@ -1,0 +1,26 @@
+S20-400 SMP1 Ariadne contract second re-review — 2026-09-05
+Pinned repository: /home/dev/sley2
+Pinned commit: 94b13adb3c3893120ad4a5ea26a48013248915a8
+Prior re-review: machineresearch/sley-2.0/reviews/s20-400-ariadne-rereview-2026-09-05.log
+Reviewed range: 94b13ad~2..94b13ad (776983f, 94b13ad)
+Mode: bounded read-only triage; this log is the sole write. No cargo or make.
+
+status: FAIL
+
+findings:
+- All five first re-review residuals are materially closed. R1: SMP1 section 1 removes envelope epoch from the frame-defect list and uniquely assigns epoch mismatch PROTOCOL_VERSION_UNSUPPORTED, matching decode_frame. R2: ProtocolFrame validation and the new decode test split protocol_version below/above 1 to PROTOCOL_DOWNGRADE/PROTOCOL_VERSION_UNSUPPORTED before dispatch; SelectedProfile::check_claim agrees for versions. R3: the ProtocolFailure.details record comment now matches the exact transport-reason rule. R4: the checker extracts bounded AFTER_REQUERY, AFTER_LIMIT_CHANGE, and AFTER_CAPABILITY spans, compares the two server arrays by exact set equality, pins the reserved-method capability assignment, and passes. R5: revision 11 is dated 2026-09-05.
+- P1: The frozen envelope-format error remains contradictory between contract and decoder. SMP1.md:69-72 classifies a failed envelope format version as PROTOCOL_FRAME_INVALID, but decode_frame returns PROTOCOL_VERSION_UNSUPPORTED when FORMAT_VERSION differs (lib.rs:1175-1176). These stable wire codes are observably different, and no format-version rejection test pins the intended choice. This was exposed while checking R1's now-exclusive envelope classifications; resolve the prose/code mismatch and add a focused rejection pin.
+- No new P0, P2, or P3 finding was identified in the bounded residual diff.
+
+validation:
+- git rev-parse HEAD: 94b13adb3c3893120ad4a5ea26a48013248915a8; git status --short was clean before the required log write.
+- Targeted read/diff of the prior Ariadne re-review and 94b13ad~2..94b13ad changes in SMP1.md, sley-protocol lib/server/tests, the SMP1 checker, CLI/bridge carry-along tests, test inventory, and campaign record.
+- python3 scripts/check_smp1_contract.py: PASS, revision 11, 41 methods, 12 codes. The checker does not probe the envelope format-version error classification above.
+- Supplied Tier 2 evidence was not re-executed. No cargo, make, deploy, merge, external action, or repository mutation other than this required log.
+
+blockers:
+- PASS/freeze remains blocked until envelope format-version mismatch has one contracted error matching decode behavior and focused evidence.
+
+return_to: orchestrator
+
+S20_400CONTRACT_REREVIEW2_JSON={"reviewer":"ariadne","result":"FAIL","p0":[],"p1":["SMP1 section 1 assigns an envelope format-version failure PROTOCOL_FRAME_INVALID, while decode_frame returns PROTOCOL_VERSION_UNSUPPORTED for FORMAT_VERSION mismatch; align the frozen wire classification and add a focused rejection test"],"p2":[],"p3":[]}

@@ -1,0 +1,58 @@
+DISPATCH 780-ariadne-contract forge-ariadne-780-ariadne-contract-20260904T085428 2026-09-04T08:54:28Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its composed authorities.
+
+status: complete (verdict decided; read-only, no cargo, no make, no repository modification)
+
+## findings
+
+**P0 — blocks acceptance**
+
+**1. The register is not the complete set of reused concepts.** A tracked in-tree authority, `machineresearch/sley-2.0/23-disposition-matrix.md`, records legacy surfaces with an explicit **reimplement** decision and a named Sley 2 equivalent:
+
+| Legacy surface | Decision | Sley 2 equivalent |
+|---|---|---|
+| stable graph identity | reimplement | EntityId/ObjectId/StateRoot |
+| typed graph checking | reimplement | SSMC/check kernel |
+| effects/authority fixtures | preserve and reimplement concept | effects + policy/capability |
+
+ADR-0002 triggers a disposition precisely on "relevant concepts are reimplemented from specifications". Register §1.3 denies reuse for exactly these areas ("program representation, type and effect systems, ... state roots, ... policy and capability model"). The matrix carries no superseded marker, is not cited or reconciled by the register, and is referenced nowhere else except a hash record in `evidence/validation/s20-530-crash-recovery-closeout-v1.json:1427`. So either at least three seven-field entries are missing, or the register must retire the matrix on evidence. Master goal 26.1 is not satisfied as written, and `machine-summary.json` pins `reused_concepts: 2` on top of the unreconciled claim.
+
+**P1 — must fix before acceptance**
+
+**2. The §1.3 closure has no criterion and is asserted.** It offers "implemented from those specifications" as the reason a shared concept is not reuse, but reimplementation from specification is the ADR-0002 trigger, not an exemption. On the generic-idea question you raised (content addressing, canonical encoding): the register needs a stated test separating independent generic construction from a 1.2-derived concept, plus per-area evidence that Sley 2's SCB1, object store, and state roots were derived from in-repo contracts rather than from 1.2 behavior. §3 concedes no provenance or similarity audit exists, so as written the closure cannot be evidenced, only declared.
+
+**3. Entry 1.1 "Security impact" and §2.3 misstate the touchpoint.** Both say the artifact runs "from the archive path". `bench/legacy/runner.py` copies the archive into a private temp directory, extracts it write-bit-stripped (`staged_frozen_artifact`, line 764), and executes with `cwd=stage.root` (lines 866-868). `bench/legacy/README.md` also disclaims containment: "no read-only mount or network namespace is enforced, so this cannot support a benchmark-trial containment claim", which contradicts "under the S20-600 adapter's controls".
+
+**4. §2.1 claims more than the checker verifies.** `check_clean_room_boundary.py` searches only the literal string `archive/sley/1.2.0` in `.rs/.py/.toml/.json` files under `crates, oracle, bench, fuzz, scripts`. It detects no legacy source content, no legacy module marker, no unpacked archive, and no non-code file type. Copied legacy source would carry none of that string and would pass. "No legacy source in the tree ... verified from the tree alone" is not established.
+
+**5. "One touchpoint" is counted, not enforced.** `references` is incremented and printed but never bounded to one, and three allowed prefixes exist. §2.3's "single reference" is unenforced.
+
+**6. Entry 1.1 fuses two distinct frozen items.** The binary artifact and the exact source snapshot (`1c866d36...`) share one disposition whose purpose, security, decision, and acceptance-test fields describe only the executable. The source snapshot, the item clean-room rules most govern, has no disposition of its own and no statement that it is not consulted during implementation.
+
+<details>
+<summary>P2 and P3 detail</summary>
+
+**P2**
+- 7. `DISPOSITION_INCOMPLETE` (78001) checks label presence only; an empty or unevidenced field passes. §2.4 reads stronger than the check.
+- 8. §2.4 says "every entry of section 1", but the checker exempts §1.3 via the title substring `"no reused concept"` (line 65). The exemption is undisclosed and title-fragile: renaming §1.3 makes the checker demand seven fields for a non-entry.
+- 9. Entry 1.1's acceptance test `make legacy-runner-smoke` depends on `/home/dev/archive/sley/1.2.0/...`, outside the repository and outside `make quick`. Mark it environment-dependent and state what actually runs in the gate.
+
+**P3**
+- 10. §2.1 names `crates/, oracle/, bench/`; the checker also scans `fuzz/` and `scripts/`.
+- 11. "the eighteen Sley 2 crates" is factually correct (18 directories under `crates/`) but the checker verifies membership only, never the count.
+- 12. `ALLOWED_LEGACY_REFERENCES` lists the register's own `docs/spec/` path, which `SCANNED_TREES` can never reach. Dead allowance.
+- 13. Master goal §26.1 is quoted as governing authority but is not a tracked artifact of this repository, so §1's "evidence is a tracked artifact of this repository or the frozen legacy evidence" does not cover the authority itself.
+</details>
+
+## validation
+Read-only at `9dc78fe`. Confirmed accurate: artifact and source digests and size match `01-legacy-freeze-and-authority.md:12-16`; corpus manifest `7370b6cc...` matches both `bench/corpus/v1/SHA256SUMS` and a recomputed `sha256sum` of `tasks.json`; 18 directories under `crates/`; codes 78000/78001 registered at `docs/spec/ERROR_CODES_V1.md:462-466`; work-package row at `docs/WORK_PACKAGES.md:71`; checker staged in `make quick` at `Makefile:73`; `machine-summary.json` section present with all keys the checker pins. Tier: targeted read-only inspection, no test tier executed, V1 not run and not applicable to a document review.
+
+## blockers
+None. Findings 1 through 6 are register and checker defects, not review obstacles. Finding 1 needs a Nabu call if the resolution is to retire `23-disposition-matrix.md` rather than add entries, since that is a cross-document authority decision.
+
+## return_to
+orchestrator (S20-780 contract review); Nabu for the matrix-versus-register authority reconciliation.
+
+S20_780_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["Register 1.3 completeness claim is contradicted by tracked machineresearch/sley-2.0/23-disposition-matrix.md, which records reimplement dispositions for stable graph identity (EntityId/ObjectId/StateRoot), typed graph checking (SSMC/check kernel), and preserve-and-reimplement for effects/authority fixtures (effects + policy/capability); at least three reused concepts lack seven-field entries and machine-summary.json pins reused_concepts=2 on the unreconciled claim"],"p1":["Section 1.3 closure states no criterion separating a generic shared idea from a reused 1.2 concept, and its defense (implemented from those specifications) is the ADR-0002 trigger rather than an exemption; section 3 concedes no provenance audit, so the closure is asserted not evidenced","Entry 1.1 security impact and section 2.3 say the artifact runs from the archive path, but bench/legacy/runner.py stages a private extracted copy and runs with cwd=stage.root (lines 764, 866-868), and bench/legacy/README.md explicitly disclaims containment (no read-only mount, no network namespace), contradicting under the S20-600 adapter's controls","Section 2.1 overstates the checker: check_clean_room_boundary.py only searches the literal string archive/sley/1.2.0 in .rs/.py/.toml/.json under crates, oracle, bench, fuzz, scripts, so copied legacy source, legacy module markers, unpacked archives, and non-code files are undetected","Section 2.3 single touchpoint is unenforced: the checker counts and prints references but never bounds the count to one, and three allowed prefixes exist","Entry 1.1 fuses the binary artifact and the exact source snapshot 1c866d36 into one disposition whose fields describe only the executable; the source snapshot has no purpose, security, decision, or acceptance test of its own and no non-consultation statement"],"p2":["DISPOSITION_INCOMPLETE 78001 checks field-label presence only, so an empty or unevidenced field passes","Section 2.4 says every entry of section 1 but the checker exempts 1.3 via the title substring 'no reused concept' (line 65); the exemption is undisclosed and title-string fragile","Entry 1.1 acceptance test make legacy-runner-smoke depends on /home/dev/archive/sley/1.2.0 outside the repository and is not in make quick; mark it environment-dependent and state the in-gate check"],"p3":["Section 2.1 names crates, oracle, bench but the checker also scans fuzz and scripts","The eighteen Sley 2 crates count is factually correct but the checker verifies path-dependency membership only, never the count","ALLOWED_LEGACY_REFERENCES lists docs/spec/CLEAN_ROOM_DISPOSITION_REGISTER_V1.md, which SCANNED_TREES can never reach (dead allowance)","Master goal section 26.1 is quoted as governing authority but is not a tracked artifact of this repository"],"notes":"Read-only at 9dc78fe; no cargo, no make, no repo modification. Digests, 18 crates, corpus hash, error codes, work-package row, and make quick wiring all verified accurate. P0 is completeness: a third, fourth, and fifth reused concept are recorded in the tracked legacy disposition matrix and absent from the register."}
+EXIT=0 2026-09-04T08:57:40Z

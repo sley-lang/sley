@@ -1,0 +1,70 @@
+{
+ "chartered_override": true,
+ "exercises": [
+  {
+   "disposition": "PASS-exists",
+   "id": 1,
+   "name": "synthetic",
+   "vectors": [
+    "synthetic-vector"
+   ]
+  }
+ ],
+ "expect": {
+  "readiness": "NOT_READY",
+  "structural": "PASS"
+ },
+ "gaps": [
+  {
+   "classification": "FULL_MG_OBLIGATION",
+   "disposition": "synthetic routed gap",
+   "evidence": "synthetic",
+   "id": "G-S1",
+   "owner": "synthetic-owner"
+  }
+ ],
+ "manifest": {
+  "stages": {
+   "C0": {
+    "status": "no image",
+    "value": null
+   },
+   "C1": {
+    "status": "does not exist",
+    "value": null
+   },
+   "C2": {
+    "status": "does not exist",
+    "value": null
+   },
+   "C3": {
+    "status": "does not exist",
+    "value": null
+   },
+   "H": {
+    "facts": {
+     "os": "linux"
+    },
+    "manifest_digest": null
+   },
+   "P": {
+    "digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "provenance": {
+     "artifact": "synthetic",
+     "command": "synthetic"
+    },
+    "status": "bound",
+    "value": "bound"
+   },
+   "S": {
+    "status": "does not exist",
+    "value": null
+   }
+  }
+ },
+ "note": "synthetic corpus case: boundary chartered but H manifest not pinned to it (digest null). Measured facts are inventory, not a pinned manifest: structurally fine, readiness must stay NOT_READY via h-manifest-unpinned. This exercises the computation ONLY; it is not evidence and never leaves this corpus file.",
+ "synthetic": true,
+ "vectors_present": [
+  "synthetic-vector"
+ ]
+}

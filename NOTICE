@@ -1,0 +1,9 @@
+Sley 2.0
+Copyright 2026 Greyforge Labs
+
+This work is licensed under the Apache License, Version 2.0 (SPDX: Apache-2.0).
+See LICENSE for the full license text.
+
+Third-party dependency licenses are declared in the release inventory
+(SBOM.json in the release-candidate artifact; evidence/security/T52/
+pre-release-inventory.json in the source tree) and are not relicensed here.

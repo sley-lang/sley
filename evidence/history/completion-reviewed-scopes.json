@@ -1,0 +1,68 @@
+{
+  "contract": "sley2.completion-reviewed-scopes.v1",
+  "note": "Frozen once at the public-history cut. The S20-300 and S20-620 checkers bind a lane's `<key>_revision_<N>` PASS to the commit its note names (`on <40-hex>`) by reading that commit's copy of the contract and its Status-line revision. Commits named by review notes before the cut exist only in the archived history (evidence/history/pre-public-history.json), so their contract text cannot be read in the public repository. This record keeps the Status line of each contract at every archived commit a review note in those two machine-summary sections names, read from the archive with `git show <commit>:<path>`; `blob` is `git rev-parse <commit>:<path>`, so anyone holding the bundle can reproduce every entry. Commits in the public repository are still read live with git; an archived commit absent here, or a commit in neither the repository nor the ledger, fails closed.",
+  "archive_tip": "c1a2c4b7c8ede0e516991c26a0e039886d23cb31",
+  "archive_sha256": "d44d50d8234c07c8832bd2048aa69bc365ac4be4baae49f3d9438fdf117f1507",
+  "entries": [
+    {
+      "commit": "5b538f36eaee0574027539e512760a05e6d3ae29",
+      "path": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
+      "blob": "cff31ccafb8ecdaf4e3403986b9b6bf2eadf5823",
+      "status_line": "Status: S20-300 full contract draft, revision 3 (2026-09-14); implemented"
+    },
+    {
+      "commit": "5b538f36eaee0574027539e512760a05e6d3ae29",
+      "path": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
+      "blob": "1f741a366a092382097eb725b6cf4386c5b84641",
+      "status_line": "Status: S20-620 contract draft, revision 5 (2026-09-23); Council review"
+    },
+    {
+      "commit": "f073811914297505803f5b731cd4691e1623de84",
+      "path": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
+      "blob": "746a23cac61463cb7b028ff31bd2a86ba6a2b928",
+      "status_line": "Status: S20-300 full contract draft, revision 4 (2026-09-23); implemented"
+    },
+    {
+      "commit": "f073811914297505803f5b731cd4691e1623de84",
+      "path": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
+      "blob": "b8bedfa40e3cf4ed987f69d7afe37db33285d86f",
+      "status_line": "Status: S20-620 contract draft, revision 5 (2026-09-23); Council review"
+    },
+    {
+      "commit": "2b0f1c9f4940c020565137891a49a3769cd02061",
+      "path": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
+      "blob": "66d8052955e5f3ab9db78e46374afa32cbcda884",
+      "status_line": "Status: S20-300 full contract draft, revision 5 (2026-09-23); implemented"
+    },
+    {
+      "commit": "2b0f1c9f4940c020565137891a49a3769cd02061",
+      "path": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
+      "blob": "5c1eda749276226e0dbbc355864871cd5d4b3e2e",
+      "status_line": "Status: S20-620 contract draft, revision 6 (2026-09-23); Council review"
+    },
+    {
+      "commit": "26d050e629b669ef4acbd54826ef4008c05a061d",
+      "path": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
+      "blob": "0a79151df286ca5dac9597db44541eba403dde37",
+      "status_line": "Status: S20-300 full contract draft, revision 6 (2026-09-23); implemented"
+    },
+    {
+      "commit": "26d050e629b669ef4acbd54826ef4008c05a061d",
+      "path": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
+      "blob": "22d02b8027c90c0034607c791163a2345c4f0fb4",
+      "status_line": "Status: S20-620 contract draft, revision 7 (2026-09-23); Council review"
+    },
+    {
+      "commit": "03b25eb9b3d7e80576394109ca4b73cc21b2fab9",
+      "path": "docs/spec/COMPLETE_ROOT_INDEX_SNAPSHOT_PROFILE_V1.md",
+      "blob": "0a79151df286ca5dac9597db44541eba403dde37",
+      "status_line": "Status: S20-300 full contract draft, revision 6 (2026-09-23); implemented"
+    },
+    {
+      "commit": "03b25eb9b3d7e80576394109ca4b73cc21b2fab9",
+      "path": "docs/spec/SLEY2_TRIAL_RUNNER_V1.md",
+      "blob": "cc180d72ebdc6ff7c55df3a36e1dc67900e2e104",
+      "status_line": "Status: S20-620 contract draft, revision 8 (2026-09-23); Council review"
+    }
+  ]
+}

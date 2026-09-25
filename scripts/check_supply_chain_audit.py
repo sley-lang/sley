@@ -1,0 +1,319 @@
+#!/usr/bin/env python3
+"""Validate the bounded S20-710 pre-release audit without claiming release PASS."""
+
+from __future__ import annotations
+
+import json
+import subprocess
+import sys
+from collections import Counter
+from pathlib import Path
+from typing import Any
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import publication_authority  # noqa: E402  (sibling module)
+import history_ledger  # noqa: E402  (sibling module)
+
+ROOT = Path(__file__).resolve().parents[1]
+INVENTORY_PATH = ROOT / "evidence/security/T52/pre-release-inventory.json"
+SECRET_SCAN_PATH = ROOT / "evidence/security/T54/secret-scan.json"
+SUMMARY_PATH = ROOT / "machineresearch/sley-2.0/machine-summary.json"
+EXPECTED_BLOCKERS: list = []
+EXPECTED_ANCHOR = "7804f665e0ee65de240c43fe3b56dc89cf7e9d80"
+# The pre-public history through EXPECTED_ANCHOR is archived off-repository:
+# its scan result is a frozen record, and the public history is scanned
+# live from the public root commit.
+PRE_PUBLIC_SCAN_PATH = ROOT / "evidence/history/supply-chain-pre-public-history-scan.json"
+EXPECTED_PUBLIC_ANCHOR = history_ledger.public_root() or ""
+# The exact installed root license bytes (S20-710 license decision
+# 2026-09-14): the inventory records these digests and the checker pins
+# them, so a modified LICENSE or NOTICE fails instead of passing open.
+EXPECTED_ROOT_LICENSE_SHA256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+EXPECTED_NOTICE_SHA256 = "e7151ea0ee545a9edec91ecf963acefec4d6c2cfd92aa6080b1afe517d5a5dfa"
+EXPECTED_LICENSE_FILES = ["LICENSE", "NOTICE"]
+REQUIRED_IGNORES = {
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx",
+    "credentials/",
+    "secrets/",
+    ".aws/",
+    ".gnupg/",
+}
+
+
+def fail(message: str) -> None:
+    raise AssertionError(message)
+
+
+def strings(value: Any):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, list):
+        for item in value:
+            yield from strings(item)
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            yield key
+            yield from strings(item)
+
+
+def load(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        fail(f"cannot load {path.relative_to(ROOT)}: {error}")
+    if not isinstance(value, dict):
+        fail(f"{path.relative_to(ROOT)} must contain a JSON object")
+    return value
+
+
+def check_generated_files() -> None:
+    completed = subprocess.run(
+        [sys.executable, "scripts/generate_supply_chain_evidence.py", "--check"],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        fail(f"generated audit evidence drifted: {completed.stdout.strip() or completed.stderr.strip()}")
+
+
+def check_inventory(inventory: dict[str, Any]) -> None:
+    if inventory.get("contract") != "s20-710-pre-release-inventory-v1":
+        fail("unexpected inventory contract")
+    if inventory.get("history_anchor_commit") != EXPECTED_ANCHOR:
+        fail("unexpected inventory history anchor")
+    if inventory.get("result") != "PASS" or inventory.get("blockers") != EXPECTED_BLOCKERS:
+        fail("inventory must pass with no blockers once the root license is approved and installed")
+    if inventory.get("full_release_sbom") is not False:
+        fail("pre-release inventory must not claim to be a full release SBOM")
+    if inventory.get("standards_sbom_deferred") is not False:
+        fail("standards SBOM must no longer be deferred once the root license is approved")
+    if inventory.get("python_lock_freshness") != "uv lock --check --offline --no-python-downloads:PASS":
+        fail("Python lock freshness assertion is missing")
+    if inventory.get("license_text_files") != EXPECTED_LICENSE_FILES:
+        fail("unexpected root license file set; operator disposition is required")
+    if inventory.get("root_license_sha256") != EXPECTED_ROOT_LICENSE_SHA256:
+        fail("installed LICENSE does not match the approved Apache-2.0 bytes")
+    if inventory.get("notice_sha256") != EXPECTED_NOTICE_SHA256:
+        fail("installed NOTICE does not match the approved notice bytes")
+
+    packages = inventory.get("packages")
+    if not isinstance(packages, list):
+        fail("inventory packages must be a list")
+    counts = Counter((package.get("ecosystem"), package.get("workspace")) for package in packages)
+    expected_groups = {
+        ("cargo", False),
+        ("cargo", True),
+        ("pypi", False),
+        ("pypi", True),
+    }
+    if set(counts) != expected_groups or any(counts[group] <= 0 for group in expected_groups):
+        fail(f"unexpected package inventory groups: {dict(counts)}")
+    refs = {package.get("bom_ref") for package in packages}
+    if None in refs or len(refs) != len(packages):
+        fail("package BOM references must be present and unique")
+
+    for package in packages:
+        workspace = package["workspace"]
+        if workspace:
+            if package.get("license_declared") != "Apache-2.0":
+                fail(f"workspace license metadata mismatch: {package['bom_ref']}")
+            expected_evidence = (
+                "cargo-metadata-declared-expression"
+                if package["ecosystem"] == "cargo"
+                else "pyproject-declared-expression"
+            )
+            if package.get("license_evidence") != expected_evidence:
+                fail(f"workspace license evidence mismatch: {package['bom_ref']}")
+            if package.get("license_disposition") != "APPROVED_OPERATOR_APACHE_2_0_ROOT_LICENSE":
+                fail(f"workspace license disposition mismatch: {package['bom_ref']}")
+            continue
+        if package.get("license_disposition") != "DECLARED_PERMISSIVE_PRE_RELEASE_REVIEW":
+            fail(f"registry dependency license is not dispositioned: {package['bom_ref']}")
+        if package["ecosystem"] == "cargo":
+            if package.get("license_evidence") != "cargo-metadata-declared-expression":
+                fail(f"cargo dependency license evidence mismatch: {package['bom_ref']}")
+            checksum = package.get("checksum_sha256")
+            if not isinstance(checksum, str) or len(checksum) != 64:
+                fail(f"cargo dependency lacks a lock checksum: {package['bom_ref']}")
+            if package.get("source") != "registry+https://github.com/rust-lang/crates.io-index":
+                fail(f"cargo dependency has an unexpected source: {package['bom_ref']}")
+        elif package["ecosystem"] == "pypi":
+            if package.get("license_evidence") != "curated-offline-pre-release-review":
+                fail(f"Python dependency license evidence mismatch: {package['bom_ref']}")
+            hashes = package.get("artifact_hashes")
+            if not isinstance(hashes, list) or not hashes or any(
+                not isinstance(value, str) or not value.startswith("sha256:") or len(value) != 71
+                for value in hashes
+            ):
+                fail(f"Python dependency lacks locked artifact hashes: {package['bom_ref']}")
+            if package.get("source") != "https://pypi.org/simple":
+                fail(f"Python dependency has an unexpected source: {package['bom_ref']}")
+
+    relationships = inventory.get("relationships")
+    if not isinstance(relationships, list) or not relationships:
+        fail("dependency relationships must be non-empty")
+    for relationship in relationships:
+        if relationship.get("from") not in refs or relationship.get("to") not in refs:
+            fail("dependency relationship refers to an unknown package")
+
+
+def check_secret_scan(scan: dict[str, Any]) -> None:
+    if scan.get("contract") != "s20-710-secret-scan-v1":
+        fail("unexpected secret-scan contract")
+    if scan.get("history_anchor_commit") != EXPECTED_ANCHOR:
+        fail("unexpected secret-scan history anchor")
+    if scan.get("public_history_anchor_commit") != EXPECTED_PUBLIC_ANCHOR:
+        fail("unexpected secret-scan public history anchor")
+    if scan.get("pre_public_history_record") != PRE_PUBLIC_SCAN_PATH.relative_to(ROOT).as_posix():
+        fail("secret scan does not cite the frozen pre-public history record")
+    frozen = load(PRE_PUBLIC_SCAN_PATH)
+    for field in ("history_anchor_commit", "history_blobs_scanned", "history_bytes_scanned", "patterns"):
+        if frozen.get(field) != scan.get(field):
+            fail(f"secret scan does not carry the frozen pre-public history result: {field}")
+    if scan.get("result") != "PASS_NO_HIGH_CONFIDENCE_FINDINGS":
+        fail("high-confidence secret scan did not pass")
+    if scan.get("blockers") != [] or scan.get("findings") != []:
+        fail("secret scan contains unresolved blockers or findings")
+    if scan.get("matched_secret_values_emitted") is not False:
+        fail("secret scan must never emit matched secret values")
+    for entry in scan.get("findings", []):
+        if set(entry) - {"pattern", "path", "scope", "blob_oid"}:
+            fail("secret-scan finding carries unexpected keys")
+    for field in (
+        "candidate_files_scanned",
+        "candidate_bytes_scanned",
+        "history_blobs_scanned",
+        "history_bytes_scanned",
+        "public_history_anchor_blobs_scanned",
+        "public_history_anchor_bytes_scanned",
+    ):
+        if not isinstance(scan.get(field), int) or scan[field] <= 0:
+            fail(f"secret-scan coverage counter is invalid: {field}")
+
+    ignore_lines = {
+        line.strip()
+        for line in (ROOT / ".gitignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    }
+    if not REQUIRED_IGNORES.issubset(ignore_lines):
+        fail("required secret-bearing ignore patterns are missing")
+    # Line presence is not enough: a nested .gitignore negation or
+    # .git/info/exclude entry could re-include a guarded path, so assert
+    # the effective ignore status of sentinel paths.
+    for sentinel in (".env", "id_rsa.pem", "credentials/x", "secrets/x", ".aws/x", ".gnupg/x"):
+        ignored = subprocess.run(
+            ["git", "check-ignore", "-q", sentinel],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+        )
+        if ignored.returncode != 0:
+            fail(f"secret-bearing sentinel not ignored: {sentinel}")
+
+
+def check_machine_summary(summary: dict[str, Any]) -> None:
+    profile = summary.get("s20_710_pre_release_audit", {})
+    expected = {
+        "status": "DEFERRED_SBOM_PROVENANCE_APPROVAL_AND_RELEASE_BOUNDARY",
+        "full_s20_710_complete": False,
+        "contract": "docs/audits/S20_710_PRE_RELEASE_AUDIT.md",
+        "inventory_contract": "s20-710-pre-release-inventory-v1",
+        "secret_scan_contract": "s20-710-secret-scan-v1",
+        "history_anchor_commit": EXPECTED_ANCHOR,
+        "t52_local_lock_inventory": "PASS",
+        "t54_high_confidence_scan": "PASS",
+        "history_blobs_scanned": 5950,
+        "history_bytes_scanned": 380847122,
+        "secret_patterns": 21,
+        "secret_findings": 0,
+        "matched_secret_values_emitted": False,
+        "candidate_scan_recomputed_by_generator": True,
+        "root_license_text_approved": True,
+        "root_license_spdx": "Apache-2.0",
+        "root_license_sha256": EXPECTED_ROOT_LICENSE_SHA256,
+        "notice_sha256": EXPECTED_NOTICE_SHA256,
+        "standards_sbom": False,
+        "release_provenance": False,
+        "release_candidate_history_reanchored": True,
+        "final_argus_disposition": "PASS_0_P0_0_P1_0_P2_0_P3",
+        "final_vulcan_disposition": "PASS_0_P0_0_P1_0_P2_0_P3_0_P4",
+        "publication_authorized": publication_authority.is_authorized(),
+    }
+    for field, expected_value in expected.items():
+        if profile.get(field) != expected_value:
+            fail(f"S20-710 machine summary mismatch: {field}")
+
+
+def check_summary_reconciles_inventory(summary: dict[str, Any], inventory: dict[str, Any]) -> None:
+    """The machine-summary mirror must agree with the T52 inventory it
+    cites. Pinned constants alone once passed over a stale mirror (the
+    summary carried an older lock hash and edge count than T52), so the
+    reconciliation is explicit rather than assumed (RW-050 slice 1)."""
+    profile = summary.get("s20_710_pre_release_audit", {})
+    for field in ("cargo_lock_sha256", "uv_lock_sha256"):
+        if profile.get(field) != inventory.get(field):
+            fail(f"machine summary {field} does not match the T52 inventory")
+    packages = inventory.get("packages")
+    if not isinstance(packages, list):
+        fail("T52 packages are unavailable for summary reconciliation")
+    counts = Counter((package.get("ecosystem"), package.get("workspace")) for package in packages)
+    for field, key in (
+        ("cargo_workspace_packages", ("cargo", True)),
+        ("cargo_registry_packages", ("cargo", False)),
+        ("python_workspace_packages", ("pypi", True)),
+        ("python_registry_packages", ("pypi", False)),
+    ):
+        if profile.get(field) != counts[key]:
+            fail(f"machine summary {field} does not match the T52 inventory")
+    relationships = inventory.get("relationships")
+    if not isinstance(relationships, list) or profile.get("dependency_relationships") != len(
+        relationships
+    ):
+        fail("machine summary relationship count does not match the T52 inventory")
+
+
+def check_no_host_paths(*documents: dict[str, Any]) -> None:
+    for document in documents:
+        for value in strings(document):
+            if value.startswith("/") or "file://" in value or "/home/" in value:
+                fail(f"host-specific path leaked into audit evidence: {value}")
+
+
+def main() -> int:
+    try:
+        check_generated_files()
+        inventory = load(INVENTORY_PATH)
+        scan = load(SECRET_SCAN_PATH)
+        summary = load(SUMMARY_PATH)
+        check_inventory(inventory)
+        check_secret_scan(scan)
+        check_machine_summary(summary)
+        check_summary_reconciles_inventory(summary, inventory)
+        check_no_host_paths(inventory, scan)
+    except AssertionError as error:
+        print(json.dumps({"result": "FAIL", "reason": str(error)}, sort_keys=True))
+        return 1
+    print(
+        json.dumps(
+            {
+                "release_sbom": False,
+                "result": "DEFERRED",
+                "root_license_text_approved": True,
+                "machine_summary_registered": True,
+                "t52_local_lock_inventory": "PASS",
+                "t54_high_confidence_scan": "PASS",
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

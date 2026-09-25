@@ -1,0 +1,23 @@
+DISPATCH 780-nabu-rereview-1 forge-nabu-780-rereview-20260905T185800 2026-09-05T18:58:00Z
+forge handoff (bounded, read-only): S20-780 clean-room boundary re-review of revision 3 at d149c68
+
+status: complete — **FAIL**
+
+S20_780_REREVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":[],"p1":["P1-1 remains open: manifests use tomllib, but Cargo.lock is scanned only by a name regex; version and source fields are not parsed, so GreyforgeLabs/sley git-source detection is absent and table reordering can evade detection"],"p2":[],"p3":["P3-7 remains open: SENTINEL_INVENTORY enumerates 14 files, while four additional tracked review files carry sentinels and are admitted through the broad TRANSCRIPT_TREE prefix rather than an exact file inventory"],"disposition":"FAIL_PRIOR_P1_1_P3_7_REMAIN_OPEN","notes":"Seven of nine prior findings are closed. No new P0/P1/P2/P3/P4 findings."}
+
+findings:
+- Closed: P1-2, P2-3, P2-4, P2-5, P2-6, P3-8, P3-9.
+- Open: P1-1 and P3-7, with fresh evidence above.
+- Confidence: high.
+
+validation:
+- HEAD verified: `d149c686951dbf82412602a12b579ff1ffd05601`.
+- Worktree clean.
+- Checker executed read-only and reported `PASS`; static review found the two residual gaps.
+- No cargo, make, or writes.
+
+blockers:
+- Register acceptance remains blocked by P1-1 and P3-7.
+
+return_to: orchestrator
+EXIT=0 2026-09-05T19:02:00Z

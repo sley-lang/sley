@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-MODULE-001",
+  "arm": "sley2",
+  "negative": "duplicate_impl",
+  "expected_code": "ORACLE_DUPLICATE_IMPL",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

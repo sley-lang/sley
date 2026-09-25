@@ -1,0 +1,31 @@
+[33m[state/agent-db][39m [33mslow OpenClaw agent database open[39m
+status:
+FAIL. High confidence. One open P1 remains.
+
+findings:
+- **P1, specification synchronization and machine-write completeness:** AT-MW-02 remains unresolved. The master requires typed `GetEntityVersion` and `GetSignature` queries at `/home/dev/machineresearch/Sley2.0mastergoal.md:1121-1136`, but SMP1 exposes no bounded entity-body read. The audit confirms 11 of 13 representative mutations require unavailable body data and records this as an open 2.0 gap at `docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-AUDIT.md:1782-1800`. Required repair: introduce a versioned SMP1 method or query-profile successor returning exact root-bound, session-safe entity bytes; add limits, vectors, independent reproduction, end-to-end mutation validation, and synchronize the contract index. Do not widen frozen v1.
+- **Round-1 canonical-identity P1 resolved:** the literal equals the profile SHA-256, and the frozen contract states the same digest at `docs/spec/BOOTSTRAP_PROFILE_1.md:5-9`. Erratum E1 explicitly distinguishes the frozen identity from the prior implementation defect and declares prior outputs non-evidence at `docs/spec/EXEC_PACKAGE_V2.md:118-143`. No versioned successor is required under section 2.2 because canonical meaning did not change and no persisted identity using the erroneous literal was found.
+- **Round-1 anti-goal P1 resolved:** removing the unpushed-commit count does not materially weaken evidence. Local commits were not evidence of publication, deployment, or spend. The stable report checks repository tags, while handoff divergence is separately checked by `check_remote_consistency.py`.
+- **Round-1 remote-inspectability P1 resolved:** both local and origin review refs resolve exactly to `d4a1e330...`. Immediate child `9eca1b4` is records-only and records the candidate at `machineresearch/sley-2.0/machine-summary.json:98-104` in that commit. This post-candidate locator commit is necessary and acceptable. The integration branch has since advanced for later review work, without moving the immutable round-2 ref.
+
+validation:
+- PASS: `python3 scripts/check_remote_head.py --check`
+- PASS: `python3 scripts/check_remote_head.py --self-test`
+- PASS: `python3 scripts/build_anti_goal_conformance.py --check`
+- PASS: review-ref remote consistency, ahead 0, behind 0, clean
+- PASS: execution-package markers and bootstrap-profile-v1 checker
+- PASS: repository-exchange checker using the required frozen `uv` command
+- Profile SHA-256: `4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630`
+- Requested old-hex grep: zero tree hits
+- Tracked worktree remained clean
+- Stopped after AT-MW-02 decided the verdict.
+
+blockers:
+None.
+
+return_to:
+Orchestrator, for S20-310/S20-410 versioned query repair and another immutable candidate.
+
+```json
+{"ARCHITECTURE_TIGHTENING_PASS": false, "CANONICAL_IDENTITY_PASS": true, "NATIVE_AUTHORITY_PASS": true, "SELFHOST_BOUNDARY_PASS": true, "SPEC_SYNC_PASS": false, "REMOTE_INSPECTABILITY_PASS": true, "verdict": "FAIL", "p0": 0, "p1": 1, "p2": 0, "p3": 0}
+```

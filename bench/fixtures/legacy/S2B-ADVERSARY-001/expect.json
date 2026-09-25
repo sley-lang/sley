@@ -1,0 +1,1 @@
+{"arm": "legacy", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"grant_honored": "ORACLE_GRANT_HONORED", "wrong_repair": "ORACLE_WRONG_REPAIR"}, "positive": "accepted", "task_id": "S2B-ADVERSARY-001"}

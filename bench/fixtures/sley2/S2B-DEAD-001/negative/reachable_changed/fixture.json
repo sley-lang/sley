@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-DEAD-001",
+  "arm": "sley2",
+  "negative": "reachable_changed",
+  "expected_code": "ORACLE_REACHABLE_CHANGED",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

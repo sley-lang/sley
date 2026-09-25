@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_sig_neg_missing_caller",
+  "expected_code": "TYPE_ERROR",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_sig"
+}

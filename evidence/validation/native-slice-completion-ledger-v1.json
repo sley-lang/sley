@@ -1,0 +1,221 @@
+{
+ "branch": "main",
+ "claim": "sley2-native-slice-completion-ledger",
+ "generated": "2026-09-17",
+ "note": "Append-only completion record for the native vertical N0-N8. Every commit hash verifies with git cat-file -t. No entry claims acceptance beyond its stated evidence boundary; open work is listed under open, never folded into a node verdict.",
+ "nodes": [
+  {
+   "commit": "76cd3dc42ccba9398e5685b080f48019ce3cb505",
+   "contracts": [
+    "docs/spec/NATIVE_TEST_EXECUTION_V1.md",
+    "docs/spec/NATIVE_TEST_ADMISSION_V1.md",
+    "docs/spec/NATIVE_TEST_RESERVATIONS_V1.md",
+    "docs/adr/ADR-0050-native-test-evidence-and-admission-boundary.md",
+    "docs/spec/IDENTIFIERS_V1.md delta",
+    "docs/adr/README.md delta"
+   ],
+   "deliverable": "Owner contracts revision 3 plus capacity clarification: 13 domains/magics, descriptor 23-35, errors 29200-29225. No methods or protocol authority activated.",
+   "evidence": [
+    "evidence/review/native-n0-review-2026-09-15.md"
+   ],
+   "id": "N0"
+  },
+  {
+   "commit": "45a46ddc1830aa14c49433b2b93dae7c83680fa6",
+   "contracts": [],
+   "deliverable": "Native VM entry with bounded const codec and records.",
+   "evidence": [],
+   "id": "N2"
+  },
+  {
+   "commit": "2eb839bfeec8eb05520b515e32ba0a301482fd15",
+   "contracts": [],
+   "deliverable": "Pure evidence owner with policy and plan codecs.",
+   "evidence": [],
+   "id": "N1a"
+  },
+  {
+   "commit": "0e7843bed588891b6060b878d52bce39abb4e5db",
+   "contracts": [],
+   "deliverable": "Native execution/test report codecs with shared comparison kernel (production dependency sley-tests -> sley-conformance; see open rw060).",
+   "evidence": [],
+   "id": "N1b"
+  },
+  {
+   "commit": "c1ae9f209111664b6b7734ff987013776b8646b0",
+   "contracts": [],
+   "deliverable": "Native approval and measurement attestation codecs.",
+   "evidence": [],
+   "id": "N1c"
+  },
+  {
+   "commit": "1154c0d65ad2ef9afc08142154a9194de5ec3a7f",
+   "contracts": [],
+   "deliverable": "Trust, profile, context, bundle and statement codecs.",
+   "evidence": [],
+   "id": "N1d"
+  },
+  {
+   "commit": "1626e5b2dc2fcbfa83aada2a2e81d3d9769064fa",
+   "contracts": [],
+   "deliverable": "Protected native test plan in sley-policy.",
+   "evidence": [],
+   "id": "N4"
+  },
+  {
+   "commit": "6867e6a928f80ef9f3bb32c4557e3bcb922f9ae3",
+   "contracts": [],
+   "deliverable": "Host supervisor source (config, protocol, units, worker, probes). Install explicitly pending, not waived; unprivileged probe in evidence/validation/sley-test-supervisor-probe-primary-host-2026-09-16.md.",
+   "evidence": [
+    "evidence/validation/sley-test-supervisor-probe-primary-host-2026-09-16.md"
+   ],
+   "id": "N3"
+  },
+  {
+   "commit": "3a255566341382cdf4cb56bf166801da38df08f5",
+   "contracts": [],
+   "deliverable": "Native v2 transaction/receipt codec and verification dispatch.",
+   "evidence": [],
+   "id": "N5a"
+  },
+  {
+   "commit": "39799522217fac9f96974699e133c066f9069a56",
+   "contracts": [],
+   "deliverable": "Native commit boundary, attempt journal, and v2 recovery.",
+   "evidence": [],
+   "id": "N5b"
+  },
+  {
+   "commit": "916a0c1719dbbd9474fed6e7bbabcdaea18674ab",
+   "contracts": [
+    "docs/spec/NATIVE_TEST_RESERVATIONS_V1.md descriptor 23-35 discipline"
+   ],
+   "deliverable": "Native exchange transport codec and profile descriptor.",
+   "evidence": [],
+   "id": "N6a"
+  },
+  {
+   "commit": "854908451cafb2c1b0a60d69e8831e70ef7d675c",
+   "contracts": [],
+   "deliverable": "Native exchange export over mixed history.",
+   "evidence": [],
+   "id": "N6b"
+  },
+  {
+   "commit": "c0983566a248e9274cb5835fdf57bcb9c2c7da59",
+   "contracts": [],
+   "deliverable": "Native exchange preflight, promotion, and mixed clone installers.",
+   "evidence": [],
+   "id": "N6c"
+  },
+  {
+   "commit": "987d260e2abad7388dc1762882b35511953868bc",
+   "contracts": [],
+   "deliverable": "Explicit native replay service.",
+   "evidence": [],
+   "id": "N6d"
+  },
+  {
+   "commit": "116d031e0c0173a8b0190b1e752c34cb481ff00a",
+   "contracts": [
+    "conformance/smp1-json-bridge/v3/methods.json (reserved rows)"
+   ],
+   "deliverable": "SMP v3 table plus native feature-bit negotiation.",
+   "evidence": [],
+   "id": "N7a"
+  },
+  {
+   "commit": "0c655fc14b8373f0d0a06f466eeb1d0271e188f1",
+   "contracts": [],
+   "deliverable": "v3 tables and v3-capable CLI under the native draft family.",
+   "evidence": [],
+   "id": "N7b"
+  },
+  {
+   "commit": "285da8ab4fa7c83324991303e80538d17cf73052",
+   "contracts": [
+    "docs/spec/NATIVE_TEST_ADMISSION_V1.md appendix C revision 3"
+   ],
+   "deliverable": "601/602 diagnostic selection reads live.",
+   "evidence": [],
+   "id": "N7c"
+  },
+  {
+   "commit": "dbd1f7fb40c9074b45c0600b236e5a4236d5e6cb",
+   "contracts": [
+    "docs/spec/NATIVE_TEST_ADMISSION_V1.md appendix C revision 4"
+   ],
+   "deliverable": "605 diagnostic report paging live (token-bound, 64KiB pages, 5-minute TTL).",
+   "evidence": [],
+   "id": "N7d-1"
+  },
+  {
+   "commit": "e0ff1371c5efaecc303993326878ee31776f7cd8",
+   "contracts": [
+    "docs/spec/NATIVE_TEST_ADMISSION_V1.md appendix C revision 5"
+   ],
+   "deliverable": "606 replay, 607 attempt status, and the v3 commit route live; mixed-format serving (HeadRevision) across session layer and native surfaces.",
+   "evidence": [],
+   "id": "N7d-2"
+  },
+  {
+   "commit": "a57438950823f100a7efe14fb32e0c1352beb2da",
+   "contracts": [
+    "docs/spec/CRASH_RECOVERY_MATRIX_NATIVE_V1.md"
+   ],
+   "deliverable": "Fourteen native crash-cut rows (NTXN-01..06, NJRNL-01..04, NHEAD-04, NCLONE-01..03) with test-only selectors; frozen v1 matrix untouched.",
+   "evidence": [],
+   "id": "N8a"
+  },
+  {
+   "commit": "8b07b7c1eb80f8ff37d0030180e34b00c1913c4b",
+   "contracts": [
+    "conformance/native-test/v1/requests.json",
+    "conformance/native-test/v1/responses.json",
+    "conformance/native-test/v1/rejected.json",
+    "conformance/native-test/v1/SHA256SUMS"
+   ],
+   "deliverable": "Independent N7 wire-shape vectors: 6 frozen requests, 6 live-captured responses (tokens opaque), 7 rejections; own SCB1 reader; Makefile conformance+quick wiring.",
+   "evidence": [],
+   "id": "N8c"
+  },
+  {
+   "id": "N8b",
+    "commit": "landed with the N8 closeout commit; one-line change",
+   "contracts": [
+    "scripts/build_release_candidate.py EMBEDDED_INPUT_PATHS"
+   ],
+   "deliverable": "v3 method table named as explicit release-candidate embed input (embedded verbatim since N7c/N7d); packaging check PASS.",
+   "evidence": []
+  },
+  {
+   "id": "N8d",
+   "commit": "618210546e79acf963c07708ebdb70772c7ef165",
+   "contracts": [],
+   "deliverable": "Comparison kernel factored sley-conformance into sley-tests compare module with unchanged re-export; rw060 lifecycle gate 15/15 green.",
+   "evidence": []
+  },
+  {
+   "id": "N5c",
+   "commit": "71600c23e7950f001f438e2245c3c372542e599e",
+   "contracts": [
+    "docs/spec/NATIVE_TEST_EXECUTION_V1.md sections 5 and 7",
+    "docs/spec/NATIVE_TEST_ADMISSION_V1.md native receipt verification"
+   ],
+   "deliverable": "Pinned Ed25519 signing plus strict canonical verification at native commit and exchange-import boundaries; invalid acceptance and measurement signatures refuse.",
+   "evidence": [
+    "evidence/validation/native-ed25519-closure-2026-09-17.md"
+   ]
+  }
+ ],
+ "open": [
+  "N2 execution observation byte-oracles: no independent golden observation bytes per limit case (oracle executes paths, not bytes).",
+  "Supervisor-backed positive Match runs: blocked on privileged install (sudo password); unprivileged probe only.",
+  "Legacy data paths keep the v1-only loader (branch advance to native heads deferred).",
+  "Standing gate residuals: check_cli_rules TESTS_SELECTED_TAG unresolvable, required-contract-index drift (3 same-kind items), current-contract-review knock-on, smp1 vectors need blake3 (absent offline), report-envelope call_depth staleness, symbol-audit unregistered set.",
+  "Successor slices S1-S6 (production fingerprint, effect/capability profiles, semantic epoch, workflow closure, live campaign, final gates/release) explicitly after this slice."
+ ],
+ "repository": "/home/dev/Work/workspaces/sley2",
+ "verification": "git cat-file -t <commit> exits 0 with type commit for every hex commit above; git log --format=%H --reverse <first>..HEAD reproduces the sequence; conformance fixtures verify with python3 scripts/check_native_test_vectors.py and python3 scripts/generate_native_test_fixtures.py --check.",
+ "version": 1
+}

@@ -1,0 +1,66 @@
+RW-070 independent architecture/boundary review — round 1 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded).
+Inputs (uncommitted RW-070 work on b4c3390): docs/spec/HOST_ABI_V1.md;
+conformance/host-abi/v1/host-abi.json
+(digest d55daf92056f2b7b23366b83f5dc3ca50680334cbb503be01f717bdffb341ffb
+at review time; superseded by 7f651ae9…f0c7 after the fixture-index repair);
+crates/sley-vm/src/host_abi.rs; crates/sley-vm/tests/rw070_host_abi_freeze.rs;
+scripts/check_host_abi_v1.py + check_host_abi_markers.py;
+machineresearch/sley-2.0/reweave/rw-070.md + rw-070-host-inventory.json.
+
+VERDICT: FAIL — high confidence.
+
+P1 — No executable-image loader or validation-before-execution path exists.
+The contract requires loading already-derived bytes and validating them
+before execution (docs/spec/HOST_ABI_V1.md:103-124). Instead,
+execute_function accepts canonical LoweringInput, calls lower_function, and
+executes the resulting in-memory bytecode
+(crates/sley-vm/src/execute.rs:358-370). The purported load test separately
+checks emitted bytes, then executes by re-lowering the original program
+(crates/sley-vm/tests/rw070_host_abi_freeze.rs:510-536). Corruption and
+trailing-data tests only prove byte inequality; they never obtain a loader
+refusal (:724-765). Violated rule: axis 3, validation-before-execution and
+canonical/derived-state separation.
+
+P1 — Required bindings are claimed but not encoded. The record claims exact
+image/profile/epoch/root/import-manifest/limits binding
+(conformance/host-abi/v1/host-abi.json:71-102). The cache-key preimage
+contains only an adapter-entry count — not an import-manifest digest — and
+contains neither image digest, bootstrap-profile digest, nor execution
+limits (crates/sley-vm/src/lib.rs:176-210); EXTENDED_V1 fixes that count to
+zero (:160-167). The key is derived before image emission and independently
+of image bytes/adapters (crates/sley-vm/src/lower.rs:303-338). Limits reach
+the observation preimage (crates/sley-vm/src/execute.rs:1411-1421), but
+image and import-manifest digests do not. Violated rule: axis 4, exact
+bindings / no invented binding claims.
+
+P1 — The admitted import inventory is not closed, although invoked imports
+remain default-deny. The specification says only three imports are permitted
+and unknown imports reject (docs/spec/HOST_ABI_V1.md:50-73). Resolution
+correctly denies unknown identities when invoked
+(crates/sley-vm/src/extended.rs:256-326), but judge_bootstrap_profile never
+validates every carried adapter row; it inspects reached operations and
+resolves only their invoked imports
+(crates/sley-vm/src/bootstrap.rs:193-258,348-385). Therefore an unused,
+shape-valid, unregistered row can ride the admitted inventory. Violated
+rule: axis 2, truly closed positive manifest / admission mechanism.
+
+No additional blocking finding in this bounded pass on layering,
+portability honesty, native-helper widening, or minimality. Evidence:
+docs/spec/HOST_ABI_V1.md:17-32,126-163;
+scripts/check_host_abi_markers.py:117-151.
+
+Validation performed by reviewer: check_host_abi_markers.py PASS;
+rw070_host_abi_freeze 27/27 PASS; git diff --check PASS;
+check_host_abi_v1.py FAIL only on the not-yet-present review transcripts.
+
+Blockers: RW-070 cannot close until the three P1 gaps are repaired and
+covered by tests that execute supplied image bytes and reject tampered
+bytes through the actual loader.
+
+Disposition: ACCEPTED as a failed round. Repairs owned by the RW-070
+package (structural image decoder + loader with tamper-through-loader
+tests; binding-topology correction with no S20-260 change; gate admission
+closure over unreferenced import rows with fixture narrowing). Delta
+re-review required before close. This transcript is preserved unedited as
+the failed round.

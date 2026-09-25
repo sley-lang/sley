@@ -1,0 +1,52 @@
+{
+  "schema": "sley2.scoped-validation.v1",
+  "date": "2026-09-15",
+  "base_commit": "1fc327bb9a8c3ffb0d6934f9a97b126f30334c45",
+  "scope": "VM revision15 historical finding corrections; no VM runtime semantics changed",
+  "result": "PASS",
+  "checks": {
+    "native_extended_tests": {
+      "passed": 29,
+      "failed": 0,
+      "ignored_fixture_emitter": 1
+    },
+    "evidence_regressions": {
+      "passed": 4
+    },
+    "clippy_vm_all_targets": "PASS",
+    "fmt_all_check": "PASS",
+    "generator_check": {
+      "vectors": 31,
+      "drift": []
+    },
+    "independent_oracle": {
+      "accepted": 31,
+      "rejected": 5,
+      "scope": "container/cache identity only"
+    },
+    "prior_vectors_byte_fields_unchanged": 29
+  },
+  "independent_review": "evidence/review/vm-nabu-correction-review-2026-09-15.md",
+  "logs": [
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/vm-residual-tests.log",
+      "sha256": "1b2c5a20de49eb616c40d0df21bf39325f83e405f2837dee48ec001eccd6e5bd"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/vm-residual-clippy.log",
+      "sha256": "fb78b301e29425dbe4077af91bb31bf7900992cd7f7419b233c1174769c6fab5"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/vm-evidence-green.log",
+      "sha256": "98255317dbdec068621cfd1c730ebd962e38b6f8c534b73c2b3cbfc806ea738c"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/vm-oracle.log",
+      "sha256": "f9aa55296dfe818db3d8fe2436bf605c4c8099f5c1545b2aae76ba2890ca94d0"
+    }
+  ],
+  "limitations": [
+    "Scoped correction review, not a replacement historical Nabu transcript.",
+    "Full workspace/release qualification follows subsequent product changes."
+  ]
+}

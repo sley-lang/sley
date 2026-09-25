@@ -1,0 +1,309 @@
+provenance utc=2026-09-23T04:30:13Z git_head=9352e0fe821c0bdf2ca4827f91c576b28be21746 dirty=[?? bench/live/succ-trials-20260923/r3_rust_gates.log;?? bench/live/succ-trials-20260923/r3_s3_g1_type.log;?? bench/live/succ-trials-20260923/r3_unittest_suites.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_arith.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_code8.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_failed_discard.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_failed_fixed.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_join.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_queued.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_shared.log;?? bench/live/succ-trials-20260923/trial_type_r3_alt_uint.log;?? bench/live/succ-trials-20260923/trial_type_r3_legacy_mig.log;?? bench/live/succ-trials-20260923/trial_type_r3_legacy_neg.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_bool.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_bool_const.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_droppayload.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_nullcode.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_trap.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_two_param.log;?? bench/live/succ-trials-20260923/trial_type_r3_neg_typedef_only.log;?? bench/live/succ-trials-20260923/trial_type_r3_pos.log;] python=3.14.7 cargo=1.93.0 CARGO_TARGET_DIR=/home/dev/Work/checkpoints/target-succ-type SLEY2_SLEY_BINARY=/home/dev/Work/checkpoints/target-succ-type/debug/sley sley_sha256=700ce8a8d354ddce45f9e1be073580f9f285d365e9cfb9978659d5163a8d916f SUCC_JUDGE_TEST_BINARY=/home/dev/Work/checkpoints/target-succ-type/debug/deps/succ_live_judge_cases-42d77a02eb446c77 driver_sha256=2f5865438d7f2e651d1ed9911db4dc3767be69244ba4e091a74b0ce843f4afa8 manifest_sha256=d61216a910837eddd852eeb0e28df33f926f4a99f746aeaad4e5e03104dd308f judge_sha256=0ffd61d4261ad2847b611c35762e128cf4e22996afb2369b8fe0503311fcddbc
+command: python3 -m unittest discover -s bench/live/tests -t . -v (binaries + bwrap bound)
+test_compose_binds_in_out_and_ops (bench.live.tests.test_acceptance_repairs.ComposeEvidenceTests.test_compose_binds_in_out_and_ops) ... ok
+test_compose_evidence_carries_classes_not_nonce_claim (bench.live.tests.test_acceptance_repairs.ComposeEvidenceTests.test_compose_evidence_carries_classes_not_nonce_claim) ... ok
+test_compose_single_arg_shape_does_not_bind_as_compose (bench.live.tests.test_acceptance_repairs.ComposeEvidenceTests.test_compose_single_arg_shape_does_not_bind_as_compose) ... ok
+test_propose_binds_out_and_ops (bench.live.tests.test_acceptance_repairs.ComposeEvidenceTests.test_propose_binds_out_and_ops) ... ok
+test_nonce_reuse_with_replacement_list_does_not_preserve (bench.live.tests.test_acceptance_repairs.ComposeThreePhaseIntegrationTests.test_nonce_reuse_with_replacement_list_does_not_preserve) ... ok
+test_three_phase_compose_carries_transitions (bench.live.tests.test_acceptance_repairs.ComposeThreePhaseIntegrationTests.test_three_phase_compose_carries_transitions) ... ok
+test_ceiling_total_mismatches_exact (bench.live.tests.test_acceptance_repairs.CreateClassifierTests.test_ceiling_total_mismatches_exact) ... ok
+test_overflow_driver_failure_mismatches (bench.live.tests.test_acceptance_repairs.CreateClassifierTests.test_overflow_driver_failure_mismatches) ... ok
+test_overflow_err_passes (bench.live.tests.test_acceptance_repairs.CreateClassifierTests.test_overflow_err_passes) ... ok
+test_overflow_value_is_unchecked (bench.live.tests.test_acceptance_repairs.CreateClassifierTests.test_overflow_value_is_unchecked) ... ok
+test_overflow_value_is_unchecked_at_invoice_level (bench.live.tests.test_acceptance_repairs.CreateClassifierTests.test_overflow_value_is_unchecked_at_invoice_level) ... ok
+test_overflow_wrong_code_mismatches (bench.live.tests.test_acceptance_repairs.CreateClassifierTests.test_overflow_wrong_code_mismatches) ... ok
+test_absent_entity_has_no_binding (bench.live.tests.test_acceptance_repairs.RootBindingTests.test_absent_entity_has_no_binding) ... ok
+test_bound_bytes_follow_live_binding (bench.live.tests.test_acceptance_repairs.RootBindingTests.test_bound_bytes_follow_live_binding) ... ok
+test_filename_order_decoy_cannot_shadow_binding (bench.live.tests.test_acceptance_repairs.RootBindingTests.test_filename_order_decoy_cannot_shadow_binding) ... ok
+test_correct_three_boundaries_accept (bench.live.tests.test_acceptance_repairs.TestBoundaryTests.test_correct_three_boundaries_accept) ... ok
+test_duplicated_in_place_of_another_rejects (bench.live.tests.test_acceptance_repairs.TestBoundaryTests.test_duplicated_in_place_of_another_rejects) ... ok
+test_missing_boundary_rejects (bench.live.tests.test_acceptance_repairs.TestBoundaryTests.test_missing_boundary_rejects) ... ok
+test_wrong_expected_failure_rejects (bench.live.tests.test_acceptance_repairs.TestBoundaryTests.test_wrong_expected_failure_rejects) ... ok
+test_wrong_success_value_rejects (bench.live.tests.test_acceptance_repairs.TestBoundaryTests.test_wrong_success_value_rejects) ... ok
+test_compose_mismatch_rejects (bench.live.tests.test_acceptance_repairs.TransitionLinkageTests.test_compose_mismatch_rejects) ... ok
+test_finish_mismatch_rejects (bench.live.tests.test_acceptance_repairs.TransitionLinkageTests.test_finish_mismatch_rejects) ... ok
+test_missing_out_rejects (bench.live.tests.test_acceptance_repairs.TransitionLinkageTests.test_missing_out_rejects) ... ok
+test_three_phase_chain_accepts (bench.live.tests.test_acceptance_repairs.TransitionLinkageTests.test_three_phase_chain_accepts) ... ok
+test_binary_identity_mismatch_prevents_acceptance (bench.live.tests.test_acceptance_repairs.TrustedEvidenceTests.test_binary_identity_mismatch_prevents_acceptance) ... ok
+test_bounded_query_route_is_not_whole_store (bench.live.tests.test_acceptance_repairs.TrustedEvidenceTests.test_bounded_query_route_is_not_whole_store) ... ok
+test_hidden_truncation_prevents_acceptance (bench.live.tests.test_acceptance_repairs.TrustedEvidenceTests.test_hidden_truncation_prevents_acceptance) ... ok
+test_missing_binary_binding_prevents_acceptance (bench.live.tests.test_acceptance_repairs.TrustedEvidenceTests.test_missing_binary_binding_prevents_acceptance) ... ok
+test_omitted_response_prevents_acceptance (bench.live.tests.test_acceptance_repairs.TrustedEvidenceTests.test_omitted_response_prevents_acceptance) ... ok
+test_provider_launch_is_confined (bench.live.tests.test_acceptance_repairs.TrustedEvidenceTests.test_provider_launch_is_confined) ... ok
+test_refs_list_is_bounded_not_whole_store (bench.live.tests.test_acceptance_repairs.TrustedEvidenceTests.test_refs_list_is_bounded_not_whole_store) ... ok
+test_invalid_decision_cannot_accept (bench.live.tests.test_acceptance_repairs.ValidDecisionTests.test_invalid_decision_cannot_accept) ... ok
+test_valid_decision_passes (bench.live.tests.test_acceptance_repairs.ValidDecisionTests.test_valid_decision_passes) ... ok
+test_validate_encoder_is_distinct_from_commit (bench.live.tests.test_acceptance_repairs.ValidDecisionTests.test_validate_encoder_is_distinct_from_commit) ... ok
+test_bounded_continuation_positive_accepted (bench.live.tests.test_agent_access.AgentAccessTests.test_bounded_continuation_positive_accepted) ... ok
+test_bounded_reads_derive_zero_whole_store (bench.live.tests.test_agent_access.AgentAccessTests.test_bounded_reads_derive_zero_whole_store) ... ok
+test_cumulative_budget_rejects (bench.live.tests.test_agent_access.AgentAccessTests.test_cumulative_budget_rejects) ... ok
+test_hidden_truncation_rejects (bench.live.tests.test_agent_access.AgentAccessTests.test_hidden_truncation_rejects) ... ok
+test_incomplete_impact_facts_reject (bench.live.tests.test_agent_access.AgentAccessTests.test_incomplete_impact_facts_reject) ... ok
+test_inconsistent_continuation_rejects (bench.live.tests.test_agent_access.AgentAccessTests.test_inconsistent_continuation_rejects) ... ok
+test_inventory_marks_whole_store_read (bench.live.tests.test_agent_access.AgentAccessTests.test_inventory_marks_whole_store_read) ... ok
+test_missing_chain_rejects (bench.live.tests.test_agent_access.AgentAccessTests.test_missing_chain_rejects) ... ok
+test_omitted_without_continuation_rejects (bench.live.tests.test_agent_access.AgentAccessTests.test_omitted_without_continuation_rejects) ... ok
+test_over_cap_response_rejects (bench.live.tests.test_agent_access.AgentAccessTests.test_over_cap_response_rejects) ... ok
+test_refused_command_counted_as_refusal (bench.live.tests.test_agent_access.AgentAccessTests.test_refused_command_counted_as_refusal) ... ok
+test_tampered_chain_rejects (bench.live.tests.test_agent_access.AgentAccessTests.test_tampered_chain_rejects) ... ok
+test_truncated_chain_rejects (bench.live.tests.test_agent_access.AgentAccessTests.test_truncated_chain_rejects) ... ok
+test_invalid_digest_is_refused_before_path_lookup (bench.live.tests.test_artifacts.ArtifactStoreTests.test_invalid_digest_is_refused_before_path_lookup) ... ok
+test_put_is_create_once_and_verifiable (bench.live.tests.test_artifacts.ArtifactStoreTests.test_put_is_create_once_and_verifiable) ... ok
+test_tamper_and_symlink_are_refused (bench.live.tests.test_artifacts.ArtifactStoreTests.test_tamper_and_symlink_are_refused) ... ok
+test_append_and_verify_reconcile_captured_truth (bench.live.tests.test_attempts.AttemptLogTests.test_append_and_verify_reconcile_captured_truth) ... ok
+test_duplicate_slot_refuses (bench.live.tests.test_attempts.AttemptLogTests.test_duplicate_slot_refuses) ... ok
+test_environment_snapshot_must_match_the_frozen_manifest (bench.live.tests.test_attempts.AttemptLogTests.test_environment_snapshot_must_match_the_frozen_manifest) ... ok
+test_missing_artifact_is_detected (bench.live.tests.test_attempts.AttemptLogTests.test_missing_artifact_is_detected) ... ok
+test_noncanonical_workspace_snapshot_is_detected (bench.live.tests.test_attempts.AttemptLogTests.test_noncanonical_workspace_snapshot_is_detected) ... ok
+test_provider_metrics_and_oracle_identity_fail_closed (bench.live.tests.test_attempts.AttemptLogTests.test_provider_metrics_and_oracle_identity_fail_closed) ... ok
+test_unhashable_enums_fail_as_attempt_errors (bench.live.tests.test_attempts.AttemptLogTests.test_unhashable_enums_fail_as_attempt_errors) ... ok
+test_complete_attempt_is_snapshotted_judged_appended_and_verified (bench.live.tests.test_campaign.CampaignAttemptTests.test_complete_attempt_is_snapshotted_judged_appended_and_verified) ... ok
+test_timeout_is_retained_without_an_oracle_claim (bench.live.tests.test_campaign.CampaignAttemptTests.test_timeout_is_retained_without_an_oracle_claim) ... ok
+test_missing_required_or_unallowlisted_variables_fail_closed (bench.live.tests.test_environment.ProviderEnvironmentTests.test_missing_required_or_unallowlisted_variables_fail_closed) ... ok
+test_returns_exact_manifest_environment (bench.live.tests.test_environment.ProviderEnvironmentTests.test_returns_exact_manifest_environment) ... ok
+test_bool_input_undecodable (bench.live.tests.test_judge_create_entry.BoundaryCase.test_bool_input_undecodable) ... ok
+test_duplicate_inputs_first_wins (bench.live.tests.test_judge_create_entry.BoundaryCase.test_duplicate_inputs_first_wins) ... ok
+test_failure_code_norm_accepted (bench.live.tests.test_judge_create_entry.BoundaryCase.test_failure_code_norm_accepted) ... ok
+test_frozen_coverage_passes (bench.live.tests.test_judge_create_entry.BoundaryCase.test_frozen_coverage_passes) ... ok
+test_missing_boundary_rejects (bench.live.tests.test_judge_create_entry.BoundaryCase.test_missing_boundary_rejects) ... ok
+test_wrong_definition_undecodable (bench.live.tests.test_judge_create_entry.BoundaryCase.test_wrong_definition_undecodable) ... ok
+test_wrong_expectation_rejects (bench.live.tests.test_judge_create_entry.BoundaryCase.test_wrong_expectation_rejects) ... ok
+test_wrong_money_rejected (bench.live.tests.test_judge_create_entry.BoundaryCase.test_wrong_money_rejected) ... ok
+test_driver_case_shape (bench.live.tests.test_judge_create_entry.DriverCase.test_driver_case_shape) ... ok
+test_overflow_value_is_unchecked (bench.live.tests.test_judge_create_entry.DriverCase.test_overflow_value_is_unchecked) ... ok
+test_want_shapes (bench.live.tests.test_judge_create_entry.DriverCase.test_want_shapes) ... ok
+test_entry_bare_result_rejected (bench.live.tests.test_judge_create_entry.ShapeCase.test_entry_bare_result_rejected) ... ok
+test_entry_bits_mismatch_rejected (bench.live.tests.test_judge_create_entry.ShapeCase.test_entry_bits_mismatch_rejected) ... ok
+test_entry_contract_matches (bench.live.tests.test_judge_create_entry.ShapeCase.test_entry_contract_matches) ... ok
+test_entry_wrong_arity_rejected (bench.live.tests.test_judge_create_entry.ShapeCase.test_entry_wrong_arity_rejected) ... ok
+test_entry_wrong_typedef_rejected (bench.live.tests.test_judge_create_entry.ShapeCase.test_entry_wrong_typedef_rejected) ... ok
+test_member_order_preserved (bench.live.tests.test_judge_create_entry.ShapeCase.test_member_order_preserved) ... ok
+test_money_and_line_shapes (bench.live.tests.test_judge_create_entry.ShapeCase.test_money_and_line_shapes) ... ok
+test_wrong_field_type_rejected (bench.live.tests.test_judge_create_entry.ShapeCase.test_wrong_field_type_rejected) ... ok
+test_bool_quantity_is_harness_failure (bench.live.tests.test_judge_create_entry.SpecCase.test_bool_quantity_is_harness_failure) ... ok
+test_missing_cases_is_harness_failure (bench.live.tests.test_judge_create_entry.SpecCase.test_missing_cases_is_harness_failure) ... ok
+test_valid_spec_parses (bench.live.tests.test_judge_create_entry.SpecCase.test_valid_spec_parses) ... ok
+test_wrong_case_names_is_harness_failure (bench.live.tests.test_judge_create_entry.SpecCase.test_wrong_case_names_is_harness_failure) ... ok
+test_all_four_members_execute_twice (bench.live.tests.test_judge_type_variant.ExecutionHalf.test_all_four_members_execute_twice) ... ok
+test_differing_runs_are_nondeterministic (bench.live.tests.test_judge_type_variant.ExecutionHalf.test_differing_runs_are_nondeterministic) ... ok
+test_engine_error_is_missing_case (bench.live.tests.test_judge_type_variant.ExecutionHalf.test_engine_error_is_missing_case) ... ok
+test_full_flow_reports_executed_values (bench.live.tests.test_judge_type_variant.ExecutionHalf.test_full_flow_reports_executed_values) ... ok
+test_short_driver_reply_is_harness_error (bench.live.tests.test_judge_type_variant.ExecutionHalf.test_short_driver_reply_is_harness_error) ... ok
+test_trapping_member_is_missing_case (bench.live.tests.test_judge_type_variant.ExecutionHalf.test_trapping_member_is_missing_case) ... ok
+test_bool_field_in_fresh_record_is_bool_compat (bench.live.tests.test_judge_type_variant.RejectionPaths.test_bool_field_in_fresh_record_is_bool_compat) ... ok
+test_bool_global_is_bool_compat (bench.live.tests.test_judge_type_variant.RejectionPaths.test_bool_global_is_bool_compat) ... ok
+test_bool_threaded_into_block_parameter_is_bool_compat (bench.live.tests.test_judge_type_variant.RejectionPaths.test_bool_threaded_into_block_parameter_is_bool_compat) ... ok
+test_builtin_case_key_is_missing_case (bench.live.tests.test_judge_type_variant.RejectionPaths.test_builtin_case_key_is_missing_case) ... ok
+test_edge_outside_function_is_missing_case (bench.live.tests.test_judge_type_variant.RejectionPaths.test_edge_outside_function_is_missing_case) ... ok
+test_extra_non_bool_parameter_is_switch_not_migrated (bench.live.tests.test_judge_type_variant.RejectionPaths.test_extra_non_bool_parameter_is_switch_not_migrated) ... ok
+test_failed_status_null_payload_is_failed_code (bench.live.tests.test_judge_type_variant.RejectionPaths.test_failed_status_null_payload_is_failed_code) ... ok
+test_fresh_bool_constant_is_bool_compat (bench.live.tests.test_judge_type_variant.RejectionPaths.test_fresh_bool_constant_is_bool_compat) ... ok
+test_missing_param_role_is_harness_error (bench.live.tests.test_judge_type_variant.RejectionPaths.test_missing_param_role_is_harness_error) ... ok
+test_no_coded_member_is_failed_code (bench.live.tests.test_judge_type_variant.RejectionPaths.test_no_coded_member_is_failed_code) ... ok
+test_no_variant_switch_is_switch_not_migrated (bench.live.tests.test_judge_type_variant.RejectionPaths.test_no_variant_switch_is_switch_not_migrated) ... ok
+test_non_integer_code_is_failed_code (bench.live.tests.test_judge_type_variant.RejectionPaths.test_non_integer_code_is_failed_code) ... ok
+test_param_not_jobstate_is_type_not_migrated (bench.live.tests.test_judge_type_variant.RejectionPaths.test_param_not_jobstate_is_type_not_migrated) ... ok
+test_param_role_is_scanned_without_targets (bench.live.tests.test_judge_type_variant.RejectionPaths.test_param_role_is_scanned_without_targets) ... ok
+test_param_still_bool_is_bool_compat (bench.live.tests.test_judge_type_variant.RejectionPaths.test_param_still_bool_is_bool_compat) ... ok
+test_positive_fixture_accepts (bench.live.tests.test_judge_type_variant.RejectionPaths.test_positive_fixture_accepts) ... ok
+test_reachable_non_required_arm_is_missing_case (bench.live.tests.test_judge_type_variant.RejectionPaths.test_reachable_non_required_arm_is_missing_case) ... ok
+test_record_status_type_is_type_not_migrated (bench.live.tests.test_judge_type_variant.RejectionPaths.test_record_status_type_is_type_not_migrated) ... ok
+test_second_bool_switch_parameter_is_bool_compat (bench.live.tests.test_judge_type_variant.RejectionPaths.test_second_bool_switch_parameter_is_bool_compat) ... ok
+test_status_not_named_is_type_not_migrated (bench.live.tests.test_judge_type_variant.RejectionPaths.test_status_not_named_is_type_not_migrated) ... ok
+test_status_still_bool_is_bool_compat (bench.live.tests.test_judge_type_variant.RejectionPaths.test_status_still_bool_is_bool_compat) ... ok
+test_switch_on_other_value_is_switch_not_migrated (bench.live.tests.test_judge_type_variant.RejectionPaths.test_switch_on_other_value_is_switch_not_migrated) ... ok
+test_switch_result_bool_is_bool_compat (bench.live.tests.test_judge_type_variant.RejectionPaths.test_switch_result_bool_is_bool_compat) ... ok
+test_three_cases_is_missing_case (bench.live.tests.test_judge_type_variant.RejectionPaths.test_three_cases_is_missing_case) ... ok
+test_three_member_typedef_is_type_not_migrated (bench.live.tests.test_judge_type_variant.RejectionPaths.test_three_member_typedef_is_type_not_migrated) ... ok
+test_trap_arm_is_trap_arm (bench.live.tests.test_judge_type_variant.RejectionPaths.test_trap_arm_is_trap_arm) ... ok
+test_two_coded_members_is_type_not_migrated (bench.live.tests.test_judge_type_variant.RejectionPaths.test_two_coded_members_is_type_not_migrated) ... ok
+test_unrelated_base_bool_function_is_not_scanned (bench.live.tests.test_judge_type_variant.RejectionPaths.test_unrelated_base_bool_function_is_not_scanned) ... ok
+test_unsorted_cases_is_missing_case (bench.live.tests.test_judge_type_variant.RejectionPaths.test_unsorted_cases_is_missing_case) ... ok
+test_any_code_literal_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_any_code_literal_accepts) ... ok
+test_any_status_member_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_any_status_member_accepts) ... ok
+test_arithmetic_arms_accept (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_arithmetic_arms_accept) ... ok
+test_discard_shape_still_rejects_codeless_failed_member (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_discard_shape_still_rejects_codeless_failed_member) ... ok
+test_discard_shape_still_rejects_non_integer_code (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_discard_shape_still_rejects_non_integer_code) ... ok
+test_discard_shape_still_rejects_non_integer_status_code (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_discard_shape_still_rejects_non_integer_status_code) ... ok
+test_discard_shape_still_rejects_null_failed_status (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_discard_shape_still_rejects_null_failed_status) ... ok
+test_dispatch_outside_entry_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_dispatch_outside_entry_accepts) ... ok
+test_failed_arm_fixed_value_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_failed_arm_fixed_value_accepts) ... ok
+test_failed_arm_mapping_code_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_failed_arm_mapping_code_accepts) ... ok
+test_failed_edge_discarding_code_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_failed_edge_discarding_code_accepts) ... ok
+test_join_block_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_join_block_accepts) ... ok
+test_non_sint_result_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_non_sint_result_accepts) ... ok
+test_result_typed_switch_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_result_typed_switch_accepts) ... ok
+test_shared_unit_arm_block_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_shared_unit_arm_block_accepts) ... ok
+test_unit_member_with_payload_rejects (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_unit_member_with_payload_rejects) ... ok
+test_unreachable_dead_block_is_ignored (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_unreachable_dead_block_is_ignored) ... ok
+test_unsigned_code_accepts (bench.live.tests.test_judge_type_variant.RetiredPinsAccept.test_unsigned_code_accepts) ... ok
+test_absolute_parent_symlink_unknown_and_bad_json_are_refused (bench.live.tests.test_legacy_tool.LegacyToolTests.test_absolute_parent_symlink_unknown_and_bad_json_are_refused) ... ok
+test_dispatches_relative_candidate_paths_and_emits_json_safe_result (bench.live.tests.test_legacy_tool.LegacyToolTests.test_dispatches_relative_candidate_paths_and_emits_json_safe_result) ... ok
+test_arm_maps_are_exact (bench.live.tests.test_manifest.LiveManifestTests.test_arm_maps_are_exact) ... ok
+test_manifest_is_create_once (bench.live.tests.test_manifest.LiveManifestTests.test_manifest_is_create_once) ... ok
+test_model_tier_version_and_schedule_fail_closed (bench.live.tests.test_manifest.LiveManifestTests.test_model_tier_version_and_schedule_fail_closed) ... ok
+test_round_trip_and_digest_are_canonical (bench.live.tests.test_manifest.LiveManifestTests.test_round_trip_and_digest_are_canonical) ... ok
+test_unhashable_enum_values_fail_as_manifest_errors (bench.live.tests.test_manifest.LiveManifestTests.test_unhashable_enum_values_fail_as_manifest_errors) ... ok
+test_clean_bounded_capture_passes (bench.live.tests.test_mediated_access.MediatedAccessCase.test_clean_bounded_capture_passes) ... ok
+test_commit_path_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_commit_path_rejects) ... ok
+test_continue_without_truncation_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_continue_without_truncation_rejects) ... ok
+test_cumulative_over_budget_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_cumulative_over_budget_rejects) ... ok
+test_final_binding_mismatch_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_final_binding_mismatch_rejects) ... ok
+test_fixture_binding_mismatch_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_fixture_binding_mismatch_rejects) ... ok
+test_hidden_truncation_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_hidden_truncation_rejects) ... ok
+test_missing_capture_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_missing_capture_rejects) ... ok
+test_omitted_without_continuation_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_omitted_without_continuation_rejects) ... ok
+test_tampered_hash_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_tampered_hash_rejects) ... ok
+test_truncated_page_with_continuation_passes (bench.live.tests.test_mediated_access.MediatedAccessCase.test_truncated_page_with_continuation_passes) ... ok
+test_truncated_without_continuation_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_truncated_without_continuation_rejects) ... ok
+test_whole_store_read_rejects (bench.live.tests.test_mediated_access.MediatedAccessCase.test_whole_store_read_rejects) ... ok
+test_budgets_cumulative_across_sessions (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_budgets_cumulative_across_sessions) ... ok
+test_denied_command_recorded_and_counted (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_denied_command_recorded_and_counted) ... ok
+test_full_stale_flip_real_oracle (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_full_stale_flip_real_oracle)
+Non-TYPE mediated proof (no staged inputs): the stand-in ... ok
+test_full_type_migration_real_oracle (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_full_type_migration_real_oracle)
+Crown proof: a legitimate mediated task through the real ... ok
+test_legitimate_flow_accepts_and_verifies (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_legitimate_flow_accepts_and_verifies) ... ok
+test_missing_final_blocks_acceptance (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_missing_final_blocks_acceptance) ... ok
+test_oracle_accept_cannot_override_failed_capture (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_oracle_accept_cannot_override_failed_capture) ... ok
+test_oversized_ingress_invalidates (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_oversized_ingress_invalidates) ... ok
+test_process_failure_is_retained (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_process_failure_is_retained) ... ok
+test_scratch_forgery_never_becomes_evidence (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_scratch_forgery_never_becomes_evidence) ... ok
+test_timeout_is_retained_without_an_oracle_claim (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_timeout_is_retained_without_an_oracle_claim) ... ok
+test_trial_has_intended_access_restrictions (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_trial_has_intended_access_restrictions) ... ok
+test_valid_capture_cannot_override_oracle_rejection (bench.live.tests.test_mediated_attempt.MediatedAttemptTests.test_valid_capture_cannot_override_oracle_rejection) ... ok
+test_context_incomplete_impact_cannot_finish (bench.live.tests.test_mediated_context.MediatedContextTests.test_context_incomplete_impact_cannot_finish)
+Typedef-only fix: production validation refuses the ... ok
+test_context_inconsistent_continuation_rejects (bench.live.tests.test_mediated_context.MediatedContextTests.test_context_inconsistent_continuation_rejects)
+query.continue frames with no preceding truncation in ... ok
+test_context_pos_mediated_oracle (bench.live.tests.test_mediated_context.MediatedContextTests.test_context_pos_mediated_oracle)
+Genuine bounded context_pos proof: the stand-in fixes the ... ok
+test_adjudicate_accepted (bench.live.tests.test_mediated_gateway.MediatedGatewayTests.test_adjudicate_accepted) ... ok
+test_adjudicate_final_mismatch (bench.live.tests.test_mediated_gateway.MediatedGatewayTests.test_adjudicate_final_mismatch) ... ok
+test_adjudicate_no_final_never_accepts (bench.live.tests.test_mediated_gateway.MediatedGatewayTests.test_adjudicate_no_final_never_accepts) ... ok
+test_adjudicate_rejected (bench.live.tests.test_mediated_gateway.MediatedGatewayTests.test_adjudicate_rejected) ... ok
+test_adjudicate_unreconciled_never_accepts (bench.live.tests.test_mediated_gateway.MediatedGatewayTests.test_adjudicate_unreconciled_never_accepts) ... ok
+test_allowed_read_round_trip_captured (bench.live.tests.test_mediated_gateway.MediatedGatewayTests.test_allowed_read_round_trip_captured) ... ok
+test_denied_gateway_command_recorded (bench.live.tests.test_mediated_gateway.MediatedGatewayTests.test_denied_gateway_command_recorded) ... ok
+test_denied_server_method_recorded_as_failed (bench.live.tests.test_mediated_gateway.MediatedGatewayTests.test_denied_server_method_recorded_as_failed) ... ok
+test_resolve_derives_mechanically (bench.live.tests.test_mediated_gateway.MediatedGatewayTests.test_resolve_derives_mechanically) ... ok
+test_derives_only_observable_provider_quantities (bench.live.tests.test_metrics.LiveMetricTests.test_derives_only_observable_provider_quantities) ... ok
+test_unrecognized_commands_do_not_invent_file_or_check_counts (bench.live.tests.test_metrics.LiveMetricTests.test_unrecognized_commands_do_not_invent_file_or_check_counts) ... ok
+test_accepted_and_rejected_verdicts_are_normalized (bench.live.tests.test_oracle.LiveOracleTests.test_accepted_and_rejected_verdicts_are_normalized) ... ok
+test_identity_exit_status_extra_lines_and_harness_errors_fail_closed (bench.live.tests.test_oracle.LiveOracleTests.test_identity_exit_status_extra_lines_and_harness_errors_fail_closed) ... ok
+test_unknown_fields_and_missing_rejection_code_fail_closed (bench.live.tests.test_oracle.LiveOracleTests.test_unknown_fields_and_missing_rejection_code_fail_closed) ... ok
+test_exact_runner_authorized_live_candidate_is_positive (bench.live.tests.test_oracle_boundary.OracleBoundaryTests.test_exact_runner_authorized_live_candidate_is_positive) ... ok
+test_frozen_fixture_roles_remain_local (bench.live.tests.test_oracle_boundary.OracleBoundaryTests.test_frozen_fixture_roles_remain_local) ... ok
+test_parent_child_symlink_and_unauthorized_paths_are_refused (bench.live.tests.test_oracle_boundary.OracleBoundaryTests.test_parent_child_symlink_and_unauthorized_paths_are_refused) ... ok
+test_argv_is_literal_without_a_shell (bench.live.tests.test_process.ProviderProcessTests.test_argv_is_literal_without_a_shell) ... ok
+test_captures_exact_streams_exit_and_wall_time (bench.live.tests.test_process.ProviderProcessTests.test_captures_exact_streams_exit_and_wall_time) ... ok
+test_launched_process_sees_only_the_frozen_environment (bench.live.tests.test_process.ProviderProcessTests.test_launched_process_sees_only_the_frozen_environment) ... ok
+test_output_limit_and_invalid_configuration_fail_closed (bench.live.tests.test_process.ProviderProcessTests.test_output_limit_and_invalid_configuration_fail_closed) ... ok
+test_timed_out_process_group_is_killed (bench.live.tests.test_process.ProviderProcessTests.test_timed_out_process_group_is_killed) ... ok
+test_timeout_is_retained_as_a_capture (bench.live.tests.test_process.ProviderProcessTests.test_timeout_is_retained_as_a_capture) ... ok
+test_permitted_set_and_no_solver_assets (bench.live.tests.test_production_staging.ProductionStagingTests.test_permitted_set_and_no_solver_assets) ... ok
+test_test_adapter_injects_after_production (bench.live.tests.test_production_staging.ProductionStagingTests.test_test_adapter_injects_after_production) ... ok
+test_command_freezes_noninteractive_surface (bench.live.tests.test_provider.CodexProviderTests.test_command_freezes_noninteractive_surface) ... ok
+test_jsonl_parser_preserves_events_and_usage (bench.live.tests.test_provider.CodexProviderTests.test_jsonl_parser_preserves_events_and_usage) ... ok
+test_missing_terminal_duplicate_terminal_and_unknown_usage_refuse (bench.live.tests.test_provider.CodexProviderTests.test_missing_terminal_duplicate_terminal_and_unknown_usage_refuse) ... ok
+test_noncanonical_or_nonobject_event_refuses (bench.live.tests.test_provider.CodexProviderTests.test_noncanonical_or_nonobject_event_refuses) ... ok
+test_unhashable_reasoning_effort_fails_as_provider_error (bench.live.tests.test_provider.CodexProviderTests.test_unhashable_reasoning_effort_fails_as_provider_error) ... ok
+test_corrupt_restore_judged_accepted (bench.live.tests.test_sley2_e2e.Sley2EndToEndTests.test_corrupt_restore_judged_accepted) ... ok
+test_repair_fix_judged_accepted (bench.live.tests.test_sley2_e2e.Sley2EndToEndTests.test_repair_fix_judged_accepted) ... ok
+test_compose_preserves_create_identities_byte_for_byte (bench.live.tests.test_sley2_tool.Sley2AppendCreateTests.test_compose_preserves_create_identities_byte_for_byte) ... ok
+test_agent_commands_never_touch_repo_files (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_agent_commands_never_touch_repo_files) ... ok
+test_agent_transcript_chain_verifies_and_counts (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_agent_transcript_chain_verifies_and_counts) ... ok
+test_append_and_compose_reject_oversize_lists (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_append_and_compose_reject_oversize_lists) ... ok
+test_append_concatenation_fails_closed_with_owner_code (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_append_concatenation_fails_closed_with_owner_code) ... ok
+test_append_rejects_garbage_base (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_append_rejects_garbage_base) ... ok
+test_compose_reassembles_full_list_under_base_nonce (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_compose_reassembles_full_list_under_base_nonce) ... ok
+test_compose_rejects_foreign_target (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_compose_rejects_foreign_target) ... ok
+test_continuation_attempts_are_accounted_not_silent (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_continuation_attempts_are_accounted_not_silent) ... ok
+test_inventory_lists_served_objects_with_entities (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_inventory_lists_served_objects_with_entities) ... ok
+test_missing_pack_or_binary_refuses (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_missing_pack_or_binary_refuses) ... ok
+test_propose_broken_operation_never_validates (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_propose_broken_operation_never_validates) ... ok
+test_propose_identical_body_validates_and_finishes (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_propose_identical_body_validates_and_finishes) ... ok
+test_propose_reports_negative_decision_honestly (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_propose_reports_negative_decision_honestly) ... ok
+test_raw_refuses_outside_allowlist (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_raw_refuses_outside_allowlist) ... ok
+test_read_revision_and_session_views (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_read_revision_and_session_views) ... ok
+test_transcript_tampering_breaks_verification (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_transcript_tampering_breaks_verification) ... ok
+test_unknown_commands_and_bad_shapes_refuse (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_unknown_commands_and_bad_shapes_refuse) ... ok
+test_usage_ledger_accumulates_across_invocations (bench.live.tests.test_sley2_tool.Sley2ToolTests.test_usage_ledger_accumulates_across_invocations) ... ok
+test_links_special_entries_and_nonempty_destination_are_refused (bench.live.tests.test_snapshot.WorkspaceSnapshotTests.test_links_special_entries_and_nonempty_destination_are_refused) ... ok
+test_snapshot_round_trip_preserves_bytes_modes_and_empty_directories (bench.live.tests.test_snapshot.WorkspaceSnapshotTests.test_snapshot_round_trip_preserves_bytes_modes_and_empty_directories) ... ok
+test_tampered_paths_digests_and_noncanonical_bytes_are_refused (bench.live.tests.test_snapshot.WorkspaceSnapshotTests.test_tampered_paths_digests_and_noncanonical_bytes_are_refused) ... ok
+test_create_starts_blank_but_keeps_raw_acceptance_tests (bench.live.tests.test_taskpacks.TaskPackTests.test_create_starts_blank_but_keeps_raw_acceptance_tests) ... ok
+test_raw_and_legacy_catalogs_cover_the_frozen_corpus (bench.live.tests.test_taskpacks.TaskPackTests.test_raw_and_legacy_catalogs_cover_the_frozen_corpus) ... ok
+test_sley2_stages_pack_and_blank_repo_deterministically (bench.live.tests.test_taskpacks.TaskPackTests.test_sley2_stages_pack_and_blank_repo_deterministically) ... ok
+test_staging_is_deterministic_and_excludes_transient_bytecode (bench.live.tests.test_taskpacks.TaskPackTests.test_staging_is_deterministic_and_excludes_transient_bytecode) ... ok
+test_unknown_arm_and_task_fail_closed (bench.live.tests.test_taskpacks.TaskPackTests.test_unknown_arm_and_task_fail_closed) ... ok
+test_prompt_is_identical_across_arms_and_binds_task_and_seed (bench.live.tests.test_tooling.ToolingTests.test_prompt_is_identical_across_arms_and_binds_task_and_seed) ... ok
+test_raw_and_legacy_tooling_are_deterministic_and_legacy_launcher_is_executable (bench.live.tests.test_tooling.ToolingTests.test_raw_and_legacy_tooling_are_deterministic_and_legacy_launcher_is_executable) ... ok
+test_unknown_task_arm_and_existing_control_directory_refuse (bench.live.tests.test_tooling.ToolingTests.test_unknown_task_arm_and_existing_control_directory_refuse) ... ok
+test_budget_corrupt_never_resets_to_zero (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_budget_corrupt_never_resets_to_zero) ... ok
+test_budget_missing_fails_closed (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_budget_missing_fails_closed) ... ok
+test_budgets_accumulate_across_sessions_phases (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_budgets_accumulate_across_sessions_phases) ... ok
+test_capture_dir_mode (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_capture_dir_mode) ... ok
+test_capture_error_leaves_orphan_and_rejects (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_capture_error_leaves_orphan_and_rejects) ... ok
+test_deleted_response_rejects_as_orphan (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_deleted_response_rejects_as_orphan) ... ok
+test_final_mismatch_rejects (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_final_mismatch_rejects) ... ok
+test_handler_exception_recorded_as_failed_response (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_handler_exception_recorded_as_failed_response) ... ok
+test_happy_path_reconciles (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_happy_path_reconciles) ... ok
+test_missing_completion_rejects (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_missing_completion_rejects) ... ok
+test_missing_start_rejects (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_missing_start_rejects) ... ok
+test_per_response_cap_refusal_recorded_and_counted (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_per_response_cap_refusal_recorded_and_counted) ... ok
+test_start_rejects_weak_frozen_bindings (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_start_rejects_weak_frozen_bindings) ... ok
+test_tampered_record_rejects (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_tampered_record_rejects) ... ok
+test_torn_suffix_preserves_prefix_and_rejects (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_torn_suffix_preserves_prefix_and_rejects) ... ok
+test_trial_budget_exhaustion_recorded (bench.live.tests.test_trusted_capture.TrustedCaptureTests.test_trial_budget_exhaustion_recorded) ... ok
+
+----------------------------------------------------------------------
+Ran 251 tests in 300.442s
+
+OK
+exit: 0
+command: python3 -m unittest discover -s bench/sley2 -t . -v
+test_allowlist_and_denylist_together_cover_the_smp1_table (bench.sley2.tests.test_runner.ArmAffordanceTests.test_allowlist_and_denylist_together_cover_the_smp1_table) ... ok
+test_the_allowlist_excludes_bulk_and_mutating_methods (bench.sley2.tests.test_runner.ArmAffordanceTests.test_the_allowlist_excludes_bulk_and_mutating_methods) ... ok
+test_the_digest_is_a_control_that_moves_when_the_allowlist_does (bench.sley2.tests.test_runner.ArmAffordanceTests.test_the_digest_is_a_control_that_moves_when_the_allowlist_does) ... ok
+test_a_handle_defined_beside_privileged_names_is_refused (bench.sley2.tests.test_runner.HandleReflectionTests.test_a_handle_defined_beside_privileged_names_is_refused) ... ok
+test_declared_surface_is_not_evidence_of_a_boundary (bench.sley2.tests.test_runner.HandleReflectionTests.test_declared_surface_is_not_evidence_of_a_boundary) ... ok
+test_no_privileged_name_is_reachable_through_module_globals (bench.sley2.tests.test_runner.HandleReflectionTests.test_no_privileged_name_is_reachable_through_module_globals) ... ok
+test_a_hostile_self_report_is_not_a_number (bench.sley2.tests.test_runner.MetricSourceTests.test_a_hostile_self_report_is_not_a_number) ... ok
+test_correctness_metrics_belong_to_the_oracle (bench.sley2.tests.test_runner.MetricSourceTests.test_correctness_metrics_belong_to_the_oracle) ... ok
+test_the_two_sources_do_not_overlap (bench.sley2.tests.test_runner.MetricSourceTests.test_the_two_sources_do_not_overlap) ... ok
+test_a_swallowed_refusal_still_ends_the_trial_and_is_traced (bench.sley2.tests.test_runner.Sley2RunnerTests.test_a_swallowed_refusal_still_ends_the_trial_and_is_traced)
+The guard raises into the agent's frame, so an adapter can catch it. ... ok
+test_agent_may_call_entity_methods_through_the_handle (bench.sley2.tests.test_runner.Sley2RunnerTests.test_agent_may_call_entity_methods_through_the_handle)
+Positive admission: the two version 2 entity reads pass the ... ok
+test_claim_validation_fails_closed (bench.sley2.tests.test_runner.Sley2RunnerTests.test_claim_validation_fails_closed) ... ok
+test_endpoint_offer_refuses_v1_offer_naming_entity_methods (bench.sley2.tests.test_runner.Sley2RunnerTests.test_endpoint_offer_refuses_v1_offer_naming_entity_methods)
+A version 1 offer fails the missing-check by design: the two ... ok
+test_handle_exposes_exactly_two_operations_and_refuses_runner_fields (bench.sley2.tests.test_runner.Sley2RunnerTests.test_handle_exposes_exactly_two_operations_and_refuses_runner_fields) ... ok
+test_metrics_derive_only_from_frame_records (bench.sley2.tests.test_runner.Sley2RunnerTests.test_metrics_derive_only_from_frame_records) ... ok
+test_non_boolean_cancel_is_refused_not_coerced (bench.sley2.tests.test_runner.Sley2RunnerTests.test_non_boolean_cancel_is_refused_not_coerced)
+A non-boolean cancel flag is an invalid frame, not a truthy one: ... ok
+test_scripted_trial_over_a_fake_endpoint_traces_claims_and_verifies (bench.sley2.tests.test_runner.Sley2RunnerTests.test_scripted_trial_over_a_fake_endpoint_traces_claims_and_verifies) ... ok
+test_trace_chain_is_complete_and_tamper_evident (bench.sley2.tests.test_runner.Sley2RunnerTests.test_trace_chain_is_complete_and_tamper_evident) ... ok
+test_trial_with_legacy_stamp_fails_closed (bench.sley2.tests.test_runner.Sley2RunnerTests.test_trial_with_legacy_stamp_fails_closed)
+Every trial stamps the selected version 2: a legacy stamp under ... ok
+test_trial_with_mismatched_selection_fails_closed (bench.sley2.tests.test_runner.Sley2RunnerTests.test_trial_with_mismatched_selection_fails_closed)
+The stamp is bound to the negotiated selection through the ... ok
+test_trial_with_unfrozen_allowlist_fails_closed (bench.sley2.tests.test_runner.Sley2RunnerTests.test_trial_with_unfrozen_allowlist_fails_closed)
+The trial snapshot is bound to the frozen allowlist (contract ... ok
+test_v1_rejection_shape_requires_the_failed_bit (bench.sley2.tests.test_runner.Sley2RunnerTests.test_v1_rejection_shape_requires_the_failed_bit)
+The v1 control shape is the endpoint's own rejection: no method, ... ok
+test_v2_dispatched_predicate_fails_closed (bench.sley2.tests.test_runner.Sley2RunnerTests.test_v2_dispatched_predicate_fails_closed)
+The dispatch proof is an allowlist on the observed body-layer ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 0.171s
+
+OK
+exit: 0
+command: env -u SLEY2_SLEY_BINARY -u SUCC_JUDGE_TEST_BINARY python3 -m unittest discover -s bench/live/tests -t .
+----------------------------------------------------------------------
+Ran 251 tests in 3.292s
+
+OK (skipped=75)
+exit: 0

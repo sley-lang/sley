@@ -1,0 +1,23 @@
+Nabu quoted-key confirmation — RW-060 (2026-09-06, handoff round 2c)
+status: P2-2 STILL OPEN
+
+findings:
+- Concrete valid-TOML evasion:
+  ```toml
+  [dependencies]
+  "sley-cli" = { path = "../sley-cli" }
+  ```
+- `dependency_names` records the key literally as `"sley-cli"` including quotes. The later exact comparison against `sley-cli` therefore misses the forbidden dependency.
+- Named-table form `[dependencies."sley-cli"]` evades similarly.
+- The trailing-comment and quoted `#` repairs appear correct for their tested cases.
+
+validation:
+- High confidence from targeted static review of `rw060_source_free_lifecycle.rs`.
+- Cargo test not run because this handoff permits read actions only.
+
+blockers:
+- Unquote TOML quoted dependency keys/table components and add regression coverage before closure.
+
+return_to: orchestrator
+
+[Orchestrator note: quoted keys unquoted everywhere (unquote_key) with regressions. Separately, the strategy was upgraded: lockfile_edges reads the committed Cargo.lock as decoded by Cargo itself — quotes/escapes/comments/renames normalized away — and asserts all 9 lifecycle crates present and edge-free of the textual crates, plus a synthetic lock parser test. The manifest scan remains as the labeled prod/dev view. Re-verified locally: 8 passed, clippy -D clean, fmt clean.]

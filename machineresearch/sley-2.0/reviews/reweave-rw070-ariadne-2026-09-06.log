@@ -1,0 +1,66 @@
+RW-070 independent semantic/boundary review — round 1 (Ariadne)
+Date: 2026-09-06. Lane: forge handoff ariadne (bounded, full round 1;
+the earlier dispatch timed out on infra with no verdict, see
+reweave-rw070-ariadne-infra-2026-09-06.log).
+Inputs (uncommitted RW-070 work on b4c3390): docs/spec/HOST_ABI_V1.md;
+conformance/host-abi/v1/host-abi.json (digest
+a9c7f70dfe3309a2c7be6e9b871abd0eb2d2ecec79f8770a7cb991cfbc08eb38);
+crates/sley-vm/src/host_abi.rs; crates/sley-vm/src/bootstrap.rs;
+crates/sley-vm/tests/rw070_host_abi_freeze.rs (31 tests);
+scripts/check_host_abi_v1.py + check_host_abi_markers.py;
+machineresearch/sley-2.0/reweave/rw-070.md + rw-070-host-inventory.json.
+Nabu round-1 FAIL with 3 P1s was repaired before this review; Ariadne
+assessed the repaired state.
+
+VERDICT: FAIL (reported as status blocked).
+
+P1 — The loader repair does not establish validation-before-execution.
+`load_image` only returns entry/callee bytecode
+(crates/sley-vm/src/host_abi.rs:163-210); `execute_function` still accepts
+canonical `LoweringInput`, calls `lower_function`, and executes that result
+(crates/sley-vm/src/execute.rs:354-370). Tests decode or execute separately
+rather than execute the supplied loaded image
+(crates/sley-vm/tests/rw070_host_abi_freeze.rs:500-535,955-1015). Violates
+axis 3 and leaves the future seed-absence condition untestable without
+adding another execution boundary, contrary to
+docs/spec/HOST_ABI_V1.md:112-132.
+
+P1 — Image/profile/import identities are not bound end-to-end. `LoadedImage`
+carries no digest, cache key, profile, epoch, root, import manifest, or
+limits (host_abi.rs:163-181). The cache key contains profile fields but no
+image digest, bootstrap-profile digest, import-manifest identity, or limits
+(crates/sley-vm/src/lib.rs:130-214); limits enter the observation separately
+(execute.rs:1390-1430). `BootstrapProfileReport` contains only functions and
+counts (bootstrap.rs:82-98), so gate admission plus observation identity
+provides no encoded association among the gate report, loaded bytes, and
+execution. Violates axis 4.
+
+P1 — The PSH1 monomorphization pin cannot represent multiple element types
+in one closed inventory. The contract requires each concrete `P-PUSH`
+instantiation to declare a closed row (docs/spec/EFFECT_SYSTEM_V1.md:122-139)
+while request identities are globally distinct (:164-174). Implementation
+assigns every push row the same PSH1 entity identity and resolves only the
+first matching row (crates/sley-vm/src/extended.rs:263-323). Therefore a
+closure cannot carry, for example, both `PSH1<UInt(8)>` and `PSH1<Unit>`,
+despite claiming both and any bootstrap T. Violates axis 2 and axis 7.
+
+P2 — Package digest prose is stale.
+machineresearch/sley-2.0/reweave/rw-070.md:36-40 cites `7f651ae9…f0c7`,
+while the frozen document and supplied authoritative digest are
+`a9c7f70d…08eb38`.
+
+Validation by reviewer: static targeted review of the named contract,
+manifest, loader, gate, bridge resolver, tests, amendment A1, and G-10
+admission. The required Cargo test and marker checker were NOT run: the
+reviewer judged the handoff to authorize read only. Owner supplies the
+execution records locally (RW-050/RW-060 precedent).
+
+Blockers: an inventory-bound execution path consuming validated loaded bytes
+with expected-identity verification; encoded/carried profile/epoch/root/
+import/image associations; distinct identities or another closed mechanism
+for simultaneous PSH1 monomorphizations; digest prose correction; execution
+authority for the two validation commands.
+
+Disposition: ACCEPTED as a failed round. Repairs owned by the RW-070
+package. Delta re-review required before close. Preserved unedited as the
+failed round.

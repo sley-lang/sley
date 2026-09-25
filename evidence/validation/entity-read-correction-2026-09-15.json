@@ -1,0 +1,66 @@
+{
+  "schema": "sley2.scoped-validation.v1",
+  "date": "2026-09-15",
+  "scope": "Entity-read corpus evidence, historical qualification record corrections and AcceptedHead ownership move",
+  "result": "SCOPED_PASS",
+  "checks": {
+    "entity_query_tests_passed": 34,
+    "protocol_tests_passed": 87,
+    "protocol_tests_ignored": 3,
+    "accepted_head_tests_passed": 14,
+    "all_targets_clippy": "PASS",
+    "formatting": "PASS",
+    "four_entity_corpus_files_unchanged": true,
+    "root_profile_checker": "PASS",
+    "absent_entity_checker_registration_control": "REFUSED",
+    "review_python_tests_passed": 109
+  },
+  "reviews": [
+    "evidence/review/entity-read-correction-review-2026-09-15.md",
+    "evidence/review/qualification-record-correction-review-2026-09-15.md"
+  ],
+  "logs": [
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/entity-query-green.log",
+      "sha256": "fec7c7c117fe44453d09c2bc2302fefbb900c70d8b0a0ef24636dcf26a2f1e76"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/entity-protocol-green.log",
+      "sha256": "e633854557e0cebd5057690e27d87b78a03f6fb8077911cd4f858c64ec73bdf7"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/entity-clippy-final.log",
+      "sha256": "6d055f177307e9790c3636c4bccb4563801391aecb148e1fbd987b3cf1d9234c"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/entity-fmt-final.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/review-tests-current.log",
+      "sha256": "a1c57c7b1e68f6379880bd542c7e38a95ea3ed3d62c2b48ac0cf466117444b5e"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/entity-residual-txn-tests.log",
+      "sha256": "5da1b2ff19c08142fbd05120ebd8f5a533ec689b4fe5973db1ee2e3ee1848e47"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/entity-residual-protocol-tests.log",
+      "sha256": "357c0aa5ba0e5259d10f2087b3d16e44bd203c0d98b20b137227e2289315acd5"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/entity-residual-clippy.log",
+      "sha256": "645355e934a99b89b6e8ee773d0d83df6548f9433cf5f6be2aaf8047a9b835cd"
+    },
+    {
+      "path": "/home/dev/Work/checkpoints/sley2-finish-20260915/entity-residual-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "limits": [
+    "No full AT-MW-02 consumer workflow acceptance.",
+    "Historical dirty-refresh provenance preserved; no retroactive clean-checkout claim.",
+    "Full accepted-head loading remains; only the redundant subsequent clone was removed.",
+    "Broader root-query, native-test, campaign and release work remains."
+  ]
+}

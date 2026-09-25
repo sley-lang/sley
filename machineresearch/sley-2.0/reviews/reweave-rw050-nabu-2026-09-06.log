@@ -1,0 +1,23 @@
+status:
+- FAIL
+
+findings:
+- **MEDIUM:** Supply-chain evidence is internally inconsistent. T52 records the new Cargo lock hash `887d1460…` and the added `sley-vm → sley-scb1` edge; the standards-SBOM summary records 121 relationships. But `machine-summary.json` still records the old T52 hash `3caa1eb0…` and 119 relationships. `check_supply_chain_audit.py` hardcodes those stale values and does not reconcile them with T52, so it can report PASS over inconsistent evidence. This contradicts the claimed clean regeneration and fails criterion 3.
+- **INFO:** Carrier selection is architecturally sound: frozen opcode 161 already supplies the required two-operand/Entity shape, while a new E-profile opcode would require frozen-table/epoch work. No bytecode-layout or schema-epoch change is needed.
+- **INFO:** Remedy routing remains intact: RW-070 owns ABI/import freeze and denial tests, RW-090 owns codec parity, and slice 2 owns the E8 fuzz lane and profile-freeze record.
+- **INFO:** Ariadne’s FAIL is preserved, both findings are explicitly accepted, and the repaired scope/request shape plus pre-execution fuel charging are visible in-tree. No self-certification was observed.
+
+validation:
+- Read RW-050 §§1, 4, 6, 7; profile revision 13 E8; RW-030 admission; `host-boundary.json`; frozen SSMC1 opcode table; Ariadne round-1 transcript; prior Nabu transcripts; REWEAVE §§10–11 and 18–21.
+- Inspected `extended.rs`, `execute.rs`, E8 tests/vectors, profile checker, independent oracle, machine summary, T52 inventory, and SBOM checker/documents.
+- Read-only inspection only; no runtime validation performed, as requested.
+
+blockers:
+- Rebind `s20_710_pre_release_audit` to the current T52 lock hash and relationship count, and make the existing supply-chain checker compare T52 values against the machine summary rather than accepting stale hardcoded values.
+- Regenerate dependent SBOM/provenance evidence through the existing builders and rerun the existing checks.
+- Ariadne’s independent repaired-tree re-review remains required for slice acceptance.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+repair_note (implementation workflow, post-verdict): MEDIUM accepted; the staleness predated the slice by one edge (120 vs 119 at c6e4269) and the lock change extended it. Repaired: summary mirrors rebound (hash 887d1460…, count 121 — verified against T52's 121-entry list, matching SBOM DEPENDS_ON 121); checker constants advanced (same lock-change maintenance pattern as EXPECTED lists); checker hardened with explicit T52↔summary reconciliation (verified live-RECONCILED plus both stale combinations CAUGHT standalone); closing builder sequence rerun last. No gate weakened: exact-match strength preserved, recurrence now fails loudly.

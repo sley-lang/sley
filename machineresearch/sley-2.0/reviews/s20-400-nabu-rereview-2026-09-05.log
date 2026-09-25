@@ -1,0 +1,46 @@
+S20-400 SMP1 ARCHITECTURE RE-REVIEW — NABU
+Date: 2026-09-05 EDT
+Mode: bounded read-only triage; only this review log was written
+Pinned subject: /home/dev/sley2, refs/heads/main = edb0a50ab80ae6e9596ffedeea43b916764bc6fb
+Prior review: machineresearch/sley-2.0/reviews/s20-400-nabu-architecture-review-2026-09-04.log
+
+VERDICT
+FAIL. Contract revision 11 closes most inspected architecture findings, but two prior P1 request/version-identity findings remain contradicted by the implementation. PASS is therefore unavailable. The pass/fail decision was reached before a full lower-severity rescan, per the bounded-triage instruction.
+
+P1 FINDINGS
+
+1. Prior P1-1 is not closed in the actual frame path: a below-selection frame returns PROTOCOL_VERSION_UNSUPPORTED, not PROTOCOL_DOWNGRADE.
+
+Contract evidence: docs/spec/SMP1.md section 2 says every later frame is checked against the selection, a frame below it answers PROTOCOL_DOWNGRADE, and a frame above it answers PROTOCOL_VERSION_UNSUPPORTED. Section 9 repeats that precedence.
+
+Implementation evidence: crates/sley-protocol/src/lib.rs, ProtocolFrame::validate, rejects every protocol_version unequal to the crate constant PROTOCOL_VERSION with VersionUnsupported. decode_frame invokes ProtocolFrame::from_payload, which invokes validate, before Server::dispatch can call SelectedProfile::check_claim. Therefore a crafted frame carrying version 0 is rejected as 40000 PROTOCOL_VERSION_UNSUPPORTED at decode, and the contractually required 40004 PROTOCOL_DOWNGRADE branch in check_claim is unreachable through the server. The comment in server.rs that dispatch applies check_claim does not repair the earlier decoder precedence.
+
+Required closure: make the decoded request reach one selection-aware claim check that distinguishes below from above, and pin both wire cases; or change the contract and threat disposition consistently. The current contract claim and current server behavior cannot both freeze.
+
+2. Prior P1-2 is only partially closed: session-less request identifiers remain undefined and contradict the stated zero sentinel.
+
+Contract evidence: docs/spec/SMP1.md section 3 defines 0 as the pre-session sentinel, says it is carried by hello frames and allowed on session.open without consuming the sequence, and sets in-session identifiers to start at 1. The same section separately permits session-less workspace.create and exchange.import on the genesis path, but gives neither method an identifier rule, scope, replay rule, or required sentinel value.
+
+Implementation evidence: crates/sley-protocol/src/server.rs dispatches session.open before registry admission and dispatches the two headless genesis methods without RequestRegistry admission. crates/sley-protocol/src/server_tests.rs deliberately sends session.open with request identifiers 1, 99, and 100, sends session-less workspace.create with 2, and session-less exchange.import with 1. ProtocolFrame::validate constrains request_id=0 only for hello frames. Thus the implementation accepts arbitrary unscoped request identifiers on all three session-less request paths while the contract calls 0 the pre-session sentinel and never defines the nonzero space.
+
+Required closure: freeze one exact rule for all session-less requests (recommended: request_id=0 with method/body identity or owner idempotence handling replay), or define a separate connection/pre-session sequence and enforce it. Add tests for session.open plus both genesis exemptions. The current text does not close T46 at the session-less boundary.
+
+P3 FINDING
+
+1. docs/spec/SMP1.md labels revision 11 as 2026-09-06, but the pinned review and commit are being evaluated on 2026-09-05 EDT. Correct or explain the future-effective date before freeze so revision provenance is not ambiguous.
+
+OTHER OBSERVATIONS
+- The two former P0s are visibly addressed: SelectedProfile/preimage/transcript are defined in-contract with per-peer derivation, and the protocol envelope epoch is valued and separated from the negotiated content epoch.
+- Spot checks found the advertised fixes for explicit retryability sets, response ceilings, reserved hello tags, mandatory session.open intersection, owner annotations, tag evolution, dispatch charging, registry rows, ADR tag/revision agreement, S20-440 ownership wording, appendix ordering, frame_length naming, and stale-token rejection.
+- The machine summary still records the prior FAIL/open arrays. That is consistent with a pending re-review workflow and was not counted as a new finding; the orchestrator must update review disposition only after review outcomes land.
+
+VALIDATION
+- Read .git/HEAD and refs/heads/main: edb0a50ab80ae6e9596ffedeea43b916764bc6fb.
+- Exact reads: prior Nabu review log; docs/spec/SMP1.md revision 11; ADR-0032; scripts/check_smp1_contract.py; docs/spec/ERROR_CODES_V1.md registry slice; machine-summary protocol section; crates/sley-protocol/src/lib.rs, server.rs, session.rs, and server_tests.rs; S20-410 and S20-440 closeouts/campaign slices.
+- No cargo, make, provider action, deploy, merge, service activation, peer access, or public action.
+- No executable validation was run because the handoff forbade cargo/make and allowed only reads plus this review-log write.
+
+S20_400ARCHITECTURE_REREVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":[],"p1":["P1-1 remains open in the effective wire path: ProtocolFrame::validate maps every protocol_version != PROTOCOL_VERSION to PROTOCOL_VERSION_UNSUPPORTED before Server::dispatch can call SelectedProfile::check_claim, so a below-selection frame cannot produce the contract-required PROTOCOL_DOWNGRADE","P1-2 remains open at the session-less boundary: the contract calls 0 the pre-session sentinel but does not define identifiers/replay for session.open, headless workspace.create, or headless exchange.import; the server bypasses RequestRegistry for all three and tests accept arbitrary nonzero ids including 1, 2, 99, and 100"],"p2":[],"p3":["Revision 11 is dated 2026-09-06 in SMP1.md while the pinned commit and review are on 2026-09-05 EDT; correct or explicitly explain the future-effective date before freeze"]}
+
+RETURN_TO
+orchestrator

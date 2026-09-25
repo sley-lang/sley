@@ -1,0 +1,28 @@
+S20-360 FULL OPERATION-ANALYSIS ARCHITECTURE RE-REVIEW
+Reviewer: Nabu
+Date: 2026-09-05
+Pinned repository: /home/dev/sley2
+Pinned HEAD: afc4dcce31929419fc770ee4e14d9f039caa02a0
+Mode: bounded read-only review; this transcript is the sole permitted write
+
+Scope and evidence read
+- Prior Nabu FAIL transcript: machineresearch/sley-2.0/reviews/s20-360full-nabu-architecture-review-2026-09-04.log
+- Fix lineage: 6278eca, 9670053, d02f2ee, afc4dcc
+- docs/spec/VM_EXTENDED_OPCODE_PROFILE_V1.md sections 3.1 and 5
+- docs/spec/CANDIDATE_RESULT_V1.md sections 5, 7, 8.2, and 9
+- docs/audits/S20_360_CANDIDATE_VALIDATION_CLOSEOUT.md addendum
+- docs/adr/ADR-0044-candidate-operation-analysis-through-the-vm-owner.md
+- crates/sley-vm/src/lower.rs judgment and lowering entries
+- crates/sley-vm/src/extended_tests.rs judgment tests
+- crates/sley-policy/src/candidate_validation.rs phase 7 evidence and failure mapping
+
+Review reasoning
+1. P1-1 is closed in the current implementation: judge_function_operations calls require_canonical_referenced_constants after judge_extended, in the same relative position as lower_function. Dedicated tests cover canonical, out-of-order, and duplicate map constants.
+2. P2-1 through P2-6 and P3-1 through P3-3 have corresponding contract, ADR, evidence-shape, addendum, or explanatory-code changes at the pinned HEAD. No new issue was needed from those items to decide this verdict.
+3. P1-2 is not fully closed. Section 3.1 states an exact acceptance invariant modulo an enumerated set of intentional asymmetries, and section 5 says judgment_acceptance_matches_lowering_acceptance pins that invariant in both directions so the acceptance sets cannot silently diverge. The test does not establish that claim. Its match accepts every (Ok(judgment), Err(lowering)) pair, regardless of why lowering failed. It does not require the lowering error to arise from graph validation, cache-key derivation, type-parameter/effect/contract refusal, bytecode emission, or callee lowering. A future lowering-only static rejection—or a missing judgment-side check—therefore passes this purported differential guard. The dedicated canonical-constant test catches the known P1-1 case, but the general drift class identified by P1-2 remains unguarded.
+4. The same mismatch appears in the prose: section 3.1 and the lower.rs comment say the shared canonical check means a judged Function is lowerable, while the differential test intentionally demonstrates an effectful Function for which judgment succeeds and lowering returns ProfileUnsupported. The intended relation is a bounded acceptance superset, not unconditional lowerability.
+
+Verdict
+FAIL (high confidence). The implementation fix for the known canonical-constant omission is present, but the freeze-blocking differential invariant remains weaker than its normative and evidence claims. Close it by making every judgment-success/lowering-failure case prove one of the enumerated intentional asymmetries, or by comparing both public entries through a common operation-acceptance stage that excludes those asymmetries by construction. No cargo or make target was run, per instruction.
+
+S20_360FULL_ARCHITECTURE_REREVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":[],"p1":["P1-2 remains open: judgment_acceptance_matches_lowering_acceptance accepts every judgment-Ok/lowering-Err pair instead of proving that such divergence is limited to the enumerated graph/cache/profile/bytecode/callee asymmetries; therefore it does not pin section 3.1's claimed acceptance invariant or prevent future judgment/lowering drift, and the accompanying claim that a judged Function is lowerable is contradicted by the test's own effectful fixture"],"p2":[],"p3":[]}

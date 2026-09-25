@@ -1,0 +1,42 @@
+RW-070 delta re-review — round 2 (Ariadne)
+Date: 2026-09-06. Lane: forge handoff ariadne (bounded delta).
+Inputs: round-1 repairs (3 P1 + 1 P2).
+
+VERDICT: FAIL.
+
+P1 — Loaded-execution trust story contested. `execute_loaded_image`
+compares loaded bytes against a caller-supplied digest, but carries no
+trusted manifest/gate report or binding to supplied inventories
+(crates/sley-vm/src/execute.rs:505-536). The re-derived cache key excludes
+image digest/import identity (crates/sley-vm/src/lib.rs:219-229), as does
+the observation preimage (crates/sley-vm/src/execute.rs:1603-1660). Thus
+the claimed image → gate → inventories → execution association exists only
+as caller convention, not encoded enforcement.
+
+P1 — PSH1 gate/report does not identify referenced monomorphized rows.
+Reference tracking collapses uses to `EntityId`; one PSH1 use marks every
+same-identity PSH1 row referenced (crates/sley-vm/src/bootstrap.rs:242-260).
+The one-use/two-row test explicitly admits and reports both identical IDs
+(crates/sley-vm/tests/rw070_host_abi_freeze.rs:1132-1151), contradicting
+“exactly the referenced rows” (docs/spec/HOST_ABI_V1.md:82-83).
+Schema-qualified row identity/reference is required.
+
+The shared execution runner, decoded-register input validation, per-use
+push selection, and corrected package digest are otherwise present.
+
+Validation performed by reviewer (read-only commands as granted):
+`cargo test -p sley-vm --lib` PASS (68/2 ignored);
+`cargo test -p sley-vm --test rw070_host_abi_freeze` PASS (36);
+`python3 scripts/check_host_abi_markers.py` PASS; `git diff --check` PASS;
+digest verified (`c4c5567a…de06`). Targeted delta validation only; V1
+skipped per bounded triage scope.
+
+Blockers: encode or carry trusted manifest/gate association through loaded
+execution and resulting identity; represent PSH1 row references/report
+entries with schema-qualified identity rather than bare shared `EntityId`.
+
+Disposition: ACCEPTED as a failed round. Owner repair: `ApprovedImage`
+binding (digest, cache key, import set) verified inside
+`execute_loaded_image` with `IMAGE_BINDING_MISMATCH`; single push row per
+closed inventory (gate-enforced; no contract change for a narrowing
+freeze). Preserved unedited as the failed round.

@@ -1,0 +1,1 @@
+{"contract": "sley2.benchmark-task-oracle.v1", "task_id": "S2B-CORRUPT-001", "arm": "sley2", "positive": "accepted", "negatives": {"unflipped": "ORACLE_CLEAN_ACCEPTED", "flip_elsewhere": "PACK_DIGEST_MISMATCH"}}

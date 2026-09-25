@@ -1,0 +1,19 @@
+{
+  "arm": "sley2",
+  "conformance_test": "s3_stale_fixture_conformance",
+  "evidence": {
+    "commits_before_requery": 1,
+    "genesis_tx": "5fc44abeb91e6d3ffd94c01f275ee951b84cbc7d052a4db6fba4d33740889705",
+    "h1_root": "1ffb2d6fec995bc30469b1eba26c85cea25882ea1a294454d27227031a05911f",
+    "h1_tx": "72137fac561ce6f86b60e0f90e2ffa97531dab4b7005dae105c731d5d12d9962",
+    "h2_root": "59bb8f95a7b651dd5df50856b115b0849fcfa526b404ea0efb36a9266e23b4bb",
+    "h2_tx": "bb7c6a62fda75448864330711844b05b36fbf660b0aabb1d3757528fb208fb18",
+    "h3_root": "1ffb2d6fec995bc30469b1eba26c85cea25882ea1a294454d27227031a05911f",
+    "h3_tx": "fe9a65d6525f04f317e5a4aef710168763e09a7704ba65bdeeae23b893a2b3ae",
+    "stale_accepts": 0,
+    "stale_code": "STALE_ROOT"
+  },
+  "evidence_sha256": "3f5f03d54728a1c8e6f2ac858c407dc5b2aa6f0aabd4d25c5e1025da66ede3be",
+  "task_id": "S2B-STALE-001",
+  "test_binary": "s3_g2_stale"
+}

@@ -1,0 +1,19 @@
+status: FAIL
+
+findings:
+- **HIGH — Push binding is not enforced at execution.** Judgment correctly binds operands to the carried row (`extended.rs:1141-1157`), but execution discards that row (`extended.rs:1915`) and `bridge_execute` only checks data shapes (`extended.rs:439-454`). A caller of the public execution helper can supply a registered PSH1 row with operands/result types outside that row.
+- **HIGH — `Index` code 2 is not a valid typed constant end-to-end.** E8 constructs `BuiltinFailure(Index, 2)` (`extended.rs:385-393`), while `TypeEnvironment::check_constant` permits only code 1 for `Index` (`crates/sley-check/src/lib.rs:1067-1074`). Report projection validates constants (`sley-conformance/src/lib.rs:803-810`), so the advertised capacity failure cannot remain a valid canonical result through reporting.
+- **Contract drift:** The E8 profile still says push types derive from operands while the carried row pins only identity/purity (`VM_EXTENDED_OPCODE_PROFILE_V1.md:331-334`), contradicting A1’s exact row binding (`EFFECT_SYSTEM_V1.md:126-131,226-239`).
+
+validation:
+- Read-only inspection of dirty tree versus `fd94402`: 31 changed paths.
+- Traced adapter inventory through lowering, judgment, execution, policy, conformance, and protocol paths.
+- No tests run because the handoff prohibited file writes; Cargo validation may mutate build artifacts.
+
+blockers:
+- Landing remains barred until execution revalidates the carried row’s scope/request/response/failure binding and `Index` code 2 is made valid across type checking/reporting (or the contract chooses an already-valid failure value).
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+disposition (implementation workflow, post-verdict): transcript above is the reviewer's returned verdict, transcribed verbatim (only this disposition section added). Both HIGHs accepted on verification (`check_builtin_failure` admits Index code 1 only; execution dropped the row). Nabu's companion review returned PASS (architecture gate closed; transcript `reweave-rw050b1-nabu-2026-09-06.log`). Bounded repairs: `bridge_execute` takes the carried row and revalidates operand/result value types against it (fault otherwise); `check_builtin_failure` admits Index code 2 with a code-table unit test plus an end-to-end capacity-value `check_constant` assertion; profile push paragraph reworded to row binding. Delta re-review requested on both HIGHs; landing still barred meanwhile.

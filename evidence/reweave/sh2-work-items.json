@@ -1,0 +1,197 @@
+{
+ "boundary_record_authority": "host-boundary.json (sley2.host-boundary.v1), chartered by RW-030",
+ "contract": "sley2.reweave-sh2-work-items.v1",
+ "items": [
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "R2-bootstrap-ready",
+   "id": "RW-030",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-030-charter.md",
+    "machineresearch/sley-2.0/reweave/rw-030-entry-inventory.md",
+    "machineresearch/sley-2.0/reweave/rw-030-g10-admission.md",
+    "host-boundary.json"
+   ],
+   "status": "LANDED_REVIEWED",
+   "title": "MPI-0 controls and self-hosting/host-boundary charter"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "R2-bootstrap-ready",
+   "id": "RW-040",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-040-audit-index.md",
+    "machineresearch/sley-2.0/reweave/rw-040-audit-slice-2.md",
+    "machineresearch/sley-2.0/reweave/rw-040-bootstrap-exercises-slice-2.json",
+    "machineresearch/sley-2.0/reweave/rw-040-m2-gap-list-slice-2.json",
+    "machineresearch/sley-2.0/reweave/rw-040-findings-slice-2.json"
+   ],
+   "status": "LANDED",
+   "title": "Bootstrap-capability audit, M2 gap lists and exercises"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "RW-050",
+   "id": "RW-050",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-050-slice-1.md",
+    "machineresearch/sley-2.0/reweave/rw-050-slice-2.md",
+    "machineresearch/sley-2.0/reweave/rw-050-sufficiency.md",
+    "docs/spec/BOOTSTRAP_PROFILE_1.md"
+   ],
+   "status": "LANDED_REVIEWED",
+   "title": "G-10 bridge under owner amendment A1, E8 adversarial lane, BOOTSTRAP_PROFILE_1 freeze"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "RW-060",
+   "id": "RW-060",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-060.md"
+   ],
+   "status": "LANDED_REVIEWED",
+   "title": "Source-free lifecycle"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "RW-070",
+   "id": "RW-070",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-070.md",
+    "machineresearch/sley-2.0/reweave/rw-070-host-inventory.json",
+    "machineresearch/sley-2.0/reweave/rw-070-r2-handoff.md",
+    "docs/spec/HOST_ABI_V1.md",
+    "docs/spec/EXEC_PACKAGE_V1.md"
+   ],
+   "status": "LANDED_REVIEWED",
+   "title": "Host ABI, executable image and permitted-import freeze"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "R2-bootstrap-ready",
+   "id": "RW-075",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-075.md",
+    "machineresearch/sley-2.0/reweave/rw-075-correction.md",
+    "machineresearch/sley-2.0/reweave/rw-075-hash-inventory.md",
+    "machineresearch/sley-2.0/reweave/rw-075-ar02-evidence.md",
+    "docs/spec/BOOTSTRAP_PROFILE_2.md",
+    "docs/spec/HOST_ABI_V2.md",
+    "docs/spec/EXEC_PACKAGE_V2.md",
+    "docs/spec/RAW_HASH_V1.md"
+   ],
+   "status": "LANDED_CORRECTION_PREMIUM_ROUND_2_PENDING",
+   "title": "R2 executable-closure and self-host boundary repair; correction round introducing the v2 profile/ABI/package successors"
+  },
+  {
+   "boundary_record": {
+    "path": "host-boundary.json",
+    "sha256": "d935d238a4d75d154df128aad630411ca3fdcc18e4db084dcd2317ab73bdb18a"
+   },
+   "gate": "RW-080",
+   "id": "RW-080",
+   "records": [
+    "machineresearch/sley-2.0/reweave/rw-080-contract.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-scaffold.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-uvar.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-envelope.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-program-outer.md",
+    "machineresearch/sley-2.0/reweave/rw-080-codec-program-body.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-program-entrypoint-encode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-program-envelope-compose.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-program-namespace.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-supported-dispatch.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-supported-encode-dispatch.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-dependency-binding-encode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-dependency-binding-decode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-dependency-binding-compose-decode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-dependency-binding-compose-encode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-policy-binding-encode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-policy-binding-decode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-policy-binding-compose-decode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-policy-binding-compose-encode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-package-encode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-package-decode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-package-compose-decode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-package-compose-encode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-package-supported-decode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-package-supported-encode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-workspace-program.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-all-kind-digest-dispatch.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-fingerprint-encode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-codec-fingerprint-decode.md",
+        "machineresearch/sley-2.0/reweave/rw-080-checker-scaffold.md",
+        "machineresearch/sley-2.0/reweave/rw-080-checker-single-cfg.md",
+        "machineresearch/sley-2.0/reweave/rw-080-checker-option-switch.md",
+        "machineresearch/sley-2.0/reweave/rw-080-checker-operation-inventory.md",
+        "machineresearch/sley-2.0/reweave/rw-080-checker-type-chain.md",
+        "machineresearch/sley-2.0/reweave/rw-080-checker-single-effect.md",
+        "machineresearch/sley-2.0/reweave/rw-080-checker-effect-inventory.md",
+        "machineresearch/sley-2.0/reweave/rw-080-checker-effect-propagation.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-scaffold.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-single-op.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-inventory.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-scalar-inventory.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-checked-integers.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-floating.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-values-cells.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-variadic.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-immediate-free.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-map-construction.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-bootstrap-immediates.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-exact-immediates.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-instruction-map.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-immediate-inventory.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-mixed-inventory.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-simple-block.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-complete-block.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-function-blocks.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-function-metadata.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-fixed-width-bytes.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-byte-chunks.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-function-header.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-instruction-bytes.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-instruction-map-bytes.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-simple-terminator-bytes.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-switch-terminator-bytes.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-complete-terminator-bytes.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-complete-block-bytes.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-block-map-bytes.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-function-body-bytes.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-root-image.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-callee-table.md",
+        "machineresearch/sley-2.0/reweave/rw-080-package-envelope-framing.md",
+        "machineresearch/sley-2.0/reweave/rw-080-package-section-hydration.md",
+        "machineresearch/sley-2.0/reweave/rw-080-package-empty-sections.md",
+        "machineresearch/sley-2.0/reweave/rw-080-package-envelope-compose.md",
+        "machineresearch/sley-2.0/reweave/rw-080-package-inventory-rows.md",
+        "machineresearch/sley-2.0/reweave/rw-080-package-builder.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-terminators.md",
+        "machineresearch/sley-2.0/reweave/rw-080-lower-variant-switch.md",
+        "machineresearch/sley-2.0/reweave/rw-080-toolchain-aggregate.md",
+        "machineresearch/sley-2.0/reweave/rw-080-toolchain-component-manifest.json"
+      ],
+      "status": "PROVISIONAL_BLOCKED_NOT_AUTHORITY",
+      "title": "RW-080 construction contract plus provisional C0 construction slices 1 to 87 under the 2026-09-07 operator development override"
+  }
+ ],
+ "note": "Campaign-declaration registry read by scripts/build_anti_goal_conformance.py evaluate_campaign_declarations (RW-030 charter section 1, C-01/C-02 rule). A declaration is a citation of the authorized boundary record by exact path and raw-byte SHA-256 plus a staged gate from host-boundary.json gate_set; the checker verifies citation only. Semantic authorization of every item below is the operator decision ADOPT-REWEAVE-2026-09-06 recorded in docs/adr/ADR-0049-reweave-scope-adoption.md and the per-package review transcripts under machineresearch/sley-2.0/reviews/. Created by the architecture-tightening campaign (finding AT-NA-04) so the check no longer holds vacuously over landed SH2 work; items are appended, never rewritten."
+}

@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""Refresh the deterministic VM extended opcode profile vectors (slice E1 onward)."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import subprocess
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+FIXTURES = ROOT / "conformance/vm-extended/v1"
+EXPECTED = ["tuple-project", "vector-set-out-of-range", "signed-less-than", "constant-ref", "int-add-overflow", "int-div-signed-min", "int-shl-signed", "float-div-canonical-nan", "float-fma-single-rounding", "float-less-than-nan", "record-get-field", "variant-get-none", "map-new-sorted", "map-new-duplicate-key", "cell-set-get", "value-hash-text", "global-get-constant", "call-direct-second", "call-direct-nested", "result-err", "contract-assert-holds", "contract-assert-violated", "call-direct-depth-ceiling", "call-direct-depth-exceeded", "bytes-less-than", "text-less-than", "vector-traverse", "cond-drain-loop", "bridge-bytes-to-vector", "bridge-vector-push", "bridge-vector-to-bytes"]
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check", action="store_true", help="fail when committed fixtures differ from the crate's vectors")
+    arguments = parser.parse_args()
+    completed = subprocess.run(
+        ["cargo", "test", "-p", "sley-vm", "emit_vm_extended_vectors_for_fixture_refresh", "--", "--ignored", "--nocapture"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=True,
+    )
+    vectors = []
+    for line in completed.stdout.splitlines():
+        if line.startswith(("VM_EXTENDED_VECTOR|", "VM_EXTENDED_LIMIT|")):
+            parts = line.split("|")
+            vector = {
+                "bytecode_hex": parts[3],
+                "bytecode_sha256": hashlib.sha256(bytes.fromhex(parts[3])).hexdigest(),
+                "cache_key_hex": parts[4],
+                "id": parts[1],
+                "instruction_count": int(parts[7]),
+                "observation_id_hex": parts[6],
+                "opcode": int(parts[2]),
+            }
+            if parts[0] == "VM_EXTENDED_LIMIT":
+                if parts[1] != "call-direct-depth-exceeded" or parts[5] != "CallDepth":
+                    raise RuntimeError("unexpected resource termination vector")
+                vector["termination"] = {"kind": "ResourceLimit", "resource": "CallDepth", "tag": 5}
+                vector["fuel_used"] = int(parts[8])
+            else:
+                vector["success_value_hash_hex"] = parts[5]
+                if parts[1] == "map-new-duplicate-key":
+                    vector["expected_failure_value"] = {"kind": "DuplicateKey", "code": 1}
+            vectors.append(vector)
+    if [vector["id"] for vector in vectors] != EXPECTED:
+        raise RuntimeError(f"unexpected vector set {[v['id'] for v in vectors]}")
+    # Deterministic rejections over the first accepted artifact, one per
+    # container rule an independent decoder must enforce.
+    seed = bytes.fromhex(vectors[0]["bytecode_hex"])
+    mutations = []
+    for identifier, mutated in (
+        ("magic", b"SLEYBC01" + seed[8:]),
+        ("format-version", seed[:8] + (2).to_bytes(4, "big") + seed[12:]),
+        ("truncated", seed[:-1]),
+        ("trailing-byte", seed + b"\x00"),
+        ("callee-count", seed[:-8] + (1).to_bytes(8, "big")),
+    ):
+        mutations.append(
+            {
+                "expected": "REFUSED",
+                "id": identifier,
+                "input_hex": mutated.hex(),
+                "input_sha256": hashlib.sha256(mutated).hexdigest(),
+                "seed": vectors[0]["id"],
+            }
+        )
+    rejected = {
+        "claim": "s20-260-270-vm-extended-container-rejection-conformance",
+        "contract": "sley2-vm-extended-opcode-profile-v1",
+        "generator": "scripts/generate_vm_extended_fixtures.py",
+        "mutations": mutations,
+    }
+    accepted = {
+        "claim": "s20-260-270-vm-extended-e1-e6-e7a-and-e8-conformance",
+        "contract": "sley2-vm-extended-opcode-profile-v1",
+        "cache_profile": "EXTENDED_V1",
+        "bytecode_magic": "SLEYBC02",
+        "generator": "scripts/generate_vm_extended_fixtures.py",
+        "schema_epoch_hex": "08" * 32,
+        "state_root_hex": "09" * 32,
+        "vectors": vectors,
+    }
+    rendered = {
+        FIXTURES / "accepted.json": json.dumps(accepted, indent=2, sort_keys=True) + "\n",
+        FIXTURES / "rejected.json": json.dumps(rejected, indent=2, sort_keys=True) + "\n",
+    }
+    rendered[FIXTURES / "SHA256SUMS"] = "".join(f"{hashlib.sha256(payload.encode()).hexdigest()}  {path.name}\n" for path, payload in rendered.items())
+    if arguments.check:
+        drift = [str(path.relative_to(ROOT)) for path, expected in rendered.items() if not path.is_file() or path.read_text(encoding="utf-8") != expected]
+        print(json.dumps({"drift": drift, "mode": "check", "result": "FAIL" if drift else "PASS", "vectors": len(vectors)}, sort_keys=True))
+        return 1 if drift else 0
+    FIXTURES.mkdir(parents=True, exist_ok=True)
+    for path, payload in rendered.items():
+        path.write_text(payload, encoding="utf-8")
+    print(json.dumps({"mode": "write", "result": "PASS", "vectors": len(vectors)}, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

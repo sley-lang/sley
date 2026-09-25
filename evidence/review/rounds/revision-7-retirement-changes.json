@@ -1,0 +1,749 @@
+{
+ "contract": "finding-register-revision-7-retirement-changes-v2",
+ "baseline": "76ae15ab",
+ "round": "re-issued at the 79fdcc63 round",
+ "keying": "a closure is keyed by (section, severity, full claim string); an entry of evidence/review/claim-retirements.json by (section, transcript path, prefixes tuple, exact claims tuple). 'restored' = the 76ae15ab closure is in the tracked ledger now (same or re-cited transcript line); 'refused (open|restated)' = it is not, with the rule that refuses its 76ae15ab citation. Counts are set sizes under that keying.",
+ "summary": "91 closures were recorded at 76ae15ab; 86 are in the tracked ledger now and 5 are not (each with its refusing rule). The 7995e057 round's statement 'none reopened' was measured against 320ea8aa and was wrong: 27 had reopened at 1a9f0aab.",
+ "counts": {
+  "entries_at_76ae15ab": 45,
+  "entries_now": 127,
+  "entries_added": 95,
+  "entries_removed": 13,
+  "exact_claim_entries_now": 78,
+  "closures_at_76ae15ab": 91,
+  "closures_now": 250,
+  "restored": 86,
+  "refused": 5,
+  "exact_claim_closures_now": 77
+ },
+ "changes": [
+  {
+   "section": "mutation_value_profile",
+   "severity": 2,
+   "claim": "epoch1_reanchor_review_closure_note: [record] docs/adr/ADR-0019-unreleased-epoch1-option-reanchor.md:54-56 - the carried P2 (\"stale machine-summary query/capsule vectors\") cannot be verified closed",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md#L13",
+   "verified_by_now": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-1a9f0aa.md#L25"
+  },
+  {
+   "section": "mutation_value_profile",
+   "severity": 3,
+   "claim": "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json (mutation_value_profile.epoch1_reanchor_review) - the field carries a PASS-with-P2 disposition that has n",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md#L13",
+   "verified_by_now": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-1a9f0aa.md#L26"
+  },
+  {
+   "section": "mutation_value_profile",
+   "severity": 4,
+   "claim": "epoch1_reanchor_review_closure_note: [checker] scripts/check_restricted_query_capsule_profile.py:24-31 - unlike the query/report/adapter checkers added in the same commit, the capsule checker pins ",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md#L13",
+   "verified_by_now": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md#L13"
+  },
+  {
+   "section": "mutation_value_profile",
+   "severity": 4,
+   "claim": "epoch1_reanchor_review_closure_note: [record] machineresearch/sley-2.0/machine-summary.json:1388-1394,1400-1403 - `p2_open`/`p3_open`/`p4_open` still list the 178873d P2, the 178873d P3 and the 92f",
+   "decision": "refused (open)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/mutation_value_profile/epoch1_reanchor_review_closure-c04539b.md#L13",
+   "refusing_rule": "transcript epoch1_reanchor_review_closure-c04539b.md is the claim's own round"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 2,
+   "claim": "vulcan_surface_review_revision_5: [evidence-integrity] machineresearch/sley-2.0/machine-summary.json:3878,3881 - owned-section `mint_method` (\"primary clean-tree mint \u2026 at 45b2cd9; independently",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md#L22",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md#L22"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "ariadne_contract_review_revision_5: [record] machineresearch/sley-2.0/machine-summary.json:3874 - `candidate_second_host_note` ends \"Next: \u2026 clone detached at c75277b6 on the lab \u2026\" although the s",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md#L24,25",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md#L25"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "ariadne_contract_review_revision_5: [record] machineresearch/sley-2.0/machine-summary.json:3878-3881 - `mint_method` (\"primary clean-tree mint \u2026 at 45b2cd9; independently repeated \u2026 on greyforgela",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md#L24,25",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md#L24"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "nabu_architecture_review: [contract-binding] scripts/check_release_candidate_packaging.py:235-246 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:172-179,214-222 - the checker now enfor",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-db53894.md#L28",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-db53894.md#L28"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "nabu_architecture_review: [runbook-identity] machineresearch/sley-2.0/machine-summary.json:4115 \u2192 /home/dev/Work/checkpoints/sley2-finish-20260915/resume-20260918/second_host_attest.s",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-c04539b.md#L28",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-c04539b.md#L28"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "nabu_architecture_review_revision_5: [identity-discipline] machineresearch/sley-2.0/machine-summary.json:3878,3881 - `mint_method` (\"primary clean-tree mint \u2026 at 45b2cd9; independently repeated \u2026 o",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-92fa664.md#L31,33,35",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-92fa664.md#L31"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "nabu_architecture_review_revision_5: [record-consistency] machineresearch/sley-2.0/machine-summary.json:3874 - the `candidate_second_host_note` runbook step \"Next: bundle main, clone detached at c7",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-92fa664.md#L31,33,35",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-92fa664.md#L33"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "nabu_architecture_review_revision_5: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4064 (open_risks) and evidence/release/decision-dossier.json \"residual risks\" entry (state EV",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-92fa664.md#L31,33,35",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-92fa664.md#L33,35"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "vulcan_surface_review: [evidence-integrity] scripts/build_ga_acceptance_report.py:311-312,582-583 with evidence/release/ga-acceptance-report.json:247-250 and machineresearch/sley-2.0/",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md#L25",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md#L25"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "vulcan_surface_review: [runbook-staleness] machineresearch/sley-2.0/machine-summary.json:4115 \u2192 ~/Work/checkpoints/sley2-finish-20260915/resume-20260918/second_host_attest.sh:14-15 - ",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-c04539b.md#L23",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-c04539b.md#L23"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "vulcan_surface_review@7622776: [evidence-integrity] machineresearch/sley-2.0/machine-summary.json:4754,4758 (reproducibility `p2_closed_claims[2-3]`), :4776 (`p3_closed_claims[1]`), :4810 (`p",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-c67b072.md#L21",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-c67b072.md#L21"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "vulcan_surface_review_revision_5: [record-consistency] machineresearch/sley-2.0/machine-summary.json:3874 - `candidate_second_host_note` ends \"Next: bundle main, clone detached at c75277b6 on th",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md#L23,24",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md#L24"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 3,
+   "claim": "vulcan_surface_review_revision_5: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4064 and evidence/release/decision-dossier.json:390 - `open_risks` sentence \"the candidate is",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md#L23,24",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md#L23"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "ariadne_contract_review: [record] machineresearch/sley-2.0/machine-summary.json:4115 (also :4441 `attestation_supersedes`) - the parenthetical \"contract revision 10 lists attestations o",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-c04539b.md#L23",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-c04539b.md#L23"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "ariadne_contract_review: [record] machineresearch/sley-2.0/machine-summary.json:4200 (mirrored at :4534 `attestation_supersedes` and evidence/release/second-host-lane-records.json:100) ",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-db53894.md#L23",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-db53894.md#L23"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "ariadne_contract_review_revision_5: [contract] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:142-143 (S20-730-owned, cross-section note) - the illustrative embed list (\"today \u2026 SSMC1",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md#L26,27,28",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md#L28"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "ariadne_contract_review_revision_5: [record] evidence/release/decision-dossier.json:390,419 (mirrored from machine-summary `open_risks` :4064 and `evidence_gaps` :4040, outside this section's owne",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md#L26,27,28",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md#L27"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "ariadne_contract_review_revision_5: [record] machineresearch/sley-2.0/machine-summary.json:3882 - `offline_tests_note` still says \"the checker does not enforce this field\", but `scripts/check_rele",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md#L26,27,28",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-92fa664.md#L26"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "nabu_architecture_review: [comment] bench/release/tests/test_reproducibility.py:615-616 - the comment \"Positive control: the two known embeds are found\" precedes three assertions after t",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-c04539b.md#L30,32",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-c04539b.md#L32"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "nabu_architecture_review: [record-wording] machineresearch/sley-2.0/machine-summary.json:4115 with evidence/release/reproducibility-report.json:46 - the note's parenthetical \"(contract r",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-c04539b.md#L30,32",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-c04539b.md#L30"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [checker-binding] machineresearch/sley-2.0/machine-summary.json:4115 with scripts/check_release_candidate_packaging.py:223-234 - `candidate_second_host_note` ha",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-c04539b.md#L24,25",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-c04539b.md#L25"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [record-wording] machineresearch/sley-2.0/machine-summary.json:4115 and evidence/release/second-host-lane-records.json:100 with evidence/release/reproducibility",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-c04539b.md#L24,25",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-c04539b.md#L24"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [register-supersession] evidence/review/finding-register.json obligations[182] (and superseded_rounds) with scripts/build_finding_register.py:100-107,155-159 - ",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md#L29",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md#L29"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [register-supersession] evidence/review/finding-register.json obligations[182] (and superseded_rounds[50]) with scripts/build_finding_register.py:106-107,159 - ",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md#L29",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-db53894.md#L29"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "vulcan_surface_review_revision_5: [record-consistency] machineresearch/sley-2.0/machine-summary.json:4411 - `remaining_gates.second_host_attestation` reads \"RESOLVED for source 5313437 \u2026 New pro",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md#L25,26",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md#L25"
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": 4,
+   "claim": "vulcan_surface_review_revision_5: [test-coverage] bench/release/tests/test_reproducibility.py:587-588 - the positive-control assertions name only the two pre-existing embeds; the v3 table added ",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md#L25,26",
+   "verified_by_now": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-92fa664.md#L26"
+  },
+  {
+   "section": "repository_exchange",
+   "severity": 3,
+   "claim": "ariadne_implementation_review_final: [contract-text] crates/sley-repo/src/exchange.rs:1583-1665,1789-1833 - Spec line 314-316 says the importer \"resolves and pins the target directory once\"; the im",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L21,23,25,27",
+   "verified_by_now": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L27"
+  },
+  {
+   "section": "repository_exchange",
+   "severity": 3,
+   "claim": "ariadne_implementation_review_final: [contract-text] docs/spec/REPOSITORY_EXCHANGE_V1.md:413-417,424-425 - The scoped sentence \"none of the frozen S20-540 readers listed below resolves an accepted ",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-db53894.md#L23",
+   "verified_by_now": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-db53894.md#L23"
+  },
+  {
+   "section": "repository_exchange",
+   "severity": 3,
+   "claim": "ariadne_implementation_review_final: [record] machineresearch/sley-2.0/machine-summary.json (repository_exchange.accepted_fixture_sha256, accepted_repository_exchange_id, digest_tree_root, rejectio",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L21,23,25,27",
+   "verified_by_now": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L25"
+  },
+  {
+   "section": "repository_exchange",
+   "severity": 3,
+   "claim": "ariadne_implementation_review_final: [test-coverage] crates/sley-repo/src/exchange.rs:2305-2371 - Clone-equivalence item 3 (spec line 461-463) requires `branch_ancestry` equality for every branch; ",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L21,23,25,27",
+   "verified_by_now": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L23"
+  },
+  {
+   "section": "repository_exchange",
+   "severity": 3,
+   "claim": "ariadne_implementation_review_final: [test-coverage] crates/sley-repo/src/exchange.rs:2974-3001 - The required \"recovery-into-incomplete-clone (\u2026 GC witness)\" test (spec line 607-609) is absent: no",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L21,23,25,27",
+   "verified_by_now": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L21"
+  },
+  {
+   "section": "repository_exchange",
+   "severity": 4,
+   "claim": "ariadne_implementation_review_final: [contract-text] crates/sley-txn/src/repository.rs:2853-2925 - `native_attempt_status`/`reconcile_promotion_claim` report the raw head pointer (`read_head`, line",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L29,31",
+   "verified_by_now": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L31"
+  },
+  {
+   "section": "repository_exchange",
+   "severity": 4,
+   "claim": "ariadne_implementation_review_final: [record] docs/audits/S20_540_REPOSITORY_EXCHANGE_CLOSEOUT.md:59-62,178-180 - The closeout paraphrase is stale against HEAD: it lists seven allowlisted incomplet",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L29,31",
+   "verified_by_now": "evidence/review/verdicts/repository_exchange/ariadne_implementation_review_final-c04539b.md#L29"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 2,
+   "claim": "ariadne_contract_review_revision_7: [contract-vs-mechanics] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:124-129, scripts/build_reproducibility_report.py:356-390, Makefile:245 - Sec",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md#L23,24",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md#L23"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 2,
+   "claim": "ariadne_contract_review_revision_7: [records] machineresearch/sley-2.0/machine-summary.json:3874 - The second-host prerequisites say \"Next: bundle main, clone detached at c75277b6 on the lab, make",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md#L23,24",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-92fa664.md#L24"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 2,
+   "claim": "ariadne_contract_review_revision_8: [contract-vs-mechanics] scripts/build_reproducibility_report.py:391-413,432-436 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:131-136, docs/adr",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-c04539b.md#L22",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-c04539b.md#L22"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 2,
+   "claim": "nabu_architecture_review_revision_8: [evidence-binding] machineresearch/sley-2.0/machine-summary.json (evidence_gaps[4], open_risks[19]) -> evidence/release/decision-dossier.json:390,419 - Unbound ",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-92fa664.md#L22,23",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-92fa664.md#L23"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 2,
+   "claim": "nabu_architecture_review_revision_8: [ownership/fail-closed] scripts/build_reproducibility_report.py:356-390, docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:124-151 - Carry-forward has",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-92fa664.md#L22,23",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-92fa664.md#L22"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 2,
+   "claim": "vulcan_surface_review_revision_10: [contract-gap] scripts/build_reproducibility_report.py:356-390; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:124-129,151 - The carry-forward rule",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L22",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L22"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 3,
+   "claim": "ariadne_contract_review: [record-accuracy] evidence/release/second-host-lane-records.json:100; machineresearch/sley-2.0/machine-summary.json (`reproducibility_and_independent_conformanc",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-db53894.md#L23,28",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-db53894.md#L23"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 3,
+   "claim": "ariadne_contract_review@7622776: [record-provenance] machineresearch/sley-2.0/machine-summary.json:4754,4758,4776,4810 (`p2_closed_claims[2..3]`, `p3_closed_claims[1]`, `p4_closed_claims[1]`, a",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-c67b072.md#L20",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-c67b072.md#L20"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 3,
+   "claim": "ariadne_contract_review@db53894: [record-provenance] machineresearch/sley-2.0/machine-summary.json:4664-4700 (`reproducibility_and_independent_conformance.p2/p3/p4_closed_claims`, 11 entries) a",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-c67b072.md#L20",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-7622776.md#L26"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 3,
+   "claim": "nabu_architecture_review: [evidence-binding/records] evidence/release/second-host-lane-records.json:100, machineresearch/sley-2.0/machine-summary.json:4200,4534 - All three rewritten 45b",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-db53894.md#L24",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-db53894.md#L24"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 3,
+   "claim": "nabu_architecture_review: [fail-closed/idempotence] scripts/build_reproducibility_report.py:397-414, docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:126-137 - `superseded_att",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c04539b.md#L23",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c04539b.md#L23"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 3,
+   "claim": "vulcan_surface_review: [fail-closed-gap] scripts/build_reproducibility_report.py:330-354; scripts/check_reproducibility_and_independent_conformance.py:397-407; docs/spec/REPRODUCIBILI",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L23",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L23"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 3,
+   "claim": "vulcan_surface_review_revision_10: [contract-drift] docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:230-233,442-447 vs scripts/build_independent_conformance_report.py:87-95 - The cont",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L23,24",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L23"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 3,
+   "claim": "vulcan_surface_review_revision_10: [record-completeness] evidence/release/second-host-lane-records.json:74-101 - The 5313437 and 45b2cd98 rows are now superseded (no current candidate carries a s",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L23,24",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L24"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "nabu_architecture_review: [checker/binding] scripts/check_reproducibility_and_independent_conformance.py (no `superseded` rule; grep zero hits), machineresearch/sley-2.0/machine-summary.",
+   "decision": "refused (open)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c04539b.md#L24,25",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[24, 25]; closure lines [24, 25])"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "nabu_architecture_review: [records] evidence/release/second-host-lane-records.json:100 (45b2cd98 note), docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The disposit",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c04539b.md#L24,25",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-c04539b.md#L24"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [note] scripts/build_reproducibility_report.py:432-436; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:126-129 - The supersession rule applies only",
+   "decision": "refused (open)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L24,25,26",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[24, 25, 26]; closure lines [24, 25, 26])"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [record-note] docs/adr/ADR-0040-reproducibility-and-independent-conformance-boundary.md:9 - The note \"reworded at revision 10\" (2026-09-18) still says \"the re-m",
+   "decision": "refused (open)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L24,25,26",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[24, 25, 26]; closure lines [24, 25, 26])"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The 45b2cd98 row says \"u",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L24,25,26",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L25"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; machineresearch/sley-2.0/machine-summary.json:4534 (attestation_supersedes), :4200 (release_ca",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-db53894.md#L25",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-db53894.md#L25"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review_revision_10: [note] conformance/exec-package-envelope/v2/envelope.json:10; scripts/build_independent_conformance_report.py:298-337 - The corpus declares `status: PROVISIONAL",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L25,27",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L25"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review_revision_10: [note] scripts/check_exec_package_envelope_v2.py:26-74 - The oracle embeds the vector's inputs (profile digest `fb2d8cc8\u2026`, dependency-section constants) rather",
+   "decision": "refused (open)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L25,27",
+   "refusing_rule": "the cited line closes a different finding or only half of this one (no finding-identity relation, no exact-claim binding recorded; cited #L[25, 27]; closure lines [25, 27])"
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": 4,
+   "claim": "vulcan_surface_review_revision_10: [record-note] machineresearch/sley-2.0/machine-summary.json:4152; evidence/release/decision-dossier.json:419 - `attestation_supersedes` still narrates only 1023",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L25,27",
+   "verified_by_now": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-92fa664.md#L27"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 1,
+   "claim": "ariadne_contract_review_revision_3: [records/component-identity] machineresearch/sley-2.0/reweave/rw-090-codec-component-manifest.json:4-10,127; machineresearch/sley-2.0/reweave/rw-090-arbitrary-c",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-db53894.md#L13",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-db53894.md#L13"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 1,
+   "claim": "ariadne_contract_review_revision_4@db53894: [correctness/nesting-parity + records/mechanism] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:8936-8943,8962-8975,9093-9101,9181-9245,2",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-7622776.md#L15",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-7622776.md#L15"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 1,
+   "claim": "nabu_architecture_review_revision_1: [correctness/oracle-parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:11855-11859,13156-13160,8832 - The arbitrary schema decoders i",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-7622776.md#L19",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review_closure-6589c6e.md#L23"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 1,
+   "claim": "nabu_architecture_review_revision_4@db53894: [correctness/parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:8936-8942,8975,9093-9101,9195-9200,9225-9227,9267-9289,21158-21170; c",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-7622776.md#L19",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review_closure-6589c6e.md#L24"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 1,
+   "claim": "vulcan_surface_review_revision_4@db53894: [correctness/parity \u2014 list-depth creep] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:8936-8943 + :9183-9214 + :9216-9245 (recursive cor",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-7622776.md#L28",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-7622776.md#L28"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "ariadne_contract_review_revision_1: [correctness/contract] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:4291-4467, crates/sley-vm/tests/rw080_codec_program/all_kind_digest",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md#L13",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review_closure-79fdcc6.md#L13"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "ariadne_contract_review_revision_1: [test-coverage/oracle-parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:16184-16249,25719-25793,25205-25228,25290-25314 - Refusal-co",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md#L13",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-92fa664.md#L14"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "ariadne_contract_review_revision_2: [contract/known-deviation-scope] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:25026-25033,25166-25171,25211-25217,25698,25829,25837,258",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md#L13",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-c04539b.md#L13"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "ariadne_contract_review_revision_3: [records/pin-deleted] machineresearch/sley-2.0/reweave/rw-090-codec-component-manifest.json:69; machineresearch/sley-2.0/reweave/rw-080-contract.md:66-73; machi",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-db53894.md#L14",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-db53894.md#L14"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "nabu_architecture_review_revision_1: [identity-discipline] crates/sley-vm/tests/rw080_codec_program/canonical_codec.rs:21-22,288-296 - Both codec generations derive language-owned identities under ",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-92fa664.md#L22,23",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-92fa664.md#L23"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "nabu_architecture_review_revision_1: [test-coverage/oracle-parity] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:16184-16249,25719-25793 (and every kind 1\u201317 `*_rejects_*` t",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-92fa664.md#L22,23",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-92fa664.md#L22"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "nabu_architecture_review_revision_2: [correctness/disclosure-exactness] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:25026-25033,21348-21354,20896-20897; machineresearch/sl",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-c04539b.md#L20",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-c04539b.md#L20"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "nabu_architecture_review_revision_3: [identity/records] machineresearch/sley-2.0/reweave/rw-090-codec-component-manifest.json:4-10,83; machineresearch/sley-2.0/reweave/rw-090-arbitrary-canonical-co",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-db53894.md#L19",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/nabu_architecture_review-db53894.md#L19"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "vulcan_surface_review_revision_1: [contract/refusal-parity] crates/sley-vm/tests/rw080_codec_program/all_kind_digest_dispatch.rs:1279-1302,1021-1022 + crates/sley-vm/tests/rw080_codec_program/de",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-92fa664.md#L25",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-92fa664.md#L25"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "vulcan_surface_review_revision_2: [contract/known-deviation] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:25026-25033,25699,25829,25837,25846-25847,25875,25910,25920 + m",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-c04539b.md#L26",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-c04539b.md#L26"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "vulcan_surface_review_revision_3: [evidence-integrity/resource-bounds] crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs:27003-27010 (deleted test; commit 0b7a1482) + machine",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-db53894.md#L27,29",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-db53894.md#L27"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 2,
+   "claim": "vulcan_surface_review_revision_3: [records-exactness/identity] machineresearch/sley-2.0/reweave/rw-090-codec-component-manifest.json:4-10,83 + rw-090-arbitrary-canonical-codec-objects.md:5,29-40",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-db53894.md#L27,29",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/vulcan_surface_review-db53894.md#L29"
+  },
+  {
+   "section": "rw090_arbitrary_codec",
+   "severity": 4,
+   "claim": "ariadne_contract_review_revision_4@db53894: [records/binding-gap] scripts/check_reweave_codec_component.py:76-78; machineresearch/sley-2.0/reweave/rw-080-contract.md:457-459 - The component checker requir",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-7622776.md#L16",
+   "verified_by_now": "evidence/review/verdicts/rw090_arbitrary_codec/ariadne_contract_review-7622776.md#L16"
+  },
+  {
+   "section": "s20_700_vm_persistent_fuzz_slice",
+   "severity": 2,
+   "claim": "vulcan_review_closure_note: [evidence-integrity] machineresearch/sley-2.0/machine-summary.json:~3026 (`s20_700_vm_persistent_fuzz_slice.last_local_proof.source_commit`) + scripts/check_vm_",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/s20_700_vm_persistent_fuzz_slice/vulcan_review_closure-db53894.md#L11",
+   "verified_by_now": "evidence/review/verdicts/s20_700_vm_persistent_fuzz_slice/vulcan_review_closure-db53894.md#L11"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 1,
+   "claim": "ariadne_contract_review_revision_8: [record] evidence/security/T54/secret-scan.json:4 - The tracked T54 document at the scope SHA is stale: `candidate_file_manifest_sha256` `6e61516d\u2026` is byte-exa",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-92fa664.md#L27",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-92fa664.md#L27"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 1,
+   "claim": "vulcan_surface_review_revision_9: [evidence-integrity] evidence/security/T54/secret-scan.json:3-5 and evidence/build/lint-report.json (commit 178873d7) - the tracked T54 candidate manifest `6e61",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-92fa664.md#L25",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-92fa664.md#L25"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 2,
+   "claim": "nabu_architecture_review_revision_7: [record] evidence/security/T54/secret-scan.json:4 - the tracked `candidate_file_manifest_sha256` (`6e61516d\u2026`) binds the 9316df19 tree; 178873d7 changed `eviden",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-92fa664.md#L18",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-92fa664.md#L18"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 3,
+   "claim": "ariadne_contract_review: [record] machineresearch/sley-2.0/machine-summary.json:4704-4727 - The section's `p1_open` (2), `p2_open` (1), `p3_open` (3) and the first four `p4_open` entrie",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-db53894.md#L29,43",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-db53894.md#L29"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 3,
+   "claim": "nabu_architecture_review_revision_7: [record] docs/audits/S20_710_PRE_RELEASE_AUDIT.md:108-112 - the audit record the summary cites as `contract` still states 18 workspace crates and 19 first-party",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-92fa664.md#L19",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-92fa664.md#L19"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 3,
+   "claim": "vulcan_surface_review: [record] machineresearch/sley-2.0/machine-summary.json:4704-4733 (`standards_sbom_and_provenance.p1_open`/`p1_open_count`/`p2_open`/`p2_open_count`/`p3_open`) -",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-db53894.md#L24",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-db53894.md#L24"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 4,
+   "claim": "ariadne_contract_review: [test-coverage] bench/release/tests/test_secret_patterns.py:87-106 - `CommitBoundViewTests` exercise `commit_bound_view()` on synthetic two-key dicts only; the ",
+   "decision": "restored (same citation)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-c04539b.md#L27",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/ariadne_contract_review-c04539b.md#L27"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 4,
+   "claim": "nabu_architecture_review: [record] docs/audits/S20_710_PRE_RELEASE_AUDIT.md:16-18 - the undated \"## Local results\" section still states \"18 workspace crates and 30 registry\" in the prese",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-c04539b.md#L21,22",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-c04539b.md#L22"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 4,
+   "claim": "nabu_architecture_review: [test-layout] bench/release/tests/test_secret_patterns.py:82-83,86 - `CommitBoundViewTests` is defined after the `if __name__ == \"__main__\": unittest.main()` gu",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-c04539b.md#L21,22",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/nabu_architecture_review-c04539b.md#L21"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [fail-closed-tolerance] scripts/generate_supply_chain_evidence.py:549-560,571-573 and scripts/check_supply_chain_audit.py:172-174 - `commit_bound_view` re-parse",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md#L24,26,28",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md#L24"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [record] evidence/build/lint-report.json:4 and scripts/record_lint_report.py:59-63 - the lint report at HEAD names `commit 178873d7` while the candidate source ",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md#L24,26,28",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md#L26"
+  },
+  {
+   "section": "standards_sbom_and_provenance",
+   "severity": 4,
+   "claim": "vulcan_surface_review: [record] machineresearch/sley-2.0/machine-summary.json `s20_710_pre_release_audit.final_argus_disposition` / `final_vulcan_disposition` (pinned at scripts/check",
+   "decision": "restored (re-cited)",
+   "verified_by_at_76ae15ab": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md#L24,26,28",
+   "verified_by_now": "evidence/review/verdicts/standards_sbom_and_provenance/vulcan_surface_review-c04539b.md#L28"
+  }
+ ]
+}

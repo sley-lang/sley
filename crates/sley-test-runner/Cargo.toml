@@ -1,0 +1,18 @@
+[package]
+name = "sley-test-runner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Sley 2 native test host supervisor: root daemon config, closed run protocol, transient-unit rendering, enforcement math, worker entry and readiness probes."
+
+[dependencies]
+ed25519-dalek = "=3.0.0"
+sha2 = { version = "0.11.0", default-features = false, features = ["alloc"] }
+sley-id = { path = "../sley-id" }
+sley-scb1 = { path = "../sley-scb1" }
+sley-tests = { path = "../sley-tests" }
+sley-vm = { path = "../sley-vm" }
+
+[lints]
+workspace = true

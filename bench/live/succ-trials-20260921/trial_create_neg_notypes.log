@@ -1,0 +1,5 @@
+CREATE witness/neg_notypes: skeleton valid False
+CREATE witness/neg_notypes: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/neg_notypes: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': '81424d03bce2d29938cbb5a0096dcaef00a9cc769d6a42437b9fb581ecc86359'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': 'd4385d07f2ecffb946c7d9c2bf071e268a88ad692d4c6c7260ca9bbd5d884467', 'truncated': False}
+S2B-CREATE-001 witness/neg_notypes judge round-1 exit: 1 code: ORACLE_CREATE_UNMAPPED status: rejected
+workspace kept at: /tmp/sley2-create-witness-bi0lrzf1/ws

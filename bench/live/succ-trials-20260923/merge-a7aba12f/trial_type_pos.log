@@ -1,0 +1,10 @@
+provenance {"SLEY2_SLEY_BINARY": "/home/dev/Work/checkpoints/succ-merge-bin/sley", "SUCC_JUDGE_TEST_BINARY": "/home/dev/Work/checkpoints/succ-merge-bin/succ_live_judge_cases", "base_pack_sha256": "875630cdfd7139b5d23cea34cad62cb6933e5b0a0b91227480a081d0e1a45afd", "design": {"bool_const": false, "code": 7, "drop_payload": false, "failed_const": false, "leafs": [0, 1, 2], "mode": "const", "null_code": false, "status": "FAILED", "trap": false, "two_param": false}, "driver_sha256": "19bc90a939baa8d9f05eb8e2405e364b37d4b8885d49366732b16be918bedfc3", "env_overrides": {}, "expect": "accepted", "git_dirty_paths": [], "git_head": "a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8", "judge_sha256": "ba4f79d775bf7e821e1289a7d77678d14dab7b148a095bed667215ae2d1259f6", "manifest_sha256": "d61216a910837eddd852eeb0e28df33f926f4a99f746aeaad4e5e03104dd308f", "python": "3.14.7", "sley_sha256": "62a2411947531588adfda49a7374620ad7fa47a4ced74c6d18a310a936f2b128", "utc": "2026-09-23T15:47:01+00:00", "variant": "pos"}
+TYPE-FULL witness/pos: source a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8 (clean apart from witness outputs)
+TYPE-FULL witness/pos: skeleton valid True
+TYPE-FULL fresh ids typedef=018d0658 A=f5e9440e B=8a2ba031 C=8981745a pC=05cb555b k0=85b4711c k1=34993ffa k2=6bf50ce2 o6e=f2d0cd5c oA=e94be64e oB=afed5b3d
+TYPE-FULL witness/pos: compose valid True decision {'failed_phase': None, 'tag': 1}
+TYPE-FULL witness/pos: finished True
+judge verdict: {"arm": "sley2", "code": null, "detail": "all flows held; type exec 5151={\"SInt\":\"0\"},5252={\"SInt\":\"1\"},5353={\"SInt\":\"2\"},5454={\"SInt\":\"7\"}", "status": "accepted", "task_id": "S2B-TYPE-001"}
+S2B-TYPE-001 witness/pos judge exit: 0
+workspace: /home/dev/Work/checkpoints/sct-mw/sley2-witness-type_full-run-o2kulviq/sley2-type-full-jh5kymfd/ws (scheduled for removal at exit; a failed removal exits nonzero)
+outcome accepted expect accepted -> PASS

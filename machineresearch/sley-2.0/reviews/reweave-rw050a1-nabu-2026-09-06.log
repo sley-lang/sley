@@ -1,0 +1,28 @@
+status:
+- FAIL — confidence: high.
+
+findings:
+- **MEDIUM:** Normative validation order disagrees with implementation. Spec step 4 claims adapter “pure-shape” judgment precedes capability validation (`docs/spec/EFFECT_SYSTEM_V1.md:359-368`), but `validate_adapters` checks only cardinality/kind/closed types, capability requirements run next, and pure shape is checked while scanning invocations (`crates/sley-check/src/effects.rs:295-300,538-558,818-844`). This can change the specified first failure. Preferred repair: remove “pure-shape” from step 4 and assign pure invocation shape to step 6.
+- **(1) PASS:** Two-phase amend/review → reconciled re-land → focused validation is sound. The parked prototype remains a negative result and must not be blindly merged (`rw-030-g10-admission.md:215-219`; `rw-050-slice-1.md:242-255`).
+- **(2) PASS, with Phase-2 gate:** No current execution path exists; `execute_function` always lowers first (`crates/sley-vm/src/execute.rs:365-370`), and current lowering does not support `adapter_invoke`. Phase 2 must enforce registration at execution as well as lowering—or pass an unforgeable resolved entry—because `extended` and `execute_extended_instruction` are public (`crates/sley-vm/src/lib.rs:8-10`; `extended.rs:1187-1193`).
+- **(3) PASS:** Both marker additions track new normative/code surfaces (`scripts/check_effect_system.py:17-43`). Changing cardinality’s negative from zero to greater-than-one follows A1 exactly (`effects.rs:1766-1777`); neither is scope creep.
+- **(4) PASS:** No new gate framework was added. A1 assigns work to existing S20-230, RW-050 profile, and RW-070 manifest boundaries.
+- **(5) PASS:** A1 is explicit, dated, authority-linked, preserves the original rationale, and is not a quiet profile edit (`rw-030-g10-admission.md:171-186`). Registration is deferred to RW-050/RW-070 (`:198-207`). The four-file diff does not touch `host-boundary.json`.
+- **(6) PASS as phased allocation:** Phase 1 covers frozen shapes, closure behavior, malformed scope/request/response/failure, open schemas, effect-carrying rows, and multi-effect cardinality (`effects.rs:1794-2025`). Identity/version registration and execution/resource negatives remain correctly required in Phase 2 (`EFFECT_SYSTEM_V1.md:373-395`); they are not yet claimed complete.
+
+validation:
+- Inspected the complete four-file diff against `50f17c9` and the named prior records.
+- `python3 scripts/check_effect_system.py`: PASS, zero problems.
+- `git diff --check`: PASS.
+- Confirmed exactly four changed files and no `host-boundary.json` change.
+- Cargo tests not run: read-only handoff, and the verdict was already decided.
+
+blockers:
+- Reconcile the §7 validation-order wording with actual checker precedence, then rerun the focused checker/tests.
+- Before re-landing, prove exact identity plus ABI registration cannot be bypassed through the public execution helper; include missing/unknown/wrong-version pipeline negatives and fresh independent review.
+- Requested transcript was not written because `allowed_actions` permits read only.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+disposition (implementation workflow, post-verdict): transcript above is the reviewer's returned verdict, transcribed verbatim (only this disposition section added). MEDIUM accepted with reconciliation: the Ariadne HIGH repair puts pure-ROW-shape judgment (request/response/failure triple, no operands exist at declaration) at step 4 and keeps pure-INVOCATION binding (scope/operand/result) at step 6 — satisfying both the HIGH (declaration enforcement) and the MEDIUM (order wording matches implementation). Same-code (ADAPTER_INVOKE_TYPE) at either step keeps first-failure deterministic. Phase-2 gate (public-helper bypass proof + identity/ABI pipeline negatives) recorded as re-landing acceptance, not claimed here. Re-review requested before any re-landing.

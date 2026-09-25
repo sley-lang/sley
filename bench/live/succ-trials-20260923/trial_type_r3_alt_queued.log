@@ -1,0 +1,9 @@
+provenance {"SLEY2_SLEY_BINARY": "/home/dev/Work/checkpoints/target-succ-type/debug/sley", "SUCC_JUDGE_TEST_BINARY": "/home/dev/Work/checkpoints/target-succ-type/debug/deps/succ_live_judge_cases-42d77a02eb446c77", "base_pack_sha256": "875630cdfd7139b5d23cea34cad62cb6933e5b0a0b91227480a081d0e1a45afd", "design": {"bool_const": false, "code": 7, "drop_payload": false, "failed_const": false, "leafs": [0, 1, 2], "mode": "const", "null_code": false, "status": "QUEUED", "trap": false, "two_param": false}, "driver_sha256": "2f5865438d7f2e651d1ed9911db4dc3767be69244ba4e091a74b0ce843f4afa8", "env_overrides": {}, "expect": "accepted", "git_dirty_paths": ["?? bench/live/succ-trials-20260923/trial_type_r3_alt_code8.log", "?? bench/live/succ-trials-20260923/trial_type_r3_alt_failed_discard.log", "?? bench/live/succ-trials-20260923/trial_type_r3_pos.log"], "git_head": "9352e0fe821c0bdf2ca4827f91c576b28be21746", "judge_sha256": "0ffd61d4261ad2847b611c35762e128cf4e22996afb2369b8fe0503311fcddbc", "manifest_sha256": "d61216a910837eddd852eeb0e28df33f926f4a99f746aeaad4e5e03104dd308f", "python": "3.14.7", "sley_sha256": "700ce8a8d354ddce45f9e1be073580f9f285d365e9cfb9978659d5163a8d916f", "utc": "2026-09-23T04:28:24+00:00", "variant": "alt_queued"}
+TYPE-FULL witness/alt_queued: skeleton valid True
+TYPE-FULL fresh ids typedef=2329a6fa A=cead988b B=ec8c9abb C=2c393cb7 pC=d25eb318 k0=1e657e0f k1=ee7509f0 k2=43c75b1e o6e=d9a92604 oA=343aca7b oB=2547c079
+TYPE-FULL witness/alt_queued: compose valid True decision {'failed_phase': None, 'tag': 1}
+TYPE-FULL witness/alt_queued: finished True
+judge verdict: {"arm": "sley2", "code": null, "detail": "all flows held; type exec 5151={\"SInt\":\"0\"},5252={\"SInt\":\"1\"},5353={\"SInt\":\"2\"},5454={\"SInt\":\"7\"}", "status": "accepted", "task_id": "S2B-TYPE-001"}
+S2B-TYPE-001 witness/alt_queued judge exit: 0
+workspace kept at: /tmp/sley2-type-full-t7ti6gyy/ws
+outcome accepted expect accepted -> PASS

@@ -1,0 +1,54 @@
+DISPATCH 430-vulcan-surface forge-vulcan-430-vulcan-surface-20260904T054318 2026-09-04T05:43:18Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and implementation in parallel.
+
+Read: lib.rs. Now the contract, main, server, and bridge.
+
+`is_deferred` returned nothing in server.rs — that aborted the chain. Re-running the greps separately.
+
+Confirmed several leads. Now the rule audit, method tag zero, and the campaign's open questions.
+
+Read-only triage complete at `9dc78fe`. No files modified, no cargo run.
+
+**status:** FAIL — one P0 blocks freeze.
+
+**findings:**
+
+**P0 — the endpoint owns a protocol semantic, and it moves handshake identity**
+`offered_hello` (`crates/sley-cli/src/lib.rs:267-273`) does `offered.features |= FEATURE_JSON_BRIDGE` on the hello it got from `Server::offered_hello()`. `negotiate` intersects `client.features & server.features` (`sley-protocol/src/lib.rs:725`) into `SelectedProfile`; `Server::new` digests that profile into `handshake_id` and binds `SessionAuthority::new(handshake_id)` (`server.rs:175-183`). So a **transport flag changes protocol identity and session authority**: the same client hello over the same repository derives a different `handshake_id` under `--json`. This is the single place the endpoint judges the protocol rather than moving it, and it contradicts the preamble and ADR-0035. Answering the campaign's open question: **offer `json_bridge` always** (from `Server::offered_hello`), so the endpoint never edits a hello. Decide before freeze — it changes §2 and §6.
+
+**P1**
+1. **`--batch` has no aggregate ceiling.** `pending: Vec<Vec<u8>>` (`lib.rs:664-698`) accumulates every frame to end of input with only a per-frame ceiling. A stream of individually-legal frames drives unbounded RSS, then `answer_batch` allocates `decoded`/`early`/`answers` at the same length again. Ceilings exist per frame, not per invocation.
+2. **JSON mode never applies the negotiated ceiling.** `Source::next(ceiling)`'s `Text` arm silently drops `ceiling` (`lib.rs:427-432`). Post-handshake JSON input is bounded only by `MAX_JSON_TEXT_BYTES` (256 MiB) no matter what `max_frame_bytes` was negotiated — a client that negotiates 4 KiB can still make the endpoint buffer 256 MiB, parse it into a `serde_json::Value`, and re-encode a frame before the server rejects it. Contradicts §2's "the ceiling in force".
+3. **Over-long JSON line desynchronises instead of ending input.** `read_line` truncates at `MAX_JSON_TEXT_BYTES + 2` (`lib.rs:398-403`). The UTF-8 check runs *first* (`lib.rs:410-414`): if the cut splits a codepoint or the bytes are not UTF-8, it returns `Bridge(ShapeInvalid)`, not `ResourceLimit`. `serve_frames` breaks only on `ResourceLimit` (`lib.rs:682`) and otherwise `continue`s — resuming **mid-line**, answering fragments of one line as separate frames and inflating `frames_read`. Directly violates §8's "A JSON line above the text ceiling ... likewise ends the input". No test in `tests/cli.rs` covers this path.
+4. **The rule audit fails open — answering that open question: not strong enough.** `scripts/check_cli_rules.py`: (a) `production = text.split("#[cfg(test)]", 1)[0]` (line 72) exempts everything after the *first* `#[cfg(test)]`, so a test module placed high in a file disables every downstream rule; (b) `section()` (line 42) matches only a literal `[dependencies]` header, so `[dependencies.sley-vm]` or `[target.'cfg(unix)'.dependencies]` bypasses the allowlist; (c) `JUDGMENT_PATTERNS` recognise only `=>` match arms and three `fn` names, so a private rule written as `if code == 42_004 { … }` is invisible — as the shipped `if error == BridgeError::Bridge(JsonBridgeErrorCode::ResourceLimit) { break; }` (`lib.rs:682`) already proves. It also PASSes when the crate is absent (line 49).
+5. **`Server::offered_hello` over-claims.** It filters `!method.is_reserved()` alone (`server.rs:203-208`), while its own doc (`server.rs:188-189`) and SLEY_CLI_V1.md §2 both state "reserved and deferred methods are not offered". **`is_deferred` — and any deferred-method predicate — does not exist in `sley-protocol`.** Implement the filter or delete the claim from both texts. (On the third open question: it belongs in the S20-400 surface only once its doc is true; today it is an implementation convenience with a false contract sentence attached.)
+
+**P2**
+6. `cause` is not a closed vocabulary: `parse` puts the raw offending argv word into it (`lib.rs:188, 209`), so an unknown positional — normally a filesystem path — reaches stderr *and* the report file. §3 promises "the underlying codec or bridge symbol". Restrict to symbols or emit the option name only. (Serde escapes it, so no injection.)
+7. Report `codes` conflates provenance. `write_rejection` (endpoint-built verdicts, `lib.rs:579-590`) and `write_answer` (server verdicts, `lib.rs:592-614`) increment the same `answers`/`failed_answers`/`codes`. A consumer cannot tell a server judgment from an endpoint one, which strains §3's "it interprets nothing". Add an endpoint-answer counter or a second map.
+8. Negotiation failure returns `Ok(())` (`lib.rs:643-653`) → exit 0 with input unread, but §4 defines 0 as "ran to end of input and every frame was answered". §2 and §4 disagree; give it a status or reword §4.
+9. SLEY_CLI_V1.md:14 cites `SMP1.md` **revision 6**; the file in this tree is **revision 8**. A freezing contract must cite the revision it composes. (The task brief's "revision 5" is stale too.)
+
+**P3**
+10. `sley methods` uses `write_all` with no trailing newline (`lib.rs:251-253`) while every other text command uses `writeln!`; line-oriented consumers get an unterminated last line.
+11. **Per-frame default: keep it.** Batch-only would force the endpoint to buffer the whole input — a resource policy, i.e. a semantic — and would break streaming pipes. Cancellation reaching only unread requests is correct transport behaviour, not a defect. §2 should gain one sentence that `--batch` costs memory proportional to the entire input (pairs with P1-1).
+
+<details><summary>Checks that passed — stated so they are not re-reviewed</summary>
+
+- **Method tag zero:** `failure_frame`'s `method: 0` (`lib.rs:547-559`) matches the bridge's frozen "no method" value rendering as the empty name (`SMP1_JSON_BRIDGE_V1.md` §9), so the endpoint's self-built failure frame renders correctly in JSON mode. No `CLI_IO_FAILURE` trap there.
+- **Byte-mode allocation before ceilings:** `frame_length(&prefix, ceiling)` is checked before `vec![0u8; LENGTH_PREFIX + length]` (`lib.rs:373-385`). Clean. The handshake frame under the absolute ceiling is unavoidable and §2 already states it.
+- **Repository content leakage:** none. stderr carries only the failure object; the report carries counts, a hex `handshake_id` (a profile digest), and symbols. No file bytes, no repository path from `Server::new` errors (those wrap the protocol code symbol only).
+- **Argument confusion:** no abbreviations, no prefix matching, no env or config; repeats fall through the `is_none()` guards to `_ =>`; every unknown word is `CLI_USAGE_INVALID`; argv is serde-escaped before stderr.
+- **Batch/per-frame state mixing:** `Server::answer` is itself `answer_batch(&[..])` (`server.rs:242-247`), so the `TooLarge`-prefix path draining through `answer_batch` in non-batch mode is state-safe.
+- **`frame encode` / `frame decode`:** the over-long-line problem in P1-3 does not apply — any `Rejected` there terminates with `CLI_INPUT_INVALID`.
+</details>
+
+**validation:** read-only inspection of `crates/sley-cli/src/{lib,main}.rs`, `tests/cli.rs` (coverage grep only), `sley-protocol/src/server.rs` and `negotiate`, `sley-json-bridge/src/lib.rs`, `SLEY_CLI_V1.md`, `ADR-0035`, `check_cli_rules.py`, `SMP1_JSON_BRIDGE_V1.md` §9, campaign open questions. Commit confirmed `9dc78fe`. **Not run:** cargo, the stage checker, `check_cli_rules.py` (per the read-only bound) — all findings are derived from code paths that are fully local and traceable in the cited lines.
+
+**blockers:** P0 is a contract decision, not a code fix; it needs the owner's call on where `json_bridge` is offered. P1-3 and P1-1 have no regression test today, so any fix needs new tests before freeze. I could not verify `std::process::exit` stdout-flush behaviour (no rust std source on this host) and am therefore making no claim about it.
+
+**return_to:** S20-430 contract owner / orchestrator, for revision 3 before freeze; hand fixes to Merlin, doctrine dispute on P0 to Maat.
+
+S20_430_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["endpoint mutates Server::offered_hello with FEATURE_JSON_BRIDGE under --json; negotiate folds it into SelectedProfile so handshake_id and SessionAuthority change with a transport flag; contradicts ADR-0035 no-semantics claim; offer json_bridge always"],"p1":["--batch pending Vec has no aggregate ceiling; per-frame ceiling only; unbounded memory from bounded frames","Source::next Text arm discards the ceiling; JSON input bounded only by MAX_JSON_TEXT_BYTES regardless of negotiated max_frame_bytes","over-long JSON line truncated mid-codepoint yields ShapeInvalid not ResourceLimit, so serve_frames continues mid-line and desynchronises; violates section 8; untested","check_cli_rules.py fails open: cfg(test) split exempts downstream code, [dependencies.x] subtables bypass the allowlist, and if-form private rules evade the => only patterns","Server::offered_hello filters is_reserved only while server.rs and SLEY_CLI_V1 section 2 both claim deferred methods are excluded; no is_deferred exists in sley-protocol"],"p2":["cause echoes raw argv words including filesystem paths to stderr and the report; section 3 promises a codec or bridge symbol","report codes conflate endpoint-built rejections with server verdicts; no provenance field","negotiation failure exits 0 with input unread, contradicting section 4's definition of exit 0","SLEY_CLI_V1 cites SMP1 revision 6 but the tree holds revision 8"],"p3":["sley methods writes METHOD_TABLE_JSON without a trailing newline unlike every other text command","keep per-frame answering as the default; add a section 2 sentence that --batch costs memory proportional to the whole input"],"notes":"Read-only at 9dc78fe; no cargo. Method tag zero, byte-mode ceiling ordering, argument parsing, and absence of repository-content leakage all pass. P0 is a contract decision for the owner."}
+EXIT=0 2026-09-04T05:49:31Z

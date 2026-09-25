@@ -1,0 +1,78 @@
+DISPATCH 730-vulcan-surface forge-vulcan-730-vulcan-surface-20260904T080416 2026-09-04T08:04:16Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and campaign records, then the implementation.
+
+Contract read. Already spotting internal contradictions. Now the implementation.
+
+Review complete. Twelve targeted reads/searches; verdict decided.
+
+---
+
+**status:** FAIL — 2 P0, 4 P1. Do not freeze revision 2 as written.
+
+## findings
+
+### P0 — blocks freeze
+
+**P0-1. The tracked reproducibility report attests a tree 65 commits stale, and nothing detects it.**
+`evidence/release/reproducibility-report.json` attests commit `ebd40dc`. HEAD is `9dc78fe`. `git rev-list --count ebd40dc..HEAD` = **65**, and 15 `crates/` files changed since, including `sley-vm/src/extended.rs`, `sley-vm/src/lower.rs`, and `sley-protocol/src/server.rs`. The campaign record names yet a third commit (`bdd73f4`), so this has already drifted twice. Contract §6 explicitly permits it ("its `commit` names the last locally attested build") and `check_reproducibility_and_independent_conformance.py` never compares the attested commit to HEAD or to the packaged candidate. `make quick` passes on an arbitrarily old artifact digest that the dossier then cites as the candidate's reproducibility evidence. The contract has no freshness rule; it needs one.
+
+**P0-2. The reproducibility report is never re-derived or digest-verified.**
+The checker runs `--check` on the conformance report only (`check_...py:242`). For the reproducibility report it verifies exactly four things (lines 204–240): contract tag, `result` ∈ {SINGLE,MULTI}, `work_package`, non-empty `attestations`, `ga_claimed`/`publication_authorized` false. It never validates the attestations, never recomputes the report, and never checks `report_digest` — which `build_reproducibility_report.py:221` writes and **no code anywhere reads**. A hand-edited report claiming `MULTI_HOST_REPRODUCIBLE` with a fabricated second attestation and a garbage digest passes `make quick` unchanged. The conformance report is drift-protected; its sibling is not.
+
+### P1 — must fix before freeze
+
+**P1-3. `MULTI_HOST_REPRODUCIBLE` is producible on a single host.** *(answers your first question: yes, decisively)*
+`host_label` is a free operator string bound to nothing host-distinguishing, by design (§1, no host name/path/time). `build_report` accepts any attestation that validates. Re-running `--host-label secondary --emit-attestation` on the same box — or copying the local attestation and editing one string — yields `MULTI_HOST_REPRODUCIBLE`, `second_host: ATTESTED`, and drops `second_host_attestation_operator_lane` from `blockers`. Identical toolchain is not even a signal, since agreement checks only commit + artifact digest. The passing test *is* the forgery path: `test_reproducibility.py:106` — `second = dict(first, host_label="secondary")`. Binding toolchain identity (Ariadne's open question 1) is necessary but insufficient; two runs on one host share a toolchain legitimately. Honest fix: rename the value to `OPERATOR_ASSERTED_MULTI_HOST`, or require an out-of-band operator counter-signature, and state in §2 that host distinctness is asserted, not evidenced.
+
+**P1-4. The rejection corpus tests framing and skips the profile boundary.** *(answers your second question: no)*
+`rejected.json` carries 5 mutations from a single seed, all container framing: magic, format-version, truncated, trailing-byte, callee-count. `vm_extended.py` enforces ~11 distinct rejection rules. Untested: **out-of-profile opcode** (`:308`), unknown type tag (`:145`), unknown immediate tag (`:185`), unknown terminator tag (`:219`), entity-reference tag ≠ 1 (`:138`), count-exceeds-length (`:130`), unknown switch case-key/argument/default tags (`:241/:251/:261`), unknown trap-payload tag (`:275`). The opcode rule is the one the module docstring (`:82-84`) uses to justify the oracle's existence — "a lowerer that quietly admitted an excluded E7 opcode would fail here independently" — and it is the single rule with no negative vector proving it fires.
+
+**P1-5. Vacuous PASS in `check_vm_extended`.**
+`rejected_path` defaults to `None` (`:367`); both corpora are read via `.get(..., [])`. An `accepted.json` with `vectors: []`, a `rejected.json` with `mutations: []`, or any invocation omitting `--rejected` returns `result: PASS` with zero vectors and zero problems. No minimum-corpus assertion exists in the oracle, the report, or the contract. The only thing pinning counts is the `shape` block in the tracked conformance report (`{'vectors': 21, 'mutations': 5}`), which is recorded but never asserted against an expected value.
+
+**P1-6. ADR-0040 asserts the opposite of what ships.**
+Status says "draft at revision 1"; Context says "seventeen fixture families" (COVERAGE maps 19); Consequences `:55-56` says "the extended VM vectors and the release demo are recorded as native-only" against a tracked report reading `INDEPENDENT_CONFORMANCE_COMPLETE`, `native_only: []`. The contract contradicts itself too: §9 "No independent VM oracle: the extended VM vectors stay native-only" versus §3 and §5. `ADR_MARKERS` matches headings only, so `make quick` is blind to all of it. Freezing a decision record that states the inverse of the evidence is not acceptable.
+
+### P2 — fix before completion
+
+<details>
+<summary>P2-7 through P2-12</summary>
+
+**P2-7. `INDEPENDENT_CONFORMANCE_COMPLETE` attests declaration, not execution.** The builder verifies only that each command string appears in the `conformance:` recipe body (`:212`). Nothing evidences that any oracle ran or passed. Cited against master goal 16.7 "final independent PASS" this over-reads. Rename to `INDEPENDENT_COVERAGE_DECLARED`, or bind the report to a run record carrying per-family results.
+
+**P2-8. The release-demo oracle has no external anchor.** *(answers your third question)* Every identity it checks is re-derived from a preimage supplied by the same fixture: `RootQueryId` from `query_root_request_hex`, `ExecutionReportId` from the stored preimage. A wholly fabricated but internally coherent `demo.json` passes every assertion. Contrast `vm_extended.py`, which anchors the cache key to oracle-held constants (`FIELD_SCHEMA_HASH`, `DECODER_LIMITS_HASH`, `EXTENDED_PROFILE`) — that one is genuinely independent. The residual defense is that editing the fixture changes its digest and trips conformance drift, so tampering is *visible in review* rather than silent — unless the report is regenerated in the same change, which is one command. The demo fixture should record at least one identity the oracle holds independently.
+
+**P2-9. Dead branch, and `sums_consistent: null` is unreachable.** `build_independent_conformance_report.py:189-206` raises `FIXTURE_UNREADABLE` when `SHA256SUMS` is absent, then tests `if sums_path.exists():`. So `sums_consistent` can never be `null` and `sums_file` never `false`, contradicting contract §3 ("a family without one records `sums_consistent: null`") and the declared type `true | null`. Separately, the manifest is required to cover `.json` files only (`:200`) — a non-JSON fixture is digested in the report but unprotected by the manifest.
+
+**P2-10. Only `v1` subtrees are read** (`:153`). A family that adds `v2` fixtures contributes nothing to coverage while the report still reads COMPLETE. Adding a *family* requires declaring coverage; adding a *version* does not.
+
+**P2-11. `instruction_count` is bounded below only** (`:406`, `<` not `!=`), so declared metadata can be arbitrarily inflated and pass. Same defect class as the `opcode` metadata bug the campaign's own Finding section reports catching.
+
+**P2-12. Neither new oracle has a test.** `test_reproducibility.py` covers the two report builders only. No test for `check_vm_extended`, `check_release_demo_vector.py`, the reproducibility `--check` path, or the staged checker. The two families revision 2 claims to have closed are exactly the two with no unit test.
+
+</details>
+
+### P3 — editorial
+
+§10 reads "Revision 1 carries none" in a revision-2 document. Malformed fixtures raise bare `KeyError`/`ValueError` (`vector["bytecode_hex"]`, `bytes.fromhex(accepted.get("schema_epoch_hex",""))`) and `read_uvar` sits outside the try at `check_release_demo_vector.py:117` — tracebacks instead of §7's "one JSON object naming the code"; fail-closed but off-contract. `head`/`branch` checks (`:130-134`) are unanchored substring containments. `fixture_shape` records only top-level list keys, so `release-demo` records `{}`.
+
+## answers to the campaign open questions addressed to me
+
+- **Oracles Q1 (is codec-and-identity the right GA boundary?)** Yes for `vm-extended` — it anchors to oracle-held constants and stops short of semantics, correct under master goal 6.5. No for `release-demo` as written: with no oracle-held constant it degenerates to a self-consistency check (P2-8). Fix by anchoring, not by widening scope into a second kernel.
+- **Repro Q3 (are the two native-only families acceptable, or commission an independent VM oracle before S20-740?)** Moot as posed — revision 2 already reclassified both. My answer: defensible for `vm-extended`, premature for `release-demo`. And "independently checked" must not be read as "independent PASS" until P2-7 is fixed.
+
+## validation
+
+Read-only, at `9dc78fe`. No cargo, no make target, no writes. Ran: `git log/merge-base/rev-list/diff --name-only`, and one `python3` read of the two tracked reports plus `accepted.json` (parse and count only). Dynamic behavior of the oracles was **not** executed — P1-5 and P1-4 are derived from source reading, not from a run.
+
+## blockers
+
+Live proof that the vacuous-PASS path (P1-5) and the single-host forgery (P1-3) execute as read requires running the scripts, which this task forbids. Both are plain control flow; confidence high, but flagged as unexecuted. Master goal sections 6.5/16.7 and dossier 21 were read only as quoted in the contract.
+
+## return_to
+
+orchestrator — findings land as contract revisions before freeze. P0-1/P0-2 and P1-6 are contract+checker edits (Merlin); P1-4/P1-5 need fixture regeneration plus an oracle fail-closed guard (Merlin, with Ariadne on corpus scope).
+
+S20_730_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["reproducibility report attests commit ebd40dc, 65 commits behind HEAD with 15 crates/ files changed since; no freshness rule in contract and no staleness check in the checker","reproducibility report is never re-derived or digest-verified: checker runs --check on the conformance report only, report_digest is written but read by nothing, so a hand-edited MULTI_HOST report with a fabricated attestation passes make quick"],"p1":["MULTI_HOST_REPRODUCIBLE is forgeable on one host: host_label is an unbound operator string and test_reproducibility.py:106 demonstrates the forgery as the passing test","vm-extended rejection corpus covers 5 container-framing mutations from one seed and omits the out-of-profile opcode rule the oracle docstring uses to justify itself, plus ~7 other enforced rejection rules","check_vm_extended returns PASS vacuously: rejected_path defaults to None and both corpora use .get(...,[]) with no minimum-corpus assertion anywhere","ADR-0040 says revision 1, seventeen families, and both families native-only, contradicting the tracked INDEPENDENT_CONFORMANCE_COMPLETE; contract section 9 contradicts sections 3 and 5; ADR_MARKERS checks headings only so make quick is blind"],"p2":["INDEPENDENT_CONFORMANCE_COMPLETE attests declared coverage only, never that an oracle ran or passed, but is cited against master goal 16.7 final independent PASS","release-demo oracle has no external anchor: every identity re-derives from fixture-supplied preimages, so a coherent fabricated demo.json passes","SHA256SUMS absence raises before the exists() branch, making sums_consistent:null and sums_file:false unreachable and contradicting contract section 3; manifest covers .json files only","only v1 subtrees are read, so a v2 fixture set is silently uncovered while the report still reads COMPLETE","instruction_count is checked with a lower bound only, so inflated metadata passes","no test covers check_vm_extended, check_release_demo_vector.py, the reproducibility --check path, or the staged checker"],"p3":["section 10 reads Revision 1 carries none in a revision 2 document","malformed fixtures raise bare KeyError/ValueError instead of the section 7 JSON code object","head and branch checks are unanchored substring containments","fixture_shape records only top-level list keys so release-demo records an empty shape"],"notes":"Two P0 evidence-integrity defects block freeze. Answers: single-host report can be forged into a multi-host result (P1); container rejection corpus does not cover the right rules (P1); release-demo oracle can pass a fabricated artifact for lack of any oracle-held anchor (P2), while vm-extended is genuinely anchored. Read-only review at 9dc78fe; no cargo, no make, oracle dynamic behavior not executed."}
+EXIT=0 2026-09-04T08:08:30Z

@@ -1,0 +1,15 @@
+module app.divider
+
+export task add_one -> Int {
+  take value: Int
+  return value + 1
+}
+
+export task is_zero -> Bool {
+  take value: Int
+  return value == 0
+}
+
+task main -> Int {
+  return call add_one(41)
+}

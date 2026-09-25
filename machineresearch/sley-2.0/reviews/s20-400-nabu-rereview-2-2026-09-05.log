@@ -1,0 +1,76 @@
+S20-400 SMP1 ARCHITECTURE SECOND RE-REVIEW — NABU
+Date: 2026-09-05 EDT
+Mode: bounded read-only triage; only this review log was written
+Pinned subject: /home/dev/sley2, commit 94b13adb3c3893120ad4a5ea26a48013248915a8
+Input range: 94b13ad~2..94b13ad (commits 776983f and 94b13ad)
+Prior review: machineresearch/sley-2.0/reviews/s20-400-nabu-rereview-2026-09-05.log
+
+VERDICT
+FAIL (high confidence). R1 and R3 are closed, but R2 remains internally
+contradictory at two observable boundaries. PASS requires no P1/P2/P3, so the
+bounded pass stopped once these P1 residuals decided the verdict.
+
+CLOSED RESIDUALS
+
+- R1 is closed. ProtocolFrame::validate now maps a claimed version below the
+  implementation version to PROTOCOL_DOWNGRADE and one above it to
+  PROTOCOL_VERSION_UNSUPPORTED (crates/sley-protocol/src/lib.rs:996-1006).
+  The added decode and encode-pin tests agree with SelectedProfile::check_claim.
+- R3 is closed. docs/spec/SMP1.md revision 11 is dated 2026-09-05.
+
+P1 FINDINGS
+
+1. R2 remains open because the server emits the forbidden nonzero identifier
+   on its response to a malformed session-less request.
+
+   Contract: docs/spec/SMP1.md:207-210 says every session-less frame carries
+   identifier 0 and any nonzero value is PROTOCOL_FRAME_INVALID; lines 227-231
+   also state that frame-level failures use the zero pre-session sentinel.
+
+   Implementation: dispatch detects session=None/request_id!=0 only after the
+   frame has decoded (server.rs:532-553). answer_batch then calls respond with
+   the original frame.session and frame.request_id (server.rs:381-383), and
+   respond constructs the response from those unchanged fields
+   (server.rs:477-486). Thus the new test's malformed open with identifier 7
+   receives a session-less response carrying identifier 7. ProtocolFrame's
+   codec validation restricts identifier 0 only for Hello, not session-less
+   Response/Event frames (lib.rs:1015-1023), so the invalid response encodes
+   and decodes. The test at server_tests.rs:2552-2588 asserts only the failure
+   body code and misses the response header contradiction.
+
+   Required closure: classify this as a frame-level failure before dispatch,
+   or explicitly normalize the failure response to session=None/request_id=0;
+   make codec/contract scope agree and pin the response header.
+
+2. R2's newly stated genesis replay rule contradicts the implemented and
+   tested result.
+
+   Contract: docs/spec/SMP1.md:211-214 says replaying a genesis write answers
+   the owner failure (second genesis already initialized), while also saying
+   the session-less path closes after a head exists.
+
+   Implementation: the session-less genesis branch checks head_binding first
+   and returns SESSION_BINDING_INVALID before workspace_create or
+   exchange_import can run (server.rs:567-575). The existing headed
+   workspace.create test pins SESSION_BINDING_INVALID, numeric 33007
+   (server_tests.rs:1273-1287), not an owner already-initialized failure.
+
+   Required closure: freeze one replay outcome and make prose, implementation,
+   and tests agree for both workspace.create and exchange.import.
+
+VALIDATION
+
+- Confirmed HEAD = 94b13adb3c3893120ad4a5ea26a48013248915a8.
+- Read the prior Nabu re-review and the targeted diff
+  94b13ad~2..94b13ad across SMP1, protocol implementation/tests, CLI/bridge
+  tests, checker, inventory, and campaign note.
+- Ran git status, git diff --stat/name-only, git diff --check, targeted rg, and
+  exact numbered source reads. git diff --check returned clean.
+- No cargo, make, provider action, deploy, merge, service activation, peer
+  access, or public action. No executable validation was run because the
+  handoff explicitly forbade cargo and make.
+
+S20_400ARCHITECTURE_REREVIEW2_JSON={"reviewer":"nabu","result":"FAIL","p0":[],"p1":["R2 remains open: a session-less request with nonzero identifier is rejected in dispatch but answer_batch/respond echo that forbidden nonzero identifier on the session-less failure response; codec validation permits it and the new test checks only the body code, contradicting SMP1 section 3's all-session-less-frame zero rule","R2 remains open: SMP1 now says replaying a genesis write returns an owner already-initialized failure, but dispatch closes the session-less path as soon as a head exists and the test pins SESSION_BINDING_INVALID before either genesis owner runs"],"p2":[],"p3":[]}
+
+RETURN_TO
+orchestrator

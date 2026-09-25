@@ -1,0 +1,4 @@
+DEAD propose valid: True
+S2B-DEAD-001 exit: 1
+{"arm": "sley2", "code": "ORACLE_COMMIT_REJECTED", "detail": "060103a69902022a2943414e4449444154455f56414c49444154494f4e5f554e5245534f4c5645445f5245464552454e434503010004010105020000", "status": "rejected", "task_id": "S2B-DEAD-001"}
+workspace kept at: /tmp/tmpl9zagd5f

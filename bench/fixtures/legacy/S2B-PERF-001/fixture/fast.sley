@@ -1,0 +1,47 @@
+module app.fastmem
+
+export task range_count -> Int {
+  take hay: List<Int>
+  take needles: List<Int>
+  state k = 0
+  state lo = hay[0]
+  state hi = hay[0]
+  while k < len(hay) {
+    if hay[k] < lo {
+      set lo = hay[k]
+    }
+    if hay[k] > hi {
+      set hi = hay[k]
+    }
+    set k = k + 1
+  }
+  state i = 0
+  state found = 0
+  while i < len(needles) {
+    if needles[i] < lo {
+      set i = i + 1
+    } else {
+      if needles[i] > hi {
+        set i = i + 1
+      } else {
+        state j = 0
+        state matched = 0
+        while j < len(hay) {
+          if needles[i] == hay[j] {
+            set matched = 1
+          }
+          set j = j + 1
+        }
+        set found = found + matched
+        set i = i + 1
+      }
+    }
+  }
+  return found
+}
+
+task main -> Int {
+  bind hay = [10, 11]
+  bind needles = [11, 99]
+  return call range_count(hay, needles)
+}

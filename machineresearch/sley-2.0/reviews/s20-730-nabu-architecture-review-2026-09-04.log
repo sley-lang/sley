@@ -1,0 +1,80 @@
+DISPATCH 730-nabu-architecture forge-nabu-730-nabu-architecture-20260904T075926 2026-09-04T07:59:26Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign records.
+
+Already spotting a revision-2 inconsistency in section 9. Let me read the ADR and campaign records.
+
+## S20-730 architecture review — Nabu
+
+**status:** FAIL (two P0 findings; both are contract-level and additive, so freeze can proceed once they and the P1s land)
+
+Read-only at `9dc78fe`. No cargo, no make target, no writes.
+
+---
+
+### P0
+
+**P0-1 — The multi-host merge is not persistent. `make release-candidate-smoke` silently destroys a committed multi-host result.**
+
+`Makefile:190` runs `python3 scripts/build_reproducibility_report.py` with no `--attest`. `build_report` (`scripts/build_reproducibility_report.py:174`) is a pure function of its arguments and never reads the existing file at `--output`; `main` unconditionally derives the local attestation and overwrites. The section 5.1 runbook (spec:184–186) has the operator merge a second-host attestation, run `make evidence-refresh`, and commit — and `evidence-refresh` does *not* rebuild this report, so the merge survives right up until the next release smoke, which reverts `evidence/release/reproducibility-report.json` to `distinct_hosts: 1`, `SINGLE_HOST_REPRODUCIBLE`, and re-adds the `second_host_attestation_operator_lane` blocker. Exit 0, no code, no test (none of the 12 tests covers merge persistence — and none can, given the design).
+
+The GA dossier's only multi-host evidence is deleted by the routine meant to maintain it. Fix, in order of preference: track attestations as *inputs* under `evidence/release/attestations/<label>.json` and have the builder glob that directory. That makes the reproducibility report a pure derivation from tracked inputs — the discipline the conformance report already follows — and makes `--check` meaningful for the first time. The weaker alternative is to read back and re-merge from the existing report and fail closed on a shrink.
+
+**P0-2 — The coverage taxonomy cannot express the gap it is known to contain, and its headline is what the GA dossier cites.**
+
+`independent_oracle` (spec:158–164) flattens three materially different strengths: `sley2-scb1-oracle check` re-derives canonical encodings and identities; `check-vm-extended` explicitly does **not** check the value hash or observation identity (the oracles campaign records this as Vulcan's own open question); `check_release_demo_vector.py` re-derives two identities from recorded preimages and checks bindings. Freezing a two-class taxonomy makes `fixture_directories: 19, independently_checked: 19, native_only: []` read as the master goal's "final independent PASS" while an acknowledged semantic gap is invisible in the artifact.
+
+Fix — additive, commissions no second kernel: keep `kind`, add a required `depth` (`"semantic"` = independently re-derives the values the family asserts; `"codec_identity"` = decodes the container and re-derives declared identities only), add a per-family `not_verified: [...]`, and surface `semantically_checked` beside `independently_checked` at the top level. `COMPLETE` then honestly means *every family has an independent check*; the depth counts say how much. This is also the right home for Ariadne's program-graph question: record the gap now, commission the lowering/execution oracle as its own package.
+
+### P1
+
+**P1-1 — Section 9 contradicts sections 3 and 5 of the same revision.** Spec:228–230 still reads "No independent VM oracle: the extended VM vectors stay native-only…" against spec:136–144 and spec:167. The staged checker cannot catch it — `SPEC_MARKERS` (checker:40–57) greps headings only. Rewrite the exclusion to the true residual: no independent *lowering and execution* oracle; the extended vectors are covered at codec-and-identity depth.
+
+**P1-2 — The reproducibility report is the one artifact never verified.** `check_reproducibility_and_independent_conformance.py:242` runs the conformance `--check`, but nothing runs the repro `--check`, recomputes `report_digest`, or re-runs `validate_attestation` over the tracked attestations. Lines 233–240 check only existence, contract tag, result-in-set, work package, non-empty attestations, and the two false flags. A hand-edited report carrying a fabricated second-host attestation passes `make quick`. Digest recomputation and per-attestation shape validation are pure functions of the tracked file and need no local build — add both.
+
+**P1-3 — The SHA256SUMS rule in the contract is already false.** Spec:132–134 says a family without a manifest records `sums_consistent: null`; the implementation (builder:189–197) makes a missing manifest a hard `CONFORMANCE_FIXTURE_UNREADABLE`, so `sums_file` and `sums_consistent` are now constants. Freeze the stricter implemented rule, drop the optional wording and the `| null` from the section 3 schema, and retire the vestigial `if sums_path.exists():` at builder:198.
+
+**P1-4 — Multi-host is an operator-asserted property; say so, and record toolchain agreement.** (This answers Ariadne's open question 1 from the architecture side.) `build_report` compares only `artifact_sha256` per commit (builder:190). Nothing binds machine identity — correctly, given the privacy rule — so `distinct_hosts: 2` is indistinguishable from one host run twice under two labels. Separately, identical-toolchain agreement and divergent-toolchain agreement are different claims of very different value, and the report loses the distinction. Add `toolchain_agreement: "IDENTICAL" | "DIVERGENT"` to each `commits` entry; extend the conflict rule to `manifest_digest`, `artifact_name`, `member_count`, and `artifact_size_bytes` (today two attestations disagreeing on `manifest_digest` while agreeing on the artifact digest pass silently); and state in section 1 that host distinctness is carried by the operator's label, not verified.
+
+### P2
+
+<details>
+<summary>Six P2 findings, including the two questions routed to me</summary>
+
+**P2-1 — `native_only` is dead code with an uncoded crash path.** `NATIVE_ONLY_NOTES` is `{}` (builder:73). A future `COVERAGE["x"] = None` without a note raises `KeyError` at builder:210, which is neither `ConformanceError` nor `OSError`, so `main`'s handler (builder:337) misses it: traceback instead of 73006. The one branch kept for extensibility is the one branch no test exercises.
+
+**P2-2 — Two silent-coverage-loss paths contradict "coverage cannot be silently lost".** `family_record` skips anything that is not a file (builder:162–163), so a subdirectory of fixtures is never digested, manifested, or counted. And only `<family>/v1` is read (builder:153), so a future `conformance/<family>/v2` is wholly invisible — no digest, no declaration, no error. With schema-epoch versioning live in this project, the version axis is the likelier growth direction than the family axis the contract does guard. Enumerate `<family>/<version>`, reject unmapped versions with `CONFORMANCE_ORACLE_DRIFT`, and make a nested directory an explicit error until designed.
+
+**P2-3 — Oracle independence is asserted over first-party text, not the dependency closure.** `oracle_independence()` (builder:240) substring-scans `.py` sources; `oracle/scb1/pyproject.toml` and `uv.lock` are never read. "Must not acquire a Rust implementation dependency" is precisely a manifest statement. Current deps (`blake3==1.0.9`, `unicodedata2==16.0.0`) are fine — the gap is that a future dependency edit is not a drift event. Record the pinned dependency set and its digest in `oracle_independence`.
+
+**P2-4 — Placement (answers oracles-campaign open question 3): no, keep the demo checker in `scripts/`.** The split is already right; it is only undocumented. `vm_extended.py` is a 443-line reusable decoder library (`_Cursor`, `decode_bytecode`, the tag tables, `cache_key`) exposed as CLI subcommand `check-vm-extended` and reusable by any future family carrying `SLEYBC02` — it belongs in the package. `check_release_demo_vector.py` is a 149-line fixture-specific `main()` with no reusable API, identical in shape to the twelve peers already in `scripts/` (115–567 lines). Moving it sets an inconsistent precedent against twelve files and buys nothing. Write the rule into section 5: *a checker contributing a reusable decoder or codec goes in `oracle/scb1` with a CLI subcommand; a fixture-specific re-derivation goes in `scripts/check_<family>_vector.py`; both are equally independent for coverage purposes, and the `runner` field records which.*
+
+**P2-5 — The attested commit's relationship to the release commit is unrecorded.** The tracked report attests `ebd40dc` while HEAD is `9dc78fe` (I confirmed `ebd40dc` is an ancestor). Section 6 accepts staleness by design, but neither the report nor the checker states how stale, and the dossier will cite it without that context. Add the GA-time requirement that the attested commit equal the release commit, and have the checker surface the attested commit without enforcing it.
+
+**P2-6 — Fuzz slices (answers repro-campaign open question 2): no, keep them out.** The report's invariant is a pure derivation from tracked fixture files plus the `make conformance` recipe, and `CONFORMANCE_REPORT_DRIFT` is defined to mean fixture or coverage drift. Fuzz slices live on a different target, a different evidence surface, and the S20-700 audit's owner; folding them in would fire the drift code on fuzz churn and give one code two meanings. If family-level traceability is wanted, put the cross-reference in the S20-700 audit pointing at family names — one direction, no coupling back.
+
+</details>
+
+### P3
+
+<details>
+<summary>Five editorial findings</summary>
+
+- **P3-1** ADR-0040 header still reads "draft at revision 1" (ADR:3) and Consequences still say the extended VM vectors and release demo "are recorded as native-only" (ADR:55–56). Stale against contract revision 2.
+- **P3-2** Spec section 10 reads "Revision 1 carries none" inside a revision 2 document (spec:237).
+- **P3-3** The repro campaign record claims "16 offline tests" for `test_reproducibility.py`; the file has 12 test methods and no `subTest`. Its Result section also still records `INDEPENDENT_CONFORMANCE_PARTIAL` with two native-only families, superseded by the oracles campaign.
+- **P3-4** `FORBIDDEN_MARKERS` uses bare English/path substrings (`cargo`, `target/`, `popen`), so a docstring merely naming the Rust build fails the scan. Anchor markers to import and call syntax.
+- **P3-5** SHA256SUMS consistency covers only `.json` members (builder:200) while `files` digests everything; a future binary fixture cannot be manifested. State the JSON-only scope in section 3 or widen it.
+
+</details>
+
+---
+
+**validation:** read-only inspection at `9dc78fe` — `git log`/`merge-base`, targeted `rg`/`awk`/`wc`, and `python3` JSON reads of the two tracked evidence reports and the vm-extended fixtures. No cargo, no make target, no repository modification. Every finding above is cited to a file and line I read; I did not execute any checker or oracle, so failure *modes* are reasoned from the code, not observed at runtime.
+
+**blockers:** none for this review. P0-1's preferred fix (attestations as tracked inputs) changes the section 2 and 5.1 mechanics and needs Ariadne's contract sign-off alongside mine.
+
+**return_to:** orchestrator
+
+S20_730_ARCHITECTURE_REVIEW_JSON={"reviewer":"nabu","result":"FAIL","p0":["multi-host merge is not persistent: release-candidate-smoke rebuilds the report with no --attest and never reads the tracked report, so a committed MULTI_HOST_REPRODUCIBLE silently reverts to SINGLE_HOST_REPRODUCIBLE at exit 0","coverage taxonomy has no depth axis: independent_oracle flattens semantic re-derivation and codec-and-identity checks, so INDEPENDENT_CONFORMANCE_COMPLETE hides the acknowledged vm-extended semantic gap at GA"],"p1":["spec section 9 still excludes an independent VM oracle and calls the extended vectors native-only, contradicting sections 3 and 5 of the same revision; the marker-grep checker cannot catch it","the reproducibility report is never verified: the staged checker runs no --check, no report_digest recomputation, and no attestation revalidation, so a hand-edited second-host attestation passes make quick","spec section 3 says a family without SHA256SUMS records sums_consistent null, but the implementation makes a missing manifest a hard CONFORMANCE_FIXTURE_UNREADABLE","multi-host agreement binds only artifact_sha256 and records no toolchain agreement; host distinctness is an operator assertion the contract does not disclose"],"p2":["native_only is dead code whose KeyError path escapes the coded error handler and is untested","two silent coverage-loss paths: subdirectories under a fixture version are skipped, and any conformance/<family>/v2 is entirely invisible","oracle independence scans first-party .py text only, never pyproject.toml or uv.lock, so a dependency change is not a drift event","keep check_release_demo_vector.py in scripts/ (fixture-specific re-derivation) and vm_extended.py in the package (reusable decoder with a CLI subcommand); write that placement rule into section 5","the attested commit (ebd40dc) versus the release commit relationship is unrecorded; require equality at GA and surface it in the checker","do not add fuzz-slice mapping to this report; it belongs to the S20-700 audit and would overload CONFORMANCE_REPORT_DRIFT"],"p3":["ADR-0040 still says revision 1 and records both families as native-only","spec section 10 says 'Revision 1 carries none' in a revision 2 document","repro campaign claims 16 offline tests; the file has 12 methods and no subTest, and its Result section is superseded","forbidden markers use bare substrings (cargo, target/, popen) and false-positive on prose","SHA256SUMS consistency covers only .json members while files digests everything"],"notes":"Read-only at 9dc78fe; no cargo or make run. Both P0s are contract-level and additive. Answers: demo checker stays in scripts/, discriminator is reusable decoder vs fixture-specific re-derivation; no fuzz-slice mapping here; coverage classes need a depth axis plus a version axis to generalize."}
+EXIT=0 2026-09-04T08:04:16Z

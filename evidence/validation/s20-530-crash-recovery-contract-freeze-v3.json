@@ -1,0 +1,75 @@
+{
+  "contract": "s20-530-crash-recovery-contract-freeze-v3",
+  "result": "PASS_CONTRACT_FROZEN",
+  "validation_tier": "TIER_2_CONTRACT_REFREEZE",
+  "refreeze_reason": "Repair checker self-contradictions, uncompilable frozen Rust renderings, stale exact body bindings, and manifest field drift without changing the 100-row matrix or 30-event limit contract.",
+  "design": "machineresearch/sley-2.0/s20-530-v3-amendment-design.md",
+  "deterministic_inputs": {
+    "matrix_rows": 100,
+    "matrix_rows_sha256": "675afdad226e5e32ad4c5f4161a0802ae516355cf7e7b88e8d7510de5aae7698",
+    "spec_sha256": "0ba5e237a056cbe4e2282ed53552f5a7427ee0e1f67df5fdf0c27474c42618f4",
+    "adr_sha256": "38da5dcc49c7c0955b65c6b7148cba773d6fbe7bfbf5a2db41d68e8d382e97a7",
+    "checker_sha256": "60b06599c64daee623cab61a6cefa714c8e0e8c14689a3a0128510f05bc0e0c5",
+    "checker_contract_sha256": "9b7f7526fbbcf4e60e08a481d691d2432756f4cafdb9e4f48058ff653bf62ab1",
+    "runner_sha256": "56015507e45970ef07945aad05c093e771b0b798a98d9351cafd78fca9f5caec"
+  },
+  "contract_set_sha256": "e7ec96b4c22f625f812c62d1222b5c1e36f49e8b1f171e0e9ecba2abbe056e12",
+  "commands": {
+    "python3 -m py_compile scripts/check_s20_530_crash_recovery.py": "PASS",
+    "ruff format --check scripts/check_s20_530_crash_recovery.py": "PASS",
+    "ruff check scripts/check_s20_530_crash_recovery.py": "PASS",
+    "git diff --check": "PASS",
+    "checker adversarial metadata self-tests": "PASS",
+    "public API anchor and recovery hook structural probes": "PASS",
+    "ref ancestry, GC authority, snapshot helper, and CROSS-05 structural probes": "PASS",
+    "cargo check -p sley-txn --features s20-530-test-hooks --locked": "PASS",
+    "cargo test -p sley-store -p sley-txn -p sley-repo --locked": "PASS_STORE_48_TXN_103_REPO_107"
+  },
+  "review_obligations": {
+    "implementation_helper_body_manifests": "FINAL_REVIEW_REQUIRED",
+    "dual_site_proof_manifests": "FINAL_REVIEW_REQUIRED_5_FIELDS",
+    "limit_event_owner_body_control_ancestries": "FINAL_REVIEW_REQUIRED_30_EVENTS",
+    "limit_event_entry_call_paths": "FINAL_REVIEW_REQUIRED_ALL_PUBLIC_ROOTS",
+    "test_to_production_shared_state_authority": "FINAL_REVIEW_REQUIRED_COMPLETE_LOCAL_DEPENDENCY_CLOSURE"
+  },
+  "deferred_semantic_findings": [
+    "receipt_scb_code_variant_conjunctions",
+    "dead_mutation_candidate_error_leaves",
+    "owned_entry_semantic_binding",
+    "grouped_multifault_result_binding",
+    "anc06_fixture_feasibility",
+    "cor07_host_ref_io_boundary",
+    "limit_canary_and_non_unit_peak_semantics"
+  ],
+  "full_gate": {
+    "make_v1": "SKIPPED_CONTRACT_REFREEZE_NOT_RELEASE_BOUNDARY"
+  },
+  "authority": {
+    "mode": "WRITE_LOCAL",
+    "deploy": false,
+    "external_runtime_mutation": false,
+    "provider_call": false,
+    "publication": false,
+    "push": false,
+    "spend": false,
+    "trading": false
+  },
+  "implementation_complete": false,
+  "reviews": {
+    "nabu": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "e7ec96b4c22f625f812c62d1222b5c1e36f49e8b1f171e0e9ecba2abbe056e12",
+      "evidence_payload_sha256": "125ef8697f8df055ef306e3a340685791ec21cd4bcb71df50412e3e1ae20043c"
+    },
+    "ariadne": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "e7ec96b4c22f625f812c62d1222b5c1e36f49e8b1f171e0e9ecba2abbe056e12",
+      "evidence_payload_sha256": "125ef8697f8df055ef306e3a340685791ec21cd4bcb71df50412e3e1ae20043c"
+    },
+    "vulcan": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "e7ec96b4c22f625f812c62d1222b5c1e36f49e8b1f171e0e9ecba2abbe056e12",
+      "evidence_payload_sha256": "125ef8697f8df055ef306e3a340685791ec21cd4bcb71df50412e3e1ae20043c"
+    }
+  }
+}

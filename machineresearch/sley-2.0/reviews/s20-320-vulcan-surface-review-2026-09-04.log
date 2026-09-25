@@ -1,0 +1,71 @@
+DISPATCH 320-vulcan-surface forge-vulcan-320-vulcan-surface-20260904T040731 2026-09-04T04:07:31Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+[33m[state/agent-db][39m [33mslow OpenClaw agent database open[39m
+I'll start by reading the contract and implementation in parallel.
+
+## Verdict
+
+**Fractured — two things block freeze.** Everything the campaign claims *runs* does run; what fails is the contract's agreement with its own implementation, and one caller-declared authority seam.
+
+### Validation actually run (worktree `9dc78fe`, read-only)
+
+| Check | Result |
+|---|---|
+| `cargo test -p sley-query --lib context_capsule` | PASS (4 passed, 1 ignored) |
+| `uv run --project oracle/scb1 --frozen python scripts/check_context_capsule_vector.py` | PASS, 23 vectors, 19 classes, `problems: []` |
+| `python3 scripts/check_context_capsule_profile.py` | PASS, revision 2, `S20_320_FULL_IMPLEMENTED_REVIEW_PENDING` |
+| `sha256sum -c conformance/context-capsule/v1/SHA256SUMS` | `accepted.json: OK` |
+
+Toolchain note: `/usr/bin/cargo` is 1.75 and cannot parse `resolver = "3"`. The repo builds only under `~/.cargo/bin` (1.93.0). Not a finding, but any CI lane pinned to system cargo will fail closed for the wrong reason.
+
+---
+
+### P0 — blocks freeze
+
+**1. `build_context_capsule_bound` turns caller-declared session identity into root-verified evidence.**
+`context_capsule.rs:337-352` ships a **public** constructor that mints a `Negotiated(2)` capsule. Its only guard compares the response's provenance against `workspace_id`, `root`, `schema_epoch` **that the caller also supplied** — so `build_context_capsule_bound(&req, &resp, ANY_SESSION, resp.workspace_id(), resp.root(), resp.schema_epoch())` always succeeds. There is no session object, no S20-330 authority, no engine-side verification. An arbitrary 32 bytes is hashed into the master `sley2.context-capsule.v1` preimage and surfaces via `capsule.session()`.
+
+This contradicts the contract's own authority rule ("it is never a session"), ADR-0031 decision 3, contract §11, campaign line 33, and closeout line 19 — all of which state the arm is *reserved and not constructible*. The unit test at `context_capsule.rs:896-908` does not rebut this: it passes a wrong root as the caller's *claimed* root, so it tests self-consistency of the caller's own arguments, not forgery resistance.
+
+Fix: delete the constructor until S20-330 defines a verified session handle, and restore §2 to the reserved arm. If the seam is kept, it must take a *verified* session value the caller cannot fabricate.
+
+**2. Contract §6 does not encode the record it freezes.**
+The canonical preimage in §6 goes `... option(cursor, next_after) || bytes(exact_SLEYRQR1_response_record)`. Both the implementation (`context_capsule.rs:599-600`) and the independent oracle (`check_context_capsule_vector.py:226`, `u64(len(record)) + record`) emit **`u64be(response_bytes)` before the record**. `bytes(...)` is also never defined in §6. An independent implementer following §6 as written derives a different `ContextCapsuleId` than every accepted vector. §6 is the identity preimage; freezing it wrong freezes the wrong identity.
+
+### P1 — must fix before freeze
+
+**3. Exact error-code preservation fails; 32011 is unreachable.** `ContextCapsuleErrorCode::InternalInvariant` is never constructed anywhere in the tree. `From<QueryError> for ContextCapsuleError` (`context_capsule.rs:111-115`) collapses *every* upstream `QueryError` into `ResourceLimit` — including `encode_question` failures, which §9 assigns to `CONTEXT_CAPSULE_INTERNAL_INVARIANT`. A checked-encoding failure reports 32010.
+
+**4. 32009 has no reachable path, and §10's perturbation evidence does not exist.** `DictionaryInvalid` is producible only from `index_of` (`:507`), which cannot fail — every id looked up was pushed into `ids` before the sort. §10 requires "the dictionary, index, count, size, and work perturbations failing without a capsule"; no such test exists. Contrast `capsule.rs:351`, where the restricted capsule does produce its equivalent code with a test.
+
+**5. §10's source binding matrix is claimed, not delivered.** The test covers only the foreign request/response swap. "Drifted response" and "restricted response" are structurally unconstructible (private fields; distinct type) — that is a sound *design* argument, but it must be written as one, not counted as executed evidence.
+
+**6. The Negotiated arm has zero independent coverage.** The oracle hardcodes `SESSION_NONE` and rejects any other `session_binding`; no fixture vector is bound; the fuzz target never calls the bound constructor. An identity-bearing arm is shipping on one unit test.
+
+### P2 — fix before completion
+
+**7. `Complete ⟹ omitted == 0` is unenforced at the boundary.** It holds today only because `page_items` (`root_query.rs:1436`) errors `RequiredFactOmitted` when `truncated && !allow`. The fuzz target asserts it; the builder does not. The capsule is the fail-closed surface for exactly this claim — reject `Complete && returned != total_count` with `SOURCE_INVALID`.
+
+**8. Two of the three §7 table ceilings are unenforced.** `roots` and `entities` are checked (`:499`); `objects` and `fingerprints` never are. Vacuous today (≤1 element each), live the moment a class populates them.
+
+**9. §7's "checked before allocation" is false for the dictionary.** `derive_facts` builds and sorts the full `ids` vector *before* the `MAX_CONTEXT_CAPSULE_ENTITIES` check (`:452-501`). Also `DependencyRows` charges 1 per row while pushing 3 identities and a root. Bounded in practice by the 33 MiB source ceiling, so no live DoS — but the text and the charging disagree.
+
+**10. The dictionary silently merges question subjects with answer identities.** A reader cannot tell which entries the response returned, and `kind = 0` overloads "payload states no kind" with "only asked about."
+
+### Your open questions, answered
+
+- **Chained page lineage: not needed, and actively wrong.** Exact `total_count`, canonical key order, and `after`/`next_after` suffice — `after` is bound into the request preimage and therefore into `query_id`, so a page cannot lie about its position. A lineage chain would make each capsule depend on a prior capsule's identity, which is session-shaped state and erodes "never a session." Instead, make §4 state the walk-verification procedure normatively: same provenance and `total_count` across pages, `page[i].after == page[i-1].next_after`, last page `next_after = None`.
+- **Named entities in the dictionary: keep them.** Class 3 needs the index, and `execute_root_query:877-881` already proves every named entity resolves at the verified root, so nothing unverified enters. But §5 must say the dictionary is question ∪ answer and that `0` is not a kind claim (finding 10).
+- **Parallel `kinds` with `0`: correct.** Verified no collision — `ModeledEntityKind` tags are 1..18 and `ImpactKind` 1..12, so `0` is genuinely free. Parallel also preserves `kinds.len() == entities.len()` as a cheap structural invariant that both fuzz and oracle check. Keep it over a sparse table.
+- **Question + engine-bound provenance as self-description: sufficient.** The verbatim `SLEYRQR1` copy plus a `query_id` that binds class body, limits, continuation flag, and cursor makes the capsule independently checkable. No lineage required.
+
+### P3
+
+**11.** Revision-2 drift: §11, ADR-0031 §3, campaign line 33, and closeout line 19 all still say "reserved, not constructible" while §2 and the code say otherwise. Whichever way P0-1 resolves, all five must be made to agree. **12.** §6 states the `SLEYRQR1` magic and length checks without naming their failure code; §9 implies `SOURCE_INVALID`. Say it.
+
+### Blockers
+
+None on my side — every named script and test ran. The freeze itself is blocked on P0-1 and P0-2.
+
+S20_320_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["build_context_capsule_bound is a public constructor whose session binding is entirely caller-declared: it compares response provenance only against the caller's own arguments, so any SessionId is mintable into the master capsule identity, contradicting the contract authority rule, ADR-0031 decision 3, contract section 11, campaign line 33 and closeout line 19 which all say the Negotiated arm is reserved and not constructible","Contract section 6 canonical preimage omits u64be(response_bytes) before the copied SLEYRQR1 record and never defines bytes(...); implementation context_capsule.rs:599 and oracle check_context_capsule_vector.py:226 both emit it, so section 6 as written derives a different ContextCapsuleId than every accepted vector"],"p1":["CONTEXT_CAPSULE_INTERNAL_INVARIANT 32011 is never constructed anywhere; From<QueryError> at context_capsule.rs:111-115 collapses every upstream QueryError including encode_question failures into ResourceLimit 32010, breaking the section 9 precedence table","CONTEXT_CAPSULE_DICTIONARY_INVALID 32009 is reachable only from index_of at :507 which cannot fail by construction, and no dictionary, index, count, size or work perturbation test exists, so the section 10 required-evidence bullet is unsatisfied","Section 10 source binding matrix is only partly delivered: only the foreign request/response swap is tested; drifted and restricted rows are structurally unconstructible and must be stated as a design argument, not claimed as executed evidence","The Negotiated arm has zero independent coverage: the oracle hardcodes SESSION_NONE and rejects any other session_binding, no fixture vector is bound, and the fuzz target never calls build_context_capsule_bound"],"p2":["Complete implies omitted == 0 is asserted only in fuzz, never enforced in the builder; it holds today solely because page_items errors RequiredFactOmitted, so the capsule does not itself fail closed on a page presenting as complete","Section 7 ceilings for objects and fingerprints (65,535 each) are never checked in code; only entities and roots are","Section 7 says work is checked before allocation but derive_facts builds and sorts the full ids vector before the MAX_CONTEXT_CAPSULE_ENTITIES check at :499, and DependencyRows charges 1 per row while pushing 3 identities and a root","The entity dictionary merges question subjects with answer identities with no marker, and kind 0 overloads payload-states-no-kind with asked-about-only, so a reader cannot recover which entries the response returned"],"p3":["Revision-2 drift: contract section 11, ADR-0031 decision 3, campaign line 33 and closeout line 19 still say the Negotiated arm is reserved and not constructible while section 2 and the code disagree; all five must be reconciled","Section 6 states the SLEYRQR1 magic and exact-length checks without naming their failure code; make the SOURCE_INVALID assignment explicit"],"notes":"cargo test 4 pass, oracle PASS 23 vectors 19 classes, stage checker PASS rev 2, SHA256SUMS OK. Open questions answered: no chained lineage (query_id already binds after; a chain is session-shaped), keep named entities but document question-union-answer, parallel kinds with 0 is correct (tag 0 unused by ModeledEntityKind 1..18 and ImpactKind 1..12). Repo needs rustup 1.93.0; system cargo 1.75 cannot parse resolver 3."}
+EXIT=0 2026-09-04T04:12:24Z

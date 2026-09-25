@@ -1,0 +1,244 @@
+# Canonical Identifiers and Hash Domains v1
+
+Status: S20-110 implementation contract
+
+## Invariants
+
+All canonical identifiers are exactly 32 bytes. BLAKE3-256 is the epoch-1 hash
+algorithm. Domain strings are exact non-NUL-terminated ASCII bytes prepended
+directly to the defined preimage. Domains are closed constants; kernel callers
+cannot supply arbitrary domain text.
+
+No identifier derives from a label, source path, ref name, branch, timestamp,
+filesystem layout, object-store location, Git metadata, cache, debug text, or
+model output. Text parsing and display are derived tooling concerns and are not
+part of the `sley-id` kernel API.
+
+## Frozen domains
+
+| Purpose | Exact bytes |
+|---|---|
+| workspace | `sley2.workspace.v1` |
+| logical entity | `sley2.entity.v1` |
+| immutable semantic object | `sley2.object.v1` |
+| semantic state root | `sley2.state-root.v1` |
+| parent-bound transaction | `sley2.transaction.v1` |
+| complete transaction receipt | `sley2.transaction-receipt.v1` |
+| schema epoch | `sley2.schema-epoch.v1` |
+| protected policy root | `sley2.policy-root.v1` |
+| capability token digest | `sley2.capability-token.v1` |
+| capability summary | `sley2.capability-summary.v1` |
+| candidate | `sley2.candidate.v1` |
+| candidate result | `sley2.candidate-result.v1` |
+| typed query | `sley2.query.v1` |
+| context capsule | `sley2.context-capsule.v1` |
+| semantic fingerprint | `sley2.semantic-fingerprint.v1` |
+| canonical value hash | `sley2.value-hash.v1` |
+| VM bytecode cache key | `sley2.vm-bytecode-cache-key.v1` |
+| reference adapter identity | `sley2.reference-adapter-id.v1` |
+| adapter fixture state | `sley2.adapter-state.v1` |
+| adapter invocation transcript | `sley2.adapter-transcript.v1` |
+| derived semantic index snapshot | `sley2.index-snapshot.v1` |
+| restricted complete-query capsule | `sley2.restricted-query-capsule.v1` |
+| candidate validation profile | `sley2.validation-profile.v1` |
+| deterministic observation | `sley2.observation.v1` |
+| execution report | `sley2.execution-report.v1` |
+| test report | `sley2.test-report.v1` |
+| repository pack | `sley2.repository-pack.v1` |
+| protocol handshake | `sley2.protocol-handshake.v1` |
+| repository exchange (S20-540) | `sley2.repository-exchange.v1` |
+| semantic delta (S20-510) | `sley2.semantic-delta.v1` |
+| merge conflict (S20-520) | `sley2.merge-conflict.v1` |
+| candidate attempt (S20-360) | `sley2.candidate-attempt.v1` |
+| protocol frame (S20-410) | `sley2.protocol-frame.v1` |
+| root-backed query (S20-310 full) | `sley2.root-query.v1` |
+| negotiated session (S20-330) | `sley2.session.v1` |
+| native test execution profile | `sley2.native-test-execution-profile.v1` |
+| native test observation | `sley2.native-test-observation.v1` |
+| native test plan | `sley2.native-test-plan.v1` |
+| native resource policy | `sley2.native-test-resource-policy.v1` |
+| measured test attestation | `sley2.native-test-measurement.v1` |
+| native test approval | `sley2.native-test-approval.v1` |
+| native evidence bundle | `sley2.native-test-evidence-bundle.v1` |
+| historical admission context | `sley2.native-test-historical-context.v1` |
+| commit admission statement | `sley2.native-test-admission-statement.v1` |
+| historical trust policy | `sley2.native-test-trust-policy.v1` |
+| supervisor config | `sley2.native-test-supervisor-config.v1` |
+| native admission profile | `sley2.native-test-admission-profile.v1` |
+| native exchange profile (N6) | `sley2.native-test-exchange-profile.v1` |
+| repository pack leaf (S20-170) | `sley2.repository-pack-leaf.v1` |
+| repository pack node (S20-170) | `sley2.repository-pack-node.v1` |
+| repository exchange leaf (S20-540) | `sley2.repository-exchange-leaf.v1` |
+| repository exchange node (S20-540) | `sley2.repository-exchange-node.v1` |
+| exchanged accepted head (S20-540) | `sley2.accepted-head.v1` |
+| branch record (S20-500) | `sley2.branch-record.v1` |
+| branch ref (S20-500) | `sley2.branch-ref.v1` |
+| branch name path key (S20-500) | `sley2.branch-name-path.v1` |
+| validation context (S20-345) | `sley2.validation-context.v1` |
+| validation context inventory (S20-360) | `sley2.validation-context-inventory.v1` |
+| validation context tombstones (S20-360) | `sley2.validation-context-tombstones.v1` |
+| candidate phase evidence (S20-360) | `sley2.candidate-phase-evidence.v1` |
+| merge plan nonce (S20-520) | `sley2.merge-plan-nonce.v1` |
+| reference adapter deterministic randomness (S20-280) | `sley2.reference-random.v1` |
+| S20-530 recovery ancestry test plan | `sley2.s20-530.recovery-ancestry-test-plan.v1` |
+| diagnostic report bearer token (SMP 605) | `sley2.diagnostic-report-token.v1` |
+
+Historical additions are recorded by ADR-0047, ADR-0048, and each later owning
+contract. Several were specified and fixtured by their own package but did not
+reach this registry because the first drift check read only `crates/sley-id`,
+while a domain may be derived by any crate that hashes. The registry now carries
+every BLAKE3 domain the crates derive. `scripts/check_required_contract_index.py`
+compares both sets over every crate on every `make quick`, excludes only the two
+exact Ed25519 signing contexts classified in `NATIVE_TEST_RESERVATIONS_V1.md`,
+and treats any other new crate-side `sley2.*` byte literal as a domain until its
+owner explicitly classifies it. The deterministic-randomness row grants no
+authority, the test-hook plan domain is compiled out of release builds, and the
+diagnostic-report token is an ephemeral bearer capability rather than a stored
+content identity. The registry's scope is the crate implementation. `sley2.*`
+strings that appear only under `scripts/` and
+`bench/` (evidence-chain SHA-256 prefixes such as the trial-trace and
+raw-run manifests, JSON report contract labels, the host-boundary record
+label) are not hash domains and are not registered;
+`scripts/check_domain_tags_and_strings.py` asserts that no such label (in
+either quote style, bytes or text) is used by a script that imports or calls
+blake3, so an identity domain cannot be introduced outside the registry; its
+`--self-test` carries the evasion regressions.
+
+A domain cannot be renamed, aliased, reinterpreted for old bytes, or reused
+across identifier purposes. Within the **same typed identity family**, a
+reviewed format version may introduce an explicitly magic-disjoint preimage
+variant: old bytes must derive exactly their old IDs, old decoders retain their
+acceptance/refusal behavior, and new variants require explicit version dispatch.
+This narrowly permits the reserved family variants of ADR-0050 and
+`NATIVE_TEST_RESERVATIONS_V1.md`; it does not permit implicit acceptance,
+cross-purpose reuse or an alias for an existing preimage. Adding a domain or
+promoting a family variant requires an ADR, fixtures and registry drift validation.
+
+Unimplemented native-test allocations are recorded separately in
+`NATIVE_TEST_RESERVATIONS_V1.md` (ADR-0050). They are reservations, not live
+registry rows or supported decoders. Promotion requires the corresponding
+implementation, canonical fixtures and reviewed drift-check update together;
+the live domain set above continues to match the existing crate implementation.
+
+`PrincipalId` is a distinct opaque 32-byte host-supplied identity value, not a
+content-addressed identifier and not a new hash domain. It never derives from a
+username, path, label, prompt, model output, repository metadata, or session
+text. Possessing or naming it grants no authority; S20-370 policy data and
+later authenticated S20-380 capability evidence perform exact matching.
+
+`CapabilitySummaryDigest` and `ValidationProfileId` are content-addressed
+proposal bindings introduced by S20-345. Neither proves that capabilities were
+authenticated or validation phases ran. Their owning contracts define exact
+preimages; S20-360 must compare them with trusted recomputation/evidence.
+
+## Digest domain tags
+
+Every conformance epoch's contract descriptor carries an integer
+`digest_domain_tag`. Two conventions coexist: 3, 4 and 8 equal the `sley-id`
+`Domain` ordinals of their domains, while 18 to 22 were assigned sequentially
+(they coincide with unrelated ordinals). No code maps the integer to a domain
+string, and every contract lives in its own single-descriptor conformance
+epoch, so the integers collide only if a future epoch assembles several
+descriptors. This table is the global assignment; a new tag must take the
+next unused integer here, never one derived by analogy.
+`scripts/check_domain_tags_and_strings.py` verifies each row against its
+source and that no crate declares a constant this table omits.
+
+| Tag | Contract | Source |
+|---:|---|---|
+| 3 | `sley2.object.v1` (SSMC1 epoch-1 contract descriptor) | `docs/spec/SSMC1.md` |
+| 4 | `sley2.state-root.v1` | `crates/sley-state-root/src/lib.rs` |
+| 8 | `sley2.policy-root.v1` | `crates/sley-policy/src/lib.rs` |
+| 18 | `sley2.repository-pack.v1` | `crates/sley-repo/src/lib.rs` |
+| 19 | `sley2.repository-exchange.v1` | `crates/sley-repo/src/exchange.rs` |
+| 20 | `sley2.semantic-delta.v1` (semantic comparison) | `crates/sley-repo/src/compare.rs` |
+| 21 | `sley2.merge-conflict.v1` (merge) | `crates/sley-repo/src/merge.rs` |
+| 22 | `sley2.protocol-handshake.v1` (SMP1) | `crates/sley-protocol/src/lib.rs` |
+
+## Workspace identity
+
+Workspace creation receives a 32-byte `GenesisNonce` from the creating host.
+Given the same nonce, derivation is deterministic:
+
+```text
+WorkspaceId = BLAKE3-256("sley2.workspace.v1" || genesis_nonce[32])
+```
+
+Nonce generation policy is outside the hash contract. A host must collision-
+check a proposed workspace ID before acceptance.
+
+## Entity identity
+
+Entity creation binds exact workspace, candidate nonce, entity kind, and
+creation ordinal:
+
+```text
+entity_preimage = WorkspaceId[32] || CandidateNonce[32] ||
+                  entity_kind_u32_be || creation_ordinal_u64_be
+EntityId = BLAKE3-256("sley2.entity.v1" || entity_preimage)
+```
+
+`CandidateNonce` is exactly 32 bytes. `entity_kind` is the epoch-frozen object-
+kind tag. `creation_ordinal` is the zero-based position among create-entity
+operations in the candidate after canonical operation ordering. Fixed-width
+big-endian integers are deliberate here: identifier derivation does not depend
+on or duplicate the SCB1 varint implementation.
+
+The transaction layer collision-checks the result against both live and
+tombstoned identities. Deletion never permits reuse.
+
+## Content-addressed identifiers
+
+Each type hashes the exact preimage defined by its owning contract:
+
+```text
+ObjectId      = H(object_domain, canonical_object_envelope_preimage)
+StateRoot     = H(state_root_domain, canonical_state_root_envelope_preimage)
+TransactionId = H(transaction_domain, canonical_transaction_envelope_preimage)
+ReceiptId     = H(receipt_domain, canonical_receipt_envelope_preimage)
+SchemaEpochId = H(schema_epoch_domain, canonical_epoch_envelope_preimage)
+PolicyRootId  = H(policy_domain, canonical_policy_envelope_preimage)
+```
+
+where `H(domain, preimage) = BLAKE3-256(domain || preimage)`. The SCB1 digest
+trailer is outside its own preimage. For semantic objects, the trailer equals
+`ObjectId`. Other contract digests equal their corresponding typed identifier.
+
+`StateRoot` excludes ancestry. `TransactionId` includes exact ordered parent
+transaction IDs and therefore binds ancestry. ADR-0021 names its preimage the
+canonical parent-bound transaction receipt core. `ReceiptId` independently
+authenticates the complete persisted receipt evidence, including its
+`TransactionId`, exact transaction bytes, validation/test references,
+capability-use summary, state and policy bytes, object manifest, and commit
+metadata. The transaction core excludes both identifiers; the outer receipt
+contains `TransactionId` but excludes `ReceiptId`. The owning contracts supply
+exact preimages and canonical parent ordering for merges.
+
+`canonical_epoch_envelope_preimage` is the fixed, non-SCB standalone
+`SLEYEP01 || uvar(1) || len(epoch_record) || epoch_record` bootstrap preimage
+defined by `SCHEMA_EPOCH_V1.md`. It contains no `SchemaEpochId` and therefore
+does not create a self-hash cycle. Calling it an envelope does not give it an
+SCB1 digest trailer or registry-selected schema.
+
+## Rust API boundary
+
+`sley-id` exposes opaque newtypes for every identifier and fixed nonce, byte-
+array construction/access, type-specific derivation functions, and no generic
+public `hash(domain_string, bytes)` escape hatch. All types are value types with
+byte equality and ordering. Debug output, if implemented, is explicitly
+derived, non-round-trippable, and non-canonical.
+
+The crate uses `#![forbid(unsafe_code)]`, has no filesystem/network/environment
+access, and depends only on the pinned BLAKE3 implementation plus the standard
+library. It neither encodes SCB1 nor knows repository, policy, or VM semantics.
+
+## Acceptance
+
+- fixed vectors cover every frozen domain plus WorkspaceId and EntityId;
+- changing any domain, preimage byte, kind, ordinal, workspace, or nonce changes
+  the digest in the vector suite;
+- repeated derivation is byte-identical;
+- all identifier types remain 32 bytes;
+- no generic arbitrary-domain public API exists;
+- no source/text/Git/host facts influence derivation;
+- focused unit and property tests pass with the pinned toolchain.

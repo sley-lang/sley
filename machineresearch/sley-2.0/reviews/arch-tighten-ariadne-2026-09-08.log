@@ -1,0 +1,28 @@
+[33m[state/agent-db][39m [33mslow OpenClaw agent database open[39m
+status: complete, FAIL
+
+findings:
+- **P1, contradictory supported-operation contract.** `docs/spec/CANDIDATE_RESULT_V1.md:4` and `docs/spec/VALIDATION_PROFILE_V1.md:4` still declare an executable-program-operation-free epoch, while `VALIDATION_PROFILE_V1.md:47-53`, `CANDIDATE_RESULT_V1.md:429-456`, and `TRANSACTION_MODEL_V1.md:14-22` admit analyzed Operation entities. `scripts/check_candidate_result_contract.py:323,356` enforces and reports the obsolete operation-free claim while returning PASS. Required repair: synchronize both status blocks, closeout wording, and checker output with the implemented E1 through E6 subset, then add a cross-document assertion.
+- **P2, identity map was not updated after AT-HH-04.** `docs/audits/SLEY-2.0-ARCHITECTURE-TIGHTENING-IDENTITY-MAP.md:346,368,370,1019` still says package and SLEYPOBS1 vectors or byte layouts are absent. They now exist at `docs/spec/EXEC_PACKAGE_V2.md:87-116` and `crates/sley-vm/tests/rw075_raw_callable.rs:1677-1795`. Required repair: update B05, B07, the duplicate/vector table, and hygiene matrix.
+- **P2, reverse protocol revision pins are stale.** `docs/spec/SMP1.md:16-19` still names JSON bridge revision 6 and CLI revision 3, while their contracts are revisions 7 and 4. Current checkers validate only the forward composition. Required repair: update SMP1's implementation references and make its checker validate the reverse pins.
+- **P2, hash-domain gate does not enforce its advertised scope.** `docs/spec/IDENTIFIERS_V1.md:82-88` claims all script and bench `sley2.*` labels are checked, but `scripts/check_domain_tags_and_strings.py:31,91-99` recognizes only double-quoted literals and tests for the lexical substring `blake3`. A single-quoted Python domain is invisible. Required repair: inspect Python string literals robustly, cover both quote styles, and add an evasion regression test.
+
+validation:
+- Clean detached candidate at `8ff792e9f9a5f26e6556b3204887c3f6d4e26b6d`; base resolved to `560a5f16ebe9edaaee6837b779f6af94ad9ae310`.
+- BOOTSTRAP_PROFILE_1 literal equals the profile's SHA-256, `4f269150...efd630`; no persisted v1 package-digest value was found.
+- SLEYPOBS1 documented ordering and widths match `observation_preimage_package`.
+- Passed bootstrap-profile, execution-package marker, domain/tag, bridge, CLI, candidate, transaction, remote-head, required-contract-index, finding-register, and decision-dossier checkers.
+- Targeted frozen v2 identity vector and repository trailing-byte Rust tests passed.
+- Repository-exchange Python checker could not run because the local Python environment lacks `blake3`; the corresponding Rust rejection test passed.
+- `origin/arch/tighten-r1` is ahead of and contains the candidate. Detached-checkout remote consistency reports `NO_UPSTREAM`, which is not evidence that the branch is uninspectable.
+- V1 release gates were not run.
+
+blockers:
+- None to the verdict.
+
+return_to:
+- Architecture-tightening integrator for the required P1 repair and P2 record/checker corrections.
+
+```json
+{"ARCHITECTURE_TIGHTENING_PASS": false, "CANONICAL_IDENTITY_PASS": true, "NATIVE_AUTHORITY_PASS": true, "SELFHOST_BOUNDARY_PASS": true, "SPEC_SYNC_PASS": false, "REMOTE_INSPECTABILITY_PASS": true, "verdict": "FAIL", "p0": 0, "p1": 1, "p2": 3, "p3": 0}
+```

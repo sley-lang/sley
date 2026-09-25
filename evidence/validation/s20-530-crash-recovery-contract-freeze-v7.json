@@ -1,0 +1,85 @@
+{
+  "contract": "s20-530-crash-recovery-contract-freeze-v7",
+  "result": "PASS_CONTRACT_FROZEN",
+  "validation_tier": "TIER_2_CONTRACT_REFREEZE",
+  "refreeze_reason": "Separate six grouped COR-06 and COR-07 M2 probe calls from their direct-leaf three-argument probe identities through one closed 11-record adapter registry, freeze seven exact private two-argument adapter signatures, complete the missing grouped head and ref-cycle fixtures, and add exact legacy-name, owner, cycle-side, arity, digest, and normal-build controls without changing production recovery behavior, matrix rows, limit events, public APIs, or repository remote state.",
+  "design": "machineresearch/sley-2.0/s20-530-v7-grouped-m2-probe-adapter-design.md",
+  "deterministic_inputs": {
+    "matrix_rows": 100,
+    "matrix_rows_sha256": "675afdad226e5e32ad4c5f4161a0802ae516355cf7e7b88e8d7510de5aae7698",
+    "spec_sha256": "9ee07a0a71042706c23ab27ff8c131164a722a2b54da2f67f0757f1b86bce06e",
+    "adr_sha256": "495bddba2eb368ba63bb739cd98b23cd6c3fe370d125d049863051b7f1041e98",
+    "checker_sha256": "283baabee9414f86c3d1a1c56444d3e9124740c5264756295fcb6959ceddb62d",
+    "checker_contract_sha256": "a080f4b555b982d1516425138593c968dbba3a11e15c991b153350abeac03d1b",
+    "runner_sha256": "56bcd9463781bbece8cd36dd2b23fa6868e5f1faf2ffa9210f07428ffb30a1c0"
+  },
+  "contract_set_sha256": "fa0e1c5535a77686dca14c8d38b8b7cfd120bed8e8c18e42ef3f112f6ab5f5be",
+  "commands": {
+    "python3 -m py_compile scripts/check_s20_530_crash_recovery.py scripts/render_s20_530_grouped_m2.py scripts/run_s20_530_validation.py": "PASS",
+    "ruff format --check scripts/check_s20_530_crash_recovery.py scripts/render_s20_530_grouped_m2.py scripts/run_s20_530_validation.py": "PASS",
+    "ruff check scripts/check_s20_530_crash_recovery.py scripts/render_s20_530_grouped_m2.py scripts/run_s20_530_validation.py": "PASS",
+    "git diff --check": "PASS",
+    "grouped M2 probe-adapter registry metadata and specification binding": "PASS_11_RECORDS_7_HELPERS",
+    "grouped M2 focused positive and hostile controls": "PASS_MISSING_REORDER_DUPLICATE_LEGACY_CROSS_OWNER_CYCLE_SIDE_ARITY_STALE_DIGEST",
+    "grouped M2 exact statement plans": "PASS_6",
+    "grouped M2 private source authority": "PASS_7_EXACT_TWO_ARGUMENT_TEST_ONLY_SIGNATURES",
+    "grouped M2 exact runtime cases": "PASS_COR06_2_COR07_4",
+    "grouped M2 production source prefixes": "PASS_BYTE_IDENTICAL_TXN_REFS",
+    "grouped and fixture registry metadata": "PASS_73_COR06_159_COR07_232_FIXTURES",
+    "multifault registry metadata and specification binding": "PASS_15_CASES",
+    "cargo test -p sley-txn --lib --locked": "PASS_194_IGNORED_1",
+    "cargo test -p sley-repo --lib --locked": "PASS_299",
+    "full checker negative-control corpus": "DEFERRED_EXISTING_RUST_MASK_RUNTIME_DEBT_AFTER_METADATA_PASS",
+    "frozen contract self-integrity": "PASS"
+  },
+  "review_obligations": {
+    "implementation_helper_body_manifests": "FINAL_REVIEW_REQUIRED",
+    "dual_site_proof_manifests": "FINAL_REVIEW_REQUIRED_5_FIELDS",
+    "limit_event_owner_body_control_ancestries": "FINAL_REVIEW_REQUIRED_30_EVENTS",
+    "limit_event_entry_call_paths": "FINAL_REVIEW_REQUIRED_ALL_PUBLIC_ROOTS",
+    "test_to_production_shared_state_authority": "FINAL_REVIEW_REQUIRED_COMPLETE_LOCAL_DEPENDENCY_CLOSURE"
+  },
+  "resolved_findings": [
+    "grouped_m2_probe_helper_arity_collision",
+    "grouped_m2_legacy_leaf_probe_reuse",
+    "grouped_ref_digest_cycle_fixture_gap"
+  ],
+  "deferred_semantic_findings": [
+    "remaining_s20_530_test_plan_and_closeout_evidence",
+    "implementation_helper_body_manifests",
+    "dual_site_proof_manifests",
+    "limit_canary_and_non_unit_peak_semantics",
+    "checker_rust_mask_runtime_debt"
+  ],
+  "full_gate": {
+    "make_v1": "SKIPPED_CONTRACT_REFREEZE_NOT_RELEASE_BOUNDARY"
+  },
+  "authority": {
+    "mode": "WRITE_LOCAL",
+    "deploy": false,
+    "external_runtime_mutation": false,
+    "provider_call": true,
+    "publication": false,
+    "push": false,
+    "spend": false,
+    "trading": false
+  },
+  "implementation_complete": false,
+  "reviews": {
+    "nabu": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "fa0e1c5535a77686dca14c8d38b8b7cfd120bed8e8c18e42ef3f112f6ab5f5be",
+      "evidence_payload_sha256": "88eb5eca144b18bafb60235c6d1ed58865570073c0048c774b1e06d979744184"
+    },
+    "ariadne": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "fa0e1c5535a77686dca14c8d38b8b7cfd120bed8e8c18e42ef3f112f6ab5f5be",
+      "evidence_payload_sha256": "88eb5eca144b18bafb60235c6d1ed58865570073c0048c774b1e06d979744184"
+    },
+    "vulcan": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "fa0e1c5535a77686dca14c8d38b8b7cfd120bed8e8c18e42ef3f112f6ab5f5be",
+      "evidence_payload_sha256": "88eb5eca144b18bafb60235c6d1ed58865570073c0048c774b1e06d979744184"
+    }
+  }
+}

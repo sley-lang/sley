@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-CREATE-001",
+  "arm": "sley2",
+  "negative": "unchecked_add_variant",
+  "expected_code": "ORACLE_UNCHECKED_ARITHMETIC",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

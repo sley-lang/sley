@@ -1,0 +1,20 @@
+{
+  "assertions": [
+    "twin instances over equal state issue different identities",
+    "a live name of one instance is unknown to the twin",
+    "a restarted instance answers SESSION_UNKNOWN to every pre-restart name",
+    "live sessions are capped at the negotiated max_sessions"
+  ],
+  "commit": "ab35c569bbc2e9e1261fe12643de9400de10161a",
+  "contract": "s20-330-session-handle-profile-v1",
+  "expected_failure": "SESSION_UNKNOWN for foreign-instance names",
+  "result": "PASS",
+  "tests": [
+    "issuance_binds_head_and_nonce_separates_instances",
+    "session_repository_and_transaction_methods_answer_deterministically",
+    "sessions_bind_workspace_root_and_epoch_and_handles_name_their_root",
+    "live_sessions_are_capped_and_restarts_forget"
+  ],
+  "threat": "T56",
+  "threat_name": "live session name used by a non-opening caller"
+}

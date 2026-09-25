@@ -1,0 +1,38 @@
+RW-075 semantic/boundary delta review (Ariadne)
+Date: 2026-09-06. Lane: forge handoff ariadne (bounded, read-only delta).
+
+VERDICT: PASS.
+
+Findings:
+
+- `execute_approved_package` uses digest verification, structural
+  hydration, structural input validation, and the package-specific runner
+  (`crates/sley-vm/src/execute.rs:631-691`). Hydration calls
+  `hydrate_verified_definitions`, not `TypeEnvironment::new`
+  (`crates/sley-vm/src/exec_package.rs:747-768`).
+- No `TypeEnvironment::new`, `check_constant`, or `require_hashable`
+  calls occur in the package path or extended runtime executor. The
+  remaining calls at `execute.rs:1712-1713,2171,2189` belong to legacy
+  validation/termination paths, not the package-specific functions.
+- Full closure is bound: image, constants, layouts, imports, dependencies,
+  cache key, entry, epoch, root, profile, VM/ABI versions, limits, and
+  receipt (`exec_package.rs:252-287`). Section/package digest construction
+  covers package inventories (`exec_package.rs:547-670`), and verification
+  checks all bindings before execution (`exec_package.rs:782-836`).
+- `raw_hash` accepts only bytes plus an algorithm selector and exposes
+  only raw hashing/fuel/error surfaces (`raw_hash.rs:61-147`; exports at
+  `lib.rs:41-44`). It accepts no program/type/candidate object and exposes
+  no semantic digest service.
+
+Validation performed by reviewer: reviewed the uncommitted RW-075 delta
+against parent/HEAD `e85b89c04da5`; targeted forbidden-call searches were
+clean for the package path and extended runtime body; `git diff --check`
+passed. Tests were not executed by the reviewer (read-only handoff);
+execution records were supplied locally by the integrator
+(`cargo test -p sley-vm` green: 81 lib + 37 RW-070 + 19 RW-075 closure +
+8 AR-04/AR-05; both freeze checkers PASS).
+
+Blockers: none.
+
+Disposition: Ariadne lane PASS (round 1, no findings). Preserved unedited
+as the passing round.

@@ -1,0 +1,25 @@
+{
+  "contract": "sley2.live-task-base.v1",
+  "entities": {
+    "constant": "a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1",
+    "guard": "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2",
+    "namespace": "a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0"
+  },
+  "judge": {
+    "constant": "constant",
+    "flow": "stale-sequence",
+    "guard": "guard"
+  },
+  "pack_digest_blake3": "b3b417640192a2462b12994d81f821bfb7e0a6b46449ee8b0ce58041c36160c4",
+  "policy_root": "9489f28a84aa219cf0a3d39578bdacab065391fb78a41c1505f41427ec0bf4cf",
+  "principal": "efc9efb80dbb95f850914c4ff5f713604b1daefa5df4aa8f5ccdb98d2f1728f3",
+  "strict": {
+    "source": "corpus"
+  },
+  "targets": [
+    "a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2"
+  ],
+  "task_id": "S2B-STALE-001",
+  "variant": "guard_disabled",
+  "workspace": "0707070707070707070707070707070707070707070707070707070707070707"
+}

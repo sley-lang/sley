@@ -1,0 +1,7 @@
+phase1 valid: False identities: [{'entity': '7e769363eb2f81cc5e79ab4eeae73f1f49032f289d96e9516f36212726522b84', 'ordinal': 0}]
+phase2 valid: False identities: [{'entity': '7e769363eb2f81cc5e79ab4eeae73f1f49032f289d96e9516f36212726522b84', 'ordinal': 0}, {'entity': '675ab35c99b7b09f553e50fcc470952a9612eed01b5569a336662610fc17a22b', 'ordinal': 1}]
+compose valid: True body: 534c45594352533101f6080d010101022015aeaa9c6d06f35cd54312d6a18771f86c05854d862756c0f531a71be32fb1b20322012024da74f0f1f1141821792b517ac4536985c2f94e689748ae4c4fde901d4ce6d904207d8ffff97a3fdafc49b4329d47
+finish: {"command": ["finish"], "outcome": "completed", "report": {"finished": true, "sha256": "63c9a06ff6162c59c6421b65fc9116341596de18c63224ba907ee66e525711b1"}, "ret
+S2B-TYPE-001 exit: 0
+{"arm": "sley2", "code": null, "detail": "all flows held", "status": "accepted", "task_id": "S2B-TYPE-001"}
+workspace kept at: /tmp/opencode/type_ws_kept

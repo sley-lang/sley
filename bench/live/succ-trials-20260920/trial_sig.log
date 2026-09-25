@@ -1,0 +1,7 @@
+SIG propose valid: True
+{"body": "534c45594352533101b7030d010101022034aa9a882f1f3c5ae0b038a48f6f6d9ae4dca266d06eb5c884c5407d981763f80302000004207d8ffff97a3fdafc49b4329d47b0b12f04759c3124274024016483a263265d54052013e969de3f2c2a1aa145762049248bbd79b0266d83d266c7d14506e8c2094d7b0601020782020e3004010101020102032201203a7cef221c
+SIG finish: {"command": ["finish"], "outcome": "completed", "report": {"finished": true, "sha256": "eb045aab9871eee727b382bd4b0f78520845db49a59d9792ed6431b7e8a177
+S2B-SIG-001 exit: 0
+{"arm": "sley2", "code": null, "detail": "all flows held", "status": "accepted", "task_id": "S2B-SIG-001"}
+
+workspace kept at: /tmp/tmpnc7d_rqo

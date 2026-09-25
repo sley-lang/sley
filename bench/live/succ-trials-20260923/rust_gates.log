@@ -1,0 +1,30 @@
+provenance utc=2026-09-23T03:59:59Z git_head=04fa14e6d66f02120f35250d62954695d39d15ce dirty=[ M bench/live/SUCCESSION-COVERAGE.md;?? bench/live/succ-trials-20260923/;] python=3.14.7 cargo=1.93.0 CARGO_TARGET_DIR=/home/dev/Work/checkpoints/target-succ-type SLEY2_SLEY_BINARY=/home/dev/Work/checkpoints/target-succ-type/debug/sley sley_sha256=700ce8a8d354ddce45f9e1be073580f9f285d365e9cfb9978659d5163a8d916f SUCC_JUDGE_TEST_BINARY=/home/dev/Work/checkpoints/target-succ-type/debug/deps/succ_live_judge_cases-42d77a02eb446c77 driver_sha256=2f5865438d7f2e651d1ed9911db4dc3767be69244ba4e091a74b0ce843f4afa8 manifest_sha256=d61216a910837eddd852eeb0e28df33f926f4a99f746aeaad4e5e03104dd308f judge_sha256=f56fad736d622b32d7da3c2a6e098cbf249453cd8c3bb814b99951871a3da43e
+command: cargo test --offline -p sley-repo --test succ_live_emit --test succ_live_judge_cases
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.03s
+     Running tests/succ_live_emit.rs (/home/dev/Work/checkpoints/target-succ-type/debug/deps/succ_live_emit-4747a17e4232f5dc)
+
+running 2 tests
+test emit_succ_live_packs ... ignored, fixture emitter; run explicitly for refresh
+test succ_live_packs_frozen ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 5.40s
+
+     Running tests/succ_live_judge_cases.rs (/home/dev/Work/checkpoints/target-succ-type/debug/deps/succ_live_judge_cases-42d77a02eb446c77)
+
+running 12 tests
+test live_case_driver ... ok
+test typed_driver_tests::extra_member_is_an_error ... ok
+test typed_driver_tests::empty_vector_decodes ... ok
+test typed_driver_tests::depth_bound_rejects_deep_nesting ... ok
+test typed_driver_tests::missing_member_is_an_error ... ok
+test typed_driver_tests::unknown_definition_is_an_error ... ok
+test typed_driver_tests::legacy_bits_mismatch_is_an_error ... ok
+test typed_driver_tests::nested_record_vector_round_trip ... ok
+test typed_driver_tests::no_silent_defaults ... ok
+test typed_driver_tests::nested_result_renders_structured ... ok
+test typed_driver_tests::variant_payload_is_never_defaulted_or_dropped ... ok
+test typed_driver_tests::variant_unit_and_payload_members_decode ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+cargo exit: 0

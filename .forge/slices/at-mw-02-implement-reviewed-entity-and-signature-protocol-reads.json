@@ -1,0 +1,296 @@
+{
+  "blocked_without_operator_approval": [
+    "merge",
+    "deploy",
+    "public_posting",
+    "provider_spend",
+    "runtime_mutation",
+    "trading",
+    "locked_canon_mutation"
+  ],
+  "created_at": "2026-09-08T14:18:38+00:00",
+  "evidence": [
+    {
+      "artifact": "",
+      "command": "",
+      "id": "targeted-tests",
+      "status": "not_run",
+      "summary": "Targeted validation for the changed surface."
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/phase1-acceptance.json",
+      "id": "phase1-review",
+      "status": "pass",
+      "summary": "Phase1 query/repo foundation and prospective consumer contract accepted at5e2ff61; full protocol/consumer implementation remains open.",
+      "updated_at": "2026-09-08T15:21:38+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/phase2-runtime-acceptance.json",
+      "id": "runtime-targeted",
+      "status": "pass",
+      "summary": "Exact6b37fd31: Clippy,11 original regressions,2 corrected R7 targets, full protocol79pass/3 intentional emitters ignored. Phase1 foundation previously accepted5e2ff61. No full gate or complete AT-MW-02 claim.",
+      "updated_at": "2026-09-08T18:17:12+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/phase2-runtime-acceptance.json",
+      "id": "phase2-runtime-review",
+      "status": "pass",
+      "summary": "Runtime correction reviewed and Tier2 verified at6b37fd31; six defects plus R7 resolved; static contracts/vectors/consumers remain.",
+      "updated_at": "2026-09-08T18:17:12+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/phase2-static-acceptance.json",
+      "command": "Pinned d897719a: 16 static checks, 18 exact regressions and coupled Tier2 subsystem; 3 independent source reviews PASS",
+      "id": "static-targeted",
+      "status": "pass",
+      "updated_at": "2026-09-08T19:22:53+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/i3-vectors-receipt.json",
+      "command": "uv run --project oracle/scb1 --frozen python3 scripts/check_entity_read_vectors.py",
+      "id": "i3-vectors",
+      "status": "pass",
+      "summary": "Read-only checker PASS at 5f5c2dd9: 23 independent accepted cases, 91 rejections, zero problems.",
+      "updated_at": "2026-09-09T03:43:32+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/i3-oracle-tests-receipt.json",
+      "command": "uv run --project oracle/scb1 --frozen python -m unittest oracle.scb1.tests.test_entity_read",
+      "id": "i3-oracle-tests",
+      "status": "pass",
+      "summary": "106 oracle entity-read rejection/integration tests pass at 5f5c2dd9.",
+      "updated_at": "2026-09-09T03:43:32+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/i3-spotcheck-receipt.json",
+      "command": "uv run --project oracle/scb1 --frozen python3 /tmp/verify_atmw02.py",
+      "id": "i3-spotcheck",
+      "status": "pass",
+      "summary": "Second-leg independence proof at 5f5c2dd9 without the oracle module: 25/25 ObjectIds, 46/46 frame identities, 23/23 work values.",
+      "updated_at": "2026-09-09T03:43:32+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/i3b-owner-receipt.json",
+      "command": "cargo test -p sley-query",
+      "id": "i3b-owner",
+      "status": "pass",
+      "summary": "90 pass 0 fail 4 ignored: new non-selected-extraction proof plus all 24 prior entity-read owner tests.",
+      "updated_at": "2026-09-09T11:40:52+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/i3b-server-receipt.json",
+      "command": "cargo test -p sley-protocol entity_read && entity_version && entity_signature && repair_",
+      "id": "i3b-server",
+      "status": "pass",
+      "summary": "All serving-surface regressions pass: debit table, exact/one-below limits, exhaustion, single head load, fault no-refund.",
+      "updated_at": "2026-09-09T11:40:52+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/i3b-clippy-receipt.json",
+      "command": "cargo clippy -p sley-query --all-targets",
+      "id": "i3b-clippy",
+      "status": "pass",
+      "summary": "Zero warnings on the touched crate including tests.",
+      "updated_at": "2026-09-09T11:40:52+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/i4-tables-receipt.json",
+      "command": "generate_smp1_json_bridge_table.py --check --protocol-version 1/2",
+      "id": "i4-tables",
+      "status": "pass",
+      "summary": "Both generated method tables drift-free: v1 frozen 41 rows, v2 additive 43 rows with exactly 306/307.",
+      "updated_at": "2026-09-09T11:44:48+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/i4-profiles-receipt.json",
+      "command": "check_required_contract_index.py && check_session_handle_profile.py",
+      "id": "i4-profiles",
+      "status": "pass",
+      "summary": "Index row 17.12 rev2 PASS; session-handle v2 extension (306/307 head-bound-only) PASS, zero problems.",
+      "updated_at": "2026-09-09T11:44:48+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/i4-suites-receipt.json",
+      "command": "cargo test -p sley-json-bridge && pytest bench/sley2/tests/test_runner.py",
+      "id": "i4-suites",
+      "status": "pass",
+      "summary": "Bridge 21 pass (v1 embed parity, default byte-identical); runner 15 pass (v1 allowlist pin held).",
+      "updated_at": "2026-09-09T11:44:48+00:00"
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/i4b-demonstrations-receipt.json",
+      "command": "uv run --project oracle/scb1 --frozen python3 scripts/check_i4b_edit_demos.py --sley target/debug/sley",
+      "id": "i4b-demos",
+      "status": "pass",
+      "summary": "4/4 live demonstrations VALID (expression+signature on fixtures a/b, 14 phases each); confinement, frozen before/after, re-validation, and cross-fixture non-transferability judged independently.",
+      "updated_at": "2026-09-10T00:00:00+00:00"
+    },
+    {
+      "artifact": "bench/sley2/fixtures/i4b_demo_v1.json",
+      "command": "python3 scripts/generate_i4b_demo_fixtures.py --check",
+      "id": "i4b-fixtures",
+      "status": "pass",
+      "summary": "Demo fixture variants a/b byte-identical to emitter output (sha256 28a65024...25cbfb).",
+      "updated_at": "2026-09-10T00:00:00+00:00"
+    },
+    {
+      "artifact": "docs/audits/AT_MW_02_I4B_DEMONSTRATIONS.md",
+      "command": "cargo test -p sley-repo --locked",
+      "id": "i4b-owner-suite",
+      "status": "pass",
+      "summary": "sley-repo suite green (367 pass, emitter stays ignored); lane-to-lane phase-3 merge 7f120a5 operator-approved 2026-09-10.",
+      "updated_at": "2026-09-10T00:00:00+00:00"
+    },
+    {
+      "artifact": "/home/dev/machineresearch/sley-2.0/council-queue/atmw02-nabu-rereview.log",
+      "command": "forge handoff --timeout 3000 nabu \"$(cat atmw02-nabu-rereview-request.txt)\"",
+      "id": "nabu-rereview",
+      "status": "pass",
+      "summary": "Nabu re-reviewed pushed aedc443: PASS, zero findings (architecture high confidence); 306/307 satisfy master 8.2, bounded-context accounting honest, frozen v1 unwidened. Verdict AT_MW_02_NABU_REREVIEW_JSON.",
+      "updated_at": "2026-09-10T04:17:43+00:00"
+    }
+  ],
+  "owner": "muse-1.3-go",
+  "path_checks": [
+    {
+      "pattern": "crates/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "scripts/**",
+      "required_evidence": [
+        "runtime-targeted",
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "oracle/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "conformance/**",
+      "required_evidence": [
+        "runtime-targeted",
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "bench/**",
+      "required_evidence": [
+        "runtime-targeted"
+      ]
+    },
+    {
+      "pattern": "docs/spec/**",
+      "required_evidence": [
+        "runtime-targeted",
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "docs/adr/**",
+      "required_evidence": [
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "machineresearch/sley-2.0/machine-summary.json",
+      "required_evidence": [
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "docs/WORK_PACKAGES.md",
+      "required_evidence": [
+        "static-targeted"
+      ]
+    },
+    {
+      "pattern": "Makefile",
+      "required_evidence": [
+        "static-targeted"
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "source": {
+    "import_posture": "capability-only; no third-party code copied",
+    "origin": "Greyforge thin-slice pilot inspired by external Code Factory patterns"
+  },
+  "summary": "Active REWEAVE retained Machine Genesis 8.2; reviewed design candidate 48070373d59eb2241ad7fed4157d9016b514500f; exact ENTITY_READ_PROFILE_V2",
+  "tasks": [
+    {
+      "evidence_refs": [
+        "static-targeted"
+      ],
+      "id": "I1",
+      "owner": "muse-1.3-go",
+      "status": "done",
+      "title": "Versioned protocol and dependent contract synchronization",
+      "updated_at": "2026-09-08T19:22:53+00:00"
+    },
+    {
+      "evidence_refs": [
+        "phase1-review",
+        "phase2-runtime-review"
+      ],
+      "id": "I2",
+      "owner": "muse-1.3-go",
+      "status": "done",
+      "title": "Borrowed exact entity/signature owner and session-bound serving",
+      "updated_at": "2026-09-08T18:17:12+00:00"
+    },
+    {
+      "evidence_refs": [
+        "i3-vectors",
+        "i3-oracle-tests",
+        "i3-spotcheck"
+      ],
+      "id": "I3",
+      "owner": "muse-1.3-go",
+      "status": "done",
+      "title": "Independent vectors: materialized corpus, checker gate, oracle tests",
+      "updated_at": "2026-09-09T03:44:04+00:00"
+    },
+    {
+      "evidence_refs": [
+        "i4-tables",
+        "i4-profiles",
+        "i4-suites"
+      ],
+      "id": "I4",
+      "owner": "muse-1.3-go",
+      "status": "done",
+      "title": "Bridge/CLI sync verification: tables, pins, index, session profile; allowlist deferred to phase-3 v2 offer",
+      "updated_at": "2026-09-09T11:44:48+00:00"
+    },
+    {
+      "evidence_refs": [
+        "i3b-owner",
+        "i3b-server",
+        "i3b-clippy"
+      ],
+      "id": "I3b",
+      "status": "done",
+      "title": "Runtime byte/resource/version/freshness regression: owner-boundary instrumentation, budget-debit observation, injected post-reservation failure",
+      "updated_at": "2026-09-09T11:40:52+00:00"
+    },
+    {
+      "evidence_refs": [
+        "i4b-demos",
+        "i4b-fixtures",
+        "i4b-owner-suite",
+        "nabu-rereview"
+      ],
+      "id": "I4b",
+      "status": "done",
+      "title": "Response-derived edit demonstrations (needs phase-3 v2 endpoint offer + allowlist/runner v2 slice)",
+      "updated_at": "2026-09-10T00:00:00+00:00"
+    }
+  ],
+  "title": "AT-MW-02: implement reviewed entity and signature protocol reads"
+}

@@ -1,0 +1,2070 @@
+{
+  "by_severity": {
+    "P0": {
+      "PLANNED_EVIDENCE_PRESENT": 6,
+      "STRUCTURAL_CONTROL_RECORDED": 3,
+      "SYMBOL_REALIZED_WITH_EXERCISE": 37
+    },
+    "P1": {
+      "PLANNED_EVIDENCE_PRESENT": 3,
+      "SYMBOL_REALIZED_WITH_EXERCISE": 7
+    }
+  },
+  "contract": "sley2.threat-coverage-report.v1",
+  "independent_security_review": "PENDING",
+  "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
+  "p0_p1_without_located_symbol": [],
+  "register_status": "M0 planned-control map; evidence paths are future outputs",
+  "report_digest": "0e7e543185e6b908ded1fcdce4d9657c2c3e9fe912be9ad382ec2f7d68cab0a5",
+  "source": "docs/THREAT_REGISTER.md",
+  "states": {
+    "PLANNED_EVIDENCE_PRESENT": 9,
+    "STRUCTURAL_CONTROL_RECORDED": 3,
+    "SYMBOL_REALIZED_WITH_EXERCISE": 44
+  },
+  "threat_count": 56,
+  "threats": [
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-repo/src/compare.rs#tests",
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/src/native_exchange.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests"
+      ],
+      "exercised_source_count": 49,
+      "expected_failure_code": "SCB_MALFORMED",
+      "id": "T01",
+      "located_file_count": 51,
+      "located_in": {
+        "checkers": [
+          "scripts/check_s20_530_crash_recovery.py",
+          "scripts/check_scb1_spec.py",
+          "scripts/generate_candidate_result_fixtures.py",
+          "scripts/generate_transaction_receipt_fixtures.py"
+        ],
+        "harness": [
+          "bench/live/succ_witness_dead.py"
+        ],
+        "implementation": [
+          "crates/sley-mutate/src/codec/adversarial_tests.rs",
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-policy/src/lib.rs",
+          "crates/sley-repo/src/compare.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/generate_s20_350_fixtures.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
+          "oracle/scb1/src/sley2_scb1_oracle/codec.py"
+        ]
+      },
+      "owner": "sley-canon",
+      "planned_evidence_path": "evidence/security/T01/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "conformance/scb1/v1/rejected.json"
+      ],
+      "related_family_symbols": [],
+      "required_test": "decoder fuzz/rejection",
+      "searched_codes": [
+        "SCB_MAGIC_INVALID",
+        "SCB_VERSION_UNSUPPORTED",
+        "SCB_LENGTH_OVERFLOW",
+        "SCB_TRAILING_BYTES",
+        "SCB_FIELD_MISSING",
+        "SCB_FIELD_UNKNOWN",
+        "SCB_UNION_INVALID",
+        "SCB_BOOL_INVALID"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "malformed SCB1"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-schema/src/lib.rs#tests",
+        "crates/sley-state-root/src/lib.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests"
+      ],
+      "exercised_source_count": 25,
+      "expected_failure_code": "SCB_NON_CANONICAL",
+      "id": "T02",
+      "located_file_count": 29,
+      "located_in": {
+        "checkers": [
+          "scripts/check_s20_530_crash_recovery.py",
+          "scripts/check_scb1_spec.py"
+        ],
+        "implementation": [
+          "crates/sley-mutate/src/codec/adversarial_tests.rs",
+          "crates/sley-policy/src/lib.rs",
+          "crates/sley-repo/src/lib.rs",
+          "crates/sley-repo/src/refs.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
+          "oracle/scb1/src/sley2_scb1_oracle/codec.py",
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+        ]
+      },
+      "owner": "sley-canon",
+      "planned_evidence_path": "evidence/security/T02/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the same rejected corpus"
+      ],
+      "related_family_symbols": [],
+      "required_test": "independent rejection vectors",
+      "searched_codes": [
+        "SCB_VARINT_NON_MINIMAL",
+        "SCB_FIELD_ORDER",
+        "SCB_MAP_ORDER",
+        "SCB_MAP_DUPLICATE",
+        "SCB_FLOAT_NON_CANONICAL",
+        "SCB_LABEL_NOT_NFC"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "alternate noncanonical encoding"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-repo/src/gc.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-state-root/src/lib.rs#tests",
+        "crates/sley-store/src/lib.rs#tests",
+        "crates/sley-txn/src/codec.rs#tests"
+      ],
+      "exercised_source_count": 23,
+      "expected_failure_code": "SCB_DIGEST_MISMATCH",
+      "id": "T03",
+      "located_file_count": 22,
+      "located_in": {
+        "checkers": [
+          "scripts/check_s20_530_crash_recovery.py",
+          "scripts/check_scb1_spec.py",
+          "scripts/generate_candidate_result_fixtures.py",
+          "scripts/generate_transaction_receipt_fixtures.py"
+        ],
+        "implementation": [
+          "crates/sley-policy/src/lib.rs",
+          "crates/sley-repo/src/gc.rs",
+          "crates/sley-repo/src/refs.rs",
+          "crates/sley-scb1/src/lib.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/generate_s20_350_fixtures.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
+          "oracle/scb1/src/sley2_scb1_oracle/codec.py"
+        ]
+      },
+      "owner": "sley-store",
+      "planned_evidence_path": "evidence/security/T03/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "one-byte corruption",
+      "searched_codes": [
+        "SCB_DIGEST_MISMATCH"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "object hash mismatch"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-store/src/lib.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests",
+        "fuzz/targets/repository_pack_importer.rs"
+      ],
+      "exercised_source_count": 5,
+      "expected_failure_code": "STORE_OBJECT_SUBSTITUTION",
+      "id": "T04",
+      "located_file_count": 7,
+      "located_in": {
+        "checkers": [
+          "scripts/check_object_store_spec.py",
+          "scripts/check_s20_530_crash_recovery.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/repository_pack_importer.rs"
+        ],
+        "implementation": [
+          "crates/sley-repo/src/lib.rs",
+          "crates/sley-repo/src/refs.rs",
+          "crates/sley-store/src/lib.rs",
+          "crates/sley-txn/src/repository.rs"
+        ]
+      },
+      "owner": "sley-store",
+      "planned_evidence_path": "evidence/security/T04/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "wrong-object/preimage fault",
+      "searched_codes": [
+        "STORE_OBJECT_SUBSTITUTION"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "object substitution"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-schema/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "SCHEMA_DOWNGRADE",
+      "id": "T05",
+      "located_file_count": 1,
+      "located_in": {
+        "implementation": [
+          "crates/sley-schema/src/lib.rs"
+        ]
+      },
+      "owner": "sley-schema",
+      "planned_evidence_path": "evidence/security/T05/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "downgrade negotiation/import",
+      "searched_codes": [
+        "SCHEMA_DOWNGRADE"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "schema downgrade"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-schema/src/lib.rs#tests",
+        "crates/sley-state-root/src/lib.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests",
+        "crates/sley-vm/tests/rw080_codec_program/schema_codec.rs"
+      ],
+      "exercised_source_count": 6,
+      "expected_failure_code": "SCHEMA_EPOCH_MISMATCH",
+      "id": "T06",
+      "located_file_count": 7,
+      "located_in": {
+        "checkers": [
+          "scripts/check_s20_530_crash_recovery.py"
+        ],
+        "implementation": [
+          "crates/sley-policy/src/lib.rs",
+          "crates/sley-repo/src/refs.rs",
+          "crates/sley-schema/src/lib.rs",
+          "crates/sley-state-root/src/lib.rs"
+        ]
+      },
+      "owner": "sley-schema",
+      "planned_evidence_path": "evidence/security/T06/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "cross-epoch object matrix",
+      "searched_codes": [
+        "SCHEMA_EPOCH_MISMATCH"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "schema epoch confusion"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "ID_DUPLICATE_ENTITY",
+      "id": "T07",
+      "located_file_count": 1,
+      "located_in": {
+        "implementation": [
+          "crates/sley-policy/src/candidate_validation.rs"
+        ]
+      },
+      "owner": "sley-id",
+      "planned_evidence_path": "evidence/security/T07/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "t07_live_bound_target_identity_collides_on_the_live_binding_branch",
+        "tombstones_graph_errors_and_missing_references_are_distinct"
+      ],
+      "related_family_symbols": [],
+      "required_test": "creation collision property",
+      "searched_codes": [
+        "CANDIDATE_IDENTITY_COLLISION"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "duplicate logical identity"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "ID_REUSE_FORBIDDEN",
+      "id": "T08",
+      "located_file_count": 1,
+      "located_in": {
+        "implementation": [
+          "crates/sley-policy/src/candidate_validation.rs"
+        ]
+      },
+      "owner": "sley-id",
+      "planned_evidence_path": "evidence/security/T08/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the same test, tombstone case"
+      ],
+      "related_family_symbols": [],
+      "required_test": "tombstone recreation",
+      "searched_codes": [
+        "CANDIDATE_IDENTITY_COLLISION"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "identity reuse after deletion"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/native_test_plan.rs#tests",
+        "fuzz/targets/ssmc_graph_cfg_checker.rs"
+      ],
+      "exercised_source_count": 3,
+      "expected_failure_code": "GRAPH_UNRESOLVED_REFERENCE",
+      "id": "T09",
+      "located_file_count": 5,
+      "located_in": {
+        "fuzz": [
+          "fuzz/targets/ssmc_graph_cfg_checker.rs"
+        ],
+        "implementation": [
+          "crates/sley-check/src/cfg.rs",
+          "crates/sley-policy/src/candidate_program.rs",
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-policy/src/native_test_plan.rs"
+        ]
+      },
+      "owner": "sley-check",
+      "planned_evidence_path": "evidence/security/T09/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "reference negative corpus",
+      "searched_codes": [
+        "GRAPH_UNRESOLVED_REFERENCE"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "dangling reference"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/native_test_plan.rs#tests",
+        "fuzz/targets/ssmc_graph_cfg_checker.rs"
+      ],
+      "exercised_source_count": 3,
+      "expected_failure_code": "GRAPH_CYCLE_FORBIDDEN",
+      "id": "T10",
+      "located_file_count": 7,
+      "located_in": {
+        "checkers": [
+          "scripts/check_type_system.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/ssmc_graph_cfg_checker.rs"
+        ],
+        "implementation": [
+          "crates/sley-check/src/cfg.rs",
+          "crates/sley-check/src/lib.rs",
+          "crates/sley-policy/src/candidate_program.rs",
+          "crates/sley-policy/src/candidate_validation.rs"
+        ]
+      },
+      "owner": "sley-check",
+      "planned_evidence_path": "evidence/security/T10/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the sley-check unit corpus and the semantic-checkers persistent fuzz slice"
+      ],
+      "related_family_symbols": [],
+      "required_test": "cyclic graph fuzz",
+      "searched_codes": [
+        "TYPE_DEFINITION_CYCLE",
+        "GRAPH_UNRESOLVED_REFERENCE"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "hostile graph cycles"
+    },
+    {
+      "exercised_in": [
+        "fuzz/targets/ssmc_graph_cfg_checker.rs"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "CFG_RESOURCE_LIMIT",
+      "id": "T11",
+      "located_file_count": 6,
+      "located_in": {
+        "checkers": [
+          "scripts/check_error_symbol_registration.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/ssmc_graph_cfg_checker.rs"
+        ],
+        "implementation": [
+          "crates/sley-check/src/cfg.rs",
+          "crates/sley-policy/src/candidate_program.rs",
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-protocol/src/server.rs"
+        ]
+      },
+      "owner": "sley-check",
+      "planned_evidence_path": "evidence/security/T11/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "hostile CFG corpus",
+      "searched_codes": [
+        "CFG_RESOURCE_LIMIT"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "pathological CFG"
+    },
+    {
+      "exercised_in": [
+        "fuzz/targets/ssmc_graph_cfg_checker.rs"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "TYPE_RESOURCE_LIMIT",
+      "id": "T12",
+      "located_file_count": 3,
+      "located_in": {
+        "fuzz": [
+          "fuzz/targets/ssmc_graph_cfg_checker.rs"
+        ],
+        "implementation": [
+          "crates/sley-check/src/lib.rs",
+          "crates/sley-protocol/src/server.rs"
+        ]
+      },
+      "owner": "sley-check",
+      "planned_evidence_path": "evidence/security/T12/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "recursive-type/fuel fuzz",
+      "searched_codes": [
+        "TYPE_RESOURCE_LIMIT"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "type-checker nontermination"
+    },
+    {
+      "exercised_in": [
+        "conformance/root-backed-query/v1/rejected.json"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "QUERY_RESOURCE_LIMIT",
+      "id": "T13",
+      "located_file_count": 4,
+      "located_in": {
+        "checkers": [
+          "scripts/check_root_backed_query_vector.py"
+        ],
+        "implementation": [
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-query/src/query.rs",
+          "crates/sley-query/src/root_query.rs"
+        ]
+      },
+      "owner": "sley-query",
+      "planned_evidence_path": "evidence/security/T13/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "fanout/depth adversarial",
+      "searched_codes": [
+        "QUERY_RESOURCE_LIMIT"
+      ],
+      "severity": "P1",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "query explosion"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-protocol/src/lib.rs#tests",
+        "crates/sley-repo/tests/s3_g2_context.rs",
+        "bench/live/tests/test_acceptance_repairs.py",
+        "bench/live/tests/test_agent_access.py",
+        "bench/live/tests/test_mediated_access.py",
+        "bench/live/tests/test_mediated_context.py"
+      ],
+      "exercised_source_count": 7,
+      "expected_failure_code": "QUERY_REQUIRED_FACT_OMITTED",
+      "id": "T14",
+      "located_file_count": 15,
+      "located_in": {
+        "checkers": [
+          "scripts/check_restricted_query_profile.py",
+          "scripts/check_root_backed_query_vector.py",
+          "scripts/check_smp1_vector.py"
+        ],
+        "harness": [
+          "bench/fixtures/sley2_live_judge.py",
+          "bench/live/tests/test_acceptance_repairs.py",
+          "bench/live/tests/test_agent_access.py",
+          "bench/live/tests/test_mediated_access.py"
+        ],
+        "implementation": [
+          "crates/sley-protocol/src/lib.rs",
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs",
+          "crates/sley-query/src/query.rs"
+        ]
+      },
+      "owner": "sley-query",
+      "planned_evidence_path": "evidence/security/T14/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "truncation/validation independence",
+      "searched_codes": [
+        "QUERY_REQUIRED_FACT_OMITTED"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "truncation hides required facts"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-cli/tests/cli.rs",
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+      ],
+      "exercised_source_count": 2,
+      "expected_failure_code": "SESSION_STALE_HANDLE",
+      "id": "T15",
+      "located_file_count": 7,
+      "located_in": {
+        "checkers": [
+          "scripts/check_session_handle_profile.py",
+          "scripts/record_session_threat_matrices.py"
+        ],
+        "implementation": [
+          "crates/sley-cli/tests/cli.rs",
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs",
+          "crates/sley-protocol/src/session.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+        ]
+      },
+      "owner": "sley-protocol",
+      "planned_evidence_path": "evidence/security/T15/",
+      "planned_evidence_present": true,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "root/session/epoch matrix",
+      "searched_codes": [
+        "SESSION_STALE_HANDLE"
+      ],
+      "severity": "P0",
+      "state": "PLANNED_EVIDENCE_PRESENT",
+      "threat": "handle reuse across roots"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-state-root/src/lib.rs#tests",
+        "crates/sley-test-runner/src/worker.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests"
+      ],
+      "exercised_source_count": 23,
+      "expected_failure_code": "MUTATION_RESOURCE_LIMIT",
+      "id": "T16",
+      "located_file_count": 42,
+      "located_in": {
+        "checkers": [
+          "scripts/check_error_symbol_registration.py",
+          "scripts/check_mutation_value_codecs.py",
+          "scripts/check_s20_530_crash_recovery.py",
+          "scripts/check_scb1_spec.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/ssmc_graph_cfg_checker.rs"
+        ],
+        "implementation": [
+          "crates/sley-check/src/cfg.rs",
+          "crates/sley-mutate/src/codec/adversarial_tests.rs",
+          "crates/sley-policy/src/candidate_program.rs",
+          "crates/sley-policy/src/candidate_result.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
+          "oracle/scb1/src/sley2_scb1_oracle/codec.py",
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+        ]
+      },
+      "owner": "sley-mutate",
+      "planned_evidence_path": "evidence/security/T16/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "mutation_candidate"
+      ],
+      "related_family_symbols": [],
+      "required_test": "count/byte boundary",
+      "searched_codes": [
+        "SCB_RESOURCE_LIMIT",
+        "CFG_RESOURCE_LIMIT"
+      ],
+      "severity": "P1",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "oversized mutation list"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/tests/s3_g2_stale.rs",
+        "crates/sley-txn/src/repository.rs#tests",
+        "bench/fixtures/raw/S2B-STALE-001/fixture/test_program.py",
+        "bench/fixtures/raw/S2B-STALE-001/negative/guard_disabled/test_program.py",
+        "conformance/candidate-result/v1/accepted.json",
+        "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
+      ],
+      "exercised_source_count": 7,
+      "expected_failure_code": "STALE_ROOT",
+      "id": "T17",
+      "located_file_count": 16,
+      "located_in": {
+        "checkers": [
+          "scripts/check_candidate_result_contract.py",
+          "scripts/check_candidate_result_persistent_fuzz_slice.py",
+          "scripts/check_transaction_contract.py"
+        ],
+        "harness": [
+          "bench/fixtures/raw/S2B-STALE-001/fixture/program.py",
+          "bench/fixtures/raw/S2B-STALE-001/fixture/test_program.py",
+          "bench/fixtures/raw/S2B-STALE-001/negative/guard_disabled/program.py",
+          "bench/fixtures/raw/S2B-STALE-001/negative/guard_disabled/test_program.py"
+        ],
+        "implementation": [
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs",
+          "crates/sley-repo/tests/s3_g2_stale.rs",
+          "crates/sley-txn/src/repository.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+        ]
+      },
+      "owner": "sley-txn",
+      "planned_evidence_path": "evidence/validation/s20-390-atomic-commit-closeout-v1.json",
+      "planned_evidence_present": true,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "concurrent CAS scenario; restricted S20-390 coverage present",
+      "searched_codes": [
+        "STALE_ROOT"
+      ],
+      "severity": "P0",
+      "state": "PLANNED_EVIDENCE_PRESENT",
+      "threat": "stale-root commit"
+    },
+    {
+      "exercised_in": [
+        "conformance/candidate-result/v1/accepted.json",
+        "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
+      ],
+      "exercised_source_count": 2,
+      "expected_failure_code": "STALE_ENTITY",
+      "id": "T18",
+      "located_file_count": 3,
+      "located_in": {
+        "checkers": [
+          "scripts/check_candidate_result_contract.py",
+          "scripts/check_candidate_result_persistent_fuzz_slice.py"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py"
+        ]
+      },
+      "owner": "sley-txn",
+      "planned_evidence_path": "evidence/validation/s20-390-atomic-commit-closeout-v1.json",
+      "planned_evidence_present": true,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "exact preimage mutation; restricted S20-360/S20-390 coverage present",
+      "searched_codes": [
+        "STALE_ENTITY"
+      ],
+      "severity": "P0",
+      "state": "PLANNED_EVIDENCE_PRESENT",
+      "threat": "stale-entity commit"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "POLICY_SELF_MODIFICATION",
+      "id": "T19",
+      "located_file_count": 1,
+      "located_in": {
+        "implementation": [
+          "crates/sley-policy/src/lib.rs"
+        ]
+      },
+      "owner": "sley-policy",
+      "planned_evidence_path": "evidence/security/T19/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the candidate validation isolation tests"
+      ],
+      "related_family_symbols": [],
+      "required_test": "policy-isolation E2E",
+      "searched_codes": [
+        "POLICY_ISOLATION_POLICY_ROOT_CHANGED",
+        "POLICY_ISOLATION_CONTRACT_ROOT_CHANGED"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "candidate modifies own policy"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "SCHEMA_SELF_MODIFICATION",
+      "id": "T20",
+      "located_file_count": 1,
+      "located_in": {
+        "implementation": [
+          "crates/sley-policy/src/lib.rs"
+        ]
+      },
+      "owner": "sley-schema",
+      "planned_evidence_path": "evidence/security/T20/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "policy_self_oracle_and_protected_entity_isolation_is_pure",
+        "crates/sley-policy/src/lib.rs"
+      ],
+      "related_family_symbols": [],
+      "required_test": "epoch-isolation E2E",
+      "searched_codes": [
+        "POLICY_ISOLATION_SCHEMA_EPOCH_CHANGED"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "candidate modifies validator epoch"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 2,
+      "expected_failure_code": "POLICY_ORACLE_SELF_MODIFICATION",
+      "id": "T21",
+      "located_file_count": 3,
+      "located_in": {
+        "checkers": [
+          "scripts/check_policy_root.py"
+        ],
+        "implementation": [
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-policy/src/lib.rs"
+        ]
+      },
+      "owner": "sley-policy",
+      "planned_evidence_path": "evidence/security/T21/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the mandatory test planning tests"
+      ],
+      "related_family_symbols": [],
+      "required_test": "test-root isolation",
+      "searched_codes": [
+        "POLICY_FINAL_REQUIRED_TEST_MISSING",
+        "POLICY_FINAL_REQUIRED_TEST_NOT_SELECTED",
+        "POLICY_FINAL_REQUIRED_CONTRACT_MISSING"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "candidate weakens mandatory tests"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 2,
+      "expected_failure_code": "CAP_AUTHENTICATOR_INVALID",
+      "id": "T22",
+      "located_file_count": 2,
+      "located_in": {
+        "implementation": [
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-policy/src/lib.rs"
+        ]
+      },
+      "owner": "sley-policy",
+      "planned_evidence_path": "evidence/security/T22/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "token bit-flip/issuer matrix; S20-380 unit coverage present",
+      "searched_codes": [
+        "CAP_AUTHENTICATOR_INVALID"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "capability forgery"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-adapter/src/lib.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 2,
+      "expected_failure_code": "CAP_REPLAY",
+      "id": "T23",
+      "located_file_count": 2,
+      "located_in": {
+        "implementation": [
+          "crates/sley-adapter/src/lib.rs",
+          "crates/sley-policy/src/lib.rs"
+        ]
+      },
+      "owner": "sley-policy",
+      "planned_evidence_path": "evidence/security/T23/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "nonce/root/expiry replay; S20-380 unit coverage present",
+      "searched_codes": [
+        "CAP_REPLAY"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "capability replay"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-adapter/src/lib.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests",
+        "bench/fixtures/raw/S2B-CAP-001/fixture/test_program.py",
+        "bench/fixtures/raw/S2B-CAP-001/negative/sibling_allowed/test_program.py",
+        "bench/fixtures/raw/S2B-CAP-001/negative/wildcard_scope/test_program.py"
+      ],
+      "exercised_source_count": 5,
+      "expected_failure_code": "CAP_SCOPE_MISMATCH",
+      "id": "T24",
+      "located_file_count": 10,
+      "located_in": {
+        "harness": [
+          "bench/fixtures/raw/S2B-CAP-001/fixture/program.py",
+          "bench/fixtures/raw/S2B-CAP-001/fixture/test_program.py",
+          "bench/fixtures/raw/S2B-CAP-001/negative/sibling_allowed/program.py",
+          "bench/fixtures/raw/S2B-CAP-001/negative/sibling_allowed/test_program.py"
+        ],
+        "implementation": [
+          "crates/sley-adapter/src/lib.rs",
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-policy/src/lib.rs"
+        ]
+      },
+      "owner": "sley-policy",
+      "planned_evidence_path": "evidence/security/T24/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "workspace/effect/resource matrix; S20-380 unit coverage present",
+      "searched_codes": [
+        "CAP_SCOPE_MISMATCH"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "capability scope confusion"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-adapter/src/lib.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 2,
+      "expected_failure_code": "ADAPTER_IDENTITY_MISMATCH",
+      "id": "T25",
+      "located_file_count": 2,
+      "located_in": {
+        "implementation": [
+          "crates/sley-adapter/src/lib.rs",
+          "crates/sley-policy/src/lib.rs"
+        ]
+      },
+      "owner": "sley-adapter",
+      "planned_evidence_path": "evidence/security/T25/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "identity_abi_and_effect_swaps_fail_without_mutation",
+        "scripts/check_reference_adapter_profile.py"
+      ],
+      "related_family_symbols": [],
+      "required_test": "adapter ABI/identity swap",
+      "searched_codes": [
+        "CAP_ADAPTER_MISMATCH",
+        "AdapterErrorCode::IdentityMismatch"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "adapter impersonation"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-adapter/src/lib.rs#tests",
+        "crates/sley-policy/src/candidate_validation.rs#tests"
+      ],
+      "exercised_source_count": 2,
+      "expected_failure_code": "ADAPTER_TYPE_MISMATCH",
+      "id": "T26",
+      "located_file_count": 3,
+      "located_in": {
+        "implementation": [
+          "crates/sley-adapter/src/lib.rs",
+          "crates/sley-check/src/effects.rs",
+          "crates/sley-policy/src/candidate_validation.rs"
+        ]
+      },
+      "owner": "sley-adapter",
+      "planned_evidence_path": "evidence/security/T26/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "adapter_responses"
+      ],
+      "related_family_symbols": [],
+      "required_test": "typed replay outcome injection",
+      "searched_codes": [
+        "ADAPTER_INVOKE_TYPE",
+        "AdapterErrorCode::TypeMismatch"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "adapter response injection"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-adapter/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "ADAPTER_PATH_INVALID",
+      "id": "T27",
+      "located_file_count": 1,
+      "located_in": {
+        "implementation": [
+          "crates/sley-adapter/src/lib.rs"
+        ]
+      },
+      "owner": "sley-adapter",
+      "planned_evidence_path": "evidence/security/T27/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the reference adapter path cases and the same fuzz target"
+      ],
+      "related_family_symbols": [],
+      "required_test": "traversal/separator/Unicode corpus",
+      "searched_codes": [
+        "MAX_PATH_COMPONENT_BYTES",
+        "MAX_REQUEST_PATH_BYTES",
+        "AdapterErrorCode::PathInvalid"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "path traversal"
+    },
+    {
+      "exercised_in": [],
+      "exercised_source_count": 0,
+      "expected_failure_code": "ADAPTER_SYMLINK_ESCAPE",
+      "id": "T28",
+      "located_file_count": 0,
+      "located_in": {},
+      "owner": "sley-adapter",
+      "planned_evidence_path": "evidence/security/T28/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [
+        "the S20-700 object-store symlink slice, three cases with zero writes outside the root"
+      ],
+      "related_family_symbols": [
+        "ADAPTER_EFFECT_CARDINALITY",
+        "ADAPTER_EFFECT_KIND",
+        "ADAPTER_INVOKE_TYPE"
+      ],
+      "required_test": "confined-root symlink matrix",
+      "searched_codes": [
+        "ADAPTER_SYMLINK_ESCAPE"
+      ],
+      "severity": "P0",
+      "state": "STRUCTURAL_CONTROL_RECORDED",
+      "threat": "symlink escape"
+    },
+    {
+      "exercised_in": [],
+      "exercised_source_count": 0,
+      "expected_failure_code": "VM_AMBIENT_STATE_FORBIDDEN",
+      "id": "T29",
+      "located_file_count": 0,
+      "located_in": {},
+      "owner": "sley-vm",
+      "planned_evidence_path": "evidence/security/T29/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [
+        "the anti-goal conformance report's process and network checks, and the extended VM vector corpus"
+      ],
+      "related_family_symbols": [
+        "VM_EXEC_CANCELLED",
+        "VM_EXEC_INPUT_COUNT_MISMATCH",
+        "VM_EXEC_INPUT_NOT_CANONICAL",
+        "VM_EXEC_INPUT_TYPE_MISMATCH",
+        "VM_EXEC_INTERNAL_INVARIANT",
+        "VM_EXEC_RESOURCE_LIMIT",
+        "VM_EXEC_TRAP",
+        "VM_EXTENDED_LIMIT"
+      ],
+      "required_test": "clean/poisoned env equivalence",
+      "searched_codes": [
+        "VM_AMBIENT_STATE_FORBIDDEN"
+      ],
+      "severity": "P0",
+      "state": "STRUCTURAL_CONTROL_RECORDED",
+      "threat": "environment leakage"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-tests/src/report.rs#tests",
+        "crates/sley-vm/src/execute.rs#tests"
+      ],
+      "exercised_source_count": 2,
+      "expected_failure_code": "VM_OUTPUT_LIMIT",
+      "id": "T30",
+      "located_file_count": 6,
+      "located_in": {
+        "checkers": [
+          "scripts/check_vm_execution_profile.py"
+        ],
+        "implementation": [
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs",
+          "crates/sley-tests/src/report.rs",
+          "crates/sley-vm/src/execute.rs"
+        ]
+      },
+      "owner": "sley-vm",
+      "planned_evidence_path": "evidence/security/T30/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "vm_canonical_inputs"
+      ],
+      "related_family_symbols": [],
+      "required_test": "exact output ceiling",
+      "searched_codes": [
+        "VM_EXEC_RESOURCE_LIMIT",
+        "ResourceKind::OutputUnits"
+      ],
+      "severity": "P1",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "output flooding"
+    },
+    {
+      "exercised_in": [],
+      "exercised_source_count": 0,
+      "expected_failure_code": "VM_CANCELLED",
+      "id": "T31",
+      "located_file_count": 2,
+      "located_in": {
+        "checkers": [
+          "scripts/check_vm_execution_profile.py"
+        ],
+        "implementation": [
+          "crates/sley-vm/src/execute.rs"
+        ]
+      },
+      "owner": "sley-vm",
+      "planned_evidence_path": "evidence/security/T31/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the VM execution unit corpus"
+      ],
+      "related_family_symbols": [],
+      "required_test": "bounded cancel latency",
+      "searched_codes": [
+        "VM_EXEC_CANCELLED"
+      ],
+      "severity": "P1",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "cancellation bypass"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-tests/src/report.rs#tests",
+        "crates/sley-vm/src/lib.rs#tests",
+        "crates/sley-vm/tests/rw080_lower_scaffold.rs"
+      ],
+      "exercised_source_count": 4,
+      "expected_failure_code": "VM_RESOURCE_LIMIT",
+      "id": "T32",
+      "located_file_count": 9,
+      "located_in": {
+        "checkers": [
+          "scripts/check_vm_execution_profile.py",
+          "scripts/check_vm_lowering_profile.py"
+        ],
+        "implementation": [
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs",
+          "crates/sley-tests/src/report.rs"
+        ]
+      },
+      "owner": "sley-vm",
+      "planned_evidence_path": "evidence/security/T32/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "vm_canonical_inputs"
+      ],
+      "related_family_symbols": [],
+      "required_test": "nested/call/collection stress",
+      "searched_codes": [
+        "VM_EXEC_RESOURCE_LIMIT",
+        "VM_LOWER_RESOURCE_LIMIT"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "fuel/memory bypass"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/tests/rw060_source_free_lifecycle.rs",
+        "crates/sley-repo/tests/succ_live_judge_cases.rs",
+        "crates/sley-vm/tests/rw080_lower_scaffold.rs"
+      ],
+      "exercised_source_count": 3,
+      "expected_failure_code": "VM_NONDETERMINISM_DETECTED",
+      "id": "T33",
+      "located_file_count": 7,
+      "located_in": {
+        "checkers": [
+          "scripts/check_vm_lowering_profile.py"
+        ],
+        "implementation": [
+          "crates/sley-repo/tests/rw060_source_free_lifecycle.rs",
+          "crates/sley-repo/tests/succ_live_judge_cases.rs",
+          "crates/sley-vm/src/execute.rs",
+          "crates/sley-vm/src/extended.rs"
+        ]
+      },
+      "owner": "sley-vm",
+      "planned_evidence_path": "evidence/security/T33/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "check-vm-extended",
+        "e4_maps_differing_only_in_entry_order_never_reach_equality_or_hashing"
+      ],
+      "related_family_symbols": [],
+      "required_test": "repeated observation digests",
+      "searched_codes": [
+        "VM_EXEC_INPUT_NOT_CANONICAL",
+        "VM_LOWER_IMMEDIATE_MISMATCH"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "VM nondeterminism"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests",
+        "crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs",
+        "conformance/scb1/v1/rejected.json",
+        "oracle/scb1/src/sley2_scb1_oracle/codec.py",
+        "oracle/scb1/src/sley2_scb1_oracle/mutation_value.py"
+      ],
+      "exercised_source_count": 6,
+      "expected_failure_code": "VM_FLOAT_PROFILE_MISMATCH",
+      "id": "T34",
+      "located_file_count": 8,
+      "located_in": {
+        "checkers": [
+          "scripts/check_s20_530_crash_recovery.py",
+          "scripts/check_scb1_spec.py"
+        ],
+        "implementation": [
+          "crates/sley-repo/src/refs.rs",
+          "crates/sley-scb1/src/lib.rs",
+          "crates/sley-txn/src/repository.rs",
+          "crates/sley-vm/tests/rw080_codec_program/dependency_binding_decode.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/codec.py",
+          "oracle/scb1/src/sley2_scb1_oracle/mutation_value.py"
+        ]
+      },
+      "owner": "sley-vm",
+      "planned_evidence_path": "evidence/security/T34/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the E3 float vectors and the SCB1 rejected corpus"
+      ],
+      "related_family_symbols": [],
+      "required_test": "cross-build FP vectors",
+      "searched_codes": [
+        "SCB_FLOAT_NON_CANONICAL"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "floating host divergence"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-vm/tests/rw080_lower_scaffold.rs"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "CACHE_BINDING_MISMATCH",
+      "id": "T35",
+      "located_file_count": 3,
+      "located_in": {
+        "checkers": [
+          "scripts/check_vm_lowering_profile.py"
+        ],
+        "implementation": [
+          "crates/sley-vm/src/lib.rs",
+          "crates/sley-vm/tests/rw080_lower_scaffold.rs"
+        ]
+      },
+      "owner": "sley-query",
+      "planned_evidence_path": "evidence/security/T35/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the snapshot admission unit tests",
+        "the extended vectors, whose cache keys the independent oracle re-derives"
+      ],
+      "related_family_symbols": [],
+      "required_test": "root/epoch/policy key faults",
+      "searched_codes": [
+        "VM_LOWER_CACHE_KEY_UNSUPPORTED"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "cache poisoning"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-store/src/lib.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests",
+        "fuzz/targets/repository_pack_importer.rs"
+      ],
+      "exercised_source_count": 5,
+      "expected_failure_code": "STORE_DERIVED_INPUT_FORBIDDEN",
+      "id": "T36",
+      "located_file_count": 7,
+      "located_in": {
+        "checkers": [
+          "scripts/check_object_store_spec.py",
+          "scripts/check_s20_530_crash_recovery.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/repository_pack_importer.rs"
+        ],
+        "implementation": [
+          "crates/sley-repo/src/lib.rs",
+          "crates/sley-repo/src/refs.rs",
+          "crates/sley-store/src/lib.rs",
+          "crates/sley-txn/src/repository.rs"
+        ]
+      },
+      "owner": "sley-store",
+      "planned_evidence_path": "evidence/security/T36/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the object store unit corpus and the index cache tests"
+      ],
+      "related_family_symbols": [],
+      "required_test": "corrupt/delete/rebuild cache",
+      "searched_codes": [
+        "STORE_OBJECT_SUBSTITUTION"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "derived index treated as canonical"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-store/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "RECOVERY_STAGED_OBJECT",
+      "id": "T37",
+      "located_file_count": 3,
+      "located_in": {
+        "checkers": [
+          "scripts/check_object_store_spec.py",
+          "scripts/check_s20_530_crash_recovery.py"
+        ],
+        "implementation": [
+          "crates/sley-store/src/lib.rs"
+        ]
+      },
+      "owner": "sley-store",
+      "planned_evidence_path": "evidence/security/T37/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "interruption matrix",
+      "searched_codes": [
+        "RECOVERY_STAGED_OBJECT"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "crash during object write"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests"
+      ],
+      "exercised_source_count": 2,
+      "expected_failure_code": "RECOVERY_RECEIPT_INCOMPLETE",
+      "id": "T38",
+      "located_file_count": 5,
+      "located_in": {
+        "checkers": [
+          "scripts/check_s20_530_crash_recovery.py",
+          "scripts/check_transaction_contract.py"
+        ],
+        "implementation": [
+          "crates/sley-repo/src/refs.rs",
+          "crates/sley-txn/src/codec.rs",
+          "crates/sley-txn/src/repository.rs"
+        ]
+      },
+      "owner": "sley-txn",
+      "planned_evidence_path": "evidence/validation/s20-390-atomic-commit-closeout-v1.json",
+      "planned_evidence_present": true,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "restricted S20-390 interruption matrix present",
+      "searched_codes": [
+        "RECOVERY_RECEIPT_INCOMPLETE"
+      ],
+      "severity": "P0",
+      "state": "PLANNED_EVIDENCE_PRESENT",
+      "threat": "crash during receipt write"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-txn/src/repository.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "RECOVERY_REF_CAS_INCOMPLETE",
+      "id": "T39",
+      "located_file_count": 4,
+      "located_in": {
+        "checkers": [
+          "scripts/check_s20_530_crash_recovery.py",
+          "scripts/check_transaction_contract.py"
+        ],
+        "implementation": [
+          "crates/sley-txn/src/codec.rs",
+          "crates/sley-txn/src/repository.rs"
+        ]
+      },
+      "owner": "sley-txn, then sley-repo for S20-500 named refs",
+      "planned_evidence_path": "evidence/validation/s20-390-atomic-commit-closeout-v1.json",
+      "planned_evidence_present": true,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "restricted fixed-head S20-390 interruption matrix present; named refs pending",
+      "searched_codes": [
+        "RECOVERY_REF_CAS_INCOMPLETE"
+      ],
+      "severity": "P0",
+      "state": "PLANNED_EVIDENCE_PRESENT",
+      "threat": "crash during accepted-head or later ref update"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/src/gc.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "GC_REACHABILITY_VIOLATION",
+      "id": "T40",
+      "located_file_count": 2,
+      "located_in": {
+        "checkers": [
+          "scripts/check_gc_spec.py"
+        ],
+        "implementation": [
+          "crates/sley-repo/src/gc.rs"
+        ]
+      },
+      "owner": "sley-store",
+      "planned_evidence_path": "evidence/security/T40/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "t40_reachable_candidate_in_a_corrupted_plan_trips_the_guard_before_any_delete",
+        "t40_seed_reachable_candidate_assertion_is_effective"
+      ],
+      "related_family_symbols": [],
+      "required_test": "graph/pin/lease property",
+      "searched_codes": [
+        "GC_REACHABILITY_VIOLATION"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "GC deletes reachable object"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/tests/s3_g2_corrupt.rs",
+        "bench/fixtures/raw/S2B-CORRUPT-001/fixture/test_program.py",
+        "bench/fixtures/raw/S2B-CORRUPT-001/negative/flip_elsewhere/test_program.py",
+        "bench/fixtures/raw/S2B-CORRUPT-001/negative/unflipped/test_program.py",
+        "bench/live/tests/test_corrupt_resealed.py"
+      ],
+      "exercised_source_count": 7,
+      "expected_failure_code": "PACK_INVALID",
+      "id": "T41",
+      "located_file_count": 18,
+      "located_in": {
+        "checkers": [
+          "scripts/check_pack_persistent_fuzz_slice.py",
+          "scripts/check_repository_pack_spec.py"
+        ],
+        "fuzz": [
+          "fuzz/targets/repository_pack_importer.rs"
+        ],
+        "harness": [
+          "bench/fixtures/legacy/S2B-CORRUPT-001/oracle.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/fixture/program.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/fixture/test_program.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/negative/flip_elsewhere/program.py"
+        ],
+        "implementation": [
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs",
+          "crates/sley-repo/src/lib.rs",
+          "crates/sley-repo/tests/s3_g2_corrupt.rs"
+        ]
+      },
+      "owner": "sley-repo",
+      "planned_evidence_path": "evidence/security/T41/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "repository_pack_importer",
+        "conformance/repository-pack/v1/rejected.json"
+      ],
+      "related_family_symbols": [],
+      "required_test": "importer fuzz/corruption",
+      "searched_codes": [
+        "PACK_CANONICAL_ORDER",
+        "PACK_DIGEST_MISMATCH",
+        "PACK_DIGEST_TREE_MISMATCH",
+        "PACK_DUPLICATE_ENTRY",
+        "PACK_OBJECT_CORRUPT",
+        "PACK_OBJECT_MISSING",
+        "PACK_OBJECT_UNEXPECTED",
+        "PACK_PROFILE_UNSUPPORTED",
+        "PACK_RESOURCE_LIMIT",
+        "PACK_ROOT_INVALID",
+        "PACK_SCHEMA_UNSUPPORTED",
+        "PACK_VERSION_UNSUPPORTED"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "malicious pack"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/src/lib.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "PACK_DECOMPRESSION_LIMIT",
+      "id": "T42",
+      "located_file_count": 1,
+      "located_in": {
+        "implementation": [
+          "crates/sley-repo/src/lib.rs"
+        ]
+      },
+      "owner": "sley-repo",
+      "planned_evidence_path": "evidence/security/T42/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the pack import unit tests"
+      ],
+      "related_family_symbols": [],
+      "required_test": "ratio/size boundary",
+      "searched_codes": [
+        "PACK_COMPRESSION_UNSUPPORTED"
+      ],
+      "severity": "P1",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "decompression bomb"
+    },
+    {
+      "exercised_in": [],
+      "exercised_source_count": 0,
+      "expected_failure_code": "MERGE_CHANGE_LOSS",
+      "id": "T43",
+      "located_file_count": 2,
+      "located_in": {
+        "checkers": [
+          "scripts/check_merge_spec.py"
+        ],
+        "implementation": [
+          "crates/sley-repo/src/merge.rs"
+        ]
+      },
+      "owner": "sley-repo",
+      "planned_evidence_path": "evidence/security/T43/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "merge_conflict_decoder"
+      ],
+      "related_family_symbols": [],
+      "required_test": "delta preservation property",
+      "searched_codes": [
+        "MERGE_RESULT_MISMATCH",
+        "MERGE_COMPARE_FAILED"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "merge loses change"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/src/merge.rs#tests"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "MERGE_CONFLICT_REQUIRED",
+      "id": "T44",
+      "located_file_count": 2,
+      "located_in": {
+        "checkers": [
+          "scripts/check_merge_spec.py"
+        ],
+        "implementation": [
+          "crates/sley-repo/src/merge.rs"
+        ]
+      },
+      "owner": "sley-repo",
+      "planned_evidence_path": "evidence/security/T44/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "the merge unit corpus and the same fuzz target"
+      ],
+      "related_family_symbols": [],
+      "required_test": "incompatible same-entity E2E",
+      "searched_codes": [
+        "MERGE_PLAN_UNSUPPORTED"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "merge silently chooses conflict"
+    },
+    {
+      "exercised_in": [
+        "conformance/entity-read/v2/accepted.json",
+        "conformance/entity-read/v2/inputs.json",
+        "conformance/entity-read/v2/rejected.json",
+        "conformance/smp1-json-bridge/v1/rejected.json",
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py",
+        "oracle/scb1/tests/test_entity_read.py"
+      ],
+      "exercised_source_count": 6,
+      "expected_failure_code": "PROTOCOL_DOWNGRADE",
+      "id": "T45",
+      "located_file_count": 8,
+      "located_in": {
+        "checkers": [
+          "scripts/check_smp1_contract.py",
+          "scripts/check_smp1_json_bridge_vector.py"
+        ],
+        "implementation": [
+          "crates/sley-json-bridge/src/tests.rs",
+          "crates/sley-protocol/src/lib.rs",
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py",
+          "oracle/scb1/tests/test_entity_read.py"
+        ]
+      },
+      "owner": "sley-protocol",
+      "planned_evidence_path": "evidence/security/T45/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "handshake matrix",
+      "searched_codes": [
+        "PROTOCOL_DOWNGRADE"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "protocol downgrade"
+    },
+    {
+      "exercised_in": [
+        "conformance/entity-read/v2/inputs.json",
+        "conformance/entity-read/v2/rejected.json",
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+      ],
+      "exercised_source_count": 3,
+      "expected_failure_code": "PROTOCOL_REQUEST_ID_CONFLICT",
+      "id": "T46",
+      "located_file_count": 4,
+      "located_in": {
+        "checkers": [
+          "scripts/check_smp1_contract.py"
+        ],
+        "implementation": [
+          "crates/sley-protocol/src/lib.rs",
+          "crates/sley-protocol/src/server_tests.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+        ]
+      },
+      "owner": "sley-protocol",
+      "planned_evidence_path": "evidence/security/T46/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "duplicate/cross-session IDs",
+      "searched_codes": [
+        "PROTOCOL_REQUEST_ID_CONFLICT"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "request ID confusion"
+    },
+    {
+      "exercised_in": [
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "SESSION_WORKSPACE_MISMATCH",
+      "id": "T47",
+      "located_file_count": 5,
+      "located_in": {
+        "checkers": [
+          "scripts/check_session_handle_profile.py",
+          "scripts/record_session_threat_matrices.py"
+        ],
+        "implementation": [
+          "crates/sley-protocol/src/server_tests.rs",
+          "crates/sley-protocol/src/session.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+        ]
+      },
+      "owner": "sley-protocol",
+      "planned_evidence_path": "evidence/security/T47/",
+      "planned_evidence_present": true,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "two-workspace isolation",
+      "searched_codes": [
+        "SESSION_WORKSPACE_MISMATCH"
+      ],
+      "severity": "P0",
+      "state": "PLANNED_EVIDENCE_PRESENT",
+      "threat": "cross-workspace leakage"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-policy/src/candidate_validation.rs#tests",
+        "crates/sley-policy/src/lib.rs#tests",
+        "crates/sley-policy/tests/s3_g3_adversary.rs"
+      ],
+      "exercised_source_count": 3,
+      "expected_failure_code": "CAPABILITY_DENIED",
+      "id": "T48",
+      "located_file_count": 3,
+      "located_in": {
+        "implementation": [
+          "crates/sley-policy/src/candidate_validation.rs",
+          "crates/sley-policy/src/lib.rs",
+          "crates/sley-policy/tests/s3_g3_adversary.rs"
+        ]
+      },
+      "owner": "sley-policy",
+      "planned_evidence_path": "evidence/security/T48/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "capability_issuance_requires_policy_grant_and_bounded_budget",
+        "t22_capability_forgery_fails_closed",
+        "t23_capability_replay_expiry_and_budget_fail_closed",
+        "t24_capability_scope_workspace_effect_and_adapter_confusion_fail_closed",
+        "grant_denial_and_empty_grants_do_not_imply_authority",
+        "t48_authority_like_labels_do_not_change_policy_grants"
+      ],
+      "related_family_symbols": [],
+      "required_test": "hostile label/prompt metadata",
+      "searched_codes": [
+        "POLICY_GRANT_DENIED",
+        "CAPABILITY_SUMMARY_MISMATCH"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "model-generated authority claim"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/src/native_exchange.rs#tests",
+        "crates/sley-repo/src/refs.rs#tests",
+        "crates/sley-test-runner/src/worker.rs#tests",
+        "crates/sley-txn/src/native_codec.rs#tests",
+        "crates/sley-txn/src/repository.rs#tests",
+        "crates/sley-vm/tests/rw080_codec_envelope.rs"
+      ],
+      "exercised_source_count": 18,
+      "expected_failure_code": "SCB_MAGIC_INVALID",
+      "id": "T49",
+      "located_file_count": 21,
+      "located_in": {
+        "checkers": [
+          "scripts/check_s20_530_crash_recovery.py",
+          "scripts/check_scb1_spec.py",
+          "scripts/generate_candidate_result_fixtures.py",
+          "scripts/generate_transaction_receipt_fixtures.py"
+        ],
+        "harness": [
+          "bench/live/succ_witness_dead.py"
+        ],
+        "implementation": [
+          "crates/sley-repo/src/native_exchange.rs",
+          "crates/sley-repo/src/refs.rs",
+          "crates/sley-scb1/src/lib.rs",
+          "crates/sley-test-runner/src/worker.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/generate_s20_350_fixtures.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate.py",
+          "oracle/scb1/src/sley2_scb1_oracle/candidate_result.py",
+          "oracle/scb1/src/sley2_scb1_oracle/codec.py"
+        ]
+      },
+      "owner": "sley-canon",
+      "planned_evidence_path": "evidence/security/T49/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "debug-notation input",
+      "searched_codes": [
+        "SCB_MAGIC_INVALID"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "debug dump used as canonical input"
+    },
+    {
+      "exercised_in": [],
+      "exercised_source_count": 0,
+      "expected_failure_code": "REPO_EXTERNAL_METADATA_FORBIDDEN",
+      "id": "T50",
+      "located_file_count": 0,
+      "located_in": {},
+      "owner": "sley-repo",
+      "planned_evidence_path": "evidence/security/T50/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [
+        "the clone-equivalence corpus, which reproduces roots outside the producing repository"
+      ],
+      "related_family_symbols": [],
+      "required_test": "Git-independent reconstruction",
+      "searched_codes": [
+        "REPO_EXTERNAL_METADATA_FORBIDDEN"
+      ],
+      "severity": "P0",
+      "state": "STRUCTURAL_CONTROL_RECORDED",
+      "threat": "Git metadata used as Sley state"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-repo/src/lib.rs#tests",
+        "crates/sley-repo/tests/s3_g2_corrupt.rs",
+        "bench/fixtures/raw/S2B-CORRUPT-001/fixture/test_program.py",
+        "bench/fixtures/raw/S2B-CORRUPT-001/negative/flip_elsewhere/test_program.py",
+        "bench/fixtures/raw/S2B-CORRUPT-001/negative/unflipped/test_program.py",
+        "bench/live/tests/test_corrupt_resealed.py"
+      ],
+      "exercised_source_count": 6,
+      "expected_failure_code": "PACK_DIGEST_MISMATCH",
+      "id": "T51",
+      "located_file_count": 13,
+      "located_in": {
+        "harness": [
+          "bench/fixtures/legacy/S2B-CORRUPT-001/oracle.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/fixture/program.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/fixture/test_program.py",
+          "bench/fixtures/raw/S2B-CORRUPT-001/negative/flip_elsewhere/program.py"
+        ],
+        "implementation": [
+          "crates/sley-repo/src/lib.rs",
+          "crates/sley-repo/tests/s3_g2_corrupt.rs"
+        ]
+      },
+      "owner": "sley-repo",
+      "planned_evidence_path": "evidence/security/T51/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "decompress/tamper/import",
+      "searched_codes": [
+        "PACK_DIGEST_MISMATCH"
+      ],
+      "severity": "P0",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "ZJX transport tampering"
+    },
+    {
+      "exercised_in": [],
+      "exercised_source_count": 0,
+      "expected_failure_code": "RELEASE_DEPENDENCY_MISMATCH",
+      "id": "T52",
+      "located_file_count": 0,
+      "located_in": {},
+      "owner": "release",
+      "planned_evidence_path": "evidence/security/T52/",
+      "planned_evidence_present": true,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "local lock/source/checksum inventory present; standards SBOM and release provenance pending",
+      "searched_codes": [
+        "RELEASE_DEPENDENCY_MISMATCH"
+      ],
+      "severity": "P1",
+      "state": "PLANNED_EVIDENCE_PRESENT",
+      "threat": "dependency substitution"
+    },
+    {
+      "exercised_in": [
+        "bench/release/tests/test_packaging.py",
+        "bench/review/tests/test_ga_acceptance_report.py"
+      ],
+      "exercised_source_count": 2,
+      "expected_failure_code": "RELEASE_ARTIFACT_MISMATCH",
+      "id": "T53",
+      "located_file_count": 6,
+      "located_in": {
+        "checkers": [
+          "scripts/build_release_candidate.py",
+          "scripts/build_reproducibility_report.py",
+          "scripts/check_release_candidate_packaging.py",
+          "scripts/check_reproducibility_and_independent_conformance.py"
+        ],
+        "harness": [
+          "bench/release/tests/test_packaging.py",
+          "bench/review/tests/test_ga_acceptance_report.py"
+        ]
+      },
+      "owner": "release",
+      "planned_evidence_path": "evidence/security/T53/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "make release-candidate-smoke",
+        "bench/release/tests/"
+      ],
+      "related_family_symbols": [],
+      "required_test": "manifest/hash verification",
+      "searched_codes": [
+        "PACKAGE_NOT_REPRODUCIBLE",
+        "REPRO_ATTESTATION_CONFLICT"
+      ],
+      "severity": "P1",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "release artifact substitution"
+    },
+    {
+      "exercised_in": [],
+      "exercised_source_count": 0,
+      "expected_failure_code": "RELEASE_SECRET_FINDING",
+      "id": "T54",
+      "located_file_count": 0,
+      "located_in": {},
+      "owner": "release",
+      "planned_evidence_path": "evidence/security/T54/",
+      "planned_evidence_present": true,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "bounded high-confidence candidate/history scan present; release re-anchor, wider privacy review, and independent disposition pending",
+      "searched_codes": [
+        "RELEASE_SECRET_FINDING"
+      ],
+      "severity": "P1",
+      "state": "PLANNED_EVIDENCE_PRESENT",
+      "threat": "secret committed in fixtures"
+    },
+    {
+      "exercised_in": [
+        "bench/accounting/tests/test_live.py"
+      ],
+      "exercised_source_count": 1,
+      "expected_failure_code": "BENCH_CONTROL_VIOLATION",
+      "id": "T55",
+      "located_file_count": 3,
+      "located_in": {
+        "checkers": [
+          "scripts/check_succession_accounting.py"
+        ],
+        "harness": [
+          "bench/accounting/report.py",
+          "bench/accounting/tests/test_live.py"
+        ]
+      },
+      "owner": "sley-bench",
+      "planned_evidence_path": "evidence/security/T55/",
+      "planned_evidence_present": false,
+      "realized_code_recorded": true,
+      "recorded_exercise": [
+        "bench/accounting/tests/test_report.py"
+      ],
+      "related_family_symbols": [],
+      "required_test": "manifest denominator/control audit",
+      "searched_codes": [
+        "ACCOUNTING_INCOMPLETE",
+        "ACCOUNTING_CHAIN_INVALID",
+        "ACCOUNTING_ARM_UNKNOWN",
+        "ACCOUNTING_FLOAT_FORBIDDEN"
+      ],
+      "severity": "P1",
+      "state": "SYMBOL_REALIZED_WITH_EXERCISE",
+      "threat": "benchmark contamination/cherry-pick"
+    },
+    {
+      "exercised_in": [
+        "crates/sley-cli/tests/cli.rs",
+        "conformance/entity-read/v2/inputs.json",
+        "conformance/entity-read/v2/rejected.json",
+        "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+      ],
+      "exercised_source_count": 4,
+      "expected_failure_code": "SESSION_UNKNOWN",
+      "id": "T56",
+      "located_file_count": 8,
+      "located_in": {
+        "checkers": [
+          "scripts/check_session_handle_profile.py",
+          "scripts/record_session_threat_matrices.py"
+        ],
+        "implementation": [
+          "crates/sley-cli/tests/cli.rs",
+          "crates/sley-protocol/src/lib.rs",
+          "crates/sley-protocol/src/server.rs",
+          "crates/sley-protocol/src/server_tests.rs"
+        ],
+        "oracle": [
+          "oracle/scb1/src/sley2_scb1_oracle/entity_read.py"
+        ]
+      },
+      "owner": "sley-protocol",
+      "planned_evidence_path": "evidence/security/T56/",
+      "planned_evidence_present": true,
+      "realized_code_recorded": false,
+      "recorded_exercise": [],
+      "related_family_symbols": [],
+      "required_test": "twin-instance inequality and restart-unknown matrix over foreign-instance names; peer isolation is a transport obligation on the S20-420/430 boundary",
+      "searched_codes": [
+        "SESSION_UNKNOWN"
+      ],
+      "severity": "P1",
+      "state": "PLANNED_EVIDENCE_PRESENT",
+      "threat": "live session name used by a non-opening caller"
+    }
+  ],
+  "unlocated_with_no_family_symbol": [],
+  "unlocated_with_realized_family": []
+}

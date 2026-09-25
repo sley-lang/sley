@@ -1,0 +1,19 @@
+module app.cfgeffect
+
+export task fetch_config -> Text uses AdapterCall {
+  take gate files: Gate<AdapterCall>
+  return call fs.read_text("config/settings.bin")
+}
+
+export task render_config -> Text uses AdapterCall {
+  return call fetch_config()
+}
+
+export task pure_greet -> Text {
+  take name: Text
+  return "hello, " + name
+}
+
+task main -> Text uses AdapterCall {
+  return call render_config()
+}

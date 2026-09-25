@@ -1,0 +1,385 @@
+# Bounded entity and signature reads
+
+Status: REVIEWED_IMPLEMENTATION_CONTRACT, 2026-09-08. The dated
+2026-09-23 amendment in section 2 (SMP1 revisions 13 to 15) postdates that
+review; it is covered only by the SMP1 revision 14 and 15 review rounds.
+Owner: S20-310 query semantics, S20-410 protocol integration.
+Authority: retained Machine Genesis section 8.2; REWEAVE sections 6–9;
+architecture finding AT-MW-02. Independent architecture, semantic and surface
+reviews passed on `48070373d59eb2241ad7fed4157d9016b514500f`; the integrator
+accepted that exact design under the operator's active development directive.
+This authorizes its scoped local implementation, not AT-MW-02 closure or
+runtime qualification. Consumer-contract synchronization remains required
+before integrating or claiming a frozen protocol successor.
+
+## 1. Required behavior
+
+`GetEntityVersion` obtains one entity's exact canonical stored object under
+one verified root. `GetSignature` obtains a Function object and its ordered
+function-parameter objects under that same root. Both are complete, bounded
+reads. They grant no mutation, validation, commit, or execution authority.
+
+The signature consists of the Function's declaration type parameters,
+ordered function parameters and their exact value types, result type,
+declared effect identities, contract identities, and visibility. It is
+represented by existing canonical objects, not by a new semantic serializer.
+The Function object's block identities are incidental existing fields; block
+and operation objects are not returned. Parameter owner, role, and ordinal
+must agree with the Function's ordered parameter list.
+
+Nominal type definitions, effect definitions, contract bodies, inferred
+transitive effects, and implementation blocks are not expanded by
+`GetSignature`. Their identities remain available in the exact objects;
+the caller can request a named definition with `GetEntityVersion` under
+the same expected root. This is declaration-signature retrieval, not a
+replacement for the separately required type/effect/contract queries.
+
+## 2. Version boundary
+
+Add protocol version 2 with method 306 `entity.version` and method 307
+`entity.signature`. Tag 305 remains reserved. All existing tags, owner
+payloads, numeric errors, query-profile v1 classes, canonical object bytes,
+schema epochs, and digest preimages retain their version-1 definitions,
+with one later exception owned by SMP1 (amendment 2026-09-23, SMP1
+revisions 13 to 15): under version 2 and every later selection whose
+method table includes version 2's row 201, the `workspace.open` (201)
+response is `open_summary` (the version 1 `revision_summary` plus an optional field
+9), and a non-empty 201 request body is refused under every version,
+where it was previously ignored contrary to SMP1 section 4. No method of
+this profile changes.
+
+Version 2 uses the existing frame envelope, tag 400, frame epoch, field
+schema and digest domain. Its frame's `protocol_version` field is 2.
+Existing frame and handshake identities continue to hash the exact bytes,
+including the version; there is no alias between v1 and v2 transcripts.
+No additional persistent query identity or object format is introduced.
+
+Hello transport uses a version-1 hello frame so a v1 peer can read an offer.
+A v2 implementation may offer `[1, 2]`; version negotiation remains the
+greatest common offered version. The version-aware negotiation entrypoint
+filters 306 and 307 from the intersection when the selected version is 1.
+It admits them for version 2 only when both hellos offer that version.
+It does not filter other opaque unknown numeric tags. Reserved tags remain
+invalid offers in both versions.
+
+Legacy Hello and negotiation entrypoints retain their existing treatment of
+unknown numeric tags, including 306 and 307 in a v1-only offer: they accept
+the shape and retain the numeric intersection. They do not thereby dispatch
+those methods. Preserve the legacy v1 method decoder and reject either tag
+on every v1 serving path, including an opaque negotiated intersection that
+contains it. The version-aware entrypoint's known-v2-tag filtering is a
+separately selected negotiation rule, not a change to the legacy helper.
+The caller must choose the same negotiation profile at both endpoints;
+the exact selected method set remains bound in the handshake transcript.
+
+An old implementation's inability to consume a v2 offer is not silent
+downgrade authority. A caller may explicitly initiate a fresh v1-only
+negotiation; no failed or uncertain request is replayed automatically.
+Version-1-only offers, negotiation, frames and methods must retain their
+existing byte vectors and rejection behavior (for conforming requests;
+the non-empty 201 body refusal above is the recorded exception). Existing v1 codec entrypoints
+remain v1-only; version-aware entrypoints select the expected version
+explicitly. Post-negotiation framing and `check_claim` use the selected
+version, preserving the existing lower-version downgrade and higher-version
+unsupported distinction. A v1 session cannot invoke 306 or 307.
+
+## 3. Body records
+
+Bodies use ordinary canonical SCB1 records inside the existing authenticated
+SMP frame. All IDs below use their existing exact 32-byte representation.
+Unknown, repeated, missing, or out-of-order fields and trailing bytes are
+invalid. There is no embedded standalone SCB envelope around these records.
+
+Both request bodies are:
+
+```text
+record(
+  1: StateRoot expected_root,
+  2: EntityId entity,
+  3: uvar(max_objects),
+  4: uvar(max_response_bytes),
+  5: uvar(max_work)
+)
+```
+
+All three limits are positive and cannot exceed the corresponding selected
+`max_entities`, `max_response_bytes`, and `max_work`. They apply to a complete
+response. No request-side session or handle can override the frame session.
+Only stable EntityIds are accepted. A caller possessing a positional handle
+must first use existing `handle.expand`, then retain its root with the
+returned EntityId. There is no implicit resolution of a stale handle.
+
+Both response bodies are:
+
+```text
+record(
+  1: uvar(2),
+  2: WorkspaceId workspace,
+  3: StateRoot root,
+  4: SchemaEpochId epoch,
+  5: SessionId session,
+  6: EntityId requested_entity,
+  7: list(object),
+  8: uvar(work_units)
+)
+
+object = record(
+  1: EntityId entity,
+  2: uvar(kind),
+  3: ObjectId object_id,
+  4: bytes(exact_stored_object)
+)
+```
+
+For `entity.version`, the list contains exactly the requested object. For
+`entity.signature`, it contains the Function first, then exactly its
+function-parameter objects in declaration order. It contains no other
+objects, sorted substitute ordering, omission marker, cursor, or continuation.
+The caller verifies each existing object envelope and ObjectId independently.
+Root binding is asserted by the authenticated verified-revision server;
+this response is not a standalone Merkle membership proof.
+
+The bytes are copied from `EntityObject` storage in `VerifiedRevision`.
+Do not re-encode the decoded Function or Parameter body for the response.
+Object identity, record identity/kind, epoch and state-root binding must
+agree; disagreement is an invariant failure, never a best-effort answer.
+
+## 4. Authority and failure order
+
+Existing framing, negotiation, request-id, selected-method, cancellation
+and session admission order remains unchanged. Both new methods are
+head-bound and invoke the existing session authority. Unknown, closed,
+wrong-workspace, wrong-epoch, or root-advanced sessions keep the existing
+session/protocol codes and precedences.
+
+After that common admission, the owner performs the following ordered steps:
+
+1. Decode the exact request record and validate positive limit ranges;
+   malformed records are `PROTOCOL_PAYLOAD_INVALID`, out-of-range positive
+   ceilings are `PROTOCOL_LIMIT_EXCEEDED`.
+2. Require `expected_root` to equal the live session-bound root and the
+   single `VerifiedRevision` used for this response; otherwise
+   `QUERY_ROOT_MISMATCH` (31008). Do not search another root.
+3. Resolve the target against that root's exact bindings; absent or
+   tombstoned entities are `QUERY_UNRESOLVED_ENTITY` (31004).
+4. For `entity.signature`, require the target to be a Function;
+   otherwise `QUERY_CLASS_NOT_APPLICABLE` (31010).
+5. Determine exact result membership and charge the resource checks in
+   section 5 before decoding or copying source bytes as specified there.
+6. Verify signature relationships and exact borrowed object bindings. A
+   missing required Parameter or inconsistent verified body is
+   `QUERY_INTERNAL_INVARIANT` (31007), preserving any more specific existing
+   storage-verification error encountered before owner entry.
+7. Encode the complete response and existing bounded frame. Emit nothing
+   until all body and frame limits pass.
+
+Owner Display aliases (owner adoption, governance wave): the owner names
+its refusals with the symbols below; the wire keeps the owning
+`PROTOCOL_*`/`QUERY_*` code shown, so no new error numbers are allocated:
+
+| Owner symbol | Wire code |
+|---|---|
+| `ENTITY_READ_NOT_CANONICAL` | `PROTOCOL_PAYLOAD_INVALID` (40008): malformed request/response record |
+| `ENTITY_READ_BUDGET_EXCEEDED` | `PROTOCOL_LIMIT_EXCEEDED` (40009): ceiling, work, or checked-arithmetic refusal |
+| `ENTITY_READ_UNKNOWN` | symbol-only (`0`): unreachable Display fallback, never emitted on the wire (falls back to `QUERY_INTERNAL_INVARIANT`, 31007) |
+
+Errors from the query owner keep their stable owner numeric codes in the
+existing failure envelope. All new-method budget exhaustion and checked
+arithmetic overflow return `PROTOCOL_LIMIT_EXCEEDED`. No new error numbers
+are allocated. No successful result may hide a missing fact or partial object.
+
+## 5. Resource accounting
+
+The query engine receives an already verified immutable revision. It must
+not extract every semantic body, build a whole-root graph/index, hydrate a
+cache, checkout the revision, or perform further filesystem reads. Repository
+verification and common session admission remain existing prerequisite work;
+this profile does not claim to bound that inherited work by query-local
+limits. Their separate storage/transaction ceilings remain mandatory.
+
+Let N be the number of root bindings and L be `bit_length(N) + 1`, including
+N=0. Use binary lookup on the existing binding order without a new index.
+Let K be the exact returned object count and B the sum of their stored byte
+lengths. Charge a conservative deterministic work bound:
+
+```text
+work_units = 1 + K * L + 2 * B + max_response_bytes
+```
+
+Here `max_response_bytes` is the request ceiling, deliberately charged as
+the maximum encoding work, not the actual result length. All arithmetic is
+checked. A caller choosing an unnecessarily large output ceiling can
+therefore exhaust its work limit; this is specified behavior, not an
+implementation-dependent cost.
+
+The revision already contains typed `EntityObjectRecord::body` values.
+Borrow the Function and Parameter variants directly; do not decode their
+stored bytes a second time. Require the K=1 bound for the target's bytes to
+fit before traversing its ordered parameter list. If that list's count plus
+one exceeds `max_objects`, refuse before allocating the parameter result
+list. Resolve each selected Parameter by borrowed lookup; check its length
+and the growing K/B bound before traversing its fields or copying bytes.
+The checks interleave per parameter in that order: a relationship defect at
+parameter i surfaces as `QUERY_INTERNAL_INVARIANT` before a budget
+exhaustion at parameter i+1 would surface as `PROTOCOL_LIMIT_EXCEEDED`.
+The final work bound must fit both the request and the session budget as it
+stood immediately before this request's existing dispatch charge.
+
+Compute exact SCB body length from borrowed fields with checked arithmetic
+before allocation. Require it not to exceed the request or negotiated
+response ceiling. Then compute the complete frame length, including the
+existing envelope and prefix accounting, and require the selected frame
+ceiling. No object-sized output allocation occurs before its byte ceiling
+is established; no partial response is streamed. The inherited failure
+envelope floor must still fit when the successful body does not.
+
+The following phase/debit table is ordered and normative. Every successful
+new-method request charges exactly `work_units` in total; the generic
+successful-body byte charge is bypassed only for these two methods.
+
+| Phase | Work charged if the request fails here |
+|---|---|
+| Common admission before existing dispatch charge | existing v1 admission rules, unchanged |
+| Request/root/entity/kind validation; borrowed lookup and growing resource checks; signature relationships; final work check; exact body and frame size preflight, in that order | exactly the one admitted dispatch unit |
+| After every preceding check succeeds, reserve `work_units - 1`, then allocate and encode the response/frame | full `work_units`, including the already charged dispatch unit; no refund |
+
+No reservation may precede the signature relationship checks or exact body
+and frame size preflight. No output allocation may precede the reservation.
+An unexpected failure after reservation retains the complete debit and
+returns no object bytes. The deterministic budget state is observable
+through existing `session.budgets`; exhaustion never wraps or silently
+accepts a request. All v1-method accounting remains unchanged.
+
+BoundedContext reports `applied_limits` as the selected LimitProfile,
+`returned_bytes` as the exact response-body size, `returned_entities = K`,
+`returned_edges = 0`, `reached_depth = 0`, `omitted = 0`, `truncated = false`,
+and `continuation = false`. These are direct reads, not graph traversal;
+there is no depth omission. Work is carried only in response field 8 and
+the session budget, because BoundedContext has no work field.
+
+## 6. Ownership and integration
+
+S20-310 owns membership, signature selection and query-owner failures.
+S20-390's `VerifiedRevision` remains the only persistent-state authority.
+S20-410 owns session/root admission, version negotiation, bounded transport
+and protocol failures. A thin repository adapter may expose borrowed objects
+to the query engine; it may not supply unverified caller-owned bindings as
+production truth. The bridge and CLI delegate without semantic interpretation.
+
+Before freeze, synchronize SMP1's versioned method table and history, the
+bridge and CLI version/revision pins, REQUIRED_CONTRACT_INDEX_V1, and
+SLEY2_TRIAL_RUNNER_V1's `ARM_AFFORDANCES` allowlist. Generate bridge metadata
+from the versioned contract; never add a bridge-private method. Existing root
+query v1 and capsule formats remain byte-identical.
+
+Synchronize SESSION_HANDLE_PROFILE_V1's closed method classification and
+`scripts/check_session_handle_profile.py` as a versioned extension: both new
+tags are head-bound only in protocol version 2. The version-1 classification
+and existing handle record bytes stay unchanged. Update reciprocal session
+and SMP1 revision references together.
+
+## 7. Acceptance
+
+- Fixed accepted/rejected request and response vectors are reproduced by an
+  independent Python encoder/decoder using the existing canonical object
+  oracle. Compare raw bytes, ObjectIds, frame identities and stable failures.
+  The 23 accepted vectors are additionally reproduced by the Rust owner
+  and encoder (`accepted_corpus_vectors_match_owner_and_encoder`) and the
+  25 stored objects through the production adapter projection; the
+  owner-layer rejection rows by the owner refusal tests and the 16
+  request-shape wires by the protocol corpus replay test.
+  `accepted_corpus_response_frames_match_protocol_encoder` builds each
+  response envelope from the semantic input session, request identity,
+  method and selected limits, plus the frozen response body, using the
+  production direct Rust protocol encoder used by the server, and checks
+  agreement with the generic encoder. It compares all 23 response wire byte
+  strings, frame identities and wire lengths, and round-trips through the
+  production decoder. Body derivation belongs to the separate Rust owner
+  test above; this envelope test does not issue the synthetic corpus
+  session through a repository server.
+  `rejected_relation_bounds_refuse_or_serve` consumes the six exact and
+  one-below K/byte/work rows, including row IDs `bound_work_exact` and
+  `bound_work_below` (relation tags `work_exact` and `work_one_below`).
+  `rejected_relation_work_recomputes` consumes the three remaining
+  work-preflight relations. Its `checked_overflow` case feeds the declared
+  `arith_k`, `arith_b`, `arith_l`, `arith_m` directly to the production work
+  arithmetic helper. Those operands exceed negotiated limits; this is
+  arithmetic-unit evidence, not an admissible request or allocation test.
+  The independent conformance owner is
+  `scripts/check_entity_read_vectors.py`, backed by
+  `oracle/scb1/src/sley2_scb1_oracle/entity_read.py`; it reconstructs accepted
+  and rejected expectations from `inputs.json`. `make conformance` invokes
+  it. S20-310 owns query/body semantics, S20-410 owns frame/session behavior,
+  and the S20-310 root profile section 11 composes the repository adapter,
+  both corpus directions and these independently owned evidence surfaces.
+- Runtime-sequence obligations (`pending_runtime_comparison`) are discharged
+  by live-session server tests, mapped here so the count is auditable:
+  `seq_wrong_session` by the unknown-session part of
+  `entity_read_failure_precedence_is_exact`; `seq_closed_session` by the
+  close part of `entity_read_session_lifecycle_binds_one_snapshot`;
+  `seq_renewed_session` by `entity_renew_then_read_with_live_root_succeeds`;
+  `seq_epoch_mismatch` by
+  `repair_wrong_epoch_refuses_entity_read_without_debit`;
+  `seq_root_advanced` by
+  `entity_read_head_advance_fails_before_body_decode`;
+  `seq_request_id_conflict` by `entity_request_id_reuse_refuses_second_use`;
+  `seq_unnegotiated_precedence` by
+  `version_one_selection_refuses_version_two_methods_at_tag_validity`;
+  `seq_work_exhausted_precedence` by
+  `entity_exhausted_budget_with_stale_root_answers_binding_first`;
+  `seq_debit_phases` by `repair_debit_phases_observe_budget_and_followup`
+  with `entity_read_budget_debit_table_is_exact`; `seq_inflight_terminal`
+  by `repair_stale_refusal_then_renew_and_read_at_inflight_one`. The owner-case preconditions and fill
+  recipes are oracle-registry checks, not byte coverage.
+- All eighteen supported entity kinds return their exact stored object.
+  Signature cases include zero/multiple ordered parameters, nontrivial type
+  expressions, generics, declared effects/contracts and a wrong-kind target.
+- Wrong root/session/workspace/epoch, closed and renewed sessions, head
+  advancement, absent/tombstoned entities, malformed/trailing payloads,
+  reordered fields and conflicting request identities reject in stated order.
+- Exact and one-below object, response, frame, and work limits are tested;
+  oversized Function/Parameter input and checked overflow refuse before
+  result allocation. Instrument the owner boundary to prove no whole-root
+  semantic extraction, cache construction, checkout or unbounded body copy.
+  For every failure phase in the debit table, observe `session.budgets`
+  and a subsequent request to prove identical debit and exhaustion behavior;
+  inject an encoding failure after reservation to prove no refund.
+- v1 negotiation, old frames, method offers and all existing byte vectors are
+  unchanged; v2 mixed negotiation filters new methods on a v1 selection,
+  and a v1 session rejects both new tags. Include legacy unknown-tag
+  intersections containing 306, 307 and an unrelated unknown number.
+- A real runner/stdio bounded local expression replacement retrieves the
+  exact current Operation object, derives a canonical edit from its returned
+  fields and ObjectId, and creates and successfully validates a candidate
+  through ARM_AFFORDANCES. The edit preserves nontrivial existing operands
+  and unrelated body fields learned only from the response; varied fixtures
+  must reject a hardcoded substitute. Freeze the before/after semantics and
+  independently verify both changed and preserved fields. A separate
+  parameter-type-dependent signature edit uses retrieved Function and
+  Parameter objects, declaration order and exact parameter types to create
+  and successfully validate its candidate. Both demonstrations exclude
+  checkout, exchange export, raw repository body access and fixture-side
+  pre-edit contents in agent inputs. These are prospective acceptance cases;
+  the historical EC1a mapping remains unresolved, as recorded in
+  `docs/audits/AT_MW_02_CONSUMER_ACCEPTANCE_CLARIFICATION.md`.
+- Ariadne reviews the contract, Nabu reviews bounded-context architecture,
+  and Vulcan reviews the serving and negative-test surface on pinned commits.
+
+AT-MW-02 remains open until implementation, independent vectors, consumer
+integration and the bounded edit demonstrations pass. A contract-only
+checkpoint is not a runtime or full-query completion claim.
+
+## 8. Retained corpus provenance
+
+The accepted/rejected v2 corpus bytes are preserved. Their manifest's
+`refresh_head_revision` is `9ae09a142830a4857c553bad27433143999e6864`,
+while `encoder_sha256` is
+`63e82fc8ee66a6b6d10ca18e978ee4cbc1aebef4998f24990b616d93470d9a35`.
+The subsequent 246d5c4 review recorded that this refresh used then-uncommitted
+encoder repairs: the HEAD label alone therefore does not identify the exact
+encoder tree. The encoder hash names the bytes; it is not evidence of a clean
+checkout at the labelled HEAD. The current encoder matches that hash.
+This annotation preserves that historical limitation rather than retrospectively
+claiming a clean refresh. `SHA256SUMS` and the independent checker establish
+current byte integrity/reconstruction separately. No review verdict or corpus
+identity changes through this annotation.

@@ -1,0 +1,10 @@
+{
+  "contract": "sley2.benchmark-task-oracle.v1",
+  "task_id": "S2B-TYPE-001",
+  "arm": "sley2",
+  "positive": "accepted",
+  "negatives": {
+    "missing_case": "ORACLE_MISSING_CASE",
+    "bool_compat_field": "ORACLE_BOOL_COMPAT_FIELD"
+  }
+}

@@ -1,0 +1,9 @@
+CORRUPT witness/pos: source a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8 (clean apart from witness outputs)
+CORRUPT witness/pos: propose valid True
+CORRUPT witness/pos: finished True
+S2B-CORRUPT-001 witness/pos judge exit: 0
+S2B-CORRUPT-001 witness/pos verdict: {"arm": "sley2", "code": null, "detail": "all flows held", "status": "accepted", "task_id": "S2B-CORRUPT-001"}
+S2B-CORRUPT-001 witness/pos exchange-trailer regression: returned without rejection (requires exact EXCHANGE_DIGEST_MISMATCH on both unresealed flips, head tx and live object count unchanged)
+S2B-CORRUPT-001 witness/pos resealed-vector evidence: {"control": "accepted", "fresh": [{"label": "object-first", "offset": 1301, "symbol": "PACK_DIGEST_MISMATCH"}, {"label": "object-last", "offset": 2637, "symbol": "PACK_DIGEST_MISMATCH"}, {"label": "object-first", "offset": 1301, "symbol": "PACK_DIGEST_MISMATCH"}], "head_tx": "0a0a398c24eb2a2e44f0aa7afc6aaa23241275bc3ee1f1680cf842aeebba62c2", "live_objects": 5, "populated": [{"attempts": 2, "label": "object-first", "symbol": "PACK_DIGEST_MISMATCH"}, {"attempts": 2, "label": "object-last", "symbol": "PACK_DIGEST_MISMATCH"}], "resealed": true, "route": "exchange.import"}
+S2B-CORRUPT-001 witness/pos provenance: {"base_pack_sha256": "d3cc8643294ef669a5bc849bf5c14ee1e39c0f28b5d5f6e542f6f04a584b5f53", "driver_binary": "succ_live_judge_cases", "driver_sha256": "19bc90a939baa8d9f05eb8e2405e364b37d4b8885d49366732b16be918bedfc3", "git_dirty_paths": 0, "git_head": "a7aba12f4e15e1a7ca036a6e709af8f4d54e54d8", "python": "3.14.7", "sley_binary": "/home/dev/Work/checkpoints/succ-merge-bin/sley", "sley_sha256": "62a2411947531588adfda49a7374620ad7fa47a4ced74c6d18a310a936f2b128", "utc": "2026-09-23T15:47:23+00:00"}
+workspace: /home/dev/Work/checkpoints/sct-mw/sley2-witness-corrupt-run-ipzusm5v/sley2-corrupt-witness-ld4zc5ys/ws (scheduled for removal at exit; a failed removal exits nonzero)

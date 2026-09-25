@@ -1,0 +1,23 @@
+{
+  "assertions": [
+    "a handle expands under the session and root it names",
+    "naming a root the session never bound is stale immediately",
+    "a handle is stale after the head advances",
+    "unknown past the bound root inventory",
+    "a pre-renewal handle naming the old root stays stale after renewal",
+    "only a handle naming the new root resolves after renewal",
+    "the closed head-bound set refuses branch reads under a stale session",
+    "an exhausted budget answers the stale bound root, not the budget failure"
+  ],
+  "commit": "ab35c569bbc2e9e1261fe12643de9400de10161a",
+  "contract": "s20-330-session-handle-profile-v1",
+  "expected_failure": "SESSION_STALE_HANDLE",
+  "result": "PASS",
+  "tests": [
+    "handles_name_their_expected_root",
+    "sessions_bind_workspace_root_and_epoch_and_handles_name_their_root",
+    "binding_failures_precede_budget_exhaustion"
+  ],
+  "threat": "T15",
+  "threat_name": "handle reuse across roots"
+}

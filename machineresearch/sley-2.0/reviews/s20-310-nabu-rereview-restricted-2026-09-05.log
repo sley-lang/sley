@@ -1,0 +1,27 @@
+DISPATCH rereq-nabu-restricted-query-310 forge-nabu-rereq-nabu-restricted-query-310-20260905T104226 2026-09-05T10:42:26Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+status: complete — PASS (high confidence)
+
+findings:
+- P0: []
+- P1: []
+- P2: []
+- P3: []
+- The four query kinds correctly cover the restricted snapshot’s inventory, direct-edge, reverse-edge, and closure capabilities.
+- Partial results, continuation, and capsule construction are absent from `query.rs`; later full-profile modules do not widen this restricted API.
+- Restricted snapshots remain fresh/rebuild-first authority. Root context is carried only as an explicitly unverified claim.
+- The GA gap statement is complete and honest: this restricted profile alone does not satisfy full root-backed S20-310, S20-320, S20-400, M3, or GA.
+
+validation:
+- Verified clean detached worktree at `9c7d4ba`.
+- Verified contract byte-identical to `9dc78fe`.
+- Inspected the contract, `query.rs`, restricted snapshot constructors, and ADR-0012.
+- `python3 scripts/check_restricted_query_profile.py`: PASS, zero problems.
+- No Cargo run; repository unmodified.
+
+blockers: none
+
+return_to: orchestrator
+
+S20_310R_NABU_REREVIEW_JSON={"reviewer":"nabu","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[],"notes":"Restricted-profile direction satisfied; boundary remains closed, complete-or-error, and non-provenant."}
+EXIT=0 2026-09-05T10:48:35Z

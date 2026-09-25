@@ -1,0 +1,74 @@
+DISPATCH 260-ariadne-contract forge-ariadne-260-ariadne-contract-20260904T022923 2026-09-04T02:29:23Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract and its composed authorities.
+
+Read-only triage complete. No repository writes, no cargo, no builds.
+
+## status
+`FAIL` — not freeze-ready. Two P0s and six P1s. The profile *architecture* (second cache profile, own magic) is right; the per-family freeze rules are not yet exact.
+
+Note on scope drift: the handoff names revision 7 with E7 excluded. The repo is at contract **revision 9**, which lands slice **E7a** (`contract_assert`, opcode 144), 21 vectors, and a stage checker that now requires `E7a`. I reviewed what is there.
+
+## findings
+
+### P0 — blocks freeze
+
+**P0-1. Map values are canonical only when the VM builds them, so map equality and observation identity are representation-dependent.**
+§3 E4 freezes "Map order is the order of the keys' S20-350 canonical bytes, *exactly as constants require*." Constants require no such thing: `check_map_constant` (`crates/sley-check/src/lib.rs:829-848`) enforces key uniqueness and nothing about order. `OrderedMap` keeps `equality: true` (`sley-check/src/lib.rs:601-608`), so a map can be an execution input, a `constant_ref`/`global_get` value, and an `equal` operand — and `validate_inputs` (`execute.rs:905-934`) validates but never normalizes it, while `sorted_map` sorts every VM-constructed map. Two consequences, both frozen by the `map-new-sorted` vector:
+- `equal`/`not_equal` over maps is `ConstValue` structural equality (`extended.rs:1407`), so two logically identical maps with different entry order compare **unequal**. That is not the "canonical value equality" §3 E1 promises.
+- `hash_validated_value` hashes entries in stored order (`sley-ssmc/src/fingerprint.rs:589-595`), so the Success value hash and the observation identity of a map result depend on representation, not value.
+
+Fix before freeze: normalize every map entering the profile (inputs, `constant_ref`, `global_get`) with the same rule used at construction, state that normalization normatively in §2, and delete "exactly as constants require".
+
+**P0-2. Signed `int_shl_checked` at width 128, amount 127 contradicts the E2 rule.**
+`extended.rs` computes the left shift as `signed_value.checked_mul(1_i128 << amount)`. At `amount = 127` the multiplier wraps to `i128::MIN`, so:
+- `1 shl 127` returns `Value(i128::MIN)`; the stated rule requires code 1 (2^127 exceeds `i128::MAX`, and the sign bit is not the operand's sign bit).
+- `-1 shl 127` returns `Overflow`; the stated rule requires `Value(i128::MIN)` (every shifted-out bit is the sign bit).
+
+Exactly inverted on both. E2 tests cover widths 8 and 32 only (`extended_tests.rs:991-1007, 2647`), so nothing pins it, and §7 explicitly puts width 128 in scope ("width 128 at the native ones"). This is an implementation fix, not a contract carve-out.
+
+### P1 — must fix before freeze
+
+**P1-3. §3 E1 equality row contradicts §7 and the code.** The row requires `T` "hashable and float-free"; `extended.rs:692-697` rejects only `contains_float(left) && !is_float(left)`, and §7 revision 2 admits bare `F32`/`F64` with IEEE meaning. *Answering the asked question:* excluding **bare** floats is wrong and is not what shipped; excluding **nested** floats is right, because IEEE equality is not structural equality and aggregate equality would then disagree with the value hash. Put that in the normative table.
+
+**P1-4. The fixed 256 ceiling silently overrides a manifest field.** `SSMC1_EPOCH1_SCHEMA.txt` declares `ResourceLimits(… 5:call_depth:UInt64! …)`, but the profile freezes `MAX_CALL_DEPTH = 256` (`execute.rs:638`) and the VM's `ExecutionLimits` has no depth field. Terminations enter observation identity, so honoring the manifest field later is profile-breaking. Either honor `min(request.call_depth, 256)` or state normatively that `EXTENDED_V1` ignores field 5 and that honoring it needs a new `lowering_profile`. (This is campaign open question 3; the freeze needs the answer written down either way.)
+
+**P1-5. Off-by-one: the real ceiling is 255 frames, not 256.** `execute.rs:472,481` pass `stack.len() + 1` — live frames including the running one — and `prepare_frame` refuses when `frames + 1 >= 256` (`execute.rs:760`). The 256th frame is refused, so the deepest reachable stack is 255, while §3 E6 and §7 both say "at most 256 frames, the entry frame included". No boundary test exists (`extended_tests.rs:2440-2466` only recurses unbounded). Fix the comparison or restate the number, and add a vector at the last accepted depth.
+
+**P1-6. Canonical byte order is not key order.** `encode_uvar` is LEB128, so lexicographic order over equal-length encodings inverts numeric order: `UInt(255) = FF 01` sorts **after** `UInt(256) = 80 02`. An `OrderedMap<UInt64,_>` iterates and hashes in an order that is neither insertion nor key order, while §3 E4 requires the key to carry the S20-210 total order. *Answering the asked question:* ordering by canonical bytes is defensible only if it is named as an **encoding** order; if `OrderedMap` means key order — its name and the total-order requirement both say so — sort by the S20-210 order and use canonical bytes only to break ties. Decide before `map-new-sorted` freezes it.
+
+**P1-7. §3 E3 claims exact IEEE while §7 flushes `-0` to `+0`.** `canonical_f32/f64` (`extended.rs:780-798`) map every zero to `+0`. That composes observably: `float_mul(-1.0, 0.0)` gives `+0`, so a following `float_div(1.0, x)` gives `+inf` where IEEE gives `-inf`. §3's "Semantics are IEEE-754 … and the result bits are stored exactly" is not true of zeros. Move the zero rule into §3 as a named deviation with that consequence. NaN canonicalization itself is exact and matches the two frozen bit patterns.
+
+**P1-8. §1's bytecode layout omits the callee table.** `encode_function` (`lower.rs:809-822`) writes magic, `u32` version, entry body, then a `u64` callee count and each callee body. §1 describes only the per-instruction immediate; the table appears only in a §7 clarification. A format freeze needs the complete layout in the normative clause.
+
+### P2
+- **Campaign record is stale against what it certifies:** stops at revision 7 / "E7 excluded", records nineteen vectors, and has no E7a slice row and no E7a Tier 2 handoff, while the contract is revision 9, `accepted.json` holds 21 vectors including `contract-assert-holds`/`contract-assert-violated`, and the checker requires `E7a`. §5 per-slice evidence is unrecorded for E7a.
+- **ADR-0039 header** still reads "revision 7 … E1 through E6 implemented, E7 excluded" while its own decision 6 lands E7a; status stays "proposed" into a freeze.
+- **E4 gaps the vectors will freeze:** `map_remove` of an absent key (code returns the map unchanged) is unstated; `map_get`/`map_contains` operand types are only implicit.
+- **§3 E3 operand counts:** only `float_fma` is called out; `float_neg` is one operand in the manifest.
+- **"exactly five fuel"** is a frozen number carried only by a test comment (`extended_tests.rs:2197`); show the derivation in §3 or drop it.
+
+### P3
+- `T`, `T`, `T` hashable reads as three operands (rows 96/97 and 98-101).
+- Failure-kind names diverge from the manifest: contract `BuiltinFailure(Index|Arithmetic|DuplicateKey)` vs enum `IndexError|ArithmeticError|DuplicateKeyError`.
+- §3 E7's "epoch 1 rejects it outright" is correct but its authority is `CONTRACT_TEST_PROFILE_V1.md` §3.4, not the manifest (op 145 *is* in the epoch-1 table); cite it.
+- `fuzz/targets/vm_canonical_inputs.rs:88` says "E2 through E6" though the fixtures include the E7a contract inventory.
+- §3 E1's order row omits floats from the admitted set; `ordered()` (`extended.rs:238-249`) admits `F32`/`F64`.
+
+## the two questions I can answer clean
+
+**Second cache profile with its own magic — yes, right.** `lowering_profile = 2` enters the cache-key preimage, `SLEYBC02` separates the byte stream, and `ResourceKind::CallDepth` is reachable only under `EXTENDED_V1`, so the restricted vectors cannot move. One tightening: §4 argues the observation preimage's frozen `execution_profile` is safe "because the cache key it already carries binds the lowering profile" — that holds only because the key preimage carries the `lowering_profile` field. Name the field rather than asserting the property.
+
+**E7 exclusion is stated safely.** The judge's default arm is `VM_LOWER_OPCODE_UNSUPPORTED` (`extended.rs:761`), §6 excludes "E7 beyond slice E7a", and the `test_observe` epoch claim checks out. E7a is bounded correctly too: the three admitted `ContractKind`s match `CONTRACT_TEST_PROFILE_V1.md:27-36` (Invariant, EffectBound, CapabilityBound, ResourceCeiling rejected), and `code == 1` is the only `ContractViolation` code S20-210 admits (`sley-check/src/lib.rs:1071-1072`).
+
+## validation
+Tier 0, inspection only. Targeted reads of the contract, ADR, checker, campaign record, `extended.rs`, `lower.rs`, `execute.rs`, `extended_tests.rs`, `accepted.json`, the fuzz target, the epoch-1 manifest op table, `sley-check`, `sley-ssmc/fingerprint.rs`, `sley-mutate/codec.rs`, and `CONTRACT_TEST_PROFILE_V1.md`. No cargo, no writes, no V1. P0-2 and P1-5 are read-derived and unpinned by any test — worth a Vulcan confirmation run.
+
+## blockers
+None. Review completed within budget.
+
+## return_to
+Orchestrator. P0-1, P0-2, P1-4, and P1-6 carry design content that is arguably Nabu's (resource-model ownership, map order semantics); P0-2 and P1-5 are bounded Merlin fixes.
+
+S20_260_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["Map values are canonical only when the VM builds them: S20-210 check_map_constant imposes no key order, inputs and constant_ref/global_get maps are never normalized, so equal/not_equal over maps is representation equality and the S20-250 success value hash and observation identity depend on entry order; the claim 'exactly as constants require' is false","Signed int_shl_checked at width 128 amount 127 is inverted against the E2 rule: the multiplier 1_i128<<127 wraps to i128::MIN, so 1 shl 127 yields Value(MIN) where the rule requires overflow code 1 and -1 shl 127 yields overflow where the rule requires Value(MIN); tests cover widths 8 and 32 only"],"p1":["Section 3 E1 equality row says 'hashable and float-free' but the code and revision 7 admit bare F32/F64 and reject only nested floats; the normative table must carry the implemented rule","The fixed 256 call-depth ceiling silently overrides the frozen manifest field ResourceLimits.call_depth (field 5); honor min(request,256) or state the deliberate non-honoring and that adopting it needs a new lowering_profile","Off-by-one: prepare_frame refuses when frames+1>=256 with frames already counting the running frame, so the real ceiling is 255 not the contracted 256, and no boundary test pins it","Map order by S20-350 canonical bytes is not key order because encode_uvar is LEB128: UInt(255)=FF01 sorts after UInt(256)=8002, so an OrderedMap iterates in neither insertion nor key order while E4 requires the S20-210 total order","Section 3 E3 claims exact IEEE bits while zeros are flushed to +0, which composes observably (float_div(1.0, float_mul(-1.0,0.0)) yields +inf where IEEE yields -inf); the deviation must be normative in section 3","Section 1's bytecode layout omits the SLEYBC02 callee table (u64 count plus each callee body after the entry body), which appears only in a section 7 clarification"],"p2":["Campaign record is stale: revision 7, nineteen vectors, no E7a slice row and no E7a Tier 2 handoff, while the contract is revision 9 with 21 vectors and the checker requires E7a","ADR-0039 header still says revision 7 and E7 excluded while its decision 6 lands E7a, and its status is still 'proposed' going into a freeze","E4 does not state map_remove of an absent key or the map_get/map_contains operand types","Section 3 E3 gives operand counts only for float_fma; float_neg is one operand in the manifest","The 'exactly five fuel' E7a claim is carried only by a test comment; derive it in section 3 or drop it"],"p3":["'T, T, T hashable' reads as three operands in the 96/97 and 98-101 rows","Failure-kind names diverge from the manifest enum (Index vs IndexError, Arithmetic vs ArithmeticError, DuplicateKey vs DuplicateKeyError)","Section 3 E7's 'epoch 1 rejects test_observe' is correct but its authority is CONTRACT_TEST_PROFILE_V1 section 3.4, not the manifest op table","fuzz/targets/vm_canonical_inputs.rs:88 says 'E2 through E6' though the fixtures include the E7a contract inventory","Section 3 E1's order row omits floats from the admitted set although ordered() admits F32 and F64"],"notes":"Second profile with its own magic is the right separation and E7/E7a exclusion is stated safely; per-family exactness is not freeze-ready. Read-only, no cargo, Tier 0. P0-2 and P1-5 are unpinned by tests."}
+EXIT=0 2026-09-04T02:36:46Z

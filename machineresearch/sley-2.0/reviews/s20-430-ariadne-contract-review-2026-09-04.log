@@ -1,0 +1,85 @@
+DISPATCH 430-ariadne-contract forge-ariadne-430-ariadne-contract-20260904T053230 2026-09-04T05:32:30Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll work through the contract and implementation directly. Starting with the core artifacts.
+
+Noting the contract cites "SMP1.md revision 6" while the task pins revision 5. Checking the implementation next.
+
+## S20-430 contract review — Ariadne
+
+**status:** FAIL (freeze blocked; 2 P0, 7 P1)
+
+Read-only pass over `9dc78fe` in the pinned worktree. No repository mutation, no `cargo`. All findings below are traced to file:line.
+
+---
+
+### findings
+
+**P0-1 — the endpoint's representation choice enters the negotiated semantic profile**
+
+`offered_hello(json)` does `offered.features |= FEATURE_JSON_BRIDGE` (`crates/sley-cli/src/lib.rs:270`); that hello goes to `negotiate` (`lib.rs:643`) and the result to `Server::new` (`lib.rs:654`). `SelectedProfile::preimage` digests `features` as field 5 (`crates/sley-protocol/src/lib.rs:750`), `handshake_id()` derives from it, and `derive_session_id(handshake_id, head, ordinal)` derives session identity from that (`crates/sley-protocol/src/session.rs:189`). So `--json`, a transport flag, can change the handshake and session identity of the semantic kernel. Contract §1 says the endpoint "owns no semantics"; master goal 22.6 requires no duplicated semantic authority in the CLI. Freezing revision 2 as written freezes a false claim.
+
+Answering the campaign's open question directly: **neither "always" nor "only under `--json`" is correct.** `json_bridge` describes the endpoint's wire form, not a server capability. Strip it before `negotiate` and advertise it only in the hello the endpoint *writes* — or, if it must be negotiated, §2 has to state that handshake identity is mode-dependent and §6's equivalence claim must be scoped accordingly.
+
+**P0-2 — §6's required evidence is not met, and the recorded reason does not hold**
+
+§6 requires JSON-mode responses "byte-identical to a direct `Server` over the same repository". `tests/cli.rs:247-258` instead compares method, request_id, bounds, and body *length*. Body length equality is not body equality.
+
+The closeout justifies this ("the `json_bridge` feature enters the handshake digest and therefore the session identity"), but the fixture client hello is `Server::offered_hello()` (`tests/cli.rs:28-30`, written at `:200`), which carries only `FEATURE_CANCEL|FEATURE_STREAM`, and `negotiate` computes `features: client.features & server.features` (`sley-protocol/src/lib.rs:725`) — which intersects `json_bridge` away. With an identical selected profile the handshake id and session id are identical and the answers must be byte-identical. So either the weakened comparison is masking a different, unidentified cross-mode divergence, or it is unnecessary and the rationale recorded in the closeout is wrong. Must be resolved before freeze; both branches change the contract.
+
+<details>
+<summary>P1 findings (7)</summary>
+
+**P1-3 — §8's short-read clarification is wrong in two cases.** §8: "only a complete frame that is not a client hello, or no frame at all, is `CLI_HANDSHAKE_REQUIRED`." But at the handshake position a too-large prefix returns `HandshakeRequired` (`lib.rs:632`) and a bridge-rejected line returns `HandshakeRequired` (`lib.rs:633`). Neither is a complete frame, so the implementation contradicts the clarification this review was scoped to check.
+
+**P1-4 — `std::process::exit` with a held, unflushed stdout lock.** `main.rs` takes `stdout.lock()` and calls `std::process::exit(status)` with no `flush()`. Byte-mode frames carry no reliable trailing newline, so buffered output can be lost. Invisible to the suite because every test calls `sley_cli::run` over `Vec<u8>` (`tests/cli.rs:53-59`) — **no test exercises the `sley` binary at all**, yet §4 makes promises about exit status and stream contents. Flush explicitly, treat flush failure as `CLI_IO_FAILURE`, add one binary-level test.
+
+**P1-5 — a too-large prefix in per-frame mode is answered through `answer_batch`.** The `TooLarge` prefix is pushed onto `pending` (`lib.rs:672-678`) and the tail block runs `server.answer_batch(&requests)` unconditionally (`lib.rs:695-700`), ignoring `options.batch`. §2 says without `--batch` each frame is answered as it is read with `Server::answer`. A non-batch invocation silently takes the S20-440 admission path.
+
+**P1-6 — exit 0 for invocations that did not reach end of input.** §4: "Exit status 0 means the endpoint ran to end of input and every frame was answered." Negotiation failure returns `Ok(())` (`lib.rs:646-652`; confirmed exit 0 at `tests/cli.rs:344`), and the `TooLarge` and `JSON_BRIDGE_RESOURCE_LIMIT` paths `break` the read loop (`lib.rs:677`, `:683`) — three cases that stop early and report success. §4's sentence is false as written.
+
+**P1-7 — the contract pins the wrong revisions of the authorities it composes.** §1:14 cites "`SMP1.md` revision 6"; the file at this commit is **revision 8** (r7 adds appendix C slice-C methods; r8 adds the `execute` cache profile selector and `limits` **field 6**). The bridge is cited with no revision and is at **revision 4**. `limits` field 6 touches the limit ceilings the endpoint offers and the negotiated `max_frame_bytes` ceiling §2 depends on.
+
+**P1-8 — "reserved and deferred methods are not offered" is unbacked.** `offered_hello` filters `!method.is_reserved()` only (`server.rs:206`); `server_tests.rs:1184` asserts `offered_it == !method.is_reserved()`. **`is_deferred` does not exist anywhere in the repository** — its only occurrence is the closeout's claim that `sley-protocol` gained it (`S20_430_THIN_CLI_CLOSEOUT.md:37`). §2 and the `offered_hello` doc comment must drop "deferred", or the predicate must exist.
+
+**P1-9 — the rule audit is not strong enough, and already misses live code.** `check_cli_rules.py:71` does `production = text.split("#[cfg(test)]", 1)[0]` — everything after the first `#[cfg(test)]` escapes every check, so adding `#[cfg(test)] mod tests;` near the top of `lib.rs` disables the audit for that file. Patterns cover `fn validate|judge|check_`, `Method::X =>`, and a fixed numeric-arm list; they miss `fn ensure_*`, `fn is_*`, `match` on an error-code enum, and bare comparisons. Code already present and unflagged: `error == BridgeError::Bridge(JsonBridgeErrorCode::ResourceLimit)` (`lib.rs:682`), `error.code() == ProtocolErrorCode::FrameTooLarge` (`lib.rs:375`), and `offered.features |= FEATURE_JSON_BRIDGE` (`lib.rs:270`). §5 claims the script "fails closed when any of these drifts" — not yet true.
+
+</details>
+
+<details>
+<summary>P2 findings (5)</summary>
+
+**P2-10 — `version` example does not match emitted bytes.** §1:29 shows `{"cli":"1","protocol_version":1,"contract":"sley2-cli-v1"}`; `version()` builds a `serde_json::Map` (`lib.rs:286-292`) and `serde_json = "=1.0.145"` is declared without `preserve_order`, so output is lexicographic: `{"cli":"1","contract":"sley2-cli-v1","protocol_version":1}`.
+
+**P2-11 — `frames_read` counts a length prefix as a frame.** §8 defines it as "every frame or line taken from the input"; `lib.rs:674` increments for a prefix whose body was never read (`tests/cli.rs:389` asserts 2).
+
+**P2-12 — `codes` can under-count relative to `failed_answers`.** `write_answer` (`lib.rs:604-612`) only records a code when the body decodes as `ProtocolFailure`; §3 implies `failed_answers == sum(codes)`, which `tests/cli.rs:175` asserts. An undecodable failure body breaks the invariant silently.
+
+**P2-13 — report-write failure is unspecified.** `outcome.and(Err(stream_failure(error)))` (`lib.rs:526-531`): a clean run becomes exit 4, a failed run keeps its code and drops the report error, and an already-written report's `exit_code` cannot match the process status. Name it in §4.
+
+**P2-14 — per-frame default (open question): keep it, but state the consequence.** `Server::answer` is itself `answer_batch(&[frame])` (`server.rs:241-247`), so the two paths share one admission implementation and the default costs no divergence risk. §2 states the effect too weakly; say plainly that under the default a client cannot cancel a request it has already written, so `--batch` is required for S20-440 cancellation to be observable. Fix P1-5 so the default is genuinely per-frame.
+
+**P2-15 — `Server::offered_hello` belongs in the S20-400 contract (open question): yes.** §2 makes the endpoint's whole offer the return value of that one function, and `check_cli_contract.py` already binds the literal string `` `Server::offered_hello` `` as a required spec marker. S20-430 cannot freeze on an S20-400 surface that S20-400 does not specify — the offered method set and its predicate (see P1-8) are protocol-visible commitments. Add it to SMP1 §2 or §3 and cite the revision.
+
+**P2-16 — stage checker does not bind §6 or §8.** `SPEC_MARKERS` covers headings 1, 2, 3, 4, 5, 7 but not "## 6. Required evidence" or "## 8. Revision 2 clarifications"; both can be deleted or renumbered without failing.
+
+</details>
+
+<details>
+<summary>P3 findings (3)</summary>
+
+**P3-17** — §2's "`Server::answer_batch`, S20-440 appendix B" and §1's "SMP1 section 2" are unversioned citations; pin with P1-7.
+**P3-18** — §1 header says "Ariadne contract review"; SMP1's header says "Ariadne contract review as the package owner". Make the role wording consistent.
+**P3-19** — §8 folds two mechanisms into one "over-long inputs end the input" rule with different codes (`PROTOCOL_FRAME_TOO_LARGE` vs `JSON_BRIDGE_RESOURCE_LIMIT`); split into two sentences.
+
+</details>
+
+---
+
+**validation:** Tier 0, read-only inspection only. Read `SLEY_CLI_V1.md`, `ADR-0035`, both scripts, campaign record, closeout, `sley-cli` lib/main/tests, `sley-protocol` `server.rs`/`lib.rs`/`session.rs`, `sley-json-bridge` §9 + `envelope`, `ERROR_CODES_V1.md:385-397`, master goal 14.2/14.3/15.2/22.6. No `cargo`, no build, no repository mutation, per the handoff bound. P0-2 in particular is a static-reading contradiction I could not settle by execution; it needs one `cargo test -p sley-cli` run with the weakened assertion tightened to byte equality to determine which branch is true.
+
+**blockers:** P0-1 and P0-2 block freeze. P0-2 cannot be fully resolved read-only — resolving it requires running the JSON-mode test with a byte-equality assertion, which was outside this pass's bounds.
+
+**return_to:** orchestrator. Recommend routing P0-1 (feature bit crossing the endpoint/kernel boundary) and P2-15 (`offered_hello` placement in S20-400) to Nabu as architecture decisions; P0-2, P1-4, and P1-9 to Merlin as bounded implementation work once the contract revisions land.
+
+S20_430_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["--json ORs FEATURE_JSON_BRIDGE into the offered hello (cli lib.rs:270) which negotiate feeds to Server::new; features are digested into SelectedProfile::preimage field 5 and thence handshake_id and derive_session_id, so a transport flag can change semantic session identity, contradicting the 'owns no semantics' claim in section 1 and master goal 22.6","Section 6 requires JSON-mode responses byte-identical to a direct Server but tests/cli.rs:247-258 compares only method, request_id, bounds and body length; the closeout blames json_bridge entering the handshake digest, yet the fixture client hello is Server::offered_hello() without that bit and negotiate intersects it away, so either the weakened comparison masks an unidentified divergence or the recorded rationale is false"],"p1":["Section 8's short-read rule says only a complete non-hello frame or no frame is CLI_HANDSHAKE_REQUIRED, but a too-large prefix (lib.rs:632) and a bridge-rejected line (lib.rs:633) at the handshake also return it","main.rs holds stdout.lock() and calls std::process::exit without flush, so buffered byte-mode frames can be truncated; no test exercises the sley binary since all tests call sley_cli::run over Vec<u8>","A too-large prefix in per-frame mode is pushed to pending and answered via answer_batch (lib.rs:672-700) regardless of options.batch, contradicting section 2's Server::answer default","Section 4 says exit 0 means the endpoint ran to end of input, but negotiation failure (lib.rs:646) and the TooLarge and JSON_BRIDGE_RESOURCE_LIMIT breaks (lib.rs:677,683) all exit 0 after stopping early","Section 1 cites SMP1.md revision 6 but the file at 9dc78fe is revision 8 and the JSON bridge is cited with no revision though it is at revision 4; revision 8's limits field 6 touches the ceilings section 2 depends on","Section 2 and the offered_hello doc comment claim reserved and deferred methods are not offered, but offered_hello filters only is_reserved and Server::is_deferred does not exist anywhere in the repository despite the closeout claiming it was added","check_cli_rules.py:71 truncates each file at the first #[cfg(test)] so a test module near the top disables the audit, and its patterns miss the error-code comparisons at lib.rs:375 and lib.rs:682 and the offered-hello mutation at lib.rs:270 that are already present"],"p2":["Section 1's version example is in non-lexicographic order but serde_json without preserve_order emits lexicographic keys","frames_read counts a length prefix whose body was never read as a frame (lib.rs:674), contradicting section 8's definition","write_answer records a code only when the failure body decodes, so codes can under-count failed_answers against section 3's implied invariant","Report-write failure behaviour (lib.rs:526-531) is unspecified in section 4 and can leave a written report whose exit_code differs from the process status","Keep per-frame answering as the default since Server::answer is answer_batch of one, but section 2 must state plainly that a client cannot cancel a request it has already written","Server::offered_hello should be named by the S20-400 contract rather than remaining an implementation convenience, since section 2 makes the whole offer its return value and the stage checker already binds it as a required marker","check_cli_contract.py SPEC_MARKERS does not bind section 6 or section 8, so both can be deleted or renumbered without failing"],"p3":["Section 2's answer_batch and appendix B citations and section 1's SMP1 section 2 citation are unversioned","Section 1's reviewer wording differs from SMP1's 'Ariadne contract review as the package owner'","Section 8 folds the byte-prefix and JSON-line over-length cases into one rule though they carry different codes"],"notes":"Read-only at 9dc78fe, no cargo per handoff bound. Two P0s block freeze; P0-2 needs one cargo test run with byte-equality restored to determine which branch is true. Recommend P0-1 and offered_hello placement to Nabu, P0-2/P1-4/P1-9 to Merlin after contract revisions land."}
+EXIT=0 2026-09-04T05:38:01Z

@@ -1,0 +1,19 @@
+Ariadne independent semantic review — RW-060 (2026-09-06, handoff round 1)
+status: **FAIL** — blocking P1 findings; no P0 found.
+
+findings:
+1. **P1 — REPAIR is not diagnostic-driven as claimed.** The REJECT test reads diagnostic fields but also the attempt digest, never checks `result_code=36008`; `repair_and_commit` starts a fresh genesis and hardcodes `defect=false` without consuming the diagnostic. Same builder/fresh nonce is real, but “reads only diagnostic fields + BUILD slot table” is not. `crates/sley-repo/tests/rw060_source_free_lifecycle.rs:1199-1300`
+2. **P1 — Program checksum has 16 Parameter entities, not 14.** There are 2 function parameters plus 14 block parameters. The 50-entity total reconciles as `1 typedef + 1 function + 16 parameters + 10 blocks + 19 operations + 3 constants`. If “14” means block parameters, the package must say so. `crates/sley-repo/tests/rw060_source_free_lifecycle.rs:75-211,579-1095`
+3. **P1 — RW060-F1 confirmed.** P7 supplies `&unit.parameters`; `function_signature` resolves callee parameter IDs through that incomplete inventory, producing `VM_LOWER_IMMEDIATE_MISMATCH/26003`. Normal lowering receives root-wide parameters, so the validator/lowerer acceptance invariant is broken. `crates/sley-policy/src/candidate_validation.rs:812-870`; `crates/sley-policy/src/candidate_program.rs:283-318`; `crates/sley-vm/src/lower.rs:223-256,650-680`; `crates/sley-vm/src/extended.rs:486-507,1025-1045`
+4. **INFO — Remaining semantic claims check out statically.** Coverage of Bytes/Vector/Map/Option/Result/record/backedge/hash/traversal is real; all used opcode, terminator, and type forms are admitted by `BOOTSTRAP_PROFILE_1`. The LessThan `u64`/`u8` defect genuinely yields 26002, with head transaction/root/object count and rejected-object absence checked. EXECUTE applies the gate, `EXTENDED_V1`, stated limits, and repeated termination/cache-key/observation checks. `crates/sley-repo/tests/rw060_source_free_lifecycle.rs:579-1095,1199-1277,1340-1460`; `conformance/bootstrap-profile/v1/profile.json:1-185`
+
+validation:
+- Bounded source review only.
+- `cargo test -p sley-repo --test rw060_source_free_lifecycle` and git revision/status were not run because this handoff authorizes read actions only; reported “4 green” remains independently unverified.
+
+blockers:
+- Correct the parameter checksum/wording.
+- Make REPAIR genuinely consume and constrain the diagnostic, or narrow the claim.
+- Choose **RULE (a): RW-060 slice 2** — change P7 to `parameters: &program.parameters` and add a parametrized-callee candidate-validation regression. This is sound because `judge_function_operations` still narrows current-function maps internally while retaining root-wide signature resolution. Do not defer an explicit validator/lowerer invariant violation to RW-080+.
+
+return_to: orchestrator

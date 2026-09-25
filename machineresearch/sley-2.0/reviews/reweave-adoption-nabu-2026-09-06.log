@@ -1,0 +1,28 @@
+Council architecture-lane review, round 1 (2026-09-06): Nabu FAIL.
+Scope: REWEAVE scope-adoption governance patch (ADOPT-REWEAVE-2026-09-06),
+uncommitted diff on sley2 main@9b7054c, focus
+scripts/build_anti_goal_conformance.py (evaluate_campaign_declarations).
+
+Result returned by the lane:
+
+status: FAIL
+
+findings:
+- **High** — `scripts/build_anti_goal_conformance.py:114`: reading `host-boundary.json` is not exception-handled. An unreadable or race-removed boundary raises `OSError` instead of returning `False`, so it does not produce the required `VIOLATED` verdict.
+- **Medium** — `scripts/build_anti_goal_conformance.py:125`: gate validation accepts any truthy JSON value, including booleans, objects, and whitespace strings. This does not enforce a **named** staged gate; require a non-empty string at minimum.
+
+validation:
+- Static read-only review of the patch and governance item 4.
+- Confirmed the six-crate denylist remains present at `scripts/build_anti_goal_conformance.py:34`.
+- Confirmed conjunctive evaluation at `scripts/build_anti_goal_conformance.py:163-168`: native crates violate unconditionally regardless of campaign declaration.
+- Confirmed the registry and boundary are currently absent, exercising the intended vacuous-hold path.
+- No runtime validation or base-diff comparison performed because the handoff allowed only `read`.
+
+blockers:
+- Adoption commit should wait until both fail-closed issues are corrected.
+
+return_to: the originating OpenCode implementation session
+
+Recording note: read-only handoff; the lane changed no files. Both findings
+were corrected exactly (OSError guard; strict non-blank string gate) and
+closed in Nabu round 2 (reweave-adoption-nabu-rereview-2026-09-06.log).

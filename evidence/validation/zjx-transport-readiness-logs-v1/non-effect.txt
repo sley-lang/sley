@@ -1,0 +1,4 @@
+cargo build -p sley-cli --locked after the closeout: nothing rebuilt
+sha256 target/debug/sley after: 18b2aad4f7643075c78c0f2c27134df7b2bcc166464f7d3201af05b1983fbb0b
+sha256 target/debug/sley before: 18b2aad4f7643075c78c0f2c27134df7b2bcc166464f7d3201af05b1983fbb0b
+identical: yes

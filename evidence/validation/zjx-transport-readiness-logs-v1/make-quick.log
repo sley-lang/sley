@@ -1,0 +1,926 @@
+python3 scripts/check_m0.py
+{"baseline": "M0", "publication_authorized": false, "required_files": 19, "result": "PASS", "semantic_crates": 18, "sley_source_files": 0}
+python3 scripts/check_benchmark_baseline.py
+{"contract": "s20-040-check-v1", "corpus_sha256": "7370b6ccb8ccd3f58fa2a90e316edf4bc5a1319b41a55253a2ee14bb5d73988d", "corpus_version": 1, "metrics": 25, "required_arms": ["raw_files", "sley_1_2_0", "sley_2_0"], "result": "PASS", "run_freeze_controls": 17, "tasks": 15, "trials_executed": 0}
+python3 scripts/check_scb1_spec.py
+{"accepted_vectors": 23, "codec_implemented": true, "contract": "s20-100-check-v1", "oracle_implemented": true, "rejected_vectors": 26, "rejection_codes": 22, "result": "PASS", "u128_source_markers": 5, "u128_unit_test_markers": 4}
+python3 scripts/check_schema_epoch_spec.py
+{
+  "bootstrap_magic": "SLEYEP01",
+  "bootstrap_version": 1,
+  "contract": "s20-140-schema-epoch-spec-v1",
+  "implementation_complete": true,
+  "problems": [],
+  "result": "PASS",
+  "stable_errors": 8
+}
+python3 scripts/check_object_store_spec.py
+{
+  "contract": "s20-150-object-store-v1",
+  "implementation": "crates/sley-store",
+  "problems": [],
+  "result": "PASS",
+  "rust_unit_tests": 48,
+  "s20_700_symlink_review": "PASS_NO_OPEN_P0_P1_P2",
+  "threats": [
+    "T03",
+    "T04",
+    "T37"
+  ]
+}
+python3 scripts/check_state_root_spec.py
+{
+  "contract": "s20-160-state-root-v1",
+  "implementation": "crates/sley-state-root",
+  "problems": [],
+  "result": "PASS",
+  "rust_unit_tests": 13
+}
+python3 scripts/check_repository_pack_spec.py
+{
+  "contract": "s20-170-repository-pack-v1",
+  "implementation": "crates/sley-repo",
+  "problems": [],
+  "result": "PASS",
+  "rust_unit_tests": 19
+}
+python3 scripts/check_repository_exchange_spec.py
+{
+  "contract": "s20-540-repository-exchange-v1",
+  "problems": [],
+  "result": "PASS",
+  "status": "S20_540_COMPLETE"
+}
+python3 scripts/check_gc_spec.py
+{
+  "anchor_kinds": 7,
+  "contract": "s20-180-gc-retention-v1",
+  "implementation": "crates/sley-repo/src/gc.rs",
+  "problems": [],
+  "result": "PASS",
+  "rust_unit_tests": 32,
+  "threat": "T40"
+}
+python3 scripts/check_type_system.py
+{
+  "contract": "s20-210-core-type-system-v1",
+  "implementation": [
+    "crates/sley-ssmc",
+    "crates/sley-check"
+  ],
+  "problems": [],
+  "result": "PASS",
+  "rust_unit_tests": 32,
+  "type_tags": 20,
+  "vulcan_review": "PASS_AFTER_GENERIC_MAP_KEY_FIX"
+}
+python3 scripts/check_cfg.py
+{
+  "cfg_error_codes": 21,
+  "cfg_unit_tests": 23,
+  "contract": "s20-220-cfg-validation-v1",
+  "implementation": [
+    "crates/sley-ssmc",
+    "crates/sley-check"
+  ],
+  "opcodes": 55,
+  "problems": [],
+  "result": "PASS",
+  "terminators": 5,
+  "vulcan_review": "PASS_AFTER_VALIDATION_PRECEDENCE_FIX"
+}
+python3 scripts/check_effect_system.py
+{
+  "ariadne_review": "PASS_AFTER_CONSTANT_ORDER_AND_ERROR_MAPPING_FIX",
+  "contract": "s20-230-effect-system-v1",
+  "effect_error_codes": 14,
+  "effect_kinds": 8,
+  "effect_unit_tests": 26,
+  "implementation": [
+    "crates/sley-ssmc",
+    "crates/sley-check"
+  ],
+  "problems": [],
+  "result": "PASS",
+  "vulcan_review": "PASS_AFTER_CFG_PRECEDENCE_REGRESSION"
+}
+python3 scripts/check_contract_test_profile.py
+{
+  "ariadne_review": "PASS_AFTER_TEST_PLAN_NAMESPACE_FIX",
+  "contract": "s20-240-restricted-contract-test-profile-v1",
+  "contract_kinds_frozen": 7,
+  "contract_kinds_supported": 3,
+  "contract_test_error_codes": 18,
+  "contract_test_unit_tests": 11,
+  "full_ga_complete": false,
+  "implementation": [
+    "crates/sley-ssmc",
+    "crates/sley-check"
+  ],
+  "problems": [],
+  "result": "PASS",
+  "vulcan_review": "PASS"
+}
+python3 scripts/check_fingerprint_impact_profile.py
+{
+  "ariadne_review": "PASS_AFTER_EXHAUSTIVE_EDGE_MATRIX_FIX",
+  "contract": "s20-250-restricted-fingerprint-impact-profile-v1",
+  "fingerprint_entity_kinds": [
+    4,
+    5
+  ],
+  "fingerprint_tests": 4,
+  "full_ga_complete": false,
+  "impact_entity_kinds": [
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "impact_tests": 6,
+  "problems": [],
+  "result": "PASS",
+  "stable_error_codes": 13
+}
+python3 scripts/check_complete_entity_impact_profile.py
+{
+  "contract": "s20-250-full-complete-entity-impact-profile-v1",
+  "definitions_present": [
+    "WorkspaceDefinition",
+    "PackageDefinition",
+    "NamespaceDefinition",
+    "EntryPointDefinition",
+    "PolicyBindingDefinition",
+    "DependencyBindingDefinition",
+    "conformance/complete-entity-impact"
+  ],
+  "new_stable_error_codes": 12,
+  "problems": [],
+  "result": "PASS",
+  "revision": 2,
+  "status": "S20_250_FULL_COMPLETE"
+}
+python3 scripts/generate_complete_entity_impact_fixtures.py --check
+{"drift": [], "mode": "check", "rejections": 19, "result": "PASS", "vectors": 2}
+python3 scripts/check_semantic_comparison_spec.py
+{
+  "contract": "s20-510-semantic-comparison-v1",
+  "implementation_present": [
+    "crates/sley-repo/src/compare.rs",
+    "conformance/semantic-comparison"
+  ],
+  "problems": [],
+  "result": "PASS",
+  "revision": 3,
+  "stable_error_codes": 11,
+  "status": "S20_510_COMPLETE"
+}
+python3 scripts/generate_semantic_comparison_fixtures.py --check
+{"drift": [], "mode": "check", "result": "PASS", "vectors": 9}
+python3 scripts/check_merge_spec.py
+{
+  "contract": "s20-520-merge-v1",
+  "implementation_present": [
+    "crates/sley-repo/src/merge.rs",
+    "conformance/merge"
+  ],
+  "problems": [],
+  "result": "PASS",
+  "revision": 5,
+  "stable_error_codes": 14,
+  "status": "S20_520_COMPLETE"
+}
+python3 scripts/generate_merge_fixtures.py --check
+{"drift": [], "mode": "check", "result": "PASS", "vectors": 19}
+python3 scripts/check_complete_root_index_snapshot_profile.py
+{
+  "contract": "s20-300-full-complete-root-index-snapshot-profile-v1",
+  "implementation_present": [
+    "snapshot:CompleteRoot",
+    "crates/sley-repo/src/index_cache.rs",
+    "conformance/complete-root-index-snapshot"
+  ],
+  "new_stable_error_codes": 3,
+  "problems": [],
+  "result": "PASS",
+  "revision": 3,
+  "status": "S20_300_FULL_COMPLETE"
+}
+python3 scripts/check_root_backed_query_profile.py
+{
+  "contract": "s20-310-full-root-backed-query-profile-v1",
+  "implementation_present": [
+    "crates/sley-query/src/root_query.rs",
+    "crates/sley-repo/src/root_query.rs",
+    "sley-id:RootQuery",
+    "conformance/root-backed-query"
+  ],
+  "new_stable_error_codes": 3,
+  "problems": [],
+  "query_classes": 19,
+  "result": "PASS",
+  "revision": 6,
+  "status": "S20_310_FULL_IMPLEMENTED_REVIEW_PENDING"
+}
+python3 scripts/check_context_capsule_profile.py
+{
+  "contract": "s20-320-full-context-capsule-profile-v1",
+  "implementation_present": [
+    "crates/sley-query/src/context_capsule.rs",
+    "sley-repo:run_context_capsule",
+    "conformance/context-capsule"
+  ],
+  "new_stable_error_codes": 4,
+  "problems": [],
+  "result": "PASS",
+  "revision": 4,
+  "status": "S20_320_FULL_COMPLETE"
+}
+python3 scripts/check_smp1_contract.py
+{
+  "contract": "s20-400-smp1-v1",
+  "implementation_present": [
+    "crates/sley-protocol"
+  ],
+  "method_count": 41,
+  "new_stable_error_codes": 12,
+  "problems": [],
+  "result": "PASS",
+  "revision": 12,
+  "status": "S20_400_COMPLETE"
+}
+python3 scripts/check_session_handle_profile.py
+{
+  "capsule_revision": 4,
+  "contract": "s20-330-session-handle-profile-v1",
+  "implementation_present": [
+    "crates/sley-protocol/src/session.rs",
+    "sley-id:Session"
+  ],
+  "new_stable_error_codes": 8,
+  "problems": [],
+  "result": "PASS",
+  "revision": 4,
+  "smp1_revision": 12,
+  "status": "S20_330_COMPLETE"
+}
+python3 scripts/generate_smp1_fixtures.py --check
+{"drift": [], "frames": 3, "mode": "check", "rejections": 4, "result": "PASS"}
+python3 scripts/check_smp1_json_bridge_contract.py
+{
+  "contract": "s20-420-smp1-json-bridge-v1",
+  "implementation_present": [
+    "crates/sley-json-bridge"
+  ],
+  "new_stable_error_codes": 5,
+  "problems": [],
+  "result": "PASS",
+  "revision": 10,
+  "status": "S20_420_COMPLETE"
+}
+python3 scripts/generate_smp1_json_bridge_table.py --check
+{"table": "conformance/smp1-json-bridge/v1/methods.json", "result": "PASS"}
+python3 scripts/generate_smp1_json_bridge_table.py --protocol-version 2 --check
+{"table": "conformance/smp1-json-bridge/v2/methods.json", "result": "PASS"}
+python3 scripts/generate_smp1_json_bridge_fixtures.py --check
+{"drift": [], "mode": "check", "rejections": 36, "result": "PASS", "vectors": 5}
+python3 scripts/generate_release_demo_fixtures.py --check
+{"drift": [], "mode": "check", "result": "PASS", "vectors": 9}
+python3 scripts/generate_vm_extended_fixtures.py --check
+{"drift": [], "mode": "check", "result": "PASS", "vectors": 29}
+uv run --project oracle/scb1 --frozen python scripts/generate_repository_pack_rejections.py --check
+{"drift": [], "mode": "check", "result": "PASS"}
+python3 scripts/check_cli_contract.py
+{
+  "contract": "s20-430-thin-cli-v1",
+  "implementation_present": [
+    "crates/sley-cli"
+  ],
+  "new_stable_error_codes": 4,
+  "problems": [],
+  "result": "PASS",
+  "revision": 8,
+  "status": "S20_430_COMPLETE"
+}
+python3 scripts/check_cli_rules.py
+{
+  "contract": "s20-430-cli-rule-audit-v1",
+  "crate": "present",
+  "dependencies": [
+    "serde_json",
+    "sley-json-bridge",
+    "sley-protocol"
+  ],
+  "encode_frame_calls": 1,
+  "frame_literals": 1,
+  "method_names_audited": 43,
+  "method_tags_audited": 43,
+  "problems": [],
+  "result": "PASS"
+}
+python3 scripts/generate_context_capsule_fixtures.py --check
+{"drift": [], "mode": "check", "result": "PASS", "vectors": 24}
+python3 scripts/generate_root_backed_query_fixtures.py --check
+{"drift": [], "mode": "check", "rejections": 10, "result": "PASS", "vectors": 27}
+python3 scripts/generate_complete_root_index_snapshot_fixtures.py --check
+{"drift": [], "mode": "check", "rejections": 6, "result": "PASS", "vectors": 1}
+python3 scripts/check_merge_persistent_fuzz_slice.py
+{
+  "contract": "s20-700-merge-persistent-libfuzzer-slice-v1",
+  "full_s20_700_complete": false,
+  "result": "PASS",
+  "scope": "MERGE_CONFLICT_DECODER_AND_ANCESTOR_RULE",
+  "section_18_5_surface": "merge engine"
+}
+python3 scripts/check_semantic_delta_persistent_fuzz_slice.py
+{
+  "contract": "s20-700-semantic-delta-decoder-persistent-libfuzzer-slice-v1",
+  "full_s20_700_complete": false,
+  "result": "PASS",
+  "scope": "SEMANTIC_DELTA_DECODER_ONLY"
+}
+python3 scripts/check_complete_root_persistent_fuzz_slice.py
+{
+  "contract": "s20-700-complete-root-judgment-persistent-libfuzzer-slice-v1",
+  "full_s20_700_complete": false,
+  "result": "PASS",
+  "scope": "COMPLETE_ROOT_JUDGMENT_ONLY"
+}
+python3 scripts/check_complete_root_snapshot_persistent_fuzz_slice.py
+{
+  "contract": "s20-700-complete-root-snapshot-decoder-persistent-libfuzzer-slice-v1",
+  "full_s20_700_complete": false,
+  "result": "PASS",
+  "scope": "COMPLETE_ROOT_SNAPSHOT_DECODER_ONLY"
+}
+python3 scripts/check_root_query_persistent_fuzz_slice.py
+{
+  "contract": "s20-700-root-query-engine-persistent-libfuzzer-slice-v1",
+  "full_s20_700_complete": false,
+  "result": "PASS",
+  "scope": "ROOT_QUERY_ENGINE_ONLY"
+}
+python3 scripts/check_context_capsule_persistent_fuzz_slice.py
+{
+  "contract": "s20-700-context-capsule-builder-persistent-libfuzzer-slice-v1",
+  "full_s20_700_complete": false,
+  "result": "PASS",
+  "scope": "CONTEXT_CAPSULE_BUILDER_ONLY"
+}
+python3 scripts/check_smp1_persistent_fuzz_slice.py
+{
+  "contract": "s20-700-smp1-frame-decoder-persistent-libfuzzer-slice-v1",
+  "full_s20_700_complete": false,
+  "result": "PASS",
+  "scope": "SMP1_FRAME_HELLO_NEGOTIATION_AND_STREAM_ONLY"
+}
+python3 scripts/check_smp1_json_bridge_persistent_fuzz_slice.py
+{
+  "contract": "s20-700-smp1-json-bridge-persistent-libfuzzer-slice-v1",
+  "full_s20_700_complete": false,
+  "result": "PASS",
+  "scope": "SMP1_JSON_BRIDGE_TEXT_AND_FRAME_ROUND_TRIP_ONLY"
+}
+python3 scripts/check_vm_lowering_profile.py
+{
+  "ariadne_review": "PASS_AFTER_ENCODING_LIMIT_AND_ORDER_FIXES",
+  "cache_preimage_bytes": 224,
+  "contract": "s20-260-restricted-vm-lowering-profile-v1",
+  "full_ga_complete": false,
+  "problems": [],
+  "result": "PASS",
+  "stable_error_codes": 7,
+  "supported_opcodes": [
+    102,
+    103,
+    104
+  ],
+  "supported_terminators": 5,
+  "unit_tests": 12
+}
+python3 scripts/check_vm_execution_profile.py
+{
+  "ariadne_review": "PASS_AFTER_RESOURCE_AND_PAYLOAD_ACCOUNTING_FIXES",
+  "contract": "s20-270-restricted-vm-execution-profile-v1",
+  "execution_unit_tests": 10,
+  "full_ga_complete": false,
+  "max_input_value_units": 67108864,
+  "max_inputs": 262144,
+  "max_observation_preimage_bytes": 67108864,
+  "nabu_review": "PASS_RESTRICTED_FAIL_CLOSED_PROFILE",
+  "problems": [],
+  "result": "PASS",
+  "stable_error_codes": 6,
+  "supported_opcodes": [
+    102,
+    103,
+    104
+  ],
+  "supported_terminators": 5
+}
+python3 scripts/check_vm_extended_opcode_profile.py
+{
+  "contract": "s20-260-270-vm-extended-opcode-profile-v1",
+  "problems": [],
+  "result": "PASS",
+  "revision": 14,
+  "slices_landed": [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6",
+    "E7a",
+    "E8"
+  ],
+  "status": "S20_260_270_EXTENDED_COMPLETE"
+}
+python3 scripts/generate_bootstrap_profile_fixtures.py --check
+{"drift": [], "mode": "check", "result": "PASS", "vectors": 20}
+python3 scripts/check_bootstrap_profile_1.py
+{
+  "contract": "sley2-bootstrap-profile-1",
+  "digest": "4f2691504b5c756eae1f5ef01e6e998cc4cd628d4b524b038b10d583bfefd630",
+  "result": "PASS",
+  "vectors": 20
+}
+python3 scripts/check_bootstrap_profile_2.py
+{
+  "contract": "sley2-bootstrap-profile-2",
+  "digest": "fb2d8cc87ee7de68cde8197a77003a417a0062acb6ed087d85f899da1a847459",
+  "imports": 4,
+  "result": "PASS",
+  "vectors": 20
+}
+python3 scripts/check_bootstrap_gate_markers.py
+{
+  "contract": "sley2-bootstrap-profile-1",
+  "result": "PASS",
+  "scope": "BOOTSTRAP_GATE_AND_LANE_CODE_MARKERS"
+}
+python3 scripts/check_bootstrap_capability.py
+{
+  "audit": "RW-040",
+  "chartered_rw030": true,
+  "corpus": {
+    "exercises-bad-binding.json": {
+      "actual": {
+        "binding": "FAIL"
+      },
+      "expected": {
+        "binding": "FAIL"
+      }
+    },
+    "exercises-partial-routed.json": {
+      "actual": {
+        "binding": "PASS"
+      },
+      "expected": {
+        "binding": "PASS"
+      }
+    },
+    "gaps-unowned.json": {
+      "actual": {
+        "routing": "FAIL"
+      },
+      "expected": {
+        "routing": "FAIL"
+      }
+    },
+    "manifest-h-digest-without-charter.json": {
+      "actual": {
+        "readiness": "NOT_READY",
+        "structural": "FAIL"
+      },
+      "expected": {
+        "readiness": "NOT_READY",
+        "structural": "FAIL"
+      }
+    },
+    "manifest-incomplete.json": {
+      "actual": {
+        "readiness": "NOT_READY",
+        "structural": "PASS"
+      },
+      "expected": {
+        "readiness": "NOT_READY",
+        "structural": "PASS"
+      }
+    },
+    "manifest-invented-hash.json": {
+      "actual": {
+        "readiness": "NOT_READY",
+        "structural": "FAIL"
+      },
+      "expected": {
+        "readiness": "NOT_READY",
+        "structural": "FAIL"
+      }
+    },
+    "manifest-stages-without-source.json": {
+      "actual": {
+        "readiness": "NOT_READY",
+        "structural": "FAIL"
+      },
+      "expected": {
+        "readiness": "NOT_READY",
+        "structural": "FAIL"
+      }
+    },
+    "readiness-h-unpinned.json": {
+      "actual": {
+        "binding": "PASS",
+        "readiness": "NOT_READY",
+        "routing": "PASS",
+        "structural": "PASS"
+      },
+      "expected": {
+        "readiness": "NOT_READY",
+        "structural": "PASS"
+      }
+    },
+    "readiness-later-bound.json": {
+      "actual": {
+        "binding": "PASS",
+        "readiness": "READY",
+        "routing": "PASS",
+        "structural": "PASS"
+      },
+      "expected": {
+        "binding": "PASS",
+        "readiness": "READY",
+        "routing": "PASS",
+        "structural": "PASS"
+      }
+    },
+    "readiness-later-without-r2.json": {
+      "actual": {
+        "binding": "PASS",
+        "readiness": "NOT_READY",
+        "routing": "PASS",
+        "structural": "PASS"
+      },
+      "expected": {
+        "binding": "PASS",
+        "readiness": "NOT_READY",
+        "routing": "PASS",
+        "structural": "PASS"
+      }
+    },
+    "readiness-logic-positive.json": {
+      "actual": {
+        "binding": "PASS",
+        "readiness": "READY",
+        "routing": "PASS",
+        "structural": "PASS"
+      },
+      "expected": {
+        "readiness": "READY"
+      }
+    }
+  },
+  "h_pinned": true,
+  "later_stages_unbound": [
+    "S",
+    "C0",
+    "C1",
+    "C2",
+    "C3"
+  ],
+  "open_bootstrap_blockers": [],
+  "problems": [],
+  "readiness": "READY",
+  "readiness_note": "NOT_READY is the expected audit-scope outcome; an audit documenting missing capabilities or unbound R2 prerequisites must not yield BOOTSTRAP_READY. Unbound S/C0-C3 (R3-and-later evidence) never block it.",
+  "readiness_reasons": [],
+  "result": "PASS",
+  "vectors": 29
+}
+python3 scripts/check_host_abi_v1.py
+{
+  "contract": "sley2-host-abi-1",
+  "digest": "e6de00b820a094ec2abc7a6ae43263d7340c2bf1a38a6231e7426fda0f04ecc2",
+  "result": "PASS"
+}
+python3 scripts/check_host_abi_v2.py
+{
+  "contract": "sley2-host-abi-2",
+  "digest": "bc564653302a73eb5f998427250a2bb7cd87f5685ef12619bd4ae1f1b2af70d5",
+  "imports": 4,
+  "result": "PASS"
+}
+python3 scripts/check_host_abi_markers.py
+{
+  "contract": "sley2-host-abi-1",
+  "markers": "PINNED",
+  "result": "PASS"
+}
+python3 scripts/check_exec_package_v1.py
+EXEC_PACKAGE_V1_CHECK: PASS
+python3 scripts/check_exec_package_v2.py
+{
+  "contract": "sley2-exec-package-2",
+  "digest": "f4958c5e3d57762173b881288b008af17d45b5f07a431fcc442d9eec5770da94",
+  "result": "PASS"
+}
+python3 scripts/check_exec_package_markers.py
+EXEC_PACKAGE_MARKERS: PASS
+python3 scripts/check_reference_adapter_profile.py
+{
+  "adapter_unit_tests": 20,
+  "contract": "s20-280-restricted-reference-adapter-profile-v1",
+  "full_ga_complete": false,
+  "host_access": false,
+  "problems": [],
+  "reference_adapter_kinds": 8,
+  "result": "PASS",
+  "stable_error_codes": 12,
+  "vm_integration": false,
+  "vulcan_review": "PASS_NO_OPEN_P0_P1_P2"
+}
+python3 scripts/check_report_envelope_profile.py
+{
+  "ariadne_review": "PASS_AFTER_GRAPH_PHASE_CLARIFICATION",
+  "canonical_entities": false,
+  "contract": "s20-290-restricted-report-envelope-profile-v1",
+  "execution_magic": "SLEYEXR1",
+  "m2_exit_complete": false,
+  "nabu_review": "PASS_DERIVED_ENVELOPES_ONLY",
+  "persistence": false,
+  "problems": [],
+  "report_unit_tests": 14,
+  "result": "PASS",
+  "stable_error_codes": 8,
+  "test_magic": "SLEYTSR1",
+  "test_pass_claim": false,
+  "vulcan_review": "PASS_NO_OPEN_P0_P1_P2"
+}
+python3 scripts/check_index_snapshot_profile.py
+{
+  "ariadne_review": "PASS_NO_OPEN_P0_P1_P2",
+  "contract": "s20-300-restricted-index-snapshot-profile-v1",
+  "fresh_rebuild_required_for_hit": true,
+  "full_s20_300_complete": false,
+  "magic": "SLEYIDX1",
+  "modeled_entity_kinds": [
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15
+  ],
+  "nabu_review": "PASS_RESTRICTED_CONFORMANCE_CACHE_ONLY",
+  "problems": [],
+  "public_candidate_hydration": false,
+  "result": "PASS",
+  "root_provenance_proven": false,
+  "s20_310_unblocked": false,
+  "snapshot_unit_tests": 13,
+  "stable_error_codes": 8,
+  "useful_cache": false,
+  "vulcan_review": "PASS_NO_OPEN_P0_P1_P2"
+}
+python3 scripts/check_restricted_query_profile.py
+{
+  "ariadne_review": "PASS_AFTER_RESPONSE_LAYOUT_AND_TAG_PRECEDENCE_FIX",
+  "continuation": false,
+  "contract": "s20-310-restricted-modeled-snapshot-query-profile-v1",
+  "full_s20_310_complete": false,
+  "nabu_review": "REVISE_TO_RESTRICTED_PROFILE",
+  "partial_results": false,
+  "problems": [],
+  "query_kinds": 4,
+  "query_unit_tests": 13,
+  "request_magic": "SLEYQRY1",
+  "response_magic": "SLEYQRS1",
+  "result": "PASS",
+  "root_provenance_proven": false,
+  "s20_320_unblocked": false,
+  "stable_error_codes": 8,
+  "vulcan_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4"
+}
+python3 scripts/check_restricted_query_capsule_profile.py
+{
+  "ariadne_review": "PASS_AFTER_SIZE_FEASIBILITY_AND_RESULT_KIND_FIX",
+  "capsule_unit_tests": 8,
+  "complete_only": true,
+  "continuation": false,
+  "contract": "s20-320-restricted-complete-query-capsule-profile-v1",
+  "full_s20_320_complete": false,
+  "magic": "SLEYRQC1",
+  "nabu_review": "REVISE_TO_DISTINCT_RESTRICTED_EVIDENCE_ENVELOPE",
+  "problems": [],
+  "query_kinds": 4,
+  "result": "PASS",
+  "result_variants": 3,
+  "stable_error_codes": 8,
+  "truncation": false,
+  "uses_master_context_capsule_id": false,
+  "vulcan_review": "PASS_NO_OPEN_P0_P1_P2_P3_P4"
+}
+python3 scripts/check_mutation_schema.py
+{
+  "candidate_construction": false,
+  "concrete_operations": 179,
+  "contract": "s20-340-mutation-schema-v1",
+  "entity_fields": 75,
+  "entity_kinds": 18,
+  "mutation_classes": 16,
+  "nabu_review": "REVISE_TO_FULL_IMMUTABLE_DESCRIPTOR_CODEGEN",
+  "problems": [],
+  "result": "PASS",
+  "runtime_mutation": false,
+  "schema_manifest_blake3": "1983bc8d6ad9ac3cb5390853f43959cf2c3dc0ae8e0ca18ca8264ca4960133ae",
+  "typed_field_replacements": 75
+}
+python3 scripts/check_mutation_value_codecs.py
+{
+  "contract": "s20-130-oracle-independence-v1",
+  "coverage_map_oracles": 18,
+  "forbidden_markers": [
+    "subprocess",
+    "cargo",
+    "sley-id",
+    "sley_id",
+    "sley-mutate",
+    "sley_mutate",
+    "crates/",
+    "value_generated.rs",
+    "target/",
+    "ctypes",
+    "cffi",
+    "os.system",
+    "popen"
+  ],
+  "package_sources": 10,
+  "problems": [],
+  "python_sources": 28,
+  "result": "PASS"
+}
+python3 scripts/check_mutation_candidate_persistent_fuzz_slice.py
+{
+  "candidate_authority": false,
+  "contract": "s20-350-mutation-candidate-persistent-libfuzzer-v1",
+  "result": "PASS",
+  "runtime_mutation": false,
+  "scope": "PROPOSAL_ONLY_CANDIDATE_RECORD_AND_ENVELOPE"
+}
+python3 scripts/check_policy_root.py
+{
+  "candidate_or_commit_authority": false,
+  "capability_tokens_embedded_in_policy_root": false,
+  "contract": "s20-370-protected-policy-root-v1",
+  "contract_tag": 370,
+  "digest_domain_tag": 8,
+  "nabu_review": "REVISE_TO_NARROW_PROTECTED_POLICY_ROOT",
+  "policy_transition_authority": false,
+  "policy_unit_tests": 25,
+  "principal_grant_fields": 4,
+  "problems": [],
+  "record_fields": 11,
+  "resource_ceiling_fields": 6,
+  "result": "PASS",
+  "stable_error_codes": 19
+}
+python3 scripts/check_capability_token.py
+{
+  "adapter_file_entry_reservation_bytes": 4368,
+  "adapter_limit_path_bytes": 4352,
+  "budget_fields": 6,
+  "candidate_or_commit_authority": false,
+  "contract": "s20-380-capability-token-v1",
+  "host_secret_serialized": false,
+  "host_time_ambient": false,
+  "live_host_authority": false,
+  "machine_summary_registered": true,
+  "problems": [],
+  "result": "PASS",
+  "s20_700_binding_review": "PASS_NO_OPEN_P0_P1_P2",
+  "stable_error_codes": 20,
+  "token_fields": 16,
+  "vm_integration": false,
+  "vulcan_review": "PASS_NO_OPEN_P0_P1_P2"
+}
+python3 scripts/check_legacy_runner.py
+{
+  "archive_members_verified": 1568,
+  "artifact_bytes_verified": true,
+  "artifact_sha256": "<legacy artifact digest redacted: clean-room sentinel, see scripts/check_clean_room_boundary.py>",
+  "artifact_size_bytes": 4611024,
+  "benchmark_trials_executed": 0,
+  "contract": "s20-600-frozen-legacy-artifact-adapter-v1",
+  "full_s20_600_complete": false,
+  "live_legacy_checkout_interaction": false,
+  "manual_real_smoke_target": "make legacy-runner-smoke",
+  "network_isolation_claimed": false,
+  "payload_bytes_verified": 8610725,
+  "payload_files_verified": 1067,
+  "problems": [],
+  "provider_or_model_execution": false,
+  "real_smoke_in_routine_quick": false,
+  "result": "PASS",
+  "retained_evidence_records": [
+    "smoke-20260912T031556Z-f1fdef19e1d26489.json",
+    "smoke-20260912T162641Z-d496357cfe2b0805.json"
+  ],
+  "stable_error_codes": 15,
+  "synthetic_smoke_tests": 27
+}
+python3 scripts/check_raw_baseline_runner.py
+{
+  "accounting_claims_verified": false,
+  "act_derived": false,
+  "actual_trials": 0,
+  "artifact_bytes_verified": false,
+  "benchmark_metrics": 25,
+  "contract": "s20-610-offline-raw-baseline-runner-v1",
+  "external_command_adapter": false,
+  "machine_summary_registered": true,
+  "nabu_review": "PASS_TO_OFFLINE_APPEND_ONLY_CONTRACT",
+  "offline_smoke_tests": 4,
+  "oracle_claims_verified": false,
+  "problems": [],
+  "provider_or_model_execution": false,
+  "result": "PASS",
+  "run_freeze_controls": 17,
+  "sley_1_2_interaction": false,
+  "stable_error_codes": 16
+}
+python3 scripts/check_sley2_trial_runner.py
+{
+  "contract": "s20-620-sley2-trial-runner-v1",
+  "implementation_present": [
+    "bench/sley2"
+  ],
+  "new_stable_error_codes": 10,
+  "problems": [],
+  "result": "PASS",
+  "revision": 4,
+  "status": "S20_620_COMPLETE"
+}
+python3 scripts/check_succession_accounting.py
+{
+  "contract": "s20-630-succession-accounting-v1",
+  "implementation_present": [
+    "bench/accounting"
+  ],
+  "new_stable_error_codes": 8,
+  "problems": [],
+  "result": "PASS",
+  "revision": 4,
+  "status": "S20_630_COMPLETE"
+}
+python3 scripts/check_release_candidate_packaging.py
+{
+  "contract": "s20-720-release-candidate-packaging-v1",
+  "implementation_present": [
+    "scripts/build_release_candidate.py"
+  ],
+  "new_stable_error_codes": 8,
+  "problems": [],
+  "result": "PASS",
+  "revision": 4,
+  "status": "S20_720_COMPLETE"
+}
+python3 scripts/check_reproducibility_and_independent_conformance.py
+{
+  "codes": [
+    "REPRO_EVIDENCE_MISSING",
+    "REPRO_EVIDENCE_INVALID",
+    "REPRO_ATTESTATION_INVALID",
+    "REPRO_ATTESTATION_CONFLICT",
+    "CONFORMANCE_FIXTURE_UNREADABLE",
+    "CONFORMANCE_SUMS_MISMATCH",
+    "CONFORMANCE_ORACLE_DRIFT",
+    "CONFORMANCE_REPORT_DRIFT"
+  ],
+  "contract": "s20-730-reproducibility-and-independent-conformance-v1",
+  "implementation_complete": false,
+  "problems": [
+    "reproducibility-report:stale:7a94a4a31272:1-surface-files-changed:crates/sley-query/src/root_query.rs",
+    "reproducibility-report:uncommitted-surface-changes:1:crates/sley-repo/tests/zjx_readiness_witness.rs"
+  ],
+  "result": "FAIL",
+  "status": "S20_730_MECHANICS_IMPLEMENTED_REVIEW_PENDING"
+}
+make: *** [Makefile:79: quick] Error 1
+
+real	0m7.003s
+user	0m4.620s
+sys	0m1.439s
+make quick exit=2

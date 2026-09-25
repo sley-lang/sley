@@ -1,0 +1,1578 @@
+{
+ "kind": "FINDING_REGISTER_RETIREMENT_CHANGES",
+ "contract_revision": 10,
+ "note": "Per-claim record of the closures the revision 8/9 rules reopened (8966da2e ledger vs 339c4fac) and of every status the revision 10 re-derivation changed (339c4fac vs this commit). Every reopened reviewer-verified closure is restored by an exact-claim binding in evidence/review/claim-retirements.json; none is restored by a broader rule.",
+ "reopened_by_revisions_8_9": [
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P3",
+   "claim": "nabu_architecture_review@7622776: [verification-depth] scripts/build_finding_register.py:534-574 (`package_closed_claims`) with docs/spec/FINDING_REGISTER_V1.md:8-21,222-225 and evidence/review/",
+   "closed_at_8966da2e": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L28",
+   "refusing_rule": "ledger vocabulary: `package_closed_claims` is a register output key (ledger_words, revision 9), so the closing line's only identifier was not an identity",
+   "now": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L28",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "ariadne_contract_review: [contract-vs-mechanics] scripts/build_reproducibility_report.py:464-465 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142 - Section 2 says ",
+   "closed_at_8966da2e": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-7622776.md#L28",
+   "refusing_rule": "span rule: the cited line names the span without the claim's file basename (revision 8)",
+   "now": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-7622776.md#L28",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "nabu_architecture_review: [contract-drift] scripts/build_reproducibility_report.py:464, docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142, docs/adr/ADR-0040-reproducibi",
+   "closed_at_8966da2e": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-7622776.md#L27",
+   "refusing_rule": "identifier-less equal keys: two originals without a backticked identifier count toward each other's vocabulary (revision 9), so the kind alone no longer relates",
+   "now": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-7622776.md#L27",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@79fdcc6: [contract-vs-mechanics] scripts/build_finding_register.py:846-852 - Carried unchanged: 154 of 196 recorded closures are ancestry-checked; the 42 bare-lane, `_final` a",
+   "closed_at_8966da2e": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-b58ac1e.md#L32",
+   "refusing_rule": "span rule: the cited line names the span without the claim's file basename (revision 8)",
+   "now": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-b58ac1e.md#L32",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@db53894: [contract-drift] scripts/build_reproducibility_report.py:464-465, docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142, docs/adr/ADR-0040-reprodu",
+   "closed_at_8966da2e": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-7622776.md#L27",
+   "refusing_rule": "identifier-less equal keys: two originals without a backticked identifier count toward each other's vocabulary (revision 9), so the kind alone no longer relates",
+   "now": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-7622776.md#L27",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The 45b2cd98 row says \"u",
+   "closed_at_8966da2e": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L25",
+   "refusing_rule": "span rule: the cited line names the span without the claim's file basename (revision 8)",
+   "now": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L25",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review@76ae15a: [fail-open] scripts/retire_review_claims.py:84-90 (transcript_for) - Carried OPEN, byte-identical: zero or ambiguous `<section>/<lane>*-<scope7>.md` matches fal",
+   "closed_at_8966da2e": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-1a9f0aa.md#L28",
+   "refusing_rule": "identifier-less equal keys: the first backticked identifier is absent from the key (it names a path stem), so the lane's two copies count toward each other's vocabulary (revision 9)",
+   "now": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-1a9f0aa.md#L28",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review_revision_11@c67b072: [fail-open] scripts/retire_review_claims.py:84-90 (transcript_for) - When the `<section>/<lane>*-<scope7>.md` glob matches zero or more than one file the res",
+   "closed_at_8966da2e": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-1a9f0aa.md#L28",
+   "refusing_rule": "identifier-less equal keys: the first backticked identifier is absent from the key (it names a path stem), so the lane's two copies count toward each other's vocabulary (revision 9)",
+   "now": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-1a9f0aa.md#L28",
+    "binding": "exact-claim"
+   }
+  }
+ ],
+ "revision_10_changes": [
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P2",
+   "claim": "ariadne_contract_review_revision_10@8f774d0: [identity-precision] scripts/build_finding_register.py:1334-1339 (`same_finding`: identifiers \"equal or absent on either side\") with :1307, :1317, :1330 (`",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L55,81",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P2",
+   "claim": "ariadne_contract_review_revision_11@8966da2: [fold-identity] (carried from 79fdcc63 P3 and 8f774d0c P2 item (a), raised) scripts/build_finding_register.py:1322, :1330, :1342 (`identifier = None` for e",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L55,81",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P2",
+   "claim": "ariadne_contract_review_revision_11@8966da2: [regeneration-order] scripts/retire_review_claims.py:494-497 and :433-435 (reopen → retire → fold) with :345-404 (`fold_restatements` links a re-statement ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L45",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P2",
+   "claim": "nabu_architecture_review_revision_6@8f774d0: [fold-identity] scripts/build_finding_register.py:1307,1317,1330 (`carried = CARRY.search(body)` over the whole body, case-insensitive, drops the identifie",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L61",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P2",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [fold-identity] (carried from 8f774d0c, OPEN — partially repaired) scripts/build_finding_register.py:1330,1342 (`finding_key`: every named re-statement key",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L61",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P3",
+   "claim": "ariadne_contract_review_revision_10@8f774d0: [fold-identity] (carried from 79fdcc63, OPEN — mechanism changed) docs/spec/FINDING_REGISTER_V1.md:107-116, :398-400 with scripts/build_finding_register.py",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L83",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P3",
+   "claim": "ariadne_contract_review_revision_11@8966da2: [contract-text] (carried from 8f774d0c P4, raised) docs/spec/FINDING_REGISTER_V1.md:80-81 (\"`--regenerate` runs reopen → fold → retire in that order\") vs :",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L63,83",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P3",
+   "claim": "ariadne_contract_review_revision_8@79fdcc6: [fold-identity] docs/spec/FINDING_REGISTER_V1.md:73-75 with scripts/build_finding_register.py:1200-1206 (`finding_key`, ledger-file branch), :1209-1212 (`is",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L82",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P3",
+   "claim": "ariadne_contract_review_revision_9@b58ac1e: [fold-identity] (carried from 79fdcc63, OPEN — narrowed) docs/spec/FINDING_REGISTER_V1.md:384-386 with scripts/build_finding_register.py:1284-1312 (`finding",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L82",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P3",
+   "claim": "nabu_architecture_review@7622776: [verification-depth] scripts/build_finding_register.py:534-574 (`package_closed_claims`) with docs/spec/FINDING_REGISTER_V1.md:8-21,222-225 and evidence/review/",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L28",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_10@8f774d0: [predicate-precision] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:987-992 (`is_lane_field_name`) vs docs/spec/FINDING_REGISTER_V1.md:60",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L75",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_10@8f774d0: [predicate-precision] (carried from b58ac1e0, OPEN) scripts/build_finding_register.py:773-783 (`claim_finding_ids`, regex `\\b(?:[A-Z][A-Z0-9]{1,}-)+[0-9]{2",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L77",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_11@8966da2: [predicate-precision] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:987-992 (`is_lane_field_name`) vs docs/spec/FINDING_REGISTER_V1.md:60",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L75",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_11@8966da2: [predicate-precision] (carried from b58ac1e0, OPEN) scripts/build_finding_register.py:773-783 (`claim_finding_ids`) with :1103-1104 - `S20-700-PACK-001` → ",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L77",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_8@79fdcc6: [test-coverage] scripts/build_finding_register.py:540-561 (`raising_severity`), :575-580, :1166-1168 (exact-claim OPEN refusal) with scripts/retire_review_c",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L73",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_9@b58ac1e: [predicate-precision] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:160-168 (`scoped_before`) with :935-946 (`strictly_later_scope`) vs do",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L74",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_9@b58ac1e: [predicate-precision] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:987-992 (`is_lane_field_name`) vs docs/spec/FINDING_REGISTER_V1.md:60-",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L75",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_9@b58ac1e: [predicate-precision] scripts/build_finding_register.py:773-783 (`claim_finding_ids`, regex `\\b(?:[A-Z][A-Z0-9]{1,}-)+[0-9]{2,}\\b`) with :1090-1091 (lookbeh",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L77",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@b58ac1e: [record-precision] scripts/build_finding_register.py:574,593 (`raising_scope` matches the claim's first 80 characters against `[Pn]` lines and takes the earliest scop",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L77",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@b58ac1e: [record-precision] scripts/build_finding_register.py:794,1065 (identifier rule: an underscore word ≥ 8 characters not inside a path token, substring-matched against t",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L78",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [duplicated-authority] scripts/build_finding_register.py:815-818,833 (`shared_vocabulary`'s `restates` exemption) with scripts/retire_review_claims.py:414-",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L72",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [record-precision] (carried from b58ac1e0) scripts/build_finding_register.py:794,1065 (identifier rule) with claim truncation - unchanged; `p4_open[49]` st",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L78",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "vulcan_surface_review_revision_6@8f774d0: [fail-open-direction] scripts/retire_review_claims.py:190-200 (`closers`: token ∪ line-derived severities) with docs/spec/FINDING_REGISTER_V1.md:117-119 - whe",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-d158d26.md#L59",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_10@8f774d0: [contract-text] docs/spec/FINDING_REGISTER_V1.md:32-33 (\"same lane, kind, path and identifier\") and :96-97 (\"leading carry marker … stripped before its fin",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L84",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_10@8f774d0: [predicate-precision] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:160-168 (`scoped_before`) with :935-946 (`strictly_later_scope`) vs d",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L74",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_10@8f774d0: [relation-precision] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:748-758 (`is_open_line`, finding-line branch) and :838-860 (`open_line",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L72,76",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_10@8f774d0: [test-coverage] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:602-620 (`raising_severity`), :1203-1208, :1357-1362, :695-712 (`_own_statu",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L73",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_11@8966da2: [contract-precision] scripts/build_finding_register.py:1300 (`LEADING_CARRY` = `^\\((?:carried|carry|prior|residual)[^)]*\\)`) with :1322, :1362 vs docs/spec",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L72,84",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_11@8966da2: [predicate-precision] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:160-168 (`scoped_before`) with :935-946 (`strictly_later_scope`) vs d",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L74",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_11@8966da2: [relation-precision] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:748-758 (`is_open_line`, finding-line branch) and :847-905 (`open_line",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L72,76",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_11@8966da2: [test-coverage] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:602-620 (`raising_severity`), :695-712 (`_own_status` cell) with scripts/re",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L73",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_8@79fdcc6: [predicate-precision] scripts/build_finding_register.py:160-169 (`scoped_before`) with :868-879 (`strictly_later_scope`) vs docs/spec/FINDING_REGISTER_V1.md",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L74",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_8@79fdcc6: [predicate-precision] scripts/build_finding_register.py:920-925 (`is_lane_field_name`) vs docs/spec/FINDING_REGISTER_V1.md:60-62 - the exclusion recognises ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L75",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_8@79fdcc6: [relation-precision] scripts/build_finding_register.py:693-696 (`is_open_line`, finding-line branch) and :776-783 (`open_lines_about`: head = text before th",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L72,76",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_9@b58ac1e: [relation-precision] (carried from 79fdcc63, OPEN) scripts/build_finding_register.py:754-758 (`is_open_line`, finding-line branch) and :851-858 (`open_lines",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L72,76",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "ariadne_contract_review_revision_9@b58ac1e: [test-coverage] (carried from 79fdcc63, OPEN — narrowed) scripts/build_finding_register.py:602-620 (`raising_severity`), :1203-1208, :1357-1362, :712 (24-ch",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/ariadne_contract_review-d158d26.md#L73",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@1a9f0aa: [duplicated-predicate] (carried from db53894e, OPEN — narrowed) scripts/build_ga_acceptance_report.py:316-322,592 with scripts/build_finding_register.py:540-548 - the",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L84",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@6589c6e: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:316-322,592 with scripts/build_finding_register.py:540-548 - GA builder byt",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L84",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@6589c6e: [fail-open-default] scripts/build_finding_register.py:879-890 (`is_tracked`: `_tracked = None` when `git ls-files` returns non-zero, then `return _tracked is None or ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L82",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@7622776: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:505-531 and docs/spec/",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L84",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@7622776: [ledger-duplication] machineresearch/sley-2.0/machine-summary.json:4283-4289 vs :4296-4302 (`p4_open`), :4412 vs :4420 (`p4_closed_claims`) - seven carried-open",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-8f774d0.md#L38",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@7622776: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4230 → /home/dev/Work/checkpoints/sley2-finish-20260915/resume",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L40",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@7622776: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - no test exercises the lint branch at scripts/check_release_candidate_packa",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L38",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@76ae15a: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L39",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@76ae15a: [contract-wording] (carried from db53894e, OPEN) docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:178-180 with evidence/build/lint-report.json:1-12 - §7 still lists ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L36",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@76ae15a: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:517-538 - the row stil",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L84",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@76ae15a: [ledger-duplication] (carried from 76227765, OPEN, grown) machineresearch/sley-2.0/machine-summary.json:4414 (`p4_open_count` 63, ≤25 distinct), :4423-4437 (`p3",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-8f774d0.md#L38",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@76ae15a: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - the lint branch at scripts/check_release_candidate_packaging.py:238-246 st",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L38",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@79fdcc6: [check-precision] scripts/retire_review_claims.py:387-405 (`regeneration_divergence` keys on `(claim, verified_by.split(\"#\")[0])` — the transcript path without its li",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L80",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@79fdcc6: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:316-322,592 with scripts/build_finding_register.py:540-548 - GA builder byt",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L84",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@79fdcc6: [fail-open-default] (carried from 6589c6ec, OPEN) scripts/build_finding_register.py:1040-1051 (`is_tracked`: `_tracked = None` when `git ls-files` returns non-zero, t",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L82",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@79fdcc6: [test-coverage] bench/review/tests/test_finding_register.py:392 (`assertTrue(register.scoped_before(…) or True)` asserts nothing and its comment \"no fold refusal by s",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L79",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@b58ac1e: [check-precision] (carried from 79fdcc63, OPEN) scripts/retire_review_claims.py:396-414 (`regeneration_divergence` keys on `(claim, verified_by.split(\"#\")[0])`) - a r",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L80",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@b58ac1e: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:316-322,592 with scripts/build_finding_register.py:540-548 - GA builder byt",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L84",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@b58ac1e: [fail-open-default] (carried from 6589c6ec, OPEN) scripts/build_finding_register.py:1136-1147 (`is_tracked`: `_tracked = None` when `git ls-files` returns non-zero, t",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L82",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@b58ac1e: [record-consistency] (carried from 79fdcc63, OPEN — narrowed) machineresearch/sley-2.0/machine-summary.json packaging `p4_open[2,55]` (was `p4_open[2,3,4,13,15,16,24,",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-8f774d0.md#L34",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@b58ac1e: [record-precision] scripts/build_finding_register.py:753-758 (`is_open_line`: a finding-raising `[Pn] [kind]` line with any bare unquoted `OPEN` anywhere records its ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L75",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@b58ac1e: [test-coverage] (carried from 79fdcc63, OPEN) bench/review/tests/test_finding_register.py:392 (`assertTrue(register.scoped_before(…) or True)` asserts nothing and its",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L79",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@c67b072: [cleanliness-standard] (carried from c04539b9, OPEN) evidence/build/lint-report.json:11 with docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md:373-375 - the candidate",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L39",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@c67b072: [duplicated-predicate] (carried from db53894e, OPEN) scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:517-538 - the row stil",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L84",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@c67b072: [ledger-duplication] (carried from 76227765, OPEN, grown) machineresearch/sley-2.0/machine-summary.json:4303-4347 (`p4_open`, 42 listed, ≤25 distinct; e.g. :430",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-8f774d0.md#L38",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@c67b072: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4253 → second_host_attest.sh - the runbook is still untracked (0 ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L40",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@c67b072: [test-coverage] (carried from c04539b9, OPEN) bench/release/tests/test_packaging.py - the lint branch at scripts/check_release_candidate_packaging.py:238-246 st",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L38",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@db53894: [duplicated-predicate] scripts/build_ga_acceptance_report.py:312-322 with scripts/build_finding_register.py:505-526 and docs/spec/FINDING_REGISTER_V1.md:207-208",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L84",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@db53894: [runbook-tracking] (carried from c04539b9, OPEN) machineresearch/sley-2.0/machine-summary.json:4212 → /home/dev/Work/checkpoints/sley2-finish-20260915/resume",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-1a9f0aa.md#L40",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_6@8f774d0: [check-precision] (carried from 79fdcc63) scripts/retire_review_claims.py:404-422 (`regeneration_divergence` keys on `verified_by.split(\"#\")[0]`) - unchang",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L80",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_6@8f774d0: [duplicated-predicate] (carried from db53894e) scripts/build_ga_acceptance_report.py:316-322,592 with scripts/build_finding_register.py:540-548 - byte-iden",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L84",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_6@8f774d0: [fail-open-default] (carried from 6589c6ec) scripts/build_finding_register.py:1142-1153 (`is_tracked`: git rc≠0 → every path tracked) - unchanged, untested",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L82",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_6@8f774d0: [record-precision] (carried from b58ac1e0) scripts/build_finding_register.py:574,593 (`raising_scope` 80-character prefix) - unchanged, and now also the or",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L77",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_6@8f774d0: [record-precision] (carried from b58ac1e0) scripts/build_finding_register.py:754-758 (`is_open_line`: a bare `OPEN` anywhere in a finding-raising line) wit",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L75",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_6@8f774d0: [record-precision] (carried from b58ac1e0) scripts/build_finding_register.py:794,1065 (identifier rule) with claim truncation - unchanged; `p4_open[50]` st",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L78",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_6@8f774d0: [test-coverage] (carried from 79fdcc63) bench/review/tests/test_finding_register.py:392 `or True`, scripts/build_finding_register.py:1142-1153 `is_tracked`",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L79",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_6@8f774d0: [test-coverage] scripts/retire_review_claims.py:190-200 (`closers` union of token and line-derived severities) with bench/review/tests/test_retire_review_c",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L74",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [check-precision] (carried from 79fdcc63) scripts/retire_review_claims.py:428-446 (`regeneration_divergence` keys on `verified_by.split(\"#\")[0]`) - unchang",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L80",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [contract-vs-mechanics] scripts/build_finding_register.py:1300 (`LEADING_CARRY` admits `(prior …)`, `(residual …)`, `(carried, OPEN)` with no sha) and :129",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L73",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [duplicated-predicate] (carried from db53894e) scripts/build_ga_acceptance_report.py:316-322,592 with scripts/build_finding_register.py:540-548 - byte-iden",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L84",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [fail-open-default] (carried from 6589c6ec) scripts/build_finding_register.py:1151-1163 (`is_tracked`: git rc≠0 → every path tracked) - unchanged, untested",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L82",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [record-precision] (carried from b58ac1e0) scripts/build_finding_register.py:574,593 (`raising_scope` 80-character prefix) - unchanged; now also orders the",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L77",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [record-precision] (carried from b58ac1e0) scripts/build_finding_register.py:754-758 (`is_open_line`: a bare `OPEN` anywhere in a finding-raising line) - u",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L75",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [test-coverage] (carried from 79fdcc63) bench/review/tests/test_finding_register.py:392 `or True`, scripts/build_finding_register.py:1151-1163 `is_tracked`",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L79,82",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "nabu_architecture_review_revision_7@8966da2: [test-coverage] (carried from 8f774d0c) scripts/retire_review_claims.py:190-200 (`closers` union of token and line-derived severities) with bench/review/te",
+   "before": "restated",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/nabu_architecture_review-d158d26.md#L74",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "vulcan_surface_review@7622776: [robustness] scripts/record_lint_report.py:65-69 - carried from c04539b9/db53894e, unchanged: porcelain v1 quotes paths with spaces/quotes/control bytes/non-ASC",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-b58ac1e.md#L45",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "vulcan_surface_review@c67b072: [robustness] scripts/retire_review_claims.py:124-173,158 with scripts/build_finding_register.py:626-638 - carried from 76227765, partially mitigated: `--check` ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-b58ac1e.md#L48",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "vulcan_surface_review_revision_7@8966da2: [contract-vs-mechanics] scripts/build_finding_register.py:1300 (`LEADING_CARRY`: `^\\((?:carried|carry|prior|residual)[^)]*\\)`) vs docs/spec/FINDING_REGISTER_V",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-d158d26.md#L61",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "release_candidate_packaging",
+   "severity": "P4",
+   "claim": "vulcan_surface_review_revision_7@8966da2: [fail-open-direction] scripts/retire_review_claims.py:190-200 (`closers`: token ∪ line-derived severities) - carried, unchanged: 10 live PRIOR fields widen be",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/release_candidate_packaging/vulcan_surface_review-d158d26.md#L59",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P2",
+   "claim": "ariadne_contract_review_revision_10@8966da2: [fail-open/identity] scripts/build_finding_register.py:833 (`other_key == own_key`), :1322,1330,1342 (every root-naming claim keys `None`), :1352 vs docs/s",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L58",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P2",
+   "claim": "ariadne_contract_review_revision_9@8f774d0: [fail-open/regression] scripts/build_finding_register.py:824 (`shared_vocabulary` skips every claim that is `same_finding`), :1334-1339 (`same_finding`: ide",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L58",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "vulcan_surface_review_revision_13@8966da2: [fail-open/identity-discipline] scripts/build_finding_register.py:1322,1330,1342 (a named re-statement keys `None`; `CARRIED_FROM.search(body)` also matches ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-d158d26.md#L48",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "ariadne_contract_review@6589c6e: [record-accuracy] evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-1a9f0aa.md:18,20,22,24 and vulcan_surface_review-1a9f0aa",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L79",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "ariadne_contract_review@79fdcc6: [record-accuracy] evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-1a9f0aa.md:18,20,24 carried (`transcript_closers` repair",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L79",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "ariadne_contract_review@b58ac1e: [record-accuracy] evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-1a9f0aa.md:18,20,24 carried (`transcript_closers` repair",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L79",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "ariadne_contract_review_revision_10@8966da2: [fail-open/fold] scripts/retire_review_claims.py:382-390 (closed-root check `line_speaks_about(text[n - 1], entry)`, default weak read over the whole line)",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L70",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "ariadne_contract_review_revision_10@8966da2: [record-accuracy/fold] machineresearch/sley-2.0/machine-summary.json `reproducibility_and_independent_conformance.p4_open` (219 entries, 105 distinct findi",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L74",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "ariadne_contract_review_revision_10@8966da2: [record-accuracy/fold] scripts/retire_review_claims.py:373-378 with scripts/build_finding_register.py:1322-1330 (a file-anchored carry ignores its `carried",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L65",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "ariadne_contract_review_revision_10@8966da2: [record-accuracy] evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-1a9f0aa.md:18,20,24 (with 76ae15a :18 and 65",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L79",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "ariadne_contract_review_revision_9@8f774d0: [record-accuracy/fold] scripts/retire_review_claims.py:366 (`earliest = next(other for other in entries if same_finding(...))` — the first in list order) wi",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L65",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "ariadne_contract_review_revision_9@8f774d0: [record-accuracy] evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-1a9f0aa.md:18,20,24 carried (`transcript_clos",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-d158d26.md#L79",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P3",
+   "claim": "nabu_architecture_review_revision_12@8966da2: [identity-discipline] scripts/build_finding_register.py:1299 (`CARRIED_FROM` over the whole body, including backticked quotations), :1300 (`LEADING_CARRY`",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-d158d26.md#L46",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review_revision_13@8966da2: [record-accuracy] machineresearch/sley-2.0/machine-summary.json `reproducibility_and_independent_conformance.p4_open` / `p4_open_count` (219) - Since the pro",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-d158d26.md#L62",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "ariadne_contract_review: [contract-vs-mechanics] scripts/build_reproducibility_report.py:464-465 vs docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142 - Section 2 says ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/ariadne_contract_review-7622776.md#L28",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "nabu_architecture_review: [contract-drift] scripts/build_reproducibility_report.py:464, docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142, docs/adr/ADR-0040-reproducibi",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-7622776.md#L27",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@79fdcc6: [contract-vs-mechanics] scripts/build_finding_register.py:846-852 - Carried unchanged: 154 of 196 recorded closures are ancestry-checked; the 42 bare-lane, `_final` a",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-b58ac1e.md#L32",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "nabu_architecture_review@db53894: [contract-drift] scripts/build_reproducibility_report.py:464-465, docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:139-142, docs/adr/ADR-0040-reprodu",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/nabu_architecture_review-7622776.md#L27",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review: [record-note] evidence/release/second-host-lane-records.json:100; docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md:501-504 - The 45b2cd98 row says \"u",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-c04539b.md#L25",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review@76ae15a: [fail-open] scripts/retire_review_claims.py:84-90 (transcript_for) - Carried OPEN, byte-identical: zero or ambiguous `<section>/<lane>*-<scope7>.md` matches fal",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-1a9f0aa.md#L28",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review@79fdcc6: [test-integrity] bench/review/tests/test_finding_register.py:392 (`assertTrue(register.scoped_before(…) or True)`, comment \"no fold refusal by scope\" while `scoped_befor",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-d158d26.md#L70",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review@b58ac1e: [test-integrity] bench/review/tests/test_finding_register.py:392 (`or True`, comment inverted); bench/review/tests (zero `raising_severity` references) - Carried, unchan",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-d158d26.md#L70",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review_revision_11@c67b072: [fail-open] scripts/retire_review_claims.py:84-90 (transcript_for) - When the `<section>/<lane>*-<scope7>.md` glob matches zero or more than one file the res",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-1a9f0aa.md#L28",
+    "binding": "exact-claim"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review_revision_12@8f774d0: [test-integrity] bench/review/tests/test_finding_register.py:392 (`or True`, comment inverted); bench/review/tests (zero `raising_severity` references) - Car",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-d158d26.md#L70",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "reproducibility_and_independent_conformance",
+   "severity": "P4",
+   "claim": "vulcan_surface_review_revision_13@8966da2: [test-integrity] bench/review/tests/test_finding_register.py:392 (`or True`, comment inverted); bench/review/tests (no `raising_severity` test) - Carried, by",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/reproducibility_and_independent_conformance/vulcan_surface_review-d158d26.md#L70",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P2",
+   "claim": "vulcan_review_closure_note@8966da2: [gate] scripts/build_finding_register.py:1322,1330,1342,1352; scripts/retire_review_claims.py:373-377,382-390 - OPEN, narrowed (carried from 8f774d0c): a named re-s",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L80",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P2",
+   "claim": "vulcan_review_closure_note@8f774d0: [gate] scripts/build_finding_register.py:1307,1317,1330,1339,1348; scripts/retire_review_claims.py:360-378 - `same_finding` accepts an absent identifier on either s",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L80",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P3",
+   "claim": "vulcan_review_closure_note@8966da2: [gate] scripts/build_finding_register.py:833,1330 - two named re-statements of distinct findings on one file both key `(lane, kind, file, None)`, so `shared_vocabul",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L88",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@79fdcc6: [gate] scripts/build_finding_register.py:868-879,1272-1277; scripts/retire_review_claims.py:369-384 - `strictly_later_scope` is not strict on equal scopes (`git mer",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L93",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8966da2: [gate] scripts/build_finding_register.py:847-868 - the OPEN-head match still runs `strong=True, paths_ok=False` without the closing side's `shared` set - closure: p",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L92",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8f774d0: [gate] scripts/build_finding_register.py:838-860 - the OPEN-head match OPEN, unchanged: `strong=True, paths_ok=False` without the closing side's `shared` set - clos",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L92",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@b58ac1e: [gate] scripts/build_finding_register.py:574,588 - `raising_scope` matches the raising `[Pn]` line on the claim's first 80 characters, not the description the spec ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L104",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@b58ac1e: [gate] scripts/build_finding_register.py:838-860 - the OPEN-head match OPEN, unchanged in mechanism: `strong=True, paths_ok=False` without the closing side's `share",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L92",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@6589c6e: [gate] scripts/build_finding_register.py:879-890 - `is_tracked` fails open when `git ls-files` returns non-zero (not a repository): `_tracked = None` and every path",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L95",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@79fdcc6: [gate] scripts/build_finding_register.py:1040-1051 - prior `is_tracked` fail-open OPEN, unchanged: a failing `git ls-files` leaves `_tracked = None` and every path ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L95",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@79fdcc6: [gate] scripts/build_finding_register.py:763-785 - the OPEN-head match runs `line_speaks_about(head, claim, strong=True)` without the `shared` set the closing side ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L92",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8966da2: [gate] scripts/build_finding_register.py:1151-1162 - `is_tracked` still fails open: a failing `git ls-files` makes every path count as tracked - closure: fail close",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L95",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8966da2: [gate] scripts/build_finding_register.py:574,588 - `raising_scope` still matches on the first 80 characters (claim-restoration leg CLOSED), and it now also orders f",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L104",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8966da2: [gate] scripts/build_finding_register.py:712 - the parenthetical refusal `(?![^)]*OPEN)` is still case-sensitive, so `| **CLOSED (leg 2 open)** |` is a closure line",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L103",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8966da2: [gate] scripts/build_finding_register.py:780-781,1104 - `claim_finding_ids` still reduces `S20-700-PACK-001` to `PACK-001`, the lookbehind refuses the full id, and ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L89",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8f774d0: [gate] scripts/build_finding_register.py:1142-1153 - prior `is_tracked` fail-open OPEN, unchanged: a failing `git ls-files` makes every path count as tracked - clos",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L95",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8f774d0: [gate] scripts/build_finding_register.py:574,588 - `raising_scope` 80-character prefix OPEN, unchanged (60 of 281 untagged claims traced on the prefix alone at b58a",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L104",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8f774d0: [gate] scripts/build_finding_register.py:712 - the parenthetical refusal OPEN, unchanged: `(?![^)]*OPEN)` refuses `OPEN` only, so `| **CLOSED (leg 2 open)** |` is a",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L103",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8f774d0: [gate] scripts/build_finding_register.py:780-781,1095 - `claim_finding_ids` reduces `S20-700-PACK-001` to `PACK-001` (`S20-700` excluded as a document id) and the l",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L89",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@8f774d0: [gate] scripts/build_finding_register.py:935-946; scripts/retire_review_claims.py:386-401 - OPEN, unchanged: `strictly_later_scope` is true on equal ids and `reopen",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L93",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@b58ac1e: [gate] scripts/build_finding_register.py:1136-1147 - prior `is_tracked` fail-open OPEN, unchanged: a failing `git ls-files` makes every path count as tracked while ",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L95",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@b58ac1e: [gate] scripts/build_finding_register.py:712 - the new parenthetical refusal is case-sensitive: `(?![^)]*OPEN)` refuses `OPEN` only, so `| **CLOSED (leg 2 open)** |",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L103",
+    "binding": "automatic"
+   }
+  },
+  {
+   "section": "s20_700_remaining_surface_audit",
+   "severity": "P4",
+   "claim": "vulcan_review_closure_note@b58ac1e: [gate] scripts/build_finding_register.py:935-946,1384-1389; scripts/retire_review_claims.py:378-393 - OPEN, narrowed: `raising_severity` now binds closed and re-sta",
+   "before": "open",
+   "after": {
+    "state": "closed",
+    "verified_by": "evidence/review/verdicts/s20_700_remaining_surface_audit/vulcan_review_closure-d158d26.md#L93",
+    "binding": "automatic"
+   }
+  }
+ ],
+ "counts": {
+  "reopened_by_revisions_8_9": 8,
+  "revision_10_changes": 133,
+  "revision_10_by_binding": {
+   "open->closed:automatic": 74,
+   "open->closed:exact-claim": 25,
+   "restated->closed:automatic": 30,
+   "restated->closed:exact-claim": 4
+  }
+ }
+}

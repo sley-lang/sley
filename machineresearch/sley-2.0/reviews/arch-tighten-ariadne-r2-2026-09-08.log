@@ -1,0 +1,26 @@
+[33m[state/agent-db][39m [33mslow OpenClaw agent database open[39m
+status: complete, FAIL
+
+findings:
+- **P1: Machine-readable S20-360 status remains contradictory.** `machineresearch/sley-2.0/machine-summary.json:2975` still claims an “executable-program-operation-free” success subset and says full operation analysis remains blocked. This contradicts `CANDIDATE_RESULT_V1.md:3-9`, `VALIDATION_PROFILE_V1.md:3-9`, and `TRANSACTION_MODEL_V1.md:11-19`. Required repair: describe the E1 through E6 analyzed subset in the summary and extend the candidate-result checker to validate this status field.
+- **P1: Round-3 candidate is omitted from the locator’s immutable bindings.** Both local and origin refs resolve to `66a76781469625b9da3e5da18736153baae5b435`, but `machine-summary.json:90-105` and `docs/status/SLEY2-REMOTE-HEAD.md:16-18` list only rounds 1 and 2. `scripts/check_remote_head.py:115-124` validates listed candidates but cannot detect omission. Required repair: add round 3 with its exact ref and SHA, regenerate the status view, and require audit candidate rounds to match locator rounds.
+- **P2: Identity-map repair is incomplete.** B05 and B07 are corrected, but the duplicate-definition table still says section/package digests have no vector and SLEYPOBS1 has none, while its BOOTSTRAP digest row still claims four-byte-only checking (`SLEY-2.0-ARCHITECTURE-TIGHTENING-IDENTITY-MAP.md:934-940,1016-1023`). Required repair: synchronize these rows with the frozen Rust vectors and full-width checker.
+- **P2: The explicit stale-status guard checks the wrong phrase.** `scripts/check_candidate_result_contract.py:336-345` refuses `"operation-free restricted conformance epoch"`, not the historical `"executable-program-operation-free"` wording. The E1/ADR markers catch replacement but not coexistence. Required repair: reject the actual stale wording within both extracted status blocks.
+
+validation:
+- Detached HEAD and local/origin round-3 refs all read as `66a76781469625b9da3e5da18736153baae5b435`.
+- The two normative status lines and transaction model agree on E1 through E6. Keeping the S20-360 closeout and evidence as historical restricted-closure records is correct.
+- SMP1 names bridge revision 7 and CLI revision 4; its checker implements reverse pins.
+- Domain-label matching, BLAKE3 detection, self-exclusion, self-tests, and IDENTIFIERS scope are present.
+- Erratum E1 is sufficient under section 2.2: the frozen V1 contract meaning was already correct, no persisted identity depends on the bad literal, old outputs are declared non-evidence, and full-width checking now pins the implementation.
+- No executable validation was run because the handoff’s allowed actions were read-only.
+
+blockers:
+- None to the verdict.
+
+return_to:
+- Architecture-tightening integrator for the two P1 repairs and identity-map/checker cleanup.
+
+```json
+{"ARCHITECTURE_TIGHTENING_PASS": false, "CANONICAL_IDENTITY_PASS": true, "NATIVE_AUTHORITY_PASS": true, "SELFHOST_BOUNDARY_PASS": true, "SPEC_SYNC_PASS": false, "REMOTE_INSPECTABILITY_PASS": true, "verdict": "FAIL", "p0": 0, "p1": 2, "p2": 2, "p3": 0}
+```

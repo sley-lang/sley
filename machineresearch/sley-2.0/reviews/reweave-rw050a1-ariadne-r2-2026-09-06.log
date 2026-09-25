@@ -1,0 +1,19 @@
+status: PASS
+
+findings:
+- Unused malformed zero-effect rows now fail during adapter declaration validation with `ADAPTER_INVOKE_TYPE`; the focused test covers malformed and inert conforming rows (`crates/sley-check/src/effects.rs:538-595,1935-1966`).
+- Static acceptance remains limited to the two byte conversions and `P-PUSH`’s exact `response == Vector<request>` relationship, with `BuiltinFailure(Index)` pinned (`effects.rs:574-595`). Invocation scope/operand/result checks remain separate (`effects.rs:601-637,850-869`).
+- SH2 ownership remains explicit (`docs/spec/EFFECT_SYSTEM_V1.md:152-159`). Form-versus-registration layering remains fail-closed; current lowering still rejects unsupported opcodes (`crates/sley-vm/src/lower.rs:633-639`).
+
+validation:
+- Inspected the bounded `effects.rs` and `EFFECT_SYSTEM_V1.md` diffs against `50f17c9`.
+- `git diff --check` passed.
+- Cargo tests were not run because this handoff permits read-only actions and compilation writes build artifacts.
+
+blockers:
+- None for the amendment-A1 re-review.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority) for any prototype re-landing.
+
+disposition (implementation workflow, post-verdict): transcript above is the reviewer's returned delta re-review verdict, transcribed verbatim (only this disposition section added). Amendment A1 ACCEPTED on the semantic/boundary lane: declaration-level enforcement closes the HIGH with no broadening beyond the three frozen shapes. This accepts the contract amendment only; prototype re-landing remains barred pending Phase-2 work + fresh review.

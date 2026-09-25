@@ -1,0 +1,88 @@
+DISPATCH 710full-ariadne-contract forge-ariadne-710full-ariadne-contract-20260904T072335 2026-09-04T07:23:36Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record.
+
+## S20-710 full — contract review (Ariadne)
+
+**status:** FAIL — two P0 defects block freeze. Read-only pass at `9dc78fe` in the pinned worktree; no repo mutation, no `cargo`, no `make`.
+
+---
+
+### The three questions you asked
+
+**1. Is the fixed SPDX `created` instant the right determinism trade?** No — it is close, but wrong as written.
+
+`creationInfo.created` is a factual assertion, and `1970-01-01T00:00:00Z` is knowingly false. It is also the exact field the NTIA minimum-elements list names as "Timestamp," so every common SBOM quality scorer will read these documents as failing that element — in a dossier that cites them as standards-conformant. The determinism goal does not require a lie: the release-candidate commit's committer date (the `SOURCE_DATE_EPOCH` convention the reproducibility lane already leans on) is a pure function of the input, so `--check` drift behaviour is unchanged, and it is true — the document describes the tree at that commit. Note the asymmetry is forced by the format, not chosen: CycloneDX omits `metadata.timestamp` entirely because it may, while SPDX requires `created`. The answer to a mandatory field is an input-derived instant, not a sentinel. If the operator prefers to keep the epoch, section 8 must record it as a disclosed non-conformance and `creationInfo.comment` must say the value is a determinism sentinel and not a creation time — today's comment says it "keeps the document deterministic," which stops just short of saying it is not a real time.
+
+**2. Is the derived CycloneDX serial a legitimate UUID?** Yes, cleanly.
+
+`derived_uuid` overwrites index 12 (the version nibble) with `8` and index 16 (the variant nibble) with `8`. Version 8 is RFC 9562's custom UUID format, which exists precisely for vendor-defined deterministic construction; variant nibble `8` is binary `1000`, the `10xx` RFC variant. The tracked serial `urn:uuid:69009a53-be84-8c1a-80d0-8c3fd714a1ea` parses as a valid RFC 9562 v8 UUID and matches CycloneDX 1.6's `serialNumber` pattern. The self-reference is not circular — the digest is taken over the BOM without `serialNumber`, and the field is added afterward. Two exactness notes below (P3), plus one untested load-bearing property (P2): uniqueness across candidates holds only because the digest covers the root artifact digest, and nothing asserts that.
+
+**3. Does `LicenseRef-Proprietary` state the pending operator decision correctly?** The choice is right; the placement is wrong.
+
+Using a `LicenseRef` rather than `NOASSERTION` is the correct call — it keeps the missing root licence visible in both formats instead of laundering it into "unknown," which is exactly what ADR decision 4 claims. But SPDX 2.3 defines `extractedText` as a copy of the actual licence or notice text extracted from the package. The current value is campaign status prose. Any tool that renders `extractedText` as licence terms will render a Sley campaign note as the licence of 19 components. The prose belongs in the entry's `comment`; `extractedText` should hold the verbatim notice once the operator approves it, and until then an explicitly marked placeholder (I would not rely on `NOASSERTION` here — the spec does not clearly permit it for this field).
+
+---
+
+### P0 — blocks freeze
+
+**P0-1. Licence expressions are emitted verbatim and are not all valid SPDX.** `unicode-normalization@0.1.24` declares `MIT/Apache-2.0`, the legacy Cargo slash form. `/` is not an SPDX expression operator. That string lands verbatim in CycloneDX `licenses[0].expression` (which the 1.6 schema defines as a valid SPDX expression) and in SPDX `licenseDeclared`. Both tracked documents fail strict validation of the very formats the contract's title names. The contract has no rule against it — section 1 requires "a license expression," section 2 says a `LicenseRef` expression "is emitted verbatim," and no checker or test validates expression syntax. Freezing as written freezes the defect. Fix: normalize the legacy form (`MIT/Apache-2.0` → `MIT OR Apache-2.0`), and where an expression cannot be normalized, emit `NOASSERTION` with the raw string preserved in a property, under a new code.
+
+**P0-2. The SPDX `documentNamespace` is not unique per document.** It is `urn:sley2:spdx:<inventory digest>` — a function of the T52 inventory alone. Two SBOMs describing two different candidates (different commit, different artifact digest) with an unchanged dependency inventory receive the *same* namespace. SPDX 2.3 requires the namespace to uniquely identify that document, with a new namespace for each version. This is not hypothetical: a code-only change between release candidates does not touch `Cargo.lock`, so the inventory digest is unchanged and both documents claim one identity. The CycloneDX side already does the right thing — its serial derives from the whole document — which makes this an inconsistency rather than a design choice. Mirror section 2's construction: derive the namespace from the canonical document digest.
+
+---
+
+### P1 — must fix before freeze
+
+1. Fixed epoch `created` (question 1): change to the commit's committer date, or record the disclosed non-conformance in section 8.
+2. SPDX `extractedText` carries status prose, not licence text (question 3); move it to `comment`.
+3. **Candidate-evidence failures are miscoded.** `build_standards_sbom.py:94-107` raises `SBOM_INVENTORY_MISSING` (74000) / `SBOM_INVENTORY_INVALID` (74001) for problems with the *S20-720 candidate record*. Contract section 1 assigns those to `PROVENANCE_EVIDENCE_MISSING` (74004) and `PROVENANCE_EVIDENCE_INVALID` (74005). The error code is the contract's most exact surface; it currently lies.
+4. **The SBOM builder does not enforce "reproducible `PASS`."** Section 1 says a candidate record that is not a reproducible `PASS` is invalid. Only `build_release_provenance.py:112-118` checks. The SBOM builder will happily construct a root component from a failed or non-reproducible candidate.
+5. **`--check` fails open on unreadable evidence.** In both builders, `local_build_ahead()` returns `True` when `load_candidate()` raises (`build_standards_sbom.py:399-401`, `build_release_provenance.py:239-241`), so `--check` prints `result: PASS` with state `LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS`. 74004 and 74005 are therefore unreachable in check mode. Absent evidence on a fresh clone is legitimate and must pass; *corrupt* evidence must still fail. Section 5 describes only the digest-comparison branch and discloses neither.
+6. **`CANDIDATE_VERSION = "2.0.0-alpha.0"` is hardcoded** (`build_standards_sbom.py:29`), contradicting ADR decision 1 "Derive, never restate." It must come from the candidate evidence or `Cargo.toml`.
+7. **The graph-parity claim is false.** CycloneDX carries 138 edges (19 root→workspace plus 119 inventory); SPDX carries 119 `DEPENDS_ON` and no root dependency edges at all. ADR decision 2's "a consumer of either sees the same graph" does not hold. Add SPDX root `DEPENDS_ON` edges, or drop the claim.
+8. **Circular provenance.** Both SBOM documents appear in `predicate.buildDefinition.resolvedDependencies`. They are derived *after* the build, from the artifact digest. The statement therefore asserts the build consumed a document describing its own output. Move them to `runDetails.byproducts`.
+9. **`internalParameters` carries build outputs.** `artifact_size_bytes` and `member_count` are results, not build-platform parameters, and neither is declared in section 4.
+10. **Section 2 drift.** Undeclared: `$schema`; `metadata.component.bom-ref` and `licenses`; the per-component `properties` array; the `sley2:signed` and `sley2:publication-authorized` metadata properties (section 2 lists four, the builder emits six); and the root `dependencies` entry `pkg:generic/sley@2.0.0-alpha.0`, whose presence also makes `dependencies` **not** ascending as section 2 states.
+
+---
+
+<details>
+<summary>P2 (fix before completion) and P3 (editorial) — 19 items</summary>
+
+**P2**
+
+1. `urn:sley2:` is an unregistered URN NID (RFC 8141) — used for the SPDX namespace, `buildType`, `builder.id`, and the git-commit `uri`. Prefer a `tag:` URI (needs no registry) or an https URI under a controlled domain; or record the private-NID choice explicitly.
+2. `statement_digest` is computed over the section-5 canonical form (two-space indent), **not** RFC 8785 JCS. A future DSSE signer that assumes JCS will not reproduce it. Section 4 claims the statement "can later be signed verbatim" — pin the serialization in that sentence.
+3. `attestation.blockers` has 6 entries; the machine summary `blockers` has 5. `second_host_attestation_operator_lane` is missing from the summary.
+4. Campaign record drift: it names serial `9251b665-…` and "119 relationships"; the tracked evidence is `69009a53-…` with 120 relationships (1 `DESCRIBES` + 119 `DEPENDS_ON`).
+5. No SPDXID uniqueness check. `SPDXRef-<ecosystem>-<name>-<version>` after character replacement can collide, and `identifiers` keyed by purl would silently drop relationship endpoints.
+6. `component_facts` accepts any non-empty string as a purl; section 1 says components "must carry a purl."
+7. SPDX silently drops inventory relationships whose endpoints are not both known packages (`build_standards_sbom.py:341-342`); CycloneDX does not filter. Zero are dropped today. Make the divergence explicit or fail closed.
+8. Serial uniqueness across candidates is load-bearing but untested.
+9. Test gaps: no coverage of `LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS`, of licence-expression validity, or of `hasExtractedLicensingInfos` closure over every `LicenseRef-` used.
+10. Adding a licence-validity code exhausts the 74000–74007 reservation. `ERROR_CODES_V1.md:439` and the checker's `new_stable_error_codes == 8` assertion both need widening.
+11. The artifact is named `sley-2.0.0-linux-x86_64.tar.gz` while the SBOM records version `2.0.0-alpha.0`. S20-720's naming, but it surfaces as a self-contradiction inside these documents.
+12. Licence-status asymmetry: CycloneDX carries `sley2:license-disposition` per component and a blocked count in metadata; SPDX conveys disposition only as free-text `comment`. Use an SPDX annotation, or state the limitation in section 3.
+
+**P3**
+
+1. Section 9 reads "Revision 1 carries none" in a revision-2 document whose header says revision 2 records the section 5 clarifications.
+2. ADR-0041's status line says "draft at revision 1"; the contract is revision 2 and the summary records `contract_revision: 2`.
+3. Section 2 should say the serial derives from the first 128 bits of the SHA-256 with two nibbles overwritten, and should cite RFC 9562 version 8 — otherwise a later reader "corrects" it to v4.
+4. Section 7 says the checker verifies the documents "carry no timestamp," but SPDX carries the mandated epoch `created`. Restate as "no wall-clock timestamp."
+5. Section 3 does not mention the SPDX document `name` field, nor that the root package uses `SPDXRef-Package-sley-candidate`, which does not follow the stated `SPDXRef-<ecosystem>-<name>-<version>` pattern.
+6. `externalReferences[].url` is the crates.io *index* URL, not a distribution URL; `type: "distribution"` overstates it.
+7. `FORBIDDEN_DOCUMENT_MARKERS` covers only `/home/`, `greyforge`, `file://`. Add `/Users/`, `/root/`, `/tmp/`, and the invoking user name.
+</details>
+
+---
+
+**validation:** Tier 0, read-only, ~25 min. Read the contract, ADR-0041, the campaign record, all three scripts, the test suite, and the checker; parsed the three tracked evidence documents plus the T52 inventory with `python3` (reads only); confirmed the worktree is clean at `9dc78fe`. No `cargo`, no `make`, no `make v1` — V1 is out of scope for a contract review and was neither run nor deferred. Independently confirmed: 43 components / 44 dependency entries / 138 CycloneDX edges vs 119 SPDX `DEPENDS_ON`; 44 SPDX packages, no duplicate SPDXIDs, no dangling `dependsOn` refs; `MIT/Apache-2.0` on exactly one component; serial parses as RFC 9562 v8.
+
+**blockers:** none for this review. The two P0s and ten P1s are contract revisions, all inside the Sley lane. The root licence text remains an operator decision and is correctly recorded as such.
+
+**return_to:** orchestrator. P0-1 and P0-2 plus P1-3 through P1-10 are bounded Sley edits suitable for Merlin once you approve the contract revision; the `created`-instant decision (P1-1) and the `urn:sley2:` NID choice (P2-1) are worth Nabu's architecture review since they touch identity conventions beyond this package.
+
+S20_710FULL_CONTRACT_REVIEW_JSON={"reviewer":"ariadne","result":"FAIL","p0":["license expressions emitted verbatim; unicode-normalization@0.1.24 carries MIT/Apache-2.0 which is not a valid SPDX expression, so both tracked documents fail strict CycloneDX 1.6 and SPDX 2.3 validation and the contract has no normalization or validation rule","SPDX documentNamespace derives from the inventory digest alone, so two different candidates sharing a dependency inventory receive the same document identity; SPDX 2.3 requires a unique namespace per document version"],"p1":["fixed epoch SPDX created is a knowingly false factual field and fails the NTIA timestamp element; use the candidate commit committer date or record the disclosed non-conformance in section 8","SPDX extractedText carries campaign status prose instead of license or notice text; move it to the entry comment field","build_standards_sbom.py raises SBOM_INVENTORY_MISSING/INVALID (74000/74001) for candidate evidence failures that contract section 1 assigns to PROVENANCE_EVIDENCE_MISSING/INVALID (74004/74005)","the SBOM builder does not enforce the section 1 rule that the candidate record be a reproducible PASS; only the provenance builder checks","--check fails open: local_build_ahead() returns True when candidate evidence is unreadable, so 74004 and 74005 are unreachable in check mode and corrupt evidence reports PASS","CANDIDATE_VERSION is hardcoded in build_standards_sbom.py, contradicting ADR decision 1 derive-never-restate","graph parity claim is false: CycloneDX carries 138 edges including 19 root-to-workspace, SPDX carries 119 DEPENDS_ON and no root edges","both SBOM documents appear in predicate.buildDefinition.resolvedDependencies though they are derived after the build from the artifact digest; move them to runDetails.byproducts","internalParameters carries artifact_size_bytes and member_count, which are build outputs not build parameters and are undeclared in section 4","section 2 drift: undeclared $schema, metadata.component bom-ref and licenses, per-component properties array, sley2:signed and sley2:publication-authorized metadata properties, and the root dependencies entry that also makes dependencies non-ascending"],"p2":["urn:sley2: is an unregistered URN NID under RFC 8141 across namespace, buildType, builder id, and git-commit uri","statement_digest is over the section 5 canonical form not RFC 8785 JCS; pin the serialization before any DSSE signer assumes JCS","attestation.blockers has six entries and the machine summary blockers has five; second_host_attestation_operator_lane is missing from the summary","campaign record names serial 9251b665 and 119 relationships; tracked evidence is 69009a53 with 120 relationships","no SPDXID uniqueness check; character replacement can collide and identifiers keyed by purl would silently drop endpoints","component_facts accepts any non-empty string as a purl though section 1 requires a purl","SPDX silently drops relationships whose endpoints are not both known packages while CycloneDX does not filter","serial uniqueness across candidates is load-bearing but untested","test gaps: no coverage of LOCAL_BUILD_AHEAD_OF_TRACKED_DOCUMENTS, license expression validity, or hasExtractedLicensingInfos closure over every LicenseRef used","a license-validity code exhausts the 74000-74007 reservation; widen ERROR_CODES_V1.md and the checker new_stable_error_codes assertion","artifact named sley-2.0.0-linux-x86_64.tar.gz drops the -alpha.0 the SBOM records","license disposition is a CycloneDX property but only free-text comment in SPDX"],"p3":["section 9 says revision 1 carries none inside a revision 2 document","ADR-0041 status line says draft at revision 1 while the contract is revision 2","section 2 should say the serial uses the first 128 bits of the SHA-256 and cite RFC 9562 version 8","section 7 says the documents carry no timestamp though SPDX carries the mandated epoch created","section 3 omits the SPDX document name field and the root SPDXRef-Package-sley-candidate exception to the stated ID pattern","externalReferences url is the crates.io index URL, not a distribution URL","FORBIDDEN_DOCUMENT_MARKERS omits /Users/, /root/, /tmp/, and the invoking user name","invocationId is the manifest digest so two reproducible builds share an invocation id; state this in section 4"],"notes":"read-only at 9dc78fe; no cargo, no make, no repo mutation. Derived CycloneDX serial confirmed a valid RFC 9562 v8 UUID. LicenseRef-Proprietary is the right choice but sits in the wrong SPDX field. Fixed epoch created is defensible but inferior to the commit committer date."}
+EXIT=0 2026-09-04T07:29:19Z

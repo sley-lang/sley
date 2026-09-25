@@ -1,0 +1,1 @@
+{"arm": "legacy", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"effect_dropped": "EFFECT_UNAUTHORIZED", "literal_bypass": "ORACLE_DENIAL_MISSING"}, "positive": "accepted", "task_id": "S2B-CAP-001"}

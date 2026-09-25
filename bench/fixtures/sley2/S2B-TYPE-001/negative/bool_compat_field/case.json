@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_type_neg_bool_compat_field",
+  "expected_code": "ORACLE_BOOL_COMPAT_FIELD",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_type"
+}

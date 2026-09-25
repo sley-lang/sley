@@ -1,0 +1,7 @@
+{
+  "task_id": "S2B-MODULE-001",
+  "arm": "sley2",
+  "negative": "stale_import",
+  "expected_code": "ORACLE_STALE_IMPORT",
+  "note": "mutation asserted as rejection inside Rust conformance; dedicated test proves rejection"
+}

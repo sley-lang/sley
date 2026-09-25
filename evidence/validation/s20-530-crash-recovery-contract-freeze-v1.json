@@ -1,0 +1,55 @@
+{
+  "contract": "s20-530-crash-recovery-contract-freeze-v1",
+  "result": "PASS_CONTRACT_FROZEN",
+  "validation_tier": "TIER_2_CONTRACT",
+  "deterministic_inputs": {
+    "matrix_rows": 100,
+    "matrix_rows_sha256": "675afdad226e5e32ad4c5f4161a0802ae516355cf7e7b88e8d7510de5aae7698",
+    "spec_sha256": "4f2aa8b30ccf637881bf76a2eae77015110c6d9bb2d8021760b5f7597ab1ac61",
+    "adr_sha256": "38da5dcc49c7c0955b65c6b7148cba773d6fbe7bfbf5a2db41d68e8d382e97a7",
+    "checker_sha256": "cab9f0f04e815e7cdc6dd35ad5c4b4738e3da8d0da86ab0b0e9b65d0e6828242",
+    "checker_contract_sha256": "2fd8b06421d55c393c4b47b96102f342ff0c329b916b7eca5f9059f92d840522",
+    "runner_sha256": "56015507e45970ef07945aad05c093e771b0b798a98d9351cafd78fca9f5caec"
+  },
+  "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
+  "commands": {
+    "python3 -m py_compile scripts/check_s20_530_crash_recovery.py": "PASS",
+    "ruff check scripts/check_s20_530_crash_recovery.py": "PASS",
+    "git diff --check": "PASS",
+    "validation runner isolated self-test": "PASS",
+    "checker adversarial negative controls": "PASS",
+    "cargo test -p sley-txn recovery_ancestry_test_hook::tests --locked": "PASS_7_OF_7",
+    "cargo check -p sley-txn --features s20-530-test-hooks --locked": "PASS_EXPECTED_DEAD_CODE_WARNINGS"
+  },
+  "full_gate": {
+    "make_v1": "SKIPPED_CONTRACT_FREEZE_NOT_RELEASE_BOUNDARY"
+  },
+  "authority": {
+    "mode": "WRITE_LOCAL",
+    "deploy": false,
+    "external_runtime_mutation": false,
+    "provider_call": false,
+    "publication": false,
+    "push": false,
+    "spend": false,
+    "trading": false
+  },
+  "implementation_complete": false,
+  "reviews": {
+    "nabu": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
+      "evidence_payload_sha256": "ddfad0cafd82bfee7dbd55c427030158762e8f24c08a20a40b362e44719adc9c"
+    },
+    "ariadne": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
+      "evidence_payload_sha256": "ddfad0cafd82bfee7dbd55c427030158762e8f24c08a20a40b362e44719adc9c"
+    },
+    "vulcan": {
+      "result": "PASS_CONTRACT_FREEZE",
+      "contract_set_sha256": "d772ec6d3ce68f79319a5409a8402c98c3c027d821254b644df527c038598a61",
+      "evidence_payload_sha256": "ddfad0cafd82bfee7dbd55c427030158762e8f24c08a20a40b362e44719adc9c"
+    }
+  }
+}

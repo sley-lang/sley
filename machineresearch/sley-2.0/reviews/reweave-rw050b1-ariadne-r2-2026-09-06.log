@@ -1,0 +1,20 @@
+status:
+- **PASS — high confidence.** Both Phase-2 HIGHs and the profile drift are repaired.
+
+findings:
+- Execution now carries the resolved `AdapterImport`, verifies `Result<row response,row failure>`, and checks scope/request value types against the row before execution (`extended.rs:263-316,377-478,1935-1941`). Tests cover off-row operands, off-row results, and successful on-row push execution (`extended_tests.rs:4551-4615`).
+- `check_builtin_failure` now admits only `Index` codes 1–2 (`sley-check/src/lib.rs:1067-1082`); tests preserve code 1, admit code 2, and reject code 3 (`:1673-1701`). The generated capacity refusal is checked as a canonical constant (`extended_tests.rs:4680-4686`), satisfying report projection’s validation path (`sley-conformance/src/lib.rs:803-810`). Blast radius is a deliberate global widening of canonical `Index` constants by code 2 only; other kinds and codes remain unchanged.
+- Revision 13’s push text now requires monomorphized closed rows and exact invocation/execution row binding (`VM_EXTENDED_OPCODE_PROFILE_V1.md:315-339`), matching A1 (`EFFECT_SYSTEM_V1.md:105-113,126-131,233-239`).
+
+validation:
+- Read-only diff inspection against `fd944029557ad36cc00b1f3fa8272acb10a94cc1`.
+- `git diff --check` passed for the four reviewed paths.
+- No Cargo tests run because this handoff permits read-only actions; V1 was not run.
+
+blockers:
+- None from this Ariadne delta re-review.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+disposition (implementation workflow, post-verdict): transcript above is the reviewer's returned delta re-review verdict, transcribed verbatim (only this disposition section added). Both Phase-2 HIGHs CLOSED on the semantic/boundary lane. The repair also touched `sley-check/src/lib.rs` (S20-210 code table, outside Nabu's PASS snapshot) — a bounded Nabu delta re-review on the post-PASS diff is requested before landing; landing stays barred meanwhile.

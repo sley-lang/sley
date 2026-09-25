@@ -1,0 +1,24 @@
+Nabu order-independence confirmation — RW-060 (2026-09-06, handoff round 2f)
+status: P2-2 STILL OPEN — high confidence
+
+findings:
+- The original field-order evasion is repaired: package fields buffer until the next `[[package]]` or EOF.
+- Next concrete valid-TOML evasion:
+  ```toml
+  [[package]]
+  name = "sley-repo"
+  "dependencies" = ["sley-cli"]
+  ```
+- TOML decodes the quoted key as `dependencies`, but `lockfile_graph` only recognizes lines starting with bare `dependencies`. It silently records `sley-repo` with no edges, leaving `sley-cli` unreachable.
+
+validation:
+- Targeted static review completed.
+- Python `tomllib` confirmed the quoted key decodes to the normal `dependencies` field.
+- Cargo test not run because this handoff permits read actions only.
+
+blockers:
+- Decode quoted lockfile keys or use a TOML parser; add the quoted-`dependencies` regression.
+
+return_to: orchestrator
+
+[Orchestrator note: repaired — keys decode as TOML before classification (decode_toml_key: bare identifiers strictly validated, quoted decode with escapes); unknown keys fail closed; full-line comments skipped; plus quoted-key and unrecognized-key... (key test) regressions. Re-verified locally: 15 passed, clippy -D clean, fmt clean.]

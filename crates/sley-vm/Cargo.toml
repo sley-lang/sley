@@ -1,0 +1,24 @@
+[package]
+name = "sley-vm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Sley 2 deterministic derived bytecode and reference VM."
+
+[dependencies]
+sley-check = { path = "../sley-check" }
+sley-mutate = { path = "../sley-mutate" }
+sley-id = { path = "../sley-id" }
+sley-ssmc = { path = "../sley-ssmc" }
+sha2 = { version = "0.11.0", default-features = false, features = ["alloc"] }
+blake3 = "=1.8.2"
+
+sley-scb1 = { path = "../sley-scb1" }
+
+[dev-dependencies]
+sley-schema = { path = "../sley-schema" }
+sley-state-root = { path = "../sley-state-root" }
+
+[lints]
+workspace = true

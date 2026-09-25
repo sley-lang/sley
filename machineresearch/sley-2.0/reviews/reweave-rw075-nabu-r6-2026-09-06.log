@@ -1,0 +1,44 @@
+RW-075 architecture/boundary delta re-review, round 6 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded, read-only delta,
+explicit checkout root `/home/dev/sley2`).
+
+status: fail
+
+VERDICT: FAIL.
+
+findings:
+- The delta binds only a **sorted opcode-tag multiset**, not executable
+  content. Gate collection discards operands, results, immediates, block
+  placement, ordering, and terminators (`bootstrap.rs:363-390`); approval
+  compares only those tags against decoded image tags
+  (`exec_package.rs:889-934`).
+- `emit_function` shows why one-operation/one-instruction correspondence
+  is insufficient: each instruction separately carries opcode, operands,
+  results, and immediate, while terminators are lowered independently
+  (`lower.rs:698-735`). An adversarial image can preserve every opcode
+  tag while changing operand wiring, immediates, CFG, or termination
+  behavior, copy the genuine report's fingerprints/tags, mint its package
+  receipt, and pass approval.
+- Execution re-verifies only the same incomplete tag projection
+  (`execute.rs:631-657`), so it does not close that replay.
+- The new adversarial test covers AND→OR, where opcode tags differ, and
+  both "honest tags" and "copied tags" variants
+  (`rw075_exec_closure.rs:1161-1209`). It does not cover a semantically
+  different image with the **same** opcode multiset.
+
+validation:
+- Read-only targeted review of round-5 finding and repair paths.
+- `.git/HEAD` confirms `main`.
+- No commands/tests run because allowed actions were read-only.
+
+blockers:
+- Bind the sealed gate report to a canonical digest/projection of the
+  complete lowered executable structure, or independently derive and
+  compare that binding from the decoded image.
+- Add a same-opcode adversarial case, e.g. identical `BoolAnd` tags but
+  altered operand wiring or control flow.
+
+return_to: RW-075 orchestrator
+
+Disposition: Nabu lane FAIL round 6. Preserved unedited; repairs below
+are a separate delta verified in round 7.

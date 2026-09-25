@@ -1,0 +1,19 @@
+module app.cfgeffect
+
+export task fetch_config -> Text uses FileRead {
+  take gate files: Gate<FileRead>
+  return call fs.read_text("config/settings.bin")
+}
+
+export task render_config -> Text uses FileRead {
+  return call fetch_config()
+}
+
+export task pure_greet -> Text {
+  take name: Text
+  return "hello, " + name
+}
+
+task main -> Text uses FileRead {
+  return call render_config()
+}

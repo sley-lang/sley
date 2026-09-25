@@ -1,0 +1,27 @@
+DISPATCH rereq-nabu-restricted-capsule-320 forge-nabu-rereq-nabu-restricted-capsule-320-20260905T103943 2026-09-05T10:39:43Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+status: PASS — high confidence. The prior disposition may advance to PASS.
+
+findings:
+- P0: []
+- P1: []
+- P2: []
+- P3: []
+- Distinct boundary: `SLEYRQC1` / `RestrictedQueryCapsuleId` / `sley2.restricted-query-capsule.v1`, versus query response `SLEYQRS1` and full context capsule `SLEYCCP1` / `ContextCapsuleId` / `sley2.context-capsule.v1`.
+- Decoder isolation: no public restricted-capsule decoder, importer, hydrator, component constructor, or protocol acceptance path exists. Construction accepts only typed `&RestrictedQueryResponse`.
+- Completeness: the public completeness enum has one arm; encoded tags are fixed to complete/nontruncated/no-continuation; getters return constants. Failed or resource-limited queries yield no response suitable for capsule construction.
+- Provenance: no workspace or session field exists. The only root-shaped value is `claimed_root_context`, explicitly defined as unverified context rather than canonical-root provenance. No ambient filesystem, environment, clock, process, or network source is read.
+- The full-GA gap remains stated explicitly.
+
+validation:
+- Verified clean worktree at `9c7d4ba1023f0e72b247c901e34cd4d654e164be`; `9164ba3` is an ancestor.
+- Targeted inspection of the current restricted contract, implementation, query response, ID domains, full context capsule, provenance definitions, tests, and stage checker.
+- `python3 scripts/check_restricted_query_capsule_profile.py` → PASS with no problems.
+- No Cargo commands or repository modifications.
+
+blockers: none.
+
+return_to: orchestrator; record this re-review as the superseding Nabu PASS.
+
+S20_320R_NABU_REREVIEW_JSON={"reviewer":"nabu","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[],"notes":"Distinct restricted evidence envelope confirmed; complete-only semantics and provenance absences hold."}
+EXIT=0 2026-09-05T10:42:26Z

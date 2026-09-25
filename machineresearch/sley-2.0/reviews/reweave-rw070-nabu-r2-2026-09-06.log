@@ -1,0 +1,44 @@
+RW-070 delta re-review — round 2 (Nabu)
+Date: 2026-09-06. Lane: forge handoff nabu (bounded delta retry; the first
+delta dispatch timed out on infra with no verdict).
+Inputs: round-1 repairs (loader, topology, inventory closure) plus Ariadne
+round-1 repairs under review.
+
+VERDICT: FAIL — high confidence.
+
+P1 — PSH1 multi-row inventories reuse one `EntityId`. `frozen_import`
+derives identity solely from `PSH1`
+(crates/sley-vm/tests/rw070_host_abi_freeze.rs:53-63), and the multi-row
+test carries two such rows (`:1102-1107`, `:1132-1151`). This conflicts
+with the governing requirement that all request entity identities are
+globally distinct (docs/spec/EFFECT_SYSTEM_V1.md:163-174).
+
+P1 — Bootstrap closure is not exact at row level. It records only invoked
+entity IDs and accepts every adapter sharing that ID
+(crates/sley-vm/src/bootstrap.rs:233-260). Consequently, one PSH1
+invocation admits both PSH1 schema rows and reports both as referenced
+(rw070_host_abi_freeze.rs:1139-1151), contradicting the exact-referenced-row
+claims in docs/spec/HOST_ABI_V1.md:74-83 and
+conformance/host-abi/v1/host-abi.json:41,54.
+
+The executable loader, shared execution runner, `LoadedImage.digest`, and
+corrected digest prose are present. No additional blocker found in that
+bounded delta.
+
+Validation performed by reviewer: `cargo test -p sley-vm --lib` PASS (68/2
+ignored); `cargo test -p sley-vm --test rw070_host_abi_freeze` PASS (36);
+`python3 scripts/check_host_abi_markers.py` PASS;
+`python3 scripts/generate_bootstrap_profile_fixtures.py --check` PASS (20
+vectors); `git diff --check` PASS; manifest SHA-256 PASS
+(`c4c5567a…de06`).
+
+Blockers: give each monomorphized PSH1 row a globally distinct identity,
+or obtain an authoritative contract change; make gate closure track exact
+invoked rows — including schema/cardinality — not identity membership
+alone; add a negative test where one PSH1 use carries an extra same-family
+row.
+
+Disposition: ACCEPTED as a failed round. Owner repair: single push row per
+closed inventory enforced by the gate (no owner-contract change required
+for a narrowing freeze; multi-type futures go through §18 admission).
+Preserved unedited as the failed round.

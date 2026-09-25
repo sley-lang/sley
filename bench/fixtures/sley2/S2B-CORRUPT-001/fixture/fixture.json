@@ -1,0 +1,15 @@
+{
+  "arm": "sley2",
+  "conformance_test": "s3_corrupt_fixture_conformance",
+  "evidence": {
+    "flipped_offset": 984,
+    "pack_id": "851c2fec148908461f25ce91a71f01917e4f3774c258dc3895848c15e82f7ace",
+    "pack_len": 1679,
+    "symbol": "PACK_DIGEST_MISMATCH",
+    "target_files_after": 0,
+    "target_files_before": 0
+  },
+  "evidence_sha256": "7bf60b0e78323a7250bcd354c201412393097700051068f8fbbcfc7fe95c85bb",
+  "task_id": "S2B-CORRUPT-001",
+  "test_binary": "s3_g2_corrupt"
+}

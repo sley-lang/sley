@@ -1,0 +1,17 @@
+[package]
+name = "sley-schema"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Sley 2 schema epoch registry and migration skeleton."
+
+[dependencies]
+sley-id = { path = "../sley-id" }
+sley-scb1 = { path = "../sley-scb1" }
+
+[dev-dependencies]
+blake3 = "=1.8.2"
+
+[lints]
+workspace = true

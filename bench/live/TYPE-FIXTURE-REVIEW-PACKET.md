@@ -1,0 +1,643 @@
+# TYPE fixture correction — review packet, revision 3 (2026-09-23)
+
+Branch `work/succ-type-impl`. The revision-3 commits are listed
+below:
+
+| Commit | Content |
+|---|---|
+| `358b3333` | Files the revision-2 verdict (`evidence/review/verdicts/type_fixture_correction/ariadne_contract_review_revision_2-d3de686.md`) and the round index (`evidence/review/rounds/type-r2-d3de686.json`) |
+| `9352e0fe` | Judge, witness and unit-test change |
+| — | This packet and the evidence commit |
+
+The revision-2 verdict was `REVISE_0_P0_1_P1`. It verified all eight
+prior findings closed and approved rulings 1a, 1b, 2a and 2b. It did
+not approve 2c and raised one new P1. Revision 3 answers only that
+P1. The rest of revision 2 (below) stands, except where this section
+supersedes it. Revision 1 remains in Appendix A. The status is
+unchanged: the work is not adopted to `main`, a fresh review is
+required, and `ga_claimed=false`.
+
+## R3.1 [P1] contract-semantics — D3 consumer-shape pin: closed
+
+The review found that predicate D3 rejected a production-valid Failed
+case edge that carries no CasePayload (`neg_dropcode`). That design
+behaves exactly like the accepted `alt_failed_fixed`. It is also the
+IR form of the frozen S3 reference arm `JobState::Failed(_) => "failed"`
+(`crates/sley-repo/tests/s3_g1_type.rs:199`).
+
+Closure, following the verdict's closure evidence:
+
+- **Rejection removed.** `_type_structure` no longer inspects the
+  arguments of the Failed case edge. The per-switch checks now end at
+  canonical case coverage (`bench/fixtures/sley2_live_judge.py:1063-1074`).
+  No non-verdict observation is kept. Nothing depends on the consumer
+  shape any more.
+- **Docstring updated.** The judge docstring now says that how the
+  Failed arm uses its code is free: it may bind, map or discard it.
+  It also states that "Failed carries an explicit error code" and
+  "null error" govern the variant type and its values
+  (`:782-786`, `:810-816`).
+- **Value-level enforcement unchanged.** A2 and A3 still enforce the
+  frozen requirement on the type and its values:
+  - The typedef must have exactly one integer-coded member. A missing
+    code, or a code of non-integer type, → ORACLE_FAILED_CODE
+    (`:987-994`).
+  - A Failed status value must carry an explicit integer code. A null
+    payload, or a non-integer code, → ORACLE_FAILED_CODE
+    (`:1005-1012`).
+  - Production validation still refuses a null-payload Failed
+    constant first (`trial_type_r3_neg_nullcode.log`, phase 6
+    TYPE_CONST_SHAPE).
+- **Witness relabelled.** `neg_dropcode` is now the accepted design
+  `alt_failed_discard` (`bench/live/succ_witness_type_full.py:35-38`,
+  `:115`). Its Failed edge carries no payload and its arm returns 3.
+  `neg_droppayload` stays a production refusal, and the reason is now
+  stated: its arm still declares a code parameter that the edge no
+  longer feeds, which production rejects as CFG_TARGET_ARGUMENTS
+  (`:55-59`).
+- **Unit tests.** `bench/live/tests/test_judge_type_variant.py` has
+  53 tests.
+  - The former rejection test is now the acceptance test
+    `test_failed_edge_discarding_code_accepts` (`:441`).
+  - Four tests show that A2/A3 still reject inside the discard shape
+    with ORACLE_FAILED_CODE (`:447-469`): a null Failed status, a
+    codeless Failed member, a non-integer code type, and a
+    non-integer status code.
+- **Superseded in revision 2.** §3 row D3, the ORACLE_FAILED_CODE
+  entry in the §4 P2 test count, interpretation boundary 2c, and the
+  §5 `neg_dropcode` line are replaced by this section. The
+  revision-2 `trial_type_neg_dropcode.log` is kept unmodified as
+  history of the retired pin.
+
+## R3.2 Evidence (fresh, judge at `9352e0fe`)
+
+All logs are new files in `bench/live/succ-trials-20260923/` with the
+prefix `trial_type_r3_` or `r3_`. No file was overwritten. Every
+witness log carries a provenance JSON line with the git head
+`9352e0fe`, the judge sha256, the binaries, the manifest and the
+design, followed by the judge verdict JSON and a self-check.
+
+Accepted (9 designs):
+
+- `alt_failed_discard`: executed values SInt 0/1/2/3, the same as
+  `alt_failed_fixed`.
+- The other eight: `pos`, `alt_code8`, `alt_queued`, `alt_shared`,
+  `alt_uint`, `alt_arith`, `alt_join`, `alt_failed_fixed`.
+
+Rejected by the judge:
+
+- ORACLE_BOOL_COMPAT_FIELD: `neg_bool`, `neg_typedef_only`,
+  `neg_bool_const`, `neg_two_param`, and the legacy runs `mig` and
+  `neg` (`trial_type_r3_legacy_*.log`).
+- ORACLE_TRAP_ARM: `neg_trap`.
+
+Refused by production before the judge runs:
+
+- `neg_droppayload`: CFG_TARGET_ARGUMENTS.
+- `neg_nullcode`: TYPE_CONST_SHAPE.
+
+Other logs:
+
+- `r3_s3_g1_type.log`: 3 passed.
+- `r3_rust_gates.log`: `succ_live_packs_frozen` plus 12 driver tests.
+- `r3_unittest_suites.log`:
+  - bench/live with binaries and bwrap bound: 251 OK, 0 skipped.
+  - bench/live without the binaries: 251 OK, 75 skipped.
+  - bench/sley2: 23 OK.
+
+The manifest and pack are unchanged since revision 2: manifest sha256
+`d61216a9…308f`, pack digest `7579dee1…`.
+
+## R3.3 Reviewer action requested
+
+Approve the D3 retirement (R3.1), which completes rulings 2a-2c. Then
+approve the revision-2 requests (a)-(c) of §7 with D3 removed from
+the predicate table, before any cherry-pick to `main`.
+
+---
+
+# TYPE fixture correction — review packet, revision 2 (2026-09-23)
+
+Branch: `work/succ-type-impl` (base `ab42a3a9`). Revision-2 commits:
+`ac1e99b5` (judge rev2 + driver variant inputs + manifest role +
+witness + unit tests), `04fa14e6` (switch_param role always scanned;
+legacy witness wording), and the evidence/packet commit that carries
+this file. Answers the Ariadne contract review of `2c97c32f`
+(`evidence/review/verdicts/type_fixture_correction/ariadne_contract_review-2c97c32.md`,
+REVISE 0 P0 / 1 P1 / 4 P2 / 1 P3 / 2 P4). Status: implemented and
+proved on the work branch; **not** adopted to `main`; a fresh review
+of this revision is required before any main adoption.
+`ga_claimed=false`. Revision 1 is kept verbatim (headings demoted one
+level) as Appendix A. It is superseded wherever the two disagree.
+
+Sections: 1 governing rule · 2 closure and manifest · 3 predicate
+table · 4 finding-by-finding closure · 5 evidence · 6 gates ·
+7 reviewer action requested · 8 preservation and holds · Appendix A.
+
+## 1. Governing rule
+
+- Frozen task `bench/corpus/v1/tasks.json:44-50` (S2B-TYPE-001,
+  unchanged). Goal: replace a running boolean with a JobState tagged
+  variant (Queued, Running, Succeeded, Failed(error_code)) and update
+  constructors, switches, and tests. Required outcomes: no boolean
+  status binding remains; all four cases are exhaustively handled;
+  Failed carries an explicit error code; serialized semantic values
+  are deterministic. Strict oracle: `type_graph_and_execution`,
+  `variant_cases` 4, `exhaustive` true. Forbidden: implicit default
+  case, null error, parallel boolean compatibility field.
+- `bench/benchmark-plan.json:124` `mutation_rule`: corpus v1 is
+  append-protected, and any semantic task or oracle change needs a
+  new corpus version. Revision 2 changes no corpus task. It implements
+  the frozen oracle more faithfully in the sley_2_0 live judge: it
+  removes the narrowing and adds the missing execution half.
+- What the agent sees: only the frozen corpus task JSON
+  (`bench/live/tooling.py:152-160`). So every judge predicate must be
+  derivable from that text. A predicate that is not derivable counts
+  as a narrowing under `mutation_rule`.
+
+## 2. Closure and manifest (FIXTURE tier)
+
+- Closure (unchanged since `0b26c39c`): targets are
+  `[0x65 status, 0x6b switch, 0x6c param, 0x6d switch_entry, 0x6e switch_leaf]`.
+  Fresh entities are always allowed. Every fresh entity is judged by
+  the Bool scan (§3 row B).
+- New in revision 2: a named `switch_param` role (0x6c) in the
+  manifest (`crates/sley-repo/tests/succ_live_emit.rs:754-758`;
+  `bench/fixtures/sley2/S2B-TYPE-001/task_manifest.json:9`). The judge
+  requires the role (`sley2_live_judge.py:945-947`) and always scans
+  it (`:1012`). With the role in place, a two-parameter switch is
+  judged and never reaches a harness error. Evidence:
+  `trial_type_neg_two_param.log` → ORACLE_BOOL_COMPAT_FIELD.
+- Digests. `base.pack` sha256 `875630cd…a45afd` and
+  `pack_digest_blake3` `7579dee1…6976b` are unchanged: the bodies are
+  unchanged. `task_manifest.json` sha256 changes from
+  `2dcb3d72810e0fe583f2b4e606a23e4ccba16f310c6bd79f0513a49cdcd7ebd3`
+  to `d61216a910837eddd852eeb0e28df33f926f4a99f746aeaad4e5e03104dd308f`
+  because of one added `entities` line (the role). The file was
+  regenerated by the pinned emitter
+  (`cargo test -p sley-repo --test succ_live_emit emit_succ_live_packs -- --ignored --exact`).
+  Only this file changed: every other task's pack and manifest is
+  byte-identical, and `succ_live_packs_frozen` passes
+  (`succ-trials-20260923/rust_gates.log`). The v1 original stays
+  preserved as `task_manifest.v1-frozen.json` (sha256 `4b9e2eac…`).
+
+## 3. Predicate table (single tier table; matches the judge docstring `sley2_live_judge.py:767-842`)
+
+CORPUS tier: each predicate is derived from the frozen text. Line
+numbers refer to `bench/fixtures/sley2_live_judge.py` at this
+revision.
+
+| # | Predicate | Frozen source | Judge | Code | Evidence |
+|---|---|---|---|---|---|
+| A1 | The status constant is a Named value of a tagged variant | "JobState tagged variant"; "update constructors" | :950-965 | TYPE_NOT_MIGRATED | unit `test_status_not_named…`, `test_record_status_type…` |
+| A2 | Exactly 4 members: 3 unit and 1 carrying an integer code (SInt or UInt, any width) | "Queued, Running, Succeeded, and Failed(error_code)" | :966-990 | TYPE_NOT_MIGRATED / FAILED_CODE | unit `test_three_member…`, `test_two_coded…`, `test_no_coded_member…`, `test_non_integer_code…`, `test_unsigned_code_accepts` |
+| A3 | The status value is a member of the typedef. A Failed value carries an explicit integer code; a null payload is rejected | "explicit error code"; forbidden "null error" | :992-1010 | FAILED_CODE / TYPE_NOT_MIGRATED | unit `test_failed_status_null_payload…`, `test_unit_member_with_payload_rejects`; live `trial_type_neg_nullcode.log` (production refuses first: TYPE_CONST_SHAPE) |
+| B | No Bool binding (recursive through Option/Tuple/Vector/Result/Map) in any fresh or target Constant, Parameter (function or block), GlobalValue or TypeDef member, nor in the switch result. The switch_param role is always scanned | "no boolean status binding remains"; forbidden "parallel boolean compatibility field" | :879-907, :955, :1012 | BOOL_COMPAT_FIELD | unit: status, param, switch result, fresh constant, second switch param, block param, record field, global, role-without-targets; live `neg_bool`, `neg_typedef_only`, `neg_bool_const`, `neg_two_param`, `legacy_mig`, `legacy_neg` |
+| C1 | The switch is a function of the status alone: 1 parameter, Named JobState | "update … switches" (the base switch has exactly one status input) | :1014-1024 | SWITCH_NOT_MIGRATED / TYPE_NOT_MIGRATED | unit `test_extra_non_bool_parameter…`, `test_param_not_jobstate…` |
+| C2 | Some reachable block dispatches on that parameter through a VariantSwitch. Any reachable block counts, not only the entry | "update switches"; "exhaustively handled" | :1046-1058 | SWITCH_NOT_MIGRATED | unit `test_no_variant_switch…`, `test_switch_on_other_value…`, `test_dispatch_outside_entry_accepts` |
+| D1 | Each such switch has Member keys that cover exactly the 4 members, canonically sorted. The terminator form has no default key, so there is no implicit default | "all four cases are exhaustively handled"; forbidden "implicit default case" | :1059-1070 | MISSING_CASE | unit `test_three_cases…`, `test_builtin_case_key…`, `test_unsorted_cases…` |
+| D2 | Every block reachable from the entry is Required, lies inside the switch, and is not a Trap | "exhaustively handled" (a trap handles nothing) | :1026-1045 | MISSING_CASE / TRAP_ARM | unit `test_reachable_non_required_arm…`, `test_edge_outside_function…`, `test_trap_arm…`; live `trial_type_neg_trap.log` |
+| D3 | RETIRED in revision 3 (R3.1). Was: The Failed case edge carries CasePayload into its arm. The arm binds the error code; what it computes from the code is free | "Failed carries an explicit error code" (the case is Failed(error_code), not a unit case) | :1071-1077 | FAILED_CODE | unit `test_failed_edge_dropping_code…`; live `trial_type_neg_dropcode.log` (production accepts, judge rejects) |
+| E | Execution: the migrated switch runs through the frozen case driver over all 4 member values (Failed carries the fixed explicit code 7, and the driver requires that payload, never defaulted). Every case returns a value. A second run returns identical values | strict oracle `type_graph_and_execution`; "serialized semantic values are deterministic" | :1082-1109 (fixed code :760) | MISSING_CASE / NONDETERMINISTIC | unit `ExecutionHalf` (6 cases); live: every accepted log's verdict detail lists the 4 executed values |
+
+FIXTURE tier (review-gated): the 5-entity closure and the
+`switch_param` role (§2).
+
+RETIRED. Each item was a restriction the frozen text does not
+support. Each one now accepts, with evidence:
+
+| Retired pin | Retired in | Now accepts (evidence) |
+|---|---|---|
+| literal code 7 | rev1 | `trial_type_alt_code8.log`; unit `test_any_code_literal_accepts` |
+| status must be Failed | rev1 | `trial_type_alt_queued.log`; unit `test_any_status_member_accepts` |
+| distinct leaf constants | rev1 | `trial_type_alt_shared.log` |
+| switch result exactly SInt | rev2 | `trial_type_alt_uint.log` (UInt64), `trial_type_alt_arith.log` (Result<SInt64,ArithmeticError>); unit `test_non_sint_result…`, `test_result_typed_switch…` |
+| unit leaves directly Return a ConstantRef of an SInt constant | rev2 | `trial_type_alt_arith.log` (checked-add arms); unit `test_arithmetic_arms_accept` |
+| Failed leaf returns its own block param unchanged | rev2 | `trial_type_alt_arith.log` (code+100 → 107), `trial_type_alt_failed_fixed.log` (maps to 3); unit `test_failed_arm_mapping_code…`, `test_failed_arm_fixed_value…` |
+| every block is the entry or a direct case target | rev2 | `trial_type_alt_join.log` (shared join block, not a case target); unit `test_join_block_accepts` |
+| dispatch must be the entry terminator | rev2 | unit `test_dispatch_outside_entry_accepts` |
+| Failed code must be SInt | rev2 | `trial_type_alt_uint.log`; unit `test_unsigned_code_accepts` (the frozen S3 vector is `Failed(u16)`, `s3_g1_type.rs:191`) |
+
+Relative to the frozen-base judge (`e8aef7c0`), two proxies are
+restated at the level the frozen text speaks to. This is disclosed
+because it widens acceptance relative to that judge:
+
+- The block count (≥ 4) is replaced by case-level exhaustiveness (D1)
+  plus execution (E). Newly accepted: two unit cases sharing one arm
+  block (unit `test_shared_unit_arm_block_accepts`). Every case still
+  has a Required non-Trap arm and returns a value.
+- "All listed blocks Required" becomes "all reachable blocks
+  Required" (D2). Newly accepted: an ExplicitlyUnreachable dead block
+  that production has already verified unreachable (unit
+  `test_unreachable_dead_block_is_ignored`). Such a block never
+  executes and handles no case.
+
+Interpretation boundaries (disclosed for review, not hidden):
+
+- An "error code" means an integer, SInt or UInt of any width.
+- The switch keeps its single status input (C1). An extra Bool input
+  is the forbidden compatibility field (B). An extra non-Bool input
+  makes the result depend on more than the tagged state, which is
+  not a switch over it.
+- D3 distinguishes a Failed arm that binds its code and then ignores
+  it (accepted, `alt_failed_fixed`) from a Failed edge that never
+  delivers the code (rejected, `neg_dropcode`). The review's closure
+  list keeps "payload carried". The judge does NOT require the result
+  to depend on the code, because the review names "a Failed arm
+  mapping the code to a fixed value" as a correct migration.
+- Transient operation results (for example, a comparison inside an
+  arm) are not bindings and are not scanned. Result types of fresh
+  helper functions are not scanned. Fresh parameters are scanned,
+  including those of fresh functions.
+- Tests: the base holds no TestCase entities and the frozen text
+  names no vectors. The judge-driven execution (E) is the test
+  evidence.
+- Determinism (E) means two executions inside one judge run. Across
+  separate judge runs, the witness logs show identical values for
+  identical designs.
+
+## 4. Finding-by-finding closure
+
+**[P1] contract-semantics: fixture-tier pins.** Closed. All four
+cited pins are removed: SInt result, direct ConstantRef SInt leaves,
+raw-param Failed leaf, and entry-or-target blocks. So are the entry-
+only dispatch and the SInt-only code. `_type_structure`
+(`sley2_live_judge.py:930-1080`) now enforces only rows A-D of §3.
+None of them inspects how an arm computes its value. The judge
+docstring (`:767-842`) and §3 are one tier table. The review asked
+for accepted witness runs covering at least a non-SInt result and a
+join-block design. Delivered: `alt_uint`, `alt_arith`, `alt_join` and
+`alt_failed_fixed`, all ACCEPTED (§5), plus 12 retired-pin
+acceptance unit tests (`bench/live/tests/test_judge_type_variant.py:345-437`).
+No new corpus version is needed: the judge now narrows nothing
+beyond the frozen text. The two base-judge proxies are restated and
+disclosed in §3.
+
+**[P2] forbidden-outcome-coverage: parallel Bool.** Closed.
+`_type_bool_scan` (`:879-907`) covers every fresh and target
+Constant, Parameter (function and block), GlobalValue and TypeDef
+member, plus the switch result. The check recurses into composite
+types, and the `switch_param` role is always in scope (`:1012`). The
+manifest names the role (§2). `_harness_fail("type param")` no longer
+exists; the only TYPE harness failures are the manifest contract
+(`:947`) and the switch entry (`:1028`). Live negatives:
+`trial_type_neg_bool_const.log` (fresh Bool constant) and
+`trial_type_neg_two_param.log` (second Bool switch parameter), both
+→ ORACLE_BOOL_COMPAT_FIELD with the offending entity named in the
+detail. Unit tests cover the Bool value threaded into a leaf block
+parameter, a Bool record field, and a Bool global.
+
+**[P2] contract-semantics: execution.** Closed. `_type_execute`
+(`:1082-1109`) runs the candidate's migrated switch twice through
+`_run_driver` (the frozen `live_case_driver`) over all four member
+values, with Failed carrying the fixed code 7 (`:760`). A non-value
+result (trap, fuel, engine error) → ORACLE_MISSING_CASE. Values that
+differ between runs → ORACLE_NONDETERMINISTIC. To make this possible,
+the driver gains variant-typed inputs: `{"member"}` or
+`{"member","payload"}`. The payload is required exactly when the
+case declares one, is never defaulted or dropped, and passes
+production `check_constant`
+(`crates/sley-repo/tests/succ_live_judge_cases.rs:277-336`; driver
+tests `variant_unit_and_payload_members_decode` and
+`variant_payload_is_never_defaulted_or_dropped`). The verdict detail
+now lists the executed values, for example
+`5454={"Result":{"Ok":{"SInt":"107"}}}` in `trial_type_alt_arith.log`.
+Revision 1 wrongly described validation typechecking and the S3 VM
+suite as enforcing "behavior". That wording is withdrawn; see
+Appendix A §6, which is superseded.
+
+**[P2] evidence: logs.** Closed. There is a new directory
+`bench/live/succ-trials-20260923/`; no earlier log was touched. Each
+witness log opens with a `provenance` JSON line: variant, expected
+outcome, effective design (code, status, leafs, mode, flags), UTC
+time, git HEAD and dirty paths, sley and driver binary paths with
+sha256, and sha256 of the manifest, the base pack and the judge. Each
+log also records the judge's JSON verdict (status/code/detail), the
+exit code, and a self-check line (`outcome … expect … -> PASS`). The
+alternatives are distinguishable by their recorded design. Neg_trap,
+neg_typedef_only and the S3 suite (`s3_g1_type.log`) now have logs.
+The revision-1 claims that rested on exit codes alone are marked
+unsupported in §5.
+
+**[P2] test-coverage.** Closed. `bench/live/tests/test_judge_type_variant.py`
+holds 49 cases over decoded-body fixtures. It has at least one case
+per rejection code: TYPE_NOT_MIGRATED ×6, SWITCH_NOT_MIGRATED ×3,
+MISSING_CASE ×5 plus 2 execution cases, FAILED_CODE ×4, TRAP_ARM ×1,
+BOOL_COMPAT_FIELD ×9, NONDETERMINISTIC ×1. It has one case per
+retired-pin acceptance, a full-flow test, and harness-failure cases.
+All pass inside the suite (§6).
+
+**[P3] record-consistency.** Closed. This revision has a single tier
+table (§3) that matches the judge docstring. Retired pins appear
+only under RETIRED. "Failed arm forwards CasePayload" sits in the
+CORPUS tier (D3) in both places. "Failed leaf returns its Block
+param" is RETIRED in both places. There is one approval request (§7),
+and the sections are numbered in order. Revision 1's 4/6/5 ordering
+is preserved only inside Appendix A.
+
+**[P4] stale-doc/dead-code.** Closed. The witness docstring
+(`bench/live/succ_witness_type_full.py:1-55`) now says the
+drop-payload and null-code variants are production refusals that
+stop before the judge, and it names the judge path that
+`neg_dropcode` reaches live. The judge docstring no longer attributes
+production refusals to the judge. The unused `targets` and
+`seen_const_values` bindings are gone. The `switch_entry` and
+`switch_leaf` roles remain descriptive manifest names; the closure is
+carried by `targets`. The `switch_param` role is read (§2).
+
+**[P4] defect-demonstration.** Closed by rewording
+(`bench/live/succ_witness_type.py:6-30`). Under v1 the direct route
+validates in production, because production never reads the manifest
+(the same record validates in `trial_type_pos.log`). The defect is
+that the judge's collateral check then rejects the route (by code
+reading of `_collateral_files`, as the review confirmed). The
+fresh-entry route is stated as asserted and unlogged. It is no longer
+claimed as proven. Appendix A §2's phrase "cannot validate" is
+superseded by this wording.
+
+## 5. Evidence (`bench/live/succ-trials-20260923/`, fresh, revision-2 code)
+
+Accepted, exit 0. Executed values for Queued/Running/Succeeded/Failed(7):
+
+| Log | Design | Executed values |
+|---|---|---|
+| `trial_type_pos.log` | const, Failed(7), leaves 0/1/2 | SInt 0/1/2/7 |
+| `trial_type_alt_code8.log` | status Failed(8) | SInt 0/1/2/7 |
+| `trial_type_alt_queued.log` | status Queued | SInt 0/1/2/7 |
+| `trial_type_alt_shared.log` | leaves 0/0/2 | SInt 0/0/2/7 |
+| `trial_type_alt_uint.log` | UInt64 code and result | UInt 0/1/2/7 |
+| `trial_type_alt_arith.log` | Result<SInt64,Arith> result; checked-add arms; Failed maps code+100 | Ok 0/2/4/107 |
+| `trial_type_alt_join.log` | all arms branch to a shared join block | SInt 0/1/2/7 |
+| `trial_type_alt_failed_fixed.log` | Failed arm binds the code, returns 3 | SInt 0/1/2/3 |
+
+Rejected by the judge, exit 1:
+
+- `trial_type_neg_bool.log` → BOOL_COMPAT_FIELD "status still Bool".
+- `trial_type_neg_typedef_only.log` → BOOL_COMPAT_FIELD "switch
+  result … Bool-typed".
+- `trial_type_neg_bool_const.log` → BOOL_COMPAT_FIELD "constant …
+  Bool-typed".
+- `trial_type_neg_two_param.log` → BOOL_COMPAT_FIELD "function
+  parameter … Bool-typed".
+- `trial_type_neg_trap.log` → TRAP_ARM. The Failed arm keeps its
+  code parameter, and production validates the design, so this
+  corrects revision 1's claim that production refuses the trap.
+- `trial_type_neg_dropcode.log` → FAILED_CODE "Failed arm drops the
+  error code".
+- `trial_type_legacy_mig.log` and `trial_type_legacy_neg.log` (the
+  original witness, stdout captured) → BOOL_COMPAT_FIELD.
+
+Refused by production before the judge runs, with refusal tokens
+decoded from the decision body:
+
+- `trial_type_neg_droppayload.log`: phase 7, CFG_TARGET_ARGUMENTS.
+- `trial_type_neg_nullcode.log`: phase 6, TYPE_CONST_SHAPE.
+
+Other logs:
+
+- `s3_g1_type.log`: frozen S3 suite, 3 passed, 1 ignored (emitter).
+- `rust_gates.log`: `succ_live_packs_frozen` plus the 12 driver
+  tests.
+- `unittest_suites.log`: the bench/live and bench/sley2 suites with
+  binaries bound.
+
+Revision-1 claims that the retained 20260921 logs do NOT support are
+now marked unsupported. Those logs record exit codes only:
+
+- `trial_type_migration.log` ("MISSING_CASE").
+- `trial_type_neg.log` and `trial_type_full_neg_bool.log`
+  ("BOOL_COMPAT").
+- `trial_type_full_neg_code.log` ("ORACLE_FAILED_CODE").
+- The alt_* logs, which record no parameters.
+
+The 20260923 logs replace them as evidence. The old logs are kept
+unmodified as history.
+
+## 6. Gates (this revision)
+
+- `python3 -m unittest discover -s bench/live/tests -t .` with
+  `SLEY2_SLEY_BINARY`, `SUCC_JUDGE_TEST_BINARY` and bwrap bound:
+  247 tests OK, 0 skipped. This includes the real-oracle mediated
+  TYPE proof in `test_mediated_attempt.py`, which now executes the
+  switch. Unbound (binaries not exported): 247 OK, 75 skipped. Both runs are in `unittest_suites.log`.
+- `python3 -m unittest discover -s bench/sley2 -t .`: 23 OK.
+- `cargo test -p sley-repo --test succ_live_emit --test succ_live_judge_cases --test s3_g1_type`:
+  1+12+3 passed (1+0+1 ignored emitters).
+- `make lint` at `9a674053` (the evidence commit): PASS
+  (clippy_clean, 0 warnings, fmt_clean, lint inputs clean, working
+  tree clean). `evidence/build/lint-report.json` was restored
+  afterwards and is not committed.
+
+## 7. Reviewer action requested (single request)
+
+Approve, before any cherry-pick to `main`:
+
+- (a) the 6d/6e closure plus the named `switch_param` role (manifest
+  sha256 change in §2; pack unchanged);
+- (b) the revision-2 predicate table (§3), including the two
+  disclosed base-proxy restatements and the interpretation
+  boundaries;
+- (c) the execution half (§3 row E) and the additive driver
+  variant-input support.
+
+No campaign or GA claim follows (`ga_claimed=false`; the live-model
+prerequisites are unsatisfied).
+
+## 8. Preservation and holds
+
+Preserved:
+
+- the original manifest (`task_manifest.v1-frozen.json` and the git
+  history);
+- all `succ-trials-20260920/` and `20260921/` logs (unmodified);
+- `main` (untouched) and other worktrees and branches (untouched);
+- the frozen corpus and the S3 suites (unchanged);
+- revision 1 of this packet (Appendix A).
+
+Holds are unchanged: fixture-design review before main adoption, and
+the operator and resource holds (AR-02, R2, C1, lab, publication,
+signing, release).
+
+---
+
+## Appendix A — revision 1 (superseded; verbatim, headings demoted one level)
+
+## TYPE fixture correction — review packet (work branch only, 2026-09-20;
+amended 2026-09-21 with oracle provenance correction)
+
+Branch: `work/succession-sley20-arm` (base `e8aef7c0`, now `0b26c39c`).
+Status: implemented + proved on the work branch; **not** adopted to
+`main`. Fixture-design review retained before any main adoption.
+`ga_claimed=false`.
+
+### 1. Governing rule
+
+- Frozen corpus: `bench/corpus/v1/tasks.json` S2B-TYPE-001 (FROZEN_DESIGN,
+  unchanged by this packet) requires replacing a running boolean with a
+  JobState tagged variant (Queued, Running, Succeeded, Failed(error_code))
+  and updating constructors, switches, and tests; frozen outcomes demand
+  no boolean status binding, exhaustive handling of all four cases,
+  explicit Failed error code, and deterministic values.
+- Benchmark plan `mutation_rule`: corpus v1 is append-protected; semantic
+  task/oracle changes need a new corpus version. This packet changes no
+  corpus task and no S3 oracle: it corrects the sley_2_0 emitter closure
+  (`fixture_status: PENDING` for `sley_2_0`) to match the frozen task.
+- Determinism gate: `succ_live_packs_frozen` (re-derives every pack +
+  manifest in memory) must pass. It passes after this packet.
+- Production validation is not weakened: `candidate.validate`/`commit`
+  paths untouched; the live judge is strictly strengthened (new
+  rejections only; old positives still reject, new positive proves more).
+
+### 2. Defect (demonstrated, not relabeled)
+
+Under the v1 closure (`targets`: status 0x65, switch 0x6b, param 0x6c)
+a complete migration cannot validate:
+- Phase-7 judges operations in unreachable blocks (ControlFlowError).
+- New arms cannot join switch 0x6b's CFG without editing entry 0x6d
+  (frozen true→0x6d self-loop, false→0x6e), which was not a target.
+- Frozen edges lock 0x6c:Bool (CondBranch condition) and switch
+  result:Bool (0x6e returns 0x6c).
+Evidence (retained): `succ-trials-20260921/trial_type_migration.log`
+(typedef + Failed(7) validates but judge ends MISSING_CASE),
+`trial_type_neg.log` (BOOL_COMPAT). Original manifest preserved as
+`bench/fixtures/sley2/S2B-TYPE-001/task_manifest.v1-frozen.json`
+(sha256 `4b9e2eac…`; see git history `e8aef7c0`).
+
+### 3. Exact correction (patch)
+
+- `crates/sley-repo/tests/succ_live_emit.rs::base_type`: targets
+  `[0x65, 0x6b, 0x6c]` → `[0x65, 0x6b, 0x6c, 0x6d, 0x6e]`; manifest roles
+  gain `switch_entry` (0x6d) and `switch_leaf` (0x6e). Bodies unchanged,
+  so `base.pack` bytes and `pack_digest_blake3`
+  (`7579dee1…`) are unchanged.
+- `bench/fixtures/sley2/S2B-TYPE-001/task_manifest.json`: regenerated by
+  the pinned emitter (`cargo test emit_succ_live_packs -- --ignored`);
+  diff is entities + targets only (8 lines).
+- `bench/fixtures/sley2_live_judge.py::_judge_type_variant`:
+  strengthened to require the frozen predicates (typedef 4 members with
+  one Some(SInt); status Failed(7); param Named; switch SInt result with
+  exhaustive sorted VariantSwitch; 5 Required blocks with no Trap; Failed
+  arm forwards CasePayload; leaves return distinct SInt; every block is
+  entry-or-target). New codes: `ORACLE_TYPE_NOT_MIGRATED`,
+  `ORACLE_SWITCH_NOT_MIGRATED`, `ORACLE_FAILED_CODE`, `ORACLE_TRAP_ARM`.
+  No predicate removed; no production check weakened.
+- New witness `bench/live/succ_witness_type_full.py` (original
+  `succ_witness_type.py` untouched): full migration through the real
+  tool surface (propose/compose/finish) + live judge. Provenance
+  parameters (`TYPE_CODE`, `TYPE_STATUS`, `TYPE_LEAFS`,
+  `TYPE_NULLCODE`, `TYPE_DROPPAYLOAD`) drive the alternative proofs
+  in §6 without touching the default positive.
+
+### 4. Fresh proof (real endpoint/tool/judge, distinguishing negatives)
+
+Binaries: `/home/dev/Work/checkpoints/sley2-cargo-target/debug/sley`
+plus `wt-succ/target/debug/deps/succ_live_judge_cases-42d77a02eb446c77`
+(env `SLEY2_SLEY_BINARY`, `SUCC_JUDGE_TEST_BINARY`).
+
+- Positive: `succ-trials-20260921/trial_type_full.log` → ACCEPTED
+  (exit 0). Full JobState migration validates (compose Valid) and the
+  strengthened judge accepts. Re-verified after the §6 correction as
+  `trial_type_pos_req7.log` (still ACCEPTED: the correction only
+  retires restrictions, never weakens corpus predicates).
+- Negatives (all reject, exit 1 unless noted):
+  - `trial_type_full_neg_bool.log` → `ORACLE_BOOL_COMPAT_FIELD`
+    (status still Bool).
+  - Typedef-only (status Failed, switch untouched) → rejected
+    (`ORACLE_BOOL_COMPAT_FIELD` on param; old `trial_type_migration`
+    design retained as historical evidence).
+  - Trap arm → production `compose` refuses (`valid False`,
+    phase 7); trap cannot satisfy the count.
+  - RETIRED: `trial_type_full_neg_code.log` (Failed(8) →
+    `ORACLE_FAILED_CODE`) is preserved as historical evidence of the
+    §6 retired restriction (literal-7 pin). It no longer represents a
+    violation: Failed(8) accepts (see `trial_type_alt_code8.log`).
+- Regressions: `succ_live_packs_frozen` PASS; `sley2_tool`/`taskpacks`
+  suites green; old `succ_witness_type.py mig/neg` still reject, never
+  accept. `s3_g1_type` re-run with the re-proofs (§7 of the finish
+  goal; frozen S3 unchanged by this packet).
+
+### 6. Oracle provenance correction (amendment 2026-09-21)
+
+Requirement trace for the literal Failed(7):
+
+- The frozen corpus (`bench/corpus/v1/tasks.json` S2B-TYPE-001)
+  requires "Failed carries an explicit error code" and forbids "null
+  error". It pins NO literal value and NO status value.
+- The frozen S3 suite (`crates/sley-repo/tests/s3_g1_type.rs`) uses
+  Failed(7) as one TEST-VECTOR literal (payload 7 round-trip through
+  real VM execution). It proves the machinery carries explicit codes;
+  it does not state Failed(8) violates.
+- The `0b26c39c` judge pinned literal 7 (`inner_data value != 7`) and
+  status-is-Failed and distinct-leaf-constants. Those three pins came
+  from the positive witness's choices, not from any frozen tier.
+  They were unsupported restrictions and are corrected here through
+  this review packet (work-branch implementation, main adoption
+  still held).
+
+Corrected predicates (judge `_judge_type_variant`, same function):
+
+- CORPUS tier (unchanged, still enforced): no Bool bindings; 4-member
+  typedef with exactly one Some(SInt); exhaustive sorted Member
+  VariantSwitch with all-Required no-Trap arms; every block
+  entry-or-target; Failed arm forwards CasePayload; Failed leaf
+  returns its Block param (SInt); explicit fixed SInt values.
+- FIXTURE tier (manifest v2 closure, review-gated): 5-role closure;
+  switch result SInt with SInt-constant leaves.
+- RETIRED (alternatives now accept, proved below): literal code value
+  (any explicit SInt); status value (any typedef member; the
+  explicit-payload rule applies iff the value IS Failed); leaf
+  distinctness (deterministic each; shared constants accept).
+
+The corrected wrong-code negatives demonstrate loss/corruption of the
+required payload, not disagreement with the witness literal. Both
+refuse in production validation (behavioral enforcement by the
+execution machinery, before any judge code runs):
+
+- `trial_type_neg_droppayload.log` → production `compose` refuses
+  (`valid False`, failed_phase 7, tag 10): a Failed arm without
+  CasePayload (loss of the required error-code carriage) cannot
+  validate. The judge's `ORACLE_FAILED_CODE` "drops payload" path
+  remains as a fail-closed backstop.
+- `trial_type_neg_nullcode.log` → production `compose` refuses
+  (`valid False`, failed_phase 6, tag 9): a Failed member with null
+  payload (forbidden null error) cannot validate. The judge's
+  `ORACLE_FAILED_CODE` "null payload" path remains as backstop.
+
+Alternative positives (each full migration through the real surface,
+each ACCEPTED exit 0 under the corrected judge):
+
+- `trial_type_alt_code8.log` (Failed(8), distinct leaves).
+- `trial_type_alt_queued.log` (status Queued unit; Failed path still
+  live in the switch with payload forwarding).
+- `trial_type_alt_shared.log` (Queued/Running leaves share constant
+  0; deterministic, non-distinct).
+
+Structural vs behavioral separation:
+
+- Structural (parse-level, judge): typedef shape/counts, sorted
+  Member-key coverage, Required/no-Trap arms, closure membership.
+- Behavioral (execution machinery): server-side candidate.validate
+  exercises every arm at validation time (CasePayload forwarding is
+  checked against validation, and null payloads refuse at phase 6);
+  judged bodies are read LIVE from the served post-commit head
+  (entity.version), not parsed from record bytes; SInt round-trip
+  determinism is executed by the frozen S3 VM suite.
+
+Reviewer action requested (amended): approve (a) the 6d/6e closure,
+(b) the corrected three-tier predicate set, and (c) retirement of
+the literal-7 / status-is-Failed / distinct-leaves restrictions with
+the replacement negatives above, before any cherry-pick to `main`.
+
+### 5. Preservation and holds
+
+- Preserved: original manifest (`task_manifest.v1-frozen.json` + git
+  history), all `succ-trials-20260920/` + `20260921/` logs (new logs
+  added, none overwritten), `main` (`8966da2e`, untouched; dirty
+  worktree preserved outside this worktree), `wt2`/`acbc65f0`, release
+  artifacts, pending review inputs, operator/resource holds
+  (AR-02, R2, C1, lab, publication, signing, release).
+- Reviewer action requested: approve (a) the 6d/6e closure as the
+  legitimate mutation closure for the frozen constructor/switch/test
+  requirement, and (b) the strengthened TYPE judge predicates, before
+  any cherry-pick to `main`. No campaign or GA claim follows from this
+  packet (`ga_claimed=false`; live-model prerequisites unsatisfied).

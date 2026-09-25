@@ -1,0 +1,40 @@
+DISPATCH S20-330 Nabu architecture second re-review 2026-09-05
+
+handoff_id: handoff_1788665836706_a172616798d5b3b872ec
+attempt_id: attempt_1788665836706_6910181d0e9bc512974f
+Repository: /home/dev/sley2
+Pinned HEAD: bec446886d18441b35cfa48bcadb6f3a96ad6f9b
+Residual commit reviewed: bec4468 (diff bec4468~1..bec4468)
+Mode: bounded read-only triage; this log is the sole permitted write. No cargo or make.
+Confidence: high.
+
+Verdict: PASS. The first Nabu re-review residual is closed at bec4468, and the bounded target diff introduces no new P0, P1, P2, or P3 architecture finding.
+
+Residual disposition
+
+Nabu P2-4 CLOSED — scripts/check_session_handle_profile.py now parses the SessionErrorCode::as_str and SessionErrorCode::numeric match blocks into variant-keyed mappings, requires eight entries in each mapping, constructs each variant's (numeric, symbol) pair, and reports every frozen CODES pair absent from that set (scripts/check_session_handle_profile.py:389-409). With eight entries in each block, requiring all eight distinct frozen pairs makes the accepted pair set equal the frozen CODES table; swapping two numeric arms leaves both literals present but makes both expected variant-bound pairs absent. The current session.rs mappings resolve exactly to 33000/SESSION_UNKNOWN through 33007/SESSION_BINDING_INVALID (crates/sley-protocol/src/session.rs:31-80). This directly closes the prior failure mode.
+
+Bounded target-diff checks
+
+- Precedence alignment is coherent: profile section 3 and ADR-0033 now put the head-bound root at check 5 and budget at check 6, matching Server::dispatch calling session_check before the budget test and SessionAuthority::check_session checking workspace, epoch, then root (docs/spec/SESSION_HANDLE_PROFILE_V1.md:131-197; docs/adr/ADR-0033-negotiated-session-boundary.md:54-63; crates/sley-protocol/src/server.rs:594-624,796-801; crates/sley-protocol/src/session.rs:421-440).
+- binding_failures_precede_budget_exhaustion now covers the stale-root-plus-exhausted case before restoring the valid bound repository for the budget failure. The replacement uses workspace byte 1, matching the original harness workspace, but a structurally different dependency-free root, so it isolates SESSION_ROOT_ADVANCED rather than workspace mismatch (crates/sley-protocol/src/server_tests.rs:1448-1477; crates/sley-protocol/src/server_tests.rs:78-81,192-213; crates/sley-repo/src/test_support.rs:106-127).
+- The T15 matrix and recording definition name the precedence test and the exhausted/stale assertion; the checker already requires matrix test names to exist. No architecture inconsistency was found in the bounded evidence change.
+- ADR decision 7 binds exact SESSION_* variant/symbol/numeric pairs and consistently says five method lists; the profile revision history likewise says five-way. Vulcan's wording residual is closed.
+- Collateral target-commit changes are review/evidence/campaign records and formatting; no new architecture finding was found.
+
+Validation actually performed
+
+- git status --short: before this log, only two unrelated untracked round-2 peer logs were present; untouched.
+- git rev-parse HEAD and bec4468: both resolved to bec446886d18441b35cfa48bcadb6f3a96ad6f9b; parent resolved to bf715f9c33d0a3235e01af8c670ce5b3ae46977d.
+- git show --stat bec4468; targeted git diff bec4468~1..bec4468 over all changed paths; git diff --check passed with no output.
+- Targeted reads of the first Nabu re-review, checker parser and exact-pair logic, SessionErrorCode mappings, server dispatch/session_check, precedence regression, genesis helper, profile sections 3 and 9, ADR decision 7, T15/T47/T56 matrices, closeout, campaign, and matrix recorder.
+- Read-only inline parsing of the same checker regexes over current session.rs produced 8 symbols, 8 numerics, and exactly the eight frozen pairs.
+- No cargo, make, repository checker execution, deployment, merge, provider action, public action, or locked-canon mutation.
+
+S20_330_ARCHITECTURE_REREVIEW2_JSON={"reviewer":"nabu","result":"PASS","p0":[],"p1":[],"p2":[],"p3":[],"notes":"High confidence. The exact variant-to-(numeric, symbol) checker binding closes the first Nabu re-review residual at bec4468; the bounded target diff adds no new report-grade finding."}
+
+status: complete
+findings: PASS; first re-review P2 residual closed; no new P0/P1/P2/P3 in bec4468~1..bec4468.
+validation: bounded git/file inspection at pinned bec4468; git diff --check clean; no cargo or make.
+blockers: none.
+return_to: orchestrator

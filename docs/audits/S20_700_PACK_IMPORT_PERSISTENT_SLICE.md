@@ -1,0 +1,144 @@
+# S20-700 Repository-Pack Import Persistent Slice
+
+Status: scoped persistent landed-surface slice; **full S20-700 remains incomplete**
+
+This slice hardens the completed S20-170 root/object-only repository-pack
+importer. It does not begin refs, transactions, compression, signatures,
+clone-equivalent exchange, merge, or release packaging.
+
+The libFuzzer target has two deterministic input lanes:
+
+- direct bytes exercise the exact outer envelope, digest, profile, schema,
+  state-root, object-closure, verifier, and clean-store import path;
+- rehashed bytes replace only the final `RepositoryPackId` trailer so mutations
+  can reach inner payload checks instead of stopping at the outer digest.
+
+Both lanes are bounded to 65,536 payload bytes. A failed import must leave the
+clean store without an `objects` tree. A successful import must bind the exact
+pack ID, find no preexisting objects, and import a second time with identical
+roots and present-only object accounting. The fixture verifier is intentionally
+limited to the two S20-170 conformance object contracts. It is not a production
+object-schema registry or authority.
+
+The deterministic corpus comes from
+`conformance/repository-pack/v1/accepted.json` and includes direct and rehashed
+canonical, truncation, trailing-byte, and single-bit mutation seeds. Runtime
+corpus, binaries, artifacts, and evidence remain under ignored
+`evidence/runtime/` paths.
+
+This slice does not cover the deferred full S20-540 pack, merge, protocol,
+mutation-candidate, VM-input, or adapter-response surfaces. A bounded Vulcan
+handoff could not start because the local Forge OAuth session returned 401, so
+independent review of this persistent addition remains deferred.
+
+Superseded 2026-09-11: Vulcan re-reviews of the repaired harness are filed (round 7 wave); see evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/.
+
+Focused validation:
+
+```text
+cargo test -p sley-repo bounded_pack_import_fuzz_smoke_rejects_rehashed_mutations --locked
+python3 scripts/check_pack_persistent_fuzz_slice.py
+make pack-persistent-fuzz-smoke
+python3 scripts/run_pack_persistent_fuzz.py --manual
+```
+
+## Repair round 7 (REQ-06 fuzz repair wave)
+
+The REQ-06 REVISE findings against this slice's harness are repaired in
+the runner: `--locked` builds, workspace-wide owner-lib coverage via
+`-Zhost-config` + target rustflags with trace-compares/pc-table (the old
+bin-only flag left zero `sancov` symbols in owner rlibs; the gate now
+fails closed on zero family-wide symbols and zero symbols in the slice's
+owner rlib), an on-disk coverage floor (corpus files plus 256 guaranteed
+mutations, replacing seed-count enforcement, which decayed as libFuzzer
+added inputs), persistent corpus directories with stale-seed sync, crash
+minimization via `-minimize_crash=1` with exact artifacts (round-7c fixed
+the `-merge=1` primitive, which merges corpora and cannot minimize a
+crasher), executed/inline-counter-coverage/crash evidence gates, a
+dedicated build timeout, and append-only artifacts. The slice proved
+locally PASS with executed >= floor, inline 8-bit counters observed,
+zero crash artifacts, and nonzero owner-rlib `sancov` counts; the durable
+record is `machine-summary.json` `last_local_proof` (runtime
+`evidence.json` files are gitignored by design). The decoder is safe
+Rust, so no ASan is instrumented; the oracle and seed neighbourhood are
+unchanged (bounded smoke, not a probe). The pinned qualification
+toolchain is unchanged (`clang-18`, pinned libfuzzer path,
+`nightly-2026-02-27`); the local proof ran under documented
+`SLEY_FUZZ_CC` / `SLEY_FUZZ_LIBFUZZER_A` overrides, and the pinned
+qualification default itself has no recorded proof on this host (the
+evidence `toolchain_versions` field captures exactly what ran).
+Re-review of the slice's Vulcan verdict is queued, not assumed.
+
+## Rounds 7c-7m (REQ-06 re-review wave)
+
+Crash minimization uses `-minimize_crash=1` with exact artifacts (the
+round-7 `-merge=1` primitive could not minimize a crasher); the coverage
+floor measures on-disk corpus files plus 256 mutations; coverage gates
+strictly on inline counters with monotonic `ft` (no silent fallback);
+the owner gate counts the rlibs cargo linked (fingerprint-authoritative,
+`rlib_linkage` recorded, fail-closed with no mtime fallback); warnings are
+captured from the full streams against an explicit allowlist; builds
+refuse ambient `RUSTFLAGS`; prior crashers re-execute every smoke
+(crash-to-regression); per-input `-timeout=30` and `-rss_limit_mb=2048`
+bound hangs; libFuzzer seeds are recorded; build provenance
+(`build_locked`, `sancov_scope`) derives from the executed argv; the
+fuzz profile enables overflow checks and debug assertions. Manual
+campaigns remain operator exploration (no floor/limits parity by
+design). Slice oracles were strengthened per verdict (engine-invariant
+asserts, must-reject refusals, narrowed Err arms, constructed-valid
+import/decode lanes); the pinned clang-18 default has no recorded proof
+on this host.
+
+## Rounds 7k-7m (second re-review wave)
+
+The linked-rlib replay carries the build environment (an env-less replay
+rebuilt and relinked the binary after the recorded build); the mtime
+fallback is deleted, so a failed cargo query fails the gate instead of
+passing on unknown provenance. Crash gating distinguishes new crashes
+from retested priors (fixed priors pass with a recorded retest). The
+minimize step skips clean-retested artifacts, bounds internal steps, and
+keeps partial exact artifacts; durations compute last. Slice oracles
+gained engine-invariant asserts, must-reject refusals, narrowed Err
+arms, constructed-valid lanes, and a server-fixture validity gate with
+a unit-level negotiation self-check; filed regressions replay as corpus
+seeds. See the wave's decision packets for elevated owner items.
+
+## Target-closure wave (rehash-lane repair, operator-authorized redesign)
+
+The outer-trailer rehash lane is joined by a resealed-content-mutation
+lane (selector 2 of 3): two test-only-by-convention public `sley-repo`
+helpers (`decode_conformance_pack_entries_for_testing`,
+`seal_mutated_conformance_pack_for_testing`; `export_conformance_pack`
+itself unchanged) reuse `decode_envelope` / `decode_payload` /
+`build_pack` verbatim, so a mutated pack passes step 2
+(digest tree) and reaches the root/closure/object checks with
+attacker-controlled bytes. The lane reads class/index/bit control bytes
+first and decodes the remaining pack bytes (controls placed after the
+selector, matching the runner's seed layout); undecodeable lane-2 inputs
+fall through to the direct lane. Five input-selected classes bind the
+contract failure per bound component: unmutated re-seal must import
+cleanly with pack-id and root-claim binds, byte-identical round-trip,
+plus idempotence; mutated object bytes must fail `PACK_OBJECT_CORRUPT`;
+mutated object-id claims must fail `PACK_OBJECT_MISSING`, or
+`PACK_CANONICAL_ORDER` where the flip breaks entry ordering (order is
+checked structurally before closure); mutated root bytes must fail
+`PACK_ROOT_INVALID`; mutated state-root claims must fail
+`PACK_ROOT_INVALID`, or `PACK_CANONICAL_ORDER` likewise. All five
+classes are proven reachable: the twenty control seeds (5 classes x 2
+positions x 2 bits over the canonical pack, four per class) each execute
+clean through the proof binary.
+The `Err(_)` no-store assertion now exempts only the step-6 promotion symbols
+(`STORE_IO`, `STORE_OBJECT_SUBSTITUTION`); every preflight rejection still
+asserts no store writes. Twenty control seeds (5 classes x 2 positions x
+2 bits over the canonical pack) join the corpus; generated seeds
+320 -> 500, `SELECTOR_COUNT` 2 -> 3. No change to `verify_digest_tree`,
+error codes, step order, validating paths, or `export_conformance_pack`.
+The retained smoke artifacts were harness-oracle expectation errors
+(wrong class assumed for a claim flip; exact-symbol expectation on an
+order-breaking claim flip), never engine defects; both retest clean.
+The second artifact's bytes equal control seed-0493 (class 3 / index 0 /
+bit 7): the live oracle probe that produced the claim-order precedence
+sets. The qualifying re-review of the c7fec98 fix returned PASS
+(transcript vulcan_review-c7fec98.md); this records commit closes its
+P3 record findings (tracked proof refresh + set-based lane description
++ seed/artifact counts). Proofs bound to older source states are invalid.

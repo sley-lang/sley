@@ -1,0 +1,5 @@
+CREATE witness/neg_wrongtotal: skeleton valid False
+CREATE witness/neg_wrongtotal: compose valid True decision {'failed_phase': None, 'tag': 1}
+CREATE witness/neg_wrongtotal: finish {'command': ['finish'], 'outcome': 'completed', 'report': {'finished': True, 'sha256': 'dc5e80bb1518e2142b33c472f6882463763d2fa9e301ae07686189957a32a3c4'}, 'return_code': 0, 'stderr_bytes': '', 'stderr_text': '', 'stdout_bytes': '', 'transcript_sha256': 'f451df97263b3aa214a4d3d136135bc3727eafa7c70ec933c38046dde8a6fdf4', 'truncated': False}
+S2B-CREATE-001 witness/neg_wrongtotal judge round-1 exit: 1 code: ORACLE_CREATE_MISMATCH status: rejected
+workspace kept at: /tmp/sley2-create-witness-uzoe6u10/ws

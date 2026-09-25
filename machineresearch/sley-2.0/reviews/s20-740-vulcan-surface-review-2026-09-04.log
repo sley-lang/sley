@@ -1,0 +1,58 @@
+DISPATCH 740-vulcan-surface forge-vulcan-740-vulcan-surface-20260904T105107 2026-09-04T10:51:07Z
+forge agent: detected parent timeout 3200s; capping OpenClaw timeout to 3000s and wrapper timeout to 3180s so session recovery can run
+I'll start by reading the contract, ADR, and campaign record.
+
+**status: FAIL** — the contract is not freeze-ready. Four P0s, all evidence-integrity.
+
+## findings
+
+### P0 — blocks freeze
+
+**P0-1. `FINDING_REGISTER_CLEAR` can be reached with an open P0 in the same summary.**
+`build_finding_register.py:161` takes `declared_open_findings` from the summary's top-level `open_findings` only — currently `{p0:0,p1:0,p2:0,p3:0,p4:0}`. But `machine-summary.json` also carries `complete_root_index_snapshot.p0_open` with a live open P0 (exchange import allowlisting a pre-existing `index/v1` cache). The register never reads per-package `*_open` arrays and never reconciles them against the counter. Contract §3 rule 1 makes the clear/open verdict depend on that unverified self-report. Fix: derive the counters from per-package open-finding arrays, or fail closed when a `*_open` array is non-empty while the counter reads zero.
+
+**P0-2. `HISTORICAL_ROUND` launders currently-open failures, and the sole hard invariant is bypassable.**
+`classify()` assigns `HISTORICAL_ROUND` on prefix `FAIL`/`REVISE` alone, and §2/§3 rule 2 and ADR decision 3 explicitly *permit* that state inside a `COMPLETE` package. Nothing requires a superseding `PASS` in the same section. Live counterexample at this commit: `complete_root_index_snapshot` has `status: S20_300_FULL_IMPLEMENTED_REVIEW_PENDING`, all three reviews `FAIL_*` (`FAIL_1_P0_4_P1_3_P2_3_P3`, etc.), zero `PASS` obligations in the section, and an open P0. §2's claim that `FAIL` "records a superseded review round of a package that later passed or was revised" is false as written. As specified, renaming a still-open failure `FAIL_*` and setting status `COMPLETE` passes `REGISTER_COMPLETION_VIOLATION`. Fix: `HISTORICAL_ROUND` must require a `PASS` obligation for the same reviewer role in the same section; otherwise the state is `OPEN_FAILURE` and counts as an open review.
+
+**P0-3. Contract §3 does not describe the artifact it freezes.**
+The register schema in §3 omits `obligations` — the 201-entry array that is the register's entire per-obligation payload and the input to `obligations_digest` (`build_finding_register.py:183`). `check_finding_register.py` validates `contract`, `result`, `complete_packages_with_open_reviews`, and three counter cross-checks, and never touches `obligations`. Freezing revision 1 freezes a schema under which the array could be dropped entirely with every check still green.
+
+**P0-4. `severity_mentions` counts negations as occurrences.**
+`SEVERITY.findall` over the disposition string means `PASS_NO_OPEN_P0_P1_P2` contributes P0, P1, P2. Of 51 severity-bearing obligations, 16+ are absence declarations. Reported `{P0:34, P1:45, P2:47, P3:24, P4:15}` mixes "one P0 found" with "no open P0". §Boundary claims the register answers "at what severity"; it does not, and the dossier item "findings by severity and disposition" (master goal 16.7 / 26.9) is unmet.
+
+### P1 — must fix before freeze
+
+**P1-5. `S20_740_COMPLETE` is unreachable.** `check_finding_register.py:141` requires `independent_review == "PENDING"` for *every* status; `:195` requires `== "PASS"` at `COMPLETE_STATUS`. Contradiction — the terminal stage in contract §5 can never pass.
+
+**P1-6. The completion invariant only inspects top-level sections.** `build_finding_register.py:135-139` iterates `summary.items()` only and matches violations by `section.split(".")[0]`. A nested subsection whose own status ends `COMPLETE` under a non-complete parent escapes; `protocol.slice_c` already carries an independent nested status. The per-obligation `package_status` (inherited at `:88`) is reported but never used by the check, so the register can print `package_status: *_COMPLETE` beside a `PENDING` obligation with no violation raised.
+
+**P1-7. Obligation selection is silent-drop with no audit surface.** `SKIP_FIELD` is unanchored (`note`, `timestamp`, `reviews$`, `_by$`, `_id$`) and `INSTANT`/`SESSION` filter *values*. Any obligation matching is excluded with no `excluded_candidates` list and no reconciliation count. An obligation can be removed from the evidence artifact by field naming, undetectably. Add an excluded-candidates list to the register and to §1.
+
+**P1-8. The campaign record's result section is stale and materially wrong.** It reports 181 obligations / 84 PASS / 60 PENDING / 24 HISTORICAL / 29 P0; the tracked register reads 201 / 85 / 75 / 28 / 34. It asserts severity mentions are "all of them inside dispositions that also record closure or supersession" and that HISTORICAL_ROUND entries are "superseded rounds of packages that later passed" — both refuted by P0-2. It also states "none of them carries an open review" as if proven, when the check has the P1-6 hole.
+
+### P2 — fix before completion
+
+- **P2-9.** `declares_closed_findings` / `declares_no_open_p0_p1_p2` are unanchored substring matches (`"CLOSED" in value`) on strings the reviewed package wrote about itself. Negation-unsafe and unverified; §2 must state they carry no evidentiary weight.
+- **P2-10.** State `OTHER` never blocks clearance. `mutation_value_profile.merlin_review = TIMED_OUT_PARTIAL_HANDOFF_INTEGRATED_BY_CODEX` is an unresolved review that is not in `open_reviews` and does not prevent `FINDING_REGISTER_CLEAR`. A timed-out review must be open.
+- **P2-11 (answer to open question 3).** No — the register is not enough to start an independent review. It proves obligation *coverage* and *state*; it carries no finding identity, no finding text, no severity that survives negation, no owning commit, no evidence link. S20-740 needs a second artifact: a per-finding record keyed by finding id with title, severity, disposition, owning package, and closing commit, with the register cross-checking obligation states against it and against the `*_open` arrays. Keep the register — it is the right coverage layer — but it cannot be the dossier's severity input.
+
+### P3 — editorial
+
+- **P3-12.** `FORBIDDEN_REGISTER_MARKERS` includes bare `greyforge`; a legitimate disposition or section name containing it fails the checker as a privacy violation. Scope to path forms (`/home/`, `file://`, absolute prefixes).
+- **P3-13.** `SPEC_MARKERS` pins the literal `"Status: S20-740 contract draft"`, so updating the status line at freeze breaks `make quick`. Pin a stable heading instead.
+
+## other open questions
+- **Q1 (Ariadne).** Surface view: moving them to a superseded list is secondary to P0-2. Whatever the placement, the state must be *earned* by a same-section superseding PASS, not by prefix.
+- **Q2 (Nabu).** Keep the summary as the single source, but the summary is not currently complete — `p0_open` arrays hold finding text the register ignores (P0-1). Fix the summary schema rather than parsing campaign records; parsing prose would create the second, driftable source ADR-0042 exists to prevent.
+
+## validation
+Read-only. No repo modification, no `cargo`, no `make` target. Verified against worktree `9dc78fe`. Evidence: static read of contract/ADR/builder/checker/tests, plus offline `python3 -c` inspection of the tracked `evidence/review/finding-register.json` and `machine-summary.json` (counts, state distribution, severity-bearing dispositions, section-level PASS/FAIL correlation, nested-status sections, `*_open` arrays). 9 targeted reads/searches.
+
+## blockers
+P0-1 and P0-2 are live at this commit, not latent. Confirming the P1-5 unreachable-COMPLETE defect end-to-end would require running the checker at `COMPLETE` status; the contradiction is deterministic on read (`:141` vs `:195`) and I did not execute it.
+
+## return_to
+Orchestrator — contract revision 2 before freeze; hand builder/checker fixes to Merlin.
+
+S20_740_SURFACE_REVIEW_JSON={"reviewer":"vulcan","result":"FAIL","p0":["declared_open_findings reads only the top-level open_findings counter and ignores per-package *_open arrays; complete_root_index_snapshot.p0_open holds a live open P0 while the counter reads zero, so FINDING_REGISTER_CLEAR is reachable with an open P0","HISTORICAL_ROUND is assigned on FAIL/REVISE prefix alone and is permitted inside COMPLETE packages with no required superseding PASS; complete_root_index_snapshot has three FAIL reviews, no PASS, status REVIEW_PENDING and an open P0, so the completion invariant is bypassable by naming an open failure FAIL_*","contract section 3 register schema omits the obligations array that carries the entire per-obligation payload and feeds obligations_digest; check_finding_register.py never validates it, so freezing revision 1 freezes a schema that does not describe the artifact","severity_mentions counts negations as occurrences (PASS_NO_OPEN_P0_P1_P2 contributes P0,P1,P2), so the reported severity totals are not findings by severity and the master goal 16.7/26.9 dossier item is unmet"],"p1":["S20_740_COMPLETE is unreachable: check_finding_register.py:141 requires independent_review==PENDING for every status while :195 requires PASS at COMPLETE","completion invariant scans only top-level summary.items() and matches by section.split('.')[0], so a nested COMPLETE subsection escapes; per-obligation package_status is reported but never used by the check","obligation selection silently drops fields and values via unanchored SKIP_FIELD/INSTANT/SESSION regexes with no excluded-candidates list or reconciliation count, so an obligation can be hidden by field naming","campaign record result section is stale and wrong (181/84/60/24/29 vs actual 201/85/75/28/34) and asserts all severity mentions record closure and all HISTORICAL_ROUND rounds later passed, both refuted"],"p2":["declares_closed_findings and declares_no_open_p0_p1_p2 are unanchored substring matches on unverified self-assertions and are negation-unsafe","state OTHER never blocks clearance: mutation_value_profile.merlin_review TIMED_OUT_PARTIAL_HANDOFF is unresolved yet not counted open","answer to open question 3: the register is not sufficient to start an independent review; S20-740 needs a per-finding record with id, title, severity, disposition, owning package and closing commit, cross-checked by the register"],"p3":["FORBIDDEN_REGISTER_MARKERS includes bare 'greyforge', which fails the checker on a legitimate disposition string; scope to path forms","SPEC_MARKERS pins the literal draft status line, so updating it at freeze breaks make quick"],"notes":"Read-only at 9dc78fe; no cargo, no make. Register proves obligation coverage but not findings by severity; two P0s are live at this commit, not latent."}
+EXIT=0 2026-09-04T10:54:31Z

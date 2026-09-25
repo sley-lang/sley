@@ -1,0 +1,7 @@
+phase1 map: e312ac3cb5b59579
+phase2 work: 96d0021334bfa876
+phase3 table/probes/vec/lost: 4478060353f8e5ad f621db77d09fd426 44c483e73f349a02 3323a4a0127bb0d6 30bbab6931632ee0
+phase4 valid: True 534c45594352533101b7030d0101010220af4d6f48bf3b556b1ff160a36990a9226a731135b40daa36a8630ab4e49c29790302000004207d8ffff97a3fdafc49b4329d47b0b12f04759c3124274024016483a263265d540520f8c2f8a4522c4d6d9c4ea6
+S2B-PERF-001 exit: 0
+{"arm": "sley2", "code": null, "detail": "all flows held", "status": "accepted", "task_id": "S2B-PERF-001"}
+kept /tmp/opencode/perf_ws_kept

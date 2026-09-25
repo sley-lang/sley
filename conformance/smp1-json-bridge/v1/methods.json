@@ -1,0 +1,295 @@
+{
+  "contract": "docs/spec/SMP1_JSON_BRIDGE_V1.md",
+  "method_count": 41,
+  "methods": [
+    {
+      "family": "session",
+      "name": "session.open",
+      "owner": "S20-330",
+      "reserved": false,
+      "tag": 100
+    },
+    {
+      "family": "session",
+      "name": "session.renew",
+      "owner": "S20-330",
+      "reserved": false,
+      "tag": 101
+    },
+    {
+      "family": "session",
+      "name": "session.close",
+      "owner": "S20-330",
+      "reserved": false,
+      "tag": 102
+    },
+    {
+      "family": "session",
+      "name": "session.capabilities",
+      "owner": "S20-400",
+      "reserved": false,
+      "tag": 103
+    },
+    {
+      "family": "session",
+      "name": "session.budgets",
+      "owner": "S20-400",
+      "reserved": false,
+      "tag": 104
+    },
+    {
+      "family": "repository",
+      "name": "workspace.create",
+      "owner": "S20-390",
+      "reserved": false,
+      "tag": 200
+    },
+    {
+      "family": "repository",
+      "name": "workspace.open",
+      "owner": "S20-390",
+      "reserved": false,
+      "tag": 201
+    },
+    {
+      "family": "repository",
+      "name": "refs.list",
+      "owner": "S20-500",
+      "reserved": false,
+      "tag": 202
+    },
+    {
+      "family": "repository",
+      "name": "refs.resolve",
+      "owner": "S20-500",
+      "reserved": false,
+      "tag": 203
+    },
+    {
+      "family": "repository",
+      "name": "revision.read",
+      "owner": "S20-390",
+      "reserved": false,
+      "tag": 204
+    },
+    {
+      "family": "repository",
+      "name": "branch.create",
+      "owner": "S20-500",
+      "reserved": false,
+      "tag": 205
+    },
+    {
+      "family": "repository",
+      "name": "branch.advance",
+      "owner": "S20-500",
+      "reserved": false,
+      "tag": 206
+    },
+    {
+      "family": "repository",
+      "name": "compare",
+      "owner": "S20-510",
+      "reserved": false,
+      "tag": 207
+    },
+    {
+      "family": "repository",
+      "name": "merge.judge",
+      "owner": "S20-520",
+      "reserved": false,
+      "tag": 208
+    },
+    {
+      "family": "repository",
+      "name": "merge.commit",
+      "owner": "S20-520",
+      "reserved": false,
+      "tag": 209
+    },
+    {
+      "family": "repository",
+      "name": "exchange.export",
+      "owner": "S20-540",
+      "reserved": false,
+      "tag": 210
+    },
+    {
+      "family": "repository",
+      "name": "exchange.import",
+      "owner": "S20-540",
+      "reserved": false,
+      "tag": 211
+    },
+    {
+      "family": "repository",
+      "name": "gc.dry_run",
+      "owner": "S20-560 (GC failures are S20-180)",
+      "reserved": false,
+      "tag": 212
+    },
+    {
+      "family": "repository",
+      "name": "gc.collect",
+      "owner": "S20-560 (GC failures are S20-180)",
+      "reserved": false,
+      "tag": 213
+    },
+    {
+      "family": "repository",
+      "name": "refs.recover",
+      "owner": "S20-500",
+      "reserved": false,
+      "tag": 214
+    },
+    {
+      "family": "query",
+      "name": "query.root",
+      "owner": "S20-310 full",
+      "reserved": false,
+      "tag": 300
+    },
+    {
+      "family": "query",
+      "name": "query.continue",
+      "owner": "S20-310 full",
+      "reserved": false,
+      "tag": 301
+    },
+    {
+      "family": "query",
+      "name": "capsule",
+      "owner": "S20-320 full",
+      "reserved": false,
+      "tag": 302
+    },
+    {
+      "family": "query",
+      "name": "query.restricted",
+      "owner": "S20-310 restricted",
+      "reserved": false,
+      "tag": 303
+    },
+    {
+      "family": "query",
+      "name": "handle.expand",
+      "owner": "S20-330",
+      "reserved": false,
+      "tag": 304
+    },
+    {
+      "family": "query",
+      "name": "diagnostics",
+      "owner": "S20-620",
+      "reserved": true,
+      "tag": 305
+    },
+    {
+      "family": "candidate",
+      "name": "candidate.create",
+      "owner": "S20-350",
+      "reserved": false,
+      "tag": 400
+    },
+    {
+      "family": "candidate",
+      "name": "candidate.append",
+      "owner": "S20-350",
+      "reserved": false,
+      "tag": 401
+    },
+    {
+      "family": "candidate",
+      "name": "candidate.validate",
+      "owner": "S20-360",
+      "reserved": false,
+      "tag": 402
+    },
+    {
+      "family": "candidate",
+      "name": "candidate.inspect",
+      "owner": "S20-350",
+      "reserved": false,
+      "tag": 403
+    },
+    {
+      "family": "candidate",
+      "name": "candidate.discard",
+      "owner": "S20-350",
+      "reserved": false,
+      "tag": 404
+    },
+    {
+      "family": "transaction",
+      "name": "commit",
+      "owner": "S20-390",
+      "reserved": false,
+      "tag": 500
+    },
+    {
+      "family": "transaction",
+      "name": "receipt.read",
+      "owner": "S20-390",
+      "reserved": false,
+      "tag": 501
+    },
+    {
+      "family": "transaction",
+      "name": "checkout",
+      "owner": "S20-390",
+      "reserved": false,
+      "tag": 502
+    },
+    {
+      "family": "transaction",
+      "name": "ref.move.protected",
+      "owner": "S20-370",
+      "reserved": true,
+      "tag": 503
+    },
+    {
+      "family": "transaction",
+      "name": "recovery",
+      "owner": "S20-530",
+      "reserved": false,
+      "tag": 504
+    },
+    {
+      "family": "runtime",
+      "name": "execute",
+      "owner": "S20-380 (execution report is S20-290)",
+      "reserved": false,
+      "tag": 600
+    },
+    {
+      "family": "runtime",
+      "name": "tests.selected",
+      "owner": "S20-620",
+      "reserved": true,
+      "tag": 601
+    },
+    {
+      "family": "runtime",
+      "name": "tests.affected",
+      "owner": "S20-620",
+      "reserved": true,
+      "tag": 602
+    },
+    {
+      "family": "runtime",
+      "name": "cancel",
+      "owner": "S20-440",
+      "reserved": false,
+      "tag": 603
+    },
+    {
+      "family": "runtime",
+      "name": "report",
+      "owner": "S20-290 (report store is S20-560)",
+      "reserved": false,
+      "tag": 604
+    }
+  ],
+  "reserved_count": 4,
+  "source": "docs/spec/SMP1.md"
+}

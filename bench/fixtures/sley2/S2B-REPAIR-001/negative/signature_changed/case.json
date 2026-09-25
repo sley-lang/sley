@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_repair_neg_signature_changed",
+  "expected_code": "VM_EXEC_INPUT_COUNT_MISMATCH",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_repair"
+}

@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_type_neg_missing_case",
+  "expected_code": "ORACLE_MISSING_CASE",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_type"
+}

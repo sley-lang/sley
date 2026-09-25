@@ -1,0 +1,20 @@
+status: FAIL
+
+findings:
+- **HIGH:** Effectless bridge rows remain invalid epoch-1 `AdapterImport`s. E8 requires empty effects, but `EFFECT_SYSTEM_V1.md` §§1.4/3.3 and `validate_adapters` require exactly one `AdapterCall` effect. Candidate validation passes these rows at phase 7, then deterministically rejects them at phase 8 with `ADAPTER_EFFECT_CARDINALITY`. The profile-local permission therefore requires an owner-level S20-230/epoch contract change.
+- **HIGH:** `PSH1` does not pin every carried import field. `resolve_bridge_entry` accepts push rows without checking `request_type` or `response_type`, then derives both per use. This conflicts with `AdapterImport`’s exact closed types and permits tampered push schemas.
+- **INFO:** Conversion imports now genuinely resolve from the supplied inventory and pin identity, adapter ID, ABI, failure, effects, request, and response. Judgment, execution, and surcharge re-resolve the inventory.
+- **INFO:** The MEDIUM fuel issue remains repaired: surcharge occurs before conversion/allocation, with the 102-fuel expectation preserved.
+
+validation:
+- Inspected round-2 transcript; RW-050 §§1–4,7; revision-13 E8; `EFFECT_SYSTEM_V1.md` §§1.4/3.3; `extended.rs`, `lower.rs`, `execute.rs`, candidate/server constructors, and E8 tests.
+- Compared the focused dirty-tree changes against `main@c6e4269`. No runtime validation performed, as requested.
+
+blockers:
+- Reconcile E8 with the S20-230 owner and validator—either authorize/model effectless imports through an explicit contract/epoch change or implement valid `AdapterCall` semantics.
+- Give generic push a representable frozen import schema/carrier, or pin concrete request/response types and reject mismatched carried rows.
+
+return_to:
+- REWEAVE implementation workflow (Muse/OpenCode under operator authority).
+
+disposition (implementation workflow, post-verdict): both HIGHs accepted as binding. HIGH 1 verified in code (`sley-check/effects.rs validate_adapters` rejects zero-effect rows with ADAPTER_EFFECT_CARDINALITY; lowering refuses every effectful Function, so AdapterCall-carrying rows are uncallable without S20-230-full effectful lowering): the slice cannot land without an owner-level decision — see the decision packet in rw-050-slice-1.md §8. HIGH 2 analyzed (push-row relationship pin: require response==Vector<request>) but not implemented — moot once HIGH 1 bars landing; recorded in the packet as a would-be repair. Prototype parked on branch rw050-slice1-prototype, disputed surface reverted on main. No self-certification; no failed-review code landed.

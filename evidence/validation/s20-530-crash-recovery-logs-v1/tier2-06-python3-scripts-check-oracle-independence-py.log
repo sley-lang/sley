@@ -1,0 +1,20 @@
+$ python3 scripts/check_oracle_independence.py
+execution_profile_sha256: 2dd500d114ce37f530ff4a2fa4807f6b808a88a9839c31d2e9da3f1c3a746631
+exit_status: 0
+{
+  "contract": "s20-130-oracle-independence-v1",
+  "forbidden_markers": [
+    "subprocess",
+    "cargo",
+    "sley-id",
+    "sley_id",
+    "sley-mutate",
+    "sley_mutate",
+    "crates/sley-mutate",
+    "value_generated.rs",
+    "target/"
+  ],
+  "problems": [],
+  "python_sources": 8,
+  "result": "PASS"
+}

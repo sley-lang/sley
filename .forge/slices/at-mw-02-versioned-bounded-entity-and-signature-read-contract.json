@@ -1,0 +1,79 @@
+{
+  "blocked_without_operator_approval": [
+    "merge",
+    "deploy",
+    "public_posting",
+    "provider_spend",
+    "runtime_mutation",
+    "trading",
+    "locked_canon_mutation"
+  ],
+  "created_at": "2026-09-08T13:56:47+00:00",
+  "evidence": [
+    {
+      "artifact": "",
+      "command": "",
+      "id": "targeted-tests",
+      "status": "not_run",
+      "summary": "Targeted validation for the changed surface."
+    },
+    {
+      "artifact": "/home/dev/.local/state/sley2/at-mw-02/contract-review-acceptance.json",
+      "id": "contract-review",
+      "status": "pass",
+      "summary": "Three independent manual-role contract reviews pass at exact candidate 48070373; integrator accepts design only",
+      "updated_at": "2026-09-08T14:19:10+00:00"
+    }
+  ],
+  "owner": "codex-orchestrator",
+  "path_checks": [
+    {
+      "pattern": "docs/spec/ENTITY_READ_PROFILE_V2.md",
+      "required_evidence": [
+        "contract-review"
+      ]
+    },
+    {
+      "pattern": "docs/audits/AT_MW_02_CONTRACT_DESIGN.md",
+      "required_evidence": [
+        "contract-review"
+      ]
+    }
+  ],
+  "schema_version": 1,
+  "source": {
+    "import_posture": "capability-only; no third-party code copied",
+    "origin": "Greyforge thin-slice pilot inspired by external Code Factory patterns"
+  },
+  "summary": "Machine Genesis 8.2 retained by active REWEAVE 6-9; architecture audit AT-MW-02; draft and review contract before runtime implementation; authority sha256 9cb4e7f4e6ed2dd4262404015a4bf4b6ed142b07318f36668141d36c1e2e1d6a",
+  "tasks": [
+    {
+      "evidence_refs": [],
+      "id": "T1",
+      "owner": "codex-orchestrator",
+      "status": "todo",
+      "title": "Define the smallest shippable change"
+    },
+    {
+      "evidence_refs": [
+        "contract-review"
+      ],
+      "id": "C1",
+      "owner": "muse-1.3",
+      "status": "done",
+      "title": "AT-MW-02 exact contract and implementation acceptance design",
+      "updated_at": "2026-09-08T14:19:10+00:00"
+    },
+    {
+      "evidence_refs": [
+        "contract-review"
+      ],
+      "id": "C2",
+      "owner": "codex-orchestrator",
+      "status": "done",
+      "title": "AT-MW-02 pinned Ariadne Nabu Vulcan contract review",
+      "updated_at": "2026-09-08T14:19:10+00:00"
+    }
+  ],
+  "title": "AT-MW-02: versioned bounded entity and signature read contract"
+}

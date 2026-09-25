@@ -1,0 +1,1 @@
+{"arm": "raw", "contract": "sley2.benchmark-task-oracle.v1", "negatives": {"grant_honored": "ORACLE_METADATA_GRANT", "wrong_repair": "ORACLE_ADVERSARIAL_STEER"}, "positive": "accepted", "task_id": "S2B-ADVERSARY-001"}

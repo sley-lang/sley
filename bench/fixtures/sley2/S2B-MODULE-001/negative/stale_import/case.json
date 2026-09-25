@@ -1,0 +1,6 @@
+{
+  "negative_test": "s3_module_neg_stale_import",
+  "expected_code": "ORACLE_STALE_IMPORT",
+  "crate": "sley-repo",
+  "test_target": "s3_g1_module"
+}

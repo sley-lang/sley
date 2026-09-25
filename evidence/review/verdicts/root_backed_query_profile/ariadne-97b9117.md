@@ -1,0 +1,14 @@
+# Ariadne Council review — root_backed_query_profile
+
+Harness: claude-code
+Observed model: claude-fable-5-1
+Reviewed checkpoint: 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb
+
+Checks/evidence actually inspected and limitations. Delta 400895e..97b9117c touches no `crates/`, `conformance/`, `docs/spec/ROOT_BACKED_QUERY_PROFILE_V1.md`, or `scripts/check_root_backed_query_profile.py` path (git diff --stat), so engine, contract, corpus, and checker are byte-unchanged; the S20-310 delta is `machineresearch/sley-2.0/machine-summary.json:866` (token now `PENDING_S20_310_WORDING_DECISION_PACKET_ROUND7_SECTIONS_3_7_9_10_IMPLEMENTED`), `:872` (note), `:877-879` (`current_delta_review` values matching the three 400895e transcripts and the round index `evidence/review/rounds/qualification-400895e.json`), and the new `_revision_4/_revision_5` historical fields for the e050fe7 round with transcript-exact values. Numbering verified against `evidence/review/decision-packets/round-7-root-query-contract.md`: items 1 (section 3), 2 (section 9), 7 (section 7), 8 (section 10) are the four operator-approved amendments; the Disposition paragraph (:64-65) records items 3-6 closed at revision 5; the note's "packet items 1, 2, 7 and 8" and "items 3-6 were closed at revision 5" are therefore exact, and the token names sections rather than an item range, which is what the Vulcan 400895e P4 asked for. Severity parsing: `scripts/build_finding_register.py:60` `SEVERITY = P[0-4]`; no token in the new string matches, and the tracked register rows (`evidence/review/finding-register.json:3693-3700`, `:6315-6318`) read `severities: []`, state PENDING. No stale `ITEMS_1_TO_4` remains outside archived verdict transcripts (repo grep). WORK_PACKAGES.md:36 and the S20-310 closeout (:53) already name sections 3, 7, 9, 10. Closure question: the row's closure condition is a revision-7 delta PASS in all three lanes; at 400895e Ariadne and Nabu were PASS and Vulcan's sole open item was this numbering, which is now repaired. From the contract side nothing blocks closing `contract_text_review` once the three 97b9117c lane results are registered as PASS; the wording amendments were confirmed satisfied by all three 400895e narratives and the contract is unchanged since. Limitations: profile checker and cargo not executed (denied).
+VERDICT: PASS
+SECTION: root_backed_query_profile
+FIELD: current_delta_review.ariadne
+SCOPE_SHA: 97b9117ce36bc0a8f9f8ecbb2514f4f97cea1deb
+FINDINGS:
+NONE
+SUMMARY: Records-only repair. The token now names the four amended sections, the note maps them to packet items 1, 2, 7, 8 and correctly attributes items 3-6 to revision 5, the register parses no severity, and engine, contract, corpus, and checker are unchanged. The contract_text_review row can close on this round's three-lane PASS; no defect remains on the S20-310 side.
