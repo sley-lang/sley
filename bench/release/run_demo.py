@@ -13,11 +13,17 @@ import argparse
 import json
 import os
 import select
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
+
+# The unpacked artifact root: this script ships as demo/run_demo.py, so the
+# default binary and fixture resolve from here, never from the caller's
+# working directory.
+ARTIFACT_ROOT = Path(__file__).resolve().parent.parent
 
 # The demo zeroes every limit the bridge governs. The names must match
 # LIMIT_FIELDS in crates/sley-json-bridge/src/lib.rs exactly: a governed
@@ -246,9 +252,9 @@ def run(sley: Path, fixture_path: Path, work: Path, timeout: int) -> dict:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--sley", type=Path, default=Path("bin/sley"))
-    parser.add_argument("--fixture", type=Path, default=Path("conformance/release-demo/v1/demo.json"))
-    parser.add_argument("--work", type=Path)
+    parser.add_argument("--sley", type=Path, default=ARTIFACT_ROOT / "bin/sley")
+    parser.add_argument("--fixture", type=Path, default=ARTIFACT_ROOT / "conformance/release-demo/v1/demo.json")
+    parser.add_argument("--work", type=Path, help="keep the demo repositories here (default: a temporary directory, removed afterwards)")
     parser.add_argument("--timeout-seconds", type=int, default=60)
     arguments = parser.parse_args(argv)
     work = arguments.work or Path(tempfile.mkdtemp(prefix="sley-demo-"))
@@ -257,6 +263,9 @@ def main(argv: list[str] | None = None) -> int:
         result = run(arguments.sley.resolve(), arguments.fixture.resolve(), work.resolve(), arguments.timeout_seconds)
     except (DemoFailure, OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
         result = {"contract": "s20-720-release-demo-v1", "result": "FAIL", "problems": [f"{type(error).__name__}:{error}"]}
+    finally:
+        if arguments.work is None:
+            shutil.rmtree(work, ignore_errors=True)
     print(json.dumps(result, indent=2, sort_keys=True))
     return 0 if result["result"] == "PASS" else 1
 

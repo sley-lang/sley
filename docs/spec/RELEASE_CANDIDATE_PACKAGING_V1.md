@@ -1,8 +1,10 @@
 # Release Candidate Packaging v1
 
-Status: S20-720 contract draft, revision 7 (2026-09-19), with round-7
+Status: S20-720 contract draft, revision 8 (2026-09-25), with round-7
 clarifications (2026-09-11, section 13); Council review pending (Ariadne
 contract review, Nabu architecture review, Vulcan surface review). Revision
+8 ships the third-party license texts and names the 2.0.1 artifact
+(section 17). Revision
 7 pins the lint report's eleven-field set (section 7). Revision
 2 records the clarifications found while implementing
 revision 1 (section 11). Revision 3 orders the remaps most-general-first,
@@ -16,7 +18,7 @@ machine summary.
 ## Boundary
 
 S20-720 freezes the mechanics of the clean-room release candidate: how the
-artifact `sley-2.0.0-linux-x86_64.tar.gz` is built twice from the working
+artifact `sley-2.0.1-linux-x86_64.tar.gz` is built twice from the working
 tree, what it contains, how it is unpacked and exercised with no source
 tree, how its checksums, manifest, inventory, and scans are recorded, and
 how reproducibility is established or its nondeterminism named (master
@@ -30,8 +32,10 @@ run under `make release-candidate-smoke`.
 
 `scripts/build_release_candidate.py` performs, in order:
 
-1. a clean release build of `sley-cli` (`cargo build --release --locked
-   -p sley-cli`) in a fresh target directory under `dist/`, with
+1. after `cargo fetch --locked` and the third-party license check
+   (section 17), a clean release build of `sley-cli` (`cargo build
+   --release --locked -p sley-cli`) in a fresh target directory under
+   `dist/`, with
    `--remap-path-prefix` mapping the working tree to `/sley2` so no local
    absolute path enters the binary. rustc applies the last matching rule,
    so the flags run most-general-first: the home directory to
@@ -39,7 +43,7 @@ run under `make release-candidate-smoke`.
    and the working tree to `/sley2` last. Any other order lets the home
    rule shadow the tree rule and moves the leak where the scan cannot see
    it (section 5);
-2. packaging (section 2) into `dist/sley-2.0.0-linux-x86_64.tar.gz`;
+2. packaging (section 2) into `dist/sley-2.0.1-linux-x86_64.tar.gz`;
 3. unpacking the artifact into a private directory outside the working
    tree and running the conformance subset and the canonical demo there
    (sections 3 and 4) with the working directory inside the unpacked
@@ -57,13 +61,14 @@ Any step that fails stops the run with its code; nothing is published.
 ## 2. Contents
 
 ```text
-sley-2.0.0-linux-x86_64/
+sley-2.0.1-linux-x86_64/
   bin/sley                          the S20-430 endpoint binary
   MANIFEST.json                     contract, commit, toolchain, files with sha256 and size
   SBOM.json                         the S20-710 pre-release inventory, verbatim
   LICENSES.json                     declared licenses per package and the approved root license
   LICENSE                         the operator-approved root license text, installed verbatim
   NOTICE                            the approved ownership and license notice
+  THIRD_PARTY_LICENSES              license texts and copyright notices of the locked crates (section 17)
   conformance/smp1/v1/              the S20-410 fixture
   conformance/smp1-json-bridge/v1/  the S20-420 fixture and method table
   conformance/release-demo/v1/      the demo fixture (section 4)
@@ -381,3 +386,49 @@ candidate_commit`, `lint_inputs_clean == true` and `result == PASS`
 The report is therefore recorded at the candidate commit with only
 records dirty, in the records-only descendant, after `make lint`. Section 10
 names its owner.
+
+## 17. Third-party license texts (revision 8, 2026-09-25)
+
+`bin/sley` is statically linked, so the artifact redistributes the
+third-party crates in `Cargo.lock` in binary form. Several of them are
+BSD-2-Clause or BSD-3-Clause (for example `arrayref`, `curve25519-dalek`,
+`ed25519-dalek` and `subtle`), and those licenses require their text and
+copyright notice to accompany a binary; the MIT, Apache-2.0 and other
+permissive licenses in the set carry similar notice terms. Before revision
+8 the artifact carried no third-party license text: `LICENSES.json` names
+each declared license only.
+
+- `scripts/generate_third_party_licenses.py` renders the tracked root file
+  `THIRD_PARTY_LICENSES` from the locked dependency set: every third-party
+  package in `Cargo.lock`, read through `cargo metadata --locked --offline`,
+  sorted by name and version. For each package it records the declared
+  license expression, the registry source, the `Cargo.lock` checksum, the
+  repository and the `Cargo.toml` authors, then reproduces every top-level
+  license, copyright, notice, unlicense and authors file the crate ships,
+  sorted by file name, with line endings normalized to LF and trailing
+  whitespace removed. No local path is written. A crate that ships no license file stops the generator; it never
+  substitutes a text the crate did not ship. Build-time-only crates (build
+  scripts and procedural macros) are included, and the file says so.
+- The file is part of `ARTIFACT_INPUT_PATHS` together with its generator,
+  and ships verbatim as the artifact member `THIRD_PARTY_LICENSES`.
+- The build runs `cargo fetch --locked` and regenerates the file before the
+  first clean build. Any byte difference from the tracked file refuses the
+  mint with `PACKAGE_INTERNAL_INVARIANT`; an unreadable crate source or a
+  crate without a license file refuses with `PACKAGE_BUILD_FAILED`.
+- Staging refuses (`PACKAGE_INTERNAL_INVARIANT`) unless the file's package
+  index names exactly the third-party cargo packages of the T52 inventory.
+  `LICENSES.json` records the member's name, SHA-256 and package count
+  under `third_party_licenses`.
+- `make quick` runs the packaging checker, which compares the file's package
+  index with `Cargo.lock` offline. `make release-candidate-verify` runs the
+  generator's full `--check`, which needs the crate sources in the local
+  cargo registry.
+- `make release-candidate-build` starts with `cargo fetch --locked`, so the
+  offline `cargo metadata` steps of the build succeed on a fresh or partial
+  cache.
+
+Revision 8 also names the current artifact `sley-2.0.1-linux-x86_64.tar.gz`.
+Sections 11 through 14 keep the 2.0.0 name and member counts they recorded
+at the time. The Rust standard library and the musl C library that the
+pinned toolchain links into the static binary are outside the `Cargo.lock`
+set and are not covered by this file.
