@@ -16,14 +16,14 @@
     "state": "RELEASE_APPROVED",
     "authority": "operator",
     "decided": "2026-09-24",
-    "release": "2.0.0",
+    "release": "2.0.1",
     "release_name": "Sley 2.0",
-    "label": "plain 2.0.0 with no preview or alpha label (operator decision)",
+    "label": "plain 2.0.1, a patch release of 2.0.0 with no preview or alpha label (operator decisions 2026-09-24 and 2026-09-25)",
     "kind": "operator release of what exists; not a GA claim",
     "ga_claimed": false,
     "publication_authorized": true,
-    "final_commit": "1fea02faace9503060425fa565757c0c29af9d93",
-    "final_commit_note": "the official Sley 2.0.0 release, built 2026-09-24 from the public root commit of https://github.com/sley-lang/sley (the sanitized single-commit export of the archived working history). It supersedes the pre-public ef2a39f6 build, whose build inputs are byte-identical. The attested commit of the tracked reproducibility report.",
+    "final_commit": null,
+    "final_commit_note": "set to the 2.0.1 release build commit when it is minted",
     "derived_decision_state_note": "evidence/release/decision-dossier.json keeps deriving the master goal section 27 state from the evidence (BLOCKED when recorded); the operator releases over the criteria listed below, which stay unmet and are not re-graded by this decision. The master goal's ALPHA_COMPLETE wording (succession thresholds not passing keeps the alpha label) is departed from by this explicit operator decision.",
     "ga_acceptance_at_decision": {
       "EVIDENCED": 32,
@@ -56,7 +56,8 @@
     "open_p1_p2_at_decision": "rw075_correction 4 P1 + 4 P2 (AR-02 large-preimage design and AR-06 transcript binding; the self-hosting/REWEAVE line, 2.1); finding-ledger mechanism P2s in release_candidate_packaging (4), reproducibility_and_independent_conformance (3) and standards_sbom_and_provenance (2) against scripts/build_finding_register.py and scripts/retire_review_claims.py",
     "council_reviews": "no longer used (operator decision 2026-09-24); criteria that wait on a Council or independent review stay AWAITS_REVIEW",
     "deferred_to_2_1": "self-hosting (REWEAVE / SH2)",
-    "release_notes": "docs/release/SLEY-2.0.0.md"
+    "release_notes": "docs/release/SLEY-2.0.1.md",
+    "decided_2_0_1": "2026-09-25"
   },
   "status": "IN_PROGRESS",
   "locator": {
@@ -180,10 +181,12 @@
     "scope": [
       "public source: a sanitized single-commit export of the release tree at https://github.com/sley-lang/sley (Apache-2.0); the working history stays in the private repository",
       "GitHub release v2.0.0 carrying sley-2.0.0-linux-x86_64.tar.gz and its SHA-256",
-      "the sleylang.org website describing Sley 2.0.0"
+      "the sleylang.org website describing Sley 2.0.0",
+      "the 2.0.1 patch release (GitHub release v2.0.1 with sley-2.0.1-linux-x86_64.tar.gz): operator direction 2026-09-25 to merge the contributor fixes and fix every issue found in the post-release verification"
     ],
     "authorized_tags": [
-      "v2.0.0"
+      "v2.0.0",
+      "v2.0.1"
     ],
     "sanitization": "the public export replaces host names, private network addresses, and local filesystem paths with neutral placeholders; the private repository keeps the unsanitized records",
     "note": "operator decision 2026-09-24: make the repository public with an official 2.0.0 release. This authorizes publication only. It is not a GA claim (ga_claimed stays false), and it does not sign provenance or add a transparency-log entry."
@@ -1842,7 +1845,7 @@
     "ariadne_contract_review": "PASS_CONTRACT_DRAFT_REVISION_6",
     "vulcan_import_surface_review": "PASS_CONTRACT_DRAFT_REVISION_4_NOTES_APPLIED_IN_REVISION_5",
     "implementation_complete": true,
-    "contract_revision": 7,
+    "contract_revision": 10,
     "ariadne_contract_review_revision_1": "FAIL_CONTRACT_DRAFT_4_P0_4_P1_10_P2_7_P3_ALL_APPLIED_IN_REVISION_2",
     "ariadne_contract_review_revision_1_session": "forge-ariadne-s20-540-contract-20260903T014755-7931f8f9",
     "ariadne_contract_review_revision_2": "FAIL_CONTRACT_DRAFT_2_P1_1_P2_3_P3_ALL_APPLIED_IN_REVISION_3",
@@ -4895,10 +4898,10 @@
   "release_candidate_packaging": {
     "status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md",
-    "contract_revision": 7,
+    "contract_revision": 8,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
-    "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
+    "artifact_name": "sley-2.0.1-linux-x86_64.tar.gz",
     "manifest_contract": "sley2.release-candidate-manifest.v1",
     "demo_fixture": "conformance/release-demo/v1/demo.json",
     "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
