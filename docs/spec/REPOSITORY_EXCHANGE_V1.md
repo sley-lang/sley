@@ -148,7 +148,11 @@ field inside both embedded records MUST equal field 1; the ref's
 (an origin without a visible ref) are never exported and never imported.
 
 Duplicate or noncanonical entries fail `EXCHANGE_DUPLICATE_ENTRY` or
-`EXCHANGE_CANONICAL_ORDER`; a decoder never sorts input.
+`EXCHANGE_CANONICAL_ORDER`; a decoder never sorts input. Two entries for one
+branch name are likewise `EXCHANGE_DUPLICATE_ENTRY`, judged over the parsed
+name in step 5.2 once every entry has verified: the encoded elements differ,
+but only one origin and one ref can exist under a name, so an importer
+refuses before any write rather than colliding mid-install.
 
 ## Closure rules
 
@@ -442,7 +446,9 @@ Four checks sit earlier than a reader of the closure rules might expect:
         (`EXCHANGE_WORKSPACE_MISMATCH`);
       - origin and current facts (`EXCHANGE_BRANCH_INVALID`);
       - fast-forward reachability (`EXCHANGE_BRANCH_NOT_FAST_FORWARD`);
-   2. then no surplus over the accepted head and the verified branches
+   2. then distinct branch names: a parsed name repeated across the
+      verified branches is `EXCHANGE_DUPLICATE_ENTRY`;
+   3. then no surplus over the accepted head and the verified branches
       (closure rule 2, `EXCHANGE_ANCESTRY_SURPLUS`);
 6. per receipt in topological order: first the cumulative preflight bounds
    (`EXCHANGE_RESOURCE_LIMIT`), then verify the receipt against the embedded
