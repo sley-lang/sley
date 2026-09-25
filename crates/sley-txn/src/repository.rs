@@ -24398,6 +24398,51 @@ mod native_commit_tests {
     }
 
     #[test]
+    fn native_commit_approval_binds_the_accepted_parent_root() {
+        let fixture = Fixture::new("native-approval-parent-root");
+        let parent_root = fixture
+            .repository
+            .accepted_head()
+            .unwrap()
+            .state_root()
+            .root;
+        let harness = NativeHarness::new(fixed(1, WorkspaceId::from_bytes));
+        let executor = CountingExecutor {
+            invocations: Cell::new(0),
+        };
+        let outcome = fixture
+            .repository
+            .commit_native(&harness.input(
+                fixture.genesis_transaction_id,
+                &fixture.candidate.stored_bytes,
+                fixture.principal_id,
+                attempt(9),
+                Some(&executor),
+            ))
+            .expect("empty native commit succeeds");
+        let NativeCommitOutcome::Committed(output) = outcome else {
+            panic!("empty selection must commit");
+        };
+        let revision = fixture
+            .repository
+            .verified_native_revision(output.transaction_id())
+            .expect("native revision loads");
+        let bundle = &revision.receipt().bundle;
+        let plan = NativeTestPlanV1::parse(bundle.plan_stored()).unwrap();
+        let approval = NativeTestApprovalV1::parse(bundle.approval_stored()).unwrap();
+        // The candidate moves the root, so parent and proposed differ.
+        assert_ne!(plan.parent_root(), plan.proposed_root());
+        assert_eq!(plan.parent_root(), parent_root);
+        assert_eq!(approval.parts().proposed_root, plan.proposed_root());
+        // The approval's parent root is the accepted parent, like the plan's.
+        assert_eq!(approval.parts().parent_root, plan.parent_root());
+        assert_eq!(
+            revision.receipt().transaction.record.parent_roots,
+            vec![approval.parts().parent_root]
+        );
+    }
+
+    #[test]
     fn native_commit_rejected_evidence_returns_rejection_without_writes() {
         let fixture = Fixture::new("native-rejected-positive");
         let head = fixture.repository.accepted_head().unwrap();
