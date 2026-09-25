@@ -291,6 +291,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "sley-agent"
+version = "2.0.1"
+dependencies = [
+ "serde_json",
+ "sley-check",
+ "sley-id",
+ "sley-mutate",
+ "sley-policy",
+ "sley-repo",
+ "sley-scb1",
+ "sley-ssmc",
+ "sley-state-root",
+ "sley-store",
+ "sley-tests",
+ "sley-txn",
+ "sley-vm",
+]
+
+[[package]]
 name = "sley-check"
 version = "2.0.1"
 dependencies = [
