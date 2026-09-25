@@ -300,8 +300,9 @@ session binds the handshake at `session.open`, so the negotiated
 This note records one fix in `crates/sley-protocol`. Revision 16, the
 normative revision 15, and their pins are unchanged.
 
-- A hello frame (kind 4) carries the all-zero bounded context of section
-  5 (every limit and count 0, `truncated` and `continuation` 1), the
+- A hello frame (kind 4) carries the uncounted bounded context of section
+  5 (every limit and count 0, `truncated` false and `continuation` none,
+  which section 5 encodes as 1), the
   bounds `encode_hello_frame` has always emitted. The hello header rule is
   therefore `session = None`, `request_id = 0`, `method = 0`,
   `flags = 0`, and zero `bounds`; a hello frame with any other bounds
@@ -327,6 +328,9 @@ normative revision 15, and their pins are unchanged.
   `hello_frame_with_nonzero_bounds_is_refused_s20_700_smp1_002` in
   `crates/sley-protocol/src/lib.rs`. Every hello the codec encodes is
   accepted exactly as before.
+- Stream reassembly (section 7) likewise refuses a chunk event frame that
+  carries bounds. Chunk events are uncounted, so a counted one is a foreign
+  frame and `PROTOCOL_FRAME_INVALID`. The 2.0.0 reader did not check it.
 
 ## 3. Sessions and request identity
 

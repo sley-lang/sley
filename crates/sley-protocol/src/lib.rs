@@ -2432,8 +2432,9 @@ pub fn stream_response_for_version(
 /// # Errors
 ///
 /// Returns `PROTOCOL_FRAME_INVALID` when the chunks are not exactly
-/// `0..total` in order under one session, request, and method, or the
-/// final frame is not the stream's response.
+/// `0..total` in order under one session, request, and method, a chunk
+/// event carries bounds (chunk events are uncounted, contract section 7),
+/// or the final frame is not the stream's response.
 pub fn reassemble_stream(frames: &[ProtocolFrame]) -> Result<ProtocolFrame> {
     let Some((last, events)) = frames.split_last() else {
         return fail(ProtocolErrorCode::FrameInvalid);
@@ -2453,6 +2454,7 @@ pub fn reassemble_stream(frames: &[ProtocolFrame]) -> Result<ProtocolFrame> {
             || event.session != last.session
             || event.request_id != last.request_id
             || event.method != last.method
+            || event.bounds != BoundedContext::none()
         {
             return fail(ProtocolErrorCode::FrameInvalid);
         }
@@ -2950,6 +2952,13 @@ mod tests {
         foreign[0].request_id += 1;
         assert_eq!(
             reassemble_stream(&foreign).unwrap_err().code(),
+            ProtocolErrorCode::FrameInvalid
+        );
+        // A chunk event is uncounted: bounds on one is a foreign frame.
+        let mut counted = decoded.clone();
+        counted[0].bounds.returned_bytes = 1;
+        assert_eq!(
+            reassemble_stream(&counted).unwrap_err().code(),
             ProtocolErrorCode::FrameInvalid
         );
         assert_eq!(
