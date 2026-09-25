@@ -100,7 +100,10 @@ returned REVISE on the version scope of field 9 and is answered by
 revision 14, whose new-delta review passed on 2b0f1c9 (2026-09-23) with
 P3/P4 findings answered by revision 15, whose new-delta review passed on
 26d050e (2026-09-23); revision 16 is its errata-only correction, whose
-review is pending.
+review is pending. An errata note to revision 16 (section 2, 2026-09-25,
+Sley 2.0.1) records one implementation fix: a hello frame whose bounds
+are not the all-zero context is `PROTOCOL_FRAME_INVALID`. It keeps
+revision 16, the normative revision 15, and every pin.
 
 ## 1. Framing
 
@@ -291,6 +294,39 @@ outside the selection fails at the method layer. No silent downgrade
 exists: the selection is explicit and digested over both hellos, and the
 session binds the handshake at `session.open`, so the negotiated
 `ProtocolHandshakeId` is never repeated on later frames.
+
+### Errata to revision 16 (2026-09-25, Sley 2.0.1)
+
+This note records one fix in `crates/sley-protocol`. Revision 16, the
+normative revision 15, and their pins are unchanged.
+
+- A hello frame (kind 4) carries the all-zero bounded context of section
+  5 (every limit and count 0, `truncated` and `continuation` 1), the
+  bounds `encode_hello_frame` has always emitted. The hello header rule is
+  therefore `session = None`, `request_id = 0`, `method = 0`,
+  `flags = 0`, and zero `bounds`; a hello frame with any other bounds
+  value is `PROTOCOL_FRAME_INVALID` (40001), judged with the rest of the
+  header rule after the version claim and before the hello record is
+  read. The rule lives in `ProtocolFrame::validate_for_version`, so
+  `decode_frame`, `decode_frame_for_version`, and
+  `ProtocolFrame::validate_header` apply it alike. The 2.0.0 codec checked
+  the other four header fields but not the bounds: such a frame decoded,
+  `decode_frame` returned only the hello record, and re-encoding it
+  emitted zero bounds, so a non-canonical frame was accepted and
+  normalized. An endpoint answered it as a valid hello (the CLI now
+  answers `CLI_HANDSHAKE_REQUIRED` with the cause
+  `PROTOCOL_FRAME_INVALID`, and the JSON bridge's `frame_to_json`
+  returns the codec's code). The JSON bridge's own all-zero bounds rule
+  for a `hello` Frame object is unchanged and still answers
+  `JSON_BRIDGE_SHAPE_INVALID` first. Found by the persistent
+  `smp1_frame_decoder` target as S20-700-SMP1-002
+  (`fuzz/regressions/S20_700_SMP1_002.json`); pinned by the rejected
+  vector `hello-nonzero-bounds` in `conformance/smp1/v1/rejected.json`,
+  which the independent oracle `scripts/check_smp1_vector.py` now
+  classifies from its own `ProtocolFrame` record decoder, and by
+  `hello_frame_with_nonzero_bounds_is_refused_s20_700_smp1_002` in
+  `crates/sley-protocol/src/lib.rs`. Every hello the codec encodes is
+  accepted exactly as before.
 
 ## 3. Sessions and request identity
 
