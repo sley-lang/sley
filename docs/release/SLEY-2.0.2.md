@@ -100,9 +100,9 @@ example line of the `af1` and `tests` help topics, and every value form the
 
 ## Packaging
 
-The release archive ships `bin/sley-agent` next to `bin/sley`: fifteen
-members, built by one locked `cargo build` and compared byte for byte across
-two clean builds ([packaging revision 9](../spec/RELEASE_CANDIDATE_PACKAGING_V1.md#18-agent-workbench-binary-revision-9-2026-09-25)).
+The release archive ships `bin/sley-agent` next to `bin/sley` (seventeen
+manifest members, one more than 2.0.1), built by one locked `cargo build` and
+compared byte for byte across two clean builds ([packaging revision 9](../spec/RELEASE_CANDIDATE_PACKAGING_V1.md#18-agent-workbench-binary-revision-9-2026-09-25)).
 The source-free conformance subset runs the workbench from the unpacked
 archive: its version, its guide bound, and the guide's first example through
 `init` and `try`. `sley-agent` adds no third-party crate.

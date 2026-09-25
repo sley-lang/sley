@@ -455,14 +455,18 @@ binary, so the artifact carries `bin/sley-agent` beside `bin/sley`.
   comparison covers both.
 - `bin/sley-agent` is a fixed member with mode 0755, listed in the manifest
   like every other member, and passes the same content scan.
-- `sley-agent` adds no third-party crate (ADR-0051 decision 8), so
-  `THIRD_PARTY_LICENSES` and its index are unchanged by this revision.
+- `sley-agent` adds no third-party crate: its one external dependency,
+  `serde_json`, is already in the lock through `sley-cli`, `sley-mutate` and
+  `sley-json-bridge`. `THIRD_PARTY_LICENSES` and its index are unchanged by
+  this revision.
 - The conformance subset (section 3) runs the workbench from the unpacked
   artifact in the source-free environment: its version, its guide bound, and
   the guide's first example through `init` and `try`. The workspace it
   creates is removed before the demo runs.
 
-The artifact therefore holds fifteen members. Revision 9 also names the
-current artifact `sley-2.0.2-linux-x86_64.tar.gz`; section 17 keeps the 2.0.1
-name it recorded.
+The manifest therefore lists seventeen members, one more than the 2.0.1
+artifact's sixteen. Revision 9 also names the current artifact
+`sley-2.0.2-linux-x86_64.tar.gz`; section 17 keeps the 2.0.1 name it
+recorded. A local build at this revision was REPRODUCIBLE, and its
+conformance subset passed with the three workbench checks.
 
