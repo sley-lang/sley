@@ -109,7 +109,9 @@ Tests are TestCase entities: `{"fn", "args", "expect"}` plus an optional
 `"name"`. `expect` is a value (`25`, `true`), `{"Ok": v}`, `{"Err": "Case"}`,
 or `{"trap": "unreachable"}`. Resource limits default to the policy grant.
 Every `try` runs the tests its candidate touches and shows the expected and
-actual values for any test that fails.
+actual values for any test that fails. Put the tests for a change in the
+same frame as the change: they are part of the candidate you submit, and a
+Valid candidate that runs none says `tests: 0 ran`.
 
 ## Refusals
 
