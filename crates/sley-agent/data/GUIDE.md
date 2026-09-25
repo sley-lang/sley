@@ -73,10 +73,11 @@ This frame adds an error type, a function, and three tests:
 - `fns` defines a whole function. If the name exists, the entities you name
   again keep their identities, and blocks or operations you leave out are
   deleted. The first block is the entry block.
-- Operands are value names: parameters, block parameters, and results. Use
-  `block.name` for a value from another block, but only if that block
-  dominates the use. Otherwise pass the value as an edge argument into a
-  block parameter: `["br", ["join", "x"]]`, `["cond", "c", ["t", "x"], "f"]`.
+- Operands are value names: function parameters, the block's own
+  parameters, and results. `block.name` names a result of another block that
+  dominates this one. A block parameter is visible only inside its own
+  block, so pass values on as edge arguments: `["br", ["join", "x"]]`,
+  `["cond", "c", ["t", "x"], "f"]`, `["switch", "v", ["Ok", "next", "$", "x"], ...]`.
 - Checked integer operations (`add`, `sub`, `mul`, `div`, `rem`, `neg`) return
   `Result<T,ArithmeticError>`. Branch on them with `switch`. `div` truncates
   toward zero. Comparisons (`eq`, `ne`, `lt`, `le`, `gt`, `ge`) return `bool`.

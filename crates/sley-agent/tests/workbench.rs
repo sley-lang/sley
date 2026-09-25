@@ -261,6 +261,55 @@ fn a_dominance_refusal_names_the_operand_and_both_blocks() {
 }
 
 #[test]
+fn block_parameters_stay_in_their_block_and_switch_targets_take_both_forms() {
+    let temp = workspace("block-params", None);
+    let frame = |sum_ops: Value, carry: bool| {
+        let into_sum = if carry {
+            json!(["Ok", ["sum", "sub", "$"]])
+        } else {
+            json!(["Ok", "sum", "$"])
+        };
+        let sum_params = if carry {
+            json!([["sub", "i64"], ["t", "i64"]])
+        } else {
+            json!([["t", "i64"]])
+        };
+        json!({"af1": 1, "types": [{"name": "E", "variant": ["Overflow"]}],
+          "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "ops": [["d", "add", "a", "a"]], "term": ["switch", "d", ["Ok", "mid", "$"], ["Err", "ovf"]]},
+            {"name": "mid", "params": [["sub", "i64"]], "ops": [["m", "add", "sub", "sub"]],
+             "term": ["switch", "m", into_sum, ["Err", "ovf"]]},
+            {"name": "sum", "params": sum_params, "ops": sum_ops, "term": ["switch", "s", ["Ok", "done", "$"], ["Err", "ovf"]]},
+            {"name": "done", "params": [["v", "i64"]], "ops": [["r", "ok", "v"]], "term": ["return", "r"]},
+            {"name": "ovf", "ops": [["e", "variant", "E.Overflow"], ["r", "err", "e"]], "term": ["return", "r"]}]}]})
+    };
+    // Naming another block's parameter is refused before compilation.
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            &frame(json!([["s", "add", "mid.sub", "t"]]), false).to_string(),
+        ],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("`mid.sub` is a parameter of block `mid`"),
+        "{text}"
+    );
+    // Passing it on as an edge argument (bracketed switch target) is Valid.
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            &frame(json!([["s", "add", "sub", "t"]]), true).to_string(),
+        ],
+    );
+    assert_eq!(status, 0, "{text}");
+    let (_, value) = run(&temp.path, &["call", "f", "3", "--on", "latest"]);
+    assert_eq!(value.trim(), "{\"Ok\":18}");
+}
+
+#[test]
 fn an_unresolved_reference_names_both_entities() {
     let temp = committed_program("unresolved", None);
     let missing = "00".repeat(32);

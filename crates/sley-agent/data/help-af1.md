@@ -78,7 +78,12 @@ block b, which must dominate the use), `x#1` (result 1 of x).
 
 Switch keys are Ok, Err, Some, None, or a case name. Cases may be listed in
 any order and must cover every case. `$` is the case payload. The target
-block binds it as a parameter.
+block binds it as a parameter. A case may also be written
+`[key, ["block", arg...]]`, the target form `cond` uses.
+
+Operands name function parameters, this block's parameters, and results.
+`b.x` is result x of block b, which must dominate the use. Block parameters
+are visible only in their own block: pass them on as edge arguments.
 
 ## raw operations
 

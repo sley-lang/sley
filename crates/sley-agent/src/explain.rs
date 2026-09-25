@@ -374,11 +374,20 @@ fn analyze(
                                 ),
                             );
                         }
+                    } else if *defined_at == usize::MAX {
+                        // A block parameter is visible only in its own block
+                        // (S20-220), whatever the dominance.
+                        add(
+                            "CFG_DOMINANCE",
+                            format!(
+                                "{site} uses `{shown}`, a parameter of block {defining_name}; block parameters are visible only in their own block, so pass it on as an edge argument"
+                            ),
+                        );
                     } else if reachable[position] && !dominators[position].contains(defining) {
                         add(
                             "CFG_DOMINANCE",
                             format!(
-                                "{site} uses `{shown}` defined in block {defining_name}, which does not dominate block {}; pass it as an edge argument into a block parameter",
+                                "{site} uses `{shown}` defined in block {defining_name}, which does not dominate block {}",
                                 names.name(block_id)
                             ),
                         );

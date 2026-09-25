@@ -234,6 +234,22 @@ fn select(
     })
 }
 
+/// A candidate reference as shown to the reader: a handle as is, a file by
+/// its name, raw hex by its first eight digits.
+fn shown(reference: &str) -> String {
+    let path = Path::new(reference);
+    if reference.contains('/') {
+        return path.file_name().map_or_else(
+            || reference.to_owned(),
+            |name| name.to_string_lossy().into_owned(),
+        );
+    }
+    if reference.len() > 16 {
+        return format!("{}…", &reference[..8]);
+    }
+    reference.to_owned()
+}
+
 fn view_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
     let words = words(
         args,
@@ -249,7 +265,8 @@ fn view_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
     let head = workspace.head()?;
     let map = name_map(&workspace)?;
     let selected = select(&workspace, &head, &map, words.value("--after"))?;
-    let mut text = view::header(&selected.program, selected.label.as_deref());
+    let shown_label = selected.label.as_deref().map(shown);
+    let mut text = view::header(&selected.program, shown_label.as_deref());
     if words.positional.is_empty() && words.value("--after").is_some() && !words.has("--package") {
         // The affected view: every function and test the candidate touches.
         let store = Store::open(&workspace)?;
@@ -1046,7 +1063,10 @@ fn explain_command(global: &Global, args: &[String], out: &mut dyn Write) -> Res
             &json!({"handle": label, "verdict": verdict.to_json(), "view": view_text}),
         )?;
     } else {
-        write_text(out, &format!("{label}: {}\n{view_text}", verdict.to_text()))?;
+        write_text(
+            out,
+            &format!("{}: {}\n{view_text}", shown(&label), verdict.to_text()),
+        )?;
     }
     Ok(if verdict.valid {
         EXIT_OK

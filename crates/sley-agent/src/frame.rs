@@ -1247,7 +1247,23 @@ impl Compiler<'_> {
                 .blocks
                 .get(block_name)
                 .ok_or_else(|| frame(pointer, format!("no block `{block_name}`")))?;
-            scope.block_values[*target].get(leaf).cloned()
+            let slot = scope.block_values[*target].get(leaf).cloned();
+            // `b.x` names results of block b. A block parameter is visible
+            // only inside its own block: pass it on as an edge argument.
+            if let Some(ValueSlot {
+                reference: ValueRef::Parameter(_),
+                ..
+            }) = &slot
+                && *target != block
+            {
+                return Err(frame(
+                    pointer,
+                    format!(
+                        "`{text}` is a parameter of block `{block_name}`; block parameters are visible only in their own block, so pass it to this block as an edge argument"
+                    ),
+                ));
+            }
+            slot
         } else {
             scope.block_values[block]
                 .get(base)
@@ -1776,12 +1792,19 @@ impl Compiler<'_> {
                             })?)
                         }
                     };
-                    let target_name = string(&case[1], &case_pointer)?;
+                    // `[key, "b", args...]`, or `[key, ["b", args...]]` as in `cond`.
+                    let (target_value, rest) = match &case[1] {
+                        Value::Array(target) if case.len() == 2 && !target.is_empty() => {
+                            (&target[0], &target[1..])
+                        }
+                        other => (other, &case[2..]),
+                    };
+                    let target_name = string(target_value, &case_pointer)?;
                     let target = scope
                         .blocks
                         .get(target_name)
                         .ok_or_else(|| frame(&case_pointer, format!("no block `{target_name}`")))?;
-                    let arguments = case[2..]
+                    let arguments = rest
                         .iter()
                         .map(|arg| {
                             let text = string(arg, &case_pointer)?;
