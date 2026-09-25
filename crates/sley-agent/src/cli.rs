@@ -562,7 +562,12 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             );
         }
         text.push_str(&public_text(&public));
-        if verdict.valid && failed == 0 {
+        if verdict.valid && failed == 0 && tests.is_empty() && !words.has("--no-test") {
+            let _ = writeln!(
+                text,
+                "next: add AF1 \"tests\" for what {handle} changes and try again, or sley-agent submit {handle}"
+            );
+        } else if verdict.valid && failed == 0 {
             let _ = writeln!(text, "next: sley-agent submit {handle}");
         } else if !verdict.valid {
             let _ = writeln!(text, "more: sley-agent explain {handle}");
@@ -770,13 +775,17 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
             &json!({"submitted": reference, "file": SUBMISSION, "bytes": stored.len(), "selected_tests": tests}),
         )?;
     } else {
-        write_text(
-            out,
-            &format!(
-                "submitted {reference} -> {SUBMISSION} ({}-byte candidate, hex); resubmit any time, the last submission wins\n",
-                stored.len()
-            ),
-        )?;
+        let mut text = format!(
+            "submitted {reference} -> {SUBMISSION} ({}-byte candidate, hex); resubmit any time, the last submission wins\n",
+            stored.len()
+        );
+        if tests == 0 {
+            let _ = writeln!(
+                text,
+                "note: no TestCase in {reference} targets a function it changes; tests go in the same frame as the change"
+            );
+        }
+        write_text(out, &text)?;
     }
     Ok(EXIT_OK)
 }

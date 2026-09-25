@@ -604,10 +604,22 @@ fn full_redefinition_reuses_names_and_deletes_the_rest() {
         result["ops"]["deleted"], 2,
         "the inside block and its operation"
     );
-    // A Valid candidate that runs no TestCase says so.
+    // A Valid candidate that runs no TestCase says so, and so does submit.
     let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
     assert_eq!(status, 0, "{text}");
     assert!(text.contains("tests: 0 ran"), "{text}");
+    assert!(
+        text.contains(
+            "next: add AF1 \"tests\" for what c3 changes and try again, or sley-agent submit c3"
+        ),
+        "{text}"
+    );
+    let (status, text) = run(&temp.path, &["submit", "c3"]);
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.contains("note: no TestCase in c3 targets a function it changes"),
+        "{text}"
+    );
 }
 
 #[test]

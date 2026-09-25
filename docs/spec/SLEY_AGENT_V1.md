@@ -80,7 +80,9 @@ the TestCases the kernel selected for it, plus the TestCases the frame
 declares, plus the listed public cases. It prints one compact result: the
 handle, the decision or the decoded refusal, and per-test results. A Valid
 candidate that runs no TestCase says so (`tests: 0 ran`), as a test runner
-reports running zero tests.
+reports running zero tests, and its `next:` line suggests adding tests
+before submitting. `submit` accepts such a candidate and notes that no
+TestCase targets a function it changes.
 
 `submit` validates the referenced candidate against the current head again
 and writes `final_candidate.hex` only when it is Valid. Submissions repeat:
