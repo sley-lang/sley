@@ -77,7 +77,11 @@ declared signedness that fits its declared epoch-1 width. On this path
 `check_constant` runs first and already refuses such an input with
 `TYPE_CONST_RANGE`, so no result here changes. The approved-package path
 (`EXEC_PACKAGE_V2.md`, erratum E2) does not run `check_constant`, and there
-the same check refuses the input with `VM_EXEC_INPUT_NOT_CANONICAL`.
+the same check refuses the input with `VM_EXEC_INPUT_NOT_CANONICAL`. The
+same holds for nested type agreement: every value inside an input must carry
+exactly the type its container declares. This path's `check_constant`
+already refuses a mismatch as `TYPE_IMPLICIT_COERCION`, and the
+approved-package path refuses it with `VM_EXEC_INPUT_NOT_CANONICAL`.
 
 Crossing either hard profile cap returns the
 pre-execution `VM_EXEC_RESOURCE_LIMIT` code with no outcome because the complete

@@ -243,8 +243,8 @@ Disposition (2.0.1):
   Every integer inside an input, at any depth, must carry data of its
   declared signedness that fits its declared epoch-1 width, and integer
   data may not appear under a non-integer type. Each value is compared
-  with its own `value_type` only: no definition lookup, environment, or
-  semantic judgment, so the host boundary above is unchanged. A violation
+  with its own `value_type` only, with no environment or semantic judgment,
+  so the host boundary above is unchanged. A violation
   is refused before execution with the existing
   `VM_EXEC_INPUT_NOT_CANONICAL` (27006) and no outcome. No new code.
   Canonical form on the package path also includes nested type agreement:
@@ -257,10 +257,12 @@ Disposition (2.0.1):
   whose payload is typed `UInt(128)` is refused with the same code even
   though the payload fits the width it claims; these are exact-equality,
   field-count, and member-ID checks, not well-formedness, trait, or
-  inference judgment (fixtures:
+  inference judgment. The layout lookup reads only the layouts the
+  approved package already admitted, so it adds no authority (fixtures:
   `crates/sley-vm/tests/package_input_nested_types.rs`).
 - Per input the order is now: register-type equality, canonical form
-  (codec, then integer width), capped value units, value hash. Canonical
+  (codec, then integer width, then nested type agreement), capped value
+  units, value hash. Canonical
   form moved ahead of unit accumulation so the codec's depth bound holds
   before anything recurses over caller data. An input that fails both
   checks now reports `VM_EXEC_INPUT_NOT_CANONICAL` where it previously
