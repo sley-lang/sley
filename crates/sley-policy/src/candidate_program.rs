@@ -198,6 +198,7 @@ impl CandidateProgram {
         };
         for object in objects {
             let entity = object.record().entity_id;
+            collector.attempted = None;
             collector
                 .collect(entity, &object.record().body)
                 .map_err(|error| {
@@ -712,7 +713,9 @@ struct GraphCollector<'a> {
     kinds: &'a BTreeMap<EntityId, u16>,
     edges: BTreeSet<ProgramEdge>,
     work: u64,
-    /// The last reference `add` examined, for explain-only locators.
+    /// The reference `add` is examining, for explain-only locators. It is
+    /// cleared once the reference is accepted, so a failure elsewhere never
+    /// names a reference that resolved.
     attempted: Option<(EntityId, u32)>,
 }
 
@@ -742,6 +745,7 @@ impl GraphCollector<'_> {
         if self.edges.len() > MAX_PROGRAM_EDGES {
             return Err(CandidateProgramError::ResourceLimit);
         }
+        self.attempted = None;
         Ok(())
     }
 
