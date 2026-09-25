@@ -14,6 +14,15 @@ ruling `RULING_ORDER: CODE`
 the embedded-pack checks precede the digest-tree check, and preflight
 precedence is stated; it changes no preimage, code, rejection code, or
 importer behavior (see "Revision 9 amendment note" under Import phases).
+Revision 10 (2026-09-25, Sley 2.0.1) adds one rejection to the frozen
+contract: two branch entries with one parsed branch name are
+`EXCHANGE_DUPLICATE_ENTRY`, decided in import step 5.2 after every branch
+entry verifies, and the no-surplus check moves to step 5.3. It changes no
+preimage, field, limit, or rejection code, and the native exchange profile
+refuses the same input the same way. No import that completed under 2.0.0
+is refused: such an exchange passed the 2.0.0 preflight, then failed
+`EXCHANGE_IO` in step 8.5 on the second origin or ref and left a marked
+incomplete clone (see "Revision 10 amendment note" under Import phases).
 Nabu design
 consult applied; Ariadne contract review `PASS_CONTRACT_DRAFT` on revision 6
 (session `forge-ariadne-s20-540-pass5-20260903T023812-51133a3e`) after five
@@ -573,6 +582,25 @@ to be amended to match it. The importer was not changed.
   every evidence digest bound to them (the independent-conformance, GA,
   release-provenance and decision-dossier builders). So it needs its own
   conformance review.
+
+Revision 10 amendment note (2026-09-25, Sley 2.0.1). The branch list is
+deduplicated and ordered over encoded elements, so two entries for one
+branch name with different origin or ref bytes are distinct canonical
+elements, and each verifies on its own in step 5.1. Only one origin and
+one ref can exist under a name, so an importer now refuses the pair
+before any write.
+
+- **Realized order.** `verify_branch_entry` per branch, then
+  `verify_branch_names_distinct` (step 5.2, keyed on the parsed name's
+  path key), then `verify_no_surplus` (step 5.3). The native profile runs
+  `native_verify_branch_names_distinct` at the same point. The revision 9
+  realized-order list above is otherwise unchanged.
+- **Current pins.** `exchange::tests::two_entries_for_one_branch_name_are_a_duplicate_before_any_write`
+  and the test of the same name in `native_exchange::tests` rebuild the
+  fixture exchange with a second `main` entry and assert
+  `EXCHANGE_DUPLICATE_ENTRY` from import with the target never created.
+- **Pending (not in revision 10).** A frozen `rejected.json` mutation for
+  this rejection, for the same reasons as the revision 9 pending vector.
 
 The lock order is the frozen `maintenance -> refs -> accepted`: the importer
 holds exclusive `locks/maintenance.lock` for the whole persistence phase (the
