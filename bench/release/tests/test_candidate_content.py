@@ -26,7 +26,7 @@ class ContentTests(unittest.TestCase):
         stage = stage_tree(root)
         for relative in packaging.CONFORMANCE_SUBSET:
             shutil.copytree(ROOT / relative, stage / relative)
-        for name in ("SBOM.json", "LICENSES.json"):
+        for name in ("SBOM.json", "LICENSES.json", "THIRD_PARTY_LICENSES"):
             (stage / name).write_text("{}\n")
         if extra:
             (stage / "cache.pyc").write_bytes(b"cache")

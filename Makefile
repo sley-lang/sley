@@ -280,6 +280,7 @@ release-candidate-build:
 
 release-candidate-verify:
 	python3 scripts/check_release_candidate_packaging.py
+	python3 scripts/generate_third_party_licenses.py --check
 	python3 scripts/build_candidate_content_report.py --check
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py

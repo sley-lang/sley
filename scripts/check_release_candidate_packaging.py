@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import publication_authority  # noqa: E402  (sibling module)
+import generate_third_party_licenses as third_party  # noqa: E402  (sibling module)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,6 +67,8 @@ SPEC_MARKERS = (
     "## 15. Artifact-content evidence",
     "sley2.candidate-content-checks.v1",
     "expected_artifact_members",
+    "## 17. Third-party license texts",
+    "`THIRD_PARTY_LICENSES`",
 )
 ADR_MARKERS = (
     "# ADR-0038: release candidate mechanics without a release",
@@ -94,6 +97,8 @@ SCRIPT_MARKERS = (
     "def run_demo(",
     "def build_candidate(",
     "sley-2.0.1-linux-x86_64",
+    "def verify_third_party_licenses(",
+    "third_party.OUTPUT_NAME, \"demo/run_demo.py\"",
 )
 
 
@@ -202,13 +207,13 @@ def main() -> int:
     if status not in (DRAFT_STATUS, FROZEN_STATUS) + IMPLEMENTATION_STATUSES:
         problems.append("machine-summary:status")
     for key, expected in (
-        ("contract_revision", 7),
+        ("contract_revision", 8),
         ("candidate_content_report", "evidence/release/candidate-content-checks.json"),
         ("candidate_content_checker", "scripts/build_candidate_content_report.py"),
     ):
         if section.get(key) != expected:
             problems.append(f"machine-summary:{key}")
-    if "revision 7 (2026-09-19)" not in spec:
+    if "revision 8 (2026-09-25)" not in spec:
         problems.append("spec-revision")
     content_script = ROOT / "scripts/build_candidate_content_report.py"
     if not content_script.exists() or "sley2.candidate-content-checks.v1" not in read(content_script):
@@ -264,6 +269,19 @@ def main() -> int:
             except (OSError, json.JSONDecodeError):
                 lint = {}
             problems.extend(lint_report_problems(lint, section.get("candidate_commit")))
+
+    # The shipped third-party license texts must name exactly the locked
+    # third-party crates (section 17). This is the offline half; the full
+    # byte-level regeneration needs the cargo registry and runs in the build
+    # and in `make release-candidate-verify`.
+    third_party_path = ROOT / third_party.OUTPUT_NAME
+    if not third_party_path.is_file():
+        problems.append(f"third-party-licenses:missing:{third_party.OUTPUT_NAME}")
+    else:
+        problems.extend(
+            f"third-party-licenses:{problem}"
+            for problem in third_party.package_problems(ROOT, third_party_path.read_bytes())
+        )
 
     present = []
     if SCRIPT.exists():
