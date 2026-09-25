@@ -765,7 +765,7 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
         write_text(
             out,
             &format!(
-                "submitted {reference} -> {SUBMISSION} ({} bytes); resubmit any time, the last submission wins\n",
+                "submitted {reference} -> {SUBMISSION} ({}-byte candidate, hex); resubmit any time, the last submission wins\n",
                 stored.len()
             ),
         )?;

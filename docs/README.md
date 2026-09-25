@@ -65,6 +65,7 @@ are versioned (`_V1`, `_V2`) and revised in place with a recorded history.
 
 | Spec | Defines |
 |---|---|
+| [Agent workbench](spec/SLEY_AGENT_V1.md) | `sley-agent`: compact views, AF1 authoring frames, in-process validation, tests and calls |
 | [Root-backed queries](spec/ROOT_BACKED_QUERY_PROFILE_V1.md) | Typed queries against a verified root |
 | [Context capsules](spec/CONTEXT_CAPSULE_PROFILE_V1.md) | Evidence envelopes around complete answers |
 | [Entity reads](spec/ENTITY_READ_PROFILE_V2.md) | Bounded entity and signature reads (protocol v2) |

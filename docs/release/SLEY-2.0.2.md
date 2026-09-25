@@ -71,20 +71,41 @@ Python, no `uv`, no server. Its contract is
 - **`init`, `commit` and `export`** manage local workspaces. `init` grants
   realistic test and candidate ceilings: fuel 1,000,000, memory 16 MiB,
   output 64 KiB, and 10,000 mutations per candidate.
+- **One round per mistake, not per use.** A frame that cannot compile lists
+  every operation (then every terminator) that cannot resolve, one JSON
+  pointer per line. A name that lives in another block is reported as that
+  block's parameter (pass it on as an edge argument) or result (qualify it
+  as `block.name`). A switch case key that is not a case of a Result or an
+  Option names the expected keys. A literal or nested operation used as an
+  operand names the fix at its exact position. A Valid candidate that runs
+  no TestCase says `tests: 0 ran`. Names may contain a hyphen after the
+  first character.
 
-Response times are well inside the spec budgets:
+Response times are well inside the spec budgets (p95 of 30 whole-process
+runs on the build host):
 
-| Operation | Time | Budget |
+| Operation | p95 | Budget |
 |---|---|---|
-| `view` of a function | about 4 ms | 150 ms |
-| `find` | about 4 ms | 300 ms |
-| `try` with tests | about 20 ms | 500 ms |
+| `view` of one function | 4.2 ms | 150 ms |
+| `find` on a package of about 100 entities | 4.2 ms | 300 ms |
+| `try` of 49 operations with 5 TestCases | 12.0 ms | 500 ms |
 
 ## TestCases that work
 
 AF1 tests that state no limits take the workbench defaults, clamped to the
 policy grant. A too-large limit is refused with the limit, the value and the
-ceiling named. Every guide example is executed by the test suite.
+ceiling named. The test suite executes every guide example, every JSON
+example line of the `af1` and `tests` help topics, and every value form the
+`types` topic documents.
+
+## Packaging
+
+The release archive ships `bin/sley-agent` next to `bin/sley`: fifteen
+members, built by one locked `cargo build` and compared byte for byte across
+two clean builds ([packaging revision 9](../spec/RELEASE_CANDIDATE_PACKAGING_V1.md#18-agent-workbench-binary-revision-9-2026-09-25)).
+The source-free conformance subset runs the workbench from the unpacked
+archive: its version, its guide bound, and the guide's first example through
+`init` and `try`. `sley-agent` adds no third-party crate.
 
 ## Known limits
 

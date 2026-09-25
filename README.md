@@ -69,7 +69,7 @@ machine code instead of prose.
 ```sh
 git clone https://github.com/sley-lang/sley.git
 cd sley
-cargo build --release -p sley-cli        # → target/release/sley
+cargo build --release -p sley-cli -p sley-agent   # → target/release/sley, sley-agent
 ```
 
 **2. Say hello.** Every `sley` command prints machine-readable JSON:
@@ -119,6 +119,24 @@ directory. No source tree is needed.
 The demo imports and executes a program that was built in advance. As
 `explicit_gap` says, it doesn't construct, commit, test-select, or merge a
 candidate through the public builder, which is still proposal-only.
+
+**4. Write a program.** `sley-agent` is the workbench agents use: it renders
+functions as compact listings, compiles a JSON authoring frame into one
+candidate, validates it and runs its tests in one command:
+
+```console
+$ sley-agent init demo && cd demo
+$ sley-agent help | awk '/^```json/{f=1;next} /^```/{if(f)exit} f' > ../percent.json
+$ sley-agent try ../percent.json      # the guide's first example
+c1: Valid (+27 created, 0 replaced, 0 deleted)
+tests: 3/3 passed
+  ...
+next: sley-agent submit c1
+```
+
+`sley-agent help` is the whole guide (under 8 KiB). The
+[Quickstart](docs/QUICKSTART.md#7-write-and-test-a-program-with-sley-agent)
+walks through it.
 
 ➡️ **The [full Quickstart](docs/QUICKSTART.md)** covers verifying the
 download, driving `sley serve` by hand over JSON lines, exit codes, and the

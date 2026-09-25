@@ -2,7 +2,8 @@
 
 This guide takes you from nothing to a working Sley 2 endpoint in about ten
 minutes. You'll install the `sley` binary, check it, run the end-to-end demo,
-and then drive a session by hand with a short Python client.
+and then drive a session by hand with a short Python client. Section 7 writes,
+tests and submits a program with `sley-agent`, the workbench agents use.
 
 > **New to Sley?** Skim [Concepts](CONCEPTS.md) first. The one idea you need is
 > that Sley has no source files. Programs are typed semantic graphs, and you
@@ -16,7 +17,8 @@ and then drive a session by hand with a short Python client.
 4. [Talk to `sley serve` yourself](#4-talk-to-sley-serve-yourself)
 5. [Commands and exit codes](#5-commands-and-exit-codes)
 6. [Run the test gates](#6-run-the-test-gates)
-7. [Where to go next](#7-where-to-go-next)
+7. [Write and test a program with `sley-agent`](#7-write-and-test-a-program-with-sley-agent)
+8. [Where to go next](#8-where-to-go-next)
 
 ---
 
@@ -43,6 +45,7 @@ The archive contains:
 | Path | What it is |
 |---|---|
 | `bin/sley` | The static `sley` binary |
+| `bin/sley-agent` | The agent workbench: view, write, test and submit programs (new in 2.0.2) |
 | `demo/run_demo.py` | The self-contained end-to-end demo (Python 3, standard library only) |
 | `conformance/` | The demo fixture plus the SMP1 and JSON-bridge conformance corpora |
 | `MANIFEST.json` | Every member with its size and SHA-256 |
@@ -64,7 +67,7 @@ automatically), and Python 3 for the demo.
 ```sh
 git clone https://github.com/sley-lang/sley.git
 cd sley
-cargo build --release -p sley-cli
+cargo build --release -p sley-cli -p sley-agent
 ./target/release/sley version
 ```
 
@@ -72,7 +75,7 @@ A release build takes about a minute on a modern machine, plus the time to
 download dependencies on the first run. To put `sley` on your `PATH`:
 
 ```sh
-install -m 0755 target/release/sley ~/.local/bin/sley
+install -m 0755 target/release/sley target/release/sley-agent ~/.local/bin/
 ```
 
 The rest of this guide assumes `sley` is on your `PATH`. If it isn't,
@@ -430,7 +433,54 @@ Contributors can run the gates listed above instead. If your change touches a
 spec or a checker, also run the matching `scripts/check_*.py` directly. Most
 of them read only the tracked tree.
 
-## 7. Where to go next
+## 7. Write and test a program with `sley-agent`
+
+`sley-agent` is the workbench an agent uses to read and change a program. It
+runs the kernel in process: it renders functions as compact listings, compiles
+a JSON authoring frame (AF1) into one candidate, validates it, and runs its
+tests, all in one command. Its guide is `sley-agent help`, under 8 KiB, and
+the contract is [SLEY_AGENT_V1](spec/SLEY_AGENT_V1.md).
+
+Create a workspace, then try the guide's first example, a checked `percent`
+function with three tests:
+
+```console
+$ sley-agent init demo && cd demo
+initialized demo (policy: fuel 1000000, memory 16777216, output 65536, 10000 mutations per candidate)
+$ sley-agent help | awk '/^```json/{f=1;next} /^```/{if(f)exit} f' > ../percent.json
+$ sley-agent try ../percent.json
+c1: Valid (+27 created, 0 replaced, 0 deleted)
+tests: 3/3 passed
+  ok   t_percent_1 = Ok(25)
+  ok   t_percent_2 = Err(MathError.ZeroWhole)
+  ok   t_percent_3 = Err(MathError.Overflow)
+next: sley-agent submit c1
+```
+
+`c1` is the candidate's handle. Read the function the way the candidate
+would leave it, and call it:
+
+```console
+$ sley-agent view percent --after c1
+# sley view (AV1, non-canonical) root=49f93284 after=c1
+fn percent(part: i64, whole: i64) -> Result<i64,MathError>   [9af4c7fa]
+  entry:
+    zero = const k_0 (0)
+    is_zero = eq whole, zero
+    cond is_zero -> zero_whole, scale
+  ...
+$ sley-agent call percent 3 8 --on c1
+{"Ok":37}
+```
+
+The listing is output only: nothing reads it back. `sley-agent submit c1`
+writes `final_candidate.hex`, and `sley-agent commit c1` makes the candidate
+the workspace's accepted head. A refused candidate prints the decision, the
+phase, the kernel's symbol, a hint, and where the problem is. Run
+`sley-agent help` for the guide, and `sley-agent help af1`, `types`, `tests`,
+`opcodes` or `refusals` for the references.
+
+## 8. Where to go next
 
 | Next | What you'll find |
 |---|---|
