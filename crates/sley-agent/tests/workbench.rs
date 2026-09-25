@@ -310,6 +310,60 @@ fn block_parameters_stay_in_their_block_and_switch_targets_take_both_forms() {
 }
 
 #[test]
+fn the_refusal_corpus_decodes_every_reachable_phase() {
+    // Phases 5, 7, 9 and 12 have their own tests above and below; this
+    // corpus adds the stale base (3), a type refusal (6) and a test-plan
+    // refusal (11). Every refusal carries its symbol and a hint.
+    let temp = committed_program("corpus", None);
+    let check = |result: &Value, phase: u64, symbol: &str| {
+        let verdict = &result["verdict"];
+        assert_eq!(verdict["phase"], phase, "{result}");
+        assert_eq!(verdict["symbol"], symbol, "{result}");
+        assert!(
+            verdict["hint"].as_str().is_some_and(|hint| hint != "no hint"),
+            "{result}"
+        );
+    };
+    // Phase 6: a constant whose data disagrees with its type.
+    let raw = json!([{"class": "CreateEntity", "kind": 9, "key": "bad_const", "payload": {
+        "value": {"value_type": "i64", "data": {"variant": "Bool", "value": true}}}}]);
+    let (status, result) = run_json(&temp.path, &["try", &raw.to_string()]);
+    assert_eq!(status, 1, "{result}");
+    check(&result, 6, "TYPE_CONST_SHAPE");
+    // Phase 11: a TestCase whose input disagrees with its target.
+    let raw = json!([{"class": "CreateEntity", "kind": 14, "key": "t_bad_input", "payload": {
+        "target": "bound",
+        "inputs": [{"value_type": "bool", "data": {"variant": "Bool", "value": true}}],
+        "effect_environment": {"variant": "Replay", "value": []},
+        "expected": {"variant": "FailureCode", "value": 1}, "observations": [],
+        "resource_limits": {"fuel": 1, "memory_bytes": 1, "output_bytes": 1, "effect_count": 0,
+                            "call_depth": 1, "wall_timeout_millis": 1}}}]);
+    let (status, result) = run_json(&temp.path, &["try", &raw.to_string()]);
+    assert_eq!(status, 1, "{result}");
+    assert_eq!(result["verdict"]["phase"], 11, "{result}");
+    assert!(
+        result["verdict"]["symbol"]
+            .as_str()
+            .is_some_and(|symbol| symbol.starts_with("TEST_PLAN_")),
+        "{result}"
+    );
+    // Phase 3: a Valid candidate goes stale when the head moves under it.
+    let fix = json!({"af1": 1, "edit": [{"fn": "bound", "replace_op": "above.r", "with": ["ok", "high"]}]});
+    assert_eq!(run(&temp.path, &["try", &fix.to_string()]).0, 0);
+    let stale = json!({"af1": 1, "edit": [{"fn": "bound", "replace_op": "below.r", "with": ["ok", "low"]},
+                                         {"fn": "bound", "replace_op": "inside.r", "with": ["ok", "value"]}],
+                       "consts": [{"name": "k_seven", "value": 7}]});
+    let (status, first) = run_json(&temp.path, &["try", &stale.to_string()]);
+    assert_eq!(status, 0, "{first}");
+    let handle = first["handle"].as_str().unwrap().to_owned();
+    let (fix_handle_status, _) = run(&temp.path, &["commit", "c4"]);
+    assert_eq!(fix_handle_status, 0);
+    let (status, result) = run_json(&temp.path, &["explain", &handle]);
+    assert_eq!(status, 1, "{result}");
+    check(&result, 3, "CANDIDATE_BASE_TRANSACTION_MISMATCH");
+}
+
+#[test]
 fn an_unresolved_reference_names_both_entities() {
     let temp = committed_program("unresolved", None);
     let missing = "00".repeat(32);
