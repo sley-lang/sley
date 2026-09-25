@@ -45,15 +45,18 @@ ELIGIBLE_PREFIXES = ("evidence/", "machineresearch/")
 # Non-normative user guides. None is an artifact input, a spec, or a
 # contract, so editing one cannot change what the candidate built or what
 # any checker judges; they may advance past an attested candidate like
-# records. Exact paths plus one example directory, never all of docs/:
-# docs/spec, docs/adr, and docs/release stay attestation-bound.
+# records. Exact paths plus the examples and release-notes directories,
+# never all of docs/: docs/spec and docs/adr stay attestation-bound.
 GUIDE_DOCUMENTATION = (
     "README.md",
     "docs/README.md",
     "docs/QUICKSTART.md",
     "docs/CONCEPTS.md",
 )
-GUIDE_DOCUMENTATION_PREFIXES = ("docs/examples/",)
+# Release notes (docs/release/) are narrative about a build, never an input
+# to it: the build's identity lives in evidence/, so a note can be corrected
+# after the release commit without a re-mint.
+GUIDE_DOCUMENTATION_PREFIXES = ("docs/examples/", "docs/release/")
 # GitHub community-health files: funding, issue and pull-request templates,
 # conduct, and support. None is read by a build or a checker. Workflows under
 # .github/workflows/ stay attestation-bound.

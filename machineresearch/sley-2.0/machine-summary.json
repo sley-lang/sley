@@ -4858,7 +4858,7 @@
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
     "history_anchor_commit": "7804f665e0ee65de240c43fe3b56dc89cf7e9d80",
-    "cargo_lock_sha256": "f4659c88245180f1fda5e955b1b764bc93bb093b6cc225f1eca29d1cad8ce5f2",
+    "cargo_lock_sha256": "c37bd96a08d4d82364ac05b35cedf0a6803baf1fcaf2338278790e6226545af6",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
     "cargo_workspace_packages": 20,
     "cargo_registry_packages": 40,

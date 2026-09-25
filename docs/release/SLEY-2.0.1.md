@@ -1,10 +1,12 @@
 # Sley 2.0.1 release notes
 
 **Release:** Sley 2.0.1 (version `2.0.1`), a patch release of 2.0.0.
-**Artifact:** `sley-2.0.1-linux-x86_64.tar.gz`, SHA-256 `TO-FILL`, size
-`TO-FILL` bytes. The build's records (commit, manifest digest,
-reproducibility result) are in `evidence/release/reproducibility-report.json`
-and the machine summary's `release_candidate_packaging` section.
+**Artifact:** `sley-2.0.1-linux-x86_64.tar.gz`. Its identity (commit,
+SHA-256, byte size, manifest digest) is fixed by the release build and
+recorded in `evidence/release/reproducibility-report.json` and the machine
+summary's `release_candidate_packaging` section, not in this document. The
+[v2.0.1 GitHub release](https://github.com/sley-lang/sley/releases/tag/v2.0.1)
+lists the SHA-256 and ships a `SHA256SUMS` file.
 **Not a GA claim.** `ga_claimed` stays `false`. 2.0.1 fixes defects and
 tightens the release process. It closes no GA acceptance criterion, and every
 limit in the [2.0.0 known limits](SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
@@ -17,7 +19,8 @@ recorded identities is the native-test approval fix below.
 ## Fixes contributed by Fred Nix
 
 Fred Nix ([@nixfred](https://github.com/nixfred)) found and fixed four
-defects in 2.0.0, each with a regression test. Thank you, Fred.
+defects in 2.0.0. Three came with regression tests, and #10's test was added
+in review. Thank you, Fred.
 
 - **VM: checked division, remainder, and negation never abort the host**
   ([#7](https://github.com/sley-lang/sley/pull/7)). `int_div_checked` and
@@ -122,7 +125,7 @@ sha256sum dist/sley-2.0.1-linux-x86_64.tar.gz
 python3 -c 'import json; r = json.load(open("evidence/release/reproducibility-report.json")); print(r["result"], r["commits"])'
 ```
 
-The digest printed by `sha256sum` must equal the SHA-256 above and the
+The digest printed by `sha256sum` must equal the SHA-256 on the GitHub release and the
 `artifact_sha256` that the reproducibility report records for the release
 commit. To reproduce the build on a second host, follow
 `docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md` section 5.1, as
