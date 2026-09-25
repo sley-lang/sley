@@ -1291,7 +1291,8 @@ pub fn protocol_epoch_id() -> Result<SchemaEpochId> {
 impl ProtocolFrame {
     /// Validates a decoded frame's header with the frozen codec, including
     /// the hello header rule of SMP1 section 2 (`session = None`,
-    /// `request_id = 0`, `method = 0`, `flags = 0` on kind 4).
+    /// `request_id = 0`, `method = 0`, `flags = 0` on kind 4) and its
+    /// revision 16 erratum (zero `bounds` on kind 4).
     ///
     /// Readers that build a frame without decoding wire bytes (notably the
     /// S20-420 JSON bridge) call this instead of re-stating the rule, so a
@@ -1352,11 +1353,15 @@ impl ProtocolFrame {
         {
             return fail(ProtocolErrorCode::FrameInvalid);
         }
+        // A hello frame carries the zero bounds `encode_hello_frame` emits
+        // (SMP1 revision 16 erratum, 2.0.1): nonzero hello bounds are
+        // non-canonical and are refused, never dropped with the frame.
         if self.kind == FrameKind::Hello
             && (self.session.is_some()
                 || self.request_id != 0
                 || self.method != 0
-                || self.flags != 0)
+                || self.flags != 0
+                || self.bounds != BoundedContext::none())
         {
             return fail(ProtocolErrorCode::FrameInvalid);
         }
@@ -3063,6 +3068,31 @@ mod tests {
         })
     }
 
+    /// The S20-700-SMP1-002 conformance rejection: the fixture server hello
+    /// frame with `bounds.applied_limits.max_frame_bytes = 8`, re-enveloped
+    /// under a valid trailer. `encode_hello_frame` never emits it.
+    fn hello_nonzero_bounds_frame() -> Vec<u8> {
+        let frame = ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION,
+            session: None,
+            request_id: 0,
+            kind: FrameKind::Hello,
+            method: 0,
+            flags: 0,
+            bounds: BoundedContext {
+                applied_limits: LimitProfile {
+                    max_frame_bytes: 8,
+                    ..LimitProfile::zero()
+                },
+                ..BoundedContext::none()
+            },
+            body: server_hello().encode().unwrap(),
+        };
+        encode_envelope(FrameKind::Hello, &frame.payload().unwrap())
+            .unwrap()
+            .bytes
+    }
+
     /// Emits the frozen frame, hello, and failure vectors for
     /// `scripts/generate_smp1_fixtures.py`.
     #[test]
@@ -3180,6 +3210,11 @@ mod tests {
                 ),
                 ("truncated-envelope", short, ProtocolErrorCode::FrameInvalid),
                 ("magic-bit", magic, ProtocolErrorCode::FrameInvalid),
+                (
+                    "hello-nonzero-bounds",
+                    hello_nonzero_bounds_frame(),
+                    ProtocolErrorCode::FrameInvalid,
+                ),
             ]
         };
         for (label, bytes, expected) in rejects {
@@ -3987,6 +4022,192 @@ mod tests {
                     "{left_name}: selected version not offered"
                 );
             }
+        }
+    }
+
+    /// S20-700-SMP1-002: the persistent `smp1_frame_decoder` target found a
+    /// hello frame (kind 4) whose `bounds` carried a nonzero
+    /// `applied_limits.max_frame_bytes`: input byte 82, frame byte 81, the
+    /// one-byte value of `bounds.applied_limits` field 1, is 0x08 where the
+    /// accepted fixture server hello has 0x00 (lane 1 rehashes the
+    /// trailer). The hello header rule checked session, request
+    /// identifier, method, and flags but not bounds, so the frame decoded,
+    /// the bounds were dropped with the frame, and `encode_hello_frame`
+    /// re-emitted zero bounds: a non-canonical frame accepted and
+    /// normalized. It is `PROTOCOL_FRAME_INVALID`.
+    #[test]
+    fn hello_frame_with_nonzero_bounds_is_refused_s20_700_smp1_002() {
+        const INPUT_HEX: &str = "01000000000000014d534c45595343423101900337522d2cf9f8b19b291e3436f2faea3e7e7a503d4f46f33202c79dae7be3615c8002080101010202000003010004010405010006010007310801190801010802010003010004010005010006010007010008010002010003010004010005010006010007010108010108b601b4010701030101010243022012121212121212121212121212121212121212121212121212121212121212122011111111111111111111111111111111111111111111111111111111111111110325080104808080020202f4030303a09c010401080504808080010604c096b10207010208010804160801640166016702ac0202ad0202ae0202af0202db0405010906220120a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a20701009bcd4d13f0a6d40bfc83729b0e9c2800d8a3be210fb17513e01784d07464dd04";
+        let input: Vec<u8> = (0..INPUT_HEX.len())
+            .step_by(2)
+            .map(|index| u8::from_str_radix(&INPUT_HEX[index..index + 2], 16).unwrap())
+            .collect();
+        assert_eq!(input.len(), 342);
+        assert_eq!(input[0] % 4, 1, "lane 1: the trailer is rehashed");
+        // Lane 1 exactly: rewrite the trailer over the mutated preimage.
+        let payload = &input[1..];
+        let preimage_len = payload.len() - ID_LEN;
+        let mut candidate = payload[..preimage_len].to_vec();
+        candidate.extend_from_slice(
+            ProtocolFrameId::derive(&payload[LENGTH_PREFIX..preimage_len]).as_bytes(),
+        );
+        assert_eq!(
+            decode_frame(&candidate, MAX_FRAME_BYTES)
+                .unwrap_err()
+                .code(),
+            ProtocolErrorCode::FrameInvalid
+        );
+        // The minimized candidate is the conformance rejection
+        // `hello-nonzero-bounds` byte for byte, and the tracked fuzz
+        // regression record carries this input and that minimized form.
+        assert_eq!(candidate, hello_nonzero_bounds_frame());
+        let record: serde_json::Value = serde_json::from_str(include_str!(
+            "../../../fuzz/regressions/S20_700_SMP1_002.json"
+        ))
+        .unwrap();
+        assert_eq!(record["finding_id"], "S20-700-SMP1-002");
+        assert_eq!(record["input_hex"], INPUT_HEX);
+        assert_eq!(
+            record["minimized_input_hex"],
+            format!("00{}", hex(&candidate))
+        );
+        // The same frame with zero bounds is the accepted fixture server
+        // hello, and it still round-trips byte for byte.
+        let mut canonical = payload[..preimage_len].to_vec();
+        assert_eq!(canonical[81], 0x08);
+        canonical[81] = 0x00;
+        let digest = ProtocolFrameId::derive(&canonical[LENGTH_PREFIX..]);
+        canonical.extend_from_slice(digest.as_bytes());
+        let (decoded, _) = decode_frame(&canonical, MAX_FRAME_BYTES).unwrap();
+        let DecodedFrame::Hello(hello) = decoded else {
+            panic!("the canonical frame is a hello");
+        };
+        assert_eq!(encode_hello_frame(&hello).unwrap().bytes, canonical);
+        assert_eq!(
+            encode_hello_frame(&server_hello()).unwrap().bytes,
+            canonical
+        );
+        // Every bounds field, one at a time, is refused on a hello frame.
+        let zero = BoundedContext::none();
+        let limits = LimitProfile::zero();
+        let variants = [
+            BoundedContext {
+                applied_limits: LimitProfile {
+                    max_frame_bytes: 1,
+                    ..limits
+                },
+                ..zero
+            },
+            BoundedContext {
+                applied_limits: LimitProfile {
+                    max_entities: 1,
+                    ..limits
+                },
+                ..zero
+            },
+            BoundedContext {
+                applied_limits: LimitProfile {
+                    max_edges: 1,
+                    ..limits
+                },
+                ..zero
+            },
+            BoundedContext {
+                applied_limits: LimitProfile {
+                    max_depth: 1,
+                    ..limits
+                },
+                ..zero
+            },
+            BoundedContext {
+                applied_limits: LimitProfile {
+                    max_response_bytes: 1,
+                    ..limits
+                },
+                ..zero
+            },
+            BoundedContext {
+                applied_limits: LimitProfile {
+                    max_work: 1,
+                    ..limits
+                },
+                ..zero
+            },
+            BoundedContext {
+                applied_limits: LimitProfile {
+                    max_inflight: 1,
+                    ..limits
+                },
+                ..zero
+            },
+            BoundedContext {
+                applied_limits: LimitProfile {
+                    max_sessions: 1,
+                    ..limits
+                },
+                ..zero
+            },
+            BoundedContext {
+                returned_bytes: 1,
+                ..zero
+            },
+            BoundedContext {
+                returned_entities: 1,
+                ..zero
+            },
+            BoundedContext {
+                returned_edges: 1,
+                ..zero
+            },
+            BoundedContext {
+                reached_depth: 1,
+                ..zero
+            },
+            BoundedContext { omitted: 1, ..zero },
+            BoundedContext {
+                truncated: true,
+                ..zero
+            },
+            BoundedContext {
+                continuation: true,
+                ..zero
+            },
+        ];
+        let hello_frame = ProtocolFrame {
+            protocol_version: PROTOCOL_VERSION,
+            session: None,
+            request_id: 0,
+            kind: FrameKind::Hello,
+            method: 0,
+            flags: 0,
+            bounds: zero,
+            body: hello.encode().unwrap(),
+        };
+        assert_eq!(hello_frame.validate_header(), Ok(()));
+        for bounds in variants {
+            let wire = ProtocolFrame {
+                bounds,
+                ..hello_frame.clone()
+            };
+            assert_eq!(
+                wire.validate_header().unwrap_err().code(),
+                ProtocolErrorCode::FrameInvalid,
+                "{bounds:?}"
+            );
+            let bytes = encode_envelope(FrameKind::Hello, &wire.payload().unwrap())
+                .unwrap()
+                .bytes;
+            for version in [PROTOCOL_VERSION, PROTOCOL_VERSION_V2, PROTOCOL_VERSION_V3] {
+                assert!(
+                    decode_frame_for_version(&bytes, MAX_FRAME_BYTES, version).is_err(),
+                    "{bounds:?} under version {version}"
+                );
+            }
+            assert_eq!(
+                decode_frame(&bytes, MAX_FRAME_BYTES).unwrap_err().code(),
+                ProtocolErrorCode::FrameInvalid,
+                "{bounds:?}"
+            );
         }
     }
 }
