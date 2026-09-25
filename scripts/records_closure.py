@@ -6,7 +6,8 @@ records-closure HEAD: a HEAD that advances beyond the candidate commit is
 admissible for derivation **only** when the source-to-HEAD diff is provably
 records-only:
 
-- every changed tracked path is under ``evidence/`` or ``machineresearch/``
+- every changed tracked path is under ``evidence/`` or ``machineresearch/``,
+  or is one of the non-normative user guides in ``GUIDE_DOCUMENTATION``
   (anything else -- crates/, scripts/, specs/contracts, lockfiles, build
   inputs -- is attestation-bound and makes the HEAD ineligible), and
 - none of the bound inputs changed (the T52 inventory the SPDX namespace
@@ -40,6 +41,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # Records-eligible prefixes: review/evidence records only.
 ELIGIBLE_PREFIXES = ("evidence/", "machineresearch/")
+
+# Non-normative user guides. None is an artifact input, a spec, or a
+# contract, so editing one cannot change what the candidate built or what
+# any checker judges; they may advance past an attested candidate like
+# records. Exact paths plus one example directory, never all of docs/:
+# docs/spec, docs/adr, and docs/release stay attestation-bound.
+GUIDE_DOCUMENTATION = (
+    "README.md",
+    "docs/README.md",
+    "docs/QUICKSTART.md",
+    "docs/CONCEPTS.md",
+)
+GUIDE_DOCUMENTATION_PREFIXES = ("docs/examples/",)
+
+
+def is_records_eligible(path: str) -> bool:
+    """A path that may change past the attested candidate without a re-mint."""
+    return (
+        path.startswith(ELIGIBLE_PREFIXES)
+        or path in GUIDE_DOCUMENTATION
+        or path.startswith(GUIDE_DOCUMENTATION_PREFIXES)
+    )
+
 
 # Derive bound records from the artifact input surface so both freshness
 # checks change together when packaging gains an input. Emitted reports
@@ -130,7 +154,7 @@ def closure_status(attested_commit: str) -> ClosureStatus:
     ineligible = [
         path
         for path in changed
-        if not path.startswith(ELIGIBLE_PREFIXES)
+        if not is_records_eligible(path)
     ]
     bound_changed = [path for path in changed if path in BOUND_PATHS]
     return ClosureStatus(

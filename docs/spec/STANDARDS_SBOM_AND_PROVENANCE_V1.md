@@ -14,7 +14,10 @@ symmetrizes the ahead states of both builders (section 5), and specifies the
 attestation cross-checks (section 7). Revision 5 adds the records-closure
 model (section 5): the attested source candidate commit is distinguished
 from a later records-closure HEAD, and a records-only advancement derives
-the identical candidate-bound documents with nothing re-minted. The mechanics are `scripts/build_standards_sbom.py` and
+the identical candidate-bound documents with nothing re-minted. Erratum
+(2026-09-24, no contract-revision change): the non-normative user guides
+listed in section 5 are records-closure eligible, so documentation can be
+updated without re-minting a candidate. The mechanics are `scripts/build_standards_sbom.py` and
 `scripts/build_release_provenance.py`; implementation state is tracked in the
 machine summary.
 
@@ -255,9 +258,13 @@ different things, and the contract treats them differently. A HEAD past the
 candidate commit admits derivation only when the source-to-HEAD diff is
 provably records-only, decided by `scripts/records_closure.py`:
 
-- every changed tracked path is under `evidence/` or `machineresearch/`;
-  any change to `crates/`, `scripts/`, specs/contracts, lockfiles, build
-  inputs, or any other attestation-bound path makes the HEAD ineligible;
+- every changed tracked path is under `evidence/` or `machineresearch/`,
+  or is one of the non-normative user guides (`README.md`,
+  `docs/README.md`, `docs/QUICKSTART.md`, `docs/CONCEPTS.md`, and
+  `docs/examples/`; none is an artifact input, a spec, or a contract);
+  any change to `crates/`, `scripts/`, specs/contracts (including every
+  other file under `docs/`), lockfiles, build inputs, or any other
+  attestation-bound path makes the HEAD ineligible;
 - none of the bound inputs changed. The bound input is the T52 inventory
   the SPDX namespace binds. The emitted documents (the SBOM pair and the
   provenance statement) and the reproducibility report are not bound

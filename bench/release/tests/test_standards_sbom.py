@@ -756,6 +756,26 @@ class RecordsClosureTests(unittest.TestCase):
             self.assertIn(path, candidate.ARTIFACT_INPUT_PATHS)
             self.assertTrue(path.startswith(closure.ELIGIBLE_PREFIXES), path)
 
+    def test_guide_documentation_is_eligible_and_never_an_artifact_input(self) -> None:
+        candidate = load("build_release_candidate")
+        guides = [*closure.GUIDE_DOCUMENTATION, "docs/examples/smp1_json_client.py"]
+        for path in guides:
+            self.assertTrue(closure.is_records_eligible(path), path)
+            for surface in candidate.ARTIFACT_INPUT_PATHS:
+                self.assertFalse(
+                    path == surface or path.startswith(surface.rstrip("/") + "/"),
+                    (path, surface),
+                )
+        for path in (
+            "docs/spec/SMP1.md",
+            "docs/adr/ADR-0001-machine-native-lineage.md",
+            "docs/release/SLEY-2.0.0.md",
+            "docs/WORK_PACKAGES.md",
+            "ARCHITECTURE.md",
+            "crates/sley-cli/README.md",
+        ):
+            self.assertFalse(closure.is_records_eligible(path), path)
+
     def test_builders_admit_an_eligible_closure_keeping_the_candidate_binding(self) -> None:
         # Compares the candidate-bound properties, subject, and SPDX version of
         # the admitted documents; byte identity of re-derived documents is the
