@@ -431,4 +431,7 @@ Revision 8 also names the current artifact `sley-2.0.1-linux-x86_64.tar.gz`.
 Sections 11 through 14 keep the 2.0.0 name and member counts they recorded
 at the time. The Rust standard library and the musl C library that the
 pinned toolchain links into the static binary are outside the `Cargo.lock`
-set and are not covered by this file.
+set. Their notices are vendored under `licenses/toolchain/` (sources in its
+README) and appended to the file under "Toolchain components", so the
+archive carries every notice the binary's static linkage requires.
+`licenses/toolchain/` is an artifact input.

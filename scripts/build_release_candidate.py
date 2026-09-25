@@ -76,6 +76,7 @@ ARTIFACT_INPUT_PATHS = (
     "NOTICE",
     third_party.OUTPUT_NAME,
     third_party.GENERATOR,
+    "licenses/toolchain",
     "bench/release/run_demo.py",
     "evidence/security/T52/pre-release-inventory.json",
     "scripts/build_release_candidate.py",
