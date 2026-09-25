@@ -107,6 +107,27 @@ The source-free conformance subset runs the workbench from the unpacked
 archive: its version, its guide bound, and the guide's first example through
 `init` and `try`. `sley-agent` adds no third-party crate.
 
+## Build and verify
+
+The build needs a clean checkout at the release commit, the pinned Rust
+toolchain (`rust-toolchain.toml`, 1.93.0) with the `x86_64-unknown-linux-musl`
+target installed, Python 3 and `uv`.
+
+```sh
+make release-candidate-smoke        # fetch, two clean builds + all release records, then verify
+make release-candidate-verify       # re-check the records against the tree
+sha256sum dist/sley-2.0.2-linux-x86_64.tar.gz
+python3 -c 'import json; r = json.load(open("evidence/release/reproducibility-report.json")); print(r["result"], r["commits"])'
+```
+
+The digest printed by `sha256sum` must equal the SHA-256 above and the
+`artifact_sha256` that the reproducibility report records for the release
+commit. To reproduce the build on a second host, follow
+`docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md` section 5.1.
+The [Quickstart](../QUICKSTART.md#6-run-the-test-gates) lists the test gates
+that run from a fresh clone. From the unpacked archive, `bin/sley-agent init`
+and `bin/sley-agent try` run the guide's first example with no source tree.
+
 ## Known limits
 
 - A candidate that changes a function together with TestCases that target it
