@@ -32,7 +32,7 @@ use sley_ssmc::{
 
 use crate::candidate::PlannedOp;
 use crate::error::{AgentError, AgentErrorCode, Result, frame};
-use crate::names::{NameMap, Names, Scope, is_identifier};
+use crate::names::{NAME_GRAMMAR, NameMap, Names, Scope, is_identifier};
 use crate::opcodes::{self, ImmediateKind, OpcodeRow};
 use crate::types::{self, TypeNames};
 use crate::values::{self, TypeDefs};
@@ -199,6 +199,20 @@ fn string<'v>(value: &'v Value, pointer: &str) -> Result<&'v str> {
         .ok_or_else(|| frame(pointer, "expected a string"))
 }
 
+/// An operand names a value; anything else is refused with the fix.
+fn operand<'v>(value: &'v Value, pointer: &str) -> Result<&'v str> {
+    value.as_str().ok_or_else(|| {
+        let fix = match value {
+            Value::Number(number) => format!(
+                "the literal {number} is not a value name; add an operation such as [\"k\", \"const\", {number}] and use \"k\""
+            ),
+            Value::Array(_) => "operations do not nest; add the operation to the block's ops under a name and use that name".to_owned(),
+            _ => "an operand names a value (a parameter or an operation result)".to_owned(),
+        };
+        frame(pointer, fix)
+    })
+}
+
 fn name_of<'v>(
     object: &'v serde_json::Map<String, Value>,
     keys: &[&str],
@@ -210,7 +224,7 @@ fn name_of<'v>(
             if !is_identifier(name) {
                 return Err(frame(
                     &format!("{pointer}/{key}"),
-                    format!("`{name}` is not a name ([A-Za-z_][A-Za-z0-9_]*)"),
+                    format!("`{name}` is not a name ({NAME_GRAMMAR})"),
                 ));
             }
             return Ok(name);
@@ -717,7 +731,7 @@ impl Compiler<'_> {
             if !is_identifier(name) || out.iter().any(|(existing, _)| existing == name) {
                 return Err(frame(
                     &param_pointer,
-                    format!("`{name}` is not a fresh parameter name"),
+                    format!("`{name}` is not a fresh parameter name ({NAME_GRAMMAR}, distinct)"),
                 ));
             }
             out.push((name.to_owned(), self.read_type(&pair[1], &param_pointer)?));
@@ -1092,7 +1106,7 @@ impl Compiler<'_> {
         loop {
             let before = pending.len();
             let mut next = Vec::new();
-            let mut first_error = None;
+            let mut errors = Vec::new();
             for (b, o) in pending {
                 let op = &blocks[b].ops[o];
                 match self.build_op(op, b, &scope, &hints) {
@@ -1105,7 +1119,7 @@ impl Compiler<'_> {
                     }
                     Ok(None) => next.push((b, o)),
                     Err(error) => {
-                        first_error.get_or_insert(error);
+                        errors.push(error);
                         next.push((b, o));
                     }
                 }
@@ -1114,8 +1128,10 @@ impl Compiler<'_> {
                 break;
             }
             if next.len() == before {
-                if let Some(error) = first_error {
-                    return Err(error);
+                // Every operation that cannot resolve, in one refusal: one
+                // round per misplaced name is the costliest way to learn it.
+                if !errors.is_empty() {
+                    return Err(combined(errors));
                 }
                 let (b, o) = next[0];
                 let op = &blocks[b].ops[o];
@@ -1130,6 +1146,7 @@ impl Compiler<'_> {
             pending = next;
         }
         // Bodies.
+        let mut terminator_errors = Vec::new();
         for (index, block) in blocks.iter().enumerate() {
             if block.keep {
                 continue;
@@ -1160,13 +1177,19 @@ impl Compiler<'_> {
                     }),
                 );
             }
-            let terminator = self.build_terminator(
+            let terminator = match self.build_terminator(
                 block.term.as_ref().expect("frame block"),
                 index,
                 &blocks,
                 &scope,
                 &format!("{}/term", block.pointer),
-            )?;
+            ) {
+                Ok(terminator) => terminator,
+                Err(error) => {
+                    terminator_errors.push(error);
+                    continue;
+                }
+            };
             self.put(
                 block.id,
                 EntityBodyValue::Block(BlockBody {
@@ -1181,6 +1204,9 @@ impl Compiler<'_> {
                     },
                 }),
             );
+        }
+        if !terminator_errors.is_empty() {
+            return Err(combined(terminator_errors));
         }
         let entry = match decl.get("entry") {
             Some(value) => {
@@ -1270,7 +1296,7 @@ impl Compiler<'_> {
                 .or_else(|| scope.function_values.get(base))
                 .cloned()
         };
-        let mut slot = slot.ok_or_else(|| frame(pointer, format!("no value `{text}` in scope")))?;
+        let mut slot = slot.ok_or_else(|| frame(pointer, unresolved(text, base, block, scope)))?;
         if index != 0 {
             if let ValueRef::OperationResult(result) = &mut slot.reference {
                 result.result_index = index;
@@ -1301,7 +1327,7 @@ impl Compiler<'_> {
                     .ok_or_else(|| frame(pointer, format!("no block `{name}`")))?;
                 let args = items[1..]
                     .iter()
-                    .map(|arg| string(arg, pointer).map(str::to_owned))
+                    .map(|arg| operand(arg, pointer).map(str::to_owned))
                     .collect::<Result<_>>()?;
                 Ok((*index, args))
             }
@@ -1567,7 +1593,7 @@ impl Compiler<'_> {
         let mut operands = Vec::new();
         let mut operand_types = Vec::new();
         for arg in args {
-            let text = string(arg, pointer)?;
+            let text = operand(arg, pointer)?;
             let slot = self.resolve_value(text, block, scope, pointer)?;
             operands.push(slot.reference);
             operand_types.push(slot.ty);
@@ -1737,11 +1763,11 @@ impl Compiler<'_> {
             .and_then(Value::as_str)
             .ok_or_else(|| frame(pointer, "a terminator starts with its word"))?;
         let value_at = |index: usize| -> Result<ValueSlot> {
-            let text = string(
+            let text = operand(
                 items
                     .get(index)
                     .ok_or_else(|| frame(pointer, "missing operand"))?,
-                pointer,
+                &format!("{pointer}/{index}"),
             )?;
             self.resolve_value(text, block, scope, pointer)
         };
@@ -1785,7 +1811,7 @@ impl Compiler<'_> {
                         member => {
                             let member = member.rsplit('.').next().unwrap_or(member);
                             let definition = definition.ok_or_else(|| {
-                                frame(&case_pointer, "member cases need a variant scrutinee")
+                                frame(&case_pointer, not_a_case(member, scrutinee.ty.as_ref()))
                             })?;
                             CaseKey::Member(self.member(&definition, member).ok_or_else(|| {
                                 frame(&case_pointer, format!("no case `{member}`"))
@@ -1807,7 +1833,7 @@ impl Compiler<'_> {
                     let arguments = rest
                         .iter()
                         .map(|arg| {
-                            let text = string(arg, &case_pointer)?;
+                            let text = operand(arg, &case_pointer)?;
                             if text == "$" {
                                 Ok(SwitchArgument::CasePayload)
                             } else {
@@ -2393,7 +2419,10 @@ impl BlockSpec {
 
     fn from_patch(leaf: &str, value: &Value, pointer: &str) -> Result<Self> {
         if !is_identifier(leaf) {
-            return Err(frame(pointer, format!("`{leaf}` is not a block name")));
+            return Err(frame(
+                pointer,
+                format!("`{leaf}` is not a block name ({NAME_GRAMMAR})"),
+            ));
         }
         let object = value
             .as_object()
@@ -2414,28 +2443,30 @@ impl BlockSpec {
                 return Err(frame(&format!("{pointer}/{key}"), "unknown block key"));
             }
         }
-        let params = match object.get("params") {
-            Some(value) => array(value, &format!("{pointer}/params"))?
-                .iter()
-                .enumerate()
-                .map(|(index, param)| {
-                    let param_pointer = format!("{pointer}/params/{index}");
-                    let pair =
-                        param
-                            .as_array()
-                            .filter(|pair| pair.len() == 2)
-                            .ok_or_else(|| {
-                                frame(&param_pointer, "a block parameter is [\"name\", type]")
-                            })?;
-                    let name = string(&pair[0], &param_pointer)?;
-                    if !is_identifier(name) {
-                        return Err(frame(&param_pointer, format!("`{name}` is not a name")));
-                    }
-                    Ok((name.to_owned(), pair[1].clone()))
-                })
-                .collect::<Result<_>>()?,
-            None => Vec::new(),
-        };
+        let params =
+            match object.get("params") {
+                Some(value) => {
+                    array(value, &format!("{pointer}/params"))?
+                        .iter()
+                        .enumerate()
+                        .map(|(index, param)| {
+                            let param_pointer = format!("{pointer}/params/{index}");
+                            let pair = param.as_array().filter(|pair| pair.len() == 2).ok_or_else(
+                                || frame(&param_pointer, "a block parameter is [\"name\", type]"),
+                            )?;
+                            let name = string(&pair[0], &param_pointer)?;
+                            if !is_identifier(name) {
+                                return Err(frame(
+                                    &param_pointer,
+                                    format!("`{name}` is not a name ({NAME_GRAMMAR})"),
+                                ));
+                            }
+                            Ok((name.to_owned(), pair[1].clone()))
+                        })
+                        .collect::<Result<_>>()?
+                }
+                None => Vec::new(),
+            };
         let ops = match object.get("ops") {
             Some(value) => array(value, &format!("{pointer}/ops"))?.clone(),
             None => Vec::new(),
@@ -2497,7 +2528,10 @@ fn op_head(value: &Value, pointer: &str) -> Result<(String, OpSpec)> {
         }
     };
     if !is_identifier(name) {
-        return Err(frame(pointer, format!("`{name}` is not a value name")));
+        return Err(frame(
+            pointer,
+            format!("`{name}` is not a value name ({NAME_GRAMMAR})"),
+        ));
     }
     let opcode = opcodes::by_word(opcode).ok_or_else(|| {
         frame(
@@ -2527,6 +2561,63 @@ struct PlannedBlock {
     unreachable: bool,
     pointer: String,
     keep: bool,
+}
+
+/// One refusal for several frame problems, each on its own line.
+fn combined(mut errors: Vec<AgentError>) -> AgentError {
+    errors.dedup();
+    if errors.len() == 1 {
+        return errors.remove(0);
+    }
+    let lines: Vec<&str> = errors.iter().map(AgentError::detail).collect();
+    AgentError::new(
+        AgentErrorCode::FrameInvalid,
+        format!("{} problems:\n  {}", lines.len(), lines.join("\n  ")),
+    )
+}
+
+/// Why a plain name resolves nowhere in `block`, with the fix when the
+/// name lives in another block.
+fn unresolved(text: &str, base: &str, block: usize, scope: &FunctionScope) -> String {
+    let owner = scope
+        .blocks
+        .iter()
+        .filter(|(_, index)| **index != block)
+        .find_map(|(name, index)| {
+            scope.block_values[*index]
+                .get(base)
+                .map(|slot| (name, slot))
+        });
+    match owner {
+        Some((
+            name,
+            ValueSlot {
+                reference: ValueRef::Parameter(_),
+                ..
+            },
+        )) => format!(
+            "`{text}` is a parameter of block `{name}`; block parameters are visible only in their own block, so add a parameter to this block and pass `{base}` to it as an edge argument"
+        ),
+        Some((name, _)) => format!(
+            "`{text}` is a result of block `{name}`; write `{name}.{base}` (a result is visible in the blocks its block dominates)"
+        ),
+        None => format!("no value `{text}` in scope"),
+    }
+}
+
+/// Why a switch case key is not a case of the scrutinee's type.
+fn not_a_case(key: &str, scrutinee: Option<&TypeExpr>) -> String {
+    match scrutinee {
+        Some(TypeExpr::Result { .. }) => format!(
+            "`{key}` is not a case of a Result; a Result switch lists [\"Ok\", block, args...] and [\"Err\", block, args...], and `$` passes the payload"
+        ),
+        Some(TypeExpr::Option(_)) => format!(
+            "`{key}` is not a case of an Option; an Option switch lists [\"Some\", block, args...] and [\"None\", block, args...], and `$` passes the payload"
+        ),
+        _ => format!(
+            "`{key}` needs a variant scrutinee; a case is [key, block, args...] with key Ok/Err (Result), Some/None (Option) or a case of the variant type"
+        ),
+    }
 }
 
 #[derive(Default)]

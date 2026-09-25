@@ -310,6 +310,97 @@ fn block_parameters_stay_in_their_block_and_switch_targets_take_both_forms() {
 }
 
 #[test]
+fn one_refusal_lists_every_misplaced_name_and_case_key() {
+    let temp = workspace("one-round", None);
+    // `sub` is used unqualified in two later blocks: both uses in one round.
+    let frame = |cases: Value| {
+        json!({"af1": 1, "types": [{"name": "E", "variant": ["Overflow"]}],
+          "fns": [{"fn": "f", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "ops": [["d", "add", "a", "a"]], "term": ["switch", "d", ["Ok", "mid", "$"], ["Err", "ovf"]]},
+            {"name": "mid", "params": [["sub", "i64"]], "ops": [["m", "add", "sub", "sub"]],
+             "term": ["switch", "m", ["Ok", "sum", "$"], ["Err", "ovf"]]},
+            {"name": "sum", "params": [["t", "i64"]], "ops": [["s", "add", "sub", "t"]], "term": ["switch", "s", cases, ["Err", "ovf"]]},
+            {"name": "done", "params": [["v", "i64"]], "ops": [["w", "add", "v", "sub"], ["r", "ok", "w"]], "term": ["return", "r"]},
+            {"name": "ovf", "ops": [["e", "variant", "E.Overflow"], ["r", "err", "e"]], "term": ["return", "r"]}]}]})
+    };
+    let (status, text) = run(
+        &temp.path,
+        &["try", &frame(json!(["Ok", "done", "$"])).to_string()],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(text.contains("2 problems:"), "{text}");
+    assert!(
+        text.contains("/fns/0/blocks/2/ops/0: `sub` is a parameter of block `mid`"),
+        "{text}"
+    );
+    assert!(
+        text.contains("/fns/0/blocks/3/ops/0: `sub` is a parameter of block `mid`"),
+        "{text}"
+    );
+    // A Result case written without its key names the expected keys.
+    let fixed = |cases: Value| {
+        let mut value = frame(cases);
+        value["fns"][0]["blocks"][2]["ops"] = json!([["s", "add", "t", "t"]]);
+        value["fns"][0]["blocks"][3]["ops"] = json!([["r", "ok", "v"]]);
+        value
+    };
+    let (status, text) = run(
+        &temp.path,
+        &["try", &fixed(json!(["done", "$"])).to_string()],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("/fns/0/blocks/2/term/2: `done` is not a case of a Result; a Result switch lists [\"Ok\", block, args...]"),
+        "{text}"
+    );
+    // A nested operation as an operand names the fix at its slot.
+    let mut nested = fixed(json!(["Ok", "done", "$"]));
+    nested["fns"][0]["blocks"][3]["ops"] = json!([]);
+    nested["fns"][0]["blocks"][3]["term"] = json!(["return", ["ok", "v"]]);
+    let (status, text) = run(&temp.path, &["try", &nested.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("/fns/0/blocks/3/term/1: operations do not nest"),
+        "{text}"
+    );
+    let (status, text) = run(
+        &temp.path,
+        &["try", &fixed(json!(["Ok", "done", "$"])).to_string()],
+    );
+    assert_eq!(status, 0, "{text}");
+}
+
+#[test]
+fn test_names_may_carry_hyphens_like_the_public_tests() {
+    let temp = committed_program("hyphen", None);
+    let frame = json!({"af1": 1, "tests": [
+        {"fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5}, "name": "bound-inside"}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("ok   bound-inside = Ok(5)"), "{text}");
+    let (status, text) = run(&temp.path, &["view", "--after", "latest", "bound-inside"]);
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.contains("test bound-inside: bound(5, 0, 10) == Ok(5)"),
+        "{text}"
+    );
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            &json!({"af1": 1, "tests": [
+        {"fn": "bound", "args": [1, 0, 2], "expect": {"Ok": 1}, "name": "-lead"}]})
+            .to_string(),
+        ],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("is not a name ([A-Za-z_][A-Za-z0-9_-]*, at most 64 bytes)"),
+        "{text}"
+    );
+}
+
+#[test]
 fn the_refusal_corpus_decodes_every_reachable_phase() {
     // Phases 5, 7, 9 and 12 have their own tests above and below; this
     // corpus adds the stale base (3), a type refusal (6) and a test-plan
@@ -320,7 +411,9 @@ fn the_refusal_corpus_decodes_every_reachable_phase() {
         assert_eq!(verdict["phase"], phase, "{result}");
         assert_eq!(verdict["symbol"], symbol, "{result}");
         assert!(
-            verdict["hint"].as_str().is_some_and(|hint| hint != "no hint"),
+            verdict["hint"]
+                .as_str()
+                .is_some_and(|hint| hint != "no hint"),
             "{result}"
         );
     };

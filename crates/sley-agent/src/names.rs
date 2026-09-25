@@ -117,13 +117,17 @@ impl NameMap {
     }
 }
 
-/// Whether `text` is a usable leaf name: `[A-Za-z_][A-Za-z0-9_]*`, at most
-/// 64 bytes.
+/// The leaf-name grammar, as refusals state it.
+pub const NAME_GRAMMAR: &str = "[A-Za-z_][A-Za-z0-9_-]*, at most 64 bytes";
+
+/// Whether `text` is a usable leaf name (`NAME_GRAMMAR`). A hyphen is
+/// allowed after the first character: `.`, `#` and `$` are the only
+/// characters with a meaning inside a name reference.
 #[must_use]
 pub fn is_identifier(text: &str) -> bool {
     let mut chars = text.chars();
     matches!(chars.next(), Some(c) if c.is_ascii_alphabetic() || c == '_')
-        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
         && text.len() <= 64
 }
 

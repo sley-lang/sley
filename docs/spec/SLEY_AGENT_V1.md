@@ -96,7 +96,9 @@ of that identity, and a policy that grants it the workbench ceilings
 Every entity and member gets a local name. Names are non-canonical, never
 identity inputs, and never enter canonical bytes. In order of preference:
 
-1. the object's `label`, when it is an identifier;
+1. the object's `label`, when it is a name (`[A-Za-z_][A-Za-z0-9_-]*`, at
+   most 64 bytes; a hyphen is allowed because `.`, `#` and `$` are the only
+   characters with a meaning inside a name reference);
 2. the workspace name map (`names.json`, then `.sley/names.json`);
 3. a positional name: `<kind>_<first 8 hex>` for top-level entities, `entry`
    or `b<i>` for blocks, `p<i>` for parameters, `v<i>` for block parameters,
@@ -107,7 +109,7 @@ scoped to their function. Block parameters and operations are scoped to
 their block, and never shadow a function parameter. Qualified names join
 leaves with dots: `f.block.op`, `Type.Case`. Collisions append a short
 identity suffix. A name map is a JSON object from 64-hex identity bytes to
-leaf names. Names that are not identifiers are ignored.
+leaf names. Entries that are not names are ignored.
 
 ## 4. AV1 (output only)
 
@@ -181,6 +183,13 @@ Compilation, in one pass:
    exact live object version for everything else.
 
 Malformed frames are refused with `AGENT_FRAME_INVALID` and a JSON pointer.
+One refusal lists every operation of a function that cannot resolve, and
+then every terminator that cannot, one pointer per line, so a misplaced
+name costs one round rather than one round per use. A name found only in
+another block is reported as that block's parameter (pass it on as an edge
+argument) or result (qualify it as `block.name`); a switch case key that is
+not a case of the scrutinee's type names the expected keys; and an operand
+that is a literal or a nested operation names the fix.
 
 The raw operation path accepts the 2.0.0 trial-tool JSON form for classes
 `CreateEntity`, `ReplaceEntityVersion` and `DeleteEntityBinding` over kinds
