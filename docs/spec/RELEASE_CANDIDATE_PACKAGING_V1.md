@@ -16,7 +16,7 @@ machine summary.
 ## Boundary
 
 S20-720 freezes the mechanics of the clean-room release candidate: how the
-artifact `sley-2.0.0-linux-x86_64.tar.gz` is built twice from the working
+artifact `sley-2.0.1-linux-x86_64.tar.gz` is built twice from the working
 tree, what it contains, how it is unpacked and exercised with no source
 tree, how its checksums, manifest, inventory, and scans are recorded, and
 how reproducibility is established or its nondeterminism named (master
@@ -39,7 +39,7 @@ run under `make release-candidate-smoke`.
    and the working tree to `/sley2` last. Any other order lets the home
    rule shadow the tree rule and moves the leak where the scan cannot see
    it (section 5);
-2. packaging (section 2) into `dist/sley-2.0.0-linux-x86_64.tar.gz`;
+2. packaging (section 2) into `dist/sley-2.0.1-linux-x86_64.tar.gz`;
 3. unpacking the artifact into a private directory outside the working
    tree and running the conformance subset and the canonical demo there
    (sections 3 and 4) with the working directory inside the unpacked
@@ -57,7 +57,7 @@ Any step that fails stops the run with its code; nothing is published.
 ## 2. Contents
 
 ```text
-sley-2.0.0-linux-x86_64/
+sley-2.0.1-linux-x86_64/
   bin/sley                          the S20-430 endpoint binary
   MANIFEST.json                     contract, commit, toolchain, files with sha256 and size
   SBOM.json                         the S20-710 pre-release inventory, verbatim

@@ -31,7 +31,7 @@ candidate_mechanics = load("build_release_candidate")
 
 def evidence_record(**overrides) -> dict:
     record = {
-        "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
+        "artifact_name": candidate_mechanics.ARTIFACT_NAME,
         "artifact_sha256": "a" * 64,
         "artifact_size_bytes": 2_050_866,
         "commit": "b" * 40,

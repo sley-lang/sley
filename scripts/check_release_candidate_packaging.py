@@ -93,7 +93,7 @@ SCRIPT_MARKERS = (
     "def run_conformance_subset(",
     "def run_demo(",
     "def build_candidate(",
-    "sley-2.0.0-linux-x86_64",
+    "sley-2.0.1-linux-x86_64",
 )
 
 
@@ -188,7 +188,7 @@ def main() -> int:
     expected = {
         "contract": "docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md",
         "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
-        "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
+        "artifact_name": "sley-2.0.1-linux-x86_64.tar.gz",
         "manifest_contract": "sley2.release-candidate-manifest.v1",
         "new_stable_error_codes": len(CODES),
         "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
