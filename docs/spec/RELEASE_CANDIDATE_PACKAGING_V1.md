@@ -1,8 +1,9 @@
 # Release Candidate Packaging v1
 
-Status: S20-720 contract draft, revision 8 (2026-09-25), with round-7
+Status: S20-720 contract draft, revision 9 (2026-09-25), with round-7
 clarifications (2026-09-11, section 13); Council review pending (Ariadne
 contract review, Nabu architecture review, Vulcan surface review). Revision
+9 ships the agent workbench binary (section 18). Revision
 8 ships the third-party license texts and names the 2.0.1 artifact
 (section 17). Revision
 7 pins the lint report's eleven-field set (section 7). Revision
@@ -63,6 +64,7 @@ Any step that fails stops the run with its code; nothing is published.
 ```text
 sley-2.0.1-linux-x86_64/
   bin/sley                          the S20-430 endpoint binary
+  bin/sley-agent                    the agent workbench (SLEY_AGENT_V1, section 18)
   MANIFEST.json                     contract, commit, toolchain, files with sha256 and size
   SBOM.json                         the S20-710 pre-release inventory, verbatim
   LICENSES.json                     declared licenses per package and the approved root license
@@ -95,6 +97,10 @@ From the unpacked artifact only: `bin/sley methods` equals the packaged
 method table; `bin/sley frame decode` over every packaged SMP1 fixture
 frame equals the packaged bridge JSON; `bin/sley frame encode` reproduces
 the frame bytes; `bin/sley version` names the CLI and protocol versions.
+`bin/sley-agent version` names the release; `bin/sley-agent help` is at most
+8,192 bytes; and the guide's first example, tried in a workspace that
+`bin/sley-agent init` creates inside the unpacked artifact, is `Valid` with
+every selected test passing (section 18).
 
 ## 4. Canonical demo (source-independence proof)
 
@@ -435,3 +441,25 @@ set. Their notices are vendored under `licenses/toolchain/` (sources in its
 README) and appended to the file under "Toolchain components", so the
 archive carries every notice the binary's static linkage requires.
 `licenses/toolchain/` is an artifact input.
+
+## 18. Agent workbench binary (revision 9, 2026-09-25)
+
+SLEY-2.0.2-BR BR-10 requires the agent workbench to ship as a native
+binary, so the artifact carries `bin/sley-agent` beside `bin/sley`.
+
+- The clean build is one `cargo build --release --locked` invocation for
+  `-p sley-cli -p sley-agent`, so both binaries share the remaps, the
+  toolchain and the target; a build that writes either binary missing is
+  `PACKAGE_BUILD_FAILED`. The second clean build repeats it, and the byte
+  comparison covers both.
+- `bin/sley-agent` is a fixed member with mode 0755, listed in the manifest
+  like every other member, and passes the same content scan.
+- `sley-agent` adds no third-party crate (ADR-0051 decision 8), so
+  `THIRD_PARTY_LICENSES` and its index are unchanged by this revision.
+- The conformance subset (section 3) runs the workbench from the unpacked
+  artifact in the source-free environment: its version, its guide bound, and
+  the guide's first example through `init` and `try`. The workspace it
+  creates is removed before the demo runs.
+
+The artifact therefore holds fifteen members.
+
