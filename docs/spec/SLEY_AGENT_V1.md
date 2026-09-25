@@ -286,6 +286,8 @@ mutation-budget locators; repeatable submission; a 300-operation candidate;
 JSON-pointer errors and one refusal per frame round; batch streaming;
 name-matched redefinition; every guide example, every JSON example line of
 the `af1` and `tests` help topics, and every value form the `types` topic
-documents (read and rendered back); and every workbench refusal symbol. The candidate-result
+documents (read and rendered back); the `init` ceilings, pinned; `call`
+and `test` leaving the repository byte-identical; and every workbench
+refusal symbol. The candidate-result
 conformance vectors and the `sley-policy` suite pin that the locator channel
 leaves result bytes unchanged.

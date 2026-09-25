@@ -751,6 +751,69 @@ fn every_value_form_in_help_types_round_trips() {
 }
 
 #[test]
+fn init_grants_the_benchmark_fixture_ceilings() {
+    // BR-03(b), ADR-0051 decision 9: pinned values, stated by `init`.
+    let temp = TempDir::new("init-ceilings");
+    let dir = temp.path.join("ws");
+    let mut out = Vec::new();
+    let status = sley_agent::cli::run(&["init".to_owned(), dir.display().to_string()], &mut out);
+    let text = String::from_utf8(out).unwrap();
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.contains(
+            "(policy: fuel 1000000, memory 16777216, output 65536, 10000 mutations per candidate)"
+        ),
+        "{text}"
+    );
+    assert_eq!(
+        genesis::INIT_CEILINGS,
+        PolicyResourceCeilings::new(1_000_000, 16_777_216, 65_536, 0, 10_000, 0)
+    );
+}
+
+/// Every file under `dir`, with its bytes.
+fn snapshot(dir: &Path) -> std::collections::BTreeMap<PathBuf, Vec<u8>> {
+    let mut files = std::collections::BTreeMap::new();
+    let mut pending = vec![dir.to_path_buf()];
+    while let Some(next) = pending.pop() {
+        for entry in fs::read_dir(&next).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                pending.push(path);
+            } else {
+                files.insert(path.clone(), fs::read(&path).unwrap());
+            }
+        }
+    }
+    files
+}
+
+#[test]
+fn call_and_test_write_nothing_to_the_repository() {
+    // BR-04: results are advisory; the repository is untouched.
+    let temp = committed_program("advisory", None);
+    let frame = json!({"af1": 1, "tests": [
+        {"fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5}},
+        {"fn": "bound", "args": [15, 0, 10], "expect": {"Ok": 10}}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string(), "--no-test"]);
+    assert_eq!(status, 0, "{text}");
+    let before = snapshot(&temp.path.join("repo"));
+    assert_eq!(run(&temp.path, &["call", "bound", "15", "0", "10"]).0, 0);
+    assert_eq!(
+        run(
+            &temp.path,
+            &["call", "bound", "15", "0", "10", "--on", "c2"]
+        )
+        .0,
+        0
+    );
+    let (status, text) = run(&temp.path, &["test", "c2"]);
+    assert_eq!(status, 1, "the buggy bound fails its second test: {text}");
+    assert!(text.contains("tests: 1/2 passed"), "{text}");
+    assert_eq!(snapshot(&temp.path.join("repo")), before);
+}
+
+#[test]
 fn help_topics_and_hints_cover_the_common_refusals() {
     for topic in sley_agent::help::TOPICS {
         assert!(sley_agent::help::topic(topic).is_some(), "{topic}");
