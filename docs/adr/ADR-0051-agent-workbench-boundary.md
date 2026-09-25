@@ -77,6 +77,18 @@ transport endpoint with no semantics (ADR-0035).
    - Track B (a writable text projection) is not adopted.
    - Clarity is reported, not gated.
    - Publishing 2.0.2 is the operator's decision.
+10. **The session lives in the workspace, not in a daemon.** BR-10 asks for
+    one repository session per workspace kept alive across commands, in
+    process or as a local socket daemon. The workbench keeps that session
+    on disk instead: the repository, the name maps, the candidate handles
+    and the submission live under the workspace. Each command reopens them
+    in process, with no child process and no `uv`. The requirement exists
+    for latency, and the budgets are met without a live process. The p95 of
+    30 whole-process runs is 4.2 ms for `view` (budget 150 ms), 4.2 ms for
+    `find` on about 100 entities (300 ms) and 12.0 ms for `try` of 49
+    operations with 5 TestCases (500 ms). A daemon would add lifecycle,
+    staleness and cleanup failure modes for no measurable gain. It stays a
+    later option if a workload misses the budgets.
 
 ## Consequences
 
