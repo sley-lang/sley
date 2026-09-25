@@ -11,9 +11,16 @@ tree, and the artifact is published as the GitHub release `v2.0.0`.
 acceptance criteria are listed in full below.
 
 The artifact identity (commit, SHA-256, byte size, manifest digest) is fixed by
-the single remaining release-candidate mint. It is recorded in
+the release-candidate build of the tagged commit. It is recorded in
 `evidence/release/reproducibility-report.json` and in the machine summary's
 `release_candidate_packaging` section, not in this document.
+
+The `v2.0.0` tag points at the source commit the artifact was built from. The
+release records for the published artifact (the reproducibility report, the
+SBOMs, the provenance, and the second-host attestation) were committed after
+the tag, in records-only commits that change nothing outside `evidence/` and
+`machineresearch/`. Read those records from the records-only commits that
+directly follow the tag on `main`, not from the tagged tree.
 
 ## What Sley 2.0 is
 
@@ -95,19 +102,25 @@ harness evidence, not a succession result.
 
 The build needs a clean checkout at the release commit, the pinned Rust
 toolchain (`rust-toolchain.toml`, 1.93.0) with the `x86_64-unknown-linux-musl`
-target installed, Python 3 and `uv`.
+target installed, Python 3 and `uv`. On a fresh cargo cache, run
+`cargo fetch --locked` first.
 
 ```sh
 make release-candidate-smoke        # two clean builds + all release records, then verify
 make release-candidate-verify       # re-check the records against the tree
 sha256sum dist/sley-2.0.0-linux-x86_64.tar.gz
 python3 -c 'import json; r = json.load(open("evidence/release/reproducibility-report.json")); print(r["result"], r["commits"])'
-make quick                          # the full routine gate
+make quick                          # the maintainers' routine gate (see below)
 ```
 
 The digest printed by `sha256sum` must equal the `artifact_sha256` that the
-reproducibility report records for the release commit. To reproduce the build
-on a second host, run `scripts/second_host_attest.sh --phase check`, then
+reproducibility report records for the release commit. `make quick` reads the
+outputs of the build above and the Sley 2.0 master goal, which lives outside
+the repository (`SLEY2_MASTER_GOAL`), so it passes only on a maintainer's
+machine. [QUICKSTART](../QUICKSTART.md#6-run-the-test-gates) lists the gates
+anyone can run.
+
+To reproduce the build on a second host, run `scripts/second_host_attest.sh --phase check`, then
 `--phase build` and `--phase merge`, as `docs/spec/REPRODUCIBILITY_AND_INDEPENDENT_CONFORMANCE_V1.md`
 section 5.1 describes.
 
@@ -130,11 +143,11 @@ stay `AWAITS_REVIEW`. They are listed in `release_decision.unmet_ga_criteria_at_
 **Open P1/P2 findings:**
 
 - **rw075 correction (4 P1, 4 P2):** AR-02 is the self-hosted path's
-  large-preimage hashing gap. It is being closed in 2.1 with an exact
-  streaming BLAKE3 primitive (branch `work/reweave-r2`); no identity-preimage
-  ceiling is imposed, and native identity semantics and limits are unchanged in
-  2.0. The AR-06 review transcripts are not bound. Both belong to the
-  self-hosting work in 2.1. By code trace (not yet pinned by a test), the raw-hash
+  large-preimage hashing gap. It is being closed in the 2.1 self-hosting
+  work, with an exact streaming BLAKE3 primitive for the self-hosted path. No
+  identity-preimage ceiling is imposed, and native identity semantics and
+  limits are unchanged in 2.0. The AR-06 review transcripts are not bound.
+  Both belong to the self-hosting work in 2.1. By code trace (not yet pinned by a test), the raw-hash
   path they concern is not reachable from the 2.0 `sley` binary.
 - **Finding-ledger mechanism P2s:** `release_candidate_packaging` (4),
   `reproducibility_and_independent_conformance` (3) and

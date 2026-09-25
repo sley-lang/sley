@@ -22,19 +22,19 @@ and then drive a session by hand with a short Python client.
 
 ## 1. Install
 
-Sley 2.0.0 supports **Linux x86_64**. The release binary is statically linked
+Sley 2.0.1 supports **Linux x86_64**. The release binary is statically linked
 (musl), so it has no runtime dependencies.
 
 ### Option A: the release archive
 
-Download `sley-2.0.0-linux-x86_64.tar.gz` from
+Download `sley-2.0.1-linux-x86_64.tar.gz` from
 [Releases](https://github.com/sley-lang/sley/releases), then verify and unpack
 it:
 
 ```sh
-sha256sum sley-2.0.0-linux-x86_64.tar.gz     # compare with the published SHA-256
-tar xzf sley-2.0.0-linux-x86_64.tar.gz
-cd sley-2.0.0-linux-x86_64
+sha256sum sley-2.0.1-linux-x86_64.tar.gz     # compare with the published SHA-256
+tar xzf sley-2.0.1-linux-x86_64.tar.gz
+cd sley-2.0.1-linux-x86_64
 ./bin/sley version
 ```
 
@@ -47,11 +47,12 @@ The archive contains:
 | `conformance/` | The demo fixture plus the SMP1 and JSON-bridge conformance corpora |
 | `MANIFEST.json` | Every member with its size and SHA-256 |
 | `SBOM.json`, `LICENSES.json` | The dependency inventory and license inventory |
-| `LICENSE`, `NOTICE` | Apache-2.0 |
+| `LICENSE`, `NOTICE` | Apache-2.0, the license of Sley itself |
+| `THIRD_PARTY_LICENSES` | The license texts and copyright notices of the third-party crates compiled into the binary (new in 2.0.1) |
 
 The release is reproducible: two clean builds, plus a rebuild on a second
 host, produce the same bytes. The
-[release notes](release/SLEY-2.0.0.md#build-and-verify) show how to check
+[release notes](release/SLEY-2.0.1.md#build-and-verify) show how to check
 that yourself.
 
 ### Option B: build from source
@@ -67,8 +68,8 @@ cargo build --release -p sley-cli
 ./target/release/sley version
 ```
 
-A release build takes well under a minute on a modern machine. To put `sley`
-on your `PATH`:
+A release build takes about a minute on a modern machine, plus the time to
+download dependencies on the first run. To put `sley` on your `PATH`:
 
 ```sh
 install -m 0755 target/release/sley ~/.local/bin/sley
@@ -109,6 +110,13 @@ $ sley hello --json
 ```
 
 *(Pretty-printed and shortened here. The real output is one line.)*
+
+`"json_bridge": false` doesn't mean the JSON form is missing. `--json` is a
+transport choice the `sley` CLI makes for its own input and output, not a
+feature the two sides negotiate. The offer never carries a transport feature,
+so byte mode and JSON mode negotiate the same profile and the same session
+identity. [SLEY_CLI_V1](spec/SLEY_CLI_V1.md#2-serve) section 2 gives the
+reasoning.
 
 `sley methods` prints the full method table, grouped by family: `session`,
 `repository`, `query`, `candidate`, `transaction`, and `runtime`. Each method
@@ -153,12 +161,18 @@ From the unpacked release archive:
 python3 demo/run_demo.py
 ```
 
+The archive's demo finds its binary and fixture next to itself, so you can
+also run it from any directory by its path. It works in a temporary directory
+and removes it when it finishes. Pass `--work <dir>` to keep the two
+repositories for inspection.
+
 The run ends with:
 
 ```json
 {
   "result": "PASS",
   "problems": [],
+  "explicit_gap": "candidate construction, commit, test selection, and merge wait for the public candidate builder (S20-350 proposal-only)",
   "steps": {
     "query_root_matches_fixture": true,
     "execute_report_id_matches_fixture": true,
@@ -176,8 +190,17 @@ The run ends with:
 }
 ```
 
-Every answer is compared byte for byte, so a `PASS` means your build computes
-exactly what every other conforming build computes.
+*(Shortened here. The real output also carries the demo's contract, the
+handshake identity, the environment it ran in, and the CLI version.)*
+
+Every answer is compared byte for byte against the fixture, so a `PASS` means
+your build computes exactly the expected bytes for these requests.
+
+The `explicit_gap` field states what the demo does not cover. It imports a
+program that was built in advance. It does not construct a candidate, commit
+one, select tests, or merge through the public candidate builder, because the
+public builder is still proposal-only. Those paths are exercised by the test
+suites and conformance corpora, not by this demo.
 
 ## 4. Talk to `sley serve` yourself
 
@@ -240,6 +263,11 @@ execute      -> matches fixture
 exit status  -> 0
 ```
 
+The session id you see will differ from this one, and it changes on every
+run. Each endpoint instance mints session ids over its own per-instance nonce
+(see `session.open` in [SMP1](spec/SMP1.md)), so a session id is never
+reusable across runs. The other lines are the same every time.
+
 Here's the conversation it has with the endpoint:
 
 ```text
@@ -262,7 +290,8 @@ Three details matter when you write your own client:
 
 1. **The first frame must be a hello.** Get the offer with
    `sley hello | sley frame decode`, which renders the binary hello frame as
-   a JSON frame line. Any other first frame fails with
+   a JSON frame line. Any other first frame, including a first line that
+   isn't a valid frame, or no input at all, fails with
    `CLI_HANDSHAKE_REQUIRED` (exit 5).
 2. **The handshake identity is deterministic.** `session.open` takes it as
    its body. The example gets it from a one-frame probe run with `--report`.
@@ -300,11 +329,11 @@ config files. The full contract is in [SLEY_CLI_V1](spec/SLEY_CLI_V1.md).
 
 | Exit | Symbol | Code | Meaning |
 |---:|---|---:|---|
-| 0 | — | — | Ran to end of input and answered every frame |
+| 0 | — | — | Ran to end of input and answered every frame, including failed answers |
 | 2 | `CLI_USAGE_INVALID` | 43000 | Unknown command, flag, or value |
-| 3 | `CLI_INPUT_INVALID` | 43001 | Malformed or truncated input frame |
+| 3 | `CLI_INPUT_INVALID` | 43001 | `serve` in byte mode: a truncated length prefix or frame body. `frame decode` and `frame encode`: input they can't convert |
 | 4 | `CLI_IO_FAILURE` | 43002 | Read, write, or flush failure |
-| 5 | `CLI_HANDSHAKE_REQUIRED` | 43003 | The first frame wasn't a hello |
+| 5 | `CLI_HANDSHAKE_REQUIRED` | 43003 | The first frame wasn't a client hello, or there was no input |
 
 A CLI failure writes one JSON object to standard error:
 
@@ -314,33 +343,92 @@ $ sley --help; echo "exit $?"
 exit 2
 ```
 
+In `--json` mode a malformed line is not a CLI failure. After the handshake,
+the endpoint answers a line it can't parse with a failed response frame
+(`flags.failed` set, request id `0`, no session) that carries the bridge's
+code, such as `42000 JSON_BRIDGE_SHAPE_INVALID`, and keeps reading. The run
+still exits `0`. Two cases differ:
+
+- A malformed **first** line is a missing hello, so it exits `5`:
+
+  ```console
+  $ echo 'not json' | sley serve --repository ./r --json; echo "exit $?"
+  {"cause":"JSON_BRIDGE_SHAPE_INVALID","code":43003,"symbol":"CLI_HANDSHAKE_REQUIRED"}
+  exit 5
+  ```
+
+- A line over one of the bridge's ceilings is answered with
+  `JSON_BRIDGE_RESOURCE_LIMIT` and ends the input, because the endpoint
+  can't resynchronise with a producer that overran a ceiling.
+
+To catch malformed lines in `--json` mode, check `flags.failed` on each
+response, or run with `--report` and read its `failed_answers` and `codes`
+counters.
+
 Kernel failures (type errors, refused candidates, stale preconditions, and so
 on) travel inside failed answers as stable codes. The registry is
 [ERROR_CODES_V1](spec/ERROR_CODES_V1.md).
 
 ## 6. Run the test gates
 
-From a source checkout:
+These are the gates a contributor can run from a fresh clone:
 
 ```sh
 cargo test --workspace --locked   # every crate's unit and integration tests
 make conformance                  # Rust vs. the independent Python oracle (needs uv)
 make adversarial                  # corruption, crash-recovery, and binding-confusion suites
 make fuzz-smoke                   # bounded fuzz smoke across codecs and importers
-make lint                         # clippy, with all + pedantic denied
+make lint                         # rustfmt check, plus clippy with all + pedantic denied
 ```
 
-To reproduce the release artifact exactly, you need the
-`x86_64-unknown-linux-musl` target and `uv`:
+Set aside time for the first run. A cold `cargo test --workspace` compiles and
+runs every crate's suites, and takes about 15 to 20 minutes on a typical
+machine. Later runs reuse the build and are much faster.
+
+`make lint` records its result in the tracked file
+`evidence/build/lint-report.json`, and that record names the current commit,
+so running it leaves the working tree dirty. If you only wanted the check,
+discard the record afterwards:
 
 ```sh
-make release-candidate-smoke      # two clean musl builds, compared member by member, then verified
-sha256sum dist/sley-2.0.0-linux-x86_64.tar.gz
+git checkout -- evidence/build/lint-report.json
 ```
 
-`make quick` is the maintainers' routine gate. Two of its checkers read the
-Sley 2.0 master goal from outside the repository, so set `SLEY2_MASTER_GOAL`
-to its path before you run it.
+### Reproduce the release artifact
+
+To reproduce the release artifact exactly, you need a clean checkout at the
+release commit, the `x86_64-unknown-linux-musl` target, and `uv`. The build
+reads crate sources offline, for the SBOM and the third-party license texts,
+so on a machine whose cargo cache hasn't seen this lockfile yet, fetch every
+locked dependency first:
+
+```sh
+rustup target add x86_64-unknown-linux-musl
+cargo fetch --locked              # needed on a fresh cargo cache, harmless otherwise
+make release-candidate-smoke      # two clean musl builds, compared member by member, then verified
+sha256sum dist/sley-2.0.1-linux-x86_64.tar.gz
+```
+
+The build refuses a dirty working tree, so if you ran `make lint`, commit or
+discard its record first. The smoke rewrites the tracked release records
+under `evidence/` and `machineresearch/`, so expect a dirty tree when it
+finishes.
+
+### The maintainers' gate
+
+`make quick` is the maintainers' routine gate, and it doesn't pass on a fresh
+clone. It needs two things a contributor usually won't have:
+
+- **A local release build.** Some of its checkers read the outputs that
+  `make release-candidate-build` writes to `evidence/runtime/`, which isn't
+  tracked.
+- **The Sley 2.0 master goal.** Two of its checkers read this planning
+  document, which lives outside the repository. Maintainers point
+  `SLEY2_MASTER_GOAL` at it.
+
+Contributors can run the gates listed above instead. If your change touches a
+spec or a checker, also run the matching `scripts/check_*.py` directly. Most
+of them read only the tracked tree.
 
 ## 7. Where to go next
 

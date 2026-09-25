@@ -18,6 +18,7 @@ Everything about Sley 2, organized by what you're trying to do.
 | 🏗️ [Architecture](../ARCHITECTURE.md) | Learn crate authority, the dependency law, and commit durability order |
 | 🐍 [Example client](examples/smp1_json_client.py) | Copy a working SMP1 JSON-lines client (Python, standard library only) |
 | 📦 [Sley 2.0.0 release notes](release/SLEY-2.0.0.md) | See what shipped, how to verify the artifact, and the known limits |
+| 🩹 [Sley 2.0.1 release notes](release/SLEY-2.0.1.md) | See the fixes since 2.0.0, including four contributed by Fred Nix |
 | ❓ [FAQ](https://sleylang.org/faq) *(sleylang.org)* | Get quick answers about scope, status, and Sley 1.x |
 
 ## Specifications
