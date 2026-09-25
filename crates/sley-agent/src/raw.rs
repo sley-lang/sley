@@ -33,6 +33,35 @@ use crate::names::{NameMap, Names};
 use crate::types::TypeNames;
 use crate::workspace::Program;
 
+/// Live entities the list deletes by name or id: a create may take the name
+/// of one of these, and of no other live top-level entity.
+fn deleted_targets(names: &Names, list: &[Value]) -> Vec<EntityId> {
+    list.iter()
+        .filter(|op| op.get("class").and_then(Value::as_str) == Some("DeleteEntityBinding"))
+        .filter_map(|op| op.get("target").and_then(Value::as_str))
+        .filter_map(|target| names.resolve(target))
+        .collect()
+}
+
+/// A top-level key names the new entity, so it cannot be the name of a live
+/// top-level entity the list keeps (AF1's rule: that would silently rename
+/// the live one).
+fn check_key(names: &Names, key: &str, deleted: &[EntityId], pointer: &str) -> Result<()> {
+    if !key.contains('.')
+        && let Some(live) = names.resolve(key)
+        && names.scope(&live) == crate::names::Scope::Top
+        && !deleted.contains(&live)
+    {
+        return Err(frame(
+            &format!("{pointer}/key"),
+            format!(
+                "`{key}` already names a live entity; use another key, or delete `{key}` in the same list"
+            ),
+        ));
+    }
+    Ok(())
+}
+
 /// Compiles a raw operation list.
 ///
 /// # Errors
@@ -55,6 +84,7 @@ pub fn compile(
     let mut new_names = NameMap::default();
     let mut ordinal = 0_u64;
     let mut targets = Vec::with_capacity(list.len());
+    let deleted = deleted_targets(names, list);
     // Pass 1: derive create identities in create order.
     for (index, op) in list.iter().enumerate() {
         let pointer = format!("/{index}");
@@ -80,6 +110,7 @@ pub fn compile(
                         format!("key `{key}` is used twice"),
                     ));
                 }
+                check_key(names, key, &deleted, &pointer)?;
                 // `fn.block.op` keys name the entity by their last segment.
                 let leaf = key.rsplit('.').next().unwrap_or(key);
                 if crate::names::is_identifier(leaf) {

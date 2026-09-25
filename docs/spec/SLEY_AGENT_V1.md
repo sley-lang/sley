@@ -220,8 +220,10 @@ An AF1 test that declares no limits takes, per limit, the smaller of the
 workbench default and the grant: fuel 1,000,000; memory 16,777,216 bytes;
 output 65,536 bytes; effect count 0. Call depth is 256 and wall time is
 10,000 ms (these are context limits, not grant limits). A declared limit is
-used as written, and a limit above the grant is the kernel's
-`CANDIDATE_TEST_RESOURCE_LIMIT`.
+used as written. For the TestCases a candidate selects (those that target
+a function it changes), a limit above the grant is the kernel's
+`CANDIDATE_TEST_RESOURCE_LIMIT`; phase 12 does not check the limits of a
+TestCase it does not select.
 
 `init` grants its principal fuel 1,000,000, memory 16,777,216 bytes, output
 65,536 bytes, 0 effects, 10,000 mutations per candidate and 0 adapter calls,

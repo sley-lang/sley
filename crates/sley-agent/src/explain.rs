@@ -36,10 +36,11 @@ pub fn detail(
         return None;
     };
     let findings = analyze(program, names, &function_id, function);
+    // Only a finding for the kernel's own symbol explains the refusal; an
+    // unrelated finding would blame the wrong code, so say nothing instead.
     findings
         .iter()
         .find(|finding| finding.symbol == symbol)
-        .or_else(|| findings.first())
         .map(|finding| finding.text.clone())
 }
 

@@ -16,10 +16,12 @@ Values in `call`, `tests` and `consts` follow the declared type:
 
     i64 / u8 / ...    5        (strings like "170141183460469231731687303715884105727" for i128)
     bool              true
+    f32 / f64         1.5   ("NaN", "inf", "-inf" when not finite)
     unit              null
     text              "hi"
     bytes             "0x00ff"
     (A,B) / Vec<T>    [a, b]
+    Map<K,V>          [[k, v], ...]   (each key once; any order)
     Option<T>         "None" | {"Some": v}
     Result<T,E>       {"Ok": v} | {"Err": e}
     variant type      "Case" | {"Case": payload}

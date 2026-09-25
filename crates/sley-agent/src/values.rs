@@ -169,16 +169,13 @@ fn read_at(
             ConstData::UInt(number)
         }
         TypeExpr::F32 => {
-            let number = value
-                .as_f64()
-                .ok_or_else(|| invalid(pointer, "expected a number"))?;
+            let number = float(value).ok_or_else(|| invalid(pointer, FLOAT_EXPECTED))?;
             #[allow(clippy::cast_possible_truncation)]
             ConstData::F32Bits((number as f32).to_bits())
         }
         TypeExpr::F64 => ConstData::F64Bits(
-            value
-                .as_f64()
-                .ok_or_else(|| invalid(pointer, "expected a number"))?
+            float(value)
+                .ok_or_else(|| invalid(pointer, FLOAT_EXPECTED))?
                 .to_bits(),
         ),
         TypeExpr::Text => ConstData::Text(
@@ -226,6 +223,37 @@ fn read_at(
                     })
                     .collect::<Result<_>>()?,
             )
+        }
+        TypeExpr::OrderedMap { key, value: item } => {
+            // [[key, value], ...], in the kernel's order: by the keys'
+            // canonical bytes (VM contract E4), each key once.
+            let rows = value
+                .as_array()
+                .ok_or_else(|| invalid(pointer, "expected [[key, value], ...]"))?;
+            let mut keyed = Vec::with_capacity(rows.len());
+            for (index, row) in rows.iter().enumerate() {
+                let at = format!("{pointer}/{index}");
+                let pair = row
+                    .as_array()
+                    .filter(|pair| pair.len() == 2)
+                    .ok_or_else(|| invalid(&at, "a map entry is [key, value]"))?;
+                let entry_key = read_at(&pair[0], key, defs, &format!("{at}/0"), depth + 1)?;
+                let entry_value = read_at(&pair[1], item, defs, &format!("{at}/1"), depth + 1)?;
+                let bytes = sley_mutate::encode_const_value(&entry_key)
+                    .map_err(|_| invalid(&at, "the key has no canonical encoding"))?;
+                keyed.push((
+                    bytes,
+                    sley_ssmc::MapEntryConst {
+                        key: entry_key,
+                        value: entry_value,
+                    },
+                ));
+            }
+            keyed.sort_by(|left, right| left.0.cmp(&right.0));
+            if keyed.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+                return Err(invalid(pointer, "a map key appears twice"));
+            }
+            ConstData::Map(keyed.into_iter().map(|(_, entry)| entry).collect())
         }
         TypeExpr::Option(item) => match value {
             Value::Null => ConstData::Option(None),
@@ -385,6 +413,34 @@ fn read_named(
     }
 }
 
+const FLOAT_EXPECTED: &str = "expected a number, or \"NaN\", \"inf\" or \"-inf\"";
+
+/// A float: a JSON number, or the names non-finite values render as.
+fn float(value: &Value) -> Option<f64> {
+    match value {
+        Value::Number(number) => number.as_f64(),
+        Value::String(text) => match text.as_str() {
+            "NaN" => Some(f64::NAN),
+            "inf" => Some(f64::INFINITY),
+            "-inf" => Some(f64::NEG_INFINITY),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// A float as JSON: a number when finite, else its name (JSON has no
+/// non-finite numbers, and `null` is unit).
+fn float_json(number: f64) -> Value {
+    if number.is_nan() {
+        Value::from("NaN")
+    } else if number.is_infinite() {
+        Value::from(if number > 0.0 { "inf" } else { "-inf" })
+    } else {
+        Value::from(number)
+    }
+}
+
 fn unsigned(value: &Value) -> Option<u128> {
     match value {
         Value::Number(number) => number.as_u64().map(u128::from),
@@ -450,8 +506,8 @@ pub fn to_json(value: &ConstValue, names: &Names) -> Value {
         ConstData::UInt(number) => {
             u64::try_from(*number).map_or_else(|_| Value::from(number.to_string()), Value::from)
         }
-        ConstData::F32Bits(bits) => Value::from(f64::from(f32::from_bits(*bits))),
-        ConstData::F64Bits(bits) => Value::from(f64::from_bits(*bits)),
+        ConstData::F32Bits(bits) => float_json(f64::from(f32::from_bits(*bits))),
+        ConstData::F64Bits(bits) => float_json(f64::from_bits(*bits)),
         ConstData::Bytes(bytes) => Value::from(format!("0x{}", hex::encode(bytes))),
         ConstData::Text(text) => Value::from(text.as_str()),
         ConstData::Sequence(items) => {

@@ -2267,13 +2267,8 @@ impl Compiler<'_> {
                     .as_u64()
                     .and_then(|n| u32::try_from(n).ok())
                     .ok_or_else(|| frame(pointer, "bad trap code"))?,
-                Value::String(text) => match text.as_str() {
-                    "unreachable" => 1,
-                    "resource_exhausted" => 2,
-                    "adapter_contract_violation" => 3,
-                    "internal_invariant" => 4,
-                    other => return Err(frame(pointer, format!("unknown trap `{other}`"))),
-                },
+                Value::String(text) => crate::exec::trap_code(text)
+                    .ok_or_else(|| frame(pointer, format!("unknown trap `{text}`")))?,
                 _ => return Err(frame(pointer, "bad trap code")),
             }),
             None => ExpectedOutcome::Value(

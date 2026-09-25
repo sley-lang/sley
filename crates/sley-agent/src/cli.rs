@@ -678,7 +678,7 @@ fn run_public(
         let outcome = executor.run(&id, inputs, exec::call_limits())?;
         let actual = exec::termination_json(&outcome.termination, names);
         outcomes.push(PublicOutcome {
-            passed: actual == expected,
+            passed: actual == canonical_expectation(&expected, program, names, &id),
             name,
             expected,
             actual,
@@ -710,6 +710,39 @@ fn public_text(outcomes: &[PublicOutcome]) -> String {
         );
     }
     text
+}
+
+/// A public case's `expect` in the form execution renders: read against
+/// the function's result type (as AF1 tests read it) and rendered back, and
+/// a trap by name or number as its code. An expectation that does not read
+/// is compared as written, and fails.
+fn canonical_expectation(
+    expected: &Value,
+    program: &Program,
+    names: &Names,
+    function: &EntityId,
+) -> Value {
+    if let Some(trap) = expected.as_object().and_then(|object| object.get("trap")) {
+        let code = match trap {
+            Value::String(name) => exec::trap_code(name).map(Value::from),
+            Value::Number(number) => number.as_u64().map(Value::from),
+            _ => None,
+        };
+        let Some(code) = code else {
+            return expected.clone();
+        };
+        let mut canonical = json!({"trap": code});
+        if let Some(payload) = expected.get("payload") {
+            canonical["payload"] = payload.clone();
+        }
+        return canonical;
+    }
+    let Some(sley_mutate::value::EntityBodyValue::Function(body)) = program.body(function) else {
+        return expected.clone();
+    };
+    let defs = ProgramTypes { program, names };
+    values::read(expected, &body.result_type, &defs, "expect")
+        .map_or_else(|_| expected.clone(), |value| values::to_json(&value, names))
 }
 
 fn typed_inputs(
@@ -750,24 +783,26 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
         _ => return Err(usage("submit [<handle>]")),
     };
     let stored = store.load(&reference)?;
-    // A file or stored hex is kept under a handle, so the submission and
-    // every message name a short handle, never the bytes.
-    let reference = if candidate::is_handle(&reference) {
-        reference
-    } else {
-        store.save(&stored, &json!({"imported_from": shown(&reference)}))?
-    };
     let authority = Authority::of(&head)?;
     let output = candidate::validate(&head, &authority, &stored)?;
     if !output.is_valid() {
         return Err(AgentError::new(
             AgentErrorCode::SubmissionRefused,
             format!(
-                "{reference} is not Valid ({:?}); only Valid candidates are submitted",
+                "{} is not Valid ({:?}); only Valid candidates are submitted",
+                shown(&reference),
                 output.result().record.decision
             ),
         ));
     }
+    // A Valid file or stored hex is kept under a handle, so the submission
+    // and every message name a short handle, never the bytes. A refused one
+    // is never stored, so it cannot become `latest`.
+    let reference = if candidate::is_handle(&reference) {
+        reference
+    } else {
+        store.save(&stored, &json!({"imported_from": shown(&reference)}))?
+    };
     let path = workspace.dir().join(SUBMISSION);
     fs::write(&path, format!("{}\n", crate::hex::encode(&stored)))
         .map_err(|error| io(&path, &error))?;
@@ -986,7 +1021,28 @@ fn call_batch(
     } else {
         fs::read_to_string(path).map_err(|error| io(path, &error))?
     };
+    let lines: Vec<&str> = text
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .collect();
     let rows: Vec<Value> = match serde_json::from_str::<Value>(&text) {
+        // One line of arrays is several argument lists or one list whose
+        // arguments are arrays: several only when every row type-checks.
+        Ok(Value::Array(items))
+            if lines.len() == 1 && !items.is_empty() && items.iter().all(Value::is_array) =>
+        {
+            let as_rows = items.iter().all(|row| {
+                row.as_array().is_some_and(|args| {
+                    typed_inputs(executor, &selected.program, &selected.names, function, args)
+                        .is_ok()
+                })
+            });
+            if as_rows {
+                items
+            } else {
+                vec![Value::Array(items)]
+            }
+        }
         Ok(Value::Array(rows)) if rows.iter().all(Value::is_array) => rows,
         _ => text
             .lines()

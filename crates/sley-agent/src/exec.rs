@@ -332,6 +332,18 @@ pub fn termination_text(termination: &ExecutionTermination, names: &Names) -> St
     }
 }
 
+/// The trap code a name denotes, as expectations write it.
+#[must_use]
+pub fn trap_code(name: &str) -> Option<u32> {
+    match name {
+        "unreachable" => Some(1),
+        "resource_exhausted" => Some(2),
+        "adapter_contract_violation" => Some(3),
+        "internal_invariant" => Some(4),
+        _ => None,
+    }
+}
+
 /// Renders a termination as compact JSON (`{"Ok":10}`, `{"trap":1}`).
 #[must_use]
 pub fn termination_json(termination: &ExecutionTermination, names: &Names) -> Value {

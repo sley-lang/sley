@@ -965,6 +965,135 @@ fn references_resolve_to_short_handles() {
 }
 
 #[test]
+fn a_raw_create_cannot_take_a_live_name() {
+    // Second-pass finding 1: a raw create keyed like a live top-level
+    // entity silently renamed it.
+    let temp = committed_program("raw-collision", None);
+    let create = |extra: Value| {
+        let mut list = vec![json!({"class": "CreateEntity", "kind": 9, "key": "bound",
+            "payload": {"value": {"type": "i64", "data": {"variant": "SInt", "value": 1}}}})];
+        if !extra.is_null() {
+            list.push(extra);
+        }
+        Value::Array(list).to_string()
+    };
+    let (status, text) = run(&temp.path, &["try", &create(Value::Null)]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("`bound` already names a live entity"),
+        "{text}"
+    );
+}
+
+#[test]
+fn explain_never_blames_unrelated_code() {
+    // Second-pass finding 2: a CFG_RETURN_TYPE refusal used to show a
+    // dominance finding from another block as its `where`.
+    let temp = workspace("explain-unrelated", None);
+    let frame = json!({"af1": 1, "fns": [{"fn": "bad", "params": [["a", "i64"]], "returns": "bool", "blocks": [
+        {"name": "entry", "ops": [["c", "lt", "a", "a"]], "term": ["cond", "c", "l", "r"]},
+        {"name": "l", "ops": [["m", "lt", "a", "a"]], "term": ["br", "j"]},
+        {"name": "r", "ops": [["c2", "lt", "a", "a"]], "term": ["cond", "c2", "j", "w"]},
+        {"name": "w", "ops": [], "term": ["return", "a"]},
+        {"name": "j", "ops": [], "term": ["return", "l.m"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert!(text.contains("symbol: CFG_RETURN_TYPE"), "{text}");
+    assert!(!text.contains("dominat"), "{text}");
+}
+
+#[test]
+fn public_cases_compare_typed_values() {
+    // Second-pass finding 3: expectations in the forms AF1 tests accept.
+    let temp = workspace("public-typed", None);
+    let frame = json!({"af1": 1, "fns": [
+        {"fn": "stub", "params": [], "returns": "i64", "blocks": [{"name": "entry", "ops": [], "term": ["trap", "unreachable"]}]},
+        {"fn": "twice", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+         "blocks": [{"name": "entry", "ops": [["r", "add", "a", "a"]], "term": ["return", "r"]}]}]});
+    let cases = temp.path.join("cases.json");
+    fs::write(&cases, json!([
+        {"name": "trap", "function": "stub", "args": [], "expect": {"trap": "unreachable"}},
+        {"name": "short", "function": "twice", "args": [9_223_372_036_854_775_807_i64], "expect": {"Err": "Overflow"}},
+        {"name": "long", "function": "twice", "args": [9_223_372_036_854_775_807_i64], "expect": {"Err": {"ArithmeticError": "Overflow"}}},
+        {"name": "wrong", "function": "twice", "args": [2], "expect": {"Ok": 5}}]).to_string()).unwrap();
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            &frame.to_string(),
+            "--public",
+            cases.to_str().unwrap(),
+        ],
+    );
+    assert_eq!(status, 1, "the wrong case fails: {text}");
+    assert!(text.contains("public: 3/4 passed"), "{text}");
+}
+
+#[test]
+fn a_refused_submission_is_never_stored() {
+    // Second-pass finding 4 (a regression of the import fix).
+    let temp = committed_program("refused-import", None);
+    let stale = fs::read_to_string(temp.path.join(".sley/candidates/c1.hex")).unwrap();
+    let frame =
+        json!({"af1": 1, "tests": [{"fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5}}]});
+    assert_eq!(run(&temp.path, &["try", &frame.to_string()]).0, 0);
+    let (status, text) = run(&temp.path, &["submit", stale.trim()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(!text.contains(stale.trim()), "{text}");
+    let (status, text) = run(&temp.path, &["submit"]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.starts_with("submitted c2 "), "{text}");
+}
+
+#[test]
+fn maps_floats_and_one_line_batches_read_back() {
+    // Second-pass findings 5, 6 and 7.
+    let temp = workspace("maps-floats", None);
+    let frame = json!({"af1": 1, "fns": [
+        {"fn": "idm", "params": [["m", "Map<i64,i64>"]], "returns": "Map<i64,i64>",
+         "blocks": [{"name": "entry", "ops": [], "term": ["return", "m"]}]},
+        {"fn": "idv", "params": [["v", "Vec<i64>"]], "returns": "Vec<i64>",
+         "blocks": [{"name": "entry", "ops": [], "term": ["return", "v"]}]},
+        {"fn": "idf", "params": [["x", "f64"]], "returns": "f64",
+         "blocks": [{"name": "entry", "ops": [], "term": ["return", "x"]}]}]});
+    assert_eq!(run(&temp.path, &["try", &frame.to_string()]).0, 0);
+    let (_, map) = run(
+        &temp.path,
+        &["call", "idm", "[[2,20],[1,10]]", "--on", "latest"],
+    );
+    assert_eq!(map.trim(), "[[1,10],[2,20]]");
+    let (status, text) = run(
+        &temp.path,
+        &["call", "idm", "[[1,1],[1,2]]", "--on", "latest"],
+    );
+    assert_eq!(status, 2, "{text}");
+    assert!(text.contains("a map key appears twice"), "{text}");
+    for (value, rendered) in [
+        ("\"NaN\"", "\"NaN\""),
+        ("\"-inf\"", "\"-inf\""),
+        ("1.5", "1.5"),
+    ] {
+        let (_, out) = run(&temp.path, &["call", "idf", value, "--on", "latest"]);
+        assert_eq!(out.trim(), rendered);
+    }
+    let batch = temp.path.join("batch.txt");
+    fs::write(&batch, "[[1,2,3]]\n").unwrap();
+    let (status, out) = run(
+        &temp.path,
+        &[
+            "call",
+            "idv",
+            "--batch",
+            batch.to_str().unwrap(),
+            "--on",
+            "latest",
+        ],
+    );
+    assert_eq!(status, 0, "{out}");
+    assert_eq!(out.trim(), "[1,2,3]");
+}
+
+#[test]
 fn bytes_appear_only_with_raw() {
     // BR-10: no record, stored or body hex by default; `--raw` prints it.
     let temp = committed_program("raw", None);
