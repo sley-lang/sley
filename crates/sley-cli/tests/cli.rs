@@ -808,6 +808,35 @@ fn cli_failures_carry_their_exit_status_and_one_stderr_object() {
     assert_eq!(report["frames_written"], 1);
 }
 
+/// S20-700-SMP1-002 end to end: a client hello frame whose bounds are not
+/// the zero bounds `encode_hello_frame` emits is refused at the handshake
+/// with the codec's `PROTOCOL_FRAME_INVALID` as the cause. Through 2.0.0
+/// the codec dropped such bounds and the server negotiated.
+#[test]
+fn a_hello_frame_with_nonzero_bounds_is_refused_at_the_handshake() {
+    let (_temp, path) = repository("cli-hello-bounds");
+    let repo = path.to_str().unwrap();
+    let mut hello = encode_hello_frame(&offered()).unwrap().bytes;
+    // bounds (field 7) opens with its field count, then applied_limits
+    // (field 1, 25 bytes) opens with its own count and max_frame_bytes.
+    assert_eq!(&hello[75..82], &[0x08, 0x01, 0x19, 0x08, 0x01, 0x01, 0x00]);
+    hello[81] = 0x08;
+    let trailer = hello.len() - 32;
+    let digest = sley_id::ProtocolFrameId::derive(&hello[8..trailer]);
+    hello[trailer..].copy_from_slice(digest.as_bytes());
+    assert_eq!(
+        decode_frame(&hello, MAX_FRAME_BYTES).unwrap_err().code(),
+        sley_protocol::ProtocolErrorCode::FrameInvalid
+    );
+    let (status, stdout, stderr) = run(&["serve", "--repository", repo], &hello);
+    assert_eq!(status, 5);
+    assert!(stdout.is_empty());
+    let object = stderr_object(&stderr);
+    assert_eq!(object["code"], 43_003);
+    assert_eq!(object["symbol"], "CLI_HANDSHAKE_REQUIRED");
+    assert_eq!(object["cause"], "PROTOCOL_FRAME_INVALID");
+}
+
 #[test]
 fn frame_decode_and_encode_reproduce_the_bridge_fixture() {
     let fixture: Value = serde_json::from_str(BRIDGE_FIXTURE).unwrap();

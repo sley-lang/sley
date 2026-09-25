@@ -10,7 +10,9 @@ schema epoch identity carried by the fixture, the `ProtocolFrameId` trailer
 under `sley2.protocol-frame.v1`, the derived selected profile, and the
 transcript-bound `ProtocolHandshakeId` under `sley2.protocol-handshake.v1`
 (client hello body, server hello body, then selection preimage). It then
-classifies every rejected input with its own bounded decoder. It shares no
+classifies every rejected input with its own bounded decoder: the envelope,
+then the `ProtocolFrame` record and its header rules, including the hello
+header rule with its zero bounds (revision 16 erratum, 2.0.1). It shares no
 code with the Rust implementation.
 """
 
@@ -44,6 +46,7 @@ CODES = {
     "PROTOCOL_VERSION_UNSUPPORTED": 40000,
     "PROTOCOL_FRAME_INVALID": 40001,
     "PROTOCOL_FRAME_TOO_LARGE": 40002,
+    "PROTOCOL_DOWNGRADE": 40004,
     "PROTOCOL_PAYLOAD_INVALID": 40008,
 }
 
@@ -193,6 +196,11 @@ def read_uvar(data: bytes, offset: int) -> tuple[int, int]:
         offset += 1
         value |= (byte & 0x7F) << shift
         if byte & 0x80 == 0:
+            if byte == 0 and shift:
+                # SCB1 uvars are minimal: a zero final group is non-canonical.
+                raise Failure("PROTOCOL_FRAME_INVALID")
+            if value >= 1 << 64:
+                raise Failure("PROTOCOL_FRAME_INVALID")
             return value, offset
         shift += 7
         if shift > 63:
@@ -227,6 +235,96 @@ def inspect(data: bytes, epoch: bytes) -> None:
     payload_len, offset = read_uvar(preimage, offset)
     if offset + payload_len != len(preimage):
         raise Failure("PROTOCOL_FRAME_INVALID")
+    inspect_frame_record(preimage[offset:])
+
+
+U32_MAX = (1 << 32) - 1
+ZERO_BOUNDS = ((0,) * 8, (0, 0, 0, 0, 0, 1, 1))
+
+
+def read_record(data: bytes, expected: int) -> list[bytes]:
+    """A canonical SCB1 record with exactly the fields 1..expected, in order."""
+    count, offset = read_uvar(data, 0)
+    if count != expected:
+        raise Failure("PROTOCOL_FRAME_INVALID")
+    fields = []
+    for index in range(1, expected + 1):
+        tag, offset = read_uvar(data, offset)
+        if tag != index:
+            raise Failure("PROTOCOL_FRAME_INVALID")
+        length, offset = read_uvar(data, offset)
+        if offset + length > len(data):
+            raise Failure("PROTOCOL_FRAME_INVALID")
+        fields.append(data[offset : offset + length])
+        offset += length
+    if offset != len(data):
+        raise Failure("PROTOCOL_FRAME_INVALID")
+    return fields
+
+
+def read_single(data: bytes, maximum: int = (1 << 64) - 1) -> int:
+    value, offset = read_uvar(data, 0)
+    if offset != len(data) or value > maximum:
+        raise Failure("PROTOCOL_FRAME_INVALID")
+    return value
+
+
+def read_bounds(data: bytes) -> tuple[tuple, tuple]:
+    fields = read_record(data, 8)
+    limit_fields = read_record(fields[0], 8)
+    widths = (None, None, None, U32_MAX, None, None, U32_MAX, U32_MAX)
+    applied = tuple(
+        read_single(field) if width is None else read_single(field, width)
+        for field, width in zip(limit_fields, widths)
+    )
+    counts = (
+        read_single(fields[1]),
+        read_single(fields[2]),
+        read_single(fields[3]),
+        read_single(fields[4], U32_MAX),
+        read_single(fields[5]),
+    )
+    flags = (read_single(fields[6]), read_single(fields[7]))
+    if any(flag not in (1, 2) for flag in flags):
+        raise Failure("PROTOCOL_FRAME_INVALID")
+    return applied, counts + flags
+
+
+def inspect_frame_record(payload: bytes) -> None:
+    """The `ProtocolFrame` record (section 1) and its header rules.
+
+    Shape first (every defect is a frame defect), then the version claim
+    (below 1 is a downgrade, above 1 unsupported), then the flag rules,
+    then the hello header rule of section 2 with the revision 16 erratum:
+    a hello carries no session, identifier 0, method 0, flags 0, and the
+    all-zero bounds its encoder emits.
+    """
+    fields = read_record(payload, 8)
+    version = read_single(fields[0], U32_MAX)
+    session_tag, offset = read_uvar(fields[1], 0)
+    session_len, offset = read_uvar(fields[1], offset)
+    if offset + session_len != len(fields[1]) or (session_tag, session_len) not in ((0, 0), (1, 32)):
+        raise Failure("PROTOCOL_FRAME_INVALID")
+    request_id = read_single(fields[2])
+    kind = read_single(fields[3], U32_MAX)
+    if kind not in (1, 2, 3, 4):
+        raise Failure("PROTOCOL_FRAME_INVALID")
+    method = read_single(fields[4], U32_MAX)
+    flags = read_single(fields[5], U32_MAX)
+    bound = read_bounds(fields[6])
+    body_len, offset = read_uvar(fields[7], 0)
+    if offset + body_len != len(fields[7]):
+        raise Failure("PROTOCOL_FRAME_INVALID")
+    if version < 1:
+        raise Failure("PROTOCOL_DOWNGRADE")
+    if version > 1:
+        raise Failure("PROTOCOL_VERSION_UNSUPPORTED")
+    if flags & ~0b111:
+        raise Failure("PROTOCOL_FRAME_INVALID")
+    if flags & 0b100 and kind not in (2, 3):
+        raise Failure("PROTOCOL_FRAME_INVALID")
+    if kind == 4 and (session_tag != 0 or request_id != 0 or method != 0 or flags != 0 or bound != ZERO_BOUNDS):
+        raise Failure("PROTOCOL_FRAME_INVALID")
 
 
 def main() -> int:
@@ -245,6 +343,10 @@ def main() -> int:
             problems.append(f"hello:{label}:frame")
         if frame_id.hex() != expected["frame_id"]:
             problems.append(f"hello:{label}:frame_id")
+        try:
+            inspect(frame, epoch)
+        except Failure as failure:
+            problems.append(f"hello:{label}:self-inspect:{failure.code}")
     # Selection.
     selected = negotiate(CLIENT_HELLO, SERVER_HELLO)
     expected = accepted["selected"]
