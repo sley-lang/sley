@@ -294,3 +294,9 @@ and `test` leaving the repository byte-identical; hex only under `--raw`; and ev
 refusal symbol. The candidate-result
 conformance vectors and the `sley-policy` suite pin that the locator channel
 leaves result bytes unchanged.
+
+Four refusals agents meet in practice (`CANDIDATE_TEST_RESOURCE_LIMIT`
+with memory 1,000,000 over a ceiling of 1,000, `GRAPH_UNRESOLVED_REFERENCE`,
+and the phase-7 orphaned-block and dominance refusals) are regression tests
+that rebuild each scenario through AF1 or the raw path. Each test asserts
+the symbol and the locator the spec names.
