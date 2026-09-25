@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Measure how far the M0 threat register's planned controls have been realized.
+"""Measure how far the threat register's controls have been realized.
 
-`docs/THREAT_REGISTER.md` is a planned-control map: it names, for each threat,
-the failure code the implementation must produce, and it says explicitly that
-its evidence paths are future outputs and must not be read as passing evidence.
+`docs/THREAT_REGISTER.md` is a control map: it names, for each threat, the
+failure code the implementation must produce and the evidence that should
+exercise it, and it says explicitly that a located control is not a claim of
+mitigation while the independent security review is pending.
 Nothing measured the progress of that plan, so master goal section 26.6 ("all
 P0/P1 threats have passing tests") had no tracked number.
 
@@ -339,7 +340,7 @@ def build_report() -> dict:
     report = {
         "contract": CONTRACT,
         "source": "docs/THREAT_REGISTER.md",
-        "register_status": "M0 planned-control map; evidence paths are future outputs",
+        "register_status": "control map for all 56 threats; coverage measured here; independent review pending",
         "threat_count": len(threats),
         "states": states,
         "by_severity": by_severity,

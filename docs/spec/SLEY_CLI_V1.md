@@ -469,6 +469,11 @@ pins are unchanged.
   `JSON_BRIDGE_SHAPE_INVALID` and kept reading from the middle of the
   same line. Pinned by
   `a_json_line_above_the_text_ceiling_that_is_not_utf8_is_refused_and_ends_the_input`.
+- Correction to the revision 2 clarification in this section: an oversize
+  line is not "read in full". In 2.0.0 and 2.0.1 alike, the endpoint reads
+  at most the text ceiling plus two bytes of a line and then stops. The
+  rest of the line is never read, which is why the input ends rather than
+  resynchronising.
 
 ## 9. Version-aware surface (phase 3, implemented in revision 6)
 

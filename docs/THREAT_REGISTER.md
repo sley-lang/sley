@@ -1,7 +1,10 @@
 # Threat Register
 
-Status: M0 planned-control map. Evidence paths are future required outputs and
-must not be read as passing evidence until the named work package records them.
+Status: control map for all 56 threats, current as of Sley 2.0.1. Each row
+names the control, its stable failure codes, and the evidence that should
+exercise it. The coverage report below measures which of that evidence
+exists. The independent security review is still pending, so a located
+control is not a claim that the threat is mitigated.
 
 `scripts/build_threat_coverage_report.py` measures how far the plan has been
 realized and writes `evidence/security/threat-coverage-report.json`, which the

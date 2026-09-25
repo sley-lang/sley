@@ -63,17 +63,22 @@ defects in 2.0.0, each with a regression test. Thank you, Fred.
 ## Other changes
 
 - **Hardening of caller-supplied runtime inputs.** The VM's approved-package
-  execution path judged caller-supplied inputs structurally only. It now also
-  refuses an input that isn't canonical for its own declared type, such as an
-  integer outside its declared width, and checks canonical form before it
-  does any other work over the value. Out-of-width operands like those in #7
-  now stop at the input boundary, in addition to Fred's checked arithmetic.
+  execution path judged caller-supplied inputs structurally only. It now
+  checks each input's declared type against its register, then refuses any
+  input that isn't canonical for that type: an integer outside its declared
+  width, or a nested value (an option payload, list element, record field or
+  variant payload) whose own type differs from the type its container
+  declares. Both checks run before any other work over the value's contents,
+  with the existing `VM_EXEC_INPUT_NOT_CANONICAL` code. Out-of-width operands
+  like those in #7 now stop at the input boundary, in addition to Fred's
+  checked arithmetic.
 - **Third-party license texts in the archive.** The static binary
   redistributes the locked third-party crates, so the archive now ships
   `THIRD_PARTY_LICENSES` with their license texts and copyright notices. It
   is generated from the locked crate sources, and the build refuses if the
   tracked file has drifted from them or doesn't list exactly the inventoried
-  crates.
+  crates. It also carries the notices of the Rust standard library and musl
+  libc, which the toolchain links into the static binary.
 - **Demo robustness.** The archive's `demo/run_demo.py` finds its binary and
   fixture next to itself, so it runs from any directory. It works in a
   temporary directory and removes it when it finishes, unless you pass

@@ -2,7 +2,7 @@
 """Check a golden directory against its SHA256SUMS file.
 
 Every listed file must exist with the recorded SHA-256, the listing must name
-every regular file beside it, and no name may repeat. Any mismatch prints
+every regular file under its directory, and no name may repeat. Any mismatch prints
 each problem to stderr and exits 1. The default target is
 crates/sley-tests/golden/SHA256SUMS, which nothing checked before.
 """
@@ -38,7 +38,8 @@ def sums_problems(sums: Path) -> list[str]:
         if name in listed:
             problems.append(f"duplicate:{name}")
         listed[name] = digest
-    present = {path.name for path in directory.iterdir() if path.is_file() and path != sums}
+    # Recursive, so a file hidden in a subdirectory is reported as unlisted.
+    present = {path.relative_to(directory).as_posix() for path in directory.rglob("*") if path.is_file() and path != sums}
     for name in sorted(set(listed) - present):
         problems.append(f"missing:{name}")
     for name in sorted(present - set(listed)):

@@ -13,7 +13,10 @@ questions the checkers ask. Ledger membership is authoritative: a commit
 the ledger lists is archived even when its object is also in the local
 object store (after someone fetches old refs, for example), and its
 ancestry comes from the ledger alone. Only commits outside the ledger use
-git, so fetching archived objects never changes an answer.
+git, so fetching archived objects never changes the answer for a full
+commit id. A short prefix is the one exception: if fetched archived objects
+make it ambiguous in git, it falls back to its unique ledger match, so pass
+full ids when the distinction matters.
 
 - ``resolve(rev)``: the full commit id. A full id the ledger lists
   resolves without git; any other revision resolves in the repository or,
