@@ -23,4 +23,5 @@ Values in `call`, `tests` and `consts` follow the declared type:
     Option<T>         "None" | {"Some": v}
     Result<T,E>       {"Ok": v} | {"Err": e}
     variant type      "Case" | {"Case": payload}
+    ArithmeticError   "Overflow" | {"ArithmeticError": "Overflow"}   (and the other failures)
     record type       {"field": v, ...}

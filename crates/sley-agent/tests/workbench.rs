@@ -722,6 +722,8 @@ fn every_value_form_in_help_types_round_trips() {
         ("Shape", "\"Empty\""),
         ("Shape", "{\"Circle\":5}"),
         ("Point", "{\"x\":1,\"y\":2}"),
+        ("u128", "\"340282366920938463463374607431768211455\""),
+        ("ArithmeticError", "{\"ArithmeticError\":\"Overflow\"}"),
     ];
     for needle in [
         "\"None\" | {\"Some\": v}",
@@ -732,6 +734,7 @@ fn every_value_form_in_help_types_round_trips() {
         "\"hi\"",
         "null",
         "[a, b]",
+        "\"Overflow\" | {\"ArithmeticError\": \"Overflow\"}",
     ] {
         assert!(
             doc.contains(needle),
