@@ -1,0 +1,5 @@
+{
+  "contract": "sley2.public-root.v1",
+  "public_root": "1fea02faace9503060425fa565757c0c29af9d93",
+  "note": "The public repository's parentless root commit (Sley 2.0.0), pinned by its first descendant because a commit cannot name its own id. Its tree is the sanitized export of the archived tip named in pre-public-history.json; history_ledger requires every public commit that inherits archived ancestry to descend from it."
+}

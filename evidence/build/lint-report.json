@@ -1,10 +1,11 @@
 {
   "clippy_clean": true,
   "clippy_warnings": 0,
-  "commit": "ef2a39f659bd0caeaa92dbc546d0342dc7f43d57",
+  "commit": "1fea02faace9503060425fa565757c0c29af9d93",
   "contract": "sley2.lint-report.v1",
   "dirty_lint_inputs": [],
   "dirty_paths": [
+    "evidence/history/public-root.json",
     "evidence/release/candidate-content-checks.json",
     "evidence/release/decision-dossier.json",
     "evidence/release/ga-acceptance-report.json",

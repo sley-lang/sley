@@ -2,14 +2,15 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "19 GA acceptance criteria are not evidenced",
+    "20 GA acceptance criteria are not evidenced",
     "27 review obligations are open",
     "no succession trial has been executed",
+    "only one host has attested the candidate",
     "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "08c57f36e40421cbf8bf8bcbd164d1d17f659061ccc6f2294ffdddcb65a74dc0",
+  "dossier_digest": "41edb3b2c435b8c41d40f837e2654e39e41b045b2b2162bf1b7930a3e7ae9022",
   "entries": [
     {
       "evidence": [
@@ -34,7 +35,7 @@
       "item": "final commit",
       "note": "the commit the local candidate was built and attested from",
       "state": "EVIDENCED",
-      "value": "ef2a39f659bd0caeaa92dbc546d0342dc7f43d57"
+      "value": "1fea02faace9503060425fa565757c0c29af9d93"
     },
     {
       "evidence": [
@@ -145,7 +146,7 @@
           "scanned_manifests": 22
         },
         "property_tests": 0,
-        "python_tests": 923,
+        "python_tests": 924,
         "rust_ignored_emitters": 39,
         "rust_unit_tests": 1996
       }
@@ -283,7 +284,7 @@
       "item": "SHA-256",
       "note": "the attested artifact digest; the provenance subject must name it (checker: provenance:subject-attestation-mismatch), it is not assumed to repeat it",
       "state": "EVIDENCED",
-      "value": "fc28c772817fd79a5ae3817bd4c64ddfffd3a726fb37a6d751c1cf06f6db7d00"
+      "value": "21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696"
     },
     {
       "evidence": [
@@ -292,19 +293,19 @@
       "item": "byte size",
       "note": "the attested artifact size",
       "state": "EVIDENCED",
-      "value": 2513155
+      "value": 2513160
     },
     {
       "evidence": [
         "evidence/release/reproducibility-report.json"
       ],
       "item": "reproducibility result",
-      "note": "multi-host reproducibility across distinct attested hosts",
+      "note": "single-host reproducibility; the second host is an operator-gated lane",
       "state": "EVIDENCED",
       "value": {
-        "distinct_hosts": 2,
-        "result": "MULTI_HOST_REPRODUCIBLE",
-        "second_host": "ATTESTED"
+        "distinct_hosts": 1,
+        "result": "SINGLE_HOST_REPRODUCIBLE",
+        "second_host": "GATED_OPERATOR_LANE"
       }
     },
     {
@@ -431,7 +432,7 @@
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0 2.0.0 on 2026-09-24 (machine summary release_decision; ga_claimed false, final commit ef2a39f659bd0caeaa92dbc546d0342dc7f43d57); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 33 evidenced, 17 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0 2.0.0 on 2026-09-24 (machine summary release_decision; ga_claimed false, final commit 1fea02faace9503060425fa565757c0c29af9d93); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 32 evidenced, 17 awaiting review, and 3 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -455,7 +456,7 @@
       }
     }
   ],
-  "entries_digest": "119a0e73f7bdf565e97dd091d48a99e1f62be246b33cc2addfb434884aac89fb",
+  "entries_digest": "cf60e5d28de5af22e6234f5247f512633c0d43c3fa5b39ffc4ca63a05ef4c9b0",
   "evidenced": 24,
   "gated": 10,
   "gates": {
