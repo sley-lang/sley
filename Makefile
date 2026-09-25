@@ -135,6 +135,7 @@ quick:
 	python3 scripts/check_ref_branch_contract.py
 	python3 scripts/generate_repository_exchange_fixtures.py --check
 	python3 scripts/check_s20_530_acceptance_anchor.py
+	python3 scripts/check_golden_sha256sums.py
 	git diff --check
 	cargo check --workspace --locked
 	cargo test --workspace --locked
