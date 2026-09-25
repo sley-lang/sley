@@ -4901,7 +4901,7 @@
     "contract_revision": 9,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
-    "artifact_name": "sley-2.0.1-linux-x86_64.tar.gz",
+    "artifact_name": "sley-2.0.2-linux-x86_64.tar.gz",
     "manifest_contract": "sley2.release-candidate-manifest.v1",
     "demo_fixture": "conformance/release-demo/v1/demo.json",
     "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",

@@ -3,7 +3,8 @@
 Status: S20-720 contract draft, revision 9 (2026-09-25), with round-7
 clarifications (2026-09-11, section 13); Council review pending (Ariadne
 contract review, Nabu architecture review, Vulcan surface review). Revision
-9 ships the agent workbench binary (section 18). Revision
+9 ships the agent workbench binary and names the 2.0.2 artifact (section
+18). Revision
 8 ships the third-party license texts and names the 2.0.1 artifact
 (section 17). Revision
 7 pins the lint report's eleven-field set (section 7). Revision
@@ -19,7 +20,7 @@ machine summary.
 ## Boundary
 
 S20-720 freezes the mechanics of the clean-room release candidate: how the
-artifact `sley-2.0.1-linux-x86_64.tar.gz` is built twice from the working
+artifact `sley-2.0.2-linux-x86_64.tar.gz` is built twice from the working
 tree, what it contains, how it is unpacked and exercised with no source
 tree, how its checksums, manifest, inventory, and scans are recorded, and
 how reproducibility is established or its nondeterminism named (master
@@ -44,7 +45,7 @@ run under `make release-candidate-smoke`.
    and the working tree to `/sley2` last. Any other order lets the home
    rule shadow the tree rule and moves the leak where the scan cannot see
    it (section 5);
-2. packaging (section 2) into `dist/sley-2.0.1-linux-x86_64.tar.gz`;
+2. packaging (section 2) into `dist/sley-2.0.2-linux-x86_64.tar.gz`;
 3. unpacking the artifact into a private directory outside the working
    tree and running the conformance subset and the canonical demo there
    (sections 3 and 4) with the working directory inside the unpacked
@@ -62,7 +63,7 @@ Any step that fails stops the run with its code; nothing is published.
 ## 2. Contents
 
 ```text
-sley-2.0.1-linux-x86_64/
+sley-2.0.2-linux-x86_64/
   bin/sley                          the S20-430 endpoint binary
   bin/sley-agent                    the agent workbench (SLEY_AGENT_V1, section 18)
   MANIFEST.json                     contract, commit, toolchain, files with sha256 and size
@@ -461,5 +462,7 @@ binary, so the artifact carries `bin/sley-agent` beside `bin/sley`.
   the guide's first example through `init` and `try`. The workspace it
   creates is removed before the demo runs.
 
-The artifact therefore holds fifteen members.
+The artifact therefore holds fifteen members. Revision 9 also names the
+current artifact `sley-2.0.2-linux-x86_64.tar.gz`; section 17 keeps the 2.0.1
+name it recorded.
 
