@@ -247,6 +247,18 @@ Disposition (2.0.1):
   semantic judgment, so the host boundary above is unchanged. A violation
   is refused before execution with the existing
   `VM_EXEC_INPUT_NOT_CANONICAL` (27006) and no outcome. No new code.
+  Canonical form on the package path also includes nested type agreement:
+  every value inside an input, at any depth, must carry exactly the type its
+  container declares (the `Option`, `Vector`, tuple, map, and `Result`
+  element types from the container's own `value_type`, and record field and
+  variant payload types from the package's admitted layouts by exact
+  identity with the named type's explicit arguments substituted), and its
+  data must have the form its own type declares, so an `Option<UInt(8)>`
+  whose payload is typed `UInt(128)` is refused with the same code even
+  though the payload fits the width it claims; these are exact-equality,
+  field-count, and member-ID checks, not well-formedness, trait, or
+  inference judgment (fixtures:
+  `crates/sley-vm/tests/package_input_nested_types.rs`).
 - Per input the order is now: register-type equality, canonical form
   (codec, then integer width), capped value units, value hash. Canonical
   form moved ahead of unit accumulation so the codec's depth bound holds
