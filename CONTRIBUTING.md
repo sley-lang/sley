@@ -19,23 +19,38 @@ into the new kernel.
 
 ## Validation economy
 
-Run the smallest meaningful check first. `make quick` is the M0 inner loop;
-it reads the Sley 2.0 master goal from outside the repository, so in a
-worktree, clone, or remote checkout set `SLEY2_MASTER_GOAL` to the path of
-`Sley2.0mastergoal.md` (the two checkers that need it report
-`master:unavailable` otherwise);
-`make check-changed` reports affected surfaces. Use subsystem gates at work-
-package boundaries. `make v2` is the authoritative full product gate and must
-not be used as a debugging strategy.
+Run the smallest meaningful check first: the targeted `cargo test -p <crate>`
+for the crate you changed, then the `scripts/check_*.py` checkers that cover
+the files you touched. Before you open a pull request, run the contributor
+gates. They work in any clone:
 
-Record command, environment, commit, seed, duration, result, cache use, and
-skips in the dossier. Never weaken checks to make a demonstration pass.
+```sh
+cargo test --workspace --locked   # about 15 to 20 minutes cold
+make conformance                  # needs uv
+make adversarial
+make fuzz-smoke
+make lint                         # rewrites the tracked evidence/build/lint-report.json
+```
+
+`make lint` files its result in `evidence/build/lint-report.json`. Leave that
+change out of your pull request unless the maintainers ask for it. The
+[Quickstart](docs/QUICKSTART.md#6-run-the-test-gates) has the details.
+
+`make quick` and `make check-changed` are the maintainers' gates. They don't
+pass on a fresh clone: some checkers read the outputs of a local release
+build under `evidence/runtime/`, which isn't tracked, and two read the Sley
+2.0 master goal, which lives outside the repository (`SLEY2_MASTER_GOAL`
+points at it). `make v2` is a placeholder for the full product gate and fails
+closed with `NOT_IMPLEMENTED` until that gate exists.
+
+Say in the pull request which checks you ran and what they returned. Never
+weaken a check or a test to make a change pass.
 
 ## Commit discipline
 
-Use one coherent purpose and a conventional commit message. Commit local work
-before a phase boundary or handoff. Do not add `Co-Authored-By`. Do not amend,
-rebase, force-push, or absorb unrelated changes without explicit direction.
+Use one coherent purpose and a conventional commit message. Do not add
+`Co-Authored-By`. Do not amend, rebase, force-push, or absorb unrelated
+changes without explicit direction.
 
 ## Prohibited additions
 

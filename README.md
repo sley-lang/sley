@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://sleylang.org"><img alt="Website" src="https://img.shields.io/badge/sleylang.org-website-22d3ee?style=flat-square"></a>
-  <img alt="Version 2.0.0" src="https://img.shields.io/badge/version-2.0.0-38c8e8?style=flat-square">
+  <img alt="Version 2.0.1" src="https://img.shields.io/badge/version-2.0.1-38c8e8?style=flat-square">
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-3b82f6?style=flat-square"></a>
   <img alt="Rust 1.93" src="https://img.shields.io/badge/rust-1.93-f97316?style=flat-square&logo=rust&logoColor=white">
   <img alt="Linux x86_64" src="https://img.shields.io/badge/platform-linux%20x86__64-64748b?style=flat-square&logo=linux&logoColor=white">
@@ -22,7 +22,7 @@
   <a href="docs/CONCEPTS.md"><b>Concepts</b></a> ·
   <a href="https://sleylang.org/tutorial"><b>Walkthrough</b></a> ·
   <a href="docs/README.md"><b>Documentation</b></a> ·
-  <a href="docs/release/SLEY-2.0.0.md"><b>Release notes</b></a> ·
+  <a href="docs/release/SLEY-2.0.1.md"><b>Release notes</b></a> ·
   <a href="https://sleylang.org/faq"><b>FAQ</b></a>
 </p>
 
@@ -63,7 +63,7 @@ machine code instead of prose.
 > toolchain pinned in [`rust-toolchain.toml`](rust-toolchain.toml) (1.93.0)
 > and Python 3 for the demo.
 
-**1. Get the `sley` binary.** Download `sley-2.0.0-linux-x86_64.tar.gz` from
+**1. Get the `sley` binary.** Download `sley-2.0.1-linux-x86_64.tar.gz` from
 [Releases](https://github.com/sley-lang/sley/releases), or build it from source:
 
 ```sh
@@ -85,6 +85,10 @@ $ sley hello --json
  "protocol_versions":[1],"schema_epochs":["a7fcf97a…"]}
 ```
 
+`"json_bridge": false` is expected. `--json` is a transport choice of the
+CLI, not a feature the endpoint negotiates
+([SLEY_CLI_V1](docs/spec/SLEY_CLI_V1.md#2-serve) section 2).
+
 **3. Run the end-to-end demo.** It imports a program into an empty repository,
 queries it, executes a function, stores the report, creates a branch, exports
 the repository, clones it into a second empty directory, and checks that the
@@ -95,6 +99,7 @@ $ python3 bench/release/run_demo.py --sley target/release/sley \
     --fixture conformance/release-demo/v1/demo.json
 {
   "result": "PASS",
+  "explicit_gap": "candidate construction, commit, test selection, and merge wait for the public candidate builder (S20-350 proposal-only)",
   "steps": {
     "query_root_matches_fixture": true,
     "execute_response_matches_fixture": true,
@@ -110,6 +115,10 @@ $ python3 bench/release/run_demo.py --sley target/release/sley \
 
 From the release archive, run `python3 demo/run_demo.py` inside the unpacked
 directory. No source tree is needed.
+
+The demo imports and executes a program that was built in advance. As
+`explicit_gap` says, it doesn't construct, commit, test-select, or merge a
+candidate through the public builder, which is still proposal-only.
 
 ➡️ **The [full Quickstart](docs/QUICKSTART.md)** covers verifying the
 download, driving `sley serve` by hand over JSON lines, exit codes, and the
@@ -170,17 +179,20 @@ roots, the change lifecycle, sessions, and the glossary.
   surfaces.
 
 See the **[2.0.0 release notes](docs/release/SLEY-2.0.0.md)** for the complete
-list, including the known limits.
+list, including the known limits, and the
+**[2.0.1 release notes](docs/release/SLEY-2.0.1.md)** for the fixes since.
 
 ## Project status
 
-**Sley 2.0.0** is the current release. It's a *release*, not a GA claim: the
-[release notes](docs/release/SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
-list every acceptance criterion that isn't met yet and every open finding.
+**Sley 2.0.1** is the current release, a patch release of 2.0.0. It's a
+*release*, not a GA claim: the
+[2.0.0 release notes](docs/release/SLEY-2.0.0.md#known-limits-and-what-is-not-yet-claimed)
+list every acceptance criterion that wasn't met at 2.0.0 and every open
+finding. 2.0.1 makes no new GA claim.
 
 | Track | State |
 |---|---|
-| **Sley 2.0** | Released as 2.0.0. The kernel, repository, protocol, CLI, and reproducible packaging are in place. |
+| **Sley 2.0** | Released as 2.0.0, with fixes in 2.0.1. The kernel, repository, protocol, CLI, and reproducible packaging are in place. |
 | **Sley 2.1** | In progress. **Self-hosting**: the Sley toolchain built with Sley, under the REWEAVE plan ([ADR-0049](docs/adr/ADR-0049-reweave-scope-adoption.md), [Bootstrap Profile 2](docs/spec/BOOTSTRAP_PROFILE_2.md)). |
 | **Succession benchmark** | In progress. It measures agents working in Sley against raw source and Sley 1.x on a frozen 15-task corpus. Results will be published when the campaign finishes. |
 | **Sley 1.x** | Frozen at [v1.2.0](https://github.com/GreyforgeLabs/sley-legacy/releases/tag/v1.2.0) in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
@@ -194,25 +206,43 @@ list every acceptance criterion that isn't met yet and every open finding.
 | 🧭 **[Architecture walkthrough](https://sleylang.org/tutorial)** | Step by step from verified state to proposal, validation, transaction, and new state |
 | 📚 **[Documentation index](docs/README.md)** | Every specification, ADR, and reference, grouped by topic |
 | 🏗️ **[Architecture](ARCHITECTURE.md)** | Crate authority, the dependency law, and the durability order |
-| 📦 **[Release notes](docs/release/SLEY-2.0.0.md)** | What 2.0.0 contains, how to verify it, and what isn't claimed yet |
+| 📦 **[Release notes](docs/release/SLEY-2.0.0.md)** | What 2.0.0 contains, how to verify it, and what isn't claimed yet. [2.0.1](docs/release/SLEY-2.0.1.md) lists the fixes since. |
 | 🔐 **[Security](SECURITY.md)** | Threat model, reporting, and the [threat register](docs/THREAT_REGISTER.md) |
 | 🤝 **[Contributing](CONTRIBUTING.md)** | The slice contract, validation gates, and commit discipline |
 
 ## Build and test from source
 
+These gates run from a fresh clone:
+
 ```sh
 cargo build --release -p sley-cli     # the sley binary
-cargo test --workspace --locked       # every crate's tests
+cargo test --workspace --locked       # every crate's tests (about 15 to 20 minutes cold)
 make conformance                      # Rust vs. the independent Python oracle (needs uv)
 make adversarial                      # corruption, crash, and binding-confusion suites
 make fuzz-smoke                       # bounded fuzz smoke across the codecs and importers
-make lint                             # clippy with all + pedantic denied
+make lint                             # rustfmt check, plus clippy with all + pedantic denied
+```
+
+`make lint` rewrites the tracked `evidence/build/lint-report.json`, so it
+leaves the tree dirty. Discard the record with
+`git checkout -- evidence/build/lint-report.json` if you only wanted the check.
+
+To reproduce the release artifact you need a clean tree at the release
+commit, the `x86_64-unknown-linux-musl` target, and `uv`. If you ran
+`make lint`, commit or discard its record first. On a fresh cargo cache, fetch
+the locked dependencies before the build:
+
+```sh
+cargo fetch --locked
 make release-candidate-smoke          # two clean musl builds + every release record, then verify
 ```
 
-Maintainers run `make quick` as the routine gate. Two of its checkers read
-the Sley 2.0 master goal, which lives outside the repository; point
-`SLEY2_MASTER_GOAL` at it.
+Maintainers run `make quick` as the routine gate. It doesn't pass on a fresh
+clone: some of its checkers read the outputs of a local
+`make release-candidate-build` under `evidence/runtime/`, which isn't tracked,
+and two read the Sley 2.0 master goal, which lives outside the repository
+(`SLEY2_MASTER_GOAL` points at it). The
+[Quickstart](docs/QUICKSTART.md#6-run-the-test-gates) has the details.
 
 The repository is a Cargo workspace of 20 crates under [`crates/`](crates/).
 Each crate owns exactly one authority, from `sley-scb1` (canonical bytes) to
@@ -237,7 +267,9 @@ Each crate owns exactly one authority, from `sley-scb1` (canonical bytes) to
 
 Sley 2 is licensed under the [Apache License 2.0](LICENSE).
 Copyright © 2026 [Greyforge Labs](https://greyforge.tech). See [NOTICE](NOTICE)
-for details. Third-party dependency licenses are listed in the release SBOM.
+for details. Third-party dependency licenses are listed in the release SBOM,
+and from 2.0.1 their texts ship in the release archive as
+`THIRD_PARTY_LICENSES`.
 
 <p align="center">
   <sub>Built by <a href="https://greyforge.tech">Greyforge Labs</a> · <a href="https://sleylang.org">sleylang.org</a> · <a href="https://x.com/SleyLanguage">@SleyLanguage</a></sub>
