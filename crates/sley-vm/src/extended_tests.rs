@@ -267,6 +267,33 @@ impl Fixture {
     }
 }
 
+#[test]
+fn e2_checked_integer_kernel_never_aborts_on_an_operand_outside_the_width() {
+    // The lowering path judges every input (ConstRange), but the package
+    // path validates inputs structurally only, so an i128 operand outside
+    // the declared width can reach the kernel. `i128::MIN / -1`,
+    // `i128::MIN % -1` and `-i128::MIN` must answer ARITHMETIC_OVERFLOW
+    // like every other out-of-range result, never abort the host.
+    use crate::extended::{ARITHMETIC_OVERFLOW, Checked, checked_integer};
+    let minimum = sint(i128::MIN);
+    let minus_one = sint(-1);
+    for opcode in [Opcode::IntDivChecked, Opcode::IntRemChecked] {
+        assert!(matches!(
+            checked_integer(opcode, true, 64, &[&minimum, &minus_one]),
+            Ok(Checked::Failure(ARITHMETIC_OVERFLOW))
+        ));
+    }
+    assert!(matches!(
+        checked_integer(Opcode::IntNegChecked, true, 64, &[&minimum]),
+        Ok(Checked::Failure(ARITHMETIC_OVERFLOW))
+    ));
+    // In-width operands keep their exact answers.
+    assert!(matches!(
+        checked_integer(Opcode::IntDivChecked, true, 64, &[&sint(-7), &sint(2)]),
+        Ok(Checked::Value(-3, 0))
+    ));
+}
+
 fn limits() -> ExecutionLimits {
     ExecutionLimits {
         max_instructions: 1_000,
