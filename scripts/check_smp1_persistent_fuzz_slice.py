@@ -58,6 +58,10 @@ for marker in [
     "CRASH_REGRESSION",
     "S20_700_SMP1_001",
     "seed-regression-S20-700-SMP1-001",
+    "fuzz/regressions/S20_700_SMP1_002.json",
+    "def retest_regressions(",
+    '"retested_regressions"',
+    '"regression_records"',
 ]:
     if marker not in wrapper:
         problems.append(f"wrapper-missing:{marker}")
@@ -128,6 +132,37 @@ import sys as _sys
 _sys.path.insert(0, str(ROOT / "scripts"))
 from fuzz_proof_record import slice_proof_problems as _slice_proof_problems  # noqa: E402
 problems.extend(_slice_proof_problems(ROOT, "s20_700_smp1_persistent_fuzz_slice", "scripts/run_smp1_persistent_fuzz.py", ['smp1_frame_decoder']))
+
+
+# Tracked regression records: present, well-formed, and bound to this
+# slice's target. S20-700-SMP1-002 is a production defect (a hello frame
+# with nonzero bounds decoded and re-encoded differently), so its lane-0
+# minimized input must also be the conformance rejection it pins.
+for _name in ["S20_700_SMP1_001.json", "S20_700_SMP1_002.json"]:
+    _path = ROOT / "fuzz/regressions" / _name
+    if not _path.is_file():
+        problems.append(f"regression-record-missing:{_name}")
+        continue
+    _record = json.loads(_path.read_text(encoding="utf-8"))
+    for _key in ("finding_id", "input_hex", "target", "classification", "contract"):
+        if not _record.get(_key):
+            problems.append(f"regression-record-incomplete:{_name}:{_key}")
+    if _record.get("target") != "smp1_frame_decoder":
+        problems.append(f"regression-record-target:{_name}")
+    try:
+        bytes.fromhex(_record.get("input_hex", "zz"))
+        bytes.fromhex(_record.get("minimized_input_hex", ""))
+    except ValueError:
+        problems.append(f"regression-record-bad-hex:{_name}")
+_smp1_002 = ROOT / "fuzz/regressions/S20_700_SMP1_002.json"
+if _smp1_002.is_file():
+    _record = json.loads(_smp1_002.read_text(encoding="utf-8"))
+    _rejected = json.loads((ROOT / "conformance/smp1/v1/rejected.json").read_text(encoding="utf-8"))
+    _vectors = {m["id"]: m["input_hex"] for m in _rejected.get("mutations", [])}
+    if _record.get("minimized_input_hex") != "00" + _vectors.get("hello-nonzero-bounds", ""):
+        problems.append("regression-record-unbound-vector:S20_700_SMP1_002.json:hello-nonzero-bounds")
+    if _record.get("production_checker_defect") is not True:
+        problems.append("regression-record-classification:S20_700_SMP1_002.json")
 
 if problems:
     raise SystemExit("\n".join(problems))
