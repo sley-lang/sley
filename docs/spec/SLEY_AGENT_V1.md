@@ -75,7 +75,9 @@ validates it in process with `validate_candidate_bytes`. It stores the
 candidate under the next handle. When the candidate is Valid, `try` executes
 the TestCases the kernel selected for it, plus the TestCases the frame
 declares, plus the listed public cases. It prints one compact result: the
-handle, the decision or the decoded refusal, and per-test results.
+handle, the decision or the decoded refusal, and per-test results. A Valid
+candidate that runs no TestCase says so (`tests: 0 ran`), as a test runner
+reports running zero tests.
 
 `submit` validates the referenced candidate against the current head again
 and writes `final_candidate.hex` only when it is Valid. Submissions repeat:

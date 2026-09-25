@@ -604,6 +604,10 @@ fn full_redefinition_reuses_names_and_deletes_the_rest() {
         result["ops"]["deleted"], 2,
         "the inside block and its operation"
     );
+    // A Valid candidate that runs no TestCase says so.
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("tests: 0 ran"), "{text}");
 }
 
 #[test]

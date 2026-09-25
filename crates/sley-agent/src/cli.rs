@@ -547,6 +547,12 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             let _ = writeln!(text, "  note: {note}");
         }
         text.push_str(&tests_text(&tests, &after_names));
+        if verdict.valid && tests.is_empty() && !words.has("--no-test") {
+            // Like a test runner's "running 0 tests": say that none ran.
+            text.push_str(
+                "tests: 0 ran (no TestCase in this candidate targets a function it changes)\n",
+            );
+        }
         text.push_str(&public_text(&public));
         if verdict.valid && failed == 0 {
             let _ = writeln!(text, "next: sley-agent submit {handle}");
