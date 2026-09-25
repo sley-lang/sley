@@ -379,9 +379,10 @@ mod tests {
     }
 
     fn golden(field: &str) -> Vec<u8> {
-        let text = include_str!(
-            "/home/gfarch/Work/checkpoints/sley2-finish-20260915/native-final-golden.json"
-        );
+        let text = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/fixtures/native-final-golden.json"
+        ));
         let marker = format!("\"{field}\": \"");
         let start = text.find(&marker).expect("golden field present") + marker.len();
         let end = text[start..].find('"').expect("golden field ends") + start;
@@ -416,9 +417,10 @@ mod tests {
     fn bundle_binding_refusals_keep_stable_codes() {
         // Approval golden from N1c binds a different plan/report: must refuse.
         let foreign = {
-            let text = include_str!(
-                "/home/gfarch/Work/checkpoints/sley2-finish-20260915/native-approval-golden.json"
-            );
+            let text = include_str!(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/fixtures/native-approval-golden.json"
+            ));
             let marker = "\"approval_accepted_stored\": \"";
             let start = text.find(marker).expect("field present") + marker.len();
             let end = text[start..].find('"').expect("field ends") + start;

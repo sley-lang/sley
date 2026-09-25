@@ -1101,9 +1101,7 @@ mod tests {
     }
 
     fn golden(field: &str) -> Vec<u8> {
-        let text = include_str!(
-            "/home/gfarch/Work/checkpoints/sley2-finish-20260915/native-final-golden.json"
-        );
+        let text = include_str!("../../sley-tests/fixtures/native-final-golden.json");
         let marker = format!("\"{field}\": \"");
         let start = text.find(&marker).expect("golden field present") + marker.len();
         let end = text[start..].find('"').expect("golden field ends") + start;
