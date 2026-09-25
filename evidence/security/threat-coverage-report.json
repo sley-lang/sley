@@ -14,8 +14,8 @@
   "independent_security_review": "PENDING",
   "interpretation": "locating a symbol proves the named control exists in the tree, not that the threat is mitigated; SYMBOL_REALIZED_WITH_EXERCISE means a test region, test file, conformance corpus, fuzz target, or oracle names the symbol (or the addendum records the test that reaches it by variant), never that a production file merely carries some assertion; SYMBOL_REALIZED_NO_EXERCISE_LOCATED means the control exists but nothing found reaches it, and PLANNED_EVIDENCE_PRESENT means the register's own evidence directory exists. SYMBOL_NOT_LOCATED is a work list for the independent security review, not a claim that the threat is untested. STRUCTURAL_CONTROL_RECORDED means the addendum records a control that is the absence of something, so no symbol exists to find. The M0 register named the failure code it expected, and a package may have realized the control under more specific codes, which the register's Realized codes addendum records as they are traced. The judgment stays with the review.",
   "p0_p1_without_located_symbol": [],
-  "register_status": "M0 planned-control map; evidence paths are future outputs",
-  "report_digest": "0e7e543185e6b908ded1fcdce4d9657c2c3e9fe912be9ad382ec2f7d68cab0a5",
+  "register_status": "control map for all 56 threats; coverage measured here; independent review pending",
+  "report_digest": "d6545814c5b24b5b1581e106818b2d6d3790a11ac7e824022a9cda04f705661f",
   "source": "docs/THREAT_REGISTER.md",
   "states": {
     "PLANNED_EVIDENCE_PRESENT": 9,
@@ -1201,12 +1201,14 @@
       "exercised_in": [
         "crates/sley-repo/tests/rw060_source_free_lifecycle.rs",
         "crates/sley-repo/tests/succ_live_judge_cases.rs",
+        "crates/sley-vm/tests/package_input_nested_types.rs",
+        "crates/sley-vm/tests/package_input_width.rs",
         "crates/sley-vm/tests/rw080_lower_scaffold.rs"
       ],
-      "exercised_source_count": 3,
+      "exercised_source_count": 5,
       "expected_failure_code": "VM_NONDETERMINISM_DETECTED",
       "id": "T33",
-      "located_file_count": 7,
+      "located_file_count": 10,
       "located_in": {
         "checkers": [
           "scripts/check_vm_lowering_profile.py"
@@ -1654,11 +1656,12 @@
       "exercised_source_count": 6,
       "expected_failure_code": "PROTOCOL_DOWNGRADE",
       "id": "T45",
-      "located_file_count": 8,
+      "located_file_count": 9,
       "located_in": {
         "checkers": [
           "scripts/check_smp1_contract.py",
-          "scripts/check_smp1_json_bridge_vector.py"
+          "scripts/check_smp1_json_bridge_vector.py",
+          "scripts/check_smp1_vector.py"
         ],
         "implementation": [
           "crates/sley-json-bridge/src/tests.rs",
