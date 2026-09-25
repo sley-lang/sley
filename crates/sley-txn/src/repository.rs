@@ -3700,7 +3700,7 @@ impl TransactionRepository {
                     .as_bytes(),
             ),
             parent_transaction: input.expected_parent,
-            parent_root: validated.candidate_root().root,
+            parent_root: plan.parent_root(),
             proposed_root: plan.proposed_root(),
             policy_root: validated.candidate_root().record.policy_root,
             plan_id: plan.plan_id(),
