@@ -314,6 +314,7 @@ impl ValidatedCandidatePlan {
 pub struct CandidateValidationOutput {
     result: ImportedCandidateResult,
     plan: Option<ValidatedCandidatePlan>,
+    locator: Option<RefusalLocator>,
 }
 
 impl CandidateValidationOutput {
@@ -321,6 +322,13 @@ impl CandidateValidationOutput {
     #[must_use]
     pub const fn result(&self) -> &ImportedCandidateResult {
         &self.result
+    }
+
+    /// Returns the explain-only locator of a refusal, when the refusing
+    /// phase knows one. It is not part of the result record or its bytes.
+    #[must_use]
+    pub const fn refusal_locator(&self) -> Option<&RefusalLocator> {
+        self.locator.as_ref()
     }
 
     /// Returns validator-owned commit material exactly when the decision is
@@ -379,13 +387,66 @@ impl From<ScbError> for CandidateValidationError {
     }
 }
 
-#[derive(Clone, Copy)]
+/// Where a refusal applies, as far as the refusing phase knows it.
+///
+/// Explain-only and non-canonical: a locator is never encoded, never enters
+/// the candidate result record or its digest, and never decides anything.
+/// It rides beside the canonical result on [`CandidateValidationOutput`] so
+/// a tool can name the entity, field, and limit behind a refusal.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct RefusalLocator {
+    /// The entity the refusal is about (the refused test, the entity whose
+    /// reference failed, the function whose graph failed, ...).
+    pub subject: Option<EntityId>,
+    /// A second entity: the unresolved dependency or the colliding identity.
+    pub related: Option<EntityId>,
+    /// Zero-based candidate operation ordinal.
+    pub operation: Option<u32>,
+    /// Reference-graph relationship tag of a failed reference (phase 5).
+    pub relationship: Option<u32>,
+    /// Field or limit name (`resource_limits.memory_bytes`, `operations`).
+    pub field: Option<&'static str>,
+    /// Requested value of a refused limit.
+    pub requested: Option<u64>,
+    /// Effective ceiling of a refused limit.
+    pub ceiling: Option<u64>,
+}
+
+impl RefusalLocator {
+    const fn subject(subject: EntityId) -> Self {
+        Self {
+            subject: Some(subject),
+            related: None,
+            operation: None,
+            relationship: None,
+            field: None,
+            requested: None,
+            ceiling: None,
+        }
+    }
+
+    const fn limit(field: &'static str, requested: u64, ceiling: u64) -> Self {
+        Self {
+            subject: None,
+            related: None,
+            operation: None,
+            relationship: None,
+            field: Some(field),
+            requested: Some(requested),
+            ceiling: Some(ceiling),
+        }
+    }
+}
+
+#[derive(Clone)]
 struct Failure {
     phase: u32,
     decision: CandidateDecision,
     source_symbol: &'static str,
     source_numeric_code: Option<u32>,
     retryability: DiagnosticRetryability,
+    // Boxed so every phase's `Result<_, Failure>` stays small.
+    locator: Option<Box<RefusalLocator>>,
 }
 
 impl Failure {
@@ -402,7 +463,14 @@ impl Failure {
             source_symbol,
             source_numeric_code,
             retryability,
+            locator: None,
         }
+    }
+
+    /// Attaches the explain-only locator; the rendered result is unchanged.
+    fn at(mut self, locator: RefusalLocator) -> Self {
+        self.locator = Some(Box::new(locator));
+        self
     }
 }
 
@@ -517,6 +585,7 @@ impl ResultRenderer {
         Ok(CandidateValidationOutput {
             result: build_candidate_result(&record)?,
             plan: None,
+            locator: failure.locator.map(|locator| *locator),
         })
     }
 
@@ -553,6 +622,7 @@ impl ResultRenderer {
         Ok(CandidateValidationOutput {
             result: build_candidate_result(&record)?,
             plan: Some(plan),
+            locator: None,
         })
     }
 
@@ -772,9 +842,19 @@ pub fn validate_candidate_bytes(
         Ok(program) => program,
         Err(error) => return renderer.finish_failure(program_failure(error)),
     };
-    let program = match CandidateProgram::project(proposed.entities()) {
+    let program = match CandidateProgram::project_located(proposed.entities()) {
         Ok(program) => program,
-        Err(error) => return renderer.finish_failure(program_failure(error)),
+        Err((error, locus)) => {
+            let failure = program_failure(error);
+            return renderer.finish_failure(match locus {
+                Some(locus) => failure.at(RefusalLocator {
+                    related: locus.dependency,
+                    relationship: locus.relationship,
+                    ..RefusalLocator::subject(locus.entity)
+                }),
+                None => failure,
+            });
+        }
     };
     if let Err(failure) = validate_phase_five_context(context, &proposed, &base_program, &program) {
         return renderer.finish_failure(failure);
@@ -855,7 +935,11 @@ pub fn validate_candidate_bytes(
             &unit.operations,
         ) {
             Ok(report) => report,
-            Err(error) => return renderer.finish_failure(cfg_failure(&error)),
+            Err(error) => {
+                return renderer.finish_failure(
+                    cfg_failure(&error).at(RefusalLocator::subject(unit.function.entity_id)),
+                );
+            }
         };
         cfg_edges = match cfg_edges.checked_add(u64::from(report.edges)) {
             Some(value) => value,
@@ -894,7 +978,11 @@ pub fn validate_candidate_bytes(
             adapters: &program.adapters,
         }) {
             Ok(judgment) => judgment,
-            Err(error) => return renderer.finish_failure(operation_failure(&error)),
+            Err(error) => {
+                return renderer.finish_failure(
+                    operation_failure(&error).at(RefusalLocator::subject(unit.function.entity_id)),
+                );
+            }
         };
         judged_operations = match judged_operations.checked_add(judgment.operations) {
             Some(value) => value,
@@ -1107,18 +1195,45 @@ pub fn validate_candidate_bytes(
     })
 }
 
+#[allow(clippy::too_many_lines)]
 fn validate_phase_two(
     context: &CandidateValidationContext<'_>,
     candidate: &ImportedCandidate,
 ) -> Result<(), Failure> {
     let limits = context.limits.effective();
-    if candidate.stored_bytes.len() as u64 > limits.max_candidate_bytes
-        || candidate.record.operations.len() > limits.max_operations as usize
-        || candidate.record.preconditions.len() > limits.max_preconditions as usize
-        || context.base_objects.len() > limits.max_entities as usize
-        || context.base_state.record.entity_bindings.len() > limits.max_entities as usize
+    let checks = [
+        (
+            "candidate_bytes",
+            candidate.stored_bytes.len() as u64,
+            limits.max_candidate_bytes,
+        ),
+        (
+            "operations",
+            candidate.record.operations.len() as u64,
+            u64::from(limits.max_operations),
+        ),
+        (
+            "preconditions",
+            candidate.record.preconditions.len() as u64,
+            u64::from(limits.max_preconditions),
+        ),
+        (
+            "base_objects",
+            context.base_objects.len() as u64,
+            u64::from(limits.max_entities),
+        ),
+        (
+            "base_bindings",
+            context.base_state.record.entity_bindings.len() as u64,
+            u64::from(limits.max_entities),
+        ),
+    ];
+    if let Some((field, requested, ceiling)) = checks
+        .into_iter()
+        .find(|(_, requested, ceiling)| requested > ceiling)
     {
-        return Err(resource_failure(2, "SCB_RESOURCE_LIMIT"));
+        return Err(resource_failure(2, "SCB_RESOURCE_LIMIT")
+            .at(RefusalLocator::limit(field, requested, ceiling)));
     }
     let state_registry = conformance_registry().map_err(|_| {
         Failure::new(
@@ -1254,6 +1369,7 @@ fn validate_phase_three(
         ));
     }
     for precondition in &record.preconditions {
+        let ordinal = precondition.operation_ordinal;
         let expected = match &precondition.payload {
             PreconditionPayload::ExpectedIdentityAbsent(_) => continue,
             PreconditionPayload::ExactEntityVersion(value) => (value.entity_id, value.object_id),
@@ -1275,7 +1391,11 @@ fn validate_phase_three(
                 "CANDIDATE_APPLY_EXACT_PREIMAGE_MISMATCH",
                 None,
                 DiagnosticRetryability::FreshBase,
-            ));
+            )
+            .at(RefusalLocator {
+                operation: Some(ordinal),
+                ..RefusalLocator::subject(expected.0)
+            }));
         }
     }
     Ok(())
@@ -1292,6 +1412,10 @@ fn validate_phase_four(
         .iter()
         .zip(&candidate.record.preconditions)
     {
+        let at = RefusalLocator {
+            operation: Some(operation.ordinal),
+            ..RefusalLocator::subject(operation.target_entity)
+        };
         if operation.class != MutationClass::CreateEntity {
             continue;
         }
@@ -1326,7 +1450,11 @@ fn validate_phase_four(
                 "MUTATION_CANDIDATE_TARGET_ENTITY",
                 Some(35_009),
                 DiagnosticRetryability::Permanent,
-            ));
+            )
+            .at(RefusalLocator {
+                related: Some(expected),
+                ..at
+            }));
         }
         if context
             .base_state
@@ -1342,7 +1470,8 @@ fn validate_phase_four(
                 "CANDIDATE_IDENTITY_COLLISION",
                 None,
                 DiagnosticRetryability::Permanent,
-            ));
+            )
+            .at(at));
         }
     }
     Ok(())
@@ -1424,7 +1553,13 @@ fn validate_phase_nine<'a>(
                 "POLICY_GRANT_DENIED",
                 Some(PolicyRootErrorCode::GrantDenied.numeric()),
                 DiagnosticRetryability::FreshAuthority,
-            ));
+            )
+            .at(RefusalLocator {
+                operation: Some(operation.ordinal),
+                field: Some("mutation_class"),
+                requested: Some(u64::from(tag)),
+                ..RefusalLocator::subject(operation.target_entity)
+            }));
         }
     }
     if candidate.record.operations.len() as u64 > grant.resource_ceilings().max_mutation_count {
@@ -1434,7 +1569,12 @@ fn validate_phase_nine<'a>(
             "CAP_BUDGET_EXCEEDED",
             Some(CapabilityErrorCode::BudgetExceeded.numeric()),
             DiagnosticRetryability::FreshAuthority,
-        ));
+        )
+        .at(RefusalLocator::limit(
+            "max_mutation_count",
+            candidate.record.operations.len() as u64,
+            grant.resource_ceilings().max_mutation_count,
+        )));
     }
 
     for capability in context.capabilities {
@@ -1572,7 +1712,7 @@ struct ResourceAnalysisReport {
     selected_tests: u64,
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 fn validate_phase_twelve(
     context: &CandidateValidationContext<'_>,
     candidate: &ImportedCandidate,
@@ -1586,13 +1726,17 @@ fn validate_phase_twelve(
     selected_tests: &[EntityId],
 ) -> Result<ResourceAnalysisReport, Failure> {
     if !program.operation_analysis_supported() {
-        return Err(Failure::new(
+        let failure = Failure::new(
             12,
             CandidateDecision::ResourceLimit,
             "CANDIDATE_OPERATION_ANALYSIS_UNSUPPORTED",
             None,
             DiagnosticRetryability::InternalRepair,
-        ));
+        );
+        return Err(match program.first_unanalyzable_operation() {
+            Some(operation) => failure.at(RefusalLocator::subject(operation)),
+            None => failure,
+        });
     }
     let limits = context.limits.effective();
     let mutation_work = (candidate.record.operations.len() as u64)
@@ -1613,7 +1757,13 @@ fn validate_phase_twelve(
         .and_then(|work| work.checked_add(contract_report.work))
         .ok_or_else(|| resource_failure(12, "CANDIDATE_GRAPH_WORK_LIMIT"))?;
     if total_work > limits.max_graph_work {
-        return Err(resource_failure(12, "CANDIDATE_GRAPH_WORK_LIMIT"));
+        return Err(
+            resource_failure(12, "CANDIDATE_GRAPH_WORK_LIMIT").at(RefusalLocator::limit(
+                "graph_work",
+                total_work,
+                limits.max_graph_work,
+            )),
+        );
     }
     let mut decoded_change_bytes = candidate.stored_bytes.len() as u64;
     for entity in proposed.affected_entities() {
@@ -1645,14 +1795,48 @@ fn validate_phase_twelve(
             ));
         };
         let resource = test.resource_limits;
-        if resource.fuel > policy_ceilings.max_fuel
-            || resource.memory_bytes > policy_ceilings.max_memory_bytes
-            || resource.output_bytes > policy_ceilings.max_output_bytes
-            || resource.effect_count > policy_ceilings.max_effect_count
-            || resource.call_depth > limits.max_test_call_depth
-            || resource.wall_timeout_millis > limits.max_test_wall_timeout_millis
+        let checks = [
+            (
+                "resource_limits.fuel",
+                resource.fuel,
+                policy_ceilings.max_fuel,
+            ),
+            (
+                "resource_limits.memory_bytes",
+                resource.memory_bytes,
+                policy_ceilings.max_memory_bytes,
+            ),
+            (
+                "resource_limits.output_bytes",
+                resource.output_bytes,
+                policy_ceilings.max_output_bytes,
+            ),
+            (
+                "resource_limits.effect_count",
+                resource.effect_count,
+                policy_ceilings.max_effect_count,
+            ),
+            (
+                "resource_limits.call_depth",
+                resource.call_depth,
+                limits.max_test_call_depth,
+            ),
+            (
+                "resource_limits.wall_timeout_millis",
+                resource.wall_timeout_millis,
+                limits.max_test_wall_timeout_millis,
+            ),
+        ];
+        if let Some((field, requested, ceiling)) = checks
+            .into_iter()
+            .find(|(_, requested, ceiling)| requested > ceiling)
         {
-            return Err(resource_failure(12, "CANDIDATE_TEST_RESOURCE_LIMIT"));
+            return Err(
+                resource_failure(12, "CANDIDATE_TEST_RESOURCE_LIMIT").at(RefusalLocator {
+                    subject: Some(*selected),
+                    ..RefusalLocator::limit(field, requested, ceiling)
+                }),
+            );
         }
     }
     Ok(ResourceAnalysisReport {
