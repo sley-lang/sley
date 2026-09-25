@@ -341,15 +341,14 @@ impl Store {
                 format!("`{reference}` is not a candidate handle, file, or stored hex"),
             )
         };
-        let text =
-            if reference.starts_with('c') && reference[1..].chars().all(|c| c.is_ascii_digit()) {
-                let path = self.dir.join(format!("{reference}.hex"));
-                fs::read_to_string(&path).map_err(|_| unknown())?
-            } else if Path::new(reference).is_file() {
-                fs::read_to_string(reference).map_err(|error| io(Path::new(reference), &error))?
-            } else {
-                reference.to_owned()
-            };
+        let text = if is_handle(reference) {
+            let path = self.dir.join(format!("{reference}.hex"));
+            fs::read_to_string(&path).map_err(|_| unknown())?
+        } else if Path::new(reference).is_file() {
+            fs::read_to_string(reference).map_err(|error| io(Path::new(reference), &error))?
+        } else {
+            reference.to_owned()
+        };
         let bytes = hex::decode(text.trim()).ok_or_else(unknown)?;
         if bytes.starts_with(b"SLEYCAN1") {
             return Ok(bytes);
@@ -377,4 +376,27 @@ impl Store {
     pub fn latest(&self) -> Result<Option<String>> {
         Ok(self.handles()?.last().map(|number| format!("c{number}")))
     }
+
+    /// The reference a command means: none or `latest` is the newest
+    /// handle, anything else is itself.
+    ///
+    /// # Errors
+    ///
+    /// `AGENT_HANDLE_UNKNOWN` when `latest` is asked of an empty store.
+    pub fn resolve(&self, reference: Option<&str>) -> Result<String> {
+        match reference {
+            None | Some("latest") => self
+                .latest()?
+                .ok_or_else(|| AgentError::new(AgentErrorCode::HandleUnknown, "no candidates yet")),
+            Some(reference) => Ok(reference.to_owned()),
+        }
+    }
+}
+
+/// Whether a reference is a store handle (`c3`).
+#[must_use]
+pub fn is_handle(reference: &str) -> bool {
+    reference.len() > 1
+        && reference.starts_with('c')
+        && reference[1..].chars().all(|c| c.is_ascii_digit())
 }

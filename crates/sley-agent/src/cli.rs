@@ -204,13 +204,7 @@ fn select(
         });
     };
     let store = Store::open(workspace)?;
-    let reference = if reference == "latest" {
-        store
-            .latest()?
-            .ok_or_else(|| AgentError::new(AgentErrorCode::HandleUnknown, "no candidates yet"))?
-    } else {
-        reference.to_owned()
-    };
+    let reference = store.resolve(Some(reference))?;
     let stored = store.load(&reference)?;
     let authority = Authority::of(head)?;
     let output = candidate::validate(head, &authority, &stored)?;
@@ -244,8 +238,8 @@ fn shown(reference: &str) -> String {
             |name| name.to_string_lossy().into_owned(),
         );
     }
-    if reference.len() > 16 {
-        return format!("{}…", &reference[..8]);
+    if reference.chars().count() > 16 {
+        return format!("{}…", reference.chars().take(8).collect::<String>());
     }
     reference.to_owned()
 }
@@ -471,6 +465,12 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
         )?
     };
     let counts = (compiled.created, compiled.replaced, compiled.deleted);
+    if compiled.ops.is_empty() {
+        return Err(AgentError::new(
+            AgentErrorCode::FrameInvalid,
+            "the frame changes nothing: everything it states is already live as stated",
+        ));
+    }
     let imported = candidate::assemble(&head, &authority, nonce, compiled.ops)?;
     let output = candidate::validate(&head, &authority, &imported.stored_bytes)?;
     remember_names(&workspace, &compiled.names)?;
@@ -745,13 +745,18 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
     let head = workspace.head()?;
     let store = Store::open(&workspace)?;
     let reference = match words.positional.as_slice() {
-        [] => store
-            .latest()?
-            .ok_or_else(|| AgentError::new(AgentErrorCode::HandleUnknown, "no candidates yet"))?,
-        [reference] => reference.clone(),
+        [] => store.resolve(None)?,
+        [reference] => store.resolve(Some(reference))?,
         _ => return Err(usage("submit [<handle>]")),
     };
     let stored = store.load(&reference)?;
+    // A file or stored hex is kept under a handle, so the submission and
+    // every message name a short handle, never the bytes.
+    let reference = if candidate::is_handle(&reference) {
+        reference
+    } else {
+        store.save(&stored, &json!({"imported_from": shown(&reference)}))?
+    };
     let authority = Authority::of(&head)?;
     let output = candidate::validate(&head, &authority, &stored)?;
     if !output.is_valid() {
@@ -1161,10 +1166,8 @@ fn commit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
     let head = workspace.head()?;
     let store = Store::open(&workspace)?;
     let reference = match words.positional.as_slice() {
-        [] => store
-            .latest()?
-            .ok_or_else(|| AgentError::new(AgentErrorCode::HandleUnknown, "no candidates yet"))?,
-        [reference] => reference.clone(),
+        [] => store.resolve(None)?,
+        [reference] => store.resolve(Some(reference))?,
         _ => return Err(usage("commit [<handle>]")),
     };
     let stored = store.load(&reference)?;
@@ -1173,13 +1176,14 @@ fn commit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
     if global.json {
         write_json(
             out,
-            &json!({"committed": reference, "transaction": transaction}),
+            &json!({"committed": shown(&reference), "transaction": transaction}),
         )?;
     } else {
         write_text(
             out,
             &format!(
-                "committed {reference} as transaction {}\n",
+                "committed {} as transaction {}\n",
+                shown(&reference),
                 &transaction[..8]
             ),
         )?;

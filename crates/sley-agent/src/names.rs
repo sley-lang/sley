@@ -323,7 +323,9 @@ impl Names {
             } else {
                 format!("b{position}")
             };
-            let leaf = unique(&pick(block, fallback), block.as_bytes(), &blocks);
+            // Blocks share the function's scope with its parameters (`f.x`).
+            let taken: BTreeSet<String> = blocks.union(&params).cloned().collect();
+            let leaf = unique(&pick(block, fallback), block.as_bytes(), &taken);
             blocks.insert(leaf.clone());
             let block_name = format!("{function_name}.{leaf}");
             self.set(

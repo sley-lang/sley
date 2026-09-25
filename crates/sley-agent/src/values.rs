@@ -154,13 +154,19 @@ fn read_at(
             ConstData::SInt(number)
         }
         TypeExpr::UInt(width) => {
-            let number = integer(value).ok_or_else(|| invalid(pointer, "expected an integer"))?;
             let bits = u32::from(width.bits());
-            let fits = number >= 0 && (bits >= 128 || number < (1_i128 << bits));
-            if !fits {
+            // Unsigned values read as u128, so u128 values above i128::MAX
+            // (which render as strings) read back.
+            let number = unsigned(value).ok_or_else(|| {
+                integer(value).map_or_else(
+                    || invalid(pointer, "expected an integer"),
+                    |number| invalid(pointer, format!("{number} does not fit u{bits}")),
+                )
+            })?;
+            if bits < 128 && number >= (1_u128 << bits) {
                 return Err(invalid(pointer, format!("{number} does not fit u{bits}")));
             }
-            ConstData::UInt(u128::try_from(number).unwrap_or_default())
+            ConstData::UInt(number)
         }
         TypeExpr::F32 => {
             let number = value
@@ -268,7 +274,13 @@ fn read_at(
         }
         TypeExpr::Named(named) => read_named(value, named, defs, pointer, depth)?,
         TypeExpr::BuiltinFailure(kind) => {
-            let text = value
+            // "Overflow", or the rendered form {"ArithmeticError": "Overflow"}.
+            let named = value
+                .as_object()
+                .filter(|object| object.len() == 1)
+                .and_then(|object| object.get(crate::types::failure_name(*kind)));
+            let text = named
+                .unwrap_or(value)
                 .as_str()
                 .ok_or_else(|| invalid(pointer, "expected a failure case name"))?;
             let code = failure_code(*kind, text)
@@ -370,6 +382,14 @@ fn read_named(
                 fields: out,
             }))
         }
+    }
+}
+
+fn unsigned(value: &Value) -> Option<u128> {
+    match value {
+        Value::Number(number) => number.as_u64().map(u128::from),
+        Value::String(text) => text.parse().ok(),
+        _ => None,
     }
 }
 

@@ -301,9 +301,13 @@ impl Compiler<'_> {
         self.bodies.insert(id, body);
     }
 
+    /// The live top-level entity of that name and kind, unless this frame
+    /// deletes it: a frame that deletes and redefines a name creates a new
+    /// entity rather than reviving the deleted one.
     fn existing_top(&self, name: &str, kind: u16) -> Option<EntityId> {
         let id = self.names.resolve(name)?;
         (self.names.scope(&id) == Scope::Top
+            && !self.deletes.contains(&id)
             && self
                 .program
                 .body(&id)
@@ -322,6 +326,7 @@ impl Compiler<'_> {
         } else {
             if let Some(other) = self.names.resolve(name)
                 && self.names.scope(&other) == Scope::Top
+                && !self.deletes.contains(&other)
             {
                 return Err(frame(
                     pointer,
@@ -520,6 +525,24 @@ impl Compiler<'_> {
             ));
         }
         for (id, record, members, visibility, pointer) in type_decls {
+            // A restated live type keeps what AF1 cannot state or did not
+            // restate: its visibility and its fields' (when omitted), its
+            // type parameters and its invariants.
+            let old = match self.program.body(&id) {
+                Some(EntityBodyValue::TypeDef(old)) if !self.is_new(&id) => Some(old.clone()),
+                _ => None,
+            };
+            let field_visibility = |member: &MemberId| {
+                old.as_ref()
+                    .and_then(|old| match &old.form {
+                        TypeDefForm::Record(fields) => fields
+                            .iter()
+                            .find(|field| field.member_id == *member)
+                            .map(|field| field.visibility),
+                        TypeDefForm::Variant(_) => None,
+                    })
+                    .unwrap_or(Visibility::Exported)
+            };
             let form = if record {
                 TypeDefForm::Record(
                     members
@@ -529,7 +552,7 @@ impl Compiler<'_> {
                                 member_id: *member,
                                 value_type: self
                                     .read_type(payload.expect("checked"), case_pointer)?,
-                                visibility: Visibility::Exported,
+                                visibility: field_visibility(member),
                             })
                         })
                         .collect::<Result<_>>()?,
@@ -551,13 +574,20 @@ impl Compiler<'_> {
                 )
             };
             self.forms.insert(id, form.clone());
-            let visibility = read_visibility(visibility.as_ref(), &pointer)?;
+            let visibility = match (&visibility, &old) {
+                (None, Some(old)) => old.visibility,
+                _ => read_visibility(visibility.as_ref(), &pointer)?,
+            };
             self.put(
                 id,
                 EntityBodyValue::TypeDef(TypeDefBody {
-                    type_parameters: Vec::new(),
+                    type_parameters: old
+                        .as_ref()
+                        .map_or_else(Vec::new, |old| old.type_parameters.clone()),
                     form,
-                    invariants: set(Vec::new()),
+                    invariants: old
+                        .as_ref()
+                        .map_or_else(|| set(Vec::new()), |old| old.invariants.clone()),
                     visibility,
                 }),
             );
@@ -687,10 +717,7 @@ impl Compiler<'_> {
             let params = decl.contains_key("params").then_some(params);
             self.define_function(id, &name, params, result, specs, decl, &pointer)?;
         }
-        for (index, value) in edit_list.iter().enumerate() {
-            let pointer = format!("/edit/{index}");
-            self.edit(value.as_object().expect("checked"), &pointer)?;
-        }
+        self.edits(edit_list)?;
         for (id, target, decl, pointer) in test_decls {
             self.test(id, target, decl, &pointer)?;
         }
@@ -849,6 +876,14 @@ impl Compiler<'_> {
         decl: &serde_json::Map<String, Value>,
         pointer: &str,
     ) -> Result<()> {
+        if self.functions.contains(&id) {
+            return Err(frame(
+                pointer,
+                format!(
+                    "`{name}` is restated more than once in this frame; \"fns\", \"patch\" and \"edit\" each restate a function, so change it in one of them"
+                ),
+            ));
+        }
         self.functions.push(id);
         let old = match self.program.body(&id) {
             Some(EntityBodyValue::Function(function)) if !self.is_new(&id) => {
@@ -1014,16 +1049,14 @@ impl Compiler<'_> {
         if blocks.is_empty() {
             return Err(frame(pointer, "a function needs at least one block"));
         }
-        for (_, param, _) in &param_slots {
-            if blocks.iter().any(|b| {
-                b.params
-                    .iter()
-                    .chain(std::iter::empty())
-                    .any(|(_, p, _)| p == param)
-            }) {
+        // Parameters and blocks share the function's name scope (`f.x`).
+        for (leaf, _, _) in &param_slots {
+            if let Some(block) = blocks.iter().find(|block| block.leaf == *leaf) {
                 return Err(frame(
-                    pointer,
-                    "a name is used for both a function and a block parameter",
+                    &block.pointer,
+                    format!(
+                        "block `{leaf}` has the name of a parameter of `{name}`; blocks and parameters share the function's names, so rename the block"
+                    ),
                 ));
             }
         }
@@ -1232,7 +1265,6 @@ impl Compiler<'_> {
                 .as_ref()
                 .map_or(Visibility::Exported, |old| old.visibility),
         };
-        let _ = name;
         self.put(
             id,
             EntityBodyValue::Function(FunctionBody {
@@ -1388,6 +1420,26 @@ impl Compiler<'_> {
                 "cond" if items.len() == 4 => {
                     let _ = edge_hint(&items[2], &mut hint);
                     let _ = edge_hint(&items[3], &mut hint);
+                }
+                "switch" if items.len() >= 3 => {
+                    // [key, "b", args...] or [key, ["b", args...]]; the `$`
+                    // payload resolves to no value and hints nothing.
+                    for case in &items[2..] {
+                        let Some(case) = case.as_array().filter(|case| case.len() >= 2) else {
+                            continue;
+                        };
+                        let target = match &case[1] {
+                            Value::Array(target) if case.len() == 2 && !target.is_empty() => {
+                                Value::Array(target.clone())
+                            }
+                            other => {
+                                let mut target = vec![other.clone()];
+                                target.extend(case[2..].iter().cloned());
+                                Value::Array(target)
+                            }
+                        };
+                        let _ = edge_hint(&target, &mut hint);
+                    }
                 }
                 _ => {}
             }
@@ -1602,6 +1654,11 @@ impl Compiler<'_> {
             return Ok(None);
         }
         let known: Vec<TypeExpr> = operand_types.into_iter().flatten().collect();
+        // `tuple_get` reads its element type from the tuple operand.
+        if let (Immediate::Index(index), Some(TypeExpr::Tuple(items))) = (&immediate, known.first())
+        {
+            field_type = items.get(*index as usize).cloned();
+        }
         // `ok`/`err` whose operand disagrees with the expected Result arm:
         // say so plainly instead of failing inference.
         if explicit.is_none()
@@ -1691,18 +1748,21 @@ impl Compiler<'_> {
         };
         let value = values::read(data, &ty, self, pointer)
             .map_err(|error| frame(pointer, error.detail()))?;
-        // Reuse an equal live or frame constant.
+        // Reuse an equal frame constant, or an equal live constant that this
+        // frame neither deletes nor gives a new value.
         for (id, existing) in &self.constants {
             if *existing == value {
                 return Ok((*id, value));
             }
         }
         for object in self.program.objects() {
+            let id = object.record().entity_id;
             if let EntityBodyValue::Constant(constant) = &object.record().body
                 && constant.value == value
-                && !self.deletes.contains(&object.record().entity_id)
+                && !self.deletes.contains(&id)
+                && !self.constants.contains_key(&id)
             {
-                return Ok((object.record().entity_id, value));
+                return Ok((id, value));
             }
         }
         let base = match &value.data {
@@ -1884,7 +1944,13 @@ impl Compiler<'_> {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn edit(&mut self, decl: &serde_json::Map<String, Value>, pointer: &str) -> Result<()> {
+    /// Where one edit applies: the function, the block and operation it
+    /// replaces, and the replacement spec (named like the operation).
+    fn edit_target(
+        &self,
+        decl: &serde_json::Map<String, Value>,
+        pointer: &str,
+    ) -> Result<(String, EntityId, String, EntityId, EntityId, Value)> {
         let function_name = name_of(decl, &["fn", "function", "name"], pointer)?;
         let function = self.resolve_top(function_name, 5, pointer)?;
         let replace_path = string(
@@ -1902,8 +1968,6 @@ impl Compiler<'_> {
         let with = decl
             .get("with")
             .ok_or_else(|| frame(pointer, "missing \"with\""))?;
-        // An edit is a one-block patch that restates the block with one
-        // operation replaced.
         let Some(EntityBodyValue::Function(body)) = self.program.body(&function) else {
             return Err(frame(pointer, "edits apply to live functions"));
         };
@@ -1945,12 +2009,93 @@ impl Compiler<'_> {
             }
             _ => return Err(frame(&format!("{pointer}/with"), "expected an operation")),
         };
+        Ok((
+            function_name.to_owned(),
+            function,
+            block_leaf.to_owned(),
+            block,
+            operation,
+            replacement,
+        ))
+    }
+
+    /// Applies every edit of the frame. Edits are grouped by function: each
+    /// edited block is restated once with all of its replaced operations,
+    /// and each function is restated once, so no edit overwrites another.
+    #[allow(clippy::type_complexity)]
+    fn edits(&mut self, edit_list: &[Value]) -> Result<()> {
+        let mut groups: Vec<(
+            String,
+            EntityId,
+            String,
+            Vec<(String, EntityId, Vec<(EntityId, Value)>)>,
+        )> = Vec::new();
+        for (index, value) in edit_list.iter().enumerate() {
+            let pointer = format!("/edit/{index}");
+            let decl = value.as_object().expect("checked");
+            let (function_name, function, block_leaf, block, operation, replacement) =
+                self.edit_target(decl, &pointer)?;
+            let position = groups
+                .iter()
+                .position(|(_, id, _, _)| *id == function)
+                .unwrap_or_else(|| {
+                    groups.push((function_name, function, pointer.clone(), Vec::new()));
+                    groups.len() - 1
+                });
+            let group = &mut groups[position];
+            let blocks = &mut group.3;
+            let position = blocks
+                .iter()
+                .position(|(_, id, _)| *id == block)
+                .unwrap_or_else(|| {
+                    blocks.push((block_leaf, block, Vec::new()));
+                    blocks.len() - 1
+                });
+            let entry = &mut blocks[position];
+            if entry.2.iter().any(|(op, _)| *op == operation) {
+                return Err(frame(
+                    &pointer,
+                    "this operation is edited twice in the frame; keep one edit",
+                ));
+            }
+            entry.2.push((operation, replacement));
+        }
+        for (function_name, function, pointer, blocks) in groups {
+            let mut restated = serde_json::Map::new();
+            for (block_leaf, block, replacements) in blocks {
+                restated.insert(block_leaf, self.restate_block(&block, &replacements)?);
+            }
+            let mut patch = serde_json::Map::new();
+            patch.insert("fn".to_owned(), Value::from(function_name.as_str()));
+            patch.insert("blocks".to_owned(), Value::Object(restated));
+            let (_, result) = self.signature(&function).expect("live function");
+            let specs = self.patch_specs(&function, &patch, &pointer)?;
+            self.define_function(
+                function,
+                &function_name,
+                None,
+                result,
+                specs,
+                &patch,
+                &pointer,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// A live block as a patch spec, with some operations replaced.
+    fn restate_block(&self, block: &EntityId, replacements: &[(EntityId, Value)]) -> Result<Value> {
+        let Some(EntityBodyValue::Block(block_body)) = self.program.body(block) else {
+            return Err(AgentError::new(
+                AgentErrorCode::FrameInvalid,
+                "not a live block",
+            ));
+        };
         let mut ops = Vec::new();
         for op in &block_body.operations {
-            if *op == operation {
-                ops.push(replacement.clone());
-            } else {
-                ops.push(self.existing_op_spec(op, &block)?);
+            match replacements.iter().find(|(id, _)| id == op) {
+                Some((_, replacement)) => ops.push(replacement.clone()),
+                None => ops.push(self.existing_op_spec(op, block)?),
             }
         }
         let mut spec = serde_json::Map::new();
@@ -1975,24 +2120,9 @@ impl Compiler<'_> {
         );
         spec.insert(
             "term".to_owned(),
-            self.existing_term_spec(&block_body.terminator, &block),
+            self.existing_term_spec(&block_body.terminator, block),
         );
-        let mut blocks = serde_json::Map::new();
-        blocks.insert(block_leaf.to_owned(), Value::Object(spec));
-        let mut patch = serde_json::Map::new();
-        patch.insert("fn".to_owned(), Value::from(function_name));
-        patch.insert("blocks".to_owned(), Value::Object(blocks));
-        let (_, result) = self.signature(&function).expect("live function");
-        let specs = self.patch_specs(&function, &patch, pointer)?;
-        self.define_function(
-            function,
-            function_name,
-            None,
-            result,
-            specs,
-            &patch,
-            pointer,
-        )
+        Ok(Value::Object(spec))
     }
 
     /// Restates a live operation as AF1 (used by `edit`).
@@ -2328,13 +2458,14 @@ fn infer(
         ok: Box::new(ty.clone()),
         error: Box::new(TypeExpr::BuiltinFailure(BuiltinFailureKind::Arithmetic)),
     };
-    let _ = variant_payload;
     Some(match row.tag {
         1 | 18 | 20 | 193 | 194 => immediate?.clone(),
         16 => TypeExpr::Tuple(operands.to_vec()),
-        17 => None?,
-        19 => field_type?.clone(),
-        21 => TypeExpr::Option(Box::new(hint.and_then(option_item)?.clone())),
+        17 | 19 => field_type?.clone(),
+        21 => match variant_payload {
+            Some(Some(payload)) => TypeExpr::Option(Box::new(payload.clone())),
+            _ => TypeExpr::Option(Box::new(hint.and_then(option_item)?.clone())),
+        },
         32 => match first {
             Some(ty) => TypeExpr::Vector(Box::new(ty.clone())),
             None => hint?.clone(),

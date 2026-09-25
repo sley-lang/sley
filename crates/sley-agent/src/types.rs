@@ -221,7 +221,14 @@ fn tokenize(text: &str) -> Option<Vec<Token>> {
             c if c.is_ascii_alphanumeric() || c == '_' || c == '$' || c == '.' => {
                 let mut word = String::from(c);
                 while let Some(&next) = chars.peek() {
-                    if next.is_ascii_alphanumeric() || next == '_' || next == '.' {
+                    // A name may contain `-` (the name grammar), but `->` is
+                    // the arrow of a function type.
+                    let hyphen = next == '-' && {
+                        let mut ahead = chars.clone();
+                        ahead.next();
+                        ahead.peek() != Some(&'>')
+                    };
+                    if next.is_ascii_alphanumeric() || next == '_' || next == '.' || hyphen {
                         word.push(next);
                         chars.next();
                     } else {

@@ -112,8 +112,10 @@ identity inputs, and never enter canonical bytes. In order of preference:
    `op<i>` for operations, and `m<i>` for members.
 
 Leaf names are unique within their scope. Function parameters and blocks are
-scoped to their function. Block parameters and operations are scoped to
-their block, and never shadow a function parameter. Qualified names join
+scoped to their function and share it: a block cannot take a parameter's
+name. Block parameters and operations are scoped to their block; inside a
+block, its own parameters and results are found before the function's
+parameters. Qualified names join
 leaves with dots: `f.block.op`, `Type.Case`. Collisions append a short
 identity suffix. A name map is a JSON object from 64-hex identity bytes to
 leaf names. Entries that are not names are ignored.

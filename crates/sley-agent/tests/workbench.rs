@@ -762,6 +762,205 @@ fn every_value_form_in_help_types_round_trips() {
     }
 }
 
+/// The guide's first example without its tests, committed.
+fn percent_program(label: &str) -> TempDir {
+    let temp = workspace(label, None);
+    let example = sley_agent::help::GUIDE
+        .split("```json\n")
+        .nth(1)
+        .and_then(|rest| rest.split("```").next())
+        .unwrap();
+    let mut frame: Value = serde_json::from_str(example).unwrap();
+    frame.as_object_mut().unwrap().remove("tests");
+    assert_eq!(run(&temp.path, &["try", &frame.to_string()]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    temp
+}
+
+#[test]
+fn delete_and_redefine_creates_a_fresh_entity() {
+    // Review finding 1: a deleted name redefined in the same frame used to
+    // revive the deleted identity and emit only deletes.
+    let temp = percent_program("redefine-deleted");
+    let frame = json!({"af1": 1, "delete": ["percent"], "fns": [{"fn": "percent",
+        "params": [["part", "i64"], ["whole", "i64"]], "returns": "Result<i64,MathError>",
+        "blocks": [{"name": "entry", "ops": [["zero", "const", 0], ["r", "ok", "zero"]], "term": ["return", "r"]}]}]});
+    let (status, result) = run_json(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{result}");
+    assert!(result["ops"]["created"].as_u64().unwrap() > 0, "{result}");
+    let (_, value) = run(&temp.path, &["call", "percent", "3", "4", "--on", "latest"]);
+    assert_eq!(value.trim(), "{\"Ok\":0}");
+}
+
+#[test]
+fn a_literal_never_reuses_a_constant_the_frame_changes() {
+    // Review finding 2.
+    let temp = percent_program("literal-reuse");
+    let frame = json!({"af1": 1, "consts": [{"name": "k_100", "value": 7}],
+        "fns": [{"fn": "g", "params": [], "returns": "i64",
+                 "blocks": [{"name": "entry", "ops": [["h", "const", 100]], "term": ["return", "h"]}]}]});
+    assert_eq!(run(&temp.path, &["try", &frame.to_string()]).0, 0);
+    let (_, value) = run(&temp.path, &["call", "g", "--on", "latest"]);
+    assert_eq!(value.trim(), "100");
+}
+
+#[test]
+fn edits_in_one_function_all_apply_and_restating_twice_is_refused() {
+    // Review finding 3.
+    let temp = percent_program("edits");
+    let frame = json!({"af1": 1, "edit": [
+        {"fn": "percent", "replace_op": "entry.zero", "with": ["const", 5]},
+        {"fn": "percent", "replace_op": "entry.is_zero", "with": ["ne", "whole", "zero"]},
+        {"fn": "percent", "replace_op": "scale.hundred", "with": ["const", 1000]}]});
+    assert_eq!(run(&temp.path, &["try", &frame.to_string()]).0, 0);
+    let (_, view) = run(&temp.path, &["view", "percent", "--after", "latest"]);
+    for line in [
+        "zero = const k_5 (5)",
+        "is_zero = ne whole, zero",
+        "hundred = const k_1000 (1000)",
+    ] {
+        assert!(view.contains(line), "{line}: {view}");
+    }
+    let twice = json!({"af1": 1,
+        "edit": [{"fn": "percent", "replace_op": "entry.zero", "with": ["const", 5]}],
+        "patch": [{"fn": "percent", "blocks": {"done": {"params": [["v", "i64"]], "ops": [["r", "ok", "v"]], "term": ["return", "r"]}}}]});
+    let (status, text) = run(&temp.path, &["try", &twice.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("is restated more than once in this frame"),
+        "{text}"
+    );
+    let same = json!({"af1": 1, "edit": [
+        {"fn": "percent", "replace_op": "entry.zero", "with": ["const", 5]},
+        {"fn": "percent", "replace_op": "entry.zero", "with": ["const", 6]}]});
+    let (status, text) = run(&temp.path, &["try", &same.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(text.contains("edited twice"), "{text}");
+}
+
+#[test]
+fn values_round_trip_at_the_edges() {
+    // Review findings 4 and 5: u128 above i128::MAX, and built-in failures
+    // as call renders them.
+    let temp = workspace("value-edges", None);
+    let frame = json!({"af1": 1, "fns": [
+        {"fn": "id128", "params": [["x", "u128"]], "returns": "u128",
+         "blocks": [{"name": "entry", "ops": [], "term": ["return", "x"]}]},
+        {"fn": "twice", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+         "blocks": [{"name": "entry", "ops": [["r", "add", "a", "a"]], "term": ["return", "r"]}]}]});
+    assert_eq!(run(&temp.path, &["try", &frame.to_string()]).0, 0);
+    let max = "\"340282366920938463463374607431768211455\"";
+    let (_, value) = run(&temp.path, &["call", "id128", max, "--on", "latest"]);
+    assert_eq!(value.trim(), max);
+    let (_, failure) = run(
+        &temp.path,
+        &["call", "twice", "9223372036854775807", "--on", "latest"],
+    );
+    assert_eq!(
+        failure.trim(),
+        "{\"Err\":{\"ArithmeticError\":\"Overflow\"}}"
+    );
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let expect: Value = serde_json::from_str(failure.trim()).unwrap();
+    let tests = json!({"af1": 1, "tests": [{"fn": "twice", "args": [9_223_372_036_854_775_807_i64], "expect": expect}]});
+    let (status, text) = run(&temp.path, &["try", &tests.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("tests: 1/1 passed"), "{text}");
+}
+
+#[test]
+fn restating_a_type_keeps_what_the_frame_does_not_state() {
+    // Review finding 6, and a frame that changes nothing.
+    let temp = workspace("type-visibility", None);
+    let private = json!({"af1": 1, "types": [{"name": "Pv", "variant": ["A", "B"], "visibility": "private"}]});
+    assert_eq!(run(&temp.path, &["try", &private.to_string()]).0, 0);
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    let restated = json!({"af1": 1, "types": [{"name": "Pv", "variant": ["A", "B"]}]});
+    let (status, text) = run(&temp.path, &["try", &restated.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(text.contains("the frame changes nothing"), "{text}");
+}
+
+#[test]
+fn a_phase_five_locator_never_names_a_reference_that_resolved() {
+    // Review finding 7: a malformed immediate on `eq`, whose operands resolve.
+    let temp = percent_program("phase-five");
+    let raw = json!([{"class": "ReplaceEntityVersion", "kind": 8, "target": "percent.entry.is_zero",
+        "payload": {"block": "percent.entry", "ordinal": 1, "opcode": 96,
+            "operands": [{"variant": "Parameter", "value": "percent.whole"},
+                         {"variant": "OperationResult", "value": {"operation": "percent.entry.zero"}}],
+            "result_types": ["bool"], "immediate": {"variant": "Entity", "value": "k_100"}}}]);
+    let (status, text) = run(&temp.path, &["try", &raw.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert!(
+        text.contains("where: Operation percent.entry.is_zero\n"),
+        "{text}"
+    );
+}
+
+#[test]
+fn inference_and_names_cover_the_documented_cases() {
+    // Review findings 8 and 9, and a block named like a parameter.
+    let temp = workspace("inference", None);
+    let frame = json!({"af1": 1,
+        "types": [{"name": "my-err", "variant": ["Bad"]}, {"name": "Sh", "variant": [["Circle", "i64"], "Empty"]}],
+        "fns": [
+          {"fn": "f", "params": [["x", "i64"]], "returns": "Result<i64,my-err>",
+           "blocks": [{"name": "entry", "ops": [["r", "ok", "x"]], "term": ["return", "r"]}]},
+          {"fn": "second", "params": [["a", "i64"], ["b", "i64"]], "returns": "i64",
+           "blocks": [{"name": "entry", "ops": [["t", "tuple", "a", "b"], ["x", "tuple_get", 1, "t"]], "term": ["return", "x"]}]},
+          {"fn": "rad", "params": [["s", "Sh"]], "returns": "Option<i64>",
+           "blocks": [{"name": "entry", "ops": [["r", "variant_get", "Sh.Circle", "s"]], "term": ["return", "r"]}]},
+          {"fn": "sw", "params": [["a", "i64"]], "returns": "Option<i64>",
+           "blocks": [{"name": "entry", "ops": [["d", "add", "a", "a"], ["n", "none"]],
+                       "term": ["switch", "d", ["Ok", "done", "$"], ["Err", "fail", "n"]]},
+                      {"name": "done", "params": [["v", "i64"]], "ops": [["r", "some", "v"]], "term": ["return", "r"]},
+                      {"name": "fail", "params": [["m", "Option<i64>"]], "ops": [], "term": ["return", "m"]}]}],
+        "tests": [{"fn": "f", "args": [3], "expect": {"Ok": 3}},
+                  {"fn": "second", "args": [3, 4], "expect": 4},
+                  {"fn": "rad", "args": [{"Circle": 5}], "expect": {"Some": 5}},
+                  {"fn": "sw", "args": [9_223_372_036_854_775_807_i64], "expect": "None"}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("tests: 4/4 passed"), "{text}");
+    let clash = json!({"af1": 1, "fns": [{"fn": "q", "params": [["x", "i64"]], "returns": "i64",
+        "blocks": [{"name": "entry", "ops": [], "term": ["br", "x"]}, {"name": "x", "ops": [], "term": ["return", "x"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &clash.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("block `x` has the name of a parameter of `q`"),
+        "{text}"
+    );
+}
+
+#[test]
+fn references_resolve_to_short_handles() {
+    // Review findings 10, 11 and 12.
+    let temp = committed_program("references", None);
+    let frame =
+        json!({"af1": 1, "tests": [{"fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5}}]});
+    assert_eq!(run(&temp.path, &["try", &frame.to_string()]).0, 0);
+    let (status, text) = run(&temp.path, &["submit", "latest"]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.starts_with("submitted c2 "), "{text}");
+    let hex = fs::read_to_string(temp.path.join(".sley/candidates/c2.hex")).unwrap();
+    let (status, text) = run(&temp.path, &["submit", hex.trim()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.starts_with("submitted c3 "), "{text}");
+    let (_, text) = run(&temp.path, &["status"]);
+    assert!(!text.contains(hex.trim()), "{text}");
+    assert!(text.contains("after=c3"), "{text}");
+    let odd = temp.path.join("aéééééééééé");
+    fs::write(&odd, &hex).unwrap();
+    let (status, text) = run(&temp.path, &["explain", odd.to_str().unwrap()]);
+    assert_eq!(status, 0, "{text}");
+    let code = json!({"af1": 1, "patch": [{"fn": "bound", "blocks": {"above": {"ops": [["r", "ok", "high"]], "term": ["return", "r"]}}}]});
+    assert_eq!(run(&temp.path, &["try", &code.to_string()]).0, 0);
+    let (status, text) = run(&temp.path, &["commit", "latest"]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.starts_with("committed c4 "), "{text}");
+}
+
 #[test]
 fn bytes_appear_only_with_raw() {
     // BR-10: no record, stored or body hex by default; `--raw` prints it.
