@@ -4945,7 +4945,7 @@
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
     "candidate_evidence_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
-    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.0.1 release, minted from commit c748dda1 of sley-lang/sley (two clean musl builds, REPRODUCIBLE). The second-host rebuild through the tracked scripts/second_host_attest.sh follows in a records-only descendant.",
+    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.0.1 release, built from commit c748dda1 of sley-lang/sley (two clean musl builds, REPRODUCIBLE) and independently rebuilt on the secondary host the same day from a transferred Git bundle (make release-candidate-build in a detached clean clone, REPRODUCIBLE, the same artifact digest) through the tracked scripts/second_host_attest.sh. The secondary attestation is merged into the tracked report (MULTI_HOST_REPRODUCIBLE, merge commit 87c35402) and retained as evidence/release/attestations/c748dda-secondary.json, with its custody receipt in evidence/release/second-host-lane-records.json.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
@@ -6234,10 +6234,10 @@
     "checker": "scripts/check_reproducibility_and_independent_conformance.py",
     "reproducibility_report": "evidence/release/reproducibility-report.json",
     "independent_conformance_report": "evidence/conformance/independent-conformance-report.json",
-    "reproducibility_result": "SINGLE_HOST_REPRODUCIBLE",
-    "second_host_status": "GATED_OPERATOR_LANE",
+    "reproducibility_result": "MULTI_HOST_REPRODUCIBLE",
+    "second_host_status": "ATTESTED",
     "required_hosts": 2,
-    "attested_hosts": 1,
+    "attested_hosts": 2,
     "second_host_lane_record": "evidence/release/second-host-lane-records.json",
     "fixture_directories": 27,
     "tracked_corpus_directories": 32,
@@ -6249,7 +6249,6 @@
     "ga_claimed": false,
     "publication_authorized": true,
     "blockers": [
-      "second_host_attestation_operator_lane",
       "standards_sbom_and_provenance_s20_710_full",
       "succession_thresholds_s20_640",
       "council_reviews"
@@ -7081,7 +7080,8 @@
       {
         "commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
         "hosts": [
-          "primary"
+          "primary",
+          "secondary"
         ]
       }
     ],
@@ -7528,8 +7528,7 @@
     "blockers": [
       "signing_key_and_transparency_log_unauthorized",
       "final_argus_and_vulcan_dispositions",
-      "council_reviews",
-      "second_host_attestation_operator_lane"
+      "council_reviews"
     ],
     "design_consult": "COUNCIL_UNAVAILABLE_AT_DRAFT",
     "ariadne_contract_review": "PASS_0_P0_0_P1_0_P2_0_P3_4_P4",
@@ -8021,10 +8020,9 @@
     "gated_items": 10,
     "decision_state": "BLOCKED",
     "decision_reasons": [
-      "20 GA acceptance criteria are not evidenced",
+      "19 GA acceptance criteria are not evidenced",
       "27 review obligations are open",
       "no succession trial has been executed",
-      "only one host has attested the candidate",
       "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
       "the release-check and v2 product gates are fail-closed"
     ],
@@ -8097,7 +8095,7 @@
     "schema_epoch_decision": "narrowed 2026-09-03 by the S20-760 revision 2 determinations: an epoch is required only for the four unsupported contract kinds, test_observe execution, and adapter replay and configuration. The production-epoch fingerprint requirement, contract_assert execution, and effect_request and capability_narrow execution are profile work under epoch 1, and contract_assert execution is unblocked today. The decision itself remains the schema owner's",
     "succession_trials": "Operator authorized all steps and spending on 2026-09-15. Live execution is not implemented: raw runner is offline-only, legacy adapter only runs version smoke, Sley2 has injected model/oracle protocols and a restricted proposal surface, selected-test commit is unsupported, and three accounting thresholds are unimplemented. Both small- and large-model campaigns over all 15 tasks and 3 required arms are required. See evidence/review/completion-succession-readiness-2026-09-15.md; no real trials have run.",
     "root_license_text": "RESOLVED: operator-approved on 2026-09-14; LICENSE and NOTICE are installed and inventoried, and the SBOM documents report zero blocked licenses. Remaining S20-710 audit dispositions and the full candidate-history re-anchor decision are separate held items.",
-    "second_host_attestation": "RESOLVED for the official public release 1fea02faace9503060425fa565757c0c29af9d93 (2026-09-24): primary and secondary builds match artifact 21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json). Historical: RESOLVED for the official release ef2a39f659bd0caeaa92dbc546d0342dc7f43d57 (2026-09-24): primary and secondary-host builds match artifact fc28c772817fd79a5ae3817bd4c64ddfffd3a726fb37a6d751c1cf06f6db7d00 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json; tracked runbook, no deviation). Historical: RESOLVED for the release candidate 515cc4a3d9875b46273712367a2f77e355522906 (2026-09-24): primary and secondary-host builds match artifact 414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json; tracked runbook, no deviation). Historical: RESOLVED for 8d063f00133f369599032191708fa7efabb3e2fa (2026-09-23; artifact ecf51188\u2026, lane receipt with the bundle-step deviation), for 5313437afb5df66b5fa48b82c374746467d0a1ca (artifact 7da77f1b\u2026) and for 45b2cd98; all superseded by later product source.",
+    "second_host_attestation": "RESOLVED for the official Sley 2.0.1 release c748dda18c1276687cc3b0d1ef9b7f257eb09b24 (2026-09-25): primary and secondary builds match artifact 34b3b56957a9ddf9a4edc35c2a961c89928d8e78dc74c76b23f1f5378e975e44 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json). Historical: RESOLVED for the official public release 1fea02faace9503060425fa565757c0c29af9d93 (2026-09-24): primary and secondary builds match artifact 21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json). Historical: RESOLVED for the official release ef2a39f659bd0caeaa92dbc546d0342dc7f43d57 (2026-09-24): primary and secondary-host builds match artifact fc28c772817fd79a5ae3817bd4c64ddfffd3a726fb37a6d751c1cf06f6db7d00 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json; tracked runbook, no deviation). Historical: RESOLVED for the release candidate 515cc4a3d9875b46273712367a2f77e355522906 (2026-09-24): primary and secondary-host builds match artifact 414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json; tracked runbook, no deviation). Historical: RESOLVED for 8d063f00133f369599032191708fa7efabb3e2fa (2026-09-23; artifact ecf51188\u2026, lane receipt with the bundle-step deviation), for 5313437afb5df66b5fa48b82c374746467d0a1ca (artifact 7da77f1b\u2026) and for 45b2cd98; all superseded by later product source.",
     "release_decision": "Operator authorized all gates, steps, spending, and completion on 2026-09-15. Technical gates remain unsatisfied; authorization is not empirical PASS or a final candidate identity. No release has been published.",
     "independent_conformance": "closed 2026-09-03: every one of the nineteen fixture families is now checked by an independent Python oracle, including the extended bytecode container and cache identity and the release demo identities; only the human independent review remains",
     "similarity_audit": "PERFORMED 2026-09-07, local implementation-session evidence (s20-780-similarity-audit-2026-09-07.md): no wholesale copying found; authorized touchpoint inventory unchanged. Independent (Argus/Council) review of the audit is still pending; the GA clean-room claim stays gated on that review. The boundary checker mechanizes sentinel, dependency, touchpoint, and register-hygiene facts only."
@@ -8403,13 +8401,12 @@
     "criterion_count": 52,
     "states": {
       "AWAITS_REVIEW": 17,
-      "EVIDENCED": 32,
-      "GATED": 3
+      "EVIDENCED": 33,
+      "GATED": 2
     },
     "gated": [
       "no P0/P1/P2 finding remains open",
-      "every section 22 threshold passes",
-      "second clean build establishes reproducibility"
+      "every section 22 threshold passes"
     ],
     "ga_claimed": false,
     "interpretation": "neither AWAITS_REVIEW nor GATED is a pass, and no combination of states is a GA claim; every state is derived from the fact its evidence names, package completion and lane clearance are the finding register's predicates, and the report is digest-bound to the register",

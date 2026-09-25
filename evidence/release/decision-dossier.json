@@ -2,15 +2,14 @@
   "contract": "sley2.decision-dossier.v1",
   "decision_authority": "OPERATOR_DECISION_NOT_DELEGATED",
   "decision_reasons": [
-    "20 GA acceptance criteria are not evidenced",
+    "19 GA acceptance criteria are not evidenced",
     "27 review obligations are open",
     "no succession trial has been executed",
-    "only one host has attested the candidate",
     "the finding register result is FINDING_REGISTER_OPEN, not FINDING_REGISTER_CLEAR",
     "the release-check and v2 product gates are fail-closed"
   ],
   "decision_state": "BLOCKED",
-  "dossier_digest": "97d18dfdce90c8be406648d6f948a9592abac3acb5a032c98974f1f297b5cb90",
+  "dossier_digest": "4dc30f7d7977ab713462cda23e631856d63f73dd73963d1896c0e11b0472e3d6",
   "entries": [
     {
       "evidence": [
@@ -300,12 +299,12 @@
         "evidence/release/reproducibility-report.json"
       ],
       "item": "reproducibility result",
-      "note": "single-host reproducibility; the second host is an operator-gated lane",
+      "note": "multi-host reproducibility across distinct attested hosts",
       "state": "EVIDENCED",
       "value": {
-        "distinct_hosts": 1,
-        "result": "SINGLE_HOST_REPRODUCIBLE",
-        "second_host": "GATED_OPERATOR_LANE"
+        "distinct_hosts": 2,
+        "result": "MULTI_HOST_REPRODUCIBLE",
+        "second_host": "ATTESTED"
       }
     },
     {
@@ -432,7 +431,7 @@
     {
       "evidence": [],
       "item": "release decision state",
-      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0 2.0.1 on 2026-09-24 (machine summary release_decision; ga_claimed false, final commit c748dda18c1276687cc3b0d1ef9b7f257eb09b24); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 32 evidenced, 17 awaiting review, and 3 gated of 52 (evidence/release/ga-acceptance-report.json)",
+      "note": "derived below from the entries and sources; the operator recorded release decision RELEASE_APPROVED for Sley 2.0 2.0.1 on 2026-09-24 (machine summary release_decision; ga_claimed false, final commit c748dda18c1276687cc3b0d1ef9b7f257eb09b24); it is not a GA claim and the state derived below from the entries and sources is reported unchanged. The master goal's section 26 criteria stand at 33 evidenced, 17 awaiting review, and 2 gated of 52 (evidence/release/ga-acceptance-report.json)",
       "state": "GATED",
       "value": null
     },
@@ -456,7 +455,7 @@
       }
     }
   ],
-  "entries_digest": "accf233f4ba332e0835374c276b15ef68b5019970633b5d00b6cf0ba12c941e4",
+  "entries_digest": "c258f20edfc14e0f20823839062f765f7525471ed76436f090e20911b1f1450d",
   "evidenced": 24,
   "gated": 10,
   "gates": {
