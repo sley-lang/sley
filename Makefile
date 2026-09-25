@@ -262,6 +262,11 @@ release-candidate-smoke: release-candidate-build
 
 # Build on each host before merging its attestation and verifying the records.
 release-candidate-build:
+	# Fetch every locked crate for every platform first: the musl build
+	# fetches only what sley-cli needs for its target, and the offline
+	# `cargo metadata` steps (third-party licenses, supply-chain evidence)
+	# need the whole lockfile on a fresh or partial cache.
+	cargo fetch --locked
 	python3 scripts/build_release_candidate.py --timeout-seconds 900 --require-clean
 	python3 scripts/build_reproducibility_report.py
 	python3 scripts/build_candidate_content_report.py
