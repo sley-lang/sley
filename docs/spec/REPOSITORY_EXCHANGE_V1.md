@@ -148,7 +148,11 @@ field inside both embedded records MUST equal field 1; the ref's
 (an origin without a visible ref) are never exported and never imported.
 
 Duplicate or noncanonical entries fail `EXCHANGE_DUPLICATE_ENTRY` or
-`EXCHANGE_CANONICAL_ORDER`; a decoder never sorts input.
+`EXCHANGE_CANONICAL_ORDER`; a decoder never sorts input. Two entries for one
+branch name are likewise `EXCHANGE_DUPLICATE_ENTRY`, judged over the parsed
+name in step 3.3 once every entry has verified: the encoded elements differ,
+but only one origin and one ref can exist under a name, so an importer
+refuses before any write rather than colliding mid-install.
 
 ## Closure rules
 

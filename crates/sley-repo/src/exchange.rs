@@ -1275,6 +1275,24 @@ fn verify_branch_entry(
     })
 }
 
+/// Two entries for one branch name are one duplicate entry. The branch
+/// list is ordered and deduplicated over encoded elements, so two records
+/// for the same name with different origin or ref bytes are distinct
+/// elements that each verify on their own, yet only one origin and one
+/// ref can exist under that name. Refusing here keeps the import failing
+/// closed before any write; installing them would collide on the second
+/// origin record after the marker, objects, receipts, and first branch
+/// were already written, leaving a clone no retry can complete.
+fn verify_branch_names_distinct(branches: &[VerifiedBranch]) -> Result<()> {
+    let mut keys: BTreeSet<[u8; ID_LEN]> = BTreeSet::new();
+    for branch in branches {
+        if !keys.insert(branch.name.path_key()) {
+            return Err(exchange_error(ExchangeErrorCode::DuplicateEntry));
+        }
+    }
+    Ok(())
+}
+
 fn verify_no_surplus(
     receipts: &BTreeMap<TransactionId, ImportedTransactionReceipt>,
     head: TransactionId,
@@ -1417,6 +1435,7 @@ fn preflight<V: CanonicalVerifier>(input: &[u8], verifier: &V) -> Result<Preflig
         .iter()
         .map(|entry| verify_branch_entry(entry, &receipts, workspace))
         .collect::<Result<Vec<_>>>()?;
+    verify_branch_names_distinct(&branches)?;
     verify_no_surplus(&receipts, decoded.accepted_head.transaction_id, &branches)?;
     let order = topological_order(&receipts)?;
     verify_receipts_against_pack(&order, &receipts, &pack)?;
@@ -2014,7 +2033,7 @@ pub(crate) mod tests {
     use sley_txn::{CommitInput, TransactionRepository, TrustedGenesisInput};
 
     use super::*;
-    use crate::refs::BranchRepository;
+    use crate::refs::{BranchRepository, build_branch_record, build_branch_ref};
 
     const NOW: u64 = 1_000;
     static TEMP_DIR_COUNTER: ::std::sync::atomic::AtomicU64 =
@@ -3413,6 +3432,62 @@ pub(crate) mod tests {
             .map(|(_, entry)| entry.branch_name.len())
             .collect::<Vec<_>>();
         assert_eq!(lengths, vec![1, 2, 127, 128, 253, 254, 255]);
+    }
+
+    #[test]
+    fn two_entries_for_one_branch_name_are_a_duplicate_before_any_write() {
+        // The branch list is deduplicated over encoded elements, so a
+        // second entry for `main` carrying aux's origin and ref, re-encoded
+        // under the name `main`, is a distinct canonical element that
+        // verifies on its own. It must still be EXCHANGE_DUPLICATE_ENTRY
+        // at preflight: installing both would collide on the second
+        // origin record after the marker, objects, receipts, and first
+        // branch were written.
+        let source = Source::new("dup-name");
+        let exchange = source.export();
+        let main = exchange
+            .branches
+            .iter()
+            .find(|entry| entry.branch_name == b"main")
+            .cloned()
+            .unwrap();
+        let aux = exchange
+            .branches
+            .iter()
+            .find(|entry| entry.branch_name == b"aux")
+            .unwrap();
+        let mut origin = import_branch_record(&aux.stored_origin).unwrap().record;
+        origin.branch_name = BranchName::parse("main").unwrap();
+        let origin = build_branch_record(&origin).unwrap();
+        let mut reference = import_branch_ref(&aux.stored_ref).unwrap().record;
+        reference.branch_name = BranchName::parse("main").unwrap();
+        reference.branch_record_digest = origin.digest;
+        let reference = build_branch_ref(&reference).unwrap();
+        let twin = ExchangeBranchEntry {
+            branch_name: b"main".to_vec(),
+            stored_origin: origin.stored_bytes,
+            stored_ref: reference.stored_bytes,
+        };
+        let mut entries = [main, twin]
+            .into_iter()
+            .map(|entry| (encode_branch_element(&entry).unwrap(), entry))
+            .collect::<Vec<_>>();
+        entries.sort_by(|left, right| left.0.cmp(&right.0));
+        assert_ne!(entries[0].0, entries[1].0);
+        let rebuilt = build_exchange(
+            exchange.pack_id,
+            exchange.object_pack.clone(),
+            exchange.receipts.clone(),
+            exchange.accepted_head,
+            entries.into_iter().map(|(_, entry)| entry).collect(),
+        )
+        .unwrap();
+        let target = source.target("dup-name-target");
+        let error =
+            import_repository_exchange(&target, &rebuilt.stored_bytes, &verifier(source.epoch))
+                .unwrap_err();
+        assert_eq!(error.code(), "EXCHANGE_DUPLICATE_ENTRY");
+        assert!(!target.exists(), "the refusal wrote into the target");
     }
 
     #[test]
