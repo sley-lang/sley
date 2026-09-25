@@ -9,6 +9,7 @@
 #![forbid(unsafe_code)]
 
 use std::collections::BTreeMap;
+use std::ffi::OsString;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 
@@ -435,6 +436,34 @@ pub fn parse(args: &[String]) -> Result<Command> {
     }
 }
 
+/// Runs one command line as the operating system handed it over the given
+/// streams and returns the exit status.
+///
+/// An argument word on Linux is arbitrary bytes. A word that is not valid
+/// Unicode cannot spell any command, option, or value the contract admits,
+/// so it is `CLI_USAGE_INVALID` with the lossily decoded word as the cause
+/// (contract section 3), written to standard error as one JSON object with
+/// exit status 2. The section 4 exit table therefore holds for every
+/// argument vector; `std::env::args()` would instead panic on such a word.
+pub fn run_os(
+    args: &[OsString],
+    stdin: &mut dyn Read,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+) -> i32 {
+    let mut words = Vec::with_capacity(args.len());
+    for word in args {
+        let Some(text) = word.to_str() else {
+            let failure =
+                CliFailure::with_cause(CliErrorCode::UsageInvalid, word.to_string_lossy());
+            let _ = writeln!(stderr, "{}", failure.value());
+            return failure.code.exit_status();
+        };
+        words.push(text.to_owned());
+    }
+    run(&words, stdin, stdout, stderr)
+}
+
 /// Runs one command line over the given streams and returns the exit
 /// status; a CLI failure is written to standard error as one JSON object.
 pub fn run(
@@ -785,6 +814,19 @@ fn read_line(reader: &mut BufReader<&mut dyn Read>, version: Option<u32>) -> Res
     }
     if line.last() == Some(&b'\n') {
         line.pop();
+    }
+    // The text ceiling is judged on the bytes read, before the UTF-8
+    // check. A line the bridge refuses with `JSON_BRIDGE_RESOURCE_LIMIT`
+    // ends the input (contract section 8), and the read above stops at
+    // the ceiling without reaching the newline, so a line whose read part
+    // is not valid UTF-8 (a cut multi-byte sequence, a stray byte) must be
+    // refused by the ceiling too. Answering it `JSON_BRIDGE_SHAPE_INVALID`
+    // instead would keep reading, and the rest of the same line would be
+    // taken as the next one.
+    if line.len() > MAX_JSON_TEXT_BYTES {
+        return Ok(Next::Rejected(BridgeError::Bridge(
+            JsonBridgeErrorCode::ResourceLimit,
+        )));
     }
     let Ok(text) = String::from_utf8(line) else {
         return Ok(Next::Rejected(BridgeError::Bridge(
