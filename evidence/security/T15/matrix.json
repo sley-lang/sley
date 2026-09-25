@@ -9,7 +9,7 @@
     "the closed head-bound set refuses branch reads under a stale session",
     "an exhausted budget answers the stale bound root, not the budget failure"
   ],
-  "commit": "1fea02faace9503060425fa565757c0c29af9d93",
+  "commit": "a305312ba8ccb1290bf3b5b3e7790059fe14ac4c",
   "contract": "s20-330-session-handle-profile-v1",
   "expected_failure": "SESSION_STALE_HANDLE",
   "result": "PASS",
