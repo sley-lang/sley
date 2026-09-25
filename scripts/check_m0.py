@@ -36,7 +36,7 @@ for forbidden in ROOT.rglob("*.sley"):
     missing.append(f"forbidden Sley source: {forbidden.relative_to(ROOT)}")
 
 threats = (ROOT / "docs/THREAT_REGISTER.md").read_text()
-for number in range(1, 56):
+for number in range(1, 57):
     threat_id = f"T{number:02d}"
     if f"| {threat_id} |" not in threats:
         missing.append(f"missing threat mapping {threat_id}")

@@ -37,7 +37,13 @@ Negotiation executes through the shared oracle on fixture hello frames
 decoded in the framed lane; prefix-stripped bodies were removed because
 they never decode as hello records. Minimized crashers are retained as
 harness regression records (`fuzz/regressions/S20_700_SMP1_001.json`).
-Runtime corpus, binaries,
+`fuzz/regressions/S20_700_SMP1_002.json` (2.0.1) is the slice's first
+production defect: a hello frame whose bounds were not the all-zero
+context decoded and re-encoded with zero bounds ("re-encoding a decoded
+frame drifted"); the codec now refuses it `PROTOCOL_FRAME_INVALID` (SMP1
+revision 16 erratum, rejected vector `hello-nonzero-bounds`). Both
+records are corpus seeds, and every smoke retests each tracked input
+with `-runs=1` (`retested_regressions`). Runtime corpus, binaries,
 artifacts, and evidence remain under ignored
 `evidence/runtime/s20-700-smp1-libfuzzer/` paths.
 

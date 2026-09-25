@@ -135,6 +135,7 @@ quick:
 	python3 scripts/check_ref_branch_contract.py
 	python3 scripts/generate_repository_exchange_fixtures.py --check
 	python3 scripts/check_s20_530_acceptance_anchor.py
+	python3 scripts/check_golden_sha256sums.py
 	git diff --check
 	cargo check --workspace --locked
 	cargo test --workspace --locked
@@ -262,6 +263,11 @@ release-candidate-smoke: release-candidate-build
 
 # Build on each host before merging its attestation and verifying the records.
 release-candidate-build:
+	# Fetch every locked crate for every platform first: the musl build
+	# fetches only what sley-cli needs for its target, and the offline
+	# `cargo metadata` steps (third-party licenses, supply-chain evidence)
+	# need the whole lockfile on a fresh or partial cache.
+	cargo fetch --locked
 	python3 scripts/build_release_candidate.py --timeout-seconds 900 --require-clean
 	python3 scripts/build_reproducibility_report.py
 	python3 scripts/build_candidate_content_report.py
@@ -280,6 +286,7 @@ release-candidate-build:
 
 release-candidate-verify:
 	python3 scripts/check_release_candidate_packaging.py
+	python3 scripts/generate_third_party_licenses.py --check
 	python3 scripts/build_candidate_content_report.py --check
 	python3 scripts/check_reproducibility_and_independent_conformance.py
 	python3 scripts/check_standards_sbom_and_provenance.py

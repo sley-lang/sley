@@ -68,7 +68,22 @@ reached the public execution boundary without crossing it. The VM asks the
 codec the same question; it never sorts the value and never restates the
 order. The constants that `constant_ref` and `global_get` name are held to the
 same requirement at lowering, where a value with no canonical form is
-`VM_LOWER_IMMEDIATE_MISMATCH`. Crossing either hard profile cap returns the
+`VM_LOWER_IMMEDIATE_MISMATCH`.
+
+Canonical form also includes integer width (2.0.1 note). The codec carries
+integer widths raw and never compares data against them, so the VM asks the
+second question itself: every integer inside an input must carry data of its
+declared signedness that fits its declared epoch-1 width. On this path
+`check_constant` runs first and already refuses such an input with
+`TYPE_CONST_RANGE`, so no result here changes. The approved-package path
+(`EXEC_PACKAGE_V2.md`, erratum E2) does not run `check_constant`, and there
+the same check refuses the input with `VM_EXEC_INPUT_NOT_CANONICAL`. The
+same holds for nested type agreement: every value inside an input must carry
+exactly the type its container declares. This path's `check_constant`
+already refuses a mismatch as `TYPE_IMPLICIT_COERCION`, and the
+approved-package path refuses it with `VM_EXEC_INPUT_NOT_CANONICAL`.
+
+Crossing either hard profile cap returns the
 pre-execution `VM_EXEC_RESOURCE_LIMIT` code with no outcome because the complete
 ordered input-hash set was not accepted. The request's smaller
 `max_value_units` remains an observed runtime limit after all inputs pass this

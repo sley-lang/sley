@@ -23,6 +23,15 @@ FUZZER = TARGET_DIR / "release/smp1_frame_decoder"
 FIXTURE = ROOT / "conformance/smp1/v1/accepted.json"
 REJECTED = ROOT / "conformance/smp1/v1/rejected.json"
 CRASH_REGRESSION = ROOT / "fuzz/regressions/S20_700_SMP1_001.json"
+# Tracked crash-to-regression records: each is seeded permanently (its
+# input and, when present, its minimized input, lane byte included) and
+# retested with `-runs=1` on every smoke. S20-700-SMP1-002 is the first
+# production defect of this slice (a hello frame with nonzero bounds
+# decoded and re-encoded differently); SMP1-001 fixed the oracle.
+REGRESSIONS = [
+    CRASH_REGRESSION,
+    ROOT / "fuzz/regressions/S20_700_SMP1_002.json",
+]
 CLANG_VERSION = "18.1.8"
 RUST_TOOLCHAIN = "nightly-2026-02-27"
 # Canonical LLVM-18 layouts (pin-layout repair): the official Debian-style
@@ -138,6 +147,7 @@ def main() -> int:
         "seed_source": str(FIXTURE.relative_to(ROOT)),
         "runtime_path": str(RUNTIME.relative_to(ROOT)),
         "commands": [],
+        "regression_records": [str(path.relative_to(ROOT)) for path in REGRESSIONS],
         "source_commit": git_output(["git", "rev-parse", "HEAD"]),
         "worktree_dirty": bool(git_output(["git", "status", "--porcelain"])),
         "worktree_dirty_files": git_output(["git", "status", "--porcelain"]).splitlines()[:50],
@@ -270,6 +280,7 @@ def main() -> int:
         prior=prior_crashes,
         timeout_seconds=args.timeout,
     )
+    evidence["retested_regressions"] = retest_regressions(str(FUZZER), args.timeout)
     evidence["minimized_crashes"] = (
         minimize_crashes(
             fuzzer_bin=str(FUZZER),
@@ -299,6 +310,10 @@ def main() -> int:
             record.get("still_crashes", False)
             for record in evidence["retested_prior_crashes"]
         )
+        and not any(
+            record.get("still_crashes", False)
+            for record in evidence["retested_regressions"]
+        )
         and not evidence["unexpected_warnings"]
     ):
         evidence["result"] = "PASS"
@@ -308,7 +323,7 @@ def main() -> int:
             f"executed {evidence['executed_runs']} of floor {runs_floor} "
             f"(coverage={evidence['coverage']}, "
             f"new_crashes={evidence['new_crash_artifacts']} "
-            f"still_crashing={[r['artifact'] for r in evidence['retested_prior_crashes'] if r.get('still_crashes')]} "
+            f"still_crashing={[r['artifact'] for r in evidence['retested_prior_crashes'] + evidence['retested_regressions'] if r.get('still_crashes')]} "
             f"warnings={evidence['unexpected_warnings']})"        )
     evidence["duration_seconds"] = round(time.monotonic() - started, 3)
     EVIDENCE.write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
@@ -340,6 +355,25 @@ def crash_artifact_names(artifacts_dir: Path) -> list[str]:
         entry.name
         for entry in artifacts_dir.iterdir()
         if entry.is_file() and entry.name.startswith(("crash-", "oom-", "timeout-", "leak-"))
+    )
+
+
+def retest_regressions(fuzzer_bin: str, timeout_seconds: int) -> list[dict[str, object]]:
+    """Re-execute every tracked regression input (`-runs=1` each)."""
+    retest_dir = RUNTIME / "regression-retest"
+    if retest_dir.exists():
+        shutil.rmtree(retest_dir)
+    retest_dir.mkdir(parents=True)
+    names: list[str] = []
+    for record_path in REGRESSIONS:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        for key in ("input_hex", "minimized_input_hex"):
+            if record.get(key):
+                file_name = f"{record['finding_id']}-{key}"
+                (retest_dir / file_name).write_bytes(bytes.fromhex(record[key]))
+                names.append(file_name)
+    return retest_prior_crashes(
+        fuzzer_bin=fuzzer_bin, artifacts_dir=retest_dir, prior=names, timeout_seconds=timeout_seconds
     )
 
 
@@ -750,6 +784,16 @@ def generate_seed_corpus() -> tuple[int, int]:
     if regression.get("finding_id") != "S20-700-SMP1-001":
         raise SystemExit("SMP1 crash regression fixture drifted")
     regression_seed = bytes.fromhex(regression["input_hex"])
+    tracked_seeds: dict[str, bytes] = {}
+    for record_path in REGRESSIONS[1:]:
+        record = json.loads(record_path.read_text(encoding="utf-8"))
+        if record.get("target") != "smp1_frame_decoder":
+            raise SystemExit(f"SMP1 regression fixture drifted: {record_path.name}")
+        for key in ("input_hex", "minimized_input_hex"):
+            if record.get(key):
+                seed = bytes.fromhex(record[key])
+                digest = hashlib.sha256(seed).hexdigest()[:16]
+                tracked_seeds[f"seed-regression-{record['finding_id']}-{digest}"] = seed
 
     seeds = [bytes([selector]) + payload for selector in range(SELECTOR_COUNT) for payload in payloads]
     unique_seeds = list(dict.fromkeys(seeds))
@@ -764,8 +808,11 @@ def generate_seed_corpus() -> tuple[int, int]:
     regression_name = f"seed-regression-S20-700-SMP1-001-{regression_digest}"
     (CORPUS / regression_name).write_bytes(regression_seed)
     written.add(regression_name)
+    for name, seed in tracked_seeds.items():
+        (CORPUS / name).write_bytes(seed)
+        written.add(name)
     stale_seeds_removed = sync_seed_corpus(CORPUS, written)
-    return len(unique_seeds) + 1, stale_seeds_removed
+    return len(unique_seeds) + 1 + len(tracked_seeds), stale_seeds_removed
 
 
 def run(command: list[str], *, env: dict[str, str] | None = None, timeout: int) -> dict[str, object]:

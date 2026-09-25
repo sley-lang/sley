@@ -260,8 +260,9 @@ provably records-only, decided by `scripts/records_closure.py`:
 
 - every changed tracked path is under `evidence/` or `machineresearch/`,
   or is one of the non-normative user guides (`README.md`,
-  `docs/README.md`, `docs/QUICKSTART.md`, `docs/CONCEPTS.md`, and
-  `docs/examples/`), or a GitHub community-health file
+  `docs/README.md`, `docs/QUICKSTART.md`, `docs/CONCEPTS.md`,
+  `docs/examples/`, and the release notes under `docs/release/`), or a
+  GitHub community-health file
   (`.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/`,
   `.github/PULL_REQUEST_TEMPLATE.md`, `CODE_OF_CONDUCT.md`, `SUPPORT.md`;
   none is an artifact input, a spec, or a contract, and

@@ -7,7 +7,7 @@ use sley_check::{TypeEnvironment, TypeError};
 use sley_id::{BytecodeCacheKey, EntityId, ObservationId, SchemaEpochId, StateRoot, ValueHash};
 use sley_ssmc::{
     AdapterImport, BuiltinCase, CaseKey, ConstData, ConstValue, ConstantDefinition,
-    ContractDefinition, GlobalValueDefinition, ResultConst, TypeExpr,
+    ContractDefinition, GlobalValueDefinition, NamedType, ResultConst, TypeDefForm, TypeExpr,
     fingerprint::{FingerprintError, FingerprintErrorCode, hash_validated_value},
 };
 
@@ -713,7 +713,7 @@ pub fn execute_approved_package(
         ));
     }
     let validated_inputs =
-        validate_package_inputs_structural(&loaded.entry, &request, source.schema_epoch)
+        validate_package_inputs_structural(&types, &loaded.entry, &request, source.schema_epoch)
             .map_err(PackageExecutionError::Execution)?;
     let lowered = LoweredFunction {
         bytecode: loaded.entry.clone(),
@@ -790,7 +790,7 @@ pub fn execute_approved_package_v2(
         ));
     }
     let validated_inputs =
-        validate_package_inputs_structural(&loaded.entry, &request, source.schema_epoch)
+        validate_package_inputs_structural(&types, &loaded.entry, &request, source.schema_epoch)
             .map_err(PackageExecutionError::Execution)?;
     let lowered = LoweredFunction {
         bytecode: loaded.entry.clone(),
@@ -814,15 +814,22 @@ pub fn execute_approved_package_v2(
 ///
 /// Checks, per input: count agreement; structural type equality
 /// (`value.value_type == register_type` — never env lookup, trait
-/// computation, or inference); canonical codec form (the existing
+/// computation, or inference); canonical form (the existing
 /// `encode_const_value` framing check, which prevents one semantic map
-/// from carrying two identities — a memory-safety/identity property, not
-/// a language verdict); capped value-unit accumulation; then the
+/// from carrying two identities, plus every integer fitting the width its
+/// own `value_type` declares, plus every nested value carrying exactly the
+/// element type its container declares, named field and payload types read
+/// from the package's admitted layouts by exact identity:
+/// memory-safety/identity properties, not a language verdict); capped
+/// value-unit accumulation; then the
 /// codec-plus-hash (`hash_validated_value`, which itself performs no env
-/// judgment). Language-level constant well-formedness and hashability were
-/// judged by the compiler and are bound via the receipt; the host trusts
-/// that binding and verifies only bytes.
+/// judgment). Canonical form runs before unit accumulation so the codec's
+/// depth bound holds before anything recurses over caller data.
+/// Language-level constant well-formedness and hashability were judged by
+/// the compiler and are bound via the receipt; the host trusts that binding
+/// and verifies only bytes.
 fn validate_package_inputs_structural(
+    types: &TypeEnvironment,
     bytecode: &crate::BytecodeFunction,
     request: &ExecutionRequest,
     schema_epoch: SchemaEpochId,
@@ -841,8 +848,9 @@ fn validate_package_inputs_structural(
         if &value.value_type != register {
             return Err(ExecutionError::Exec(ExecutionErrorCode::InputTypeMismatch));
         }
-        value_units = add_input_units(value_units, value_units_const(value))?;
         require_canonical_form(value)?;
+        require_nested_type_agreement(value, types)?;
+        value_units = add_input_units(value_units, value_units_const(value))?;
         hashes.push(hash_validated_value(schema_epoch, value)?);
     }
     Ok(ValidatedInputs {
@@ -1962,11 +1970,317 @@ fn check_input_shape(
 /// codec could give one semantic map two identities. The VM therefore asks the
 /// codec whether the value is canonical and refuses when it is not, rather
 /// than sorting it or restating the order itself.
+///
+/// The codec carries integer widths raw and never compares data against
+/// them, but a canonical integer has an exact width (`MUTATION_VALUE_CODEC_V1`
+/// canonical rules), so the VM also requires every integer in the value to
+/// carry data of its declared signedness inside its declared width. The
+/// S20-270 and loaded-image callers run `check_constant` first, which
+/// already refuses such a value with `TYPE_CONST_RANGE`; the package path
+/// judges inputs structurally only, and this is where it refuses one. The
+/// walk runs after the codec accepted the value, so its depth is already
+/// bounded.
 fn require_canonical_form(value: &ConstValue) -> Result<(), ExecutionError> {
-    if sley_mutate::encode_const_value(value).is_err() {
+    if sley_mutate::encode_const_value(value).is_err() || !integers_fit_declared_widths(value) {
         return Err(ExecutionError::Exec(ExecutionErrorCode::InputNotCanonical));
     }
     Ok(())
+}
+
+/// Whether every integer inside `value` agrees with its own declared type:
+/// `SInt` data under an epoch-1 `SInt` width it fits, `UInt` data under an
+/// epoch-1 `UInt` width it fits, and no integer data under any other type.
+/// Structural only: each value is compared with its own `value_type`, never
+/// with a definition or an environment.
+fn integers_fit_declared_widths(value: &ConstValue) -> bool {
+    let mut pending = vec![value];
+    while let Some(value) = pending.pop() {
+        let fits = match (&value.value_type, &value.data) {
+            (TypeExpr::SInt(width), ConstData::SInt(number)) => {
+                width.is_epoch_1() && crate::extended::fits(true, width.bits(), *number, 0)
+            }
+            (TypeExpr::UInt(width), ConstData::UInt(number)) => {
+                width.is_epoch_1() && crate::extended::fits(false, width.bits(), 0, *number)
+            }
+            (TypeExpr::SInt(_) | TypeExpr::UInt(_), _)
+            | (_, ConstData::SInt(_) | ConstData::UInt(_)) => false,
+            _ => true,
+        };
+        if !fits {
+            return false;
+        }
+        push_nested_values(value, &mut pending);
+    }
+    true
+}
+
+/// Pushes every value directly nested in `value` (sequence elements, record
+/// fields, a variant payload, map keys and values, an `Option` or `Result`
+/// payload) onto an explicit walk stack, so no input walk recurses over
+/// caller data.
+fn push_nested_values<'a>(value: &'a ConstValue, pending: &mut Vec<&'a ConstValue>) {
+    match &value.data {
+        ConstData::Sequence(values) => pending.extend(values),
+        ConstData::Record(record) => {
+            pending.extend(record.fields.iter().map(|field| &field.value));
+        }
+        ConstData::Variant(variant) => pending.extend(variant.payload.as_deref()),
+        ConstData::Map(entries) => {
+            for entry in entries {
+                pending.push(&entry.key);
+                pending.push(&entry.value);
+            }
+        }
+        ConstData::Option(Some(value))
+        | ConstData::Result(ResultConst::Ok(value) | ResultConst::Err(value)) => {
+            pending.push(value);
+        }
+        ConstData::Unit
+        | ConstData::Bool(_)
+        | ConstData::SInt(_)
+        | ConstData::UInt(_)
+        | ConstData::F32Bits(_)
+        | ConstData::F64Bits(_)
+        | ConstData::Bytes(_)
+        | ConstData::Text(_)
+        | ConstData::Option(None)
+        | ConstData::FunctionRef(_)
+        | ConstData::BuiltinFailure(_) => {}
+    }
+}
+
+/// Package-path canonical form, part two (2.0.1, `EXEC_PACKAGE_V2.md`
+/// erratum E2): every value nested inside an input carries exactly the
+/// element type its container declares, recursively, and every value's data
+/// has the form its own `value_type` declares. Without it an
+/// `Option<UInt(8)>` input could carry a `UInt(128)` payload that is in
+/// width for its own claimed type, and `RecordGet`, `VariantGet`, map and
+/// vector reads would hand that mistyped value to registers typed otherwise.
+///
+/// The S20-270 and loaded-image callers run `check_constant`, which already
+/// refuses such a value; the package path does not, and refuses it here with
+/// the same `VM_EXEC_INPUT_NOT_CANONICAL`. Container element types are read
+/// from the value's own `value_type`; a named record's field types and a
+/// named variant's payload types are read from the package's admitted,
+/// digest-bound layouts by exact identity, with the definition's type
+/// parameters replaced by the named type's explicit arguments. Every
+/// comparison is exact equality, field-count agreement, or member-ID
+/// presence: no well-formedness, trait, or inference judgment. Both walks
+/// use explicit stacks and run after the codec bounded the value's depth.
+fn require_nested_type_agreement(
+    value: &ConstValue,
+    types: &TypeEnvironment,
+) -> Result<(), ExecutionError> {
+    if nested_types_agree(value, types) {
+        Ok(())
+    } else {
+        Err(ExecutionError::Exec(ExecutionErrorCode::InputNotCanonical))
+    }
+}
+
+fn nested_types_agree(value: &ConstValue, types: &TypeEnvironment) -> bool {
+    let mut pending = vec![value];
+    while let Some(value) = pending.pop() {
+        let agrees = match (&value.value_type, &value.data) {
+            (TypeExpr::Unit, ConstData::Unit)
+            | (TypeExpr::Bool, ConstData::Bool(_))
+            | (TypeExpr::SInt(_), ConstData::SInt(_))
+            | (TypeExpr::UInt(_), ConstData::UInt(_))
+            | (TypeExpr::F32, ConstData::F32Bits(_))
+            | (TypeExpr::F64, ConstData::F64Bits(_))
+            | (TypeExpr::Bytes, ConstData::Bytes(_))
+            | (TypeExpr::Text, ConstData::Text(_))
+            | (TypeExpr::FunctionRef(_), ConstData::FunctionRef(_))
+            | (TypeExpr::Option(_), ConstData::Option(None)) => true,
+            (TypeExpr::BuiltinFailure(kind), ConstData::BuiltinFailure(failure)) => {
+                *kind == failure.kind
+            }
+            (TypeExpr::Tuple(element_types), ConstData::Sequence(values)) => {
+                values.len() == element_types.len()
+                    && values
+                        .iter()
+                        .zip(element_types)
+                        .all(|(item, item_type)| &item.value_type == item_type)
+            }
+            (TypeExpr::Vector(element), ConstData::Sequence(values)) => {
+                values.iter().all(|item| item.value_type == **element)
+            }
+            (TypeExpr::OrderedMap { key, value }, ConstData::Map(entries)) => entries
+                .iter()
+                .all(|entry| entry.key.value_type == **key && entry.value.value_type == **value),
+            (TypeExpr::Option(element), ConstData::Option(Some(item))) => {
+                item.value_type == **element
+            }
+            (TypeExpr::Result { ok, .. }, ConstData::Result(ResultConst::Ok(item))) => {
+                item.value_type == **ok
+            }
+            (TypeExpr::Result { error, .. }, ConstData::Result(ResultConst::Err(item))) => {
+                item.value_type == **error
+            }
+            (TypeExpr::Named(named), ConstData::Record(record)) => {
+                record_fields_agree(types, named, record)
+            }
+            (TypeExpr::Named(named), ConstData::Variant(variant)) => {
+                variant_payload_agrees(types, named, variant)
+            }
+            // Every other pairing is data of one form under a type of
+            // another, including any data under a handle, capability,
+            // local-cell, or open type-parameter type, none of which has a
+            // constant form.
+            _ => false,
+        };
+        if !agrees {
+            return false;
+        }
+        push_nested_values(value, &mut pending);
+    }
+    true
+}
+
+/// A named record value agrees with its layout: the same definition, a
+/// record layout with as many type parameters as the named type has
+/// arguments, the layout's fields in order by member identity, and each
+/// field value typed exactly as its instantiated layout field type.
+fn record_fields_agree(
+    types: &TypeEnvironment,
+    named: &NamedType,
+    record: &sley_ssmc::RecordConst,
+) -> bool {
+    if record.definition != named.definition {
+        return false;
+    }
+    let Ok(definition) = types.definition(named.definition) else {
+        return false;
+    };
+    let TypeDefForm::Record(fields) = &definition.form else {
+        return false;
+    };
+    definition.type_parameters.len() == named.arguments.len()
+        && fields.len() == record.fields.len()
+        && fields.iter().zip(&record.fields).all(|(field, value)| {
+            field.member_id == value.member_id
+                && instantiates_to(&field.value_type, &named.arguments, &value.value.value_type)
+        })
+}
+
+/// A named variant value agrees with its layout: the same definition, a
+/// variant layout with as many type parameters as the named type has
+/// arguments, a case with the value's member identity, and a payload that is
+/// present exactly when the case declares one, typed exactly as the case's
+/// instantiated payload type.
+fn variant_payload_agrees(
+    types: &TypeEnvironment,
+    named: &NamedType,
+    variant: &sley_ssmc::VariantConst,
+) -> bool {
+    if variant.definition != named.definition {
+        return false;
+    }
+    let Ok(definition) = types.definition(named.definition) else {
+        return false;
+    };
+    let TypeDefForm::Variant(cases) = &definition.form else {
+        return false;
+    };
+    if definition.type_parameters.len() != named.arguments.len() {
+        return false;
+    }
+    let Some(case) = cases
+        .iter()
+        .find(|case| case.member_id == variant.member_id)
+    else {
+        return false;
+    };
+    match (&case.payload_type, &variant.payload) {
+        (None, None) => true,
+        (Some(payload_type), Some(payload)) => {
+            instantiates_to(payload_type, &named.arguments, &payload.value_type)
+        }
+        _ => false,
+    }
+}
+
+/// Whether `actual` is exactly `template` with each `TypeParameter(i)`
+/// replaced by `arguments[i]` (the checker's explicit substitution), decided
+/// in lockstep on an explicit stack without building the substituted type.
+/// A parameter index with no argument never matches.
+fn instantiates_to(template: &TypeExpr, arguments: &[TypeExpr], actual: &TypeExpr) -> bool {
+    let mut pending = vec![(template, actual)];
+    while let Some((template, actual)) = pending.pop() {
+        match (template, actual) {
+            (TypeExpr::TypeParameter(index), _) => {
+                let argument = usize::try_from(*index)
+                    .ok()
+                    .and_then(|index| arguments.get(index));
+                if argument != Some(actual) {
+                    return false;
+                }
+            }
+            (TypeExpr::Tuple(templates), TypeExpr::Tuple(actuals)) => {
+                if templates.len() != actuals.len() {
+                    return false;
+                }
+                pending.extend(templates.iter().zip(actuals));
+            }
+            (TypeExpr::Named(template), TypeExpr::Named(actual)) => {
+                if template.definition != actual.definition
+                    || template.arguments.len() != actual.arguments.len()
+                {
+                    return false;
+                }
+                pending.extend(template.arguments.iter().zip(&actual.arguments));
+            }
+            (TypeExpr::Vector(template), TypeExpr::Vector(actual))
+            | (TypeExpr::Option(template), TypeExpr::Option(actual))
+            | (TypeExpr::LocalCell(template), TypeExpr::LocalCell(actual)) => {
+                pending.push((template, actual));
+            }
+            (
+                TypeExpr::OrderedMap {
+                    key: template_key,
+                    value: template_value,
+                },
+                TypeExpr::OrderedMap {
+                    key: actual_key,
+                    value: actual_value,
+                },
+            ) => {
+                pending.push((template_key, actual_key));
+                pending.push((template_value, actual_value));
+            }
+            (
+                TypeExpr::Result {
+                    ok: template_ok,
+                    error: template_error,
+                },
+                TypeExpr::Result {
+                    ok: actual_ok,
+                    error: actual_error,
+                },
+            ) => {
+                pending.push((template_ok, actual_ok));
+                pending.push((template_error, actual_error));
+            }
+            (TypeExpr::FunctionRef(template), TypeExpr::FunctionRef(actual)) => {
+                if template.effects != actual.effects
+                    || template.parameters.len() != actual.parameters.len()
+                {
+                    return false;
+                }
+                pending.extend(template.parameters.iter().zip(&actual.parameters));
+                pending.push((&template.result, &actual.result));
+            }
+            // Every remaining template is a leaf with nothing to substitute
+            // (or a different constructor from `actual`), so it must equal
+            // `actual` exactly.
+            _ => {
+                if template != actual {
+                    return false;
+                }
+            }
+        }
+    }
+    true
 }
 
 fn enforce_input_count(count: usize) -> Result<(), ExecutionError> {
@@ -3507,5 +3821,74 @@ mod tests {
             published.len(),
             "reused execution code symbol"
         );
+    }
+
+    #[test]
+    fn nested_type_agreement_instantiates_generic_layouts_exactly() {
+        // `record Boxed<T> { item: Option<T> }`. The bootstrap gate keeps
+        // generic layouts off the public package path today, so the
+        // substitution the walk relies on is pinned here directly.
+        let boxed = id(0x70);
+        let item = MemberId::from_bytes([0x71; 32]);
+        let types = TypeEnvironment::hydrate_verified_definitions(vec![TypeDefinition {
+            entity_id: boxed,
+            type_parameters: vec![sley_ssmc::TypeParameterDef { ordinal: 0 }],
+            form: TypeDefForm::Record(vec![sley_ssmc::RecordField {
+                member_id: item,
+                value_type: TypeExpr::Option(Box::new(TypeExpr::TypeParameter(0))),
+                visibility: Visibility::Private,
+            }]),
+            invariants: Vec::new(),
+            visibility: Visibility::Private,
+        }])
+        .unwrap();
+        let byte = TypeExpr::UInt(sley_ssmc::IntegerWidth::from_bits(8));
+        let wide = TypeExpr::UInt(sley_ssmc::IntegerWidth::from_bits(64));
+        let boxed_of = |argument: &TypeExpr, field_type: &TypeExpr| ConstValue {
+            value_type: TypeExpr::Named(NamedType {
+                definition: boxed,
+                arguments: vec![argument.clone()],
+            }),
+            data: ConstData::Record(sley_ssmc::RecordConst {
+                definition: boxed,
+                fields: vec![sley_ssmc::FieldConst {
+                    member_id: item,
+                    value: ConstValue {
+                        value_type: TypeExpr::Option(Box::new(field_type.clone())),
+                        data: ConstData::Option(None),
+                    },
+                }],
+            }),
+        };
+        assert!(nested_types_agree(&boxed_of(&byte, &byte), &types));
+        assert!(nested_types_agree(&boxed_of(&wide, &wide), &types));
+        assert!(!nested_types_agree(&boxed_of(&byte, &wide), &types));
+        assert!(!nested_types_agree(
+            &boxed_of(&byte, &TypeExpr::Bool),
+            &types
+        ));
+        // A named type whose argument count differs from the layout's
+        // parameters, or a template parameter with no argument, never agrees.
+        let mut unapplied = boxed_of(&byte, &byte);
+        unapplied.value_type = TypeExpr::Named(NamedType {
+            definition: boxed,
+            arguments: Vec::new(),
+        });
+        assert!(!nested_types_agree(&unapplied, &types));
+        assert!(!instantiates_to(
+            &TypeExpr::TypeParameter(1),
+            std::slice::from_ref(&byte),
+            &byte
+        ));
+        assert!(instantiates_to(
+            &TypeExpr::TypeParameter(0),
+            std::slice::from_ref(&byte),
+            &byte
+        ));
+        // A layout the package does not carry never agrees.
+        assert!(!nested_types_agree(
+            &boxed_of(&byte, &byte),
+            &TypeEnvironment::hydrate_verified_definitions(Vec::new()).unwrap()
+        ));
     }
 }

@@ -14,7 +14,10 @@ refused under every version. Revision 7 re-pins SMP1 revision 15, which
 states the explicit negotiation's per-selection filter, including this
 contract's rule that a version 3 selection without the native-tests bit
 removes the native methods (appendix C); nothing else in this contract
-changes. Reserved wire formats are not currently admitted.
+changes. An errata note to revision 7 (2026-09-25, Sley 2.0.1, end of
+section 3) records that approvals written by 2.0.0 carry
+`parent_root == proposed_root`; it changes no field or rule.
+Reserved wire formats are not currently admitted.
 No product completion, test execution or release claim follows from this file.
 
 ## 1. Authority and encoding
@@ -149,6 +152,41 @@ historical admission context and acceptance signature below.
 Strict parsing yields `ParsedNativeTestApproval`. Only verification against a
 fresh policy owner plan and configured measured authority constructs
 `VerifiedNativeTestApproval`; callers cannot fill public fields to mint it.
+
+Errata to revision 7 (2026-09-25, Sley 2.0.1). Approval field 6
+`parent_root` is the exact accepted parent root, the same root as plan
+field 6 and the transaction's single `parent_roots` entry. The 2.0.0
+native commit path wrote the proposed root there instead, so every
+approval that 2.0.0 wrote carries `parent_root == proposed_root`. That
+value is sealed into the approval ID and through it into the transaction,
+statement and receipt IDs, so those records cannot be rewritten. 2.0.1
+writes the accepted parent root (`crates/sley-txn/src/repository.rs`,
+`assemble_native_evidence`, `parent_root: plan.parent_root()`).
+
+Approvals written by 2.0.0 stay readable, because no load path compares
+approval `parent_root` with any other record (line numbers at the 2.0.1
+fix, 8287b51):
+
+- `NativeTestApprovalV1::parse` (`crates/sley-tests/src/approval.rs`
+  lines 401-431) reads field 6 at line 420, and `validate_parts`
+  (lines 491-502) checks only the attestation bindings.
+- `NativeEvidenceBundleV1` parsing (`crates/sley-tests/src/bundle.rs`
+  lines 220-224) compares only the approval's plan ID and report ID.
+- `verify_native_evidence_bindings`
+  (`crates/sley-txn/src/native_codec.rs` lines 675-754), which every v2
+  receipt import runs (line 483), compares the approval's plan ID, report
+  ID, ID and historical context ID (lines 712-731), never its roots.
+- The parent check in `crates/sley-txn/src/repository.rs` (lines
+  2472-2479) compares the transaction's own `parent_roots` entry with the
+  loaded parent, not the approval's field.
+
+A verifier that adds the cross-check this section implies (approval
+`parent_root` equal to plan `parent_root`) must accept the 2.0.0 value
+for approvals written before 2.0.1, or refuse that history, and must say
+which it does. This note was checked by hand: a repository written by
+the 2.0.0 native commit path loads through `verified_native_revision`
+under 2.0.1, and its approval's `parent_root` equals its `proposed_root`
+and differs from the plan's `parent_root`. No test in the tree pins this.
 
 ## 4. Historical context and trust
 

@@ -269,29 +269,114 @@ impl Fixture {
 
 #[test]
 fn e2_checked_integer_kernel_never_aborts_on_an_operand_outside_the_width() {
-    // The lowering path judges every input (ConstRange), but the package
-    // path validates inputs structurally only, so an i128 operand outside
-    // the declared width can reach the kernel. `i128::MIN / -1`,
-    // `i128::MIN % -1` and `-i128::MIN` must answer ARITHMETIC_OVERFLOW
-    // like every other out-of-range result, never abort the host.
+    // The lowering path judges every input (ConstRange), and the package
+    // path now refuses an out-of-width input as VM_EXEC_INPUT_NOT_CANONICAL,
+    // but the kernel is also reachable through the public
+    // `execute_extended_instruction`. An operand outside the declared width
+    // faults (internal invariant) before any arithmetic: `i128::MIN / -1`,
+    // `i128::MIN % -1` and `-i128::MIN` never abort the host, `shr` never
+    // answers a value outside the width, and `div`/`rem` never answer from
+    // garbage operands.
     use crate::extended::{ARITHMETIC_OVERFLOW, Checked, checked_integer};
     let minimum = sint(i128::MIN);
     let minus_one = sint(-1);
     for opcode in [Opcode::IntDivChecked, Opcode::IntRemChecked] {
+        assert!(checked_integer(opcode, true, 64, &[&minimum, &minus_one]).is_err());
+    }
+    assert!(checked_integer(Opcode::IntNegChecked, true, 64, &[&minimum]).is_err());
+    let wide = int_value(false, 128, 1_000);
+    let ten = int_value(false, 8, 10);
+    let one = amount_of(1);
+    assert!(checked_integer(Opcode::IntShrChecked, false, 8, &[&wide, &one]).is_err());
+    assert!(checked_integer(Opcode::IntDivChecked, false, 8, &[&wide, &ten]).is_err());
+    assert!(checked_integer(Opcode::IntRemChecked, false, 8, &[&ten, &wide]).is_err());
+    assert!(checked_integer(Opcode::IntAddChecked, false, 8, &[&wide, &ten]).is_err());
+    // A shift amount outside `UInt(32)` is the same impossible form.
+    let far = int_value(false, 64, 1 << 40);
+    assert!(checked_integer(Opcode::IntShlChecked, false, 8, &[&ten, &far]).is_err());
+    // In-width operands keep their exact answers, including the width's own
+    // overflow at `MIN / -1`.
+    let i64_minimum = int_value(true, 64, i128::from(i64::MIN));
+    for opcode in [Opcode::IntDivChecked, Opcode::IntRemChecked] {
         assert!(matches!(
-            checked_integer(opcode, true, 64, &[&minimum, &minus_one]),
+            checked_integer(opcode, true, 64, &[&i64_minimum, &minus_one]),
             Ok(Checked::Failure(ARITHMETIC_OVERFLOW))
         ));
     }
     assert!(matches!(
-        checked_integer(Opcode::IntNegChecked, true, 64, &[&minimum]),
+        checked_integer(Opcode::IntNegChecked, true, 64, &[&i64_minimum]),
         Ok(Checked::Failure(ARITHMETIC_OVERFLOW))
     ));
-    // In-width operands keep their exact answers.
     assert!(matches!(
         checked_integer(Opcode::IntDivChecked, true, 64, &[&sint(-7), &sint(2)]),
         Ok(Checked::Value(-3, 0))
     ));
+    assert!(matches!(
+        checked_integer(
+            Opcode::IntShrChecked,
+            false,
+            8,
+            &[&int_value(false, 8, 255), &one]
+        ),
+        Ok(Checked::Value(0, 127))
+    ));
+}
+
+#[test]
+fn e2_checked_integer_width_comes_from_the_result_register_not_the_operand() {
+    // A value whose own `value_type` claims a wider width than the register
+    // it sits in (a payload the package path bound without a type check)
+    // must not choose the width the kernel checks against. The public
+    // instruction entry faults instead of answering `Ok` with a value the
+    // declared `UInt(8)` result cannot hold.
+    use crate::extended::{ExecutionContext, execute_extended_instruction};
+    let types = TypeEnvironment::new(Vec::new()).unwrap();
+    let mut cells = Vec::new();
+    let mut context = ExecutionContext {
+        types: &types,
+        constants: &[],
+        globals: &[],
+        schema_epoch: SchemaEpochId::from_bytes([8; 32]),
+        adapters: &[],
+        cells: &mut cells,
+    };
+    let result = arithmetic(int_type(false, 8));
+    let wide = int_value(false, 128, 1 << 100);
+    let ten = int_value(false, 8, 10);
+    let one = amount_of(1);
+    for (opcode, operands) in [
+        (Opcode::IntShrChecked, vec![wide.clone(), one.clone()]),
+        (Opcode::IntDivChecked, vec![wide.clone(), ten.clone()]),
+        (Opcode::IntAddChecked, vec![ten.clone(), wide.clone()]),
+        (
+            Opcode::IntShlChecked,
+            vec![ten.clone(), int_value(false, 8, 1)],
+        ),
+    ] {
+        assert!(
+            execute_extended_instruction(
+                &mut context,
+                opcode,
+                &Immediate::None,
+                &operands,
+                &result
+            )
+            .is_err(),
+            "{opcode:?} must fault on an operand typed apart from its register"
+        );
+    }
+    let answer = execute_extended_instruction(
+        &mut context,
+        Opcode::IntShrChecked,
+        &Immediate::None,
+        &[int_value(false, 8, 200), one],
+        &result,
+    )
+    .expect("in-width operands execute");
+    let ConstData::Result(ResultConst::Ok(value)) = answer.data else {
+        panic!("200 shr 1 is Ok");
+    };
+    assert_eq!(value.data, ConstData::UInt(100));
 }
 
 fn limits() -> ExecutionLimits {

@@ -222,6 +222,62 @@ Disposition (architecture-tightening finding AT-HH-01, C_PRE_FREEZE_REPAIR):
 - V1 remains "preserved functional for legacy evidence only" as stated above;
   new executions use v2, whose literal was always correct.
 
+## Implementation erratum E2 (package input integer width, 2.0.1)
+
+`execute_approved_package` and `execute_approved_package_v2` admit runtime
+inputs structurally: exact register-type equality, canonical codec form,
+capped value units, and the codec-plus-hash. They never run
+`check_constant`, and the codec carries integer widths without comparing
+data against them. Through 2.0.0 an input such as `UInt(8)` carrying `1000`,
+or `SInt(64)` carrying `i128::MIN`, therefore reached execution. After the
+#7 kernel fix it could no longer abort the host, but `int_shr_checked` could
+still return `Ok` with a value outside the declared width, `int_div_checked`
+and `int_rem_checked` could return in-width answers computed from such an
+operand, and the value-unit walk recursed over caller data before the codec
+had bounded its depth.
+
+Disposition (2.0.1):
+
+- Canonical form on the package path includes integer width, as the
+  `MUTATION_VALUE_CODEC_V1` canonical rules already state ("exact widths").
+  Every integer inside an input, at any depth, must carry data of its
+  declared signedness that fits its declared epoch-1 width, and integer
+  data may not appear under a non-integer type. Each value is compared
+  with its own `value_type` only, with no environment or semantic judgment,
+  so the host boundary above is unchanged. A violation
+  is refused before execution with the existing
+  `VM_EXEC_INPUT_NOT_CANONICAL` (27006) and no outcome. No new code.
+  Canonical form on the package path also includes nested type agreement:
+  every value inside an input, at any depth, must carry exactly the type its
+  container declares (the `Option`, `Vector`, tuple, map, and `Result`
+  element types from the container's own `value_type`, and record field and
+  variant payload types from the package's admitted layouts by exact
+  identity with the named type's explicit arguments substituted), and its
+  data must have the form its own type declares, so an `Option<UInt(8)>`
+  whose payload is typed `UInt(128)` is refused with the same code even
+  though the payload fits the width it claims; these are exact-equality,
+  field-count, and member-ID checks, not well-formedness, trait, or
+  inference judgment. The layout lookup reads only the layouts the
+  approved package already admitted, so it adds no authority (fixtures:
+  `crates/sley-vm/tests/package_input_nested_types.rs`).
+- Per input the order is now: register-type equality, canonical form
+  (codec, then integer width, then nested type agreement), capped value
+  units, value hash. Canonical
+  form moved ahead of unit accumulation so the codec's depth bound holds
+  before anything recurses over caller data. An input that fails both
+  checks now reports `VM_EXEC_INPUT_NOT_CANONICAL` where it previously
+  reported `VM_EXEC_RESOURCE_LIMIT`; every valid input is unaffected.
+- Defense in depth in the checked-integer kernel
+  (`VM_EXTENDED_OPCODE_PROFILE_V1.md`, E2 note): the width comes from the
+  result register, and an operand outside it faults as
+  `VM_EXEC_INTERNAL_INVARIANT`, so no checked operation answers from an
+  out-of-width value however one arrives.
+- Every in-width input executes exactly as before. No envelope layout,
+  digest preimage, observation preimage, frozen vector, or machine record
+  changes. Regression fixtures:
+  `crates/sley-vm/tests/package_input_width.rs` (public surface, both
+  package versions).
+
 ## Hydration (unchanged boundary, serialized path implemented)
 
 Same allows/forbids as v1 (byte/framing decode, digest verification,

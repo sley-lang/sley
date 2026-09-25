@@ -22,7 +22,11 @@ section 8) answers the revision 9 round (REVISE x3 on 2b0f1c9): it admits
 the shipped version 3 capable surface (section 9) and the private
 native-test worker entry with its `sley-test-runner` edge (section 10),
 states the worker's argv and exit statuses, and re-pins SMP1 revision 15
-and bridge revision 12. Its new-delta review is pending. The
+and bridge revision 12. Its new-delta review is pending. An errata note
+to revision 10 (section 8, 2026-09-25, Sley 2.0.1) records two
+implementation fixes: a command-line word that is not valid Unicode is
+`CLI_USAGE_INVALID`, and the JSON text ceiling is judged before UTF-8
+decoding. It keeps revision 10 and every pin. The
 implementation is `crates/sley-cli`; implementation state is tracked in
 the machine summary.
 
@@ -440,6 +444,36 @@ release, or GA.
   1/6/7/8 so none collides with section 4.
 - ADR-0035 carries the revision 9 and revision 10 records.
 - The revision pins are SMP1 revision 15 and bridge revision 12.
+
+### Errata to revision 10 (2026-09-25, Sley 2.0.1)
+
+These notes record two fixes in `crates/sley-cli`. Revision 10 and its
+pins are unchanged.
+
+- A command-line word that is not valid Unicode is `CLI_USAGE_INVALID`
+  (43000, exit status 2). The cause is the word's lossy decoding, with
+  each invalid byte sequence replaced by U+FFFD. The rule covers every
+  word, including the path values of `--repository` and `--report` and
+  the operand of the section 10 worker entry, and it is decided before
+  any other argument check. The 2.0.0 binary panicked on such a word and
+  exited with status 101, outside the section 4 table. Pinned by
+  `an_argument_that_is_not_unicode_is_a_usage_failure_not_a_panic` in
+  `crates/sley-cli/tests/cli.rs`.
+- In JSON mode the bridge's text ceiling is judged on the bytes of a line
+  before UTF-8 decoding. A line longer than the ceiling is answered
+  `JSON_BRIDGE_RESOURCE_LIMIT` and ends the input, as the revision 2
+  clarification above requires, even when the bytes read are not valid
+  UTF-8. A line within the ceiling that is not valid UTF-8 is still
+  `JSON_BRIDGE_SHAPE_INVALID`, and serving continues. The 2.0.0 binary
+  decoded first: it answered an oversize non-UTF-8 line
+  `JSON_BRIDGE_SHAPE_INVALID` and kept reading from the middle of the
+  same line. Pinned by
+  `a_json_line_above_the_text_ceiling_that_is_not_utf8_is_refused_and_ends_the_input`.
+- Correction to the revision 2 clarification in this section: an oversize
+  line is not "read in full". In 2.0.0 and 2.0.1 alike, the endpoint reads
+  at most the text ceiling plus two bytes of a line and then stops. The
+  rest of the line is never read, which is why the input ends rather than
+  resynchronising.
 
 ## 9. Version-aware surface (phase 3, implemented in revision 6)
 

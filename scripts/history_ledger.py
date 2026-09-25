@@ -9,14 +9,23 @@ clone cannot see them.
 
 ``evidence/history/pre-public-history.json`` lists every archived commit
 with its parents, plus the archive's digest and tip. This module answers the
-questions the checkers ask, using git where it can and the ledger where git
-cannot:
+questions the checkers ask. Ledger membership is authoritative: a commit
+the ledger lists is archived even when its object is also in the local
+object store (after someone fetches old refs, for example), and its
+ancestry comes from the ledger alone. Only commits outside the ledger use
+git, so fetching archived objects never changes the answer for a full
+commit id. A short prefix is the one exception: if fetched archived objects
+make it ambiguous in git, it falls back to its unique ledger match, so pass
+full ids when the distinction matters.
 
-- ``resolve(rev)``: the full commit id, found in the repository or,
+- ``resolve(rev)``: the full commit id. A full id the ledger lists
+  resolves without git; any other revision resolves in the repository or,
   failing that, by a unique ledger prefix. Otherwise ``None``.
 - ``commit_known(rev)``: whether ``resolve`` found it.
-- ``is_ancestor(a, b)``: git ancestry when both commits are in the
-  repository, and ledger ancestry when both are archived. An archived
+- ``is_archived(rev)``: whether the resolved commit is listed in the
+  ledger.
+- ``is_ancestor(a, b)``: git ancestry when neither commit is archived, and
+  ledger ancestry when both are. An archived
   commit is an ancestor of every public commit exactly when it is an
   ancestor (or the tip) of the archived tip, because the public root
   continues the tip. The public commit must descend from that root (pinned
@@ -81,11 +90,29 @@ def _in_ledger(rev: str) -> str | None:
     return matches[0] if len(matches) == 1 else None
 
 
-def resolve(rev: str) -> str | None:
-    """Full commit id from the repository, else from a unique ledger prefix."""
+def _classify(rev: str) -> tuple[str | None, bool]:
+    """``(full id, archived)`` for ``rev``, or ``(None, False)`` when unknown.
+
+    A full id the ledger lists is archived without asking git. Any other
+    revision resolves through git first, and a commit git finds is still
+    archived when the ledger lists it. A revision git cannot resolve falls
+    back to a unique ledger prefix.
+    """
     if not rev:
-        return None
-    return _in_repo(rev) or _in_ledger(rev)
+        return None, False
+    lowered = rev.lower()
+    if len(lowered) == 40 and HEX.match(lowered) and lowered in archived_commits():
+        return lowered, True
+    in_repo = _in_repo(rev)
+    if in_repo:
+        return in_repo, in_repo in archived_commits()
+    in_ledger = _in_ledger(rev)
+    return in_ledger, in_ledger is not None
+
+
+def resolve(rev: str) -> str | None:
+    """Full commit id: a listed full id, else the repository, else a unique ledger prefix."""
+    return _classify(rev)[0]
 
 
 def commit_known(rev: str) -> bool:
@@ -93,8 +120,8 @@ def commit_known(rev: str) -> bool:
 
 
 def is_archived(rev: str) -> bool:
-    """True when the commit exists only in the pre-public archive."""
-    return _in_repo(rev) is None and _in_ledger(rev) is not None
+    """True when the commit is listed in the pre-public ledger, wherever its object is."""
+    return _classify(rev)[1]
 
 
 def public_root() -> str | None:
@@ -135,18 +162,23 @@ def _archived_ancestors(sha: str) -> frozenset[str]:
 
 
 def is_ancestor(ancestor: str, descendant: str) -> bool:
-    """``git merge-base --is-ancestor`` semantics across the history cut."""
-    a_repo, b_repo = _in_repo(ancestor), _in_repo(descendant)
-    if a_repo and b_repo:
-        return _git("merge-base", "--is-ancestor", a_repo, b_repo).returncode == 0
-    a_arch = None if a_repo else _in_ledger(ancestor)
-    b_arch = None if b_repo else _in_ledger(descendant)
-    if a_arch and b_arch:
-        return a_arch in _archived_ancestors(b_arch)
-    if a_arch and b_repo:
+    """``git merge-base --is-ancestor`` semantics across the history cut.
+
+    Archived commits are ordered by the ledger alone, even when their
+    objects are in the repository; git orders only public commits.
+    """
+    a_sha, a_archived = _classify(ancestor)
+    b_sha, b_archived = _classify(descendant)
+    if a_sha is None or b_sha is None:
+        return False
+    if a_archived and b_archived:
+        return a_sha in _archived_ancestors(b_sha)
+    if a_archived:
         tip = archived_tip()
-        return bool(tip) and a_arch in _archived_ancestors(tip) and _continues_archive(b_repo)
-    return False
+        return bool(tip) and a_sha in _archived_ancestors(tip) and _continues_archive(b_sha)
+    if b_archived:
+        return False
+    return _git("merge-base", "--is-ancestor", a_sha, b_sha).returncode == 0
 
 
 if __name__ == "__main__":

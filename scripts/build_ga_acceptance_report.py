@@ -70,7 +70,7 @@ BENCHMARK_PLAN = ROOT / "bench/benchmark-plan.json"
 REGISTER_BUILDER = ROOT / "scripts/build_finding_register.py"
 REPORT = ROOT / "evidence/release/ga-acceptance-report.json"
 CONTRACT = "sley2.ga-acceptance-report.v1"
-ARTIFACT_NAME = "sley-2.0.0-linux-x86_64.tar.gz"
+ARTIFACT_NAME = "sley-2.0.1-linux-x86_64.tar.gz"
 
 EVIDENCED = "EVIDENCED"
 AWAITS_REVIEW = "AWAITS_REVIEW"

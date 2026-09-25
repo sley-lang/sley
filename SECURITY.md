@@ -10,7 +10,14 @@ vulnerability. Include the affected version or commit, a minimal reproduction
 (SMP1 frames, bytes, or a failing test), and the impact you observed. The
 severity scale below is the one we triage with.
 
-Status: M0 threat register. Implementation evidence is not yet available.
+Status (2.0.1): the threat register in
+[`docs/THREAT_REGISTER.md`](docs/THREAT_REGISTER.md) maps each of the 56
+threats to an owner, a failure code, a required test, and an evidence path.
+Its implementation evidence is measured by
+`scripts/build_threat_coverage_report.py`, which writes
+`evidence/security/threat-coverage-report.json`. The independent security
+review of that evidence is still pending, so no threat is claimed as
+mitigated in the GA sense. See [Threat register](#threat-register) below.
 
 ## Security invariants
 
@@ -52,16 +59,17 @@ grouped view below is only a navigation summary.
 | T33-T36 | VM divergence, floating drift, cache poisoning, derived-as-canonical | P0 | frozen FP profile, exact cache keys, VM conformance and fault seeding |
 | T37-T40 | crash boundaries and GC deleting reachable objects | P0 | write ordering, fsync/CAS, crash matrix, reachability property tests |
 | T41-T44 | malicious/decompression pack and lossy/silent merge | P0 | bounded pack decode, digest tree, explicit conflict objects, merge properties |
-| T45-T47 | downgrade, request confusion, cross-workspace leakage | P0 | explicit negotiation, typed IDs, session/workspace binding tests |
+| T45-T47, T56 | downgrade, request confusion, cross-workspace leakage, session name used by a non-opening caller | P0/P1 | explicit negotiation, typed IDs, session/workspace binding tests, per-instance session names |
 | T48-T51 | prompt/debug/Git/ZJX facts mistaken for semantics | P0 | semantic authority boundary and negative conformance fixtures |
 | T52-T55 | dependency/artifact substitution, secrets, benchmark contamination | P1 | lockfile, SBOM, provenance, secret scan, frozen corpus and failure retention |
 
-The detailed one-to-one mapping and expected codes will be completed by
-S20-030 and then maintained in the evidence dossier. This grouped register
-tracks all 55 required threats without claiming mitigations are implemented.
-
-## Reporting
-
-Do not open a public issue for a suspected vulnerability. Record it locally and
-route it to the operator and independent reviewer. Public disclosure or release
-communication requires separate authorization.
+The register's main table is the original plan: it names the failure code
+each control was expected to produce. Its "Realized codes" addendum records
+the codes the controls actually shipped under, and where each is enforced and
+exercised. The coverage report classifies every threat by what it can locate
+in the tree. At the 2.0.0 release it recorded 44 threats with a located
+control and a test that exercises it, 3 structural controls (a control that
+is the absence of something, such as ambient environment access), and 9 with
+their planned evidence directory present. A located control is traceability,
+not a mitigation claim. The judgment stays with the independent security
+review.

@@ -31,7 +31,7 @@ candidate_mechanics = load("build_release_candidate")
 
 def evidence_record(**overrides) -> dict:
     record = {
-        "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
+        "artifact_name": candidate_mechanics.ARTIFACT_NAME,
         "artifact_sha256": "a" * 64,
         "artifact_size_bytes": 2_050_866,
         "commit": "b" * 40,
@@ -196,6 +196,36 @@ class ReproducibilityTests(unittest.TestCase):
         carried = repro.carried_attestations(tracked, {"primary"}, local["commit"], superseded)
         self.assertEqual([item["host_label"] for item in carried], ["secondary"])
         self.assertEqual(superseded, [])
+
+    def test_a_version_bump_supersedes_the_previous_release_attestations(self) -> None:
+        # The tracked report of the previous release names the previous
+        # artifact. The builder reads it, lists its attestations as
+        # superseded, and carries none; the hermetic check stays strict.
+        local = repro.local_attestation("primary", self.write_evidence())
+        previous = [
+            dict(local, commit="c" * 40, artifact_sha256="d" * 64, artifact_name="sley-2.0.0-linux-x86_64.tar.gz"),
+            dict(local, host_label="secondary", commit="c" * 40, artifact_sha256="d" * 64,
+                 artifact_name="sley-2.0.0-linux-x86_64.tar.gz"),
+        ]
+        report = repro.build_report([local])
+        report["attestations"] = previous
+        report.pop("report_digest")
+        report["report_digest"] = repro.digest_of(report)
+        path = self.root / "reproducibility-report.json"
+        path.write_text(repro.canonical(report), encoding="utf-8")
+        self.assertTrue(any("artifact_name differs" in problem for problem in repro.verify_report(report)))
+        self.assertEqual(repro.verify_report(report, previous_release_ok=True), [])
+        superseded: list[dict] = []
+        carried = repro.carried_attestations(path, {"primary"}, local["commit"], superseded)
+        self.assertEqual(carried, [])
+        # The fresh primary re-attests the new release, which retires its old
+        # entry (revision 11); the secondary stays listed until it re-attests.
+        self.assertEqual(
+            sorted((entry["host_label"], entry["reason"]) for entry in superseded),
+            [("secondary", "attests the previous release artifact sley-2.0.0-linux-x86_64.tar.gz")],
+        )
+        with self.assertRaises(repro.ReproError):
+            repro.validate_attestation(dict(local, artifact_name="not-a-release.tar.gz"), previous_release_ok=True)
 
     def test_the_supersession_listing_persists_until_the_host_re_attests(self) -> None:
         # Revision 11 (Ariadne P2 at 92fa6646): the listing survived exactly

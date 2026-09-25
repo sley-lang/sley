@@ -1598,7 +1598,8 @@ fn unsigned_max(bits: u16) -> u128 {
     }
 }
 
-fn fits(signed: bool, bits: u16, signed_value: i128, unsigned_value: u128) -> bool {
+/// Whether a value fits an epoch-1 width (`bits` is 8, 16, 32, 64, or 128).
+pub(crate) fn fits(signed: bool, bits: u16, signed_value: i128, unsigned_value: u128) -> bool {
     if signed {
         let (low, high) = signed_bounds(bits);
         (low..=high).contains(&signed_value)
@@ -1614,11 +1615,21 @@ pub(crate) fn checked_integer(
     bits: u16,
     operands: &[&ConstValue],
 ) -> Result<Checked, ExtendedFault> {
+    // An operand outside the declared width is a runtime value form no
+    // admitted input, constant, or constructed result carries. It faults
+    // (internal invariant) instead of reaching the arithmetic below, which
+    // would otherwise answer from it: `shr` could return a value outside the
+    // width, and `div`/`rem` an in-width answer computed from garbage.
     let read = |value: &ConstValue| -> Result<(i128, u128), ExtendedFault> {
-        match value.data {
-            ConstData::SInt(value) if signed => Ok((value, 0)),
-            ConstData::UInt(value) if !signed => Ok((0, value)),
-            _ => Err(ExtendedFault),
+        let operand = match value.data {
+            ConstData::SInt(value) if signed => (value, 0),
+            ConstData::UInt(value) if !signed => (0, value),
+            _ => return Err(ExtendedFault),
+        };
+        if fits(signed, bits, operand.0, operand.1) {
+            Ok(operand)
+        } else {
+            Err(ExtendedFault)
         }
     };
     let overflow = Ok(Checked::Failure(ARITHMETIC_OVERFLOW));
@@ -1656,11 +1667,11 @@ pub(crate) fn checked_integer(
                 return overflow;
             }
             if signed {
-                // Checked at the i128 level as well as at the declared width:
-                // an operand outside the width (reachable when a caller has
-                // not judged its inputs, as the package path does not) must
-                // still answer ARITHMETIC_OVERFLOW through `ranged`, never
-                // let `i128::MIN / -1` abort the host.
+                // Checked at the i128 level as well as at the declared width.
+                // `read` already refuses an operand outside the width, so the
+                // width guard above catches every overflowing pair; the
+                // checked forms keep `i128::MIN / -1` from ever aborting the
+                // host should that guard be bypassed.
                 let value = if opcode == Opcode::IntDivChecked {
                     ls.checked_div(rs)
                 } else {
@@ -1694,6 +1705,11 @@ pub(crate) fn checked_integer(
             let ConstData::UInt(amount) = amount.data else {
                 return Err(ExtendedFault);
             };
+            // The amount is `UInt(32)`; one outside that width is the same
+            // impossible form as an out-of-width operand.
+            if !fits(false, 32, 0, amount) {
+                return Err(ExtendedFault);
+            }
             let Some(amount) = u32::try_from(amount)
                 .ok()
                 .filter(|amount| *amount < u32::from(bits))
@@ -2113,8 +2129,24 @@ pub(crate) fn execute_extended_instruction_borrowed(
             | Opcode::IntShrChecked,
             values,
         ) => {
-            let (signed, bits) = integer_width(&values.first().ok_or(ExtendedFault)?.value_type)
-                .ok_or(ExtendedFault)?;
+            // The width comes from the result register, which the approved
+            // image fixes, and every operand must carry exactly the operand
+            // type the lowering judged (the shift amount `UInt(32)`). An
+            // operand whose own `value_type` claims another width cannot
+            // pick the width the kernel checks against.
+            let TypeExpr::Result { ok, .. } = result_type else {
+                return Err(ExtendedFault);
+            };
+            let (signed, bits) = integer_width(ok).ok_or(ExtendedFault)?;
+            let typed = match (opcode, values) {
+                (Opcode::IntShlChecked | Opcode::IntShrChecked, [value, amount]) => {
+                    value.value_type == **ok && amount.value_type == u32_type()
+                }
+                _ => values.iter().all(|value| value.value_type == **ok),
+            };
+            if !typed {
+                return Err(ExtendedFault);
+            }
             arithmetic_value(
                 checked_integer(opcode, signed, bits, values)?,
                 signed,

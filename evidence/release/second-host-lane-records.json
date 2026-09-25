@@ -154,6 +154,20 @@
       "bundle_commit": "1fea02faace9503060425fa565757c0c29af9d93",
       "merge_commit": "a305312ba8ccb1290bf3b5b3e7790059fe14ac4c",
       "note": "The official Sley 2.0.0 release, built from the public root commit of sley-lang/sley. All three phases (check, build, merge) ran through the tracked scripts/second_host_attest.sh with the host taken from SLEY2_LAB_HOST and SLEY2_LAB_HOME (the public defaults are placeholders). The lab build reported REPRODUCIBLE / PASS with the primary's artifact digest, 2,513,160 B. Host names and addresses in this public ledger are neutral labels."
+    },
+    {
+      "candidate_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
+      "date": "2026-09-25",
+      "transport_lane": "private USB link between the primary and secondary hosts; SSH_CONNECTION verified by the tracked runbook at the build and merge phases",
+      "lab_checkout": "/home/lab/sley2-attest-c748dda",
+      "lab_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
+      "lab_evidence_sha256": "199ab925a6414b110b7c46f1f98385d25d9bbcde45c7e3a4777608cbcec66fc4",
+      "artifact_sha256": "34b3b56957a9ddf9a4edc35c2a961c89928d8e78dc74c76b23f1f5378e975e44",
+      "attestation_path": "evidence/release/attestations/c748dda-secondary.json",
+      "attestation_file_sha256": "177be90d106ab5dc0bba8eee44972267e3eb651eb3cc8fc3289285113a0c90a3",
+      "bundle_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
+      "merge_commit": "87c354029066cea8e80abb172bbe659b59ffd5bc",
+      "note": "The official Sley 2.0.1 release, built from commit c748dda1 of sley-lang/sley. All three phases (check, build, merge) ran through the tracked scripts/second_host_attest.sh with the host taken from SLEY2_LAB_HOST and SLEY2_LAB_HOME (the public defaults are placeholders). The lab build reported REPRODUCIBLE / PASS with the primary's artifact digest, 2,559,049 B. Host names and addresses in this public ledger are neutral labels."
     }
   ]
 }

@@ -152,7 +152,7 @@
     },
     {
       "family": "smp1",
-      "rejections": 4,
+      "rejections": 5,
       "vectors": 0,
       "version": "v1"
     },
@@ -193,10 +193,10 @@
       "version": "v1"
     }
   ],
-  "conformance_rejections": 284,
+  "conformance_rejections": 285,
   "conformance_vectors": 537,
   "contract": "sley2.test-inventory.v1",
-  "inventory_digest": "ad926e8777ebe254371d606aefb9b5dd3ccc1ae8a9acd2fd3b4d6912f9b0f9ea",
+  "inventory_digest": "3f0360c330d8c9394787d2980958976b016acfb6bbb73dc53aaae5cbd18dc134",
   "persistent_fuzz_target_count": 21,
   "persistent_fuzz_targets": [
     "adapter_responses",
@@ -256,13 +256,13 @@
     },
     {
       "directory": "bench/release/tests",
-      "files": 7,
-      "tests": 163
+      "files": 10,
+      "tests": 176
     },
     {
       "directory": "bench/review/tests",
       "files": 9,
-      "tests": 178
+      "tests": 179
     },
     {
       "directory": "bench/sley2/tests",
@@ -275,7 +275,7 @@
       "tests": 133
     }
   ],
-  "python_tests": 924,
+  "python_tests": 938,
   "rust_crates": [
     {
       "crate": "sley-adapter",
@@ -290,7 +290,7 @@
     {
       "crate": "sley-cli",
       "ignored": 0,
-      "tests": 43
+      "tests": 46
     },
     {
       "crate": "sley-conformance",
@@ -320,7 +320,7 @@
     {
       "crate": "sley-protocol",
       "ignored": 4,
-      "tests": 128
+      "tests": 129
     },
     {
       "crate": "sley-query",
@@ -330,7 +330,7 @@
     {
       "crate": "sley-repo",
       "ignored": 21,
-      "tests": 507
+      "tests": 509
     },
     {
       "crate": "sley-scb1",
@@ -370,16 +370,16 @@
     {
       "crate": "sley-txn",
       "ignored": 1,
-      "tests": 247
+      "tests": 248
     },
     {
       "crate": "sley-vm",
       "ignored": 6,
-      "tests": 482
+      "tests": 494
     }
   ],
   "rust_ignored_emitters": 39,
-  "rust_unit_tests": 1996,
+  "rust_unit_tests": 2015,
   "source": "tracked sources only; no test was executed to produce these counts",
   "work_package": "S20-750"
 }

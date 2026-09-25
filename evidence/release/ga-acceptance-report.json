@@ -261,14 +261,14 @@
       "state": "GATED"
     },
     {
-      "criterion": "artifact name sley-2.0.0-linux-x86_64.tar.gz",
-      "evidence": "reproducibility report attests sley-2.0.0-linux-x86_64.tar.gz; packaging records sley-2.0.0-linux-x86_64.tar.gz",
+      "criterion": "artifact name sley-2.0.1-linux-x86_64.tar.gz",
+      "evidence": "reproducibility report attests sley-2.0.1-linux-x86_64.tar.gz; packaging records sley-2.0.1-linux-x86_64.tar.gz",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
     {
       "criterion": "artifact is built from the final candidate commit",
-      "evidence": "attested commit 1fea02faace9503060425fa565757c0c29af9d93; the final commit is fixed by a recorded release decision (machine summary release_decision), state RELEASE_APPROVED",
+      "evidence": "attested commit c748dda18c1276687cc3b0d1ef9b7f257eb09b24; the final commit is fixed by a recorded release decision (machine summary release_decision), state RELEASE_APPROVED",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
@@ -286,7 +286,7 @@
     },
     {
       "criterion": "manifest, SHA-256, size, SBOM, license inventory, and provenance are recorded",
-      "evidence": "attested manifest digest f38e3a5ae854, artifact digest 21e072e2e749, 2513160 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
+      "evidence": "attested manifest digest 4a449c2d3a38, artifact digest 34b3b56957a9, 2559049 bytes; CycloneDX 1.6, SPDX-2.3, license inventory s20-710-pre-release-inventory-v1, provenance sley2.release-provenance.v1 (unsigned)",
       "group": "26.8 packaging",
       "state": "EVIDENCED"
     },
@@ -342,7 +342,7 @@
   "interpretation": "EVIDENCED means a tracked artifact answers the criterion today. AWAITS_REVIEW means the work is implemented but a human judgment is required and has not happened. GATED means an authority this repository does not hold is required. Neither AWAITS_REVIEW nor GATED is a pass, and no combination of these states is a GA claim.",
   "obligations_digest": "517a972593be52c2078d0893cd917b38a5796618cb2f350189026b119d0c5df3",
   "register_digest": "d315bbb614c8f07193a6ed5b3ced48749fb9b37a6fce320a37ebd99e45545640",
-  "report_digest": "3cc0fdc3c2c9da72802003a97c4b411a66c3ebd790efa4a337dd73bc638c1c83",
+  "report_digest": "0911ee900d69aa4ac20e0c14ea5e18913e88e031c9377519cb59d13d176a5b5f",
   "source": "master goal section 26",
   "states": {
     "AWAITS_REVIEW": 17,

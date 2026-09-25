@@ -1,15 +1,15 @@
 {
   "attestations": [
     {
-      "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "artifact_sha256": "21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696",
-      "artifact_size_bytes": 2513160,
-      "commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "artifact_name": "sley-2.0.1-linux-x86_64.tar.gz",
+      "artifact_sha256": "34b3b56957a9ddf9a4edc35c2a961c89928d8e78dc74c76b23f1f5378e975e44",
+      "artifact_size_bytes": 2559049,
+      "commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "contract": "sley2.reproducibility-attestation.v1",
       "differing_members": [],
       "host_label": "primary",
-      "manifest_digest": "f38e3a5ae85428263d1e2d74df4e6ccc552143395c5efa187d565a646fe785b7",
-      "member_count": 15,
+      "manifest_digest": "4a449c2d3a382aa9b51aa1033fb895777ee138523f68108e39b03cfb126a7b03",
+      "member_count": 16,
       "reproducibility": "REPRODUCIBLE",
       "toolchain": {
         "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
@@ -18,15 +18,15 @@
       "working_tree_clean": true
     },
     {
-      "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-      "artifact_sha256": "21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696",
-      "artifact_size_bytes": 2513160,
-      "commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "artifact_name": "sley-2.0.1-linux-x86_64.tar.gz",
+      "artifact_sha256": "34b3b56957a9ddf9a4edc35c2a961c89928d8e78dc74c76b23f1f5378e975e44",
+      "artifact_size_bytes": 2559049,
+      "commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "contract": "sley2.reproducibility-attestation.v1",
       "differing_members": [],
       "host_label": "secondary",
-      "manifest_digest": "f38e3a5ae85428263d1e2d74df4e6ccc552143395c5efa187d565a646fe785b7",
-      "member_count": 15,
+      "manifest_digest": "4a449c2d3a382aa9b51aa1033fb895777ee138523f68108e39b03cfb126a7b03",
+      "member_count": 16,
       "reproducibility": "REPRODUCIBLE",
       "toolchain": {
         "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
@@ -41,8 +41,8 @@
     "council_reviews"
   ],
   "commits": {
-    "1fea02faace9503060425fa565757c0c29af9d93": {
-      "artifact_sha256": "21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696",
+    "c748dda18c1276687cc3b0d1ef9b7f257eb09b24": {
+      "artifact_sha256": "34b3b56957a9ddf9a4edc35c2a961c89928d8e78dc74c76b23f1f5378e975e44",
       "hosts": [
         "primary",
         "secondary"
@@ -53,7 +53,7 @@
   "distinct_hosts": 2,
   "ga_claimed": false,
   "publication_authorized": true,
-  "report_digest": "f2b7b680910f4a62b11f9d86b273561980aae9b77fe8ae904ddab5e574240dde",
+  "report_digest": "a5be8bdaacd1d1e9c5287f652bfeba10a4a7b77e87a390a70aab006f05cd6df0",
   "required_hosts": 2,
   "result": "MULTI_HOST_REPRODUCIBLE",
   "second_host": {

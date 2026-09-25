@@ -120,6 +120,67 @@ class RetireReviewClaimsTests(unittest.TestCase):
         self.assertIsNone(retire.resolve_scope("d" * 7))
         self.assertEqual([register.scope_generation(s) for s in (archived_root[:7], archived_tip[:7], self.first[:7], "d" * 7)], [1, 2, 3, -1])
 
+    def test_ledger_membership_outranks_fetched_archive_objects(self) -> None:
+        # After someone fetches old refs, archived commits are also in the
+        # local object store. The ledger still decides: they stay archived,
+        # the ledger orders them, and git never orders them against the
+        # public history, which does not contain them.
+        tree = self.git("rev-parse", "HEAD^{tree}").strip()
+
+        def commit_tree(message: str, *parents: str) -> str:
+            args = [arg for parent in parents for arg in ("-p", parent)]
+            return self.git("commit-tree", tree, *args, "-m", message).strip()
+
+        old_root = commit_tree("old root")
+        old_tip = commit_tree("old tip", old_root)
+        side = commit_tree("side", old_root)
+        # The ledger names old_tip as stray's parent; the fetched object has
+        # no parent at all, so git and the ledger disagree on its ancestry.
+        stray = commit_tree("stray")
+        orphan = commit_tree("unrelated orphan")
+        self.git("update-ref", "refs/archive/stray", stray)
+        history_ledger.LEDGER.parent.mkdir(parents=True)
+        history_ledger.LEDGER.write_text(json.dumps({
+            "commits": {old_root: [], old_tip: [old_root], side: [old_root], stray: [old_tip]},
+            "tip": stray,
+        }))
+        # Under git alone none of these objects is an ancestor of the public
+        # history, which is what a git-first answer would have returned.
+        self.assertNotEqual(subprocess.run(["git", "merge-base", "--is-ancestor", old_root, self.second],
+                                           cwd=self.root, capture_output=True, check=False).returncode, 0)
+        for sha in (old_root, old_tip, side, stray):
+            self.assertTrue(history_ledger.is_archived(sha))
+            self.assertTrue(history_ledger.is_archived(sha[:7]))
+            self.assertEqual(history_ledger.resolve(sha[:7]), sha)
+        self.assertTrue(history_ledger.is_archived("refs/archive/stray"))
+        for public in (self.first, self.second, "HEAD", orphan):
+            self.assertFalse(history_ledger.is_archived(public))
+        # Ledger ancestry among archived commits, against git's answer.
+        self.assertTrue(history_ledger.is_ancestor(old_root, stray))
+        self.assertTrue(history_ledger.is_ancestor(old_tip, stray))
+        self.assertFalse(history_ledger.is_ancestor(side, stray))
+        self.assertFalse(history_ledger.is_ancestor(stray, old_tip))
+        # The archived tip's history reaches every commit on the public root.
+        for archived in (old_root, old_tip, stray, "refs/archive/stray"):
+            for public in (self.first, self.second, "HEAD"):
+                self.assertTrue(history_ledger.is_ancestor(archived, public), (archived, public))
+        # A side branch never reached the tip, a public commit is never an
+        # ancestor of an archived one, and a commit off the public root
+        # inherits nothing.
+        self.assertFalse(history_ledger.is_ancestor(side, self.second))
+        self.assertFalse(history_ledger.is_ancestor(self.first, old_tip))
+        self.assertFalse(history_ledger.is_ancestor(old_root, orphan))
+        self.assertFalse(history_ledger.is_ancestor(orphan, self.second))
+        self.assertTrue(history_ledger.is_ancestor(self.first, self.second))
+        self.assertTrue(retire.strictly_later(self.second, stray[:7]))
+        self.assertFalse(retire.strictly_later(stray[:7], self.second))
+        # Full ids the ledger lists never reach git.
+        with unittest.mock.patch.object(history_ledger, "_git", side_effect=AssertionError("git consulted")):
+            self.assertTrue(history_ledger.is_archived(stray))
+            self.assertEqual(history_ledger.resolve(old_tip), old_tip)
+            self.assertTrue(history_ledger.is_ancestor(old_root, stray))
+            self.assertFalse(history_ledger.is_ancestor(side, old_tip))
+
     def test_transcript_closers_come_from_filed_verdict_lines(self) -> None:
         closers = retire.transcript_closers("release_candidate_packaging")
         self.assertEqual(len(closers), 1)

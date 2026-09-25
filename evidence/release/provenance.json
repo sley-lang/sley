@@ -17,17 +17,17 @@
       "buildDefinition": {
         "buildType": "urn:sley2:buildtype:release-candidate/v1",
         "externalParameters": {
-          "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
-          "commit": "1fea02faace9503060425fa565757c0c29af9d93",
+          "artifact_name": "sley-2.0.1-linux-x86_64.tar.gz",
+          "commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
           "invocation": "build_release_candidate.py --timeout-seconds=900 --require-clean --no-keep",
           "make_target": "release-candidate-build",
           "working_tree_clean": true
         },
         "internalParameters": {
-          "artifact_size_bytes": 2513160,
+          "artifact_size_bytes": 2559049,
           "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
           "locked": true,
-          "member_count": 15,
+          "member_count": 16,
           "path_remaps": [
             "--remap-path-prefix <worktree>=/sley2",
             "--remap-path-prefix <cargo-registry-src>=/cargo/registry/src",
@@ -39,13 +39,13 @@
         "resolvedDependencies": [
           {
             "digest": {
-              "sha1": "1fea02faace9503060425fa565757c0c29af9d93"
+              "sha1": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24"
             },
             "uri": "urn:sley2:git-commit"
           },
           {
             "digest": {
-              "sha256": "f4659c88245180f1fda5e955b1b764bc93bb093b6cc225f1eca29d1cad8ce5f2"
+              "sha256": "c37bd96a08d4d82364ac05b35cedf0a6803baf1fcaf2338278790e6226545af6"
             },
             "name": "Cargo.lock"
           },
@@ -57,19 +57,19 @@
           },
           {
             "digest": {
-              "sha256": "aaf3c129f5d0d3c3798096f6bb7f8e24a0b0c79542279e8c6c7ccc7b0fa9974b"
+              "sha256": "f4b54a1caf3e4d315ca39f3fa9e3d6826641e4a325b7fd93156396c22b6f1f31"
             },
             "name": "evidence/security/T52/pre-release-inventory.json"
           },
           {
             "digest": {
-              "sha256": "e9e3a9f952ab7910662a41cec160514abb59d5981159d131d6096355843420d5"
+              "sha256": "27c057fb00eeab4c54671bbcbaca34be36b7be09228dbda9b372da483b26aa37"
             },
             "name": "evidence/release/sbom/cyclonedx-1.6.json"
           },
           {
             "digest": {
-              "sha256": "3de3d6a508472a9e62fc08e540fc1c0b0aa510723f81c03c989aff7cfee6f0bf"
+              "sha256": "c65c0a4eb10be1ccb86f56b3b9c3e9caa718dc059b21d35da0c59f735e24e57c"
             },
             "name": "evidence/release/sbom/spdx-2.3.json"
           }
@@ -82,19 +82,19 @@
         "byproducts": [
           {
             "digest": {
-              "sha256": "54d1de5a1e9d973dac4b19d3fe07da827820218d6ab8f9336a18546d342bdba6"
+              "sha256": "4b851a82601d43f577308be84b827d39ca1d0113803cae74801b4d0964f8a061"
             },
             "name": "evidence/release/reproducibility-report.json"
           },
           {
             "digest": {
-              "sha256": "f6e400dabf3ea536d3f23c7d59791d5cffa43afb8ffbd92a1179113e1d779fe4"
+              "sha256": "a88d9470a6c41e5ee69af02200abf6cd5576da300a9e011001af2c438b305549"
             },
             "name": "evidence/conformance/independent-conformance-report.json"
           }
         ],
         "metadata": {
-          "invocationId": "f38e3a5ae85428263d1e2d74df4e6ccc552143395c5efa187d565a646fe785b7"
+          "invocationId": "4a449c2d3a382aa9b51aa1033fb895777ee138523f68108e39b03cfb126a7b03"
         }
       }
     },
@@ -102,11 +102,11 @@
     "subject": [
       {
         "digest": {
-          "sha256": "21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696"
+          "sha256": "34b3b56957a9ddf9a4edc35c2a961c89928d8e78dc74c76b23f1f5378e975e44"
         },
-        "name": "sley-2.0.0-linux-x86_64.tar.gz"
+        "name": "sley-2.0.1-linux-x86_64.tar.gz"
       }
     ]
   },
-  "statement_digest": "e5a7db54823551aec7f07746aba3c41ac91ce8ec7c7a0e4f24b83ec1e7152af1"
+  "statement_digest": "6449c29f128baaf01d3a77e2f23e09290247a89e203a0918335a827ee2cb5b3b"
 }

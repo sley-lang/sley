@@ -16,14 +16,14 @@
     "state": "RELEASE_APPROVED",
     "authority": "operator",
     "decided": "2026-09-24",
-    "release": "2.0.0",
+    "release": "2.0.1",
     "release_name": "Sley 2.0",
-    "label": "plain 2.0.0 with no preview or alpha label (operator decision)",
+    "label": "plain 2.0.1, a patch release of 2.0.0 with no preview or alpha label (operator decisions 2026-09-24 and 2026-09-25)",
     "kind": "operator release of what exists; not a GA claim",
     "ga_claimed": false,
     "publication_authorized": true,
-    "final_commit": "1fea02faace9503060425fa565757c0c29af9d93",
-    "final_commit_note": "the official Sley 2.0.0 release, built 2026-09-24 from the public root commit of https://github.com/sley-lang/sley (the sanitized single-commit export of the archived working history). It supersedes the pre-public ef2a39f6 build, whose build inputs are byte-identical. The attested commit of the tracked reproducibility report.",
+    "final_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
+    "final_commit_note": "the official Sley 2.0.1 release, built from commit c748dda1 of https://github.com/sley-lang/sley. The attested commit of the tracked reproducibility report.",
     "derived_decision_state_note": "evidence/release/decision-dossier.json keeps deriving the master goal section 27 state from the evidence (BLOCKED when recorded); the operator releases over the criteria listed below, which stay unmet and are not re-graded by this decision. The master goal's ALPHA_COMPLETE wording (succession thresholds not passing keeps the alpha label) is departed from by this explicit operator decision.",
     "ga_acceptance_at_decision": {
       "EVIDENCED": 32,
@@ -56,7 +56,8 @@
     "open_p1_p2_at_decision": "rw075_correction 4 P1 + 4 P2 (AR-02 large-preimage design and AR-06 transcript binding; the self-hosting/REWEAVE line, 2.1); finding-ledger mechanism P2s in release_candidate_packaging (4), reproducibility_and_independent_conformance (3) and standards_sbom_and_provenance (2) against scripts/build_finding_register.py and scripts/retire_review_claims.py",
     "council_reviews": "no longer used (operator decision 2026-09-24); criteria that wait on a Council or independent review stay AWAITS_REVIEW",
     "deferred_to_2_1": "self-hosting (REWEAVE / SH2)",
-    "release_notes": "docs/release/SLEY-2.0.0.md"
+    "release_notes": "docs/release/SLEY-2.0.1.md",
+    "decided_2_0_1": "2026-09-25"
   },
   "status": "IN_PROGRESS",
   "locator": {
@@ -180,10 +181,12 @@
     "scope": [
       "public source: a sanitized single-commit export of the release tree at https://github.com/sley-lang/sley (Apache-2.0); the working history stays in the private repository",
       "GitHub release v2.0.0 carrying sley-2.0.0-linux-x86_64.tar.gz and its SHA-256",
-      "the sleylang.org website describing Sley 2.0.0"
+      "the sleylang.org website describing Sley 2.0.0",
+      "the 2.0.1 patch release (GitHub release v2.0.1 with sley-2.0.1-linux-x86_64.tar.gz): operator direction 2026-09-25 to merge the contributor fixes and fix every issue found in the post-release verification"
     ],
     "authorized_tags": [
-      "v2.0.0"
+      "v2.0.0",
+      "v2.0.1"
     ],
     "sanitization": "the public export replaces host names, private network addresses, and local filesystem paths with neutral placeholders; the private repository keeps the unsanitized records",
     "note": "operator decision 2026-09-24: make the repository public with an official 2.0.0 release. This authorizes publication only. It is not a GA claim (ga_claimed stays false), and it does not sign provenance or add a transparency-log entry."
@@ -1842,7 +1845,7 @@
     "ariadne_contract_review": "PASS_CONTRACT_DRAFT_REVISION_6",
     "vulcan_import_surface_review": "PASS_CONTRACT_DRAFT_REVISION_4_NOTES_APPLIED_IN_REVISION_5",
     "implementation_complete": true,
-    "contract_revision": 7,
+    "contract_revision": 10,
     "ariadne_contract_review_revision_1": "FAIL_CONTRACT_DRAFT_4_P0_4_P1_10_P2_7_P3_ALL_APPLIED_IN_REVISION_2",
     "ariadne_contract_review_revision_1_session": "forge-ariadne-s20-540-contract-20260903T014755-7931f8f9",
     "ariadne_contract_review_revision_2": "FAIL_CONTRACT_DRAFT_2_P1_1_P2_3_P3_ALL_APPLIED_IN_REVISION_3",
@@ -2522,7 +2525,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 1127,
       "corpus_file_count": 1127,
@@ -2531,17 +2534,17 @@
       "executed_runs": 2156,
       "coverage": {
         "counters": 1453,
-        "ft_done": 520,
+        "ft_done": 483,
         "ft_inited": 451,
         "new_events": true,
-        "seed": 1568150994
+        "seed": 2465868635
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 54,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -2556,7 +2559,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review": "PASS_PRIOR_P2_CLOSED_NO_OPEN_P0_P1_P2_WITH_P3_P4_FOLLOWUPS",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_5_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_scb1_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 f732858fd7d8c8823d3f97416fd798c23551869bef771c8e5ba681b99656849c) (transcript FIELD line reads vulcan_review_closure). Two of the eight unclaimed P3/P4 findings are verified closed (register field at af9dba84, docs at c5424aa4); four P3 and two P4 remain open because the target and checker are unchanged since b64ab9e and the runner change did not touch the cited lines. The doc closure copied the overstated re-encode-oracle claim into tracked docs, and the b1218578 runner rewrite left the register's last_local_proof bound to a superseded runner while a canonical on-disk proof cites a non-ancestor commit. Checker exit 0 PASS was reproduced but cannot see any of these. Row not closable at this SHA.",
@@ -2595,7 +2598,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 259,
       "corpus_file_count": 259,
@@ -2607,14 +2610,14 @@
         "ft_done": 492,
         "ft_inited": 491,
         "new_events": true,
-        "seed": 2754196403
+        "seed": 2378159848
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 41,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -2629,7 +2632,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_4_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_4_P3_3_P4",
@@ -2688,17 +2691,17 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 500,
       "corpus_file_count": 500,
       "executed_runs": 756,
       "coverage": {
-        "counters": 9040,
-        "ft_done": 3698,
+        "counters": 9022,
+        "ft_done": 3700,
         "ft_inited": 3630,
         "new_events": true,
-        "seed": 877756908
+        "seed": 1768767158
       },
       "crash_artifacts": [],
       "new_crash_artifacts": [],
@@ -2733,7 +2736,7 @@
         "fuzz/regressions/S20_700_PACK_001.json",
         "fuzz/regressions/S20_700_PACK_002.json"
       ],
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_note": "Qualifying re-review of the c7fec98 fix at a525797 (transcript vulcan_review-c7fec98.md, FIELD vulcan_review, ROUND final): all five classes verified executing (static + seed-0493 probe + 775/775 proof), precedence sets match S20-540 order, no-store exemption intact, verdict field Honest. PASS with 3 P3 + 4 P4. VR-C7-01 (tracked proof still 4c30d1b; reseal_lane still exact-class wording) closes with the standard proof-refresh records commit; VR-C7-02/03 are owner items for the next target round; VR-C7-04..07 are P4 notes. Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_4_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_pack_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 9f41fe3f93805e0cbe17b4694252f107879a97d7e3b7917609b3e6358edbbced) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-c7fec98.md) was located; of its 3 P3 + 4 P4 findings, VR-C7-01 and VR-C7-04 are verified closed by records commit 1f969f99, while VR-C7-02, VR-C7-03, VR-C7-05, VR-C7-06 and VR-C7-07 remain open because the target and checker are byte-identical to c7fec98 and the owners explicitly deferred the target round. One new P4 record note: the tracked proof is bound to a SHA reachable from no branch and the on-disk canonical-toolchain proof is unfolded. The lane's fix itself remains sound and the checker passes at HEAD, but the row cannot be closed as PRIOR_P3_P4_CLOS",
@@ -2769,7 +2772,7 @@
     "audit": "docs/audits/S20_700_EXCHANGE_IMPORT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 518,
       "corpus_file_count": 518,
@@ -2777,18 +2780,18 @@
       "runs_floor": 1036,
       "executed_runs": 1036,
       "coverage": {
-        "counters": 40060,
-        "ft_done": 7965,
-        "ft_inited": 7873,
+        "counters": 40175,
+        "ft_done": 8004,
+        "ft_inited": 7914,
         "new_events": true,
-        "seed": 1666605472
+        "seed": 675423875
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 148,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -2803,7 +2806,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     }
   },
   "s20_700_complete_root_persistent_fuzz_slice": {
@@ -2825,7 +2828,7 @@
     "set_grammar": "one byte below four, two bytes for four through twenty-four, so a seed carries a whole fixture set",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 491,
       "corpus_file_count": 491,
@@ -2834,17 +2837,17 @@
       "executed_runs": 747,
       "coverage": {
         "counters": 7189,
-        "ft_done": 4895,
+        "ft_done": 4781,
         "ft_inited": 4144,
         "new_events": true,
-        "seed": 2849151930
+        "seed": 3613189304
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 111,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -2859,7 +2862,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "fact_lanes": "bits 2/3/4 select facts-from-bytes (bound/entry-points/dependency-roots); kind-8 encode guard loud"
   },
@@ -2881,7 +2884,7 @@
     "audit": "docs/audits/S20_700_SEMANTIC_DELTA_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 330,
       "corpus_file_count": 330,
@@ -2890,17 +2893,17 @@
       "executed_runs": 644,
       "coverage": {
         "counters": 4245,
-        "ft_done": 1831,
+        "ft_done": 1836,
         "ft_inited": 1798,
         "new_events": true,
-        "seed": 1887336381
+        "seed": 2910387303
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 148,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -2915,7 +2918,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     }
   },
   "s20_700_merge_persistent_fuzz_slice": {
@@ -2937,7 +2940,7 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 319,
       "corpus_file_count": 319,
@@ -2946,17 +2949,17 @@
       "executed_runs": 638,
       "coverage": {
         "counters": 3577,
-        "ft_done": 1165,
+        "ft_done": 1340,
         "ft_inited": 1112,
         "new_events": true,
-        "seed": 4181339987
+        "seed": 1535381431
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 148,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -2971,7 +2974,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_4_P3_0_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_merge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 a359ecde4a9c057c954048e8e0eed9ab313b6677d71ab83f16fd79e0a2851911) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-7cf25acd25d2.md) was located and its three P3s enumerated; at 178873d7 F2 is verified closed (audit :28-33 now names the five decoder codes, commit 71232591), F3 is untouched, and F1 is mitigated in code by the b1218578 pin-layout repair with an unoverridden clang 18.1.8 PASS on disk, but that proof is unfiled while the tracked record still carries the clang-22 override run and the \"unproven\" clause. Two new P3s: the tracked proof commit is not in HEAD's lineage and predates the HEAD harness, and the slice checker is marker-only so it cannot reject a stale p",
     "p3_open": [
@@ -2997,7 +3000,7 @@
     "audit": "docs/audits/S20_700_MERGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 47,
       "corpus_file_count": 47,
@@ -3005,18 +3008,18 @@
       "runs_floor": 512,
       "executed_runs": 512,
       "coverage": {
-        "counters": 35650,
-        "ft_done": 4075,
-        "ft_inited": 3711,
+        "counters": 35632,
+        "ft_done": 3880,
+        "ft_inited": 3707,
         "new_events": true,
-        "seed": 475364328
+        "seed": 1280251929
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 148,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -3031,7 +3034,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     }
   },
   "s20_700_complete_root_snapshot_persistent_fuzz_slice": {
@@ -3052,7 +3055,7 @@
     "audit": "docs/audits/S20_700_COMPLETE_ROOT_SNAPSHOT_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 480,
       "corpus_file_count": 480,
@@ -3061,17 +3064,17 @@
       "executed_runs": 960,
       "coverage": {
         "counters": 1243,
-        "ft_done": 1182,
+        "ft_done": 1127,
         "ft_inited": 975,
         "new_events": true,
-        "seed": 1110339851
+        "seed": 179643716
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 111,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -3086,7 +3089,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_complete_root_snapshot_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 ac28060f28335665321cfc69695887b309e1f494f7f69edd624c2bcdeed4ecff) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) names three P3s; at 178873d7 one is verified closed (rehash-lane rationale, made true by a069a246's digest-before-inversion reorder at snapshot.rs:743-748, matching spec \u00a75) and two remain open (target oracles only partly narrowed at fuzz/targets/complete_root_snapshot_decoder.rs:28,51-57,68-78; checker still marker-only at scripts/check_complete_root_snapshot_persistent_fuzz_slice.py:18-118, exit 0 despite a stale proof). One new P3 is recorded: the tracked last_local_proof (machine-summary.json:2536-2572) cites non-ancestor d3dee564 that p",
     "p3_open": [
@@ -3119,7 +3122,7 @@
     "audit": "docs/audits/S20_700_ROOT_QUERY_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 971,
       "corpus_file_count": 971,
@@ -3127,18 +3130,18 @@
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
-        "counters": 11309,
-        "ft_done": 5992,
-        "ft_inited": 4912,
+        "counters": 11294,
+        "ft_done": 5940,
+        "ft_inited": 4910,
         "new_events": true,
-        "seed": 278438982
+        "seed": 2357155455
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 111,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -3153,7 +3156,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "seed_derivation": "generated synthetically; the fixture contributes contract and class-count drift checks only, no seed bytes"
   },
@@ -3175,7 +3178,7 @@
     "audit": "docs/audits/S20_700_CONTEXT_CAPSULE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 971,
       "corpus_file_count": 971,
@@ -3183,18 +3186,18 @@
       "runs_floor": 1942,
       "executed_runs": 1942,
       "coverage": {
-        "counters": 11782,
-        "ft_done": 5949,
-        "ft_inited": 5049,
+        "counters": 11767,
+        "ft_done": 6063,
+        "ft_inited": 5042,
         "new_events": true,
-        "seed": 2333947639
+        "seed": 439542984
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 111,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -3209,7 +3212,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     }
   },
   "s20_700_smp1_persistent_fuzz_slice": {
@@ -3232,26 +3235,26 @@
     "stream_reassembly_lane": true,
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
-      "corpus_count": 713,
-      "corpus_file_count": 713,
+      "corpus_count": 719,
+      "corpus_file_count": 719,
       "runs_requested": 1456,
       "runs_floor": 1456,
       "executed_runs": 1456,
       "coverage": {
-        "counters": 4486,
-        "ft_done": 2190,
-        "ft_inited": 2149,
+        "counters": 4521,
+        "ft_done": 2440,
+        "ft_inited": 2172,
         "new_events": true,
-        "seed": 232427335
+        "seed": 2727333107
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 123,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -3266,7 +3269,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "generated_seed_count": 713,
     "lane_3_seeds": "multi-frame concatenated pairs reach reassemble_stream (proven); bare prefix-stripped bodies removed in 7h (they never decoded as hello records); negotiation executes through check_frame Hello arm on fixture hello frames (shared oracle); see S20-700-SMP1-001 + negotiate divergence packet",
@@ -3305,7 +3308,7 @@
     "audit": "docs/audits/S20_700_SMP1_JSON_BRIDGE_PERSISTENT_SLICE.md",
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 645,
       "corpus_file_count": 645,
@@ -3313,18 +3316,18 @@
       "runs_floor": 1286,
       "executed_runs": 1286,
       "coverage": {
-        "counters": 7117,
-        "ft_done": 4046,
-        "ft_inited": 3958,
+        "counters": 7138,
+        "ft_done": 4069,
+        "ft_inited": 3968,
         "new_events": true,
-        "seed": 3498285013
+        "seed": 2804247495
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 48,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -3339,7 +3342,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_3_P3_2_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_smp1_json_bridge_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 4f1f806240e607c0db75d63a4d7340147416a86f12517b77b3d1391e2cac3ed3) (transcript FIELD line reads vulcan_review_closure). The row's transcript (vulcan_review-38fc94a0dc5a.md) was located and all eleven P3/P4 findings enumerated; eight are verified closed at 178873d7 by code and audit changes in rounds 7h-7j and the b1218578 pin-layout repair, with the checker passing (exit 0). Two carried P3s (stale \"thirty-one\" count; tautological `known()` oracle) and one carried P4 (unbound checker markers) remain open and untracked, so the row cannot be closed. Two new records defects were found: the durable `last_local_proof` is stale against both runner and governed crate and contradicts the on-disk canonical-layout proof, ",
     "p3_open": [
@@ -3387,7 +3390,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "cc": "/usr/lib/llvm18/bin/clang-18",
       "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
@@ -3410,11 +3413,11 @@
           "corpus_count": 408,
           "corpus_file_count": 408,
           "coverage": {
-            "counters": 5067,
-            "ft_done": 2108,
+            "counters": 5066,
+            "ft_done": 2117,
             "ft_inited": 1928,
             "new_events": true,
-            "seed": 416623643
+            "seed": 2779836669
           },
           "coverage_ok": true,
           "crash_artifacts": [],
@@ -3446,10 +3449,10 @@
           "corpus_file_count": 385,
           "coverage": {
             "counters": 2752,
-            "ft_done": 3083,
+            "ft_done": 3096,
             "ft_inited": 2876,
             "new_events": true,
-            "seed": 356840199
+            "seed": 2703352097
           },
           "coverage_ok": true,
           "crash_artifacts": [],
@@ -3491,7 +3494,7 @@
         "graph-cfg": [],
         "type-checker": []
       },
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_note": "Qualifying round-4 re-review at 5966d83 (transcript vulcan_review-df295d8.md, FIELD vulcan_review, ROUND final): PASS_0_P0_0_P1_0_P2_2_P3_3_P4. Single branch verified exact-or-sound (full per-arm table), multi branch closed by construction (42-entry universe == engine as_str matches), all six falsifying inputs traced to pass, seeds executed, proof binds df295d8 clean. Follow-ups applied post-verdict: arm-22 DOMINANCE removed again (dead in single scope; combos use universe branch), audit counts corrected (406 seeds, 949 proof), VS-R3-004 sentence corrected (closed by regeneration in 56ef0c6 \u2014 the owner wrongly wrote 'refuted'), checker pins tightened (universe-body scope, lib.rs TYPE scan, full seed lists), sixth [9,16] input pinned as seed-0013. Fresh PASS proof 955/955 both targets (override lane). Obligation PASS.",
     "vulcan_review_closure_note": "REVISE_0_P0_0_P1_0_P2_2_P3_1_P4 via claude-code/claude-opus-5 2026-09-18 on 178873d7f9df2da5e616a986a24db8c2559f8ca0: transcript evidence/review/verdicts/s20_700_semantic_checkers_persistent_fuzz_slice/vulcan_review_closure-178873d.md (sha256 7b1d268320685a707e7381ee61820da598c5840facb17dd10ba7873c73cfdaba) (transcript FIELD line reads vulcan_review_closure). The round-4 transcript (vulcan_review-df295d8.md) was located and its five P3/P4 findings enumerated; VS-R4-002/003/004/005 are verified closed at HEAD by 634807f8 with the arm-22 derivation, seed-0013 bytes, checker pins, and audit wording independently checked, and the slice checker passes. VS-R4-001 remains half open because the audit's \"945/945 \u2026 fix awaits re-review\" line was never edited despite the commit message and summary note claiming it was. Two new record findings: the tracked PASS proof binds a dirty tree at a rebased-away commit (P3), and the new checker TYPE-scan has a bypassab",
@@ -3531,7 +3534,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 525,
       "corpus_file_count": 525,
@@ -3540,17 +3543,17 @@
       "executed_runs": 1050,
       "coverage": {
         "counters": 3896,
-        "ft_done": 1348,
+        "ft_done": 1323,
         "ft_inited": 1237,
         "new_events": true,
-        "seed": 2772566151
+        "seed": 1996052971
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 111,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -3565,7 +3568,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "vulcan_review_revision_2": "PASS_0_P0_0_P1_0_P2_5_P3",
     "vulcan_final_review": "PASS_0_P0_0_P1_0_P2_2_P3",
@@ -3636,26 +3639,26 @@
       "corpus_count": 789,
       "corpus_file_count": 789,
       "coverage": {
-        "counters": 18420,
-        "ft_done": 10334,
-        "ft_inited": 10197,
+        "counters": 18541,
+        "ft_done": 10599,
+        "ft_inited": 10276,
         "new_events": true,
-        "seed": 2870022059
+        "seed": 4072120357
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "executed_runs": 1576,
       "libfuzzer_runtime": "/usr/lib/llvm18/lib/clang/18/lib/linux/libclang_rt.fuzzer-x86_64.a",
       "new_crash_artifacts": [],
-      "owner_lib_sancov": 131,
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov": 129,
+      "owner_lib_sancov_total": 1397,
       "result": "PASS",
       "retested_prior_crashes": [],
       "rlib_linkage": "cargo-json",
       "runs_floor": 1576,
       "runs_requested": 1576,
       "sancov_scope": "workspace-target-units-via-host-config",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "toolchain_overridden": false,
       "toolchain_versions": {
         "cc": "clang version 18.1.8",
@@ -3664,30 +3667,30 @@
       "unexpected_warnings": [],
       "worktree_dirty_files": [],
       "owner_lib_sancov_symbols": {
-        "libsley_adapter-40a3537ab4e0e81a.rlib": 37,
-        "libsley_check-c1ff89ab199b9e1f.rlib": 115,
-        "libsley_conformance-c9580d1738c33161.rlib": 14,
-        "libsley_id-2d3de26537139901.rlib": 4,
-        "libsley_json_bridge-4b07410629a7bffb.rlib": 48,
-        "libsley_mutate-474a673c6573bb89.rlib": 110,
-        "libsley_policy-94809cece95b1358.rlib": 112,
-        "libsley_protocol-464771448942a656.rlib": 123,
-        "libsley_query-c512bf7670e642bf.rlib": 111,
-        "libsley_repo-6a108496b92d89cd.rlib": 148,
-        "libsley_scb1-b8875c1f879a9d73.rlib": 54,
-        "libsley_schema-823a933ac261e5ae.rlib": 41,
-        "libsley_ssmc-0fe0466f970379d6.rlib": 26,
-        "libsley_state_root-e74ef10d9de08469.rlib": 49,
-        "libsley_store-b37d5469d3245738.rlib": 46,
-        "libsley_tests-90a1a633daab6549.rlib": 109,
-        "libsley_txn-0bdd01cb6c51fa99.rlib": 121,
-        "libsley_vm-3f071f816c2ec2b8.rlib": 131
+        "libsley_adapter-05154dcdb57feedf.rlib": 37,
+        "libsley_check-9bf94080db08b42e.rlib": 115,
+        "libsley_conformance-55c0e24a5486f894.rlib": 14,
+        "libsley_id-b02faf59acf3839e.rlib": 4,
+        "libsley_json_bridge-33c608fdc5d7f2e6.rlib": 48,
+        "libsley_mutate-070fc884cdd08236.rlib": 110,
+        "libsley_policy-999e0395df2450ea.rlib": 112,
+        "libsley_protocol-c1237f4d6b3f2a65.rlib": 123,
+        "libsley_query-9805f7118894a5dd.rlib": 111,
+        "libsley_repo-17c3bb7529c83301.rlib": 148,
+        "libsley_scb1-d6b51ec117f176a4.rlib": 54,
+        "libsley_schema-b712b83a44f1e245.rlib": 41,
+        "libsley_ssmc-456cb6968157888e.rlib": 26,
+        "libsley_state_root-f2e48155f6042539.rlib": 49,
+        "libsley_store-b67b1ba2ea1fb5dc.rlib": 46,
+        "libsley_tests-ca7122a2c7e34c82.rlib": 109,
+        "libsley_txn-5dddde622df2b292.rlib": 121,
+        "libsley_vm-31505dabf89b2179.rlib": 129
       },
       "worktree_dirty": false,
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "restricted_profile_opcodes": [
       102,
@@ -3780,7 +3783,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 821,
       "corpus_file_count": 821,
@@ -3788,18 +3791,18 @@
       "runs_floor": 1642,
       "executed_runs": 1642,
       "coverage": {
-        "counters": 7041,
-        "ft_done": 3153,
-        "ft_inited": 3069,
+        "counters": 7042,
+        "ft_done": 3109,
+        "ft_inited": 3071,
         "new_events": true,
-        "seed": 4231874994
+        "seed": 92612109
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 37,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -3814,7 +3817,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     },
     "must_reject_classes": [
       "identity-changed (adapter_id)",
@@ -3855,7 +3858,7 @@
     ],
     "last_local_proof": {
       "result": "PASS",
-      "source_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+      "source_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
       "worktree_dirty_files": [],
       "corpus_count": 32,
       "corpus_file_count": 32,
@@ -3864,17 +3867,17 @@
       "executed_runs": 512,
       "coverage": {
         "counters": 17506,
-        "ft_done": 3030,
+        "ft_done": 3190,
         "ft_inited": 2510,
         "new_events": true,
-        "seed": 2780160924
+        "seed": 1740216917
       },
       "coverage_ok": true,
       "crash_artifacts": [],
       "new_crash_artifacts": [],
       "retested_prior_crashes": [],
       "unexpected_warnings": [],
-      "owner_lib_sancov_total": 1399,
+      "owner_lib_sancov_total": 1397,
       "owner_lib_sancov": 110,
       "rlib_linkage": "cargo-json",
       "build_locked": true,
@@ -3889,7 +3892,7 @@
       "stale_seeds_removed": 0,
       "problems": [],
       "fuzz_toolchain_version": "clang version 18.1.8",
-      "note": "persistent-fuzz smoke refresh 2026-09-24 at the public root 1fea02fa (Sley 2.0.0; clean detached worktree of the source commit); checker-verified in the records-only descendant"
+      "note": "persistent-fuzz smoke refresh at c748dda1 (Sley 2.0.1; clean detached worktree of the source commit); checker-verified in the records-only descendant"
     }
   },
   "s20_360_candidate_validation": {
@@ -4855,7 +4858,7 @@
     "inventory_contract": "s20-710-pre-release-inventory-v1",
     "secret_scan_contract": "s20-710-secret-scan-v1",
     "history_anchor_commit": "7804f665e0ee65de240c43fe3b56dc89cf7e9d80",
-    "cargo_lock_sha256": "f4659c88245180f1fda5e955b1b764bc93bb093b6cc225f1eca29d1cad8ce5f2",
+    "cargo_lock_sha256": "c37bd96a08d4d82364ac05b35cedf0a6803baf1fcaf2338278790e6226545af6",
     "uv_lock_sha256": "cb9621b8ad4b538672784f022632b4ec554d69b8ff1286992231645eca5cf446",
     "cargo_workspace_packages": 20,
     "cargo_registry_packages": 40,
@@ -4895,10 +4898,10 @@
   "release_candidate_packaging": {
     "status": "S20_720_MECHANICS_IMPLEMENTED_REVIEW_PENDING",
     "contract": "docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md",
-    "contract_revision": 7,
+    "contract_revision": 8,
     "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
     "checker": "scripts/check_release_candidate_packaging.py",
-    "artifact_name": "sley-2.0.0-linux-x86_64.tar.gz",
+    "artifact_name": "sley-2.0.1-linux-x86_64.tar.gz",
     "manifest_contract": "sley2.release-candidate-manifest.v1",
     "demo_fixture": "conformance/release-demo/v1/demo.json",
     "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
@@ -4925,24 +4928,24 @@
     ],
     "smoke_target": "make release-candidate-smoke",
     "smoke_evidence": "evidence/runtime/s20-720-release-candidate/evidence.json",
-    "candidate_artifact_sha256": "21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696",
-    "candidate_artifact_size_bytes": 2513160,
-    "candidate_member_count": 15,
+    "candidate_artifact_sha256": "34b3b56957a9ddf9a4edc35c2a961c89928d8e78dc74c76b23f1f5378e975e44",
+    "candidate_artifact_size_bytes": 2559049,
+    "candidate_member_count": 16,
     "candidate_reproducibility": "REPRODUCIBLE",
     "candidate_demo": "PASS_12_STEPS",
     "offline_tests": 17,
     "closeout": "docs/audits/S20_720_RELEASE_CANDIDATE_CLOSEOUT.md",
     "p0_open_count": 0,
     "p0_closed": 5,
-    "candidate_manifest_digest": "f38e3a5ae85428263d1e2d74df4e6ccc552143395c5efa187d565a646fe785b7",
-    "candidate_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+    "candidate_manifest_digest": "4a449c2d3a382aa9b51aa1033fb895777ee138523f68108e39b03cfb126a7b03",
+    "candidate_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
     "candidate_working_tree_clean": true,
     "candidate_toolchain": {
       "cargo": "cargo 1.93.0 (083ac5135 2025-12-15)",
       "rustc": "rustc 1.93.0 (254b59607 2026-01-19)"
     },
-    "candidate_evidence_commit": "1fea02faace9503060425fa565757c0c29af9d93",
-    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.0.0 release, built 2026-09-24 from the public root commit of sley-lang/sley (two clean musl builds, REPRODUCIBLE) and independently rebuilt on the secondary host the same day from a transferred Git bundle (make release-candidate-build in a detached clean clone, REPRODUCIBLE, the same artifact digest) through the tracked scripts/second_host_attest.sh. The secondary attestation is merged into the tracked report (MULTI_HOST_REPRODUCIBLE, merge commit a305312b) and retained as evidence/release/attestations/1fea02f-secondary.json, with its custody receipt in evidence/release/second-host-lane-records.json. It supersedes the pre-public ef2a39f6 build (archived history; byte-identical build inputs).",
+    "candidate_evidence_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
+    "candidate_second_host_note": "The current candidate (identity in candidate_commit / candidate_artifact_sha256 / candidate_manifest_digest, bound by the packaging checker) is the official Sley 2.0.1 release, built from commit c748dda1 of sley-lang/sley (two clean musl builds, REPRODUCIBLE) and independently rebuilt on the secondary host the same day from a transferred Git bundle (make release-candidate-build in a detached clean clone, REPRODUCIBLE, the same artifact digest) through the tracked scripts/second_host_attest.sh. The secondary attestation is merged into the tracked report (MULTI_HOST_REPRODUCIBLE, merge commit 87c35402) and retained as evidence/release/attestations/c748dda-secondary.json, with its custody receipt in evidence/release/second-host-lane-records.json.",
     "ariadne_contract_review_revision_1": "REVISE_0_P0_2_P1_3_P2_1_P3",
     "nabu_architecture_review_revision_1": "REVISE_0_P0_3_P1_2_P2_2_P3",
     "vulcan_surface_review_revision_1": "REVISE_0_P0_5_P1_3_P2_1_P3",
@@ -6307,7 +6310,7 @@
     "coverage_depths": "semantic: merge, semantic-comparison, complete-entity-impact, root-backed-query, entity-read (v2 corpus); codec_and_identity: all other families",
     "attestation_persistence": "rebuilds carry merged attestations no fresh input supersedes",
     "attestation_freshness": "every attested commit an ancestor of HEAD with no artifact-surface file changed since (surface: build_release_candidate.ARTIFACT_INPUT_PATHS, completed at revision 7 with the root license files and the compile-time embedded inputs); attested toolchain must match",
-    "attested_commit": "1fea02faace9503060425fa565757c0c29af9d93",
+    "attested_commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
     "attested_commit_note": "bound to the report by the checker since 2026-09-15 via build_reproducibility_report.select_attestation (the attested commit carrying the most agreeing hosts), never attestations[0]",
     "p1_open_count": 0,
     "p1_open": [],
@@ -7069,6 +7072,13 @@
       },
       {
         "commit": "1fea02faace9503060425fa565757c0c29af9d93",
+        "hosts": [
+          "primary",
+          "secondary"
+        ]
+      },
+      {
+        "commit": "c748dda18c1276687cc3b0d1ef9b7f257eb09b24",
         "hosts": [
           "primary",
           "secondary"
@@ -8085,7 +8095,7 @@
     "schema_epoch_decision": "narrowed 2026-09-03 by the S20-760 revision 2 determinations: an epoch is required only for the four unsupported contract kinds, test_observe execution, and adapter replay and configuration. The production-epoch fingerprint requirement, contract_assert execution, and effect_request and capability_narrow execution are profile work under epoch 1, and contract_assert execution is unblocked today. The decision itself remains the schema owner's",
     "succession_trials": "Operator authorized all steps and spending on 2026-09-15. Live execution is not implemented: raw runner is offline-only, legacy adapter only runs version smoke, Sley2 has injected model/oracle protocols and a restricted proposal surface, selected-test commit is unsupported, and three accounting thresholds are unimplemented. Both small- and large-model campaigns over all 15 tasks and 3 required arms are required. See evidence/review/completion-succession-readiness-2026-09-15.md; no real trials have run.",
     "root_license_text": "RESOLVED: operator-approved on 2026-09-14; LICENSE and NOTICE are installed and inventoried, and the SBOM documents report zero blocked licenses. Remaining S20-710 audit dispositions and the full candidate-history re-anchor decision are separate held items.",
-    "second_host_attestation": "RESOLVED for the official public release 1fea02faace9503060425fa565757c0c29af9d93 (2026-09-24): primary and secondary builds match artifact 21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json). Historical: RESOLVED for the official release ef2a39f659bd0caeaa92dbc546d0342dc7f43d57 (2026-09-24): primary and secondary-host builds match artifact fc28c772817fd79a5ae3817bd4c64ddfffd3a726fb37a6d751c1cf06f6db7d00 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json; tracked runbook, no deviation). Historical: RESOLVED for the release candidate 515cc4a3d9875b46273712367a2f77e355522906 (2026-09-24): primary and secondary-host builds match artifact 414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json; tracked runbook, no deviation). Historical: RESOLVED for 8d063f00133f369599032191708fa7efabb3e2fa (2026-09-23; artifact ecf51188\u2026, lane receipt with the bundle-step deviation), for 5313437afb5df66b5fa48b82c374746467d0a1ca (artifact 7da77f1b\u2026) and for 45b2cd98; all superseded by later product source.",
+    "second_host_attestation": "RESOLVED for the official Sley 2.0.1 release c748dda18c1276687cc3b0d1ef9b7f257eb09b24 (2026-09-25): primary and secondary builds match artifact 34b3b56957a9ddf9a4edc35c2a961c89928d8e78dc74c76b23f1f5378e975e44 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json). Historical: RESOLVED for the official public release 1fea02faace9503060425fa565757c0c29af9d93 (2026-09-24): primary and secondary builds match artifact 21e072e2e749d8dce4f9379645bb34651050940b671acb482f8c3ea465148696 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json). Historical: RESOLVED for the official release ef2a39f659bd0caeaa92dbc546d0342dc7f43d57 (2026-09-24): primary and secondary-host builds match artifact fc28c772817fd79a5ae3817bd4c64ddfffd3a726fb37a6d751c1cf06f6db7d00 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json; tracked runbook, no deviation). Historical: RESOLVED for the release candidate 515cc4a3d9875b46273712367a2f77e355522906 (2026-09-24): primary and secondary-host builds match artifact 414f87eaa337d7eef2f156873a262138bced4fa7516bd637ea243259feceab15 (MULTI_HOST_REPRODUCIBLE; lane receipt in evidence/release/second-host-lane-records.json; tracked runbook, no deviation). Historical: RESOLVED for 8d063f00133f369599032191708fa7efabb3e2fa (2026-09-23; artifact ecf51188\u2026, lane receipt with the bundle-step deviation), for 5313437afb5df66b5fa48b82c374746467d0a1ca (artifact 7da77f1b\u2026) and for 45b2cd98; all superseded by later product source.",
     "release_decision": "Operator authorized all gates, steps, spending, and completion on 2026-09-15. Technical gates remain unsatisfied; authorization is not empirical PASS or a final candidate identity. No release has been published.",
     "independent_conformance": "closed 2026-09-03: every one of the nineteen fixture families is now checked by an independent Python oracle, including the extended bytecode container and cache identity and the release demo identities; only the human independent review remains",
     "similarity_audit": "PERFORMED 2026-09-07, local implementation-session evidence (s20-780-similarity-audit-2026-09-07.md): no wholesale copying found; authorized touchpoint inventory unchanged. Independent (Argus/Council) review of the audit is still pending; the GA clean-room claim stays gated on that review. The boundary checker mechanizes sentinel, dependency, touchpoint, and register-hygiene facts only."

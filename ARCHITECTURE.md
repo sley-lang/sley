@@ -1,6 +1,7 @@
 # Sley 2 Architecture
 
-Status: M1 normative baseline
+Status: normative baseline, first written at M1. The crate table and the
+dependency order below describe the workspace as of 2.0.1.
 
 ## Target state
 
@@ -17,45 +18,47 @@ agent -> generated adapter -> SMP1 -> query/mutation -> checker/policy
 
 ## Dependency law
 
-The intended dependency direction is:
+Dependencies point one way, from the canonical layers up to the transport.
+The workspace realizes this order (each crate depends only on crates in
+earlier layers, and not on every one of them):
 
 ```text
-canon + id + schema -> ssmc -> check
-check -> query + mutate + policy -> txn -> repo + vm -> protocol
-protocol -> json-bridge + cli + conformance + bench
-vm -> adapter (typed boundary only)
+id -> scb1 + ssmc -> schema -> state-root + store
+ssmc -> check -> query + mutate -> vm -> tests -> policy -> txn -> repo
+vm + tests -> conformance + test-runner        policy -> adapter
+kernel crates -> protocol -> json-bridge -> cli        test-runner -> cli
 ```
 
 Transport, CLI, adapters, benchmarks, optional ZJX compression, Git, Siglum,
 and every model provider remain outside the semantic kernel. No dependency may
-point from a kernel crate to `sley-cli`, `sley-json-bridge`, `sley-bench`, or a
-Greyforge product adapter.
+point from a kernel crate to `sley-cli`, `sley-json-bridge`, or a Greyforge
+product adapter. The succession benchmark is Python under `bench/`, not a
+crate, and nothing in `crates/` depends on it.
 
-## Planned crates
+## Crates
 
 | Crate | Sole authority |
 |---|---|
-| `sley-canon` | SCB1 bytes and strict canonical decode |
 | `sley-id` | domain-separated identifiers and digests |
+| `sley-scb1` | SCB1 bytes and strict canonical decode |
+| `sley-ssmc` | entity, type, and constant model |
 | `sley-schema` | schema epochs and generated field contracts |
-| `sley-ssmc` | entity, type, opcode, and semantic-fingerprint model |
-| `sley-check` | graph, reference, type, CFG, effect, and contract validity |
+| `sley-state-root` | deterministic, ancestry-independent state roots |
 | `sley-store` | immutable object persistence and corruption checks |
+| `sley-check` | graph, reference, type, CFG, effect, and contract validity |
 | `sley-query` | derived indexes, bounded queries, and capsules |
 | `sley-mutate` | typed candidates, operations, and preconditions |
-| `sley-policy` | protected policy roots and capability validation |
-| `sley-txn` | validation orchestration, atomic commit, and receipts |
-| `sley-repo` | refs, ancestry, comparisons, merge, conflicts, packs, GC |
-| `sley-vm` | deterministic SSMC1 execution oracle |
-| `sley-adapter` | bounded out-of-process host adapter contracts |
-| `sley-protocol` | SMP1 framing and versioned request/response contracts |
-| `sley-json-bridge` | generated non-canonical JSON mapping |
+| `sley-vm` | deterministic derived bytecode and the reference VM |
+| `sley-tests` | native test evidence: plans, reports, and approvals |
+| `sley-policy` | protected policy roots and candidate validation |
+| `sley-adapter` | bounded reference adapter contracts |
+| `sley-conformance` | deterministic execution and test report envelopes |
+| `sley-txn` | atomic commit, receipts, and the accepted head |
+| `sley-repo` | refs, branches, comparison, merge, conflicts, exchange, GC |
+| `sley-protocol` | SMP1 framing, negotiation, and identity scoping |
+| `sley-json-bridge` | generated non-canonical JSON mapping of SMP1 frames |
+| `sley-test-runner` | host-side native test supervision |
 | `sley-cli` | thin machine wrapper; no semantic rules |
-| `sley-conformance` | cross-implementation and corpus harness |
-| `sley-bench` | succession and resource measurement |
-
-Crates are created only when their first approved work package starts. Empty
-crate proliferation is avoided; boundary ownership is already frozen here.
 
 ## Canonical and derived state
 

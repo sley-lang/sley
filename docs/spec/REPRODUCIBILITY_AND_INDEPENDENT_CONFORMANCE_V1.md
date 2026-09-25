@@ -139,7 +139,13 @@ Rules:
   commit, sorted), and an entry is retired only when its host re-attests the
   commit the fresh local attestation names — as the fresh local attestation,
   an explicit `--attest` file, or a tracked attestation of that commit —
-  never by a re-run of the build (revision 11). A tracked file that is not a
+  never by a re-run of the build (revision 11). A release that renames the
+  artifact (a version bump) supersedes the tracked report's attestations of
+  the earlier artifact the same way: the builder alone admits the earlier
+  release's artifact name when it reads the tracked report, lists those
+  attestations with the reason "attests the previous release artifact
+  <name>", and carries none of them. `verify_report` and every other reader
+  stay strict (erratum, 2.0.1). A tracked file that is not a
   report, or that carries a malformed attestation or a malformed
   `superseded_attestations` entry, is `REPRO_ATTESTATION_INVALID`; the
   hermetic integrity gate (`verify_report`) requires the listing and checks

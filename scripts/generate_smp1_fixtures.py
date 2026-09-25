@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "conformance/smp1/v1"
 EXPECTED_FRAMES = ["request", "response", "failure"]
-EXPECTED_REJECTIONS = ["length-above-ceiling", "digest-trailer-bit", "truncated-envelope", "magic-bit"]
+EXPECTED_REJECTIONS = ["length-above-ceiling", "digest-trailer-bit", "truncated-envelope", "magic-bit", "hello-nonzero-bounds"]
 
 
 def main() -> int:

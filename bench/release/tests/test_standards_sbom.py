@@ -762,6 +762,7 @@ class RecordsClosureTests(unittest.TestCase):
             *closure.GUIDE_DOCUMENTATION,
             "docs/examples/smp1_json_client.py",
             *closure.COMMUNITY_FILES,
+            "docs/release/SLEY-2.0.1.md",
             ".github/ISSUE_TEMPLATE/bug_report.md",
         ]
         for path in guides:
@@ -774,7 +775,6 @@ class RecordsClosureTests(unittest.TestCase):
         for path in (
             "docs/spec/SMP1.md",
             "docs/adr/ADR-0001-machine-native-lineage.md",
-            "docs/release/SLEY-2.0.0.md",
             "docs/WORK_PACKAGES.md",
             "ARCHITECTURE.md",
             ".github/workflows/ci.yml",

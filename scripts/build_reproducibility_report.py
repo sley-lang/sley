@@ -133,8 +133,18 @@ def local_attestation(host_label: str, evidence_path: Path = EVIDENCE) -> dict:
     )
 
 
-def validate_attestation(value: object) -> dict:
-    """Checks the contract section 1 shape and returns the attestation."""
+# An attestation of an earlier release's artifact (a version bump renames the
+# artifact) is admitted only where the builder reads the tracked report it is
+# about to supersede; it is listed as superseded and never carried.
+RELEASE_ARTIFACT_NAME = re.compile(r"^sley-\d+\.\d+\.\d+-linux-x86_64\.tar\.gz$")
+
+
+def validate_attestation(value: object, *, previous_release_ok: bool = False) -> dict:
+    """Checks the contract section 1 shape and returns the attestation.
+
+    With ``previous_release_ok`` an attestation may name an earlier release's
+    artifact; every other rule is unchanged.
+    """
     if not isinstance(value, dict):
         raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "attestation is not an object")
     expected = {
@@ -156,7 +166,11 @@ def validate_attestation(value: object) -> dict:
             ReproErrorCode.ATTESTATION_INVALID,
             f"attestation keys {sorted(set(value) ^ expected)} differ from the contract",
         )
-    if value["artifact_name"] != ARTIFACT_NAME:
+    if value["artifact_name"] != ARTIFACT_NAME and not (
+        previous_release_ok
+        and isinstance(value["artifact_name"], str)
+        and RELEASE_ARTIFACT_NAME.match(value["artifact_name"])
+    ):
         raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "artifact_name differs from S20-720")
     if value["contract"] != ATTESTATION_CONTRACT:
         raise ReproError(ReproErrorCode.ATTESTATION_INVALID, "wrong attestation contract")
@@ -329,7 +343,7 @@ def load_attestation(path: Path) -> dict:
         raise ReproError(ReproErrorCode.ATTESTATION_INVALID, f"{path}: {error}") from error
 
 
-def verify_report(report: object) -> list[str]:
+def verify_report(report: object, *, previous_release_ok: bool = False) -> list[str]:
     """Hermetic integrity problems of a tracked report: digest plus shapes.
 
     Reads only the report itself, so it runs on a clean checkout with no
@@ -350,7 +364,7 @@ def verify_report(report: object) -> list[str]:
     else:
         for attestation in attestations:
             try:
-                validate_attestation(attestation)
+                validate_attestation(attestation, previous_release_ok=previous_release_ok)
             except ReproError as error:
                 problems.append(f"attestation invalid: {error.detail}")
     # The supersession listing is part of the section 2 shape (revision 10)
@@ -419,7 +433,7 @@ def carried_attestations(
     # file (stale digest, malformed attestation or listing entry) would
     # otherwise be laundered into a fresh, digest-valid report by a plain
     # rebuild (Vulcan P4 at c04539b9).
-    integrity = verify_report(tracked)
+    integrity = verify_report(tracked, previous_release_ok=True)
     if integrity:
         raise ReproError(
             ReproErrorCode.ATTESTATION_INVALID,
@@ -434,7 +448,17 @@ def carried_attestations(
     carried: list[dict] = []
     listed: list[dict] = []
     for attestation in attestations:
-        checked = validate_attestation(attestation)
+        checked = validate_attestation(attestation, previous_release_ok=True)
+        if checked["artifact_name"] != ARTIFACT_NAME:
+            listed.append(
+                {
+                    "host_label": checked["host_label"],
+                    "commit": checked["commit"],
+                    "artifact_sha256": checked["artifact_sha256"],
+                    "reason": f"attests the previous release artifact {checked['artifact_name']}",
+                }
+            )
+            continue
         if checked["host_label"] in skip_labels:
             continue
         if current_commit is not None and checked["commit"] != current_commit:
