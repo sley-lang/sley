@@ -751,6 +751,39 @@ fn every_value_form_in_help_types_round_trips() {
 }
 
 #[test]
+fn bytes_appear_only_with_raw() {
+    // BR-10: no record, stored or body hex by default; `--raw` prints it.
+    let temp = committed_program("raw", None);
+    let frame =
+        json!({"af1": 1, "tests": [{"fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5}}]});
+    let hex64 = |text: &str| {
+        text.split(|c: char| !c.is_ascii_hexdigit())
+            .any(|word| word.len() >= 64)
+    };
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(!hex64(&text), "{text}");
+    let (_, value) = run_json(&temp.path, &["try", &frame.to_string()]);
+    assert!(!hex64(&value.to_string()), "{value}");
+    let (_, value) = run_json(&temp.path, &["try", &frame.to_string(), "--raw"]);
+    let stored = value["stored_hex"].as_str().unwrap();
+    let handle = value["handle"].as_str().unwrap();
+    let file = fs::read_to_string(
+        temp.path
+            .join(".sley/candidates")
+            .join(format!("{handle}.hex")),
+    )
+    .unwrap();
+    assert_eq!(stored, file.trim());
+    assert_eq!(run(&temp.path, &["submit", handle]).0, 0);
+    let (status, text) = run(&temp.path, &["status"]);
+    assert_eq!(status, 0, "{text}");
+    assert!(!hex64(&text), "{text}");
+    let (_, text) = run(&temp.path, &["status", "--raw"]);
+    assert!(text.contains(&format!("stored: {stored}")), "{text}");
+}
+
+#[test]
 fn init_grants_the_benchmark_fixture_ceilings() {
     // BR-03(b), ADR-0051 decision 9: pinned values, stated by `init`.
     let temp = TempDir::new("init-ceilings");

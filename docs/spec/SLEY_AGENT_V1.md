@@ -50,9 +50,9 @@ grant that allows `CreateEntity` and `ReplaceEntityVersion`.
 ```text
 sley-agent view [name...] [--package] [--after <ref>] [--ids] [--types] [--limits]
 sley-agent find [text] [--kind fn|type|const|test|ns] [--after <ref>]
-sley-agent try <frame|ops> [--no-test] [--all-tests] [--public <cases.json>]
+sley-agent try <frame|ops> [--no-test] [--all-tests] [--public <cases.json>] [--raw]
 sley-agent submit [<ref>]
-sley-agent status
+sley-agent status [--raw]
 sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats]
 sley-agent test [<ref>] [--public <cases.json>]
 sley-agent explain [<ref>]
@@ -67,7 +67,10 @@ hex, raw stored candidate hex, or a bare candidate record (which is framed
 through the kernel). `--json` makes every command print one JSON object.
 Exit status 0 is success. Exit status 1 is a negative outcome: a refused
 candidate, a failing test, or no submission. Exit status 2 is a workbench
-refusal (section 9).
+refusal (section 9). No response prints record, stored or body hex: a
+candidate is its handle, and its bytes stay under `.sley/`. `--raw` on
+`try` and `status` adds the stored candidate hex (`stored:` in text,
+`stored_hex` in JSON).
 
 `try` compiles a frame (a JSON object with `"af1": 1`) or a raw operation
 list (a JSON array), assembles one candidate over the accepted head, and
@@ -287,7 +290,7 @@ JSON-pointer errors and one refusal per frame round; batch streaming;
 name-matched redefinition; every guide example, every JSON example line of
 the `af1` and `tests` help topics, and every value form the `types` topic
 documents (read and rendered back); the `init` ceilings, pinned; `call`
-and `test` leaving the repository byte-identical; and every workbench
+and `test` leaving the repository byte-identical; hex only under `--raw`; and every workbench
 refusal symbol. The candidate-result
 conformance vectors and the `sley-policy` suite pin that the locator channel
 leaves result bytes unchanged.

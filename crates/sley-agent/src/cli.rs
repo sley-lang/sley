@@ -434,10 +434,10 @@ fn read_json_argument(argument: &str) -> Result<Value> {
 
 #[allow(clippy::too_many_lines)]
 fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
-    let words = words(args, &["--public"], &["--no-test", "--all-tests"])?;
+    let words = words(args, &["--public"], &["--no-test", "--all-tests", "--raw"])?;
     let [frame_argument] = words.positional.as_slice() else {
         return Err(usage(
-            "try <frame.json | - | '{\"af1\":1,...}'> [--no-test] [--all-tests] [--public file]",
+            "try <frame.json | - | '{\"af1\":1,...}'> [--no-test] [--all-tests] [--public file] [--raw]",
         ));
     };
     let frame_value = read_json_argument(frame_argument)?;
@@ -522,18 +522,23 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     } else {
         EXIT_NEGATIVE
     };
+    // Bytes only on request (BR-10): the handle names them otherwise.
+    let raw = words
+        .has("--raw")
+        .then(|| crate::hex::encode(&imported.stored_bytes));
     if global.json {
-        write_json(
-            out,
-            &json!({
-                "handle": handle,
-                "ops": {"created": counts.0, "replaced": counts.1, "deleted": counts.2},
-                "verdict": verdict.to_json(),
-                "tests": tests_json(&tests, &after_names),
-                "public": public_json(&public),
-                "notes": compiled.notes,
-            }),
-        )?;
+        let mut value = json!({
+            "handle": handle,
+            "ops": {"created": counts.0, "replaced": counts.1, "deleted": counts.2},
+            "verdict": verdict.to_json(),
+            "tests": tests_json(&tests, &after_names),
+            "public": public_json(&public),
+            "notes": compiled.notes,
+        });
+        if let Some(raw) = &raw {
+            value["stored_hex"] = json!(raw);
+        }
+        write_json(out, &value)?;
     } else {
         let mut text = format!(
             "{handle}: {} (+{} created, {} replaced, {} deleted)\n{}",
@@ -547,6 +552,9 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             let _ = writeln!(text, "  note: {note}");
         }
         text.push_str(&tests_text(&tests, &after_names));
+        if let Some(raw) = &raw {
+            let _ = writeln!(text, "stored: {raw}");
+        }
         if verdict.valid && tests.is_empty() && !words.has("--no-test") {
             // Like a test runner's "running 0 tests": say that none ran.
             text.push_str(
@@ -774,7 +782,7 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
 }
 
 fn status_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
-    let _ = words(args, &[], &[])?;
+    let words = words(args, &[], &["--raw"])?;
     let workspace = workspace(global)?;
     let head = workspace.head()?;
     let map = name_map(&workspace)?;
@@ -824,16 +832,27 @@ fn status_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
         .verdict
         .as_ref()
         .map_or_else(|| "unknown".to_owned(), Verdict::to_text);
+    let raw = if words.has("--raw") {
+        Some(
+            fs::read_to_string(&path)
+                .map_err(|error| io(&path, &error))?
+                .trim()
+                .to_owned(),
+        )
+    } else {
+        None
+    };
     if global.json {
-        write_json(
-            out,
-            &json!({
-                "submission": handle,
-                "verdict": selected.verdict.as_ref().map(Verdict::to_json),
-                "tests": tests_json(&tests, &selected.names),
-                "view": text,
-            }),
-        )?;
+        let mut value = json!({
+            "submission": handle,
+            "verdict": selected.verdict.as_ref().map(Verdict::to_json),
+            "tests": tests_json(&tests, &selected.names),
+            "view": text,
+        });
+        if let Some(raw) = &raw {
+            value["stored_hex"] = json!(raw);
+        }
+        write_json(out, &value)?;
     } else {
         let _ = writeln!(
             text,
@@ -841,6 +860,9 @@ fn status_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
             handle.as_deref().unwrap_or(SUBMISSION)
         );
         text.push_str(&tests_text(&tests, &selected.names));
+        if let Some(raw) = &raw {
+            let _ = writeln!(text, "stored: {raw}");
+        }
         write_text(out, &text)?;
     }
     Ok(if selected.valid {
