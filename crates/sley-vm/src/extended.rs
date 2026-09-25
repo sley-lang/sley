@@ -1570,13 +1570,13 @@ fn compare_data(left: &ConstData, right: &ConstData) -> Result<core::cmp::Orderi
 }
 
 /// Arithmetic failure codes (S20-210 closed set).
-const ARITHMETIC_OVERFLOW: u16 = 1;
+pub(crate) const ARITHMETIC_OVERFLOW: u16 = 1;
 const ARITHMETIC_DIVIDE_BY_ZERO: u16 = 2;
 const ARITHMETIC_INVALID_SHIFT: u16 = 3;
 
 /// One checked-integer outcome: the exact value or the arithmetic code.
 #[derive(Clone, Copy)]
-enum Checked {
+pub(crate) enum Checked {
     Value(i128, u128),
     Failure(u16),
 }
@@ -1608,7 +1608,7 @@ fn fits(signed: bool, bits: u16, signed_value: i128, unsigned_value: u128) -> bo
 }
 
 #[allow(clippy::too_many_lines)] // one arm per checked operation of the contract table
-fn checked_integer(
+pub(crate) fn checked_integer(
     opcode: Opcode,
     signed: bool,
     bits: u16,
@@ -1656,12 +1656,17 @@ fn checked_integer(
                 return overflow;
             }
             if signed {
+                // Checked at the i128 level as well as at the declared width:
+                // an operand outside the width (reachable when a caller has
+                // not judged its inputs, as the package path does not) must
+                // still answer ARITHMETIC_OVERFLOW through `ranged`, never
+                // let `i128::MIN / -1` abort the host.
                 let value = if opcode == Opcode::IntDivChecked {
-                    ls / rs
+                    ls.checked_div(rs)
                 } else {
-                    ls % rs
+                    ls.checked_rem(rs)
                 };
-                Ok(ranged(Some(value), None))
+                Ok(ranged(value, None))
             } else {
                 let value = if opcode == Opcode::IntDivChecked {
                     lu / ru
@@ -1679,7 +1684,7 @@ fn checked_integer(
             if signed_value == signed_bounds(bits).0 {
                 return overflow;
             }
-            Ok(ranged(Some(-signed_value), None))
+            Ok(ranged(signed_value.checked_neg(), None))
         }
         Opcode::IntShlChecked | Opcode::IntShrChecked => {
             let [value, amount] = operands else {
