@@ -283,7 +283,9 @@ contract states. The items are: AV1 size and byte stability; refusal of AV1
 as input; AF1 edits with tests; a failing expectation showing both values;
 the TestCase-limit, orphaned-block, dominance, unresolved-reference and
 mutation-budget locators; repeatable submission; a 300-operation candidate;
-JSON-pointer errors; batch streaming; name-matched redefinition; every
-guide example; and every workbench refusal symbol. The candidate-result
+JSON-pointer errors and one refusal per frame round; batch streaming;
+name-matched redefinition; every guide example, every JSON example line of
+the `af1` and `tests` help topics, and every value form the `types` topic
+documents (read and rendered back); and every workbench refusal symbol. The candidate-result
 conformance vectors and the `sley-policy` suite pin that the locator channel
 leaves result bytes unchanged.

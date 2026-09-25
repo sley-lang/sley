@@ -635,6 +635,121 @@ fn the_guide_is_small_and_every_example_runs() {
     }
 }
 
+/// A workspace holding the guide's first example (without its tests) and
+/// the `stub` the tests topic names, committed.
+fn guide_context(label: &str) -> TempDir {
+    let temp = workspace(label, None);
+    let example = sley_agent::help::GUIDE
+        .split("```json\n")
+        .nth(1)
+        .and_then(|rest| rest.split("```").next())
+        .unwrap();
+    let mut frame: Value = serde_json::from_str(example).unwrap();
+    frame.as_object_mut().unwrap().remove("tests");
+    let stub = json!({"fn": "stub", "params": [], "returns": "i64",
+        "blocks": [{"name": "entry", "ops": [], "term": ["trap", "unreachable"]}]});
+    frame["fns"].as_array_mut().unwrap().push(stub);
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(run(&temp.path, &["commit"]).0, 0);
+    temp
+}
+
+#[test]
+fn every_help_topic_example_runs() {
+    // Every line of a help topic that is a whole JSON object is an example:
+    // it runs as its section's frame key, against the guide's program.
+    let temp = guide_context("help-examples");
+    let mut ran = 0;
+    for (topic, text) in [
+        ("af1", sley_agent::help::AF1),
+        ("tests", sley_agent::help::TESTS),
+    ] {
+        let mut section = topic;
+        for line in text.lines() {
+            if let Some(heading) = line.strip_prefix("## ") {
+                section = heading.split_whitespace().next().unwrap();
+                continue;
+            }
+            let Ok(Value::Object(example)) = serde_json::from_str::<Value>(line.trim()) else {
+                continue;
+            };
+            let key = match section {
+                "types" | "consts" | "tests" => section,
+                other => panic!("help {topic}: an example in section `{other}` has no runner"),
+            };
+            let frame = json!({"af1": 1, key: [Value::Object(example)]});
+            let (status, output) = run(&temp.path, &["try", &frame.to_string()]);
+            assert_eq!(status, 0, "help {topic} example {line}: {output}");
+            if key == "tests" {
+                assert!(output.contains("tests: 1/1 passed"), "{line}: {output}");
+            }
+            ran += 1;
+        }
+    }
+    assert!(ran >= 7, "{ran} examples ran");
+}
+
+#[test]
+fn every_value_form_in_help_types_round_trips() {
+    // Each documented value form, read against its type and rendered back.
+    let doc = sley_agent::help::TYPES;
+    let forms: &[(&str, &str)] = &[
+        ("i64", "5"),
+        ("bool", "true"),
+        ("unit", "null"),
+        ("text", "\"hi\""),
+        ("bytes", "\"0x00ff\""),
+        ("i128", "\"170141183460469231731687303715884105727\""),
+        ("(i64,i64)", "[1,2]"),
+        ("Vec<i64>", "[1,2]"),
+        ("Option<i64>", "\"None\""),
+        ("Option<i64>", "{\"Some\":3}"),
+        ("Result<i64,Shape>", "{\"Ok\":4}"),
+        ("Result<i64,Shape>", "{\"Err\":\"Empty\"}"),
+        ("Shape", "\"Empty\""),
+        ("Shape", "{\"Circle\":5}"),
+        ("Point", "{\"x\":1,\"y\":2}"),
+    ];
+    for needle in [
+        "\"None\" | {\"Some\": v}",
+        "{\"Ok\": v} | {\"Err\": e}",
+        "\"Case\" | {\"Case\": payload}",
+        "{\"field\": v, ...}",
+        "\"0x00ff\"",
+        "\"hi\"",
+        "null",
+        "[a, b]",
+    ] {
+        assert!(
+            doc.contains(needle),
+            "help types no longer documents {needle}"
+        );
+    }
+    let temp = workspace("value-forms", None);
+    let fns: Vec<Value> = forms
+        .iter()
+        .enumerate()
+        .map(|(index, (ty, _))| {
+            json!({"fn": format!("id{index}"), "params": [["x", ty]], "returns": ty,
+                   "blocks": [{"name": "entry", "ops": [], "term": ["return", "x"]}]})
+        })
+        .collect();
+    let frame = json!({"af1": 1, "types": [
+        {"name": "Shape", "variant": ["Empty", ["Circle", "i64"], ["Rect", "(i64,i64)"]]},
+        {"name": "Point", "record": [["x", "i64"], ["y", "i64"]]}], "fns": fns});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    for (index, (ty, value)) in forms.iter().enumerate() {
+        let (status, got) = run(
+            &temp.path,
+            &["call", &format!("id{index}"), value, "--on", "latest"],
+        );
+        assert_eq!(status, 0, "{ty} {value}: {got}");
+        assert_eq!(got.trim(), *value, "{ty}");
+    }
+}
+
 #[test]
 fn help_topics_and_hints_cover_the_common_refusals() {
     for topic in sley_agent::help::TOPICS {
