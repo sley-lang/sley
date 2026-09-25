@@ -814,14 +814,17 @@ pub fn execute_approved_package_v2(
 ///
 /// Checks, per input: count agreement; structural type equality
 /// (`value.value_type == register_type` — never env lookup, trait
-/// computation, or inference); canonical codec form (the existing
+/// computation, or inference); canonical form (the existing
 /// `encode_const_value` framing check, which prevents one semantic map
-/// from carrying two identities — a memory-safety/identity property, not
-/// a language verdict); capped value-unit accumulation; then the
+/// from carrying two identities, plus every integer fitting the width its
+/// own `value_type` declares: memory-safety/identity properties, not a
+/// language verdict); capped value-unit accumulation; then the
 /// codec-plus-hash (`hash_validated_value`, which itself performs no env
-/// judgment). Language-level constant well-formedness and hashability were
-/// judged by the compiler and are bound via the receipt; the host trusts
-/// that binding and verifies only bytes.
+/// judgment). Canonical form runs before unit accumulation so the codec's
+/// depth bound holds before anything recurses over caller data.
+/// Language-level constant well-formedness and hashability were judged by
+/// the compiler and are bound via the receipt; the host trusts that binding
+/// and verifies only bytes.
 fn validate_package_inputs_structural(
     bytecode: &crate::BytecodeFunction,
     request: &ExecutionRequest,
@@ -841,8 +844,8 @@ fn validate_package_inputs_structural(
         if &value.value_type != register {
             return Err(ExecutionError::Exec(ExecutionErrorCode::InputTypeMismatch));
         }
-        value_units = add_input_units(value_units, value_units_const(value))?;
         require_canonical_form(value)?;
+        value_units = add_input_units(value_units, value_units_const(value))?;
         hashes.push(hash_validated_value(schema_epoch, value)?);
     }
     Ok(ValidatedInputs {
@@ -1962,11 +1965,75 @@ fn check_input_shape(
 /// codec could give one semantic map two identities. The VM therefore asks the
 /// codec whether the value is canonical and refuses when it is not, rather
 /// than sorting it or restating the order itself.
+///
+/// The codec carries integer widths raw and never compares data against
+/// them, but a canonical integer has an exact width (`MUTATION_VALUE_CODEC_V1`
+/// canonical rules), so the VM also requires every integer in the value to
+/// carry data of its declared signedness inside its declared width. The
+/// S20-270 and loaded-image callers run `check_constant` first, which
+/// already refuses such a value with `TYPE_CONST_RANGE`; the package path
+/// judges inputs structurally only, and this is where it refuses one. The
+/// walk runs after the codec accepted the value, so its depth is already
+/// bounded.
 fn require_canonical_form(value: &ConstValue) -> Result<(), ExecutionError> {
-    if sley_mutate::encode_const_value(value).is_err() {
+    if sley_mutate::encode_const_value(value).is_err() || !integers_fit_declared_widths(value) {
         return Err(ExecutionError::Exec(ExecutionErrorCode::InputNotCanonical));
     }
     Ok(())
+}
+
+/// Whether every integer inside `value` agrees with its own declared type:
+/// `SInt` data under an epoch-1 `SInt` width it fits, `UInt` data under an
+/// epoch-1 `UInt` width it fits, and no integer data under any other type.
+/// Structural only: each value is compared with its own `value_type`, never
+/// with a definition or an environment.
+fn integers_fit_declared_widths(value: &ConstValue) -> bool {
+    let mut pending = vec![value];
+    while let Some(value) = pending.pop() {
+        let fits = match (&value.value_type, &value.data) {
+            (TypeExpr::SInt(width), ConstData::SInt(number)) => {
+                width.is_epoch_1() && crate::extended::fits(true, width.bits(), *number, 0)
+            }
+            (TypeExpr::UInt(width), ConstData::UInt(number)) => {
+                width.is_epoch_1() && crate::extended::fits(false, width.bits(), 0, *number)
+            }
+            (TypeExpr::SInt(_) | TypeExpr::UInt(_), _)
+            | (_, ConstData::SInt(_) | ConstData::UInt(_)) => false,
+            _ => true,
+        };
+        if !fits {
+            return false;
+        }
+        match &value.data {
+            ConstData::Sequence(values) => pending.extend(values),
+            ConstData::Record(record) => {
+                pending.extend(record.fields.iter().map(|field| &field.value));
+            }
+            ConstData::Variant(variant) => pending.extend(variant.payload.as_deref()),
+            ConstData::Map(entries) => {
+                for entry in entries {
+                    pending.push(&entry.key);
+                    pending.push(&entry.value);
+                }
+            }
+            ConstData::Option(Some(value))
+            | ConstData::Result(ResultConst::Ok(value) | ResultConst::Err(value)) => {
+                pending.push(value);
+            }
+            ConstData::Unit
+            | ConstData::Bool(_)
+            | ConstData::SInt(_)
+            | ConstData::UInt(_)
+            | ConstData::F32Bits(_)
+            | ConstData::F64Bits(_)
+            | ConstData::Bytes(_)
+            | ConstData::Text(_)
+            | ConstData::Option(None)
+            | ConstData::FunctionRef(_)
+            | ConstData::BuiltinFailure(_) => {}
+        }
+    }
+    true
 }
 
 fn enforce_input_count(count: usize) -> Result<(), ExecutionError> {

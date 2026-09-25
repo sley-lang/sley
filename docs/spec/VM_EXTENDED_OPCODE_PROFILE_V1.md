@@ -670,7 +670,19 @@ S20-360 full operation analysis; or GA.
   operation computes in 128 bits and then checks the operand width, so a
   narrower width overflows at its own bounds and width 128 at the native
   ones; the shift amount is `UInt(32)` and a shift of `width` or more is
-  the invalid-shift code before any overflow check.
+  the invalid-shift code before any overflow check. Implementation note
+  (2.0.1, no revision change, no vector change): the width a checked
+  operation uses is the result register's `Result` ok type, every operand
+  must carry exactly the operand type lowering judged (the amount
+  `UInt(32)`), and every operand's data must fit that width. Anything else
+  is a runtime value form no admitted input, constant, or constructed
+  result carries, so the operation faults as `VM_EXEC_INTERNAL_INVARIANT`
+  instead of answering from it. Before this note `int_shr_checked` could
+  return `Ok` with a value outside the width, and `int_div_checked` or
+  `int_rem_checked` an in-width answer from an out-of-width operand, when
+  the package path passed such an input through (`EXEC_PACKAGE_V2.md`,
+  erratum E2, which now refuses it at admission). Every in-width answer
+  is unchanged.
 - E3: `equal` and `not_equal` admit bare `F32` and `F64` operands with IEEE
   meaning (an unordered pair is unequal, the zeros are equal) while a
   float nested in an aggregate stays excluded from equality; every input
