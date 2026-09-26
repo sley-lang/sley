@@ -51,7 +51,7 @@ grant that allows `CreateEntity` and `ReplaceEntityVersion`.
 sley-agent view [name...] [--package] [--after <ref>] [--ids] [--types] [--limits]
 sley-agent find [text] [--kind fn|type|const|test|ns] [--after <ref>]
 sley-agent try <frame|ops> [--no-test] [--all-tests] [--public <cases.json>] [--raw]
-sley-agent submit [<ref>]
+sley-agent submit [<ref>] [--untested]
 sley-agent status [--raw]
 sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats]
 sley-agent test [<ref>] [--public <cases.json>]
@@ -81,12 +81,15 @@ declares, plus the listed public cases. It prints one compact result: the
 handle, the decision or the decoded refusal, and per-test results. A Valid
 candidate that runs no TestCase says so (`tests: 0 ran`), as a test runner
 reports running zero tests, and its `next:` line suggests adding tests
-before submitting. `submit` accepts such a candidate and notes that no
-TestCase targets a function it changes.
+before submitting.
 
 `submit` validates the referenced candidate against the current head again
-and writes `final_candidate.hex` only when it is Valid. Submissions repeat:
-the last Valid submission wins. `status` renders the submission's affected
+and writes `final_candidate.hex` only when it is Valid. A Valid candidate
+that creates, replaces or deletes part of a function while no TestCase in it
+targets a function it changes (the kernel selects none) is refused with
+`AGENT_SUBMISSION_REFUSED`, unless `--untested` is given; such a submission
+then notes that no TestCase targets a function it changes. Submissions
+repeat: the last Valid submission wins. `status` renders the submission's affected
 functions and TestCases in AV1 and runs its selected tests.
 
 `commit` passes the candidate to the transaction engine
@@ -192,13 +195,32 @@ Compilation, in one pass:
    exact live object version for everything else.
 
 Malformed frames are refused with `AGENT_FRAME_INVALID` and a JSON pointer.
-One refusal lists every operation of a function that cannot resolve, and
-then every terminator that cannot, one pointer per line, so a misplaced
-name costs one round rather than one round per use. A name found only in
-another block is reported as that block's parameter (pass it on as an edge
-argument) or result (qualify it as `block.name`); a switch case key that is
-not a case of the scrutinee's type names the expected keys; and an operand
-that is a literal or a nested operation names the fix.
+One refusal lists every problem of every function, patch, edit and test in
+the frame: within a function, every operation that cannot resolve, then
+every terminator that cannot. The first line carries the first problem with
+its pointer and `(1 of N problems)`; each other problem follows on its own
+indented line with its own pointer. A misplaced name therefore costs one
+round rather than one round per use. A name found only in another block is
+reported as that block's parameter (pass it on as an edge argument) or
+result (qualify it as `block.name`); a switch case key that is not a case of
+the scrutinee's type names the expected keys; an operand that is a literal
+or a nested operation names the fix; and a list-wrapped edge argument
+(`["b", ["x"]]`) names the flat form.
+
+The frame compiler also names, at the operation or terminator, the operand
+and edge type errors that lowering would otherwise report only per function
+(`VM_LOWER_SIGNATURE_MISMATCH`, `CFG_TARGET_ARGUMENTS`): an edge whose
+argument count or types differ from the target block's parameters; a
+`Result` or `Option` value given to an arithmetic, float or ordering
+operation (switch on it first); a non-`bool` operand of `not`, `and` or
+`or`; and operands of different types where the operation requires one
+type. These checks refuse only frames the kernel refuses: they apply the
+lowering rules of `sley-vm` to types the frame determines, and when a type
+is not yet known they defer to the kernel. The kernel still validates every
+candidate.
+
+AF1 terminators accept `["br", "b", arg...]` and `["br", ["b", arg...]]`,
+the bracketed target form `cond` and `switch` also accept.
 
 The raw operation path accepts the 2.0.0 trial-tool JSON form for classes
 `CreateEntity`, `ReplaceEntityVersion` and `DeleteEntityBinding` over kinds
@@ -252,7 +274,11 @@ budget. Phase 12 names the TestCase, the limit, the requested value and the
 effective ceiling. For phase 7, the workbench also reports the offending
 block, operation or operand, found by an advisory analysis of that one
 function (dominance, reachability, owner lists, edge arity). That analysis
-runs only after a kernel refusal and only describes it.
+runs only after a kernel refusal and only describes it. After a phase-7
+refusal, `try` also runs the analysis over every function of the proposed
+program and prints each further finding as an `also:` line (`"also"` in
+JSON), so one round discloses every structural problem the analysis sees
+rather than the kernel's first.
 
 ## 9. Workbench refusal symbols
 
@@ -269,7 +295,7 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 | `AGENT_CANDIDATE_INVALID` | the kernel refused to construct or validate the candidate record |
 | `AGENT_INPUT_INVALID` | a call or test input does not fit the declared type |
 | `AGENT_EXECUTION_REFUSED` | the dev loop cannot execute the function or state |
-| `AGENT_SUBMISSION_REFUSED` | the candidate is not Valid, or the transaction engine refused a commit |
+| `AGENT_SUBMISSION_REFUSED` | the candidate is not Valid, changes a function no TestCase in it targets (without `--untested`), or the transaction engine refused a commit |
 | `AGENT_IO_FAILED` | a workspace file could not be read or written |
 
 ## 10. Execution (advisory)
@@ -292,8 +318,12 @@ contract states. The items are: AV1 size and byte stability; refusal of AV1
 as input; AF1 edits with tests; a failing expectation showing both values;
 the TestCase-limit, orphaned-block, dominance, unresolved-reference and
 mutation-budget locators; repeatable submission; a 300-operation candidate;
-JSON-pointer errors and one refusal per frame round; batch streaming;
-name-matched redefinition; every guide example, every JSON example line of
+JSON-pointer errors and one refusal per frame round, across functions,
+with the first pointer in the headline; the edge count, edge type and
+operand type checks; `also:` findings; the untested-submission refusal and
+`--untested`; batch streaming;
+name-matched redefinition; every guide example (fenced frames and the
+inline `br`, `cond` and `switch` terminators), every JSON example line of
 the `af1` and `tests` help topics, and every value form the `types` topic
 documents (read and rendered back); the `init` ceilings, pinned; `call`
 and `test` leaving the repository byte-identical; hex only under `--raw`; and every workbench

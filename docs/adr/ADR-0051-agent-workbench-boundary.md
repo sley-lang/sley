@@ -89,6 +89,16 @@ transport endpoint with no semantics (ADR-0035).
     operations with 5 TestCases (500 ms). A daemon would add lifecycle,
     staleness and cleanup failure modes for no measurable gain. It stays a
     later option if a workload misses the budgets.
+11. **Earlier refusals, never different verdicts.** The frame compiler may
+    refuse a frame before the kernel sees it, but only for a mistake the
+    kernel refuses too, and it names the frame position instead of the
+    kernel's per-function locator. The edge and operand type checks apply
+    `sley-vm`'s lowering rules to the types the frame determines, and they
+    defer to the kernel wherever a type is not yet known, so a frame the
+    kernel accepts is never refused. `submit` refusing a Valid candidate
+    that changes an untested function is workbench policy for the
+    submission file, not a verdict. The kernel's decision is unchanged and
+    printed, and `--untested` submits it.
 
 ## Consequences
 

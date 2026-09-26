@@ -77,9 +77,19 @@ Python, no `uv`, no server. Its contract is
   block's parameter (pass it on as an edge argument) or result (qualify it
   as `block.name`). A switch case key that is not a case of a Result or an
   Option names the expected keys. A literal or nested operation used as an
-  operand names the fix at its exact position. A Valid candidate that runs
-  no TestCase says `tests: 0 ran`. Names may contain a hyphen after the
-  first character.
+  operand names the fix at its exact position. Problems in different
+  functions arrive in the same refusal, whose first line carries the first
+  problem's JSON pointer. Edge argument counts and types, and operands of
+  the wrong type (a `Result` passed to arithmetic, say), are named at the
+  exact terminator or operation rather than per function. After a
+  control-flow refusal, `also:` lines list the other problems the analysis
+  sees. Names may contain a hyphen after the first character.
+- **Tests travel with changes.** A Valid candidate that runs no TestCase
+  says `tests: 0 ran`, and `submit` refuses a candidate that changes a
+  function no test in it targets, unless `--untested` is given.
+- **`br` takes the bracketed target** (`["br", ["join", "x"]]`) that
+  `cond` and `switch` accept, as the guide shows. CI now runs the guide's
+  inline terminator examples as well as its fenced frames.
 
 Response times are well inside the spec budgets (p95 of 30 whole-process
 runs on the build host):
