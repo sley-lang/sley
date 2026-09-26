@@ -25,8 +25,15 @@ sley-tests = { path = "../sley-tests" }
 sley-txn = { path = "../sley-txn" }
 sley-vm = { path = "../sley-vm" }
 
-[lints]
-workspace = true
+# The workspace lints, except that `unsafe_code` is `deny` rather than
+# `forbid`: `src/alloc.rs` alone allows it (ADR-0052).
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
 
 [dev-dependencies]
 sley-policy = { path = "../sley-policy" }

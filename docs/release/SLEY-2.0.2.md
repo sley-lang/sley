@@ -67,8 +67,12 @@ Python, no `uv`, no server. Its contract is
   function is lowered once, and its image is loaded and digest-verified once
   (`sley_vm::VerifiedImage`, additive VM surface). Every input then runs
   against it, so the cost of a call no longer grows with the size of the
-  program. TestCases are compared by the kernel's own value-hash rule.
-  Results are advisory and never committed.
+  program. The `sley-agent` binary also keeps freed memory for reuse
+  (a size-class cache, [ADR-0052](../adr/ADR-0052-agent-binary-allocator.md)),
+  because the static musl build otherwise returns it to the kernel after every
+  input. That module is the workspace's one `unsafe` exception, and the
+  anti-goal scan checks that it stays isolated. TestCases are compared by the
+  kernel's own value-hash rule. Results are advisory and never committed.
 - **`submit`** writes `final_candidate.hex`, and it can be repeated: the last
   Valid submission wins. `status` shows the submission and its tests.
 - **`init`, `commit` and `export`** manage local workspaces. `init` grants

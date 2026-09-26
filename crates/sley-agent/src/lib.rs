@@ -14,6 +14,10 @@
 //! The kernel alone judges candidates. Nothing here is admission evidence;
 //! nothing here commits, signs, or parses Sley source.
 
+// The library has no unsafe code. The binary's allocator is the one exception
+// in the workspace, and it is a module of the binary target (ADR-0052).
+#![forbid(unsafe_code)]
+
 pub mod candidate;
 pub mod catalog;
 pub mod cli;
