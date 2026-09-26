@@ -302,8 +302,10 @@ Symbol-only (numeric `0`, the SMP1 section 8 convention):
 
 `call`, `test`, `try` and `status` project the selected state with
 `project_complete_entities`, build its type environment once, lower each
-function once (`lower_function`, extended profile) and execute every input
-with `execute_loaded_image`. `call` runs under generous fixed ceilings
+function once (`lower_function`, extended profile), load and digest-verify
+its image once (`VerifiedImage::load`) and execute every input with
+`VerifiedImage::execute`, which answers exactly what `execute_loaded_image`
+answers for the same request. `call` runs under generous fixed ceilings
 (`sley_agent::exec::call_limits`). A TestCase runs under its declared fuel.
 Expected and observed results are compared by the kernel's rule: value hashes
 (`hash_validated_value`) or trap codes through

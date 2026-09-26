@@ -599,6 +599,93 @@ pub fn execute_loaded_image(
         .map_err(LoadedExecutionError::Execution)
 }
 
+/// Derived-image bytes structurally loaded once and verified against their
+/// manifest-approved digest, for repeated execution.
+///
+/// Additive to [`execute_loaded_image`], which stays unchanged: one
+/// [`VerifiedImage::load`] followed by any number of
+/// [`VerifiedImage::execute`] calls answers, per request, exactly what
+/// `execute_loaded_image` answers for the same inventories, bytes, approved
+/// binding, and request. Loading (structural parse plus SHA-256 digest
+/// check) depends only on the bytes and the approved digest, so it runs
+/// once; every execution still re-derives the cache key and re-verifies it
+/// and the import set against the inventories it is given, in the same
+/// order and with the same refusals, before validating inputs and running
+/// the same runner.
+#[derive(Clone, Debug)]
+pub struct VerifiedImage {
+    expected: ApprovedImage,
+    lowered: LoweredFunction,
+}
+
+impl VerifiedImage {
+    /// Structurally loads `bytes` and verifies them against the approved
+    /// digest: the first two checks of [`execute_loaded_image`].
+    ///
+    /// # Errors
+    ///
+    /// The structural refusal, or [`ImageError::DigestMismatch`].
+    pub fn load(expected: &ApprovedImage, bytes: &[u8]) -> Result<Self, LoadedExecutionError> {
+        let loaded = load_image(bytes).map_err(LoadedExecutionError::Image)?;
+        if loaded.digest != expected.digest {
+            return Err(LoadedExecutionError::Image(ImageError::DigestMismatch));
+        }
+        // The same load-boundary model `execute_loaded_image` builds per
+        // call. Its cache key is the approved one: `execute` re-derives the
+        // key per request and refuses unless the two are equal, so the
+        // runner and the observation see exactly the key it would.
+        Ok(Self {
+            lowered: LoweredFunction {
+                bytecode: loaded.entry,
+                bytes: bytes.to_vec(),
+                cache_key: expected.cache_key,
+                lowering_work: 0,
+                callees: loaded.callees,
+            },
+            expected: expected.clone(),
+        })
+    }
+
+    /// Executes one request against the loaded image: the remaining checks
+    /// and the run of [`execute_loaded_image`], in its order.
+    ///
+    /// # Errors
+    ///
+    /// The binding mismatch, or the exact preserved failure the lowering
+    /// path would report for the same condition.
+    #[allow(clippy::needless_pass_by_value)]
+    pub fn execute(
+        &self,
+        input: LoadedExecutionInput<'_>,
+        request: ExecutionRequest,
+    ) -> Result<ExecutionOutcome, LoadedExecutionError> {
+        let expected = &self.expected;
+        let lowered = &self.lowered;
+        let source = ExecutionSource::loaded(&input, lowered.bytecode.function);
+        let cache_key = crate::derive_cache_key(
+            source.schema_epoch,
+            source.state_root,
+            source.function,
+            source.profile,
+        )
+        .map_err(|error| LoadedExecutionError::Execution(ExecutionError::Lowering(error.into())))?;
+        if cache_key != expected.cache_key {
+            return Err(LoadedExecutionError::Image(ImageError::BindingMismatch));
+        }
+        let mut supplied: Vec<EntityId> = input.adapters.iter().map(|row| row.entity_id).collect();
+        supplied.sort();
+        let mut approved = expected.imports.clone();
+        approved.sort();
+        if supplied != approved {
+            return Err(LoadedExecutionError::Image(ImageError::BindingMismatch));
+        }
+        let validated_inputs = validate_loaded_inputs(&source, &lowered.bytecode, &request)
+            .map_err(LoadedExecutionError::Execution)?;
+        execute_core(&source, lowered, &validated_inputs, request)
+            .map_err(LoadedExecutionError::Execution)
+    }
+}
+
 /// One approved-package execution failure: the exact structural refusal,
 /// never a new semantic code. Package/binding refusals keep the
 /// `PACKAGE_*` vocabulary; structural image refusals keep `IMAGE_*`;

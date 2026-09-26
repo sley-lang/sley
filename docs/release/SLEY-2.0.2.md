@@ -64,8 +64,11 @@ Python, no `uv`, no server. Its contract is
   `CandidateValidationOutput` (`refusal_locator`). It is never encoded: the
   result record and its digest are unchanged.
 - **`call` and `test`** execute functions and TestCases in process. Each
-  function is lowered once and run on the lowered image. TestCases are compared by the kernel's own value-hash
-  rule. Results are advisory and never committed.
+  function is lowered once, and its image is loaded and digest-verified once
+  (`sley_vm::VerifiedImage`, additive VM surface). Every input then runs
+  against it, so the cost of a call no longer grows with the size of the
+  program. TestCases are compared by the kernel's own value-hash rule.
+  Results are advisory and never committed.
 - **`submit`** writes `final_candidate.hex`, and it can be repeated: the last
   Valid submission wins. `status` shows the submission and its tests.
 - **`init`, `commit` and `export`** manage local workspaces. `init` grants

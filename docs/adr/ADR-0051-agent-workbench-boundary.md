@@ -61,10 +61,20 @@ transport endpoint with no semantics (ADR-0035).
    advisory analysis of the one refused function, which runs only after the
    refusal.
 7. **The dev loop executes through the VM owner.** `call` and `test` lower
-   each function once per program state and run the lowered image with
-   `execute_loaded_image`. TestCase outcomes are compared with the kernel's
-   value-hash and trap-code rule. The protected native-test path (N3 to N5)
-   is untouched.
+   each function once per program state, load and digest-verify its image
+   once as a `sley_vm::VerifiedImage`, and run every input against it.
+   `VerifiedImage` is additive VM surface for this loop: `load` performs the
+   structural load and digest check of `execute_loaded_image`, and `execute`
+   performs its remaining steps in the same order with the same refusals
+   (cache-key and import-set binding on every request, input validation,
+   the same runner). `execute_loaded_image` itself is unchanged, as rw-075
+   preserves it, and a VM test holds the two equal over success, refusal,
+   resource-limit and cancellation requests. Like that path, it is
+   reference-runtime execution only, never admission evidence. Before 2.0.2
+   was minted, the workbench decoded and hashed the whole image again for
+   every input, so the cost per call grew with the program. TestCase
+   outcomes are compared with the kernel's value-hash and trap-code rule.
+   The protected native-test path (N3 to N5) is untouched.
 8. **Local lifecycle.** `init` writes one trusted genesis into an empty
    directory, the local equivalent of `workspace.create`. `commit` goes
    through the transaction engine. Neither can change the judging roots of

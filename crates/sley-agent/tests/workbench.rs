@@ -1438,3 +1438,45 @@ fn one_refusal_covers_every_function_of_the_frame() {
         "{text}"
     );
 }
+
+#[test]
+fn functions_that_call_functions_run_from_one_loaded_image() {
+    // The executor loads each image once and runs every input against it;
+    // an entry with callees must answer as if each call loaded it afresh.
+    let temp = workspace("callees", None);
+    let frame = json!({"af1": 1, "fns": [
+        {"fn": "double", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+         "blocks": [{"name": "entry", "ops": [["r", "add", "a", "a"]], "term": ["return", "r"]}]},
+        {"fn": "quad", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>", "blocks": [
+            {"name": "entry", "ops": [["d", "call", "double", "a"]], "term": ["switch", "d", ["Ok", "again", "$"], ["Err", "bad", "$"]]},
+            {"name": "again", "params": [["h", "i64"]], "ops": [["q", "call", "double", "h"]], "term": ["return", "q"]},
+            {"name": "bad", "params": [["e", "ArithmeticError"]], "ops": [["r", "err", "e"]], "term": ["return", "r"]}]}],
+        "tests": [{"fn": "quad", "args": [3], "expect": {"Ok": 12}},
+                  {"fn": "quad", "args": [4_611_686_018_427_387_904_i64], "expect": {"Err": "Overflow"}}]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("tests: 2/2 passed"), "{text}");
+    let batch = temp.path.join("batch.txt");
+    fs::write(&batch, "[1]\n[-5]\n[2305843009213693952]\n[0]\n").unwrap();
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "call",
+            "quad",
+            "--batch",
+            batch.to_str().unwrap(),
+            "--on",
+            "c1",
+        ],
+    );
+    assert_eq!(status, 0, "{text}");
+    assert_eq!(
+        text.lines().collect::<Vec<_>>(),
+        [
+            "{\"Ok\":4}",
+            "{\"Ok\":-20}",
+            "{\"Err\":{\"ArithmeticError\":\"Overflow\"}}",
+            "{\"Ok\":0}"
+        ]
+    );
+}

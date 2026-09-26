@@ -1,8 +1,9 @@
 //! The advisory dev loop: in-process execution through `sley_vm`.
 //!
-//! Each function is lowered once per program state and every input runs
-//! against the lowered image (`execute_loaded_image`), so a batch pays for
-//! lowering once. `TestCases` are compared with the kernel's own rule: value
+//! Each function is lowered once per program state, its image is loaded and
+//! digest-verified once (`VerifiedImage`), and every input runs against that
+//! loaded image, so a batch pays for lowering and image decoding once.
+//! `TestCases` are compared with the kernel's own rule: value
 //! hashes (`hash_validated_value`) or trap codes, through
 //! `sley_tests::compare_expected_evidence`. Results are advisory: never
 //! admission evidence, never signed, never committed.
@@ -19,7 +20,7 @@ use sley_tests::{ExpectedEvidence, RestrictedComparison, compare_expected_eviden
 use sley_vm::host_abi::image_digest;
 use sley_vm::{
     ApprovedImage, CacheProfile, ExecutionLimits, ExecutionRequest, ExecutionTermination,
-    LoadedExecutionInput, LoweringInput, lower_function,
+    LoadedExecutionInput, LoweringInput, VerifiedImage, lower_function,
 };
 
 use crate::error::{AgentError, AgentErrorCode, Result};
@@ -49,8 +50,7 @@ pub const fn call_limits() -> ExecutionLimits {
 }
 
 struct Lowered {
-    bytes: Vec<u8>,
-    approved: ApprovedImage,
+    image: VerifiedImage,
 }
 
 /// One execution result.
@@ -178,13 +178,9 @@ impl Executor {
                 .map(|row| row.entity_id)
                 .collect(),
         };
-        self.lowered.insert(
-            *id,
-            Lowered {
-                bytes: lowered.bytes,
-                approved,
-            },
-        );
+        let image = VerifiedImage::load(&approved, &lowered.bytes)
+            .map_err(|error| refused(format!("execution refused: {error}")))?;
+        self.lowered.insert(*id, Lowered { image });
         Ok(())
     }
 
@@ -213,13 +209,10 @@ impl Executor {
             profile: CacheProfile::EXTENDED_V1,
         };
         let started = Instant::now();
-        let outcome = sley_vm::execute_loaded_image(
-            input,
-            &lowered.approved,
-            &lowered.bytes,
-            ExecutionRequest { inputs, limits },
-        )
-        .map_err(|error| refused(format!("execution refused: {error}")))?;
+        let outcome = lowered
+            .image
+            .execute(input, ExecutionRequest { inputs, limits })
+            .map_err(|error| refused(format!("execution refused: {error}")))?;
         let micros = u64::try_from(started.elapsed().as_micros()).unwrap_or(u64::MAX);
         Ok(Outcome {
             termination: outcome.termination,
