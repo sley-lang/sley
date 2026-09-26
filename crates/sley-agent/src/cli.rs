@@ -8,6 +8,7 @@ use std::fmt::Write as _;
 use std::fs;
 use std::io::{Read as _, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde_json::{Value, json};
 use sley_id::EntityId;
@@ -36,6 +37,24 @@ pub const EXIT_REFUSED: i32 = 2;
 struct Global {
     workspace: Option<PathBuf>,
     json: bool,
+}
+
+/// Set when the process exits as soon as the command returns.
+static EXITING: AtomicBool = AtomicBool::new(false);
+
+/// `run` for a process that exits with the returned status right away (the
+/// binary): a command may then leave its in-memory state to the exit
+/// instead of freeing it piece by piece. Output and status are `run`'s.
+pub fn run_then_exit(args: &[String], out: &mut dyn Write) -> i32 {
+    EXITING.store(true, Ordering::Relaxed);
+    run(args, out)
+}
+
+/// Frees command state, or leaves it to the imminent process exit.
+fn release<T>(state: T) {
+    if EXITING.load(Ordering::Relaxed) {
+        std::mem::forget(state);
+    }
 }
 
 /// Runs one command line and returns the exit status.
@@ -208,12 +227,12 @@ fn select(
     let stored = store.load(&reference)?;
     let authority = Authority::of(head)?;
     let output = candidate::validate(head, &authority, &stored)?;
-    let candidate = sley_mutate::import_candidate(&stored).ok();
+    // Only a refused candidate needs its own import (for the pure apply).
     let program = candidate::proposed_program(head, &output)
         .or_else(|| {
-            candidate
-                .as_ref()
-                .and_then(|c| candidate::applied_program(head, c))
+            sley_mutate::import_candidate(&stored)
+                .ok()
+                .and_then(|c| candidate::applied_program(head, &c))
         })
         .unwrap_or_else(|| head.program().clone());
     let names = Names::build(&program, map);
@@ -1068,7 +1087,7 @@ fn call_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
         ));
     }
     if let Some(batch) = words.value("--batch") {
-        return call_batch(
+        let status = call_batch(
             &mut executor,
             &selected,
             &function,
@@ -1076,6 +1095,8 @@ fn call_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
             words.has("--stats"),
             out,
         );
+        release((executor, selected, map, head));
+        return status;
     }
     let parsed: Vec<Value> = raw_args
         .iter()
@@ -1113,6 +1134,7 @@ fn call_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
             ),
         )?;
     }
+    release((executor, selected, map, head));
     Ok(EXIT_OK)
 }
 
@@ -1188,6 +1210,7 @@ fn call_batch(
         buffer.push('\n');
     }
     write_text(out, &buffer)?;
+    release((buffer, rows, text));
     Ok(EXIT_OK)
 }
 

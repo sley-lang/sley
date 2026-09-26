@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use sley_id::{EntityId, SchemaEpochId, StateRoot, TransactionId, WorkspaceId};
 use sley_mutate::EntityObject;
@@ -164,22 +165,21 @@ pub fn epoch() -> Result<SchemaEpochId> {
 }
 
 /// The accepted head plus its program view.
+///
+/// The program view copies every live object, so it is built on first use:
+/// a command that only validates or runs a candidate never needs it.
 #[derive(Clone, Debug)]
 pub struct Head {
     head: AcceptedHead,
-    program: Program,
+    program: OnceLock<Program>,
 }
 
 impl Head {
-    fn new(head: AcceptedHead) -> Self {
-        let state = head.state_root();
-        let program = Program::new(
-            state.record.schema_epoch_id,
-            state.root,
-            state.record.workspace_id,
-            head.objects().to_vec(),
-        );
-        Self { head, program }
+    const fn new(head: AcceptedHead) -> Self {
+        Self {
+            head,
+            program: OnceLock::new(),
+        }
     }
 
     /// Returns the accepted transaction.
@@ -212,10 +212,31 @@ impl Head {
         self.head.tombstoned_entities()
     }
 
-    /// Returns the accepted program view.
+    /// Returns the schema epoch of the accepted state (the program view's).
     #[must_use]
-    pub const fn program(&self) -> &Program {
-        &self.program
+    pub const fn epoch(&self) -> SchemaEpochId {
+        self.head.state_root().record.schema_epoch_id
+    }
+
+    /// Returns the workspace identity of the accepted state (the program
+    /// view's).
+    #[must_use]
+    pub const fn workspace(&self) -> WorkspaceId {
+        self.head.state_root().record.workspace_id
+    }
+
+    /// Returns the accepted program view, building it on first use.
+    #[must_use]
+    pub fn program(&self) -> &Program {
+        self.program.get_or_init(|| {
+            let state = self.head.state_root();
+            Program::new(
+                state.record.schema_epoch_id,
+                state.root,
+                state.record.workspace_id,
+                self.head.objects().to_vec(),
+            )
+        })
     }
 }
 

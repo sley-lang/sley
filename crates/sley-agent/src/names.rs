@@ -183,12 +183,19 @@ pub const fn kind_name(kind: u16) -> &'static str {
     }
 }
 
+/// One named entity: its qualified name, leaf name, and scope (always set
+/// together).
+#[derive(Clone, Debug)]
+struct Named {
+    qualified: String,
+    leaf: String,
+    scope: Scope,
+}
+
 /// The resolved naming of one program state.
 #[derive(Clone, Debug, Default)]
 pub struct Names {
-    qualified: BTreeMap<EntityId, String>,
-    leaf: BTreeMap<EntityId, String>,
-    scope: BTreeMap<EntityId, Scope>,
+    named: BTreeMap<EntityId, Named>,
     by_name: BTreeMap<String, EntityId>,
     members: BTreeMap<(EntityId, MemberId), String>,
     member_by_name: BTreeMap<String, (EntityId, MemberId)>,
@@ -239,8 +246,7 @@ impl Names {
         for kind in [7, 6, 8] {
             for object in program.objects() {
                 let record = object.record();
-                if record.body.kind_tag() != kind || names.qualified.contains_key(&record.entity_id)
-                {
+                if record.body.kind_tag() != kind || names.named.contains_key(&record.entity_id) {
                     continue;
                 }
                 names.name_orphan(program, map, record.entity_id);
@@ -274,9 +280,14 @@ impl Names {
 
     fn set(&mut self, id: EntityId, qualified: String, leaf: String, scope: Scope) {
         self.by_name.insert(qualified.clone(), id);
-        self.qualified.insert(id, qualified);
-        self.leaf.insert(id, leaf);
-        self.scope.insert(id, scope);
+        self.named.insert(
+            id,
+            Named {
+                qualified,
+                leaf,
+                scope,
+            },
+        );
     }
 
     fn name_function(
@@ -287,23 +298,23 @@ impl Names {
         function: &sley_mutate::value::FunctionBody,
     ) {
         let function_name = self.name(&function_id);
-        let pick = |id: &EntityId, fallback: String| -> String {
+        let pick = |id: &EntityId, fallback: &dyn Fn() -> String| -> String {
             program
                 .object(id)
-                .and_then(|object| object.record().label.clone())
+                .and_then(|object| object.record().label.as_deref())
                 .filter(|label| is_identifier(label))
-                .or_else(|| map.get(id.as_bytes()).map(str::to_owned))
-                .unwrap_or(fallback)
+                .or_else(|| map.get(id.as_bytes()))
+                .map_or_else(fallback, str::to_owned)
         };
         let mut params = BTreeSet::new();
         for (position, param) in function.parameters.iter().enumerate() {
-            if self.qualified.contains_key(param) || !program.contains(param) {
+            if self.named.contains_key(param) || !program.contains(param) {
                 continue;
             }
-            let leaf = unique(
-                &pick(param, format!("p{position}")),
+            let leaf = unique_among(
+                pick(param, &|| format!("p{position}")),
                 param.as_bytes(),
-                &params,
+                |name| params.contains(name),
             );
             params.insert(leaf.clone());
             self.set(
@@ -315,17 +326,20 @@ impl Names {
         }
         let mut blocks = BTreeSet::new();
         for (position, block) in function.blocks.iter().enumerate() {
-            if self.qualified.contains_key(block) || !program.contains(block) {
+            if self.named.contains_key(block) || !program.contains(block) {
                 continue;
             }
-            let fallback = if *block == function.entry_block {
-                "entry".to_owned()
-            } else {
-                format!("b{position}")
+            let fallback = || {
+                if *block == function.entry_block {
+                    "entry".to_owned()
+                } else {
+                    format!("b{position}")
+                }
             };
             // Blocks share the function's scope with its parameters (`f.x`).
-            let taken: BTreeSet<String> = blocks.union(&params).cloned().collect();
-            let leaf = unique(&pick(block, fallback), block.as_bytes(), &taken);
+            let leaf = unique_among(pick(block, &fallback), block.as_bytes(), |name| {
+                blocks.contains(name) || params.contains(name)
+            });
             blocks.insert(leaf.clone());
             let block_name = format!("{function_name}.{leaf}");
             self.set(
@@ -337,15 +351,18 @@ impl Names {
             if let Some(EntityBodyValue::Block(body)) = program.body(block) {
                 // Block-local values share one namespace, and never shadow a
                 // function parameter (the renderer prints both unqualified).
-                let mut values = params.clone();
+                let mut values = BTreeSet::new();
+                let taken = |values: &BTreeSet<String>, name: &str| {
+                    values.contains(name) || params.contains(name)
+                };
                 for (position, param) in body.parameters.iter().enumerate() {
-                    if self.qualified.contains_key(param) || !program.contains(param) {
+                    if self.named.contains_key(param) || !program.contains(param) {
                         continue;
                     }
-                    let leaf = unique(
-                        &pick(param, format!("v{position}")),
+                    let leaf = unique_among(
+                        pick(param, &|| format!("v{position}")),
                         param.as_bytes(),
-                        &values,
+                        |name| taken(&values, name),
                     );
                     values.insert(leaf.clone());
                     self.set(
@@ -356,13 +373,13 @@ impl Names {
                     );
                 }
                 for (position, operation) in body.operations.iter().enumerate() {
-                    if self.qualified.contains_key(operation) || !program.contains(operation) {
+                    if self.named.contains_key(operation) || !program.contains(operation) {
                         continue;
                     }
-                    let leaf = unique(
-                        &pick(operation, format!("op{position}")),
+                    let leaf = unique_among(
+                        pick(operation, &|| format!("op{position}")),
                         operation.as_bytes(),
-                        &values,
+                        |name| taken(&values, name),
                     );
                     values.insert(leaf.clone());
                     self.set(
@@ -404,14 +421,14 @@ impl Names {
             .or_else(|| map.get(id.as_bytes()).map(str::to_owned))
             .unwrap_or_else(|| format!("{}_{}", kind_prefix(kind), hex::short(id.as_bytes())));
         let prefix: Option<String> = owner
-            .filter(|owner: &EntityId| self.qualified.contains_key(owner))
+            .filter(|owner: &EntityId| self.named.contains_key(owner))
             .map(|owner| self.name(&owner));
         let mut qualified =
             prefix.map_or_else(|| leaf.clone(), |prefix| format!("{prefix}.{leaf}"));
         if self.by_name.contains_key(&qualified) {
             qualified = format!("{qualified}_{}", hex::encode(&id.as_bytes()[..2]));
         }
-        let scope = if prefix_known(&scope, &self.qualified) {
+        let scope = if prefix_known(&scope, &self.named) {
             scope
         } else {
             Scope::Top
@@ -422,25 +439,25 @@ impl Names {
     /// The qualified name of an entity (a positional name when unnamed).
     #[must_use]
     pub fn name(&self, id: &EntityId) -> String {
-        self.qualified
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| format!("#{}", hex::short(id.as_bytes())))
+        self.named.get(id).map_or_else(
+            || format!("#{}", hex::short(id.as_bytes())),
+            |named| named.qualified.clone(),
+        )
     }
 
     /// The leaf (unqualified) name of an entity.
     #[must_use]
     pub fn leaf(&self, id: &EntityId) -> String {
-        self.leaf
-            .get(id)
-            .cloned()
-            .unwrap_or_else(|| format!("#{}", hex::short(id.as_bytes())))
+        self.named.get(id).map_or_else(
+            || format!("#{}", hex::short(id.as_bytes())),
+            |named| named.leaf.clone(),
+        )
     }
 
     /// The scope an entity was named in.
     #[must_use]
     pub fn scope(&self, id: &EntityId) -> Scope {
-        self.scope.get(id).copied().unwrap_or(Scope::Top)
+        self.named.get(id).map_or(Scope::Top, |named| named.scope)
     }
 
     /// Renders a member as `Type.Member`.
@@ -504,14 +521,14 @@ impl Names {
         }
         if let Some(bytes) = hex::decode32(name) {
             let id = EntityId::from_bytes(bytes);
-            return self.qualified.contains_key(&id).then_some(id);
+            return self.named.contains_key(&id).then_some(id);
         }
         let prefix = name.strip_prefix('#')?;
         if prefix.len() < 8 {
             return None;
         }
         let mut found = self
-            .qualified
+            .named
             .keys()
             .filter(|id| hex::encode(id.as_bytes()).starts_with(prefix));
         let first = found.next()?;
@@ -536,7 +553,7 @@ impl Names {
             Scope::Block(block) if Some(&block) != current => {
                 format!("{}.{}", self.leaf(&block), self.leaf(&id))
             }
-            Scope::Top if !self.leaf.contains_key(&id) => {
+            Scope::Top if !self.named.contains_key(&id) => {
                 format!("#{}", hex::short(id.as_bytes()))
             }
             _ => self.leaf(&id),
@@ -548,20 +565,25 @@ impl Names {
     }
 }
 
-fn prefix_known(scope: &Scope, qualified: &BTreeMap<EntityId, String>) -> bool {
+fn prefix_known(scope: &Scope, named: &BTreeMap<EntityId, Named>) -> bool {
     match scope {
         Scope::Top => true,
-        Scope::Function(owner) | Scope::Block(owner) => qualified.contains_key(owner),
+        Scope::Function(owner) | Scope::Block(owner) => named.contains_key(owner),
     }
 }
 
 fn unique(base: &str, id: &[u8; 32], taken: &BTreeSet<String>) -> String {
-    if !taken.contains(base) {
-        return base.to_owned();
+    unique_among(base.to_owned(), id, |name| taken.contains(name))
+}
+
+/// `unique` over any taken-name predicate, keeping `base` when it is free.
+fn unique_among(base: String, id: &[u8; 32], taken: impl Fn(&str) -> bool) -> String {
+    if !taken(&base) {
+        return base;
     }
     for width in [2, 4, 32] {
         let candidate = format!("{base}_{}", hex::encode(&id[..width]));
-        if !taken.contains(&candidate) {
+        if !taken(&candidate) {
             return candidate;
         }
     }

@@ -247,9 +247,9 @@ pub fn validate(
 pub fn proposed_program(head: &Head, output: &CandidateValidationOutput) -> Option<Program> {
     let plan = output.validated_plan()?;
     Some(Program::new(
-        head.program().epoch(),
+        head.epoch(),
         plan.candidate_root().root,
-        head.program().workspace(),
+        head.workspace(),
         plan.proposed_state().entities().to_vec(),
     ))
 }
@@ -266,9 +266,9 @@ pub fn applied_program(head: &Head, candidate: &ImportedCandidate) -> Option<Pro
     )
     .ok()?;
     Some(Program::new(
-        head.program().epoch(),
-        head.program().root(),
-        head.program().workspace(),
+        head.epoch(),
+        head.state_root().root,
+        head.workspace(),
         proposed.entities().to_vec(),
     ))
 }
