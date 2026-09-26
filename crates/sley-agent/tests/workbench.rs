@@ -328,13 +328,19 @@ fn one_refusal_lists_every_misplaced_name_and_case_key() {
         &["try", &frame(json!(["Ok", "done", "$"])).to_string()],
     );
     assert_eq!(status, 2, "{text}");
-    assert!(text.contains("2 problems:"), "{text}");
+    // The headline carries the first problem's pointer, so a reader of the
+    // first line alone can still locate it.
+    let headline = text.lines().next().unwrap();
     assert!(
-        text.contains("/fns/0/blocks/2/ops/0: `sub` is a parameter of block `mid`"),
+        headline.starts_with(
+            "error AGENT_FRAME_INVALID: /fns/0/blocks/2/ops/0: `sub` is a parameter of block `mid`"
+        ),
         "{text}"
     );
+    assert!(headline.ends_with("(1 of 2 problems)"), "{text}");
+    // Each further problem is one indented line with its own pointer.
     assert!(
-        text.contains("/fns/0/blocks/3/ops/0: `sub` is a parameter of block `mid`"),
+        text.contains("\n  /fns/0/blocks/3/ops/0: `sub` is a parameter of block `mid`"),
         "{text}"
     );
     // A Result case written without its key names the expected keys.
@@ -502,7 +508,7 @@ fn submit_is_repeatable_and_status_matches_the_file() {
     let first = fs::read_to_string(temp.path.join("final_candidate.hex")).unwrap();
     let other = json!({"af1": 1, "edit": [{"fn": "bound", "replace_op": "above.r", "with": ["ok", "high"]}]});
     assert_eq!(run(&temp.path, &["try", &other.to_string()]).0, 0);
-    assert_eq!(run(&temp.path, &["submit", "c3"]).0, 0);
+    assert_eq!(run(&temp.path, &["submit", "c3", "--untested"]).0, 0);
     let second = fs::read_to_string(temp.path.join("final_candidate.hex")).unwrap();
     assert_ne!(first, second, "the last submission wins");
     let (status, text) = run(&temp.path, &["status"]);
@@ -610,11 +616,20 @@ fn full_redefinition_reuses_names_and_deletes_the_rest() {
     assert!(text.contains("tests: 0 ran"), "{text}");
     assert!(
         text.contains(
-            "next: add AF1 \"tests\" for what c3 changes and try again, or sley-agent submit c3"
+            "next: add AF1 \"tests\" for what c3 changes and try again (submit refuses an untested change; --untested overrides)"
         ),
         "{text}"
     );
     let (status, text) = run(&temp.path, &["submit", "c3"]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains(
+            "AGENT_SUBMISSION_REFUSED: c3 changes functions but no TestCase in it targets them"
+        ),
+        "{text}"
+    );
+    assert!(!temp.path.join("final_candidate.hex").exists());
+    let (status, text) = run(&temp.path, &["submit", "c3", "--untested"]);
     assert_eq!(status, 0, "{text}");
     assert!(
         text.contains("note: no TestCase in c3 targets a function it changes"),
@@ -999,7 +1014,19 @@ fn explain_never_blames_unrelated_code() {
     let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
     assert_eq!(status, 1, "{text}");
     assert!(text.contains("symbol: CFG_RETURN_TYPE"), "{text}");
-    assert!(!text.contains("dominat"), "{text}");
+    // The dominance problem is real, but it is listed under `also:`, never
+    // as the refusal's own `where` or hint.
+    let own: String = text
+        .lines()
+        .filter(|line| !line.trim_start().starts_with("also:"))
+        .collect();
+    assert!(!own.contains("dominat"), "{text}");
+    assert!(
+        text.contains("  also: the terminator of bad.j uses `l.m` defined in block bad.l"),
+        "{text}"
+    );
+    let (_, result) = run_json(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(result["also"].as_array().map(Vec::len), Some(1), "{result}");
 }
 
 #[test]
@@ -1282,5 +1309,132 @@ fn workbench_refusal_symbols_are_emitted() {
     assert_eq!(
         sley_agent::AgentErrorCode::WorkspaceNotFound.symbol(),
         "AGENT_WORKSPACE_NOT_FOUND"
+    );
+}
+
+#[test]
+fn the_guides_inline_edge_examples_compile_and_run() {
+    // Every inline terminator example in the guide runs in one program, so
+    // the guide and the frame compiler cannot drift apart. (An earlier
+    // guide taught `["br", ["join", "x"]]`, which was refused.)
+    let guide = sley_agent::help::GUIDE;
+    let mut examples = Vec::new();
+    for prefix in ["`[\"br\"", "`[\"cond\"", "`[\"switch\""] {
+        for (start, _) in guide.match_indices(prefix) {
+            let rest = &guide[start + 1..];
+            let snippet = &rest[..rest.find('`').unwrap()];
+            // The guide elides the switch's other cases.
+            let snippet = snippet.replace(", ...]", ", [\"Err\", \"bad\", \"$\"]]");
+            examples.push(serde_json::from_str::<Value>(&snippet).unwrap());
+        }
+    }
+    let term = |op: &str| {
+        let found: Vec<&Value> = examples.iter().filter(|example| example[0] == op).collect();
+        assert_eq!(found.len(), 1, "one inline `{op}` example in the guide");
+        found[0].clone()
+    };
+    let frame = json!({"af1": 1, "fns": [{"fn": "edges", "params": [["x", "i64"], ["c", "bool"]],
+        "returns": "Result<i64,ArithmeticError>", "blocks": [
+        {"name": "entry", "ops": [], "term": term("cond")},
+        {"name": "t", "params": [["y", "i64"]], "ops": [["v", "add", "y", "y"]], "term": term("switch")},
+        {"name": "next", "params": [["s", "i64"], ["z", "i64"]], "ops": [["r", "ok", "s"]], "term": ["return", "r"]},
+        {"name": "f", "ops": [], "term": term("br")},
+        {"name": "join", "params": [["j", "i64"]], "ops": [["r", "ok", "j"]], "term": ["return", "r"]},
+        {"name": "bad", "params": [["e", "ArithmeticError"]], "ops": [["r", "err", "e"]], "term": ["return", "r"]}]}],
+        "tests": [{"fn": "edges", "args": [3, true], "expect": {"Ok": 6}},
+                  {"fn": "edges", "args": [3, false], "expect": {"Ok": 3}}]});
+    let temp = workspace("guide-edges", None);
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("tests: 2/2 passed"), "{text}");
+}
+
+/// A function whose entry block ends in `term`, over `join(j: i64)`.
+fn edge_frame(term: &Value) -> Value {
+    json!({"af1": 1, "fns": [{"fn": "g", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+        "blocks": [
+        {"name": "entry", "ops": [["d", "add", "a", "a"]], "term": term},
+        {"name": "join", "params": [["j", "i64"]], "ops": [["r", "ok", "j"]], "term": ["return", "r"]}]}]})
+}
+
+#[test]
+fn edge_mistakes_name_the_block_and_the_fix() {
+    let temp = workspace("edges", None);
+    for term in [json!(["br", "join", "a"]), json!(["br", ["join", "a"]])] {
+        let (status, text) = run(&temp.path, &["try", &edge_frame(&term).to_string()]);
+        assert_eq!(status, 0, "{term}: {text}");
+    }
+    for (term, message) in [
+        (
+            json!(["br", "join", ["a"]]),
+            "/fns/0/blocks/0/term: edge arguments are value names: write [\"join\", \"x\", \"y\"], not [\"join\", [\"x\", \"y\"]]",
+        ),
+        (
+            json!(["br", "join"]),
+            "/fns/0/blocks/0/term: block `join` takes 1 argument(s) (j: i64); this edge passes 0",
+        ),
+        (
+            json!(["br", ["join", "d"]]),
+            "/fns/0/blocks/0/term: `d` is Result<i64,ArithmeticError> but parameter `j` of block `join` is i64; switch on it and pass the case's `$`",
+        ),
+    ] {
+        let (status, text) = run(&temp.path, &["try", &edge_frame(&term).to_string()]);
+        assert_eq!(status, 2, "{term}: {text}");
+        assert!(text.contains(message), "{term}: {text}");
+    }
+}
+
+#[test]
+fn operand_type_mistakes_are_named_at_the_operation() {
+    let temp = workspace("operands", None);
+    let frame = |ops: Value| {
+        json!({"af1": 1, "fns": [{"fn": "g", "params": [["a", "i64"], ["flag", "bool"]],
+            "returns": "bool", "blocks": [{"name": "entry", "ops": ops, "term": ["return", "flag"]}]}]})
+    };
+    for (ops, message) in [
+        (
+            json!([["d", "add", "a", "a"], ["e", "add", "d", "a"]]),
+            "/fns/0/blocks/0/ops/1: `d` is a Result<i64,ArithmeticError>, not a value `add` can use: switch on it first",
+        ),
+        (
+            json!([["c", "lt", "a", "flag"]]),
+            "/fns/0/blocks/0/ops/0: the operands of `lt` must have one type: `a` is i64, `flag` is bool",
+        ),
+        (
+            json!([["c", "and", "flag", "a"]]),
+            "/fns/0/blocks/0/ops/0: `and` takes bool operands; `a` is i64",
+        ),
+    ] {
+        let (status, text) = run(&temp.path, &["try", &frame(ops.clone()).to_string()]);
+        assert_eq!(status, 2, "{ops}: {text}");
+        assert!(text.contains(message), "{ops}: {text}");
+    }
+}
+
+#[test]
+fn one_refusal_covers_every_function_of_the_frame() {
+    // Problems in different functions arrive in one refusal; the headline
+    // carries the first pointer, so its first line alone locates it.
+    let temp = workspace("every-fn", None);
+    let function = |name: &str| {
+        json!({"fn": name, "params": [["a", "i64"]], "returns": "bool", "blocks": [
+            {"name": "entry", "ops": [["d", "add", "a", "a"], ["c", "lt", "d", "a"]], "term": ["return", "c"]}]})
+    };
+    let frame = json!({"af1": 1, "fns": [function("f"), function("g")]});
+    let (status, text) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    let mut lines = text.lines();
+    let headline = lines.next().unwrap();
+    assert!(
+        headline.starts_with("error AGENT_FRAME_INVALID: /fns/0/blocks/0/ops/1: `d` is a Result"),
+        "{text}"
+    );
+    assert!(headline.ends_with("(1 of 2 problems)"), "{text}");
+    assert!(
+        lines
+            .next()
+            .unwrap()
+            .starts_with("  /fns/1/blocks/0/ops/1: `d` is a Result"),
+        "{text}"
     );
 }

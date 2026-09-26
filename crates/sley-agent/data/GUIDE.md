@@ -110,8 +110,10 @@ Tests are TestCase entities: `{"fn", "args", "expect"}` plus an optional
 or `{"trap": "unreachable"}`. Resource limits default to the policy grant.
 Every `try` runs the tests its candidate touches and shows the expected and
 actual values for any test that fails. Put the tests for a change in the
-same frame as the change: they are part of the candidate you submit, and a
-Valid candidate that runs none says `tests: 0 ran`.
+same frame as the change: they are part of the candidate you submit. A
+Valid candidate that runs none says `tests: 0 ran`, and `submit` refuses a
+candidate that changes a function no test in it targets (`--untested`
+overrides).
 
 ## Refusals
 
@@ -123,5 +125,9 @@ it applies, and a hint:
       where: Function f: operand 0 of f.join.r uses `left.m` defined in block f.left, ...
       hint: A value is used in a block its definition does not dominate. ...
 
-Fix what `where` names and run `try` again. For the full list, run
+Fix what `where` names and run `try` again. `also:` lines name further
+problems the kernel's first refusal did not reach. A malformed frame is
+refused before the kernel with every problem at once: the first line names
+the first problem's JSON pointer (`/fns/0/blocks/2/ops/1`), and each other
+problem follows on its own line. For the full list, run
 `sley-agent help refusals`.

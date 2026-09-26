@@ -71,8 +71,9 @@ block b, which must dominate the use), `x#1` (result 1 of x).
 ## terminators
 
     ["return", v]
-    ["br", target, arg...]
-    ["cond", c, target, target]          target: "b" or ["b", arg...]
+    ["br", target]                       target: "b" or ["b", arg...]
+    ["br", "b", arg...]                  the same edge, written flat
+    ["cond", c, target, target]
     ["switch", v, [key, block, arg...], ...]
     ["trap"] / ["trap", "unreachable"]
 

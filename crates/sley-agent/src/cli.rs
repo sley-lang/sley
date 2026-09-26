@@ -332,6 +332,26 @@ fn affected(
     Ok(out)
 }
 
+/// Whether a candidate creates, replaces or deletes any part of a function.
+fn changes_a_function(
+    head: &Head,
+    output: &sley_policy::CandidateValidationOutput,
+    stored: &[u8],
+) -> bool {
+    let Ok(candidate) = sley_mutate::import_candidate(stored) else {
+        return false;
+    };
+    let after = candidate::proposed_program(head, output);
+    candidate.record.operations.iter().any(|operation| {
+        let target = operation.target_entity;
+        after
+            .as_ref()
+            .and_then(|program| owner_function(program, &Names::default(), &target))
+            .or_else(|| owner_function(head.program(), &Names::default(), &target))
+            .is_some()
+    })
+}
+
 fn owner_function(program: &Program, names: &Names, id: &EntityId) -> Option<EntityId> {
     use sley_mutate::value::EntityBodyValue;
     let _ = names;
@@ -522,6 +542,13 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     } else {
         EXIT_NEGATIVE
     };
+    // After a control-flow refusal, every other finding the advisory analysis
+    // sees, so the next frame can fix them all at once.
+    let also = if !verdict.valid && verdict.phase == Some(7) {
+        crate::explain::also(&program, &after_names, verdict.location.as_deref())
+    } else {
+        Vec::new()
+    };
     // Bytes only on request (BR-10): the handle names them otherwise.
     let raw = words
         .has("--raw")
@@ -534,6 +561,7 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             "tests": tests_json(&tests, &after_names),
             "public": public_json(&public),
             "notes": compiled.notes,
+            "also": also,
         });
         if let Some(raw) = &raw {
             value["stored_hex"] = json!(raw);
@@ -551,6 +579,9 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
         for note in &compiled.notes {
             let _ = writeln!(text, "  note: {note}");
         }
+        for finding in &also {
+            let _ = writeln!(text, "  also: {finding}");
+        }
         text.push_str(&tests_text(&tests, &after_names));
         if let Some(raw) = &raw {
             let _ = writeln!(text, "stored: {raw}");
@@ -565,7 +596,7 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
         if verdict.valid && failed == 0 && tests.is_empty() && !words.has("--no-test") {
             let _ = writeln!(
                 text,
-                "next: add AF1 \"tests\" for what {handle} changes and try again, or sley-agent submit {handle}"
+                "next: add AF1 \"tests\" for what {handle} changes and try again (submit refuses an untested change; --untested overrides)"
             );
         } else if verdict.valid && failed == 0 {
             let _ = writeln!(text, "next: sley-agent submit {handle}");
@@ -773,18 +804,34 @@ fn typed_inputs(
 }
 
 fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
-    let words = words(args, &[], &[])?;
+    let words = words(args, &[], &["--untested"])?;
     let workspace = workspace(global)?;
     let head = workspace.head()?;
     let store = Store::open(&workspace)?;
     let reference = match words.positional.as_slice() {
         [] => store.resolve(None)?,
         [reference] => store.resolve(Some(reference))?,
-        _ => return Err(usage("submit [<handle>]")),
+        _ => return Err(usage("submit [<handle>] [--untested]")),
     };
     let stored = store.load(&reference)?;
     let authority = Authority::of(&head)?;
     let output = candidate::validate(&head, &authority, &stored)?;
+    // A change to a function travels with a test of it: a candidate that
+    // changes functions while no TestCase targets them is refused unless
+    // the agent says so explicitly.
+    if output.is_valid()
+        && output.result().record.selected_tests.is_empty()
+        && !words.has("--untested")
+        && changes_a_function(&head, &output, &stored)
+    {
+        return Err(AgentError::new(
+            AgentErrorCode::SubmissionRefused,
+            format!(
+                "{} changes functions but no TestCase in it targets them; add AF1 \"tests\" for them to the frame and try again, or submit --untested",
+                shown(&reference)
+            ),
+        ));
+    }
     if !output.is_valid() {
         return Err(AgentError::new(
             AgentErrorCode::SubmissionRefused,
@@ -822,7 +869,7 @@ fn submit_command(global: &Global, args: &[String], out: &mut dyn Write) -> Resu
         if tests == 0 {
             let _ = writeln!(
                 text,
-                "note: no TestCase in {reference} targets a function it changes; tests go in the same frame as the change"
+                "note: no TestCase in {reference} targets a function it changes (submitted with --untested, or it changes no function)"
             );
         }
         write_text(out, &text)?;

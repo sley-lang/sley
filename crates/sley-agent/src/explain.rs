@@ -44,6 +44,27 @@ pub fn detail(
         .map(|finding| finding.text.clone())
 }
 
+/// Every structural finding across the program's functions except the one
+/// `shown` already names, so one refused try discloses every problem the
+/// analysis can see (the kernel reports only its first). Advisory only.
+#[must_use]
+pub fn also(program: &Program, names: &Names, shown: Option<&str>) -> Vec<String> {
+    let mut out = Vec::new();
+    for object in program.objects() {
+        let id = object.record().entity_id;
+        let EntityBodyValue::Function(function) = &object.record().body else {
+            continue;
+        };
+        for finding in analyze(program, names, &id, function) {
+            let duplicate = shown.is_some_and(|shown| shown.contains(&finding.text));
+            if !duplicate && !out.contains(&finding.text) {
+                out.push(finding.text);
+            }
+        }
+    }
+    out
+}
+
 fn block_body<'a>(program: &'a Program, id: &EntityId) -> Option<&'a BlockBody> {
     match program.body(id) {
         Some(EntityBodyValue::Block(block)) => Some(block),

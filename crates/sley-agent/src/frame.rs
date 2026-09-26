@@ -199,6 +199,15 @@ fn string<'v>(value: &'v Value, pointer: &str) -> Result<&'v str> {
         .ok_or_else(|| frame(pointer, "expected a string"))
 }
 
+/// The target of a `br`: `["br", "b", arg...]`, or `["br", ["b", arg...]]`,
+/// the bracketed form `cond` and `switch` also accept.
+fn branch_target(items: &[Value]) -> Value {
+    match items {
+        [_, target @ Value::Array(_)] => target.clone(),
+        _ => Value::Array(items[1..].to_vec()),
+    }
+}
+
 /// An operand names a value; anything else is refused with the fix.
 fn operand<'v>(value: &'v Value, pointer: &str) -> Result<&'v str> {
     value.as_str().ok_or_else(|| {
@@ -696,30 +705,49 @@ impl Compiler<'_> {
             test_decls.push((id, target, decl, pointer));
         }
 
-        // Bodies.
+        // Bodies. Every function, edit and test is compiled even after one
+        // fails, so one refusal names every problem the frame has.
+        let mut problems = Vec::new();
         for (id, name, decl, params, result, pointer) in full {
-            let blocks = array(
-                decl.get("blocks")
-                    .ok_or_else(|| frame(&pointer, "missing \"blocks\""))?,
-                &format!("{pointer}/blocks"),
-            )?;
-            let specs = blocks
-                .iter()
-                .enumerate()
-                .map(|(index, block)| {
-                    BlockSpec::from_frame(block, &format!("{pointer}/blocks/{index}"))
-                })
-                .collect::<Result<Vec<_>>>()?;
-            self.define_function(id, &name, Some(params), result, specs, decl, &pointer)?;
+            let specs = decl
+                .get("blocks")
+                .ok_or_else(|| frame(&pointer, "missing \"blocks\""))
+                .and_then(|blocks| array(blocks, &format!("{pointer}/blocks")))
+                .and_then(|blocks| {
+                    blocks
+                        .iter()
+                        .enumerate()
+                        .map(|(index, block)| {
+                            BlockSpec::from_frame(block, &format!("{pointer}/blocks/{index}"))
+                        })
+                        .collect::<Result<Vec<_>>>()
+                });
+            let defined = specs.and_then(|specs| {
+                self.define_function(id, &name, Some(params), result, specs, decl, &pointer)
+            });
+            if let Err(error) = defined {
+                problems.push(error);
+            }
         }
         for (id, name, decl, params, result, pointer) in patches {
-            let specs = self.patch_specs(&id, decl, &pointer)?;
             let params = decl.contains_key("params").then_some(params);
-            self.define_function(id, &name, params, result, specs, decl, &pointer)?;
+            let defined = self.patch_specs(&id, decl, &pointer).and_then(|specs| {
+                self.define_function(id, &name, params, result, specs, decl, &pointer)
+            });
+            if let Err(error) = defined {
+                problems.push(error);
+            }
         }
-        self.edits(edit_list)?;
+        if let Err(error) = self.edits(edit_list) {
+            problems.push(error);
+        }
         for (id, target, decl, pointer) in test_decls {
-            self.test(id, target, decl, &pointer)?;
+            if let Err(error) = self.test(id, target, decl, &pointer) {
+                problems.push(error);
+            }
+        }
+        if !problems.is_empty() {
+            return Err(combined(problems));
         }
         self.namespaces(object.get("namespace"))?;
         Ok(())
@@ -1359,7 +1387,19 @@ impl Compiler<'_> {
                     .ok_or_else(|| frame(pointer, format!("no block `{name}`")))?;
                 let args = items[1..]
                     .iter()
-                    .map(|arg| operand(arg, pointer).map(str::to_owned))
+                    .map(|arg| {
+                        if arg.is_array() {
+                            // A list-wrapped argument is a shape mistake, not a
+                            // nested operation.
+                            return Err(frame(
+                                pointer,
+                                format!(
+                                    "edge arguments are value names: write [\"{name}\", \"x\", \"y\"], not [\"{name}\", [\"x\", \"y\"]]"
+                                ),
+                            ));
+                        }
+                        operand(arg, pointer).map(str::to_owned)
+                    })
                     .collect::<Result<_>>()?;
                 Ok((*index, args))
             }
@@ -1413,8 +1453,7 @@ impl Compiler<'_> {
                 }
                 "br" | "jump" => {
                     if items.len() >= 2 {
-                        let target = Value::Array(items[1..].to_vec());
-                        let _ = edge_hint(&target, &mut hint);
+                        let _ = edge_hint(&branch_target(items), &mut hint);
                     }
                 }
                 "cond" if items.len() == 4 => {
@@ -1644,14 +1683,20 @@ impl Compiler<'_> {
         }
         let mut operands = Vec::new();
         let mut operand_types = Vec::new();
+        let mut operand_names = Vec::new();
         for arg in args {
             let text = operand(arg, pointer)?;
             let slot = self.resolve_value(text, block, scope, pointer)?;
             operands.push(slot.reference);
             operand_types.push(slot.ty);
+            operand_names.push(text.to_owned());
         }
         if operand_types.iter().any(Option::is_none) && explicit.is_none() {
             return Ok(None);
+        }
+        if operand_types.iter().all(Option::is_some) {
+            let typed: Vec<TypeExpr> = operand_types.iter().flatten().cloned().collect();
+            self.check_operands(row, &operand_names, &typed, pointer)?;
         }
         let known: Vec<TypeExpr> = operand_types.into_iter().flatten().collect();
         // `tuple_get` reads its element type from the tuple operand.
@@ -1700,6 +1745,70 @@ impl Compiler<'_> {
             }
         };
         Ok(Some((row.tag, operands, ty, immediate)))
+    }
+
+    /// Operand types the kernel would refuse later with only a function-level
+    /// locator (`VM_LOWER_SIGNATURE_MISMATCH`), named here at the operation.
+    fn check_operands(
+        &self,
+        row: &OpcodeRow,
+        names: &[String],
+        types: &[TypeExpr],
+        pointer: &str,
+    ) -> Result<()> {
+        let render = |ty: &TypeExpr| types::render(ty, self.names);
+        let wrapped = |ty: &TypeExpr| matches!(ty, TypeExpr::Result { .. } | TypeExpr::Option(_));
+        let scalar = matches!(row.tag, 64..=71 | 80..=85 | 98..=101);
+        let checked = if matches!(row.tag, 70 | 71) {
+            1
+        } else {
+            types.len()
+        };
+        if scalar {
+            for (name, ty) in names.iter().zip(types).take(checked) {
+                if wrapped(ty) {
+                    return Err(frame(
+                        pointer,
+                        format!(
+                            "`{name}` is a {}, not a value `{}` can use: switch on it first (the \"Ok\" or \"Some\" case's `$` is the value)",
+                            render(ty),
+                            row.mnemonic
+                        ),
+                    ));
+                }
+            }
+        }
+        if matches!(row.tag, 102..=104) {
+            for (name, ty) in names.iter().zip(types) {
+                if *ty != TypeExpr::Bool {
+                    return Err(frame(
+                        pointer,
+                        format!(
+                            "`{}` takes bool operands; `{name}` is {}",
+                            row.mnemonic,
+                            render(ty)
+                        ),
+                    ));
+                }
+            }
+        }
+        let same = scalar && !matches!(row.tag, 70 | 71) || matches!(row.tag, 96 | 97);
+        if same && let (Some(first), Some(first_name)) = (types.first(), names.first()) {
+            for (name, ty) in names.iter().zip(types).skip(1) {
+                if ty != first {
+                    return Err(frame(
+                        pointer,
+                        format!(
+                            "the operands of `{}` must have one type: `{first_name}` is {}, `{name}` is {}",
+                            row.mnemonic,
+                            render(first),
+                            render(ty)
+                        ),
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 
     fn member_path(&self, path: &str, pointer: &str) -> Result<(EntityId, MemberId)> {
@@ -1795,13 +1904,45 @@ impl Compiler<'_> {
         pointer: &str,
     ) -> Result<TargetEdge> {
         let (target, args) = self.block_target(target, scope, pointer)?;
-        let arguments = args
-            .iter()
-            .map(|arg| {
-                self.resolve_value(arg, block, scope, pointer)
-                    .map(|slot| slot.reference)
-            })
-            .collect::<Result<_>>()?;
+        let params = &blocks[target].params;
+        let leaf = &blocks[target].leaf;
+        if args.len() != params.len() {
+            return Err(frame(
+                pointer,
+                format!(
+                    "block `{leaf}` takes {} argument(s) ({}); this edge passes {}",
+                    params.len(),
+                    params
+                        .iter()
+                        .map(|(name, _, ty)| format!("{name}: {}", types::render(ty, self.names)))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                    args.len()
+                ),
+            ));
+        }
+        let mut arguments = Vec::new();
+        for (arg, (param, _, ty)) in args.iter().zip(params) {
+            let slot = self.resolve_value(arg, block, scope, pointer)?;
+            if let Some(actual) = &slot.ty
+                && actual != ty
+            {
+                return Err(frame(
+                    pointer,
+                    format!(
+                        "`{arg}` is {} but parameter `{param}` of block `{leaf}` is {}{}",
+                        types::render(actual, self.names),
+                        types::render(ty, self.names),
+                        if matches!(actual, TypeExpr::Result { .. } | TypeExpr::Option(_)) {
+                            "; switch on it and pass the case's `$`"
+                        } else {
+                            ""
+                        }
+                    ),
+                ));
+            }
+            arguments.push(slot.reference);
+        }
         Ok(TargetEdge {
             target: blocks[target].id,
             arguments,
@@ -1836,13 +1977,7 @@ impl Compiler<'_> {
                 value: value_at(1)?.reference,
             }),
             "br" | "jump" if items.len() >= 2 => Terminator::Branch(BranchTerminator {
-                edge: self.edge(
-                    &Value::Array(items[1..].to_vec()),
-                    block,
-                    blocks,
-                    scope,
-                    pointer,
-                )?,
+                edge: self.edge(&branch_target(items), block, blocks, scope, pointer)?,
             }),
             "cond" if items.len() == 4 => Terminator::CondBranch(CondBranchTerminator {
                 condition: value_at(1)?.reference,
@@ -2689,17 +2824,50 @@ struct PlannedBlock {
     keep: bool,
 }
 
-/// One refusal for several frame problems, each on its own line.
+/// The problem lines of a refusal: one line, or a combined refusal's
+/// headline problem and its indented continuation lines.
+fn problem_lines(error: &AgentError) -> Vec<String> {
+    let mut lines: Vec<String> = error
+        .detail()
+        .lines()
+        .map(|line| line.trim().to_owned())
+        .collect();
+    if let Some(first) = lines.first_mut()
+        && let Some(cut) = first.rfind(" (1 of ")
+        && first.ends_with(" problems)")
+    {
+        first.truncate(cut);
+    }
+    lines.retain(|line| !line.is_empty());
+    lines
+}
+
+/// One refusal for several frame problems. The headline is the first
+/// problem, pointer included, so the refusal line itself says where; the
+/// others follow one per line.
 fn combined(mut errors: Vec<AgentError>) -> AgentError {
-    errors.dedup();
     if errors.len() == 1 {
         return errors.remove(0);
     }
-    let lines: Vec<&str> = errors.iter().map(AgentError::detail).collect();
-    AgentError::new(
-        AgentErrorCode::FrameInvalid,
-        format!("{} problems:\n  {}", lines.len(), lines.join("\n  ")),
-    )
+    let mut lines: Vec<String> = Vec::new();
+    for error in &errors {
+        for line in problem_lines(error) {
+            if !lines.contains(&line) {
+                lines.push(line);
+            }
+        }
+    }
+    match lines.len() {
+        0 => AgentError::new(AgentErrorCode::FrameInvalid, "the frame is invalid"),
+        1 => AgentError::new(AgentErrorCode::FrameInvalid, lines.remove(0)),
+        count => {
+            let first = lines.remove(0);
+            AgentError::new(
+                AgentErrorCode::FrameInvalid,
+                format!("{first} (1 of {count} problems)\n  {}", lines.join("\n  ")),
+            )
+        }
+    }
 }
 
 /// Why a plain name resolves nowhere in `block`, with the fix when the
