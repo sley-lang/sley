@@ -50,7 +50,7 @@ grant that allows `CreateEntity` and `ReplaceEntityVersion`.
 ```text
 sley-agent view [name...] [--package] [--after <ref>] [--ids] [--types] [--limits]
 sley-agent find [text] [--kind fn|type|const|test|ns] [--after <ref>]
-sley-agent try <frame|ops> [--no-test] [--all-tests] [--public <cases.json>] [--raw]
+sley-agent try <frame|ops> [--on <ref>] [--no-test] [--all-tests] [--public <cases.json>] [--raw]
 sley-agent submit [<ref>] [--untested]
 sley-agent status [--raw]
 sley-agent call <fn> <arg-json>... [--on <ref>] [--batch <file|->] [--stats]
@@ -82,6 +82,31 @@ handle, the decision or the decoded refusal, and per-test results. A Valid
 candidate that runs no TestCase says so (`tests: 0 ran`), as a test runner
 reports running zero tests, and its `next:` line suggests adding tests
 before submitting.
+
+A handle made from an AF1 frame keeps that frame in its metadata.
+`try --on <ref>` layers the new frame on the frame of `<ref>`, then compiles
+the result against the head like any other frame. The layered frame is
+written to `.sley/layered.json`, so refusal pointers refer to it. The
+layering rules:
+- A `types`, `consts`, `fns` or named `tests` entry replaces the base entry
+  of the same name; other entries are appended.
+- A `patch` of a function the base defines applies to that definition: a
+  block replaces the block of its name, `null` deletes it, and `params` and
+  `returns` replace. A `patch` of a function the base patches merges with
+  that patch. Otherwise it is appended.
+- An `edit` replaces the operation in the base's definition or patch of
+  that function, or else replaces a base edit of the same operation, or
+  else is appended.
+- `delete` entries are added, and `namespace` replaces.
+
+A handle made from raw operations has no frame, and `try --on` refuses it
+with `AGENT_USAGE_INVALID`.
+
+The `next:` line of a Valid candidate proposes a layered follow-up. With no
+TestCase, it proposes the tests; with a failing TestCase, the fix. A
+kernel-refused candidate made from a frame gets a `fix:` line that proposes
+the same. When the frame came from a file, a frame refusal ends by asking
+for that file to be edited in place at the pointers rather than rewritten.
 
 `submit` validates the referenced candidate against the current head again
 and writes `final_candidate.hex` only when it is Valid. A Valid candidate
@@ -207,6 +232,17 @@ the scrutinee's type names the expected keys; an operand that is a literal
 or a nested operation names the fix; and a list-wrapped edge argument
 (`["b", ["x"]]`) names the flat form.
 
+These mistakes each get a named fix:
+- A terminator with the wrong shape names its correct shape. A `cond` with
+  more than four items is shown with its trailing arguments bracketed onto
+  the else target.
+- A switch case that contains another case, or a bracketed target followed
+  by more items, says how to close the case.
+- A terminator word used as an opcode says it belongs in the block's
+  `"term"`.
+
+A frame or a block may carry a `"comment"` string, which is ignored.
+
 The frame compiler also names, at the operation or terminator, the operand
 and edge type errors that lowering would otherwise report only per function
 (`VM_LOWER_SIGNATURE_MISMATCH`, `CFG_TARGET_ARGUMENTS`): an edge whose
@@ -322,7 +358,9 @@ the TestCase-limit, orphaned-block, dominance, unresolved-reference and
 mutation-budget locators; repeatable submission; a 300-operation candidate;
 JSON-pointer errors and one refusal per frame round, across functions,
 with the first pointer in the headline; the edge count, edge type and
-operand type checks; `also:` findings; the untested-submission refusal and
+operand type checks; `also:` findings; terminator and case shape fixes;
+`try --on` layering, its pointers and its refusal of raw handles; the
+edit-in-place hint; the untested-submission refusal and
 `--untested`; batch streaming;
 name-matched redefinition; every guide example (fenced frames and the
 inline `br`, `cond` and `switch` terminators), every JSON example line of

@@ -14,6 +14,7 @@ compiles it into one mutation candidate and the kernel never sees AF1.
      "namespace": "name"}        namespace for new entities (default: the only one)
 
 Every key is optional except "af1". Names are `[A-Za-z_][A-Za-z0-9_-]*`.
+A frame or a block may carry a "comment" string; it is ignored.
 Errors name the frame position as a JSON pointer, e.g. `/fns/0/blocks/2/ops/1`.
 
 ## types
@@ -73,7 +74,7 @@ block b, which must dominate the use), `x#1` (result 1 of x).
     ["return", v]
     ["br", target]                       target: "b" or ["b", arg...]
     ["br", "b", arg...]                  the same edge, written flat
-    ["cond", c, target, target]
+    ["cond", c, target, target]          exactly 4 items: bracket a target's args
     ["switch", v, [key, block, arg...], ...]
     ["trap"] / ["trap", "unreachable"]
 

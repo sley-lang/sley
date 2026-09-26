@@ -12,6 +12,7 @@ the kernel sees only identities.
     sley-agent view [name...]      # AV1 view of the program or of named entities
     sley-agent find [text]         # list functions, types, constants, tests
     sley-agent try frame.json      # compile + validate + run tests; prints a handle (c1)
+    sley-agent try --on c1 more.json  # more.json layered on c1's frame: add tests, fix one op
     sley-agent submit c1           # write final_candidate.hex (repeatable; the last wins)
     sley-agent status              # the current submission, its code and its tests
     sley-agent call f 1 2          # run f on the head (--on c1: on a candidate)
@@ -21,9 +22,13 @@ the kernel sees only identities.
     sley-agent help af1|types|tests|opcodes|refusals
 
 `try` takes a file, `-` for stdin, or inline JSON. A candidate is always
-relative to the current head, so one frame carries your whole change: after
-a refusal, fix the frame and run `try` again. Add `--json` to any command
-for machine-readable output.
+relative to the current head, so one frame carries your whole change. After
+a frame refusal, edit the frame file in place, changing only what the
+pointers name, and run `try` again: don't rewrite the whole file. Once a
+candidate exists (`c1`), put only a follow-up in a small frame and run
+`try --on c1`. It is layered on c1's frame: named entries replace, and
+`patch` or `edit` apply to c1's functions. Add `--json` to any command for
+machine-readable output.
 
 ## Reading AV1
 

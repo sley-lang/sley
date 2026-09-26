@@ -91,6 +91,12 @@ Python, no `uv`, no server. Its contract is
   exact terminator or operation rather than per function. After a
   control-flow refusal, `also:` lines list the other problems the analysis
   sees. Names may contain a hyphen after the first character.
+- **Follow-ups are small.** `try --on c1 <frame>` layers a small frame on
+  the frame `c1` was made from, so adding tests or fixing one operation never
+  restates the whole frame. A frame refusal from a file asks for that file
+  to be edited in place. A malformed `cond`, `return`, `br` or `switch`, a
+  case nested in another case, and a terminator used as an operation each
+  name the fix. Frames and blocks may carry a `"comment"`.
 - **Tests travel with changes.** A Valid candidate that runs no TestCase
   says `tests: 0 ran`, and `submit` refuses a candidate that changes a
   function no test in it targets, unless `--untested` is given.

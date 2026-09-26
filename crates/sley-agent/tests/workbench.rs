@@ -622,7 +622,7 @@ fn full_redefinition_reuses_names_and_deletes_the_rest() {
     assert!(text.contains("tests: 0 ran"), "{text}");
     assert!(
         text.contains(
-            "next: add AF1 \"tests\" for what c3 changes and try again (submit refuses an untested change; --untested overrides)"
+            "next: add tests without restating the frame: sley-agent try --on c3 '{\"af1\": 1, \"tests\": [...]}' (submit refuses an untested change; --untested overrides)"
         ),
         "{text}"
     );
@@ -1485,4 +1485,131 @@ fn functions_that_call_functions_run_from_one_loaded_image() {
             "{\"Ok\":0}"
         ]
     );
+}
+
+#[test]
+fn try_on_a_handle_layers_a_small_frame_on_its_frame() {
+    // A follow-up adds tests or fixes one operation without restating the
+    // frame.
+    let temp = workspace("layer", None);
+    let (status, text) = run(&temp.path, &["try", &clamp_frame(true).to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(
+        text.contains("next: add tests without restating the frame: sley-agent try --on c1"),
+        "{text}"
+    );
+    let tests = json!({"af1": 1, "tests": [
+        {"name": "t_in", "fn": "bound", "args": [5, 0, 10], "expect": {"Ok": 5}},
+        {"name": "t_above", "fn": "bound", "args": [11, 0, 10], "expect": {"Ok": 10}}]});
+    let (status, text) = run(&temp.path, &["try", "--on", "c1", &tests.to_string()]);
+    assert_eq!(status, 1, "{text}");
+    assert!(text.starts_with("c2: Valid"), "{text}");
+    assert!(text.contains("FAIL t_above"), "{text}");
+    assert!(
+        text.contains("next: fix only what failed on top of c2: sley-agent try --on c2"),
+        "{text}"
+    );
+    // The fix names one operation of a function the base frame defines.
+    let fix = json!({"af1": 1, "edit": [{"fn": "bound", "replace_op": "above.r", "with": ["ok", "high"]}]});
+    let (status, text) = run(&temp.path, &["try", "--on", "c2", &fix.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.starts_with("c3: Valid"), "{text}");
+    assert!(text.contains("tests: 2/2 passed"), "{text}");
+    assert_eq!(run(&temp.path, &["submit", "c3"]).0, 0);
+    // A frame refusal in a layered frame says where its pointers point.
+    let broken = json!({"af1": 1, "edit": [{"fn": "bound", "replace_op": "above.r", "with": ["ok", "nowhere"]}]});
+    let (status, text) = run(&temp.path, &["try", "--on", "c3", &broken.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains("pointers refer to .sley/layered.json (the frame of c3 with yours on top)"),
+        "{text}"
+    );
+    assert!(temp.path.join(".sley/layered.json").is_file());
+    // Raw operations leave no frame to build on.
+    let raw = json!([{"class": "CreateEntity", "kind": 9, "key": "limit",
+        "payload": {"value": {"type": "i64", "data": {"variant": "SInt", "value": 1}}}}]);
+    let (_, text) = run(&temp.path, &["try", &raw.to_string()]);
+    let handle = text.split(':').next().unwrap().to_owned();
+    let (status, text) = run(&temp.path, &["try", "--on", &handle, &tests.to_string()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(text.contains("was not made from an AF1 frame"), "{text}");
+}
+
+#[test]
+fn a_frame_file_refusal_says_to_edit_the_file_in_place() {
+    let temp = workspace("edit-in-place", None);
+    let path = temp.path.join("frame.json");
+    let mut frame = clamp_frame(false);
+    frame["fns"][0]["blocks"][1]["ops"] = json!([
+        ["e", "variant", "RangeError.Inverted"],
+        ["r", "err", "nope"]
+    ]);
+    fs::write(&path, frame.to_string()).unwrap();
+    let (status, text) = run(&temp.path, &["try", path.to_str().unwrap()]);
+    assert_eq!(status, 2, "{text}");
+    assert!(
+        text.contains(&format!(
+            "fix: edit {} in place at those pointers (no need to rewrite it)",
+            path.display()
+        )),
+        "{text}"
+    );
+}
+
+#[test]
+fn malformed_terminators_and_cases_name_the_fix() {
+    let temp = workspace("shapes", None);
+    let frame = |entry_term: Value, ops: Value| {
+        json!({"af1": 1, "types": [{"name": "E", "variant": ["Bad"]}],
+          "fns": [{"fn": "f", "params": [["a", "i64"], ["c", "bool"]], "returns": "Result<i64,E>", "blocks": [
+            {"name": "entry", "comment": "a note for the reader", "ops": ops, "term": entry_term},
+            {"name": "t", "params": [["x", "i64"]], "ops": [["r", "ok", "x"]], "term": ["return", "r"]},
+            {"name": "f", "ops": [["e", "variant", "E.Bad"], ["r", "err", "e"]], "term": ["return", "r"]}]}],
+          "comment": "frames may carry comments"})
+    };
+    // A bracketed target whose block is named like a case stays valid.
+    let mut named_like_a_case = frame(
+        json!(["switch", "d", ["Ok", ["t", "$"]], ["Err", ["f"]]]),
+        json!([["d", "add", "a", "a"]]),
+    );
+    named_like_a_case["fns"][0]["blocks"][1]["name"] = json!("Ok");
+    named_like_a_case["fns"][0]["blocks"][0]["term"] =
+        json!(["switch", "d", ["Ok", ["Ok", "$"]], ["Err", ["f"]]]);
+    let (status, text) = run(&temp.path, &["try", &named_like_a_case.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    // Comments are accepted, and the well-formed frame is Valid.
+    let (status, text) = run(
+        &temp.path,
+        &[
+            "try",
+            &frame(json!(["cond", "c", ["t", "a"], "f"]), json!([])).to_string(),
+        ],
+    );
+    assert_eq!(status, 0, "{text}");
+    for (term, ops, message) in [
+        (
+            json!(["cond", "c", "f", "t", "a"]),
+            json!([]),
+            "/fns/0/blocks/0/term: `cond` takes [\"cond\", c, then, else], not 5 items; a target with arguments is bracketed, e.g. [\"cond\",\"c\",\"f\",[\"t\",\"a\"]]",
+        ),
+        (
+            json!(["return"]),
+            json!([]),
+            "`return` takes one value: [\"return\", v], not 1 items",
+        ),
+        (
+            json!(["switch", "d", ["Ok", ["t", "$"], ["Err", "f"]]]),
+            json!([["d", "add", "a", "a"]]),
+            "/fns/0/blocks/0/term/2: the `Ok` case contains the `Err` case: close [\"Ok\", ...] before [\"Err\", ...]",
+        ),
+        (
+            json!(["return", "a"]),
+            json!([["x", "cond", "c", "t", "f"]]),
+            "/fns/0/blocks/0/ops/0: `cond` is a terminator, not an operation: it goes in the block's \"term\"",
+        ),
+    ] {
+        let (status, text) = run(&temp.path, &["try", &frame(term.clone(), ops).to_string()]);
+        assert_eq!(status, 2, "{term}: {text}");
+        assert!(text.contains(message), "{term}: {text}");
+    }
 }

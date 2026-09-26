@@ -448,14 +448,58 @@ fn read_json_argument(argument: &str) -> Result<Value> {
 
 #[allow(clippy::too_many_lines)]
 fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<i32> {
-    let words = words(args, &["--public"], &["--no-test", "--all-tests", "--raw"])?;
+    let words = words(
+        args,
+        &["--public", "--on"],
+        &["--no-test", "--all-tests", "--raw"],
+    )?;
     let [frame_argument] = words.positional.as_slice() else {
         return Err(usage(
-            "try <frame.json | - | '{\"af1\":1,...}'> [--no-test] [--all-tests] [--public file] [--raw]",
+            "try <frame.json | - | '{\"af1\":1,...}'> [--on <handle>] [--no-test] [--all-tests] [--public file] [--raw]",
         ));
     };
-    let frame_value = read_json_argument(frame_argument)?;
+    let mut frame_value = read_json_argument(frame_argument)?;
     let workspace = workspace(global)?;
+    // `--on c1`: this frame goes on top of the frame c1 was made from, so a
+    // follow-up states only what it adds or changes.
+    let layered_on = match words.value("--on") {
+        Some(reference) => {
+            let store = Store::open(&workspace)?;
+            let handle = store.resolve(Some(reference))?;
+            let base = store
+                .meta(&handle)
+                .and_then(|meta| meta.get("frame").cloned())
+                .ok_or_else(|| {
+                    AgentError::new(
+                        AgentErrorCode::Usage,
+                        format!("{handle} was not made from an AF1 frame, so try --on cannot build on it"),
+                    )
+                })?;
+            frame_value = crate::layer::layer(&base, &frame_value)?;
+            let path = workspace.state_dir()?.join("layered.json");
+            let mut text = serde_json::to_string_pretty(&frame_value).unwrap_or_default();
+            text.push('\n');
+            fs::write(&path, text).map_err(|error| io(&path, &error))?;
+            Some(handle)
+        }
+        None => None,
+    };
+    // Where a frame refusal's pointers point, and how to fix it cheaply.
+    let fix_hint = |error: AgentError| {
+        if error.code() != AgentErrorCode::FrameInvalid {
+            return error;
+        }
+        let hint = match &layered_on {
+            Some(handle) => format!(
+                "pointers refer to .sley/layered.json (the frame of {handle} with yours on top); fix your frame and run try --on {handle} again"
+            ),
+            None if Path::new(frame_argument).is_file() => format!(
+                "fix: edit {frame_argument} in place at those pointers (no need to rewrite it) and run try again"
+            ),
+            None => return error,
+        };
+        AgentError::new(error.code(), format!("{}\n  {hint}", error.detail()))
+    };
     let head = workspace.head()?;
     let authority = Authority::of(&head)?;
     let mut map = name_map(&workspace)?;
@@ -482,7 +526,8 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             &frame_value,
             nonce,
             &mut candidate::random32,
-        )?
+        )
+        .map_err(fix_hint)?
     };
     let counts = (compiled.created, compiled.replaced, compiled.deleted);
     if compiled.ops.is_empty() {
@@ -508,6 +553,9 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             "ops": {"created": counts.0, "replaced": counts.1, "deleted": counts.2},
             "verdict": verdict.to_json(),
             "notes": compiled.notes,
+            // The frame (layered, with --on) this candidate was made from,
+            // for a later try --on.
+            "frame": if frame_value.is_object() { frame_value.clone() } else { Value::Null },
         }),
     )?;
     let mut tests = Vec::new();
@@ -593,15 +641,34 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
             );
         }
         text.push_str(&public_text(&public));
+        let layerable = frame_value.is_object();
         if verdict.valid && failed == 0 && tests.is_empty() && !words.has("--no-test") {
-            let _ = writeln!(
-                text,
-                "next: add AF1 \"tests\" for what {handle} changes and try again (submit refuses an untested change; --untested overrides)"
-            );
+            if layerable {
+                let _ = writeln!(
+                    text,
+                    "next: add tests without restating the frame: sley-agent try --on {handle} '{{\"af1\": 1, \"tests\": [...]}}' (submit refuses an untested change; --untested overrides)"
+                );
+            } else {
+                let _ = writeln!(
+                    text,
+                    "next: add AF1 \"tests\" for what {handle} changes and try again (submit refuses an untested change; --untested overrides)"
+                );
+            }
         } else if verdict.valid && failed == 0 {
             let _ = writeln!(text, "next: sley-agent submit {handle}");
+        } else if verdict.valid && layerable {
+            let _ = writeln!(
+                text,
+                "next: fix only what failed on top of {handle}: sley-agent try --on {handle} '{{\"af1\": 1, \"edit\": [...]}}' (or \"patch\", \"tests\")"
+            );
         } else if !verdict.valid {
             let _ = writeln!(text, "more: sley-agent explain {handle}");
+            if layerable {
+                let _ = writeln!(
+                    text,
+                    "fix: layer only the change on {handle}: sley-agent try --on {handle} '{{\"af1\": 1, \"patch\": [...]}}'"
+                );
+            }
         }
         write_text(out, &text)?;
     }

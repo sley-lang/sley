@@ -124,6 +124,7 @@ pub fn compile(
                 | "tests"
                 | "delete"
                 | "namespace"
+                | "comment"
         ) {
             return Err(frame(&format!("/{key}"), "unknown frame key"));
         }
@@ -2013,6 +2014,33 @@ impl Compiler<'_> {
                             })?)
                         }
                     };
+                    // Past the target, an array is never valid; one that starts
+                    // with a case key is a case left inside this one.
+                    if let Some(inner) = case[2..].iter().find_map(|item| {
+                        let inner = item.as_array()?;
+                        let word = inner.first()?.as_str()?;
+                        let is_case = matches!(word, "Ok" | "Err" | "Some" | "None")
+                            || definition.is_some_and(|definition| {
+                                self.member(&definition, word.rsplit('.').next().unwrap_or(word))
+                                    .is_some()
+                            });
+                        is_case.then_some(word)
+                    }) {
+                        return Err(frame(
+                            &case_pointer,
+                            format!(
+                                "the `{key}` case contains the `{inner}` case: close [\"{key}\", ...] before [\"{inner}\", ...]"
+                            ),
+                        ));
+                    }
+                    if case[1].is_array() && case.len() > 2 {
+                        return Err(frame(
+                            &case_pointer,
+                            format!(
+                                "a bracketed target stands alone: write [\"{key}\", [\"block\", args...]] or [\"{key}\", \"block\", args...]"
+                            ),
+                        ));
+                    }
                     // `[key, "b", args...]`, or `[key, ["b", args...]]` as in `cond`.
                     let (target_value, rest) = match &case[1] {
                         Value::Array(target) if case.len() == 2 && !target.is_empty() => {
@@ -2069,12 +2097,7 @@ impl Compiler<'_> {
                 };
                 Terminator::Trap(TrapTerminator { code, payload })
             }
-            other => {
-                return Err(frame(
-                    pointer,
-                    format!("bad terminator `{other}`: use return, br, cond, switch, or trap"),
-                ));
-            }
+            other => return Err(frame(pointer, terminator_shape(other, items))),
         })
     }
 
@@ -2699,7 +2722,7 @@ impl BlockSpec {
         for key in object.keys() {
             if !matches!(
                 key.as_str(),
-                "name" | "params" | "ops" | "term" | "unreachable"
+                "name" | "params" | "ops" | "term" | "unreachable" | "comment"
             ) {
                 return Err(frame(&format!("{pointer}/{key}"), "unknown block key"));
             }
@@ -2795,10 +2818,17 @@ fn op_head(value: &Value, pointer: &str) -> Result<(String, OpSpec)> {
         ));
     }
     let opcode = opcodes::by_word(opcode).ok_or_else(|| {
-        frame(
-            pointer,
-            format!("unknown opcode `{opcode}` (see `sley-agent help opcodes`)"),
-        )
+        if matches!(opcode, "return" | "br" | "jump" | "cond" | "switch" | "trap") {
+            frame(
+                pointer,
+                format!("`{opcode}` is a terminator, not an operation: it goes in the block's \"term\", as [\"{opcode}\", ...]"),
+            )
+        } else {
+            frame(
+                pointer,
+                format!("unknown opcode `{opcode}` (see `sley-agent help opcodes`)"),
+            )
+        }
     })?;
     Ok((name.to_owned(), OpSpec { opcode, args, ty }))
 }
@@ -2822,6 +2852,41 @@ struct PlannedBlock {
     unreachable: bool,
     pointer: String,
     keep: bool,
+}
+
+/// Why a terminator with a known or unknown word has the wrong shape, with
+/// the fix.
+fn terminator_shape(word: &str, items: &[Value]) -> String {
+    let count = items.len();
+    match word {
+        "return" => format!("`return` takes one value: [\"return\", v], not {count} items"),
+        "br" | "jump" => {
+            "`br` names its target: [\"br\", \"b\", args...] or [\"br\", [\"b\", args...]]"
+                .to_owned()
+        }
+        "cond" => {
+            let mut fix = String::new();
+            if count > 4 && items[2].is_string() && items[3].is_string() {
+                let mut target = vec![items[3].clone()];
+                target.extend(items[4..].iter().cloned());
+                let suggestion = Value::Array(vec![
+                    items[0].clone(),
+                    items[1].clone(),
+                    items[2].clone(),
+                    Value::Array(target),
+                ]);
+                fix = format!(", e.g. {suggestion}");
+            }
+            format!(
+                "`cond` takes [\"cond\", c, then, else], not {count} items; a target with arguments is bracketed{fix}"
+            )
+        }
+        "switch" => {
+            "`switch` takes a value and its cases: [\"switch\", v, [key, block, args...], ...]"
+                .to_owned()
+        }
+        other => format!("bad terminator `{other}`: use return, br, cond, switch, or trap"),
+    }
 }
 
 /// The problem lines of a refusal: one line, or a combined refusal's
