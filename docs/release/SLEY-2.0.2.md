@@ -67,7 +67,13 @@ Python, no `uv`, no server. Its contract is
   function is lowered once, and its image is loaded and digest-verified once
   (`sley_vm::VerifiedImage`, additive VM surface). Every input then runs
   against it, so the cost of a call no longer grows with the size of the
-  program. The `sley-agent` binary also keeps freed memory for reuse
+  program. Startup is also cheaper:
+  - the accepted head is read with one decode per object, and each store
+    directory is checked once per load;
+  - identifiers compare as machine words;
+  - the workbench skips work a command's result never uses.
+
+  The `sley-agent` binary also keeps freed memory for reuse
   (a size-class cache, [ADR-0052](../adr/ADR-0052-agent-binary-allocator.md)),
   because the static musl build otherwise returns it to the kernel after every
   input. That module is the workspace's one `unsafe` exception, and the
