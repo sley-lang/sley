@@ -183,11 +183,13 @@
       "public source: a sanitized single-commit export of the release tree at https://github.com/sley-lang/sley (Apache-2.0); the working history stays in the private repository",
       "GitHub release v2.0.0 carrying sley-2.0.0-linux-x86_64.tar.gz and its SHA-256",
       "the sleylang.org website describing Sley 2.0.0",
-      "the 2.0.1 patch release (GitHub release v2.0.1 with sley-2.0.1-linux-x86_64.tar.gz): operator direction 2026-09-25 to merge the contributor fixes and fix every issue found in the post-release verification"
+      "the 2.0.1 patch release (GitHub release v2.0.1 with sley-2.0.1-linux-x86_64.tar.gz): operator direction 2026-09-25 to merge the contributor fixes and fix every issue found in the post-release verification",
+      "the 2.0.2 point release (GitHub release v2.0.2 with sley-2.0.2-linux-x86_64.tar.gz): operator direction 2026-09-26 to release the agent workbench and its fixes"
     ],
     "authorized_tags": [
       "v2.0.0",
-      "v2.0.1"
+      "v2.0.1",
+      "v2.0.2"
     ],
     "sanitization": "the public export replaces host names, private network addresses, and local filesystem paths with neutral placeholders; the private repository keeps the unsanitized records",
     "note": "operator decision 2026-09-24: make the repository public with an official 2.0.0 release. This authorizes publication only. It is not a GA claim (ga_claimed stays false), and it does not sign provenance or add a transparency-log entry."
