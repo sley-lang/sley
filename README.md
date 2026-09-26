@@ -195,7 +195,7 @@ finding. 2.0.1 makes no new GA claim.
 | **Sley 2.0** | Released as 2.0.0, with fixes in 2.0.1. The kernel, repository, protocol, CLI, and reproducible packaging are in place. |
 | **Sley 2.1** | In progress. **Self-hosting**: the Sley toolchain built with Sley, under the REWEAVE plan ([ADR-0049](docs/adr/ADR-0049-reweave-scope-adoption.md), [Bootstrap Profile 2](docs/spec/BOOTSTRAP_PROFILE_2.md)). |
 | **Succession benchmark** | In progress. It measures agents working in Sley against raw source and Sley 1.x on a frozen 15-task corpus. Results will be published when the campaign finishes. |
-| **Sley 1.x** | Frozen at [v1.2.0](https://github.com/GreyforgeLabs/sley-legacy/releases/tag/v1.2.0) in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
+| **Sley 1.x** | Frozen at [v1.2.1](https://github.com/GreyforgeLabs/sley-legacy/tree/v1.2.1) in [GreyforgeLabs/sley-legacy](https://github.com/GreyforgeLabs/sley-legacy). It's a separate, human-readable language that is intentionally incompatible with 2.x. |
 
 ## Documentation
 
