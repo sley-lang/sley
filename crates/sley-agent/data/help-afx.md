@@ -146,6 +146,7 @@ deletes that row's live test.
     <b>__<x>         the block after checked operation x in block b
     <b>__ok          the value an ok terminator returns
     __fail_<Case>, __err, __none    exits shared by a function
+    n__v<k>          the value an arity intent passes as argument k of call n
 
 A name that is taken gets `_2`, `_3`, ... `__` is reserved for generated
 names in blocks that use these forms (and in their function's parameters):
@@ -162,12 +163,22 @@ brackets: `/fns/0/blocks/0/ops/1: ... [expanded /fns/0/blocks/1/ops/0]`.
 A ripple intent states a change once, and `try` derives the edits it
 implies into the frame. Intents apply in order, after the frame's own
 definitions, and the kernel judges the whole candidate as usual. An intent
-the head already reflects (a committed revision derived it) is reported as
-`already applied` and derives nothing, so a follow-up such as tests on
-`try --on dN --rebase` needs no change to it. In `try --on`, a follow-up's
-intent replaces the draft's intent of the same kind and target (`arity` of
-the same function, `guard` with the same checker and `arg`); others are
-added after them. See the
+the head already reflects (a committed revision derived it) derives only
+what differs from what that revision left, so a follow-up such as tests on
+`try --on dN --rebase` gives what the draft gave before the commit: for an
+`arity` whose parameters `f` already has, calls whose `n__v<k>` value
+differs from `"value"` get the new one, and the frame's own calls and
+tests of `f` written for the old parameters are read as the head has them
+(one that differs from the head's and may be written for either list is an
+obligation). With nothing to derive, it is reported `already applied`. In
+`try --on`, a follow-up's intent replaces the draft's intent of the same
+kind and target (`arity` of the same function, `guard` with the same
+checker and `arg`); others are added after them. An `arity` intent a
+follow-up does not restate keeps, in `"after"`, the functions, tests and
+tables the follow-up states: `"frame_calls"` covers only what the intent's
+own revision states, so a call there is read by its count alone, and one
+whose count fits both lists is an obligation until the intent is restated
+with `"frame_calls"` (which then covers everything the frame states). See the
 derived edits with `sley-agent draft <d> --expanded`; `ripple.json` in the
 draft lists the changed entities and the boundaries met. A decision ripple
 cannot make is an `AGENT_RIPPLE_*` obligation that points into the intent.
@@ -201,7 +212,9 @@ way before reaching a check of `p`; when `g` succeeds, `f` runs as before
 and every use of `p` reads the checked value (a block the error also
 reaches keeps `p`). The error is returned unchanged when `f` returns
 `Result<_,E>`; otherwise name the block of `f` that takes `(e: E)` with
-`"handler"`, or it is an obligation. Entry is refused when `f` already
+`"handler"`, or it is an obligation. Several entry guards on one function
+run in written order: each goes after the guards `f` already starts with
+and checks the value they leave for its `arg`. Entry is refused when `f` already
 evaluates `g` (on any value, directly or through the functions it calls),
 when `g` calls `f`, or when `f` performs effects. A checker has at most 64
 blocks, and preserve makes at most 1024 comparisons per function

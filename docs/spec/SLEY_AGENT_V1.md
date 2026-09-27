@@ -501,20 +501,46 @@ draft revision lists, per intent, the sites and tests rewritten or left as
 written, the boundary met and the changed entities. The events ledger
 counts `ripple_intents`, `ripple_edits` and `ripple_holes`.
 
-An intent the head already reflects derives nothing and is listed as
-`already applied`: an `arity` whose restated parameters are the ones `f`
-has at the head (the frame's calls and tests of `f` are then read as
-written, as plain AF1 reads them; `"frame_calls": "old"` is a hole, since
-the parameters it names are gone), and a `guard` whose function already has
-the shape the mode derives (entry: the entry block holds only the call of
-`g` on `p`, passing the checked value on and the error to the block that
-returns it or to the named handler; preserve: a block ends with that call,
-continuing without the checked value). So a revision layered on a
-committed one, such as a tests-only `try --on dN --rebase`, re-derives
-nothing. In `try --on`, a follow-up's intent replaces the draft's intent
-with the same identity where it stands: `arity` of the same function, or
-`guard` with the same checker and `arg`; other intents are appended. A
-block restated after a committed preserve guard replaces the pieces its
+An intent the head already reflects (a committed revision derived it)
+derives only what differs from what that derivation left, so a revision
+layered on the committed one, such as a tests-only `try --on dN --rebase`,
+gives what the draft gave before the commit. For an `arity` intent whose
+restated parameters `f` already has at the head: every live call's value
+fill (the constant load `n__v<k>` that passed `"value"` as argument `k` of
+call `n`) that loads another value than the intent's `"value"` is
+rewritten to load it; each call or test of `f` the frame itself writes is
+read as the head has it: one whose argument count is not that of the
+parameters, or that `"frame_calls": "old"` covers, takes the arguments of
+the committed call of the same name (with the value fills that call
+loads), or of the committed TestCase of the same name, and is an
+obligation when there is none; one with the fitting count that differs
+from the committed one is an obligation unless `"frame_calls": "new"`
+covers it (one stated after the intent with no committed form is new code
+and kept). Live tests keep their arguments. A `guard`
+is applied when its function already has the exact shape its mode derives
+(entry: a guard block in the chain of guards the function starts with,
+calling `g` on the value the guards before it leave for `p`, its checked
+value held by a `tuple`/`tuple_get` block, its error passed to the block
+that returns it or to the named handler; preserve: a block ends with that
+call, continuing without the checked value). An intent with nothing to
+derive is listed as `already applied`.
+
+In `try --on`, a follow-up's intent replaces the draft's intent with the
+same identity where it stands: `arity` of the same function, or `guard`
+with the same checker and `arg`; other intents are appended. An `arity`
+intent the follow-up does not restate records the follow-up's provenance
+in `"after"`: the functions, tests and test tables it states. The intent's
+`"frame_calls"` covers only what the intent's own revision states, so a
+call or test of `f` in content listed in `"after"` is read by its argument
+count alone, and one whose count fits both the old and the new parameters
+is an obligation (a later revision may copy a call written for either). A
+restating intent keeps the list, unless it restates the function's
+parameters (a new change) or states `"frame_calls"` itself, which then
+covers everything the frame states. The author may state or edit the
+list. Several entry guards on one function run in written
+order: each goes after the guards the function starts with (including
+committed ones) and checks the value they leave for its `arg`. A block
+restated after a committed preserve guard replaces the pieces its
 expansion made, through the guard's call as well.
 
 Two intents are enabled:
@@ -991,7 +1017,10 @@ trial JSON):
   live test unchanged, so that its compiled TestCase is the live one,
   counts here once and not as imported or authored. A frame test that
   changes a live test replaces it: it counts where its entry comes from,
-  and `replaced` lists it;
+  and `replaced` lists it. A live test that a ripple `arity` intent
+  restates (its arguments rewritten for the changed parameters, its
+  expectation kept) is still provided, counted once, and not listed as
+  replaced;
 - `imported`: the other frame tests whose entry is unchanged since their
   import;
 - `authored`: the remaining frame tests and table rows.

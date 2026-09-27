@@ -510,11 +510,11 @@ pub fn expand(program: &Program, names: &Names, frame_value: &Value) -> Result<E
     // Ripple intents apply last, to the frame with its own definitions
     // resolved; they derive ordinary AF1 edits into the same plain frame.
     let mut ripple = None;
-    if let Some(intents) = object.get("ripple") {
+    if object.contains_key("ripple") {
         let clean = expander.obligations.is_empty();
         let outcome = crate::ripple::apply(
             &context,
-            intents,
+            object,
             &mut out,
             &mut expander.map,
             &mut expander.obligations,

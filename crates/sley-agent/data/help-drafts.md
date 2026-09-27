@@ -36,3 +36,8 @@ given. `submit d1` submits only a Valid candidate of that revision
 (`AGENT_DRAFT_INCOMPLETE` otherwise); an older revision is never used
 instead, but `submit d1@r2` names one explicitly. A bare `submit` takes
 the revision recorded last, over all drafts, and only when it is valid.
+
+`tests: X/Y passed [authored A, imported I, provided P]` counts every
+TestCase that ran once, by where its entry comes from. A live test the
+frame changes counts where its new entry comes from (`replaces provided`
+names it); a live test a ripple `arity` intent restates stays provided.

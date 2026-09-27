@@ -1328,6 +1328,22 @@ fn provided_tests(head: &Head, after: Option<&Program>, replaced: &[EntityId]) -
         .count()
 }
 
+/// Live `TestCases` a ripple intent restated (their arguments rewritten
+/// for a changed signature): they stay provided, counted once.
+fn ripple_restated(artifacts: &[(String, Value)], names: &Names) -> Vec<EntityId> {
+    let Some((_, inventory)) = artifacts.iter().find(|(file, _)| file == "ripple.json") else {
+        return Vec::new();
+    };
+    inventory["intents"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .flat_map(|intent| intent["tests"].as_array().cloned().unwrap_or_default())
+        .filter(|test| test["origin"] == "live" && test["edit"] == "rewritten")
+        .filter_map(|test| test["test"].as_str().and_then(|name| names.resolve(name)))
+        .collect()
+}
+
 /// The live `TestCase` a name denotes at the head, if any.
 fn live_test(head: &Head, names: &Names, name: &str) -> Option<EntityId> {
     names.resolve(name).filter(|id| {
@@ -2188,6 +2204,7 @@ fn run_trial(
     draft::anchor(&mut obligations, Some(&frame_value));
     // Live tests the candidate replaces count where their new entry comes
     // from, never also as provided.
+    let derived = ripple_restated(&compiled.artifacts, &names);
     let replaced: Vec<EntityId> = imported
         .record
         .operations
@@ -2196,6 +2213,7 @@ fn run_trial(
             operation.target_kind == 14
                 && operation.class == sley_mutate::MutationClass::ReplaceEntityVersion
                 && head.program().contains(&operation.target_entity)
+                && !derived.contains(&operation.target_entity)
         })
         .map(|operation| operation.target_entity)
         .collect();
