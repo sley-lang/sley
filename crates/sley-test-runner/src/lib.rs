@@ -8,7 +8,8 @@
 //! worker request envelope, bounded portable program artifact, root-owned
 //! worker-input staging, pure native
 //! execution/report bridge, observed-report request binding, typed bounded
-//! report/measurement/configuration response transport, authenticated socket
+//! report/measurement/configuration response transport, bounded root-peer
+//! socket client, authenticated socket
 //! ingress boundary, fail-closed
 //! one-connection service with prelaunch program checks, and the
 //! readiness probes. The root service loop and privileged transient-unit
@@ -24,6 +25,7 @@
 //! socket service rechecks both before its explicit refusal. Measured launch
 //! and admission still belong to N5; the service remains refusal-only.
 
+pub mod client;
 pub mod config;
 pub mod enforce;
 pub mod execution;
