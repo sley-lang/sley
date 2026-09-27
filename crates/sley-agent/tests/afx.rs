@@ -1742,3 +1742,40 @@ fn a_malformed_terminator_is_reported_by_the_compiler_as_authored() {
     );
     assert!(!detail.contains("AGENT_X_SCOPE"), "{detail}");
 }
+
+#[test]
+fn derived_arguments_are_threaded_and_literals_take_member_types() {
+    let temp = workspace("threaded-derive");
+    let frame = json!({"af1": 1, "afx": 1,
+      "types": [error_type(),
+                {"name": "Shape", "variant": ["Empty", ["Circle", "i64"]]},
+                {"name": "Point", "record": [["x", "i64"], ["y", "u8"]]}],
+      "fns": [
+        {"fn": "f", "params": [["a", "i64"]], "returns": "Result<i64,E>", "blocks": [
+          {"name": "entry", "term": ["br", "work", "a"]},
+          {"name": "work", "params": [["p", "i64"]],
+           "ops": [["s", "add?Ov", "p", 1], ["t", "mul?Ov", "s", 3]], "term": ["br", "next"]},
+          {"name": "next", "params": [["p", "i64"], ["t", "i64"]], "ops": [["d", "sub?Un", "t", "p"]], "term": ["ok", "d"]}]},
+        {"fn": "circle", "params": [], "returns": "Shape", "blocks": [
+          {"name": "entry", "term": ["return", ["variant", "Shape.Circle", 5]]}]},
+        {"fn": "point", "params": [], "returns": "Point", "blocks": [
+          {"name": "entry", "term": ["return", ["record", "Point", -2, 200]]}]}]});
+    let expansion = expand(&temp.path, &frame);
+    assert!(
+        expansion.obligations.is_empty(),
+        "{:?}",
+        expansion.obligations
+    );
+    let blocks = &expansion.frame["fns"][0]["blocks"];
+    // `p` rides through both continuations; `next` gets it and `t` derived.
+    assert_eq!(blocks[3]["name"], json!("work__s"));
+    assert_eq!(blocks[3]["params"], json!([["s", "i64"], ["p", "i64"]]));
+    assert_eq!(blocks[4]["params"], json!([["t", "i64"], ["p", "i64"]]));
+    assert_eq!(blocks[4]["term"], json!(["br", "next", "p", "t"]));
+    assert_eq!(expansion.stats.derived_args, 2);
+    let mut runner = Runner::new(&temp.path, &frame);
+    assert_eq!(runner.call("f", &[json!(4)]), json!({"Ok": 11}));
+    assert_eq!(runner.call("f", &[json!(i64::MAX)]), json!({"Err": "Ov"}));
+    assert_eq!(runner.call("circle", &[]), json!({"Circle": 5}));
+    assert_eq!(runner.call("point", &[]), json!({"x": -2, "y": 200}));
+}
