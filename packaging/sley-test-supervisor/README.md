@@ -20,10 +20,12 @@ encodes the exact plan, root, live object inventory, and selected native
 cross-boundary identity or limit substitution. The refusal-only service does
 not yet invoke that check. A pure `execute_portable_test` bridge now projects
 the bound objects, rechecks the selected native `TestCase`, executes the
-existing Sley VM, and compares VM-derived ordered input hashes. Its result
-has no host memory/time measurement and does not pass admission. Owner-side
-artifact construction, worker dispatch/reply, and measured launch still need
-to be wired before either mode can execute through the service.
+existing Sley VM, and compares VM-derived ordered input hashes. The pure
+`sley-tests` owner reserves the complete execution report before the VM runs
+and can build a canonical observed report and expectation comparison. This
+result has no host memory/time measurement and does not pass admission.
+Owner-side artifact construction, worker dispatch/reply, and measured launch
+still need to be wired before either mode can execute through the service.
 
 1. Build the release binaries (`sley`, supervisor daemon once its event
    loop lands) and install the worker at the configured

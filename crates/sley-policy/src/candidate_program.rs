@@ -11,6 +11,7 @@ use sley_check::{TypeEnvironment, TypeError, TypeErrorCode};
 use sley_id::{EntityId, SchemaEpochId, StateRoot};
 use sley_mutate::{
     EntityObject,
+    semantic_projection::{SemanticProjectionError, project_semantic_inventory},
     value::{DependencyBindingBody, EntityBodyValue, PolicyBindingBody},
 };
 use sley_ssmc::{
@@ -70,6 +71,16 @@ impl CandidateProgramError {
     }
 }
 
+impl From<SemanticProjectionError> for CandidateProgramError {
+    fn from(value: SemanticProjectionError) -> Self {
+        match value {
+            SemanticProjectionError::ResourceLimit => Self::ResourceLimit,
+            SemanticProjectionError::SetNotCanonical => Self::SetNotCanonical,
+            SemanticProjectionError::OpcodeUnknown => Self::OpcodeUnknown,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 struct ProgramEdge {
     dependent: EntityId,
@@ -114,42 +125,51 @@ pub(crate) struct OwnedFunctionUnit {
 
 impl CandidateProgram {
     pub(crate) fn project(objects: &[EntityObject]) -> Result<Self, CandidateProgramError> {
-        if objects.len() > MAX_PROGRAM_ENTITIES {
-            return Err(CandidateProgramError::ResourceLimit);
-        }
+        let inventory = project_semantic_inventory(objects)?;
         let mut program = Self {
             kinds: BTreeMap::new(),
-            type_definitions: Vec::new(),
-            functions: Vec::new(),
-            parameters: Vec::new(),
-            blocks: Vec::new(),
-            operations: Vec::new(),
-            constants: Vec::new(),
-            globals: Vec::new(),
-            effects: Vec::new(),
-            requirements: Vec::new(),
-            contracts: Vec::new(),
-            tests: Vec::new(),
-            adapters: Vec::new(),
-            policy_bindings: Vec::new(),
-            dependency_bindings: Vec::new(),
-            workspaces: Vec::new(),
-            packages: Vec::new(),
-            namespaces: Vec::new(),
-            entry_points: Vec::new(),
-            policy_binding_definitions: Vec::new(),
-            dependency_binding_definitions: Vec::new(),
+            type_definitions: inventory.type_definitions,
+            functions: inventory.functions,
+            parameters: inventory.parameters,
+            blocks: inventory.blocks,
+            operations: inventory.operations,
+            constants: inventory.constants,
+            globals: inventory.globals,
+            effects: inventory.effects,
+            requirements: inventory.requirements,
+            contracts: inventory.contracts,
+            tests: inventory.tests,
+            adapters: inventory.adapters,
+            policy_bindings: objects
+                .iter()
+                .filter_map(|object| match &object.record().body {
+                    EntityBodyValue::PolicyBinding(body) => {
+                        Some((object.record().entity_id, body.clone()))
+                    }
+                    _ => None,
+                })
+                .collect(),
+            dependency_bindings: objects
+                .iter()
+                .filter_map(|object| match &object.record().body {
+                    EntityBodyValue::DependencyBinding(body) => {
+                        Some((object.record().entity_id, body.clone()))
+                    }
+                    _ => None,
+                })
+                .collect(),
+            workspaces: inventory.workspaces,
+            packages: inventory.packages,
+            namespaces: inventory.namespaces,
+            entry_points: inventory.entry_points,
+            policy_binding_definitions: inventory.policy_bindings,
+            dependency_binding_definitions: inventory.dependency_bindings,
             edges: Vec::new(),
             graph_work: 0,
         };
 
-        let mut previous = None;
         for object in objects {
             let record = object.record();
-            if previous.is_some_and(|prior| prior >= record.entity_id) {
-                return Err(CandidateProgramError::SetNotCanonical);
-            }
-            previous = Some(record.entity_id);
             if program
                 .kinds
                 .insert(record.entity_id, record.body.kind_tag())
@@ -157,7 +177,6 @@ impl CandidateProgram {
             {
                 return Err(CandidateProgramError::DuplicateEntity);
             }
-            project_body(&mut program, record.entity_id, &record.body)?;
         }
 
         let mut collector = GraphCollector {
@@ -497,158 +516,6 @@ impl CandidateProgram {
         }
         Ok(())
     }
-}
-
-#[allow(clippy::too_many_lines)]
-fn project_body(
-    program: &mut CandidateProgram,
-    entity_id: EntityId,
-    body: &EntityBodyValue,
-) -> Result<(), CandidateProgramError> {
-    match body {
-        EntityBodyValue::Workspace(value) => program.workspaces.push(WorkspaceDefinition {
-            entity_id,
-            packages: value.packages.as_slice().to_vec(),
-            root_namespace: value.root_namespace,
-            capability_requirements: value.capability_requirements.as_slice().to_vec(),
-            contracts: value.contracts.as_slice().to_vec(),
-            tests: value.tests.as_slice().to_vec(),
-        }),
-        EntityBodyValue::Package(value) => program.packages.push(PackageDefinition {
-            entity_id,
-            workspace: value.workspace,
-            root_namespace: value.root_namespace,
-            dependencies: value.dependencies.as_slice().to_vec(),
-            exports: value.exports.as_slice().to_vec(),
-        }),
-        EntityBodyValue::Namespace(value) => program.namespaces.push(NamespaceDefinition {
-            entity_id,
-            parent: value.parent,
-            members: value.members.as_slice().to_vec(),
-        }),
-        EntityBodyValue::EntryPoint(value) => program.entry_points.push(EntryPointDefinition {
-            entity_id,
-            function: value.function,
-            exposure: value.exposure,
-        }),
-        EntityBodyValue::TypeDef(value) => program.type_definitions.push(TypeDefinition {
-            entity_id,
-            type_parameters: value.type_parameters.clone(),
-            form: value.form.clone(),
-            invariants: value.invariants.as_slice().to_vec(),
-            visibility: value.visibility,
-        }),
-        EntityBodyValue::Function(value) => program.functions.push(FunctionGraph {
-            entity_id,
-            type_parameters: value.type_parameters.clone(),
-            parameters: value.parameters.clone(),
-            result_type: value.result_type.clone(),
-            effects: value.effects.as_slice().to_vec(),
-            entry_block: value.entry_block,
-            blocks: value.blocks.clone(),
-            contracts: value.contracts.as_slice().to_vec(),
-            visibility: value.visibility,
-        }),
-        EntityBodyValue::Parameter(value) => program.parameters.push(Parameter {
-            entity_id,
-            owner: value.owner,
-            role: value.role,
-            ordinal: value.ordinal,
-            value_type: value.value_type.clone(),
-        }),
-        EntityBodyValue::Block(value) => program.blocks.push(Block {
-            entity_id,
-            function: value.function,
-            parameters: value.parameters.clone(),
-            operations: value.operations.clone(),
-            terminator: value.terminator.clone(),
-            reachability: value.reachability,
-        }),
-        EntityBodyValue::Operation(value) => program.operations.push(Operation {
-            entity_id,
-            block: value.block,
-            ordinal: value.ordinal,
-            opcode: Opcode::from_tag(value.opcode).ok_or(CandidateProgramError::OpcodeUnknown)?,
-            operands: value.operands.clone(),
-            result_types: value.result_types.clone(),
-            immediate: value.immediate.clone(),
-        }),
-        EntityBodyValue::Constant(value) => program.constants.push(ConstantDefinition {
-            entity_id,
-            value: value.value.clone(),
-        }),
-        EntityBodyValue::GlobalValue(value) => program.globals.push(GlobalValueDefinition {
-            entity_id,
-            value_type: value.value_type.clone(),
-            initializer: value.initializer,
-            visibility: value.visibility,
-        }),
-        EntityBodyValue::EffectDef(value) => program.effects.push(EffectDefinition {
-            entity_id,
-            effect_kind: value.effect_kind,
-            scope_type: value.scope_type.clone(),
-            request_type: value.request_type.clone(),
-            response_type: value.response_type.clone(),
-            failure_type: value.failure_type.clone(),
-            visibility: value.visibility,
-        }),
-        EntityBodyValue::CapabilityRequirement(value) => {
-            program.requirements.push(CapabilityRequirement {
-                entity_id,
-                effect: value.effect,
-                allowed_scopes: value.allowed_scopes.clone(),
-                constraint_contracts: value.constraint_contracts.as_slice().to_vec(),
-            });
-        }
-        EntityBodyValue::Contract(value) => program.contracts.push(ContractDefinition {
-            entity_id,
-            target: value.target,
-            contract_kind: value.contract_kind,
-            predicate: value.predicate,
-            bindings: value.bindings.clone(),
-            resource_limits: value.resource_limits,
-        }),
-        EntityBodyValue::TestCase(value) => program.tests.push(TestCaseDefinition {
-            entity_id,
-            target: value.target,
-            inputs: value.inputs.clone(),
-            effect_environment: value.effect_environment.clone(),
-            expected: value.expected.clone(),
-            observations: value.observations.clone(),
-            resource_limits: value.resource_limits,
-        }),
-        EntityBodyValue::AdapterImport(value) => program.adapters.push(AdapterImport {
-            entity_id,
-            adapter_id: value.adapter_id,
-            abi_version: value.abi_version,
-            request_type: value.request_type.clone(),
-            response_type: value.response_type.clone(),
-            failure_type: value.failure_type.clone(),
-            effects: value.effects.as_slice().to_vec(),
-        }),
-        EntityBodyValue::PolicyBinding(value) => {
-            program
-                .policy_binding_definitions
-                .push(PolicyBindingDefinition {
-                    entity_id,
-                    subject: value.subject,
-                    requirements: value.requirements.as_slice().to_vec(),
-                });
-            program.policy_bindings.push((entity_id, value.clone()));
-        }
-        EntityBodyValue::DependencyBinding(value) => {
-            program
-                .dependency_binding_definitions
-                .push(DependencyBindingDefinition {
-                    entity_id,
-                    dependency_root: value.dependency_root,
-                    external_package: value.external_package,
-                    local_namespace: value.local_namespace,
-                });
-            program.dependency_bindings.push((entity_id, value.clone()));
-        }
-    }
-    Ok(())
 }
 
 struct GraphCollector<'a> {

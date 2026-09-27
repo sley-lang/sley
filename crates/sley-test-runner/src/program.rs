@@ -251,7 +251,11 @@ impl PortableTestProgram {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{execution::execute_portable_test, protocol::RunRequest, worker::WorkerRequest};
+    use crate::{
+        execution::{evaluate_portable_test, execute_portable_test},
+        protocol::RunRequest,
+        worker::WorkerRequest,
+    };
     use sley_id::{
         CapabilitySummaryDigest, ObjectId, PolicyRootId, PrincipalId, TransactionId, WorkspaceId,
     };
@@ -266,8 +270,9 @@ mod tests {
     };
     use sley_state_root::StateRootBuilder;
     use sley_tests::{
-        GrantCeilings, NativeAggregateLimits, NativeResourcePolicyParts, NativeResourcePolicyV1,
-        NativeTestPlanParts, ValidationLimits, plan::SELECTION_MODE_EXPLICIT_ROOT,
+        GrantCeilings, NativeAggregateLimits, NativeExecutionReportV1, NativeResourcePolicyParts,
+        NativeResourcePolicyV1, NativeTestPlanParts, NativeTestReportV1, TestComparison,
+        ValidationLimits, plan::SELECTION_MODE_EXPLICIT_ROOT,
     };
     use sley_vm::native_execution::{NativeDeclaredLimits, NativeImplementationLimits};
 
@@ -367,6 +372,7 @@ mod tests {
 
     fn fixture_with_observations(
         observations: Vec<ExpectedObservation>,
+        expected_value: bool,
     ) -> (
         NativeTestPlanV1,
         AcceptedStateRoot,
@@ -426,7 +432,7 @@ mod tests {
                     target: function,
                     inputs: vec![bool_value(true)],
                     effect_environment: EffectEnvironment::Replay(Vec::new()),
-                    expected: ExpectedOutcome::Value(bool_value(true)),
+                    expected: ExpectedOutcome::Value(bool_value(expected_value)),
                     observations,
                     resource_limits: limits(),
                 }),
@@ -473,7 +479,7 @@ mod tests {
         Vec<EntityObject>,
         EntityId,
     ) {
-        fixture_with_observations(Vec::new())
+        fixture_with_observations(Vec::new(), true)
     }
 
     #[test]
@@ -606,10 +612,13 @@ mod tests {
 
     #[test]
     fn portable_execution_rechecks_unsupported_test_observations() {
-        let (plan, root, objects, test) = fixture_with_observations(vec![ExpectedObservation {
-            observation_id: [7; 32],
-            value: bool_value(true),
-        }]);
+        let (plan, root, objects, test) = fixture_with_observations(
+            vec![ExpectedObservation {
+                observation_id: [7; 32],
+                value: bool_value(true),
+            }],
+            true,
+        );
         let program = PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
         let hash = hash_validated_value(root.record.schema_epoch_id, &bool_value(true))
             .expect("validated Boolean hash");
@@ -623,5 +632,39 @@ mod tests {
             execute_portable_test(&program, &worker),
             Err(crate::execution::PortableExecutionError::Static(_))
         ));
+    }
+
+    #[test]
+    fn observed_report_and_expected_comparison_bind_the_selected_plan() {
+        for (expected_value, comparison) in [
+            (true, TestComparison::Match),
+            (false, TestComparison::Mismatch),
+        ] {
+            let (plan, root, objects, test) = fixture_with_observations(Vec::new(), expected_value);
+            let program =
+                PortableTestProgram::build(&plan, &root, &objects, test).expect("program");
+            let hash = hash_validated_value(root.record.schema_epoch_id, &bool_value(true))
+                .expect("validated Boolean hash");
+            let worker = WorkerRequest {
+                program_bytes: program.stored_bytes().to_vec(),
+                input_hashes: vec![*hash.as_bytes()],
+                declared_limits: program.selected().declared_limits,
+                implementation_limits: plan.implementation_limits(),
+            };
+            let result = evaluate_portable_test(&program, &worker).expect("evaluation");
+            assert_eq!(result.entry.comparison, comparison);
+            assert_eq!(result.entry.test_entity, test);
+            assert_eq!(result.execution_report.plan_id(), plan.plan_id());
+            assert_eq!(
+                NativeExecutionReportV1::parse(result.execution_report.stored_bytes())
+                    .expect("canonical report"),
+                result.execution_report
+            );
+            let report = NativeTestReportV1::build(&plan, vec![result.entry])
+                .expect("single selected test report");
+            report.verify_plan_coverage(&plan).expect("plan coverage");
+            assert_eq!(report.match_count(), u64::from(expected_value));
+            assert_eq!(report.mismatch_count(), u64::from(!expected_value));
+        }
     }
 }
