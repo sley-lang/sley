@@ -4,7 +4,8 @@
 //! that author Sley programs (`docs/spec/SLEY_AGENT_V1.md`, ADR-0051):
 //!
 //! - AV1 views: compact, output-only, non-canonical listings under local
-//!   names ([`view`]), and the AF1-X-shaped AV1-X rendering ([`xview`]).
+//!   names ([`view`]), focused views ([`focus`]) and the AF1-X-shaped
+//!   AV1-X rendering ([`xview`]).
 //! - AF1 frames: name-based JSON authoring data compiled client-side, in one
 //!   pass, into the existing mutation candidate record ([`frame`]).
 //! - An advisory dev loop: in-process candidate validation with decoded
@@ -24,6 +25,7 @@ pub mod cli;
 pub mod error;
 pub mod exec;
 pub mod explain;
+pub mod focus;
 pub mod frame;
 pub mod genesis;
 pub mod help;
