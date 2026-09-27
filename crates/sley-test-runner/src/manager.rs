@@ -86,9 +86,10 @@ pub fn verify_system_unit(
     )
 }
 
-/// Confirms that the system manager no longer lists this exact unit and its
-/// system.slice cgroup path is absent. A still-loaded unit or live group is
-/// not a reap confirmation, even if the launcher process has exited.
+/// Confirms that the manager has no live process or control group for this
+/// unit and its system.slice cgroup path is absent. A failed unit may remain
+/// loaded after SIGKILL; that is terminal only with `MainPID=0` and an empty
+/// manager `ControlGroup`.
 ///
 /// # Errors
 ///
@@ -117,8 +118,35 @@ pub fn confirm_system_unit_reaped(unit_name: &str) -> Result<bool, ManagerError>
         &service_name,
     ])?;
     let entries = listed_units(&listing)?;
-    if !entries.is_empty() {
-        return Ok(false);
+    if entries.len() > 1 {
+        return Err(ManagerError::PropertyMismatch);
+    }
+    if let Some(entry) = entries.first() {
+        let fields = entry.as_array().ok_or(ManagerError::Unavailable)?;
+        if fields.len() != 10 || fields[0].as_str() != Some(&service_name) {
+            return Err(ManagerError::PropertyMismatch);
+        }
+        let object = busctl(&[
+            "call",
+            SYSTEMD_BUS,
+            SYSTEMD_MANAGER,
+            "org.freedesktop.systemd1.Manager",
+            "GetUnit",
+            "s",
+            &service_name,
+        ])?;
+        let path = object_path(&object)?;
+        let unit = get_all(path, "org.freedesktop.systemd1.Unit")?;
+        let service = get_all(path, "org.freedesktop.systemd1.Service")?;
+        check(&unit, "Id", "s", &Value::from(service_name.as_str()))?;
+        let state = property(&unit, "ActiveState", "s")?
+            .as_str()
+            .ok_or(ManagerError::PropertyMismatch)?;
+        if !matches!(state, "inactive" | "failed") {
+            return Ok(false);
+        }
+        check(&service, "MainPID", "u", &Value::from(0))?;
+        check(&service, "ControlGroup", "s", &Value::from(""))?;
     }
     let system_slice = Path::new("/sys/fs/cgroup/system.slice");
     let parent = std::fs::symlink_metadata(system_slice).map_err(|_| ManagerError::Unavailable)?;

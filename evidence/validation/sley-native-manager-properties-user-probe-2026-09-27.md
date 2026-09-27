@@ -23,3 +23,14 @@
 The probe used the user manager. It validates the local D-Bus value shapes and
 the missing mount-target failure, but does not qualify the privileged system
 service or native test admission. The root supervisor is still unwired.
+
+## Reap-state follow-up
+
+A short-lived user transient service disappeared from `GetUnit` after normal
+exit; `ListUnitsByPatterns` returned an empty typed unit list. A second user
+service killed with `systemctl kill --kill-whom=all --signal=SIGKILL` remained
+loaded as `ActiveState=failed`, while its typed Service properties reported
+`MainPID=0` and `ControlGroup=""`. The reap checker therefore accepts either
+an absent unit or that verified terminal manager state, and additionally
+requires the exact cgroup path to be absent. This remains a user-manager
+probe, not a system-manager qualification.
