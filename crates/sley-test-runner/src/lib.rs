@@ -13,7 +13,8 @@
 //! ingress boundary, fail-closed
 //! one-connection service with prelaunch program checks, live cgroup telemetry,
 //! a bounded gated-worker report channel and ordered manager/cgroup gate phase,
-//! a signed-completion builder, and readiness probes. The unit owner composes
+//! a signed-completion builder, a root-provisioned measurement trust loader,
+//! and readiness probes. The unit owner composes
 //! launch, gated execution, exit, and reap checks; the signed-completion
 //! builder requires its result and an authenticated request. The root service
 //! loop does not invoke either yet; privileged qualification remains open.
@@ -47,5 +48,6 @@ pub mod response;
 pub mod service;
 pub mod stage;
 pub mod telemetry;
+pub mod trust_store;
 pub mod unit;
 pub mod worker;
