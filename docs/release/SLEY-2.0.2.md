@@ -119,6 +119,17 @@ runs on the build host):
 | `find` on a package of about 100 entities | 4.2 ms | 300 ms |
 | `try` of 49 operations with 5 TestCases | 12.0 ms | 500 ms |
 
+## Fixes
+
+- **VM:** an operation's result stays readable in every block it dominates
+  after it is passed on as an edge argument
+  ([#15](https://github.com/sley-lang/sley/issues/15)).
+- **Types:** named type expansion is memoized under a work budget
+  ([#14](https://github.com/sley-lang/sley/issues/14)).
+- **Native commits:** settled native attempts are archived outside the
+  recovery scan, and their status and retry records are kept
+  ([#13](https://github.com/sley-lang/sley/issues/13)).
+
 ## TestCases that work
 
 AF1 tests that state no limits take the workbench defaults, clamped to the
