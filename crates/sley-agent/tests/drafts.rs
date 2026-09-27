@@ -818,6 +818,7 @@ fn the_events_ledger_counts_without_content() {
         "input_bytes",
         "output_bytes",
         "whole_frame",
+        "rewrite",
         "delta_targets",
         "delta_bytes",
         "afx",
@@ -871,4 +872,25 @@ fn the_events_ledger_counts_without_content() {
     let (status, _) = run(&elsewhere.path, &["view"]);
     assert_eq!(status, 2);
     assert!(!elsewhere.path.join(".sley").exists());
+}
+
+#[test]
+fn a_whole_new_frame_after_a_draft_is_counted_as_a_rewrite() {
+    let temp = workspace("rewrite");
+    let frame = json!({"af1": 1, "fns": [{"fn": "f", "params": [["x", "i64"]], "returns": "i64",
+        "blocks": [{"name": "entry", "term": ["return", "x"]}]}]});
+    run(&temp.path, &["try", &frame.to_string()]);
+    run(&temp.path, &["try", &frame.to_string()]);
+    run(
+        &temp.path,
+        &[
+            "try",
+            "--on",
+            "d2",
+            "{\"af1\": 1, \"tests\": [{\"fn\": \"f\", \"args\": [1], \"expect\": 1}]}",
+        ],
+    );
+    let events = ledger(&temp.path);
+    let rewrites: Vec<&Value> = events.iter().map(|event| &event["rewrite"]).collect();
+    assert_eq!(rewrites, [&json!(false), &json!(true), &json!(false)]);
 }

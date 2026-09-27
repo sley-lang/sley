@@ -750,6 +750,12 @@ fn try_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result<
     let head = workspace.head()?;
     let proposal = match on {
         None => {
+            // A whole new frame while drafts exist restates work that a
+            // layered frame or a fill would not: the ledger counts it.
+            let drafted = Drafts::open(&workspace)
+                .and_then(|drafts| drafts.handles())
+                .is_ok_and(|handles| !handles.is_empty());
+            global.note("rewrite", drafted);
             let origin = if Path::new(frame_argument).is_file() {
                 Origin::File(frame_argument.clone())
             } else {

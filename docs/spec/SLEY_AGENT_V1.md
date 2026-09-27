@@ -776,7 +776,8 @@ Every command that uses a workspace appends one JSON line to
 `.sley/events.jsonl`, with exactly these keys: `seq`, `cmd`, `draft`,
 `candidate`, `input_bytes` (the frame, delta or case file read, otherwise
 the command line), `output_bytes` (what the command printed),
-`whole_frame`, `delta_targets`, `delta_bytes`, `afx` (the authoring
+`whole_frame`, `rewrite` (a `try` of a whole new frame while drafts
+exist), `delta_targets`, `delta_bytes`, `afx` (the authoring
 feature counters of the compiled frame), `table_rows`, `tests` (the
 provenance counts), `refusal` (the workbench or kernel symbol),
 `obligations` and `valid`. A line holds counts, handles and symbols only:

@@ -80,6 +80,7 @@ impl Event {
             "input_bytes": field("input_bytes", json!(0)),
             "output_bytes": output_bytes,
             "whole_frame": field("whole_frame", json!(false)),
+            "rewrite": field("rewrite", json!(false)),
             "delta_targets": field("delta_targets", json!(0)),
             "delta_bytes": field("delta_bytes", json!(0)),
             "afx": stats,
