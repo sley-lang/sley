@@ -4,7 +4,7 @@
 //! that author Sley programs (`docs/spec/SLEY_AGENT_V1.md`, ADR-0051):
 //!
 //! - AV1 views: compact, output-only, non-canonical listings under local
-//!   names ([`view`]).
+//!   names ([`view`]), and the AF1-X-shaped AV1-X rendering ([`xview`]).
 //! - AF1 frames: name-based JSON authoring data compiled client-side, in one
 //!   pass, into the existing mutation candidate record ([`frame`]).
 //! - An advisory dev loop: in-process candidate validation with decoded
@@ -36,5 +36,6 @@ pub mod types;
 pub mod values;
 pub mod view;
 pub mod workspace;
+pub mod xview;
 
 pub use error::{AgentError, AgentErrorCode, Result};

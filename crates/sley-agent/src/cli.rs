@@ -24,6 +24,7 @@ use crate::names::{NameMap, Names, Scope};
 use crate::values::{self, ProgramTypes};
 use crate::view::{self, ViewOptions};
 use crate::workspace::{Head, NAMES_FILE, Program, STATE_DIR, SUBMISSION, Workspace};
+use crate::xview;
 
 /// Exit status for success.
 pub const EXIT_OK: i32 = 0;
@@ -267,19 +268,31 @@ fn view_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
     let words = words(
         args,
         &["--after"],
-        &["--ids", "--types", "--limits", "--package"],
+        &["--ids", "--types", "--limits", "--package", "--x"],
     )?;
     let options = ViewOptions {
         ids: words.has("--ids"),
         types: words.has("--types"),
         limits: words.has("--limits"),
     };
+    let x = words.has("--x");
     let workspace = workspace(global)?;
     let head = workspace.head()?;
     let map = name_map(&workspace)?;
     let selected = select(&workspace, &head, &map, words.value("--after"))?;
     let shown_label = selected.label.as_deref().map(shown);
-    let mut text = view::header(&selected.program, shown_label.as_deref());
+    let mut text = if x {
+        view::header_x(&selected.program, shown_label.as_deref())
+    } else {
+        view::header(&selected.program, shown_label.as_deref())
+    };
+    let render = |id: &EntityId| {
+        if x {
+            xview::entity(&selected.program, &selected.names, id, options)
+        } else {
+            view::entity(&selected.program, &selected.names, id, options)
+        }
+    };
     if words.positional.is_empty() && words.value("--after").is_some() && !words.has("--package") {
         // The affected view: every function and test the candidate touches.
         let store = Store::open(&workspace)?;
@@ -290,27 +303,21 @@ fn view_command(global: &Global, args: &[String], out: &mut dyn Write) -> Result
             &selected,
         )?;
         for id in affected {
-            text.push_str(&view::entity(
-                &selected.program,
-                &selected.names,
-                &id,
-                options,
-            ));
+            text.push_str(&render(&id));
         }
     } else if words.has("--package") || words.positional.is_empty() {
-        text.push_str(&view::package(&selected.program, &selected.names, options));
+        if x {
+            text.push_str(&xview::package(&selected.program, &selected.names, options));
+        } else {
+            text.push_str(&view::package(&selected.program, &selected.names, options));
+        }
     } else {
         for target in &words.positional {
             let id = selected
                 .names
                 .resolve(target)
                 .ok_or_else(|| unknown_name(target))?;
-            text.push_str(&view::entity(
-                &selected.program,
-                &selected.names,
-                &id,
-                options,
-            ));
+            text.push_str(&render(&id));
         }
     }
     if global.json {
