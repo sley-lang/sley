@@ -96,7 +96,7 @@ SCRIPT_MARKERS = (
     "def run_conformance_subset(",
     "def run_demo(",
     "def build_candidate(",
-    "sley-2.0.1-linux-x86_64",
+    "sley-2.0.2-linux-x86_64",
     "def verify_third_party_licenses(",
     "third_party.OUTPUT_NAME, \"demo/run_demo.py\"",
 )
@@ -193,7 +193,7 @@ def main() -> int:
     expected = {
         "contract": "docs/spec/RELEASE_CANDIDATE_PACKAGING_V1.md",
         "adr": "docs/adr/ADR-0038-release-candidate-packaging-boundary.md",
-        "artifact_name": "sley-2.0.1-linux-x86_64.tar.gz",
+        "artifact_name": "sley-2.0.2-linux-x86_64.tar.gz",
         "manifest_contract": "sley2.release-candidate-manifest.v1",
         "new_stable_error_codes": len(CODES),
         "release_check_gate": "FAIL_CLOSED_NOT_IMPLEMENTED",
@@ -207,13 +207,13 @@ def main() -> int:
     if status not in (DRAFT_STATUS, FROZEN_STATUS) + IMPLEMENTATION_STATUSES:
         problems.append("machine-summary:status")
     for key, expected in (
-        ("contract_revision", 8),
+        ("contract_revision", 9),
         ("candidate_content_report", "evidence/release/candidate-content-checks.json"),
         ("candidate_content_checker", "scripts/build_candidate_content_report.py"),
     ):
         if section.get(key) != expected:
             problems.append(f"machine-summary:{key}")
-    if "revision 8 (2026-09-25)" not in spec:
+    if "revision 9 (2026-09-25)" not in spec:
         problems.append("spec-revision")
     content_script = ROOT / "scripts/build_candidate_content_report.py"
     if not content_script.exists() or "sley2.candidate-content-checks.v1" not in read(content_script):

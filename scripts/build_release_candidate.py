@@ -29,7 +29,7 @@ import generate_third_party_licenses as third_party  # noqa: E402  (sibling modu
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-ARTIFACT_STEM = "sley-2.0.1-linux-x86_64"
+ARTIFACT_STEM = "sley-2.0.2-linux-x86_64"
 ARTIFACT_NAME = f"{ARTIFACT_STEM}.tar.gz"
 # Release link contract (cross-host reproducibility repair): the candidate
 # links self-contained static (musl) with the rust-lld and musl runtime from
@@ -84,10 +84,12 @@ ARTIFACT_INPUT_PATHS = (
     *CONFORMANCE_SUBSET,
 )
 FIXED_ARTIFACT_MEMBERS = frozenset({
-    "bin/sley", "MANIFEST.json", "SBOM.json", "LICENSES.json",
+    "bin/sley", "bin/sley-agent", "MANIFEST.json", "SBOM.json", "LICENSES.json",
     "LICENSE", "NOTICE", third_party.OUTPUT_NAME, "demo/run_demo.py",
 })
-EXECUTABLE_MEMBERS = {"bin/sley", "demo/run_demo.py"}
+EXECUTABLE_MEMBERS = {"bin/sley", "bin/sley-agent", "demo/run_demo.py"}
+# The agent workbench guide's size bound (SLEY-2.0.2-BR BR-11).
+AGENT_GUIDE_MAX_BYTES = 8192
 
 
 def expected_artifact_members(fixture_paths: list[str]) -> set[str]:
@@ -410,7 +412,8 @@ def clean_build(target: Path, timeout: int) -> Path:
     # itself are remapped so no local absolute path survives in the binary.
     env["RUSTFLAGS"] = " ".join(remap_flags(ROOT, cargo_home, home))
     completed = run(
-        ["cargo", "build", "--release", "--locked", "--target", RELEASE_TARGET, "-p", "sley-cli"],
+        ["cargo", "build", "--release", "--locked", "--target", RELEASE_TARGET, "-p", "sley-cli",
+         "-p", "sley-agent"],
         cwd=ROOT,
         env=env,
         timeout=timeout,
@@ -418,9 +421,14 @@ def clean_build(target: Path, timeout: int) -> Path:
     if completed.returncode != 0:
         raise PackageError(PackageErrorCode.BUILD_FAILED, completed.stderr[-500:])
     binary = target / RELEASE_TARGET / "release" / "sley"
-    if not binary.is_file():
+    if not binary.is_file() or not agent_binary(binary).is_file():
         raise PackageError(PackageErrorCode.BUILD_FAILED, "binary missing")
     return binary
+
+
+def agent_binary(binary: Path) -> Path:
+    """The workbench binary the same build writes beside `sley`."""
+    return binary.with_name("sley-agent")
 
 
 def verify_third_party_licenses(timeout: int) -> None:
@@ -461,6 +469,8 @@ def stage_artifact(
     (stage / "bin").mkdir(parents=True)
     shutil.copyfile(binary, stage / "bin/sley")
     os.chmod(stage / "bin/sley", 0o755)
+    shutil.copyfile(agent_binary(binary), stage / "bin/sley-agent")
+    os.chmod(stage / "bin/sley-agent", 0o755)
     for relative in CONFORMANCE_SUBSET:
         shutil.copytree(ROOT / relative, stage / relative)
     (stage / "demo").mkdir()
@@ -564,9 +574,10 @@ def unpack(artifact: Path, destination: Path) -> Path:
     with tarfile.open(artifact, mode="r:gz") as archive:
         archive.extractall(destination, filter="data")
     unpacked = destination / ARTIFACT_STEM
-    if not (unpacked / "bin/sley").is_file():
-        raise PackageError(PackageErrorCode.MANIFEST_INVALID, "unpacked binary missing")
-    os.chmod(unpacked / "bin/sley", 0o755)
+    for binary in ("bin/sley", "bin/sley-agent"):
+        if not (unpacked / binary).is_file():
+            raise PackageError(PackageErrorCode.MANIFEST_INVALID, "unpacked binary missing")
+        os.chmod(unpacked / binary, 0o755)
     return unpacked
 
 
@@ -593,7 +604,40 @@ def run_conformance_subset(unpacked: Path, timeout: int) -> dict:
     checks["frame_decode_matches_bridge_fixture"] = lines == [expected[frame] for frame in frames]
     encoded = subprocess.run([str(sley), "frame", "encode"], input=("\n".join(lines) + "\n").encode("utf-8"), capture_output=True, cwd=unpacked, env=env, check=False, timeout=timeout)
     checks["frame_encode_reproduces_frames"] = encoded.returncode == 0 and encoded.stdout == frame_bytes
+    checks.update(run_agent_self_test(unpacked, env, timeout))
     return {"checks": checks, "result": "PASS" if all(checks.values()) else "FAIL"}
+
+
+def run_agent_self_test(unpacked: Path, env: dict[str, str], timeout: int) -> dict[str, bool]:
+    """The workbench from the unpacked artifact alone: its version, its guide
+    bound, and the guide's first example end to end (init, try with tests)."""
+    agent = unpacked / "bin/sley-agent"
+    checks: dict[str, bool] = {}
+    version = run([str(agent), "version"], cwd=unpacked, env=env, timeout=timeout)
+    checks["agent_version_names_release"] = (
+        version.returncode == 0 and version.stdout.strip() == "sley-agent " + ARTIFACT_STEM.split("-")[1]
+    )
+    guide = run([str(agent), "help"], cwd=unpacked, env=env, timeout=timeout)
+    checks["agent_guide_within_bound"] = (
+        guide.returncode == 0 and 0 < len(guide.stdout.encode("utf-8")) <= AGENT_GUIDE_MAX_BYTES
+    )
+    example = guide.stdout.split("```json\n", 1)[-1].split("```", 1)[0] if guide.returncode == 0 else ""
+    work = unpacked / "agent-work"
+    try:
+        init = run([str(agent), "init", str(work), "--seed", "00" * 32], cwd=unpacked, env=env, timeout=timeout)
+        tried = run([str(agent), "--workspace", str(work), "--json", "try", example],
+                    cwd=unpacked, env=env, timeout=timeout)
+        try:
+            report = json.loads(tried.stdout) if init.returncode == 0 and tried.returncode == 0 else {}
+        except json.JSONDecodeError:
+            report = {}
+        tests = report.get("tests") or []
+        checks["agent_guide_example_valid_and_tested"] = (
+            report.get("verdict", {}).get("valid") is True and bool(tests) and all(t.get("pass") for t in tests)
+        )
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    return checks
 
 
 def run_demo(unpacked: Path, timeout: int) -> dict:

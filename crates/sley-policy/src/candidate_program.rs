@@ -112,10 +112,28 @@ pub(crate) struct OwnedFunctionUnit {
     pub(crate) operations: Vec<Operation>,
 }
 
+/// Where a projection failed (explain-only; never encoded): the entity
+/// being projected or walked and, for a failed reference, the dependency and
+/// its relationship tag.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ProgramLocus {
+    pub(crate) entity: EntityId,
+    pub(crate) dependency: Option<EntityId>,
+    pub(crate) relationship: Option<u32>,
+}
+
 impl CandidateProgram {
     pub(crate) fn project(objects: &[EntityObject]) -> Result<Self, CandidateProgramError> {
+        Self::project_located(objects).map_err(|(error, _)| error)
+    }
+
+    /// `project`, also naming where a failure occurred. One code path serves
+    /// both, so the locus can never disagree with the refusal.
+    pub(crate) fn project_located(
+        objects: &[EntityObject],
+    ) -> Result<Self, (CandidateProgramError, Option<ProgramLocus>)> {
         if objects.len() > MAX_PROGRAM_ENTITIES {
-            return Err(CandidateProgramError::ResourceLimit);
+            return Err((CandidateProgramError::ResourceLimit, None));
         }
         let mut program = Self {
             kinds: BTreeMap::new(),
@@ -143,11 +161,19 @@ impl CandidateProgram {
             graph_work: 0,
         };
 
+        let at = |entity: EntityId| ProgramLocus {
+            entity,
+            dependency: None,
+            relationship: None,
+        };
         let mut previous = None;
         for object in objects {
             let record = object.record();
             if previous.is_some_and(|prior| prior >= record.entity_id) {
-                return Err(CandidateProgramError::SetNotCanonical);
+                return Err((
+                    CandidateProgramError::SetNotCanonical,
+                    Some(at(record.entity_id)),
+                ));
             }
             previous = Some(record.entity_id);
             if program
@@ -155,18 +181,41 @@ impl CandidateProgram {
                 .insert(record.entity_id, record.body.kind_tag())
                 .is_some()
             {
-                return Err(CandidateProgramError::DuplicateEntity);
+                return Err((
+                    CandidateProgramError::DuplicateEntity,
+                    Some(at(record.entity_id)),
+                ));
             }
-            project_body(&mut program, record.entity_id, &record.body)?;
+            project_body(&mut program, record.entity_id, &record.body)
+                .map_err(|error| (error, Some(at(record.entity_id))))?;
         }
 
         let mut collector = GraphCollector {
             kinds: &program.kinds,
             edges: BTreeSet::new(),
             work: 0,
+            attempted: None,
         };
         for object in objects {
-            collector.collect(object.record().entity_id, &object.record().body)?;
+            let entity = object.record().entity_id;
+            collector.attempted = None;
+            collector
+                .collect(entity, &object.record().body)
+                .map_err(|error| {
+                    let (dependency, relationship) = collector
+                        .attempted
+                        .map_or((None, None), |(dependency, tag)| {
+                            (Some(dependency), Some(tag))
+                        });
+                    (
+                        error,
+                        Some(ProgramLocus {
+                            entity,
+                            dependency,
+                            relationship,
+                        }),
+                    )
+                })?;
         }
         program.edges = collector.edges.into_iter().collect();
         program.graph_work = collector.work;
@@ -216,6 +265,15 @@ impl CandidateProgram {
     /// by their owning phases and refused at the phase 12 guard when
     /// well-formed (contract section 9).
     const EXCLUDED_OPERATION_OPCODES: [u32; 5] = [144, 145, 160, 161, 162];
+
+    /// The first operation `operation_analysis_supported` rejects, for an
+    /// explain-only locator.
+    pub(crate) fn first_unanalyzable_operation(&self) -> Option<EntityId> {
+        self.operations
+            .iter()
+            .find(|operation| Self::EXCLUDED_OPERATION_OPCODES.contains(&operation.opcode.tag()))
+            .map(|operation| operation.entity_id)
+    }
 
     pub(crate) fn operation_count(&self) -> u64 {
         self.operations.len() as u64
@@ -655,6 +713,10 @@ struct GraphCollector<'a> {
     kinds: &'a BTreeMap<EntityId, u16>,
     edges: BTreeSet<ProgramEdge>,
     work: u64,
+    /// The reference `add` is examining, for explain-only locators. It is
+    /// cleared once the reference is accepted, so a failure elsewhere never
+    /// names a reference that resolved.
+    attempted: Option<(EntityId, u32)>,
 }
 
 impl GraphCollector<'_> {
@@ -665,6 +727,7 @@ impl GraphCollector<'_> {
         relationship_tag: u32,
         expected_kinds: u32,
     ) -> Result<(), CandidateProgramError> {
+        self.attempted = Some((dependency, relationship_tag));
         charge(&mut self.work, 1)?;
         let actual = self
             .kinds
@@ -682,6 +745,7 @@ impl GraphCollector<'_> {
         if self.edges.len() > MAX_PROGRAM_EDGES {
             return Err(CandidateProgramError::ResourceLimit);
         }
+        self.attempted = None;
         Ok(())
     }
 

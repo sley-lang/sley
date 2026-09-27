@@ -19,6 +19,7 @@ Everything about Sley 2, organized by what you're trying to do.
 | 🐍 [Example client](examples/smp1_json_client.py) | Copy a working SMP1 JSON-lines client (Python, standard library only) |
 | 📦 [Sley 2.0.0 release notes](release/SLEY-2.0.0.md) | See what shipped, how to verify the artifact, and the known limits |
 | 🩹 [Sley 2.0.1 release notes](release/SLEY-2.0.1.md) | See the fixes since 2.0.0, including four contributed by Fred Nix |
+| 🤖 [Sley 2.0.2 release notes](release/SLEY-2.0.2.md) | See the agent workbench `sley-agent`: views, frames, tests and refusals agents can act on |
 | ❓ [FAQ](https://sleylang.org/faq) *(sleylang.org)* | Get quick answers about scope, status, and Sley 1.x |
 
 ## Specifications
@@ -65,6 +66,7 @@ are versioned (`_V1`, `_V2`) and revised in place with a recorded history.
 
 | Spec | Defines |
 |---|---|
+| [Agent workbench](spec/SLEY_AGENT_V1.md) | `sley-agent`: compact views, AF1 authoring frames, in-process validation, tests and calls |
 | [Root-backed queries](spec/ROOT_BACKED_QUERY_PROFILE_V1.md) | Typed queries against a verified root |
 | [Context capsules](spec/CONTEXT_CAPSULE_PROFILE_V1.md) | Evidence envelopes around complete answers |
 | [Entity reads](spec/ENTITY_READ_PROFILE_V2.md) | Bounded entity and signature reads (protocol v2) |

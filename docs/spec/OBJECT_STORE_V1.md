@@ -44,7 +44,10 @@ objects/scb1/<hex[0..2]>/<hex[2..4]>/<64-hex-object-id>.scb1
 The path is a lookup index, not identity. Callers cannot supply a relative or
 absolute object path. The store root is configured out of band and never
 participates in a canonical digest. It MUST already exist as a real directory;
-object operations reject symlink or non-directory fan-out components.
+object operations reject symlink or non-directory fan-out components. A read
+session that loads many objects at once (loading the accepted head)
+checks each directory component once per session. The object file, its
+bytes, its digest and its verifier are still checked for every object.
 
 ## Write, verify, and promote
 

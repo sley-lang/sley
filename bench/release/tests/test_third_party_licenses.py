@@ -132,6 +132,7 @@ class ThirdPartyLicenseTests(unittest.TestCase):
     def stage(self, stage: Path) -> dict:
         binary = self.root / "sley-fixture"
         binary.write_bytes(b"fixture binary")
+        packaging.agent_binary(binary).write_bytes(b"fixture workbench")
         return packaging.stage_artifact(binary, stage, commit="a" * 40,
             toolchain={"cargo": "fixture", "rustc": "fixture"},
             working_tree_clean=True, blockers=[])

@@ -17,6 +17,7 @@ use sley_ssmc::{
 use sley_vm::{
     ApprovedImage, CacheProfile, ExecutionLimits, ExecutionRequest, ExecutionTermination,
     LoadedExecutionError, LoadedExecutionInput, LowerErrorCode, LoweringError, LoweringInput,
+    VerifiedImage,
     bootstrap::{BootstrapProfileInput, BootstrapProfileVersion},
     execute_function, execute_loaded_image,
     host_abi::{
@@ -1449,6 +1450,100 @@ fn rw070_loaded_execution_matches_lowering_path() {
         ExecutionTermination::Success(_) => {}
         other => panic!("expected success, got {other:?}"),
     }
+}
+
+#[test]
+fn rw070_verified_image_reuse_matches_single_shot_execution() {
+    // One load, many executions: every request (success, input refusal,
+    // binding refusal, in any order) answers exactly what a fresh
+    // `execute_loaded_image` answers, including observation identity, fuel,
+    // instruction count, and peak value units.
+    let program = b2v1_program();
+    let lowered = lower_function(program.lowering_input()).expect("lowers");
+    let approved = approved_for(&program, &lowered.bytes, lowered.cache_key);
+    let image = VerifiedImage::load(&approved, &lowered.bytes).expect("loads");
+    let mut other_epoch = loaded_input(&program);
+    other_epoch.schema_epoch = SchemaEpochId::from_bytes([7; 32]);
+    let requests = [
+        (
+            loaded_input(&program),
+            vec![unit_value(), bytes_value(&[7, 8])],
+        ),
+        (
+            loaded_input(&program),
+            vec![unit_value(), u8_sequence(&[1])],
+        ),
+        (other_epoch, vec![unit_value(), bytes_value(&[7, 8])]),
+        (loaded_input(&program), vec![unit_value(), bytes_value(&[])]),
+        (
+            loaded_input(&program),
+            vec![unit_value(), bytes_value(&[1, 2, 3, 4])],
+        ),
+        (
+            loaded_input(&program),
+            vec![unit_value(), bytes_value(&[7, 8])],
+        ),
+    ];
+    for _ in 0..2 {
+        for (input, inputs) in &requests {
+            let request = ExecutionRequest {
+                inputs: inputs.clone(),
+                limits: generous_limits(),
+            };
+            assert_eq!(
+                image.execute(*input, request.clone()),
+                execute_loaded_image(*input, &approved, &lowered.bytes, request)
+            );
+        }
+    }
+    // Resource limits and cancellation terminate the same way too.
+    let tight = [
+        ExecutionLimits {
+            max_fuel: 1,
+            ..generous_limits()
+        },
+        ExecutionLimits {
+            max_value_units: 1,
+            ..generous_limits()
+        },
+        ExecutionLimits {
+            max_output_units: 1,
+            ..generous_limits()
+        },
+        ExecutionLimits {
+            cancel_at_fuel: Some(1),
+            ..generous_limits()
+        },
+    ];
+    for limits in tight {
+        let request = ExecutionRequest {
+            inputs: vec![unit_value(), bytes_value(&[7, 8])],
+            limits,
+        };
+        let reused = image.execute(loaded_input(&program), request.clone());
+        assert!(
+            matches!(
+                reused.as_ref().map(|outcome| &outcome.termination),
+                Ok(ExecutionTermination::ResourceLimit(_) | ExecutionTermination::Cancelled)
+            ),
+            "{reused:?}"
+        );
+        assert_eq!(
+            reused,
+            execute_loaded_image(loaded_input(&program), &approved, &lowered.bytes, request)
+        );
+    }
+    // Loading performs exactly the structural and digest refusals.
+    let mut unexpected = lowered.bytes.clone();
+    unexpected[20] ^= 0x01;
+    assert_eq!(
+        VerifiedImage::load(&approved, &unexpected).map(|_| ()),
+        Err(LoadedExecutionError::Image(ImageError::DigestMismatch))
+    );
+    assert_eq!(
+        VerifiedImage::load(&approved, &lowered.bytes[..5]).map(|_| ()),
+        Err(LoadedExecutionError::Image(ImageError::Truncated))
+    );
 }
 
 #[test]

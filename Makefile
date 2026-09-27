@@ -2,6 +2,7 @@
 
 quick:
 	python3 scripts/check_m0.py
+	python3 scripts/build_anti_goal_conformance.py --check-unsafe
 	python3 scripts/check_benchmark_baseline.py
 	python3 scripts/check_scb1_spec.py
 	python3 scripts/check_schema_epoch_spec.py
@@ -286,6 +287,7 @@ release-candidate-build:
 
 release-candidate-verify:
 	python3 scripts/check_release_candidate_packaging.py
+	python3 scripts/build_anti_goal_conformance.py --check-unsafe
 	python3 scripts/generate_third_party_licenses.py --check
 	python3 scripts/build_candidate_content_report.py --check
 	python3 scripts/check_reproducibility_and_independent_conformance.py

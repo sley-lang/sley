@@ -1,5 +1,6 @@
 //! Durable S20-390 transaction repository and fixed accepted-head CAS.
 
+use core::cell::Cell;
 use core::fmt;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File, OpenOptions};
@@ -2340,7 +2341,7 @@ impl TransactionRepository {
         self.verify_transaction_relationship(&receipt)?;
         let objects = self.load_objects(&receipt.state_root)?;
         verify_manifest_lengths(&receipt.record.object_manifest, &objects)?;
-        validate_inventory(
+        validate_loaded_inventory(
             &receipt.state_root,
             &receipt.policy_root,
             &objects,
@@ -2965,7 +2966,7 @@ impl TransactionRepository {
         };
         let objects = self.load_objects(&receipt.state_root)?;
         verify_manifest_lengths(&receipt.record.object_manifest, &objects)?;
-        validate_inventory(
+        validate_loaded_inventory(
             &receipt.state_root,
             &receipt.policy_root,
             &objects,
@@ -3762,8 +3763,25 @@ impl TransactionRepository {
         })))
     }
 
+    /// Reads every object the root binds, in binding order.
+    ///
+    /// Each returned object is exactly
+    /// `import_entity_object(root epoch, stored bytes)` of the bytes the
+    /// store read and verified for its binding; `validate_loaded_inventory`
+    /// relies on that.
     fn load_objects(&self, root: &AcceptedStateRoot) -> Result<Vec<EntityObject>, CommitError> {
-        let verifier = entity_verifier(root.record.schema_epoch_id);
+        let epoch = root.record.schema_epoch_id;
+        // The store's canonical verifier is the entity import itself; the
+        // object it decodes is kept so the import runs once per object
+        // instead of once in the verifier and again here.
+        let decoded = Cell::new(None);
+        let verifier = |bytes: &[u8]| {
+            let object = import_entity_object(epoch, bytes)?;
+            let object_id = object.object_id();
+            decoded.set(Some(object));
+            Ok(object_id)
+        };
+        let mut session = self.object_store.read_session();
         root.record
             .entity_bindings
             .iter()
@@ -3774,9 +3792,12 @@ impl TransactionRepository {
                     &self.object_store.object_path(*object_id),
                 )
                 .map_err(StoreError::io)?;
-                let bytes = self.object_store.read(*object_id, &verifier)?;
-                let object = import_entity_object(root.record.schema_epoch_id, &bytes)
-                    .map_err(TransactionCodecError::Scb)?;
+                decoded.set(None);
+                let bytes = session.read(*object_id, &verifier)?;
+                let object = match decoded.take() {
+                    Some(object) if object.stored_bytes() == bytes.as_slice() => object,
+                    _ => import_entity_object(epoch, &bytes).map_err(TransactionCodecError::Scb)?,
+                };
                 if object.record().entity_id != *entity_id || object.object_id() != *object_id {
                     return Err(txn_commit_error(
                         TransactionErrorCode::ObjectInventoryMismatch,
@@ -4518,6 +4539,54 @@ fn validate_inventory(
     objects: &[EntityObject],
     tombstones: &[EntityId],
 ) -> Result<(), CommitError> {
+    validate_inventory_of(
+        state_root,
+        policy_root,
+        objects,
+        tombstones,
+        ObjectProvenance::Supplied,
+    )
+}
+
+/// `validate_inventory` for the output of `load_objects` under the same
+/// `state_root`.
+///
+/// Each such object is `import_entity_object(state_root epoch, bytes)` of
+/// its own stored bytes, and the import is a pure function whose result
+/// type derives `Eq`, so the per-object re-import `validate_inventory`
+/// performs for caller-built objects reproduces the object exactly; it is
+/// the only work skipped. Every other check runs unchanged.
+fn validate_loaded_inventory(
+    state_root: &AcceptedStateRoot,
+    policy_root: &AcceptedPolicyRoot,
+    objects: &[EntityObject],
+    tombstones: &[EntityId],
+) -> Result<(), CommitError> {
+    validate_inventory_of(
+        state_root,
+        policy_root,
+        objects,
+        tombstones,
+        ObjectProvenance::LoadedFromRoot,
+    )
+}
+
+/// Where the objects handed to inventory validation came from.
+#[derive(Clone, Copy, Eq, PartialEq)]
+enum ObjectProvenance {
+    /// Built or supplied by the caller: re-imported from their bytes.
+    Supplied,
+    /// Returned by `load_objects` for this exact root.
+    LoadedFromRoot,
+}
+
+fn validate_inventory_of(
+    state_root: &AcceptedStateRoot,
+    policy_root: &AcceptedPolicyRoot,
+    objects: &[EntityObject],
+    tombstones: &[EntityId],
+    provenance: ObjectProvenance,
+) -> Result<(), CommitError> {
     if state_root.record.policy_root != policy_root.root()
         || state_root.record.workspace_id != policy_root.record().workspace_id
         || objects.len() != state_root.record.entity_bindings.len()
@@ -4528,11 +4597,17 @@ fn validate_inventory(
         ));
     }
     for (object, (entity_id, object_id)) in objects.iter().zip(&state_root.record.entity_bindings) {
-        let imported =
-            import_entity_object(state_root.record.schema_epoch_id, object.stored_bytes())
-                .map_err(TransactionCodecError::Scb)?;
-        if imported != *object
-            || object.schema_epoch_id() != state_root.record.schema_epoch_id
+        if provenance == ObjectProvenance::Supplied {
+            let imported =
+                import_entity_object(state_root.record.schema_epoch_id, object.stored_bytes())
+                    .map_err(TransactionCodecError::Scb)?;
+            if imported != *object {
+                return Err(txn_commit_error(
+                    TransactionErrorCode::ObjectInventoryMismatch,
+                ));
+            }
+        }
+        if object.schema_epoch_id() != state_root.record.schema_epoch_id
             || object.record().entity_id != *entity_id
             || object.object_id() != *object_id
         {

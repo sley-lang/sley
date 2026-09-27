@@ -171,12 +171,51 @@ fn digest(domain: Domain, preimage: &[u8]) -> [u8; ID_LEN] {
     *hasher.finalize().as_bytes()
 }
 
+/// The 32 identity bytes as four big-endian words: comparing the words
+/// lexicographically is comparing the bytes lexicographically.
+#[inline]
+const fn words(bytes: &[u8; ID_LEN]) -> [u64; 4] {
+    let mut words = [0_u64; 4];
+    let mut index = 0;
+    while index < 4 {
+        let mut word = [0_u8; 8];
+        let mut byte = 0;
+        while byte < 8 {
+            word[byte] = bytes[index * 8 + byte];
+            byte += 1;
+        }
+        words[index] = u64::from_be_bytes(word);
+        index += 1;
+    }
+    words
+}
+
+// `words` reads exactly the identity bytes: four eight-byte words.
+const _: () = assert!(ID_LEN == 4 * 8);
+
 macro_rules! fixed_bytes_type {
     ($(#[$meta:meta])* $name:ident) => {
         $(#[$meta])*
-        #[derive(Clone, Copy, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        #[derive(Clone, Copy, Eq, Hash, PartialEq)]
         #[repr(transparent)]
         pub struct $name([u8; ID_LEN]);
+
+        // Lexicographic byte order, exactly as the derived order on the byte
+        // array, compared as four big-endian words: the derived order calls
+        // `memcmp`, which the static musl build does not inline.
+        impl Ord for $name {
+            #[inline]
+            fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+                words(&self.0).cmp(&words(&other.0))
+            }
+        }
+
+        impl PartialOrd for $name {
+            #[inline]
+            fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+                Some(self.cmp(other))
+            }
+        }
 
         impl $name {
             /// Constructs this value from exact raw bytes.
@@ -544,6 +583,36 @@ mod tests {
 
     const ZERO: [u8; ID_LEN] = [0; ID_LEN];
     const ONE: [u8; ID_LEN] = [1; ID_LEN];
+
+    /// The word-wise order is exactly lexicographic byte order: digests,
+    /// every single-byte difference at every position, and shared prefixes.
+    #[test]
+    fn identifier_order_is_byte_order() {
+        let mut values: Vec<[u8; ID_LEN]> = vec![ZERO, ONE, [0xff; ID_LEN]];
+        for position in 0..ID_LEN {
+            for byte in [0x00, 0x01, 0x7f, 0x80, 0xfe, 0xff] {
+                let mut value = ONE;
+                value[position] = byte;
+                values.push(value);
+            }
+        }
+        values.extend((0_u8..64).map(|seed| digest(Domain::Entity, &[seed])));
+        for left in &values {
+            for right in &values {
+                let (a, b) = (EntityId::from_bytes(*left), EntityId::from_bytes(*right));
+                assert_eq!(a.cmp(&b), left.cmp(right));
+                assert_eq!(a.partial_cmp(&b), left.partial_cmp(right));
+                assert_eq!(a == b, left == right);
+            }
+        }
+        let mut ids: Vec<EntityId> = values.iter().copied().map(EntityId::from_bytes).collect();
+        ids.sort_unstable();
+        values.sort_unstable();
+        assert_eq!(
+            ids.iter().map(|id| *id.as_bytes()).collect::<Vec<_>>(),
+            values
+        );
+    }
     const TEST_PREIMAGE: &[u8] = b"sley-id fixed vector preimage";
     const FIXED_VECTORS: [(Domain, &str); 48] = [
         (

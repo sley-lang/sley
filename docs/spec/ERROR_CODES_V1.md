@@ -88,6 +88,10 @@ and ambiguity are failures, never success.
   emission site and needs that family's owner concurrence, or the
   validator mints its own namespaced symbol.
 - `CANDIDATE_VALIDATION_*`: S20-360 terminal judgment and result integrity.
+- `AGENT_*`: agent-workbench refusals (owning contract `SLEY_AGENT_V1.md`
+  section 9, Sley 2.0.2; symbol-only, numeric `0` per the SMP1 section 8
+  convention). They name workbench failures only. A candidate's validity is
+  always the kernel's candidate result, never an `AGENT_*` symbol.
 - `CANDIDATE_RESULT_*`: candidate result-integrity shape (owning contract
   `CANDIDATE_RESULT_V1.md`, S20-360; codes 36100 through 36107).
 - `CANDIDATE_CONTEXT_*`: S20-360 phase-2 bound-context diagnostics (owning

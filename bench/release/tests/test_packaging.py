@@ -37,6 +37,7 @@ def stage_tree(root: Path, *, secret: bool = False, path_leak: bool = False, rem
     else:
         content += b"\x00/sley2/crates/sley-cli/src/main.rs\x00"
     (stage / "bin/sley").write_bytes(content)
+    (stage / "bin/sley-agent").write_bytes(b"\x7fELF fake workbench\x00/sley2/crates/sley-agent/src/main.rs\x00")
     (stage / "demo").mkdir()
     (stage / "demo/run_demo.py").write_text("print('demo')\n", encoding="utf-8")
     (stage / "LICENSE").write_text("license\n", encoding="utf-8")
@@ -55,6 +56,7 @@ class PackagingTests(unittest.TestCase):
     def stage_actual(self, stage: Path) -> dict:
         binary = self.root / "sley-fixture"
         binary.write_bytes(b"fixture binary")
+        packaging.agent_binary(binary).write_bytes(b"fixture workbench")
         return packaging.stage_artifact(binary, stage, commit="a" * 40,
             toolchain={"cargo": "fixture", "rustc": "fixture"},
             working_tree_clean=True, blockers=[])
@@ -95,6 +97,7 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(names, sorted(names))
         self.assertTrue(all(info.mtime == 0 and info.uid == 0 and info.gid == 0 for info in infos.values()))
         self.assertEqual(infos[f"{packaging.ARTIFACT_STEM}/bin/sley"].mode, 0o755)
+        self.assertEqual(infos[f"{packaging.ARTIFACT_STEM}/bin/sley-agent"].mode, 0o755)
         self.assertEqual(infos[f"{packaging.ARTIFACT_STEM}/LICENSE"].mode, 0o644)
         self.assertEqual(infos[f"{packaging.ARTIFACT_STEM}/NOTICE"].mode, 0o644)
         self.assertEqual(first[:2], b"\x1f\x8b")
@@ -111,8 +114,9 @@ class PackagingTests(unittest.TestCase):
             blockers=["root_license_text_operator_approval"],
         )
         self.assertEqual(manifest["contract"], packaging.MANIFEST_CONTRACT)
-        self.assertEqual(manifest["member_count"], 4)
-        self.assertEqual([entry["path"] for entry in manifest["files"]], ["LICENSE", "NOTICE", "bin/sley", "demo/run_demo.py"])
+        self.assertEqual(manifest["member_count"], 5)
+        self.assertEqual([entry["path"] for entry in manifest["files"]],
+                         ["LICENSE", "NOTICE", "bin/sley", "bin/sley-agent", "demo/run_demo.py"])
         again = packaging.build_manifest(
             stage,
             commit="a" * 40,
