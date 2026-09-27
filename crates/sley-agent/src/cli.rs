@@ -32,6 +32,12 @@ use crate::view::{self, ViewOptions};
 use crate::workspace::{Head, NAMES_FILE, Program, STATE_DIR, SUBMISSION, Workspace};
 use crate::xview;
 
+/// Every command `dispatch` accepts (help examples are checked against it).
+pub const COMMANDS: &[&str] = &[
+    "view", "find", "try", "fill", "import", "draft", "submit", "status", "call", "test",
+    "explain", "init", "commit", "export", "help", "version",
+];
+
 /// Exit status for success.
 pub const EXIT_OK: i32 = 0;
 /// Exit status for a negative outcome (refused candidate, failing test).
@@ -1619,11 +1625,17 @@ fn run_trial(
     }
     text.push_str(&public_text(&public));
     let layerable = frame_value.is_object();
+    // A follow-up keeps the dialect of the frame it is layered on.
+    let envelope = if frame_value.get("afx") == Some(&Value::from(1)) {
+        "\"af1\": 1, \"afx\": 1"
+    } else {
+        "\"af1\": 1"
+    };
     if verdict.valid && failed == 0 && tests.is_empty() && !options.no_test {
         if layerable {
             let _ = writeln!(
                 text,
-                "next: add tests without restating the frame: sley-agent try --on {handle} '{{\"af1\": 1, \"tests\": [...]}}' (submit refuses an untested change; --untested overrides)"
+                "next: add tests without restating the frame: sley-agent try --on {handle} '{{{envelope}, \"tests\": [...]}}' (submit refuses an untested change; --untested overrides)"
             );
         } else {
             let _ = writeln!(
@@ -1636,14 +1648,14 @@ fn run_trial(
     } else if verdict.valid && layerable {
         let _ = writeln!(
             text,
-            "next: fix only what failed on top of {handle}: sley-agent try --on {handle} '{{\"af1\": 1, \"edit\": [...]}}' (or \"patch\", \"tests\")"
+            "next: fix only what failed on top of {handle}: sley-agent try --on {handle} '{{{envelope}, \"edit\": [...]}}' (or \"patch\", \"tests\")"
         );
     } else if !verdict.valid {
         let _ = writeln!(text, "more: sley-agent explain {candidate_handle}");
         if layerable {
             let _ = writeln!(
                 text,
-                "fix: layer only the change on {handle}: sley-agent try --on {handle} '{{\"af1\": 1, \"patch\": [...]}}'"
+                "fix: layer only the change on {handle}: sley-agent try --on {handle} '{{{envelope}, \"patch\": [...]}}'"
             );
         }
     }

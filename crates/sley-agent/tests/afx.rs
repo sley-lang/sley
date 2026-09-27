@@ -94,13 +94,9 @@ fn compile_digest(dir: &Path, frame: &Value) -> String {
     }
 }
 
+/// The worked AF1 example the 2.0.2 guide taught (plain AF1).
 fn guide_example() -> Value {
-    let example = sley_agent::help::GUIDE
-        .split("```json\n")
-        .nth(1)
-        .and_then(|rest| rest.split("```").next())
-        .unwrap();
-    serde_json::from_str(example).unwrap()
+    serde_json::from_str(include_str!("fixtures/percent.json")).unwrap()
 }
 
 fn clamp_frame() -> Value {

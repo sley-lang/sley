@@ -1238,13 +1238,22 @@ impl Compiler<'_> {
                 }
                 let (b, o) = next[0];
                 let op = &blocks[b].ops[o];
-                return Err(frame(
+                // A malformed terminator removes the use that would type a
+                // result: name it first, as the cause.
+                let mut causes = malformed_terminators(&blocks);
+                let consequence = if causes.is_empty() {
+                    ""
+                } else {
+                    " (after the terminator problem above is fixed, its use may determine it)"
+                };
+                causes.push(frame(
                     &op.pointer,
                     format!(
-                        "cannot infer the result type of `{}`; add \"type\" (object form) to the operation",
+                        "cannot infer the result type of `{}`; add \"type\" (object form) to the operation{consequence}",
                         op.leaf
                     ),
                 ));
+                return Err(combined(causes));
             }
             pending = next;
         }
@@ -2898,6 +2907,35 @@ struct PlannedBlock {
     unreachable: bool,
     pointer: String,
     keep: bool,
+}
+
+/// The terminators of frame blocks whose word or item count no terminator
+/// form accepts, as frame problems at their pointers.
+fn malformed_terminators(blocks: &[PlannedBlock]) -> Vec<AgentError> {
+    let mut problems = Vec::new();
+    for block in blocks {
+        let Some(term) = &block.term else { continue };
+        let pointer = format!("{}/term", block.pointer);
+        let Some(items) = term.as_array() else {
+            problems.push(frame(&pointer, "expected an array"));
+            continue;
+        };
+        let Some(word) = items.first().and_then(Value::as_str) else {
+            problems.push(frame(&pointer, "a terminator starts with its word"));
+            continue;
+        };
+        let shaped = match word {
+            "return" => items.len() == 2,
+            "br" | "jump" | "switch" => items.len() >= 2 + usize::from(word == "switch"),
+            "cond" => items.len() == 4,
+            "trap" => true,
+            _ => false,
+        };
+        if !shaped {
+            problems.push(frame(&pointer, terminator_shape(word, items)));
+        }
+    }
+    problems
 }
 
 /// Why a terminator with a known or unknown word has the wrong shape, with

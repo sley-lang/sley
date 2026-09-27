@@ -1,6 +1,6 @@
 //! `sley-agent help [topic]`: the agent guide and on-demand reference.
 //!
-//! The guide (`data/GUIDE.md`, at most 8 KiB) covers the workflow; the
+//! The guide (`data/GUIDE.md`, at most 3,500 bytes) covers the workflow; the
 //! schema-sized material loads only when asked for. Every example in these
 //! texts is executed by the crate's tests.
 
@@ -19,10 +19,12 @@ pub const AFX: &str = include_str!("../data/help-afx.md");
 pub const TYPES: &str = include_str!("../data/help-types.md");
 /// The `TestCase` reference.
 pub const TESTS: &str = include_str!("../data/help-tests.md");
+/// The drafts and delta-repair reference.
+pub const DRAFTS: &str = include_str!("../data/help-drafts.md");
 
 /// Topic names.
 pub const TOPICS: &[&str] = &[
-    "guide", "af1", "afx", "opcodes", "types", "tests", "refusals",
+    "guide", "af1", "afx", "drafts", "opcodes", "types", "tests", "refusals",
 ];
 
 /// Returns a topic's text.
@@ -34,6 +36,7 @@ pub fn topic(name: &str) -> Option<String> {
         "afx" | "af1-x" | "dialect" => AFX.to_owned(),
         "types" => TYPES.to_owned(),
         "tests" | "testcase" => TESTS.to_owned(),
+        "drafts" | "draft" | "fill" => DRAFTS.to_owned(),
         "opcodes" => opcodes(),
         "refusals" => refusals(),
         _ => return None,

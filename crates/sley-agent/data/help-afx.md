@@ -59,16 +59,16 @@ own value: write that argument.
 
 ```json
 {"af1": 1, "afx": 1,
- "types": [{"name": "OrderError", "variant": ["InvalidQuantity", "Overflow"]}],
- "fns": [{"fn": "order_total", "params": [["quantity", "i64"], ["unit_price", "i64"]],
-          "returns": "Result<i64,OrderError>",
+ "types": [{"name": "PackError", "variant": ["NoItems", "Overflow"]}],
+ "fns": [{"fn": "pack_bytes", "params": [["count", "i64"], ["size", "i64"]],
+          "returns": "Result<i64,PackError>",
           "blocks": [{"name": "entry",
-                      "ops": [["!InvalidQuantity", "if", ["lt", "quantity", 1]],
-                              ["total", "mul?Overflow", "quantity", "unit_price"]],
-                      "term": ["ok", "total"]}]}],
- "test_tables": [{"name": "t_order", "fn": "order_total",
+                      "ops": [["!NoItems", "if", ["lt", "count", 1]],
+                              ["bytes", "mul?Overflow", "count", "size"]],
+                      "term": ["ok", "bytes"]}]}],
+ "test_tables": [{"name": "t_pack", "fn": "pack_bytes",
                   "cases": [{"args": [2, 5], "expect": {"Ok": 10}},
-                            {"args": [0, 5], "expect": {"Err": "InvalidQuantity"}},
+                            {"args": [0, 5], "expect": {"Err": "NoItems"}},
                             {"args": [9223372036854775807, 2], "expect": {"Err": "Overflow"}}]}]}
 ```
 

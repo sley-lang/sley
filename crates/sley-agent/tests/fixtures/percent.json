@@ -1,0 +1,201 @@
+{
+ "af1": 1,
+ "types": [
+  {
+   "name": "MathError",
+   "variant": [
+    "ZeroWhole",
+    "Overflow"
+   ]
+  }
+ ],
+ "fns": [
+  {
+   "fn": "percent",
+   "params": [
+    [
+     "part",
+     "i64"
+    ],
+    [
+     "whole",
+     "i64"
+    ]
+   ],
+   "returns": "Result<i64,MathError>",
+   "blocks": [
+    {
+     "name": "entry",
+     "ops": [
+      [
+       "zero",
+       "const",
+       0
+      ],
+      [
+       "is_zero",
+       "eq",
+       "whole",
+       "zero"
+      ]
+     ],
+     "term": [
+      "cond",
+      "is_zero",
+      "zero_whole",
+      "scale"
+     ]
+    },
+    {
+     "name": "zero_whole",
+     "ops": [
+      [
+       "e",
+       "variant",
+       "MathError.ZeroWhole"
+      ],
+      [
+       "r",
+       "err",
+       "e"
+      ]
+     ],
+     "term": [
+      "return",
+      "r"
+     ]
+    },
+    {
+     "name": "scale",
+     "ops": [
+      [
+       "hundred",
+       "const",
+       100
+      ],
+      [
+       "p",
+       "mul",
+       "part",
+       "hundred"
+      ]
+     ],
+     "term": [
+      "switch",
+      "p",
+      [
+       "Ok",
+       "divide",
+       "$"
+      ],
+      [
+       "Err",
+       "overflow"
+      ]
+     ]
+    },
+    {
+     "name": "divide",
+     "params": [
+      [
+       "scaled",
+       "i64"
+      ]
+     ],
+     "ops": [
+      [
+       "q",
+       "div",
+       "scaled",
+       "whole"
+      ]
+     ],
+     "term": [
+      "switch",
+      "q",
+      [
+       "Ok",
+       "done",
+       "$"
+      ],
+      [
+       "Err",
+       "overflow"
+      ]
+     ]
+    },
+    {
+     "name": "done",
+     "params": [
+      [
+       "v",
+       "i64"
+      ]
+     ],
+     "ops": [
+      [
+       "r",
+       "ok",
+       "v"
+      ]
+     ],
+     "term": [
+      "return",
+      "r"
+     ]
+    },
+    {
+     "name": "overflow",
+     "ops": [
+      [
+       "e",
+       "variant",
+       "MathError.Overflow"
+      ],
+      [
+       "r",
+       "err",
+       "e"
+      ]
+     ],
+     "term": [
+      "return",
+      "r"
+     ]
+    }
+   ]
+  }
+ ],
+ "tests": [
+  {
+   "fn": "percent",
+   "args": [
+    1,
+    4
+   ],
+   "expect": {
+    "Ok": 25
+   }
+  },
+  {
+   "fn": "percent",
+   "args": [
+    1,
+    0
+   ],
+   "expect": {
+    "Err": "ZeroWhole"
+   }
+  },
+  {
+   "fn": "percent",
+   "args": [
+    9223372036854775807,
+    2
+   ],
+   "expect": {
+    "Err": "Overflow"
+   }
+  }
+ ]
+}
