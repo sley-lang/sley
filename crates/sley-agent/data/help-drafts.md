@@ -20,7 +20,10 @@ all. To insert into or delete from an array, replace the array. A frame
 that did not parse can only be replaced whole.
 
 A follow-up that is not JSON, or that cannot be layered, is kept as the
-next revision; `fill` repairs it and layers it on its base again.
+next revision; `fill` repairs it and layers it on its base again. A
+follow-up refused before layering (its base is a text or unlayered
+revision, or the head changed) is not recorded: the refusal says so and
+how to send it again.
 Obligations point at pointers that exist in the revision's frame.
 
 `fill` needs the latest revision number (`AGENT_DRAFT_STALE` otherwise).
