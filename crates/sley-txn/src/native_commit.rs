@@ -473,16 +473,8 @@ pub fn verified_supervisor_execution(
             ScbErrorCode::ContractUnknown,
         ));
     }
-    let program = request
-        .verified_program()
-        .map_err(|error| SupervisorEvidenceError::InvalidResponse(error.code()))?;
-    verify_measurement_attestation(
-        evidence.attestation(),
-        request.workspace,
-        program.plan().execution_profile(),
-        measurement_trust,
-    )
-    .map_err(SupervisorEvidenceError::MeasurementTrust)?;
+    verify_measurement_attestation(evidence.attestation(), request.workspace, measurement_trust)
+        .map_err(SupervisorEvidenceError::MeasurementTrust)?;
     Ok(ExecutedNativeTest {
         test_entity: request.test_entity,
         execution_stored: evidence.report().stored_bytes().to_vec(),
@@ -707,7 +699,7 @@ pub fn verify_acceptance_trust(
 ///
 /// The attestation must name the supplied measurement manifest, and the
 /// manifest must grant the attestation key the measurement role for this
-/// workspace, execution profile, and historical run time.
+/// workspace, supervisor configuration, and historical run time.
 ///
 /// Besides the commit owner, repository exchange import uses this check to
 /// verify every embedded attestation against caller-supplied manifests
@@ -721,7 +713,7 @@ pub fn verify_measurement_trust(
     attestation_key: &[u8; 32],
     attestation_policy: &[u8; 32],
     workspace: WorkspaceId,
-    execution_profile: sley_id::NativeExecutionProfileId,
+    supervisor_config_id: &[u8; 32],
     historical_time: u64,
     manifest: &HistoricalTrustPolicyV1,
 ) -> Result<(), NativeCommitError> {
@@ -739,7 +731,7 @@ pub fn verify_measurement_trust(
         attestation_key,
         ROLE_MEASUREMENT,
         workspace.as_bytes(),
-        execution_profile.as_bytes(),
+        supervisor_config_id,
         historical_time,
     ) {
         Ok(())
@@ -787,7 +779,6 @@ pub fn verify_acceptance_statement(
 pub fn verify_measurement_attestation(
     attestation: &sley_tests::MeasuredTestAttestationV1,
     workspace: WorkspaceId,
-    execution_profile: sley_id::NativeExecutionProfileId,
     manifest: &HistoricalTrustPolicyV1,
 ) -> Result<(), NativeCommitError> {
     let parts = attestation.parts();
@@ -795,7 +786,7 @@ pub fn verify_measurement_attestation(
         &parts.key_id,
         &parts.trust_policy_id,
         workspace,
-        execution_profile,
+        &parts.supervisor_config_id,
         parts.recorded_unix_millis,
         manifest,
     )?;
@@ -1406,7 +1397,7 @@ mod tests {
                 key_id,
                 role: ROLE_MEASUREMENT,
                 workspaces: vec![*request.workspace.as_bytes()],
-                profiles: vec![*program.plan().execution_profile().as_bytes()],
+                profiles: vec![*config.id().as_bytes()],
                 valid_from_unix_millis: 0,
                 valid_until_unix_millis: u64::MAX,
             }],
@@ -1458,7 +1449,8 @@ mod tests {
     fn supervisor_response_requires_exact_binding_and_trusted_signature() {
         use sley_test_runner::response::RunEvidence;
         use sley_tests::{
-            MeasuredTestAttestationV1, TERMINATION_COMPLETE, measurement_signature_preimage,
+            HistoricalTrustPolicyParts, MeasuredTestAttestationV1, ROLE_MEASUREMENT,
+            TERMINATION_COMPLETE, TrustEntry, measurement_signature_preimage,
             unsigned_record_prefix,
         };
 
@@ -1476,6 +1468,45 @@ mod tests {
         assert_eq!(
             executed.supervisor_config_stored,
             evidence.supervisor_config().stored_bytes()
+        );
+        let profile_only = HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
+            policy_nonce: [12; 32],
+            entries: vec![TrustEntry {
+                key_id: evidence.attestation().parts().key_id,
+                role: ROLE_MEASUREMENT,
+                workspaces: vec![*request.workspace.as_bytes()],
+                profiles: vec![
+                    *request
+                        .verified_program()
+                        .expect("program")
+                        .plan()
+                        .execution_profile()
+                        .as_bytes(),
+                ],
+                valid_from_unix_millis: 0,
+                valid_until_unix_millis: u64::MAX,
+            }],
+        })
+        .expect("profile-only trust");
+        assert_ne!(
+            *request
+                .verified_program()
+                .expect("program")
+                .plan()
+                .execution_profile()
+                .as_bytes(),
+            evidence.attestation().parts().supervisor_config_id
+        );
+        assert_eq!(
+            verify_measurement_trust(
+                &evidence.attestation().parts().key_id,
+                profile_only.id().as_bytes(),
+                request.workspace,
+                &evidence.attestation().parts().supervisor_config_id,
+                evidence.attestation().parts().recorded_unix_millis,
+                &profile_only,
+            ),
+            Err(NativeCommitError::TrustRejected)
         );
 
         let mut wrong_nonce = request.clone();

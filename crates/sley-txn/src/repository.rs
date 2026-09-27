@@ -3609,7 +3609,6 @@ impl TransactionRepository {
             verify_measurement_attestation(
                 &attestation,
                 validated.candidate_root().record.workspace_id,
-                plan.execution_profile(),
                 measurement_trust,
             )
             .map_err(CommitError::Native)?;
@@ -24342,6 +24341,23 @@ mod native_commit_tests {
         .expect("test supervisor config builds")
     }
 
+    fn observed_supervisor_config(
+        workspace: WorkspaceId,
+        principal: PrincipalId,
+    ) -> SupervisorConfigV1 {
+        let mut parts = test_supervisor_config(workspace, principal).parts().clone();
+        parts.worker_digest = [7; 32];
+        parts.supervisor_digest = [8; 32];
+        for property in &mut parts.properties {
+            match property.name.as_str() {
+                "MemoryMax" => property.value = "4096".to_owned(),
+                "RuntimeMaxUSec" => property.value = "3000000".to_owned(),
+                _ => {}
+            }
+        }
+        SupervisorConfigV1::build(parts).expect("observed supervisor config builds")
+    }
+
     /// A candidate creating one pure identity function plus one `TestCase`
     /// targeting it: the epoch-1 admitted shape (monomorphic pure target,
     /// empty replay environment, no observations, exact value expectation).
@@ -24516,12 +24532,26 @@ mod native_commit_tests {
             let admission_profile = fixed_native_admission_profile()
                 .expect("fixed descriptor builds")
                 .id();
-            let measurement_trust = test_trust(
-                measurement_key(),
-                ROLE_MEASUREMENT,
-                workspace,
-                *native_execution_profile_id().as_bytes(),
-            );
+            let principal = fixed(2, PrincipalId::from_bytes);
+            let mut profiles = vec![
+                *test_supervisor_config(workspace, principal).id().as_bytes(),
+                *observed_supervisor_config(workspace, principal)
+                    .id()
+                    .as_bytes(),
+            ];
+            profiles.sort_unstable();
+            let measurement_trust = HistoricalTrustPolicyV1::build(HistoricalTrustPolicyParts {
+                policy_nonce: [0x11; 32],
+                entries: vec![TrustEntry {
+                    key_id: measurement_key(),
+                    role: ROLE_MEASUREMENT,
+                    workspaces: vec![*workspace.as_bytes()],
+                    profiles,
+                    valid_from_unix_millis: 0,
+                    valid_until_unix_millis: u64::MAX,
+                }],
+            })
+            .expect("test measurement trust builds");
             let acceptance_trust = test_trust(
                 acceptance_key(),
                 ROLE_ACCEPTANCE,
