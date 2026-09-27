@@ -12,6 +12,7 @@
 //! socket client, authenticated socket
 //! ingress boundary, fail-closed
 //! one-connection service with prelaunch program checks, live cgroup telemetry,
+//! a bounded gated-worker report channel,
 //! and readiness probes. The root service loop and privileged transient-unit
 //! execution are not wired yet.
 //!
@@ -26,6 +27,7 @@
 //! socket service rechecks both before its explicit refusal. Measured launch
 //! and admission still belong to N5; the service remains refusal-only.
 
+pub mod channel;
 pub mod client;
 pub mod config;
 pub mod enforce;
