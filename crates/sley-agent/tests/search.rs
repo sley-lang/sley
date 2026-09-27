@@ -1975,7 +1975,7 @@ fn an_arity_seed_searches_the_callers_it_rewrites_and_the_intent_derives_again()
     let guard = json!({"af1": 1, "afx": 1,
      "fns": [{"fn": "small", "params": [["n", "i64"]], "returns": "Result<i64,SE>",
               "blocks": [{"name": "entry", "ops": [["!Big", "if", ["gt", "n", 100]]], "term": ["ok", "n"]}]}],
-     "ripple": [{"guard": "small", "arg": "n", "in": ["f"], "mode": "entry"}]});
+     "ripple": [{"guard": "small", "arg": "n", "in": ["f"], "mode": "entry", "handler": "bad"}]});
     seed(&temp.path, &guard);
     let public = cases(
         &temp.path,
