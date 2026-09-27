@@ -2615,3 +2615,31 @@ fn a_dialect_follow_up_keeps_the_plain_names_of_its_base() {
     assert_eq!(status, 0, "{text}");
     assert!(text.contains("tests: 2/2 passed"), "{text}");
 }
+
+#[test]
+fn an_edit_of_an_expanded_operation_names_where_it_lives() {
+    // W3-A3: after a commit, `b` lives in a generated block.
+    let temp = workspace("edit-expanded");
+    commit_frame(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "ShapeError", "variant": ["BadSide", "Overflow"]}],
+          "fns": [{"fn": "area", "params": [["w", "i64"], ["h", "i64"]], "returns": "Result<i64,ShapeError>",
+            "blocks": [{"name": "entry", "ops": [["!BadSide", "if", ["lt", "w", 1]], ["a", "mul?Overflow", "w", "h"], ["b", "add?Overflow", "a", 1]],
+                        "term": ["ok", "b"]}]}]}),
+    );
+    let (symbol, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "edit": [{"fn": "area", "replace_op": "entry.b", "with": ["mul", "a", "h"]}]}),
+    );
+    assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+    assert!(
+        detail.starts_with("/edit/0: no operation `b` in `entry`; the authoring dialect's expansion holds it as `entry__a.b__r` (block `entry` was split into generated blocks): to change it, restate block `entry` with patch"),
+        "{detail}"
+    );
+    // A name that is nowhere keeps the plain refusal.
+    let (_, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "edit": [{"fn": "area", "replace_op": "entry.zz", "with": ["mul", "w", "h"]}]}),
+    );
+    assert_eq!(detail, "/edit/0: no operation `zz` in `entry`");
+}
