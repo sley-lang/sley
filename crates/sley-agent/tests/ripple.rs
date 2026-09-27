@@ -1613,7 +1613,16 @@ fn entry_checks_first_and_routes_uses_through_the_payload() {
             );
         }
     }
-    // Early returns no longer come first: the check is at entry.
+    // Early returns no longer come first: the check is at entry. A success
+    // on a path that never read the quantity, and a trap before its check,
+    // both become the checker's error; the reference texts say so.
+    for text in [
+        sley_agent::help::AFX,
+        include_str!("../../../docs/spec/SLEY_AGENT_V1.md"),
+    ] {
+        let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        assert!(flat.contains("returned early, trapped"), "entry documented");
+    }
     assert_eq!(
         after.call("shipped", &[json!(0), json!(true), json!(true)]),
         err("InvalidQuantity")
@@ -1642,7 +1651,7 @@ fn entry_checks_first_and_routes_uses_through_the_payload() {
 }
 
 #[test]
-fn entry_errors_take_the_one_compatible_route_or_leave_a_hole() {
+fn entry_errors_go_to_the_declared_result_or_a_named_handler_only() {
     let temp = orders_workspace("routes");
     commit(
         &temp.path,
@@ -1656,18 +1665,29 @@ fn entry_errors_take_the_one_compatible_route_or_leave_a_hole() {
           // Another error type, and nowhere to put an OrderError.
           {"fn": "unrelated", "params": [["quantity", "i64"]], "returns": "Result<i64,AppError>",
            "blocks": [{"name": "entry", "ops": [["!Other", "if", ["gt", "quantity", 100]]], "term": ["ok", "quantity"]}]},
-          // The compatible result, and a handler block as well: two routes.
+          // The compatible result, and a block taking an OrderError that
+          // the author does not name.
           {"fn": "two_routes", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
            "blocks": [{"name": "entry", "ops": [["v", "call?log", "validate", "quantity"]], "term": ["ok", "v"]},
                       {"name": "log", "params": [["e", "OrderError"]], "term": ["fail", "Overflow"]}]}]}),
     );
-    let guard = |function: &str| {
-        guard_frame(
-            &check_quantity(),
-            &json!({"guard": "check_quantity", "arg": "quantity", "in": [function], "mode": "entry"}),
-        )
+    let guard = |function: &str, handler: Option<&str>| {
+        let mut intent = json!({"guard": "check_quantity", "arg": "quantity", "in": [function], "mode": "entry"});
+        if let Some(handler) = handler {
+            intent["handler"] = json!(handler);
+        }
+        guard_frame(&check_quantity(), &intent)
     };
-    let frame = guard("wrapped");
+    // A block that takes the error type is not a route until it is named.
+    assert_refused(
+        &temp.path,
+        &guard("wrapped", None),
+        "AGENT_RIPPLE_HOLE_UNFILLED",
+        &[
+            "/ripple/0/in/0: `check_quantity` fails with OrderError, which `wrapped` (returning Result<i64,AppError>) cannot return: name the block of `wrapped` that takes the error with \"handler\"",
+        ],
+    );
+    let frame = guard("wrapped", Some("wrap"));
     valid(&temp.path, &frame);
     let mut after = Machine::candidate(&temp.path, &frame);
     assert_eq!(
@@ -1681,21 +1701,78 @@ fn entry_errors_take_the_one_compatible_route_or_leave_a_hole() {
     assert_eq!(after.call("wrapped", &[json!(5)]), json!({"Ok": 5}));
     let obligations = assert_refused(
         &temp.path,
-        &guard("unrelated"),
+        &guard("unrelated", None),
         "AGENT_RIPPLE_HOLE_UNFILLED",
         &[
-            "/ripple/0/in/0: `check_quantity` fails with OrderError, and `unrelated` has no route for it",
+            "/ripple/0/in/0: `check_quantity` fails with OrderError, which `unrelated` (returning Result<i64,AppError>) cannot return",
         ],
     );
     assert_eq!(obligations[0]["expected"], "OrderError");
     assert_refused(
         &temp.path,
-        &guard("two_routes"),
+        &guard("unrelated", Some("nowhere")),
         "AGENT_RIPPLE_HOLE_UNFILLED",
         &[
-            "`two_routes` has 2 candidate route for it: block `log`, returning it (Result<i64,OrderError>)",
+            "/ripple/0/in/0: `unrelated` has no block `nowhere` that takes one OrderError (the error of `check_quantity`)",
         ],
     );
+    // With the declared result, the error is returned: the unnamed block
+    // `log` is not a route.
+    let frame = guard("two_routes", None);
+    valid(&temp.path, &frame);
+    let mut after = Machine::candidate(&temp.path, &frame);
+    assert_eq!(
+        after.call("two_routes", &[json!(0)]),
+        json!({"Err": "InvalidQuantity"})
+    );
+    assert_eq!(
+        after.call("two_routes", &[json!(500)]),
+        json!({"Err": "Overflow"})
+    );
+    // A handler applies to entry mode only.
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [check_quantity()], "ripple": [
+          {"guard": "check_quantity", "arg": "quantity", "in": ["wrapped"], "handler": "wrap"}]}),
+        "AGENT_FRAME_INVALID",
+        &["/ripple/0/handler: a handler takes the checker's error in \"mode\": \"entry\""],
+    );
+}
+
+#[test]
+fn a_join_block_of_the_error_type_is_never_an_error_route() {
+    // An ordinary join block that happens to take one value of the error
+    // type must not receive the checker's failure.
+    let temp = workspace("join");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [
+          {"fn": "nonneg", "params": [["q", "i64"]], "returns": "Result<i64,i64>",
+           "blocks": [{"name": "entry", "term": ["cond", ["lt", "q", 0], "bad", "good"]},
+                      {"name": "bad", "term": ["return", ["err", "q"]]},
+                      {"name": "good", "term": ["return", ["ok", "q"]]}]},
+          {"fn": "pick", "params": [["p", "i64"], ["flag", "bool"]], "returns": "i64",
+           "blocks": [{"name": "entry", "term": ["cond", "flag", "a", "b"]},
+                      {"name": "a", "term": ["br", "done", "p"]},
+                      {"name": "b", "term": ["br", "done", 0]},
+                      {"name": "done", "params": [["r", "i64"]], "term": ["return", "r"]}]}]}),
+    );
+    let obligations = assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "ripple": [{"guard": "nonneg", "arg": "p", "in": ["pick"], "mode": "entry"}]}),
+        "AGENT_RIPPLE_HOLE_UNFILLED",
+        &[
+            "/ripple/0/in/0: `nonneg` fails with i64, which `pick` (returning i64) cannot return: name the block of `pick` that takes the error with \"handler\"",
+        ],
+    );
+    assert_eq!(obligations.len(), 1);
+    // Named explicitly, the join block is the author's decision.
+    let frame = json!({"af1": 1, "afx": 1,
+      "ripple": [{"guard": "nonneg", "arg": "p", "in": ["pick"], "mode": "entry", "handler": "done"}]});
+    valid(&temp.path, &frame);
+    let mut after = Machine::candidate(&temp.path, &frame);
+    assert_eq!(after.call("pick", &[json!(-5), json!(false)]), json!(-5));
+    assert_eq!(after.call("pick", &[json!(5), json!(false)]), json!(0));
 }
 
 #[test]
@@ -1736,7 +1813,7 @@ fn entry_leaves_uses_it_does_not_dominate() {
     assert_eq!(after.call("kept", &[json!(5)]), json!({"Ok": 4}));
     let frame = guard_frame(
         &to_index(),
-        &json!({"guard": "to_index", "arg": "quantity", "in": ["handled"], "mode": "entry"}),
+        &json!({"guard": "to_index", "arg": "quantity", "in": ["handled"], "mode": "entry", "handler": "log"}),
     );
     let report = valid(&temp.path, &frame);
     let inventory = artifact(&temp.path, report["draft"].as_str().unwrap(), "ripple.json");
@@ -1771,20 +1848,20 @@ fn a_guard_never_runs_twice_or_twice_over() {
           {"fn": "checked", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
            "blocks": [{"name": "entry", "ops": [["q", "call?", "check_quantity", "quantity"]], "term": ["ok", "q"]}]}]}),
     );
-    // It already calls the checker: entry would run it again.
+    // It already evaluates the checker: entry would run it again.
     assert_refused(
         &temp.path,
         &json!({"af1": 1, "afx": 1, "ripple": [{"guard": "check_quantity", "arg": "quantity", "in": ["checked"], "mode": "entry"}]}),
         "AGENT_RIPPLE_GUARD_ORDER",
         &[
-            "/ripple/0/in/0: `checked` already calls `check_quantity` on `quantity` at `checked.entry.q__r`; evaluating it again at entry would run it twice",
+            "/ripple/0/in/0: `checked` already evaluates `check_quantity` at `checked.entry.q__r`; evaluating it again at entry could run it twice",
         ],
     );
     assert_refused(
         &temp.path,
         &json!({"af1": 1, "afx": 1, "ripple": [{"guard": "check_quantity", "arg": "quantity", "in": ["checked"]}]}),
         "AGENT_RIPPLE_GUARD_ORDER",
-        &["(`checked` already calls `check_quantity` on `quantity` at `checked.entry.q__r`)"],
+        &["(`checked` already evaluates `check_quantity` at `checked.entry.q__r`)"],
     );
     // A checker that calls the function would call itself without end.
     let calls_back = json!({"fn": "calls_back", "params": [["q", "i64"]], "returns": "Result<i64,OrderError>",
@@ -1797,7 +1874,7 @@ fn a_guard_never_runs_twice_or_twice_over() {
         ),
         "AGENT_RIPPLE_GUARD_ORDER",
         &[
-            "/ripple/0/in/0: `calls_back` calls `discounted`: evaluating it at the entry of `discounted` would never end",
+            "/ripple/0/in/0: `calls_back` calls `discounted` (calls_back -> discounted): evaluating it at the entry of `discounted` would never end",
         ],
     );
     // A function listed twice is guarded once.
@@ -1814,7 +1891,9 @@ fn a_guard_never_runs_twice_or_twice_over() {
           {"guard": "check_quantity", "arg": "quantity", "in": ["discounted"]},
           {"guard": "check_quantity", "arg": "quantity", "in": ["discounted"], "mode": "entry"}]}),
         "AGENT_RIPPLE_GUARD_ORDER",
-        &["/ripple/1/in/0: `discounted` already calls `check_quantity` on `quantity`"],
+        &[
+            "/ripple/1/in/0: `discounted` already evaluates `check_quantity` at `discounted.entry.quantity__check_quantity`",
+        ],
     );
 }
 
@@ -2170,4 +2249,591 @@ fn generated_checks_keep_their_behavior_and_entry_checks_first() {
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Regressions: the frame's own definitions, repeated evaluation,
+// equal-count signatures, boundaries, bounds and the events ledger
+// ---------------------------------------------------------------------------
+
+/// The head's program with a frame's creations added, compiled in process
+/// without the kernel: for expansion-level tests of large functions.
+fn staged(dir: &Path, frame: &Value) -> (Program, Names) {
+    let head = Workspace::at(dir).head().unwrap();
+    let mut map = name_map(dir);
+    let names = Names::build(head.program(), &map);
+    let compiled = sley_agent::frame::compile(
+        head.program(),
+        &names,
+        &sley_agent::candidate::Authority::of(&head)
+            .unwrap()
+            .ceilings,
+        frame,
+        sley_id::CandidateNonce::from_bytes([5; 32]),
+        &mut || Ok([6; 32]),
+    )
+    .unwrap();
+    map.extend(&compiled.names);
+    let mut objects = head.program().objects().to_vec();
+    for op in compiled.ops {
+        if let sley_mutate::MutationPayload::CreateEntity(body) = op.payload {
+            objects.push(
+                sley_mutate::build_entity_object(
+                    head.program().epoch(),
+                    &sley_mutate::EntityObjectRecord {
+                        entity_id: op.target,
+                        body,
+                        label: None,
+                        semantic_fingerprint: None,
+                    },
+                )
+                .unwrap(),
+            );
+        }
+    }
+    let program = Program::new(
+        head.program().epoch(),
+        head.program().root(),
+        head.program().workspace(),
+        objects,
+    );
+    let names = Names::build(&program, &map);
+    (program, names)
+}
+
+/// Adds objects to the head's program, for states the workbench cannot
+/// author (packages, entry points, effects).
+fn with_objects(dir: &Path, extra: Vec<sley_mutate::EntityObject>) -> (Program, Names) {
+    let head = Workspace::at(dir).head().unwrap();
+    let mut objects = head.program().objects().to_vec();
+    objects.extend(extra);
+    let program = Program::new(
+        head.program().epoch(),
+        head.program().root(),
+        head.program().workspace(),
+        objects,
+    );
+    let names = Names::build(&program, &name_map(dir));
+    (program, names)
+}
+
+fn object(
+    dir: &Path,
+    byte: u8,
+    label: &str,
+    body: sley_mutate::value::EntityBodyValue,
+) -> sley_mutate::EntityObject {
+    let head = Workspace::at(dir).head().unwrap();
+    sley_mutate::build_entity_object(
+        head.program().epoch(),
+        &sley_mutate::EntityObjectRecord {
+            entity_id: sley_id::EntityId::from_bytes([byte; 32]),
+            body,
+            label: Some(label.to_owned()),
+            semantic_fingerprint: None,
+        },
+    )
+    .unwrap()
+}
+
+#[test]
+fn preserve_compares_constants_as_the_frame_defines_them() {
+    let temp = workspace("frame-constants");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [order_error()],
+          "consts": [{"name": "min_q", "type": "i64", "value": 1}, {"name": "one", "type": "i64", "value": 1}],
+          "fns": [
+            {"fn": "check_quantity", "params": [["q", "i64"]], "returns": "Result<i64,OrderError>",
+             "blocks": [{"name": "entry", "ops": [["m", "const", "min_q"], ["!InvalidQuantity", "if", ["lt", "q", "m"]]], "term": ["ok", "q"]}]},
+            {"fn": "line_total", "params": [["quantity", "i64"], ["price", "i64"]], "returns": "Result<i64,OrderError>",
+             "blocks": [{"name": "entry", "ops": [["!InvalidPrice", "if", ["lt", "price", 0]],
+                                                   ["m", "const", "one"],
+                                                   ["!InvalidQuantity", "if", ["lt", "quantity", "m"]],
+                                                   ["total", "mul?Overflow", "quantity", "price"]],
+                         "term": ["ok", "total"]}]}]}),
+    );
+    // Live, min_q and one are equal: the checks match.
+    let guard = json!({"guard": "check_quantity", "arg": "quantity", "in": ["line_total"]});
+    valid(&temp.path, &json!({"af1": 1, "afx": 1, "ripple": [guard]}));
+    // The frame makes min_q 5: in the candidate the checker tests q < 5,
+    // line_total tests quantity < 1. Not the same check.
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "consts": [{"name": "min_q", "type": "i64", "value": 5}], "ripple": [guard]}),
+        "AGENT_RIPPLE_GUARD_ORDER",
+        &["/ripple/0/in/0: no check in `line_total` is the same as `check_quantity` on `quantity`"],
+    );
+    // Changing both keeps them equal, and the behavior with them.
+    let both = json!({"af1": 1, "afx": 1,
+      "consts": [{"name": "min_q", "type": "i64", "value": 2}, {"name": "one", "type": "i64", "value": 2}],
+      "ripple": [guard]});
+    valid(&temp.path, &both);
+    let without = json!({"af1": 1, "afx": 1,
+      "consts": [{"name": "min_q", "type": "i64", "value": 2}, {"name": "one", "type": "i64", "value": 2}]});
+    let mut expected = Machine::candidate(&temp.path, &without);
+    let mut after = Machine::candidate(&temp.path, &both);
+    for row in grid(&[&quantities(), &prices()]) {
+        assert_eq!(
+            after.call("line_total", &row),
+            expected.call("line_total", &row),
+            "{row:?}"
+        );
+    }
+}
+
+#[test]
+fn entry_reads_the_call_graph_as_the_frame_leaves_it() {
+    let temp = workspace("frame-calls-graph");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "types": [{"name": "OrderError", "variant": ["InvalidQuantity", "Overflow"]}],
+          "fns": [
+            {"fn": "helper", "params": [["n", "i64"]], "returns": "Result<i64,OrderError>",
+             "blocks": [{"name": "entry", "ops": [["!InvalidQuantity", "if", ["lt", "n", 1]]], "term": ["ok", "n"]}]},
+            {"fn": "check", "params": [["q", "i64"]], "returns": "Result<i64,OrderError>",
+             "blocks": [{"name": "entry", "ops": [["v", "call?", "helper", "q"]], "term": ["ok", "v"]}]},
+            {"fn": "total", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
+             "blocks": [{"name": "entry", "term": ["ok", ["mul?Overflow", "quantity", 2]]}]}]}),
+    );
+    let guard = json!({"guard": "check", "arg": "quantity", "in": ["total"], "mode": "entry"});
+    // Live, check does not reach total: the guard applies.
+    valid(&temp.path, &json!({"af1": 1, "afx": 1, "ripple": [guard]}));
+    // The frame redefines helper to call total: check would recurse.
+    let helper = json!({"fn": "helper", "params": [["n", "i64"]], "returns": "Result<i64,OrderError>",
+      "blocks": [{"name": "entry", "ops": [["!InvalidQuantity", "if", ["lt", "n", 1]]], "term": ["cond", ["gt", "n", 100], "big", "small"]},
+                 {"name": "big", "term": ["return", ["call", "total", "n"]]},
+                 {"name": "small", "term": ["ok", "n"]}]});
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [helper], "ripple": [guard]}),
+        "AGENT_RIPPLE_GUARD_ORDER",
+        &[
+            "/ripple/0/in/0: `check` calls `total` (check -> helper -> total): evaluating it at the entry of `total` would never end",
+        ],
+    );
+}
+
+#[test]
+fn entry_refuses_a_function_that_may_already_evaluate_the_checker() {
+    let temp = orders_workspace("double");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [check_quantity(),
+          {"fn": "helper", "params": [["n", "i64"]], "returns": "Result<i64,OrderError>",
+           "blocks": [{"name": "entry", "ops": [["v", "call?", "check_quantity", "n"]], "term": ["ok", "v"]}]},
+          // Through a block parameter.
+          {"fn": "viaparam", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
+           "blocks": [{"name": "entry", "term": ["br", "next", "quantity"]},
+                      {"name": "next", "params": [["q", "i64"]], "ops": [["v", "call?", "check_quantity", "q"]], "term": ["ok", "v"]}]},
+          // Through a helper.
+          {"fn": "viahelper", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
+           "blocks": [{"name": "entry", "ops": [["v", "call?", "helper", "quantity"]], "term": ["ok", "v"]}]}]}),
+    );
+    let obligations = assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "ripple": [
+          {"guard": "check_quantity", "arg": "quantity", "in": ["viaparam", "viahelper"], "mode": "entry"}]}),
+        "AGENT_RIPPLE_GUARD_ORDER",
+        &[
+            "/ripple/0/in/0: `viaparam` already evaluates `check_quantity` at `viaparam.next.v__r`; evaluating it again at entry could run it twice",
+            "/ripple/0/in/1: `viahelper` already evaluates `check_quantity` at `viahelper.entry.v__r`, through helper -> check_quantity",
+        ],
+    );
+    assert_eq!(obligations.len(), 2);
+    // A helper the frame redefines to call the checker counts too.
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [
+          {"fn": "plain", "params": [["n", "i64"]], "returns": "Result<i64,OrderError>",
+           "blocks": [{"name": "entry", "term": ["ok", "n"]}]},
+          {"fn": "viaplain", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>",
+           "blocks": [{"name": "entry", "ops": [["v", "call?", "plain", "quantity"]], "term": ["ok", "v"]}]}]}),
+    );
+    let guard =
+        json!({"guard": "check_quantity", "arg": "quantity", "in": ["viaplain"], "mode": "entry"});
+    valid(&temp.path, &json!({"af1": 1, "afx": 1, "ripple": [guard]}));
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [
+          {"fn": "plain", "params": [["n", "i64"]], "returns": "Result<i64,OrderError>",
+           "blocks": [{"name": "entry", "ops": [["v", "call?", "check_quantity", "n"]], "term": ["ok", "v"]}]}],
+          "ripple": [guard]}),
+        "AGENT_RIPPLE_GUARD_ORDER",
+        &[
+            "`viaplain` already evaluates `check_quantity` at `viaplain.entry.v__r`, through plain -> check_quantity",
+        ],
+    );
+}
+
+#[test]
+fn equal_count_signatures_never_reinterpret_calls_the_frame_writes() {
+    let temp = workspace("equal-count");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [
+          {"fn": "f", "params": [["a", "i64"], ["b", "i64"]], "returns": "Result<i64,ArithmeticError>",
+           "blocks": [{"name": "entry", "term": ["return", ["sub", "a", "b"]]}]},
+          {"fn": "g", "params": [["x", "i64"]], "returns": "Result<i64,ArithmeticError>",
+           "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x", 1]], "term": ["return", "r"]}]}]}),
+    );
+    // r1 writes k(x, y) = f(x, y) and a table row against f(a, b).
+    let r1 = json!({"af1": 1, "afx": 1, "fns": [
+      {"fn": "k", "params": [["x", "i64"], ["y", "i64"]], "returns": "Result<i64,ArithmeticError>",
+       "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x", "y"]], "term": ["return", "r"]}]}],
+      "test_tables": [{"name": "t_k", "fn": "k", "cases": [{"args": [5, 2], "expect": {"Ok": 3}}]},
+                      {"name": "t_f", "fn": "f", "cases": [{"args": [9, 4], "expect": {"Ok": 5}}]}]});
+    let report = valid(&temp.path, &r1);
+    // Each variant is layered on r1's candidate (a new draft each time).
+    let draft = report["handle"].as_str().unwrap().to_owned();
+    // r2 reorders f to (b, a): the carried call and row fit both lists.
+    let reorder = |frame_calls: Option<&str>| {
+        let mut intent = json!({"arity": "f"});
+        if let Some(word) = frame_calls {
+            intent["frame_calls"] = json!(word);
+        }
+        json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["b", "i64"], ["a", "i64"]]}], "ripple": [intent]})
+    };
+    let (status, refusal) = run_json(
+        &temp.path,
+        &["try", "--on", &draft, &reorder(None).to_string()],
+    );
+    assert_eq!(status, 2, "{refusal:#}");
+    assert_eq!(refusal["error"], "AGENT_RIPPLE_HOLE_UNFILLED");
+    let detail = refusal["detail"].as_str().unwrap();
+    for needle in [
+        "/fns/0/blocks/0/ops/0 (k) passes 2 arguments to `f`, which fits both its old parameters (a: i64, b: i64) and its new ones (b: i64, a: i64): say how this frame's calls and tests of `f` are written with \"frame_calls\"",
+        "/test_tables/1/cases/0 (`t_f_0`) passes 2 arguments to `f`",
+    ] {
+        assert!(detail.contains(needle), "missing `{needle}` in {detail}");
+    }
+    // Declared old: rewritten by name, like live code; k keeps its meaning.
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", &draft, &reorder(Some("old")).to_string()],
+    );
+    assert_eq!(status, 0, "{report:#}");
+    let revision = report["draft"].as_str().unwrap().to_owned();
+    let expanded = artifact(&temp.path, &revision, "expanded.json");
+    assert_eq!(
+        expanded["fns"][0]["blocks"][0]["ops"][0],
+        json!(["r", "call", "f", "y", "x"])
+    );
+    let inventory = artifact(&temp.path, &revision, "ripple.json");
+    let edits: Vec<&str> = inventory["intents"][0]["calls"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|call| call["edit"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        edits,
+        ["rewritten", "rewritten", "rewritten"],
+        "{inventory:#}"
+    );
+    let layered = artifact(&temp.path, &revision, "frame.json");
+    let mut after = Machine::candidate(&temp.path, &layered);
+    assert_eq!(after.call("k", &[json!(5), json!(2)]), json!({"Ok": 3}));
+    assert_eq!(after.call("f", &[json!(4), json!(9)]), json!({"Ok": 5}));
+    assert_eq!(after.call("g", &[json!(5)]), json!({"Ok": 4}));
+    // Declared new: kept as written (the author's decision), so k flips.
+    let (status, report) = run_json(
+        &temp.path,
+        &["try", "--on", &draft, &reorder(Some("new")).to_string()],
+    );
+    assert_eq!(status, 1, "the old row now fails: {report:#}");
+    let layered = artifact(&temp.path, report["draft"].as_str().unwrap(), "frame.json");
+    let mut after = Machine::candidate(&temp.path, &layered);
+    assert_eq!(after.call("k", &[json!(5), json!(2)]), json!({"Ok": -3}));
+    // Declared old for a call that passes another count is a hole.
+    let grow = json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"], ["c", "i64"]]}],
+      "fns": [{"fn": "k2", "params": [["x", "i64"]], "returns": "Result<i64,ArithmeticError>",
+               "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x", 1, 2]], "term": ["return", "r"]}]}],
+      "ripple": [{"arity": "f", "value": 0, "frame_calls": "old"}]});
+    assert_refused(
+        &temp.path,
+        &grow,
+        "AGENT_RIPPLE_HOLE_UNFILLED",
+        &[
+            "/fns/0/blocks/0/ops/0 (k2) passes 3 arguments to `f`, but \"frame_calls\": \"old\" says it is written for the old parameters (a: i64, b: i64)",
+        ],
+    );
+    assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "ripple": [{"arity": "f", "frame_calls": "both"}]}),
+        "AGENT_FRAME_INVALID",
+        &[
+            "/ripple/0/frame_calls: \"frame_calls\" says how the calls and tests this frame writes are read",
+        ],
+    );
+}
+
+#[test]
+fn a_restated_caller_in_another_namespace_is_an_exported_boundary() {
+    let temp = workspace("frame-namespace");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "fns": [
+          {"fn": "f", "params": [["a", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "term": ["return", "a"]}]},
+          {"fn": "g", "params": [["x", "i64"]], "returns": "i64",
+           "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]}]}]}),
+    );
+    commit(
+        &temp.path,
+        &json!([
+          {"class": "CreateEntity", "kind": 3, "key": "ns_a", "payload": {"parent": {"variant": "None"}, "members": ["f"]}},
+          {"class": "CreateEntity", "kind": 3, "key": "ns_b", "payload": {"parent": {"variant": "None"}, "members": ["g"]}}]),
+    );
+    let obligations = assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]]}],
+          "fns": [{"fn": "g", "params": [["x", "i64"]], "returns": "i64",
+                   "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"], ["unused", "const", {"type": "i64", "value": 3}]],
+                               "term": ["return", "r"]}]}],
+          "ripple": [{"arity": "f", "value": 0}]}),
+        "AGENT_RIPPLE_EXPORTED_BOUNDARY",
+        &[
+            "/ripple/0: /fns/0/blocks/0/ops/0 (g) calls `f` from namespace ns_b while `f` is in ns_a: ripple does not edit code across a namespace boundary",
+        ],
+    );
+    assert_eq!(obligations.len(), 1);
+    // A call written for the new parameters is the author's, not a crossing.
+    valid(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]]}],
+          "fns": [{"fn": "g", "params": [["x", "i64"]], "returns": "i64",
+                   "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x", 5]], "term": ["return", "r"]}]}],
+          "ripple": [{"arity": "f", "value": 0}]}),
+    );
+}
+
+#[test]
+fn refused_tries_record_their_ripple_counts_in_the_ledger() {
+    let temp = workspace("ledger");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [
+          {"fn": "f", "params": [["a", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "term": ["return", "a"]}]},
+          {"fn": "h", "params": [["a", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "term": ["return", "a"]}]},
+          {"fn": "g", "params": [["x", "i64"]], "returns": "(i64,i64)",
+           "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"], ["s", "call", "h", "x"]], "term": ["return", ["tuple", "r", "s"]]}]}]}),
+    );
+    let mut frame = json!({"af1": 1, "afx": 1,
+      "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]]}, {"fn": "h", "params": [["a", "i64"], ["b", "i64"]]}],
+      "fns": [{"fn": "k", "params": [["y", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "ops": [["t", "call", "f", "y"]], "term": ["return", "t"]}]}],
+      "ripple": [{"arity": "f", "value": 0}, {"arity": "h"}]});
+    let last = |dir: &Path| -> Value {
+        let text = fs::read_to_string(dir.join(".sley/events.jsonl")).unwrap();
+        serde_json::from_str(text.lines().last().unwrap()).unwrap()
+    };
+    let (status, _) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 2);
+    let event = last(&temp.path);
+    assert_eq!(event["refusal"], "AGENT_RIPPLE_HOLE_UNFILLED");
+    assert_eq!(event["afx"]["ripple_intents"], 2, "{event:#}");
+    assert_eq!(event["afx"]["ripple_holes"], 1, "{event:#}");
+    assert_eq!(event["afx"]["ripple_edits"], 2, "{event:#}");
+    frame["ripple"][1]["value"] = json!(0);
+    let (status, _) = run(&temp.path, &["try", &frame.to_string()]);
+    assert_eq!(status, 0);
+    let event = last(&temp.path);
+    assert_eq!(event["afx"]["ripple_holes"], 0);
+    assert_eq!(event["afx"]["ripple_edits"], 3);
+}
+
+#[test]
+fn the_checker_and_matcher_bounds_are_limits() {
+    let temp = orders_workspace("guard-bounds");
+    // A checker with more than 64 blocks, in either mode.
+    let mut blocks: Vec<Value> = (0..65)
+        .map(|n| json!({"name": format!("b{n}"), "term": ["br", format!("b{}", n + 1)]}))
+        .collect();
+    blocks.push(json!({"name": "b65", "term": ["ok", "q"]}));
+    let big = json!({"fn": "big_check", "params": [["q", "i64"]], "returns": "Result<i64,OrderError>", "blocks": blocks});
+    for mode in ["preserve", "entry"] {
+        assert_refused(
+            &temp.path,
+            &guard_frame(
+                &big,
+                &json!({"guard": "big_check", "arg": "quantity", "in": ["discounted"], "mode": mode}),
+            ),
+            "AGENT_RIPPLE_LIMIT",
+            &["/ripple/0/guard: `big_check` has 66 blocks; a checker has at most 64"],
+        );
+    }
+    // A function whose many copies of the check take more than 1024
+    // comparisons to find: a limit, not "no match".
+    let chain = |copies: usize| {
+        let check_ops = |v: &str| {
+            let mut ops = vec![json!(["one", "const", 1]), json!(["t0", "lt", v, "one"])];
+            ops.extend((1..39).map(|i| json!([format!("t{i}"), "not", format!("t{}", i - 1)])));
+            ops
+        };
+        let mut blocks: Vec<Value> = (0..copies)
+            .map(|i| {
+                let next = if i + 1 < copies { format!("b{}", i + 1) } else { "done".to_owned() };
+                json!({"name": format!("b{i}"), "ops": check_ops("quantity"), "term": ["cond", "t38", "bad", next]})
+            })
+            .collect();
+        blocks.push(json!({"name": "bad", "ops": [["v", "variant", "OrderError.InvalidQuantity"], ["r", "err", "v"]], "term": ["return", "r"]}));
+        blocks.push(
+            json!({"name": "done", "ops": [["r", "ok", "quantity"]], "term": ["return", "r"]}),
+        );
+        let checker = json!({"fn": "chk", "params": [["q", "i64"]], "returns": "Result<i64,OrderError>", "blocks": [
+          {"name": "entry", "ops": check_ops("q"), "term": ["cond", "t38", "bad", "good"]},
+          {"name": "bad", "ops": [["v", "variant", "OrderError.InvalidQuantity"], ["r", "err", "v"]], "term": ["return", "r"]},
+          {"name": "good", "ops": [["r", "ok", "q"]], "term": ["return", "r"]}]});
+        (blocks, checker)
+    };
+    // The long function is staged in process: the bound is the
+    // expansion's, and committing 1,200 operations only costs time.
+    let (blocks, checker) = chain(30);
+    let (program, names) = staged(
+        &temp.path,
+        &json!({"af1": 1, "fns": [{"fn": "long_check", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>", "blocks": blocks}]}),
+    );
+    let expansion = sley_agent::afx::expand(
+        &program,
+        &names,
+        &guard_frame(
+            &checker,
+            &json!({"guard": "chk", "arg": "quantity", "in": ["long_check"]}),
+        ),
+    )
+    .unwrap();
+    assert_eq!(
+        expansion.obligations.len(),
+        1,
+        "{:?}",
+        expansion.obligations
+    );
+    assert_eq!(
+        expansion.obligations[0].symbol.symbol(),
+        "AGENT_RIPPLE_LIMIT"
+    );
+    assert_eq!(expansion.obligations[0].at, "/ripple/0/in/0");
+    assert!(
+        expansion.obligations[0].decision.starts_with(
+            "comparing `chk` with the checks of `long_check` takes more than 1024 steps"
+        ),
+        "{}",
+        expansion.obligations[0].decision
+    );
+    // Fewer copies stay within the bound, and every one is replaced.
+    let (blocks, checker) = chain(5);
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "fns": [{"fn": "short_check", "params": [["quantity", "i64"]], "returns": "Result<i64,OrderError>", "blocks": blocks}]}),
+    );
+    let frame = guard_frame(
+        &checker,
+        &json!({"guard": "chk", "arg": "quantity", "in": ["short_check"]}),
+    );
+    let report = valid(&temp.path, &frame);
+    let inventory = artifact(&temp.path, report["draft"].as_str().unwrap(), "ripple.json");
+    assert_eq!(
+        inventory["intents"][0]["functions"][0]["checks"]
+            .as_array()
+            .unwrap()
+            .len(),
+        5
+    );
+    same_behavior(&temp.path, &frame, "short_check", &grid(&[&quantities()]));
+}
+
+#[test]
+fn a_constant_holding_the_function_is_unresolved_dispatch() {
+    let temp = workspace("function-value");
+    commit(
+        &temp.path,
+        &json!({"af1": 1, "fns": [
+          {"fn": "f", "params": [["a", "i64"]], "returns": "i64", "blocks": [{"name": "entry", "term": ["return", "a"]}]},
+          {"fn": "g", "params": [["x", "i64"]], "returns": "i64",
+           "blocks": [{"name": "entry", "ops": [["r", "call", "f", "x"]], "term": ["return", "r"]}]}]}),
+    );
+    commit(
+        &temp.path,
+        &json!([{"class": "CreateEntity", "kind": 9, "key": "fc",
+                 "payload": {"value": {"value_type": "fn(i64)->i64",
+                                       "data": {"variant": "FunctionRef", "value": {"function": "f", "type_arguments": []}}}}}]),
+    );
+    let obligations = assert_refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "patch": [{"fn": "f", "params": [["a", "i64"], ["b", "i64"]]}],
+                "ripple": [{"arity": "f", "value": 0}]}),
+        "AGENT_RIPPLE_HOLE_UNFILLED",
+        &[
+            "/ripple/0: constant `fc` holds `f` as a function value: calls through it are unresolved dispatch",
+        ],
+    );
+    assert_eq!(obligations.len(), 1);
+}
+
+#[test]
+fn a_package_export_of_the_namespace_is_an_exported_boundary() {
+    use sley_mutate::value::{EntityBodyValue, EntityIdSet, NamespaceBody, PackageBody};
+    let temp = arity_workspace("package-namespace");
+    let head = Workspace::at(&temp.path).head().unwrap();
+    let names = names_of(&temp.path, head.program());
+    let f = names.resolve("f").unwrap();
+    let set = |ids: Vec<sley_id::EntityId>| EntityIdSet::from_unsorted(ids).unwrap();
+    let inner = sley_id::EntityId::from_bytes([0xa1; 32]);
+    let outer = sley_id::EntityId::from_bytes([0xa2; 32]);
+    let (program, names) = with_objects(
+        &temp.path,
+        vec![
+            object(
+                &temp.path,
+                0xa1,
+                "inner",
+                EntityBodyValue::Namespace(NamespaceBody {
+                    parent: Some(outer),
+                    members: set(vec![f]),
+                }),
+            ),
+            object(
+                &temp.path,
+                0xa2,
+                "outer",
+                EntityBodyValue::Namespace(NamespaceBody {
+                    parent: None,
+                    members: set(vec![inner]),
+                }),
+            ),
+            object(
+                &temp.path,
+                0xa3,
+                "pkg",
+                EntityBodyValue::Package(PackageBody {
+                    workspace: sley_id::EntityId::from_bytes([0xa4; 32]),
+                    root_namespace: outer,
+                    dependencies: set(Vec::new()),
+                    exports: set(vec![outer]),
+                }),
+            ),
+        ],
+    );
+    let expansion = sley_agent::afx::expand(
+        &program,
+        &names,
+        &new_f(&json!([{"arity": "f", "value": 0}])),
+    )
+    .unwrap();
+    assert_eq!(
+        expansion.obligations.len(),
+        1,
+        "{:?}",
+        expansion.obligations
+    );
+    assert_eq!(
+        expansion.obligations[0].symbol.symbol(),
+        "AGENT_RIPPLE_EXPORTED_BOUNDARY"
+    );
+    assert!(
+        expansion.obligations[0]
+            .decision
+            .starts_with("`f` is exported (in namespace `outer`) by the package `pkg`"),
+        "{}",
+        expansion.obligations[0].decision
+    );
 }

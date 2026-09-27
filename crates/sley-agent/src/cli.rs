@@ -1923,6 +1923,12 @@ fn run_trial(
             status["obligations"] = json!(obligations);
             status["tests"] = provenance.clone();
             global.note("tests", provenance);
+            // An AF1-X frame refused before it compiled still counts what
+            // its expansion did (ripple holes among it).
+            if let Some(stats) = frame::expansion_stats(head.program(), &names, &compile_frame) {
+                status["stats"] = Value::Object(stats.clone());
+                global.note("afx", Value::Object(stats));
+            }
             drafts.record(
                 &mut claim,
                 &Revision {
