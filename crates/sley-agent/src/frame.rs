@@ -2473,7 +2473,9 @@ impl Compiler<'_> {
 
     /// Keeps namespace membership consistent: deleted members leave every
     /// namespace; created top-level entities (not tests) join the named
-    /// namespace, or the only namespace when there is exactly one.
+    /// namespace, or the only namespace when there is exactly one. With
+    /// `"namespace": null` they join none; existing members stay and deleted
+    /// members still leave.
     fn namespaces(&mut self, requested: Option<&Value>) -> Result<()> {
         let namespaces: Vec<(EntityId, NamespaceBody)> = self
             .program
@@ -2487,8 +2489,11 @@ impl Compiler<'_> {
             })
             .collect();
         let target = match requested {
+            Some(Value::Null) => None,
             Some(value) => {
-                let name = string(value, "/namespace")?;
+                let name = value
+                    .as_str()
+                    .ok_or_else(|| frame("/namespace", "a namespace name, or null to join none"))?;
                 Some(self.resolve_top(name, 3, "/namespace")?)
             }
             None if namespaces.len() == 1 => Some(namespaces[0].0),

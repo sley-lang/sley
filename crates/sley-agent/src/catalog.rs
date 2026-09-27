@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 use sley_policy::{CandidateValidationOutput, RefusalLocator};
 
 use crate::explain;
+use crate::locate::{Authored, Source};
 use crate::names::Names;
 use crate::workspace::Program;
 
@@ -134,6 +135,8 @@ pub struct Verdict {
     pub location: Option<String>,
     /// `TestCases` the kernel selected for this candidate.
     pub selected_tests: usize,
+    /// Authored frame positions of a function-wide refusal (`locate`).
+    pub authored: Option<Authored>,
 }
 
 impl Verdict {
@@ -155,6 +158,7 @@ impl Verdict {
                 hint: None,
                 location: None,
                 selected_tests,
+                authored: None,
             };
         }
         let diagnostic = record.diagnostics.first();
@@ -173,6 +177,31 @@ impl Verdict {
             symbol,
             location,
             selected_tests,
+            authored: None,
+        }
+    }
+
+    /// Adds the authored frame positions of a function-wide refusal of a
+    /// candidate made from a frame (advisory; see `crate::locate`).
+    pub fn locate(
+        &mut self,
+        output: &CandidateValidationOutput,
+        source: &Source<'_>,
+        program: &Program,
+        names: &Names,
+    ) {
+        if let (false, Some(locator), Some(frame)) =
+            (self.valid, output.refusal_locator(), source.frame)
+        {
+            self.authored = crate::locate::authored(
+                self.symbol.as_deref().unwrap_or(""),
+                self.phase,
+                locator,
+                program,
+                names,
+                frame,
+                source.sourcemap,
+            );
         }
     }
 
@@ -182,7 +211,7 @@ impl Verdict {
         if self.valid {
             return json!({"valid": true, "decision": self.decision, "selected_tests": self.selected_tests});
         }
-        json!({
+        let mut value = json!({
             "valid": false,
             "decision": self.decision,
             "phase": self.phase,
@@ -192,7 +221,11 @@ impl Verdict {
             "retry": self.retry,
             "where": self.location,
             "hint": self.hint,
-        })
+        });
+        if let Some(authored) = &self.authored {
+            value["authored"] = authored.to_json();
+        }
+        value
     }
 
     /// The one-line summary (`Valid`, `REFUSED ResourceLimit at phase 12 ...`).
@@ -222,6 +255,9 @@ impl Verdict {
         text.push('\n');
         if let Some(location) = &self.location {
             let _ = writeln!(text, "  where: {location}");
+        }
+        if let Some(authored) = &self.authored {
+            let _ = writeln!(text, "  authored: {}", authored.text());
         }
         if let Some(hint) = &self.hint {
             let _ = writeln!(text, "  hint: {hint}");

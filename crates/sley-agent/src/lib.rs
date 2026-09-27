@@ -29,6 +29,7 @@ pub mod genesis;
 pub mod help;
 pub mod hex;
 pub mod layer;
+pub mod locate;
 pub mod names;
 pub mod opcodes;
 pub mod raw;
