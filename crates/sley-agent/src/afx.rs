@@ -993,6 +993,13 @@ enum Term {
         head: Vec<Value>,
         payload: Option<Arg>,
     },
+    /// A trap plain AF1 reads leniently (extra items, a non-word code):
+    /// refused in a block that uses the dialect, kept as written otherwise.
+    LenientTrap {
+        raw: Value,
+        at: String,
+        problem: String,
+    },
     Ok(Arg),
     Fail {
         case: Option<String>,
@@ -1283,34 +1290,48 @@ impl Parser<'_> {
     /// than plain AF1, which ignores what it cannot read here: nothing
     /// written in a trap is dropped silently.
     fn trap(&mut self, items: &[Value], pointer: &str) -> Term {
-        let refused = Term::Trap {
-            head: vec![items[0].clone()],
-            payload: None,
-        };
-        if items.len() > 3 {
-            self.oblige(
-                AgentErrorCode::FrameInvalid,
-                pointer,
+        let problem = if items.len() > 3 {
+            Some((
+                pointer.to_owned(),
                 format!(
                     "`trap` takes [\"trap\"], [\"trap\", code] or [\"trap\", code, payload], not {} items",
                     items.len()
                 ),
-            );
-            return refused;
+            ))
+        } else if items.get(1).is_some_and(|code| !code.is_string()) {
+            Some((
+                format!("{pointer}/1"),
+                "a trap code is a word (unreachable, resource_exhausted, adapter_contract_violation or internal_invariant); a payload goes after it: [\"trap\", \"unreachable\", payload]".to_owned(),
+            ))
+        } else {
+            None
+        };
+        let Some((at, problem)) = problem else {
+            return Term::Trap {
+                head: items[..items.len().min(2)].to_vec(),
+                payload: items
+                    .get(2)
+                    .map(|value| self.arg(value, format!("{pointer}/2"))),
+            };
+        };
+        // A nested operation is the dialect's own form: never dropped.
+        let nested = items[1..].iter().any(|item| {
+            item.as_array()
+                .and_then(|inner| inner.first())
+                .and_then(Value::as_str)
+                .is_some_and(is_opcode_word)
+        });
+        if nested {
+            self.oblige(AgentErrorCode::FrameInvalid, &at, problem);
+            return Term::Trap {
+                head: vec![items[0].clone()],
+                payload: None,
+            };
         }
-        if items.get(1).is_some_and(|code| !code.is_string()) {
-            self.oblige(
-                AgentErrorCode::FrameInvalid,
-                &format!("{pointer}/1"),
-                "a trap code is a word (unreachable, resource_exhausted, adapter_contract_violation or internal_invariant); a payload goes after it: [\"trap\", \"unreachable\", payload]",
-            );
-            return refused;
-        }
-        Term::Trap {
-            head: items[..items.len().min(2)].to_vec(),
-            payload: items
-                .get(2)
-                .map(|value| self.arg(value, format!("{pointer}/2"))),
+        Term::LenientTrap {
+            raw: Value::Array(items.to_vec()),
+            at,
+            problem,
         }
     }
 
@@ -2169,7 +2190,7 @@ fn term_args(term: &Term) -> Vec<&Arg> {
             out
         }
         Term::Trap { payload, .. } | Term::Fail { payload, .. } => payload.iter().collect(),
-        Term::Raw(_) => Vec::new(),
+        Term::Raw(_) | Term::LenientTrap { .. } => Vec::new(),
     }
 }
 
@@ -2843,7 +2864,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
             Term::Br { target, .. } => short(target),
             Term::Cond { then, other, .. } => short(then) || short(other),
             Term::Switch { cases, .. } => cases.iter().any(|(_, target)| short(target)),
-            Term::Return(_) | Term::Trap { .. } | Term::Raw(_) => false,
+            Term::Return(_) | Term::Trap { .. } | Term::LenientTrap { .. } | Term::Raw(_) => false,
         };
         stmts || term || term_args(&block.term).into_iter().any(extended_arg)
     }
@@ -4569,6 +4590,21 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 }
                 self.set_term(st.piece, Tpl::List(items), &pointer, Role::Term, Vec::new());
             }
+            // Plain AF1 reads this trap leniently; the dialect's strict form
+            // binds only blocks that use the dialect. A trap has no
+            // successors, so passing it on leaves the graph complete.
+            Term::LenientTrap { raw, at, problem } => {
+                if self.uses_dialect(block) {
+                    self.oblige(AgentErrorCode::FrameInvalid, at, problem.clone());
+                }
+                self.set_term(
+                    st.piece,
+                    Tpl::Lit(raw.clone()),
+                    &pointer,
+                    Role::Term,
+                    Vec::new(),
+                );
+            }
             Term::Raw(value) => {
                 self.degraded = true;
                 self.set_term(
@@ -4611,7 +4647,7 @@ impl<'c, 'a> FnExp<'c, 'a> {
                 String::new()
             };
             let variant = self.error_variant().map_or_else(
-                || "`{function}` has no variant error type".to_owned(),
+                || format!("`{function}` has no variant error type"),
                 |(variant, cases)| {
                     format!(
                         "the cases of {variant} are {}",

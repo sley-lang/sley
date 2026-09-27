@@ -2547,14 +2547,23 @@ fn a_trap_never_hides_content_or_relaxes_the_loop_edge_rule() {
         {"name": "body", "params": [["acc", "i64"], ["i", "i64"]], "ops": [["next", "add?Overflow", "acc", "i"]], "term": ["br", "loop", "next"]},
         {"name": "done", "params": [["acc", "i64"]], "term": ["ok", "acc"]},
         {"name": "never", "unreachable": true, "term": ["trap", "unreachable", "n", "ignored"]}]}]});
+    // The trap block uses no dialect form, so it keeps plain AF1's reading
+    // (W4-A1); the loop-edge rule holds regardless.
     let (symbol, detail) = refused(&temp.path, &frame);
-    assert_eq!(symbol, "AGENT_FRAME_INVALID", "{detail}");
+    assert_eq!(symbol, "AGENT_X_SCOPE", "{detail}");
     assert!(
-        detail.starts_with("/fns/0/blocks/4/term: `trap` takes [\"trap\"], [\"trap\", code] or [\"trap\", code, payload], not 4 items"),
+        detail.starts_with(
+            "/fns/0/blocks/2/term: block `loop` takes `i: i64`, and this edge goes back into `loop`"
+        ),
         "{detail}"
     );
+    // In a block that uses the dialect the same trap is refused.
+    let mut strict = frame.clone();
+    strict["fns"][0]["blocks"][4] = json!({"name": "never", "unreachable": true,
+        "ops": [["m", "add", "n", 1]], "term": ["trap", "unreachable", "m", "ignored"]});
+    let (_, detail) = refused(&temp.path, &strict);
     assert!(
-        detail.contains("[AGENT_X_SCOPE] /fns/0/blocks/2/term: block `loop` takes `i: i64`, and this edge goes back into `loop`"),
+        detail.contains("/fns/0/blocks/4/term: `trap` takes [\"trap\"], [\"trap\", code] or [\"trap\", code, payload], not 4 items"),
         "{detail}"
     );
     // W3-DOC8: an operation where the code goes is refused, not dropped; a
@@ -2693,5 +2702,50 @@ fn a_kernel_refusal_analyzes_its_function_once_and_names_its_frame() {
         value["verdict"]["authored_frame"],
         json!(format!(".sley/drafts/{draft}/r2/frame.json")),
         "{value}"
+    );
+}
+
+#[test]
+fn a_plain_block_keeps_plain_af1_trap_reading_under_a_dialect_follow_up() {
+    // W4-A1: a plain draft whose block ends ["trap", 5], then tests added
+    // as a table: the untouched plain block is not held to the dialect.
+    let temp = workspace("plain-trap");
+    let plain = json!({"af1": 1, "fns": [{"fn": "p1", "params": [["a", "i64"]], "returns": "i64", "blocks": [
+        {"name": "entry", "ops": [["z", "const", {"type": "i64", "value": 0}], ["c", "lt", "a", "z"]], "term": ["cond", "c", "bad", "good"]},
+        {"name": "bad", "term": ["trap", 5]},
+        {"name": "good", "term": ["return", "a"]}]}]});
+    let (status, text) = run(&temp.path, &["try", &plain.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    let follow_up = json!({"af1": 1, "afx": 1, "test_tables": [{"name": "t", "fn": "p1",
+        "cases": [{"args": [3], "expect": 3}]}]});
+    let (status, text) = run(&temp.path, &["try", "--on", "d1", &follow_up.to_string()]);
+    assert_eq!(status, 0, "{text}");
+    assert!(text.contains("tests: 1/1 passed"), "{text}");
+    // A block that uses the dialect is held to the strict form.
+    let mut extended = plain.clone();
+    extended["afx"] = json!(1);
+    extended["fns"][0]["blocks"][1] =
+        json!({"name": "bad", "ops": [["m", "add", "a", 1]], "term": ["trap", 5]});
+    assert_refused(
+        &temp.path,
+        &extended,
+        "AGENT_FRAME_INVALID",
+        &["/fns/0/blocks/1/term/1: a trap code is a word"],
+    );
+}
+
+#[test]
+fn a_fail_case_refusal_names_the_function() {
+    // W4-A2: the function's name, not a placeholder.
+    let temp = workspace("fail-no-variant");
+    let (symbol, detail) = refused(
+        &temp.path,
+        &json!({"af1": 1, "afx": 1, "fns": [{"fn": "o2", "params": [["a", "i64"]], "returns": "Result<i64,ArithmeticError>",
+            "blocks": [{"name": "entry", "term": ["fail", "X"]}]}]}),
+    );
+    assert_eq!(symbol, "AGENT_X_PROPAGATION", "{detail}");
+    assert_eq!(
+        detail,
+        "/fns/0/blocks/0/term: `X` is not a case of the error type of `o2` (`o2` has no variant error type)"
     );
 }
