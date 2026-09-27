@@ -213,7 +213,9 @@ Compilation, in one pass:
    named `k_<value>`.
 7. Namespace membership stays consistent. Deleted members leave every
    namespace, and created top-level entities (not tests) join the named
-   namespace, or the only namespace when there is exactly one.
+   namespace, or the only namespace when there is exactly one. With
+   `"namespace": null` they join no namespace; existing members stay, and
+   deleted members still leave.
 8. The planned operations are emitted as creates (in derivation order), then
    replaces (only for changed bodies), then deletes. Every precondition is
    bound in operation order: `ExpectedIdentityAbsent` for creates, and the
